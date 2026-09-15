@@ -75,6 +75,13 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    /// Set the runtime id reported by the exporter. libdatadog generates a fresh UUID when it is
+    /// left unset.
+    fn set_runtime_id(mut slf: PyRefMut<'_, Self>, runtime_id: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_runtime_id(runtime_id);
+        Ok(slf.into())
+    }
+
     fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_process_tags(process_tags);
         Ok(slf.into())
@@ -207,6 +214,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_agentless_stats_endpoint(
+        mut slf: PyRefMut<'_, Self>,
+        url: &'_ str, // full stats intake url
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_agentless_stats_endpoint(url);
+        Ok(slf.into())
+    }
+
     fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_endpoint(url);
         Ok(slf.into())
@@ -254,6 +269,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_restart_after_fork(
+        mut slf: PyRefMut<'_, Self>,
+        restart_after_fork: bool,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_restart_after_fork(restart_after_fork);
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
     /// The builder shouldn't be reused.
@@ -261,7 +284,7 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
-        let shared_runtime = shared_runtime.as_arc().clone();
+        let shared_runtime = shared_runtime.as_arc()?;
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
@@ -317,12 +340,11 @@ impl TraceExporterPy {
         &self,
         worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
     ) -> PyResult<()> {
-        self.inner
-            .as_ref()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
+            "TraceExporter has already been consumed",
+        ))?;
+        let telemetry_handle = worker.map(|worker| worker.clone_handle()).transpose()?;
+        exporter.set_telemetry_handle(telemetry_handle);
         Ok(())
     }
 

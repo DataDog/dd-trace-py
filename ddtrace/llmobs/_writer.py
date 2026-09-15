@@ -3,10 +3,8 @@ import csv
 import json
 import os
 import tempfile
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-from typing import TypedDict
 from typing import Union
 from typing import cast
 import urllib
@@ -40,6 +38,11 @@ from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._eval_metric import LLMObsEvaluationMetricEvent as LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._event_types import EvaluatorInferResponse as EvaluatorInferResponse
+from ddtrace.llmobs._event_types import LLMObsExperimentEvalMetricEvent as LLMObsExperimentEvalMetricEvent
+from ddtrace.llmobs._event_types import LLMObsSpanData as LLMObsSpanData
+from ddtrace.llmobs._event_types import LLMObsSpanEvent as LLMObsSpanEvent
+from ddtrace.llmobs._event_types import _LLMObsSpanEventOptional as _LLMObsSpanEventOptional
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
@@ -51,88 +54,11 @@ from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import HTTPConnection
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.types import ExperimentConfigType
-from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import ExperimentConfigType as ExperimentConfigType
 from ddtrace.version import __version__
 
 
-if TYPE_CHECKING:
-    from ddtrace.llmobs.types import ExperimentConfigType
-    from ddtrace.llmobs.types import _SpanLink
-
-
 logger = get_logger(__name__)
-
-
-class LLMObsSpanData(TypedDict, total=False):
-    """Structure of LLMObs span data attached to APM spans."""
-
-    name: str
-    parent_id: str
-    pagent_name: str
-    pagent_span_id: str
-    trace_id: str
-    ml_app: str
-    session_id: str
-    tags: dict[str, str]
-    metrics: dict[str, Any]
-    span_links: list["_SpanLink"]
-    config: "ExperimentConfigType"
-    meta: _Meta
-    _dd: dict[str, str]
-
-
-class _LLMObsSpanEventOptional(TypedDict, total=False):
-    session_id: str
-    service: str
-    status_message: str
-    collection_errors: list[str]
-    span_links: list["_SpanLink"]
-    config: "ExperimentConfigType"
-
-
-class LLMObsSpanEvent(_LLMObsSpanEventOptional):
-    span_id: str
-    trace_id: str
-    parent_id: str
-    tags: list[str]
-    name: str
-    start_ns: int
-    duration: int
-    status: str
-    meta: _Meta
-    metrics: dict[str, Any]
-    _dd: dict[str, str]
-
-
-class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
-    metric_source: str
-    span_id: str
-    trace_id: str
-    timestamp_ms: int
-    metric_type: str
-    label: str
-    categorical_value: str
-    score_value: float
-    boolean_value: bool
-    json_value: dict[str, JSONType]
-    status: str
-    error: Optional[dict[str, str]]
-    tags: list[str]
-    experiment_id: str
-    reasoning: str
-    assessment: str
-    metadata: dict[str, JSONType]
-    eval_source_type: str
-
-
-class EvaluatorInferResponse(TypedDict, total=False):
-    """Response from the evaluator_infer API endpoint."""
-
-    value: JSONType
-    assessment: Optional[str]
-    reasoning: Optional[str]
-    status: Optional[str]
 
 
 _SHOULD_USE_AGENTLESS: Optional[bool] = None
@@ -225,8 +151,11 @@ class BaseLLMObsWriter(PeriodicService):
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, Response),
+            initial_wait=0.618 * self._timeout / (1.618**self.RETRY_ATTEMPTS) / 2,
+            # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
+            until=lambda result: (
+                isinstance(result, Response) and result.status not in (408, 429) and result.status < 500
+            ),
         )(self._send_payload)
 
     def start(self, *args, **kwargs):
@@ -287,9 +216,16 @@ class BaseLLMObsWriter(PeriodicService):
         if not enc_llm_events:
             return
         try:
-            self._send_payload_with_retry(enc_llm_events, len(events))
-        except Exception:
-            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
+            response = self._send_payload_with_retry(enc_llm_events, len(events))
+            if response.status >= 300:
+                telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="http_error")
+        except Exception as error:
+            error_type = (
+                "http_error"
+                if isinstance(error, RetryError) and error.args and isinstance(error.args[0], Response)
+                else "connection_error"
+            )
+            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error=error_type)
             logger.error(
                 "failed to send %d LLMObs %s events to %s",
                 len(events),
@@ -314,7 +250,6 @@ class BaseLLMObsWriter(PeriodicService):
                     resp.read(),
                     extra={"send_to_telemetry": False},
                 )
-                telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
             return Response.from_http_response(resp)
@@ -393,16 +328,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         try:
             return self._request_with_retry(method, path, body, timeout)
         except RetryError as e:
-            # Return the last response if all retries were exhausted on 5xx
+            # Return the last response if all retries were exhausted on a retryable HTTP error.
             if isinstance(e.args[0], Response):
                 return e.args[0]
             raise
 
     @fibonacci_backoff_with_jitter(
         attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
-        # Retries on 5xx server errors and connection failures, returns immediately on 2xx/4xx
+        # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
         initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
-        until=lambda result: isinstance(result, Response) and result.status < 500,
+        until=lambda result: isinstance(result, Response) and result.status not in (408, 429) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {"Content-Type": "application/json", **self._auth_headers()}

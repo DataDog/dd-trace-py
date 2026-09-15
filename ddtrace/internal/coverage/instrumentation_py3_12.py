@@ -65,6 +65,14 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
         sys.version.split()[0],
     )
 
+# TODO(py-315): Accurate import-hook injection (_DD_COVERAGE_ACCURATE_IMPORTS) is unsupported on
+# 3.15+ because the `bytecode` library's CALL codegen segfaults on exec under CPython 3.15.0rc1,
+# which is what ddtrace.internal.bytecode_injection.INJECTION_ASSEMBLY relies on to splice hook
+# calls after import opcodes (see import_instrumentation_py3_12.inject_import_hooks). Re-enabling
+# this needs either an upstream `bytecode` fix, or reimplementing injection on sys.monitoring
+# INSTRUCTION events. Static import tracking (iter_import_events/import_names_by_line) already
+# works on 3.15+ and is used as the fallback.
+
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
 # NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
@@ -153,6 +161,14 @@ def _rearm_all_events() -> None:
     this no longer depends on careful timing to be safe — it cannot affect any other tool's
     disabled-event state regardless of when it runs.
     """
+    # Nothing to re-arm unless we actually own a registered tool slot. set_local_events() requires
+    # an integer tool id, so a None _DD_TOOL_ID (no slot ever claimed, or the slot was freed) would
+    # otherwise raise "'NoneType' object cannot be interpreted as an integer". In production this
+    # only happens when nothing was instrumented (so _CODE_HOOKS is empty and the loop is a no-op
+    # anyway); the guard also keeps us safe if our slot was released out from under us.
+    if _DD_TOOL_ID is None or sys.monitoring.get_tool(_DD_TOOL_ID) != "datadog":
+        return
+
     for code in _CODE_HOOKS:
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, 0)
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)
@@ -405,7 +421,7 @@ def _extract_lines_and_imports(
     injection needs richer bytecode objects, but conservative import metadata and line extraction can be decoded from
     CPython wordcode directly with much lower overhead.
 
-    AIDEV-NOTE: This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
+    This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
     CACHE entries must not enter the argument history; 3.14+ LOAD_SMALL_INT stores the integer directly instead of
     indexing co_consts; dis.findlinestarts() owns the version-specific line table decoding; and 3.15+ PEP 810
     bit-packs IMPORT_NAME's co_names index behind lazy-import flag bits.
@@ -493,7 +509,7 @@ def _extract_lines_and_imports(
                 else:
                     import_names[line] = (current_import_package or package, (import_from_name,))
 
-            # AIDEV-NOTE: Decode argument value and shift history after opcode handling. IMPORT_NAME reads
+            # Decode argument value and shift history after opcode handling. IMPORT_NAME reads
             # prev_prev_value before this block because the import sequence is level, fromlist, IMPORT_NAME.
             if opcode == LOAD_CONST:
                 decoded = code.co_consts[current_arg]

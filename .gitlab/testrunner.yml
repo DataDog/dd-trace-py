@@ -21,6 +21,8 @@ variables:
     # Default to 4 when `-n auto` is used
     # DEV: auto/logical doesn't work well in k8s so we manually set it
     PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
+    PIP_RETRIES: "10"
+    PIP_DEFAULT_TIMEOUT: "60"
   artifacts:
     when: always
     paths:

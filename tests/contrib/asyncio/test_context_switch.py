@@ -1,11 +1,15 @@
 import asyncio
 from contextvars import ContextVar
 from contextvars import copy_context
+import socket
 import sys
+import threading
+from types import SimpleNamespace
 
 import pytest
 
 from ddtrace.contrib.internal.asyncio import _context_switch
+from ddtrace.contrib.internal.asyncio import _context_switch_uvloop
 from ddtrace.contrib.internal.asyncio.patch import _wrapped_create_task as _wrapped_trace_create_task
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
@@ -13,6 +17,12 @@ from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
+
+
+def _new_uvloop_event_loop():
+    uvloop = pytest.importorskip("uvloop")
+
+    return uvloop.new_event_loop()
 
 
 @pytest.fixture
@@ -42,6 +52,21 @@ def context_switches(tracer, asyncio_patch_state):
         yield switches
     finally:
         core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+
+
+@pytest.fixture
+def uvloop_dispatches(asyncio_patch_state, monkeypatch):
+    """Record only calls to core.dispatch made by the uvloop wrapper."""
+    marker = ContextVar("uvloop_context_switch_marker", default=None)
+    dispatched_contexts = []
+
+    def record_context_switch(_event):
+        dispatched_contexts.append(marker.get())
+
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
+    monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
+    patch()
+    return marker, dispatched_contexts
 
 
 @pytest.mark.parametrize("fallback_required", [False, True])
@@ -226,14 +251,260 @@ def test_callback_failure_resynchronizes_before_exception_handler(context_switch
     assert handled == [("ambient", "ambient")]
 
 
-@pytest.mark.asyncio
-async def test_task_switches_publish_the_resumed_context(tracer, context_switches):
-    """Publish each resumed task's context and detach it before another task runs."""
+def _run_uvloop(loop, timeout=5):
+    """Run until a callback stops the loop, failing after a timeout instead of hanging CI."""
+    overran = []
+
+    def give_up():
+        overran.append(True)
+        loop.call_soon_threadsafe(loop.stop)
+
+    # A thread rather than loop.call_later: scheduling from here would add a publication
+    # to the ones these tests count, and would do it after the ambient marker is set.
+    watchdog = threading.Timer(timeout, give_up)
+    watchdog.start()
+    try:
+        loop.run_forever()
+    finally:
+        watchdog.cancel()
+
+    assert not overran, "the loop was still running after %s seconds" % timeout
+
+
+def _schedule(loop, entry_point, callback, context):
+    """Queue a callback through one of uvloop's Python scheduling entry points."""
+    if entry_point == "call_soon_threadsafe":
+        # It has its own wrapper and runs on its own thread, so it is scheduled separately.
+        scheduler = threading.Thread(target=loop.call_soon_threadsafe, args=(callback,), kwargs={"context": context})
+        scheduler.start()
+        scheduler.join()
+    elif entry_point == "call_later":
+        loop.call_later(0, callback, context=context)
+    elif entry_point == "call_at":
+        loop.call_at(loop.time(), callback, context=context)
+    else:
+        loop.call_soon(callback, context=context)
+
+
+# Every Loop method the shim covers, listed here so that dropping one from _patch shows
+# up as a coverage gap rather than as one less method to check.
+_UVLOOP_WRAPPERS = (
+    ("call_soon", _context_switch_uvloop._wrapped_call_soon),
+    ("call_soon_threadsafe", _context_switch_uvloop._wrapped_call_soon_threadsafe),
+    ("call_later", _context_switch_uvloop._wrapped_call_later),
+    ("add_reader", _context_switch_uvloop._wrapped_add_reader),
+    ("add_writer", _context_switch_uvloop._wrapped_add_writer),
+    ("add_signal_handler", _context_switch_uvloop._wrapped_add_signal_handler),
+    ("call_exception_handler", _context_switch_uvloop._wrapped_call_exception_handler),
+    ("run_forever", _context_switch_uvloop._wrapped_run_forever),
+)
+
+
+def _wrapper_state(uvloop):
+    """Which Loop methods currently carry this module's own wrapper."""
+    return {
+        method: getattr(getattr(uvloop.Loop, method, None), "_self_wrapper", None) is wrapper
+        for method, wrapper in _UVLOOP_WRAPPERS
+    }
+
+
+# call_at is only covered because uvloop implements it by calling call_later. Keeping it
+# here catches both a publication lost if that stops being true and a duplicate one if
+# call_at is ever wrapped too.
+@pytest.mark.parametrize("entry_point", ["call_soon", "call_soon_threadsafe", "call_later", "call_at"])
+def test_uvloop_callbacks_publish_the_captured_context(uvloop_dispatches, entry_point):
+    """Every scheduling entry point enters the callback context and restores the ambient one."""
+    marker, dispatched_contexts = uvloop_dispatches
+    loop = _new_uvloop_event_loop()
+    try:
+        marker.set("callback")
+        callback_context = copy_context()
+        # The ambient marker is set after scheduling on purpose: only a snapshot taken as
+        # run_forever is entered can see it. One taken at schedule or patch time would
+        # report "callback" here instead.
+        _schedule(loop, entry_point, loop.stop, callback_context)
+        marker.set("ambient")
+        _run_uvloop(loop)
+
+        assert dispatched_contexts == ["callback", "ambient", "ambient"]
+    finally:
+        loop.close()
+
+
+def test_uvloop_reader_callbacks_publish_the_captured_context(uvloop_dispatches):
+    """add_reader keeps the Context of its registration, not of the run that dispatches it."""
+    marker, dispatched_contexts = uvloop_dispatches
+    loop = _new_uvloop_event_loop()
+    reader, writer = socket.socketpair()
+    try:
+        marker.set("callback")
+        copy_context().run(loop.add_reader, reader.fileno(), loop.stop)
+        marker.set("ambient")
+        writer.send(b"!")
+        _run_uvloop(loop)
+
+        assert dispatched_contexts[:2] == ["callback", "ambient"]
+        assert dispatched_contexts[-1] == "ambient"
+    finally:
+        loop.remove_reader(reader.fileno())
+        loop.close()
+        reader.close()
+        writer.close()
+
+
+def test_uvloop_callback_failure_reports_the_callback_context(uvloop_dispatches):
+    """uvloop runs the exception handler in the failed callback's context, not the ambient one."""
+    marker, dispatched_contexts = uvloop_dispatches
+    loop = _new_uvloop_event_loop()
+    handled = []
+
+    def application_callback():
+        raise RuntimeError("application failure")
+
+    def exception_handler(_loop, _context):
+        handled.append((marker.get(), dispatched_contexts[-1]))
+        loop.stop()
+
+    try:
+        loop.set_exception_handler(exception_handler)
+        marker.set("callback")
+        callback_context = copy_context()
+        loop.call_soon(application_callback, context=callback_context)
+        marker.set("ambient")
+        _run_uvloop(loop)
+
+        # The handler runs in the failed callback's context, and that is what was published.
+        assert handled == [("callback", "callback")]
+        assert dispatched_contexts[-1] == "ambient"
+    finally:
+        loop.close()
+
+
+def test_uvloop_uninstall_in_callback_still_restores_the_ambient_context(uvloop_dispatches):
+    """Uninstalling during a callback must not leave an entry publication without its exit."""
+    marker, dispatched_contexts = uvloop_dispatches
+    loop = _new_uvloop_event_loop()
+    observed = []
+    try:
+        marker.set("callback")
+        callback_context = copy_context()
+
+        def callback():
+            observed.append(list(dispatched_contexts))
+            unpatch()
+            loop.stop()
+
+        loop.call_soon(callback, context=callback_context)
+        marker.set("ambient")
+        _run_uvloop(loop)
+
+        assert observed == [["callback"]]
+        assert dispatched_contexts == ["callback", "ambient", "ambient"]
+    finally:
+        loop.close()
+
+
+def test_uvloop_rejected_nested_run_publishes_nothing(uvloop_dispatches):
+    """A refused re-entry publishes no switch and leaves the outer run's snapshot intact."""
+    marker, dispatched_contexts = uvloop_dispatches
+    loop = _new_uvloop_event_loop()
+    rejected = []
+
+    def nested_run():
+        with pytest.raises(RuntimeError):
+            loop.run_forever()
+        rejected.append(True)
+
+    try:
+        marker.set("callback")
+        callback_context = copy_context()
+        loop.call_soon(nested_run, context=callback_context)
+        loop.call_soon(loop.stop, context=callback_context)
+        marker.set("ambient")
+        _run_uvloop(loop)
+
+        assert rejected == [True]
+        assert dispatched_contexts == ["callback", "ambient", "callback", "ambient", "ambient"]
+    finally:
+        loop.close()
+
+
+def test_uvloop_late_patch_skips_the_run_in_progress(asyncio_patch_state, monkeypatch):
+    """Do not emit half a switch for a running loop; start at its next complete run."""
+    marker = ContextVar("late_patch_marker", default=None)
+    dispatched_contexts = []
+
+    def record_context_switch(_event):
+        dispatched_contexts.append(marker.get())
+
+    async def main(loop):
+        # This run started before patching, so it has no Context to restore to.
+        marker.set("ambient")
+        monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
+        monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
+        patch()
+
+        marker.set("callback")
+        callback_context = copy_context()
+        done = loop.create_future()
+        loop.call_soon(done.set_result, None, context=callback_context)
+        marker.set("ambient")
+        await done
+
+    loop = _new_uvloop_event_loop()
+    try:
+        # wait_for, not a bare run: this exercises the pass-through branch, where a
+        # regression queues nothing at all and the loop would otherwise never return.
+        loop.run_until_complete(asyncio.wait_for(main(loop), 5))
+        assert dispatched_contexts == []
+
+        marker.set("next_callback")
+        callback_context = copy_context()
+        loop.call_soon(loop.stop, context=callback_context)
+        marker.set("next_ambient")
+        _run_uvloop(loop)
+
+        assert dispatched_contexts == ["next_callback", "next_ambient", "next_ambient"]
+    finally:
+        loop.close()
+
+
+@pytest.mark.parametrize("fallback_required", [False, True])
+def test_uvloop_scheduling_hooks_follow_install_state(asyncio_patch_state, monkeypatch, fallback_required):
+    """Install uvloop wrappers only for fallback runtimes and remove them without residue."""
+    uvloop = pytest.importorskip("uvloop")
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: fallback_required)
+    unwrapped = {method: False for method, _ in _UVLOOP_WRAPPERS}
+    installed = {method: fallback_required for method, _ in _UVLOOP_WRAPPERS}
+
+    assert _wrapper_state(uvloop) == unwrapped
+
+    patch()
+    assert _wrapper_state(uvloop) == installed
+
+    unpatch()
+    assert _wrapper_state(uvloop) == unwrapped
+
+    patch()
+    assert _wrapper_state(uvloop) == installed
+
+
+@pytest.mark.parametrize("loop_factory", [asyncio.new_event_loop, _new_uvloop_event_loop], ids=["asyncio", "uvloop"])
+def test_task_switches_publish_the_resumed_context(tracer, context_switches, loop_factory):
+    """Both loop implementations expose each resumed child span before returning to ambient."""
 
     async def child(name):
         with tracer.trace(name) as span:
             await asyncio.sleep(0)
             assert context_switches[-1] is span
 
-    await asyncio.gather(child("first"), child("second"))
-    assert None in context_switches
+    async def main():
+        await asyncio.gather(child("first"), child("second"))
+
+    loop = loop_factory()
+    try:
+        with tracer.trace("ambient") as ambient:
+            loop.run_until_complete(main())
+            assert context_switches[-1] is ambient
+    finally:
+        loop.close()

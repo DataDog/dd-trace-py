@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import builtins
 import json
 import logging
 import os
@@ -25,6 +26,7 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
@@ -1347,6 +1349,55 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                 assert expected_log in caplog.text
 
 
+@pytest.mark.parametrize("leading_ows", [" ", "\t", "\t "])
+@pytest.mark.parametrize("trailing_ows", [" ", "\t", " \t"])
+def test_extract_traceparent_normalizes_ows(leading_ows, trailing_ows):
+    traceparent = "00-%s-00f067aa0ba902b7-01" % TRACE_ID_HEX
+
+    context = _TraceContext._extract({_HTTP_HEADER_TRACEPARENT: leading_ows + traceparent + trailing_ows})
+
+    assert context is not None
+    assert context._meta["traceparent"] == traceparent
+    assert context._traceparent == traceparent
+
+
+def test_matching_secondary_tracecontext_preserves_random_trace_flag():
+    traceparent = "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-02"
+    headers = {
+        **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
+        _HTTP_HEADER_TRACEPARENT: traceparent,
+    }
+
+    with override_global_config(
+        dict(_propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT])
+    ):
+        context = HTTPPropagator.extract(headers)
+
+    assert context._meta[W3C_TRACEPARENT_KEY] == traceparent
+    assert context._trace_flags == 0x3
+
+
+def test_matching_secondary_tracecontext_uses_validated_tracestate():
+    raw_tracestate = "ot=rv:not-hex;th:8," + ",".join("vendor{}=value".format(i) for i in range(32))
+    headers = {
+        **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
+        _HTTP_HEADER_TRACEPARENT: TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
+        _HTTP_HEADER_TRACESTATE: raw_tracestate,
+    }
+    tracecontext = _TraceContext._extract(headers)
+    assert tracecontext is not None
+
+    with override_global_config(
+        dict(_propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT])
+    ):
+        context = HTTPPropagator.extract(headers)
+
+    assert context._meta[W3C_TRACESTATE_KEY] == tracecontext._meta[W3C_TRACESTATE_KEY]
+    assert context._meta[W3C_TRACESTATE_KEY] != raw_tracestate
+    assert "rv:not-hex" not in context._meta[W3C_TRACESTATE_KEY]
+    assert len(context._meta[W3C_TRACESTATE_KEY].split(",")) <= 32
+
+
 @pytest.mark.parametrize(
     "ts_string,expected_tuple,expected_logging,expected_exception",
     [
@@ -2324,6 +2375,7 @@ EXTRACT_FIXTURES = [
             "sampling_priority": 1,
             "dd_origin": "synthetics",
             "meta": {
+                "traceparent": TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
                 "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
@@ -2379,7 +2431,10 @@ EXTRACT_FIXTURES = [
             "trace_id": 9291375655657946024,
             "span_id": 10,
             "sampling_priority": None,
-            "meta": {LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+            "meta": {
+                "traceparent": "00-000000000000000080f198ee56343ba8-000000000000000a-01",
+                LAST_DD_PARENT_ID_KEY: "000000000000000f",
+            },
         },
     ),
     (
@@ -2887,6 +2942,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             # in the styles configuration
             meta={
                 "_dd.origin": "synthetics",
+                "traceparent": TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
@@ -3893,3 +3949,30 @@ def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     assert context_without_priority.dd_origin == "rum"
     # The key assertion: _dd.p.dm should NOT be present during extraction
     assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_without_priority._meta
+
+
+def test_tracestate_does_not_import_under_restricted_builtins():
+    """Regression: _tracestate must not call py.import after
+    _init_tracestate_helpers has warmed the OnceLock caches.
+    """
+    ctx = Context(
+        trace_id=1,
+        span_id=1,
+        meta={
+            W3C_TRACESTATE_KEY: "dd=s:1",
+            W3C_TRACEPARENT_KEY: "00-00000000000000000000000000000001-0000000000000001-01",
+        },
+    )
+
+    real_import = builtins.__import__
+
+    def _restricted_import(name: str, *args: object, **kwargs: object) -> object:
+        if name.startswith("ddtrace"):
+            raise ImportError(f"sandbox blocked import of {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    with mock.patch.object(builtins, "__import__", side_effect=_restricted_import):
+        ts = ctx._tracestate
+
+    assert isinstance(ts, str)
+    assert "dd=" in ts

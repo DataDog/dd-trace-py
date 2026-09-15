@@ -1880,3 +1880,106 @@ async def test_wrapping_context_async_recursive() -> None:
     returned = [n for ev, n in values if ev == "return"]
     assert entered == [5, 4, 3, 2, 1, 0]
     assert returned == [0, 1, 2, 3, 4, 5]
+
+
+_STORAGE_PREV = "__dd_wrapping_context_prev__"
+
+
+def _storage_chain_length(storage):
+    length = 0
+    while isinstance(storage, dict):
+        length += 1
+        storage = storage.get(_STORAGE_PREV)
+    return length
+
+
+class _Blocked(BaseException):
+    """BaseException-derived, like an AppSec blocking decision."""
+
+
+def _storage_target(value):
+    if value == "raise":
+        raise ValueError("body failed")
+    return value
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        "enter",
+        pytest.param("return", marks=pytest.mark.xfail(reason="APPSEC-69961", strict=True)),
+        pytest.param("exit", marks=pytest.mark.xfail(reason="APPSEC-69961", strict=True)),
+    ],
+)
+def test_a_raising_context_releases_its_storage(where):
+    """A context that raises is skipped by the machinery that would have popped its storage.
+
+    On __enter__ it never lands in the universal context's `entered` list, which this fixes. On
+    __return__ and __exit__ the storage leaks too, but releasing it there would make _exit and
+    on_py_unwind read the flag off the enclosing call's storage; tracked in APPSEC-69961.
+    """
+
+    class _Raiser(WrappingContext):
+        def __enter__(self):
+            result = super().__enter__()
+            if where == "enter":
+                raise _Blocked("blocked")
+            return result
+
+        def __return__(self, value):
+            if where == "return":
+                raise _Blocked("blocked")
+            return super().__return__(value)
+
+        def __exit__(self, *exc):
+            if where == "exit":
+                raise _Blocked("blocked")
+            super().__exit__(*exc)
+
+    context = _Raiser(_storage_target)
+    context.wrap()
+    universal = _UniversalWrappingContext.extract(_storage_target)
+    try:
+        for _ in range(5):
+            with pytest.raises(BaseException):
+                # __exit__ only runs when the wrapped body itself raises.
+                _storage_target("raise" if where == "exit" else "ok")
+
+        assert _storage_chain_length(context._storage.get()) == 0
+        assert _storage_chain_length(universal._storage.get()) == 0
+    finally:
+        context.unwrap()
+
+
+def test_a_baseexception_from_enter_still_reaches_the_caller():
+    """Releasing the storage must not swallow the decision that caused the unwind."""
+
+    class _Raiser(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise _Blocked("blocked")
+
+    context = _Raiser(_storage_target)
+    context.wrap()
+    try:
+        with pytest.raises(_Blocked):
+            _storage_target("ok")
+    finally:
+        context.unwrap()
+
+
+def test_an_exception_from_enter_is_still_swallowed():
+    """An Exception-derived failure stays contained, so a broken context cannot break the call."""
+
+    class _Broken(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise RuntimeError("bug in the hook")
+
+    context = _Broken(_storage_target)
+    context.wrap()
+    try:
+        assert _storage_target("ok") == "ok"
+        assert _storage_chain_length(context._storage.get()) == 0
+    finally:
+        context.unwrap()

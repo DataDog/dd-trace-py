@@ -345,6 +345,18 @@ class TestTelemetry:
             call(CIVISIBILITY, "test_management_tests.response_tests", 42, ())
         ]
 
+    def test_record_dynamic_atr_retries_custom_buckets(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_dynamic_atr_retries(has_custom_buckets=True)
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "dynamic_atr_retries.enabled", 1, (("has_custom_buckets", "true"),))
+        ]
+
+    def test_record_dynamic_atr_retries_no_custom_buckets(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_dynamic_atr_retries(has_custom_buckets=False)
+
+        assert mock_writer.add_count_metric.call_args_list == [call(CIVISIBILITY, "dynamic_atr_retries.enabled", 1, ())]
+
     def test_record_git_command_ok(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_git_command(command=GitTelemetry.GET_REPOSITORY, elapsed_seconds=1.2, exit_code=0)
 

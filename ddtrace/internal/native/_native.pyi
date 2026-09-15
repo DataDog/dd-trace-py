@@ -93,6 +93,7 @@ class CrashtrackerConfiguration:
         endpoint: Optional[str] = None,
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
+        api_key: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -183,11 +184,10 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context_from_span(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
+    def update_otel_thread_context_from_span(span: SpanData, trace_flags: int) -> None:
         """
-        Update the OTel thread context from the active span and its local root span.
+        Update the OTel thread context from the active span.
         :param span: The active span.
-        :param local_root: The root span of the local trace chunk.
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
@@ -217,6 +217,15 @@ class SharedRuntime:
         ...
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
+        ...
+    def defer_after_fork_child(self) -> None:
+        """Prevent lazy runtime restart while Python child hooks run."""
+        ...
+    def allow_after_fork_child(self) -> None:
+        """Allow lazy runtime restart after Python child hooks finish."""
+        ...
+    def register_at_fork(self) -> None:
+        """Register native fork handlers for this shared runtime."""
         ...
     def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         """Gracefully shut down the shared runtime.
@@ -310,8 +319,14 @@ class TelemetryWorker:
     def stop(self, send_app_closing: bool) -> None:
         """Flush and shut the worker down, waiting briefly for it to drain.
 
-        :param send_app_closing: when ``True`` emit the app-closing event
-            (origin only); when ``False`` just force a final data flush.
+        Emits app-closing (origin process only) and flushes remaining batches
+        during teardown.
+
+        WARNING: send_app_closing is currently ineffective and ignored. Since
+        the migration to libdatadog's telemetry worker, stop() always emits
+        app-closing in the origin process during teardown. If stopping
+        without app-closing is needed again, the behavior must be fixed in
+        libdatadog first (TODO).
         """
         ...
     def flush(self) -> None:
@@ -649,6 +664,13 @@ class TraceExporterBuilder:
         :param git_commit_sha: The git commit SHA of the current code version.
         """
         ...
+    def set_runtime_id(self, runtime_id: str) -> TraceExporterBuilder:
+        """
+        Set the runtime id of the TraceExporter.
+        :param runtime_id: The runtime UUID of the current process. A fresh UUID is generated
+            if unset.
+        """
+        ...
     def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
         """
         Set the process tags to be included in the stats payload.
@@ -772,6 +794,17 @@ class TraceExporterBuilder:
         Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
         """
         ...
+    def set_agentless_stats_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Send client-computed trace stats to the Datadog stats intake instead of the agent.
+
+        Requires :meth:`set_agentless_endpoint` (whose API key and timeout it reuses) and
+        :meth:`enable_stats`. Mutually exclusive with :meth:`set_otlp_metrics_endpoint`;
+        ``build`` rejects the combination.
+        :param url: Full stats intake URL including the path
+            (e.g. "https://trace.agent.datadoghq.com/api/v0.2/stats").
+        """
+        ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
         Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
@@ -820,6 +853,12 @@ class TraceExporterBuilder:
         """
         Set the connection timeout in milliseconds for trace export requests.
         :param timeout_ms: Timeout in milliseconds.
+        """
+        ...
+    def set_restart_after_fork(self, restart_after_fork: bool) -> TraceExporterBuilder:
+        """
+        Configure whether the exporter's workers restart in a fork child.
+        :param restart_after_fork: Whether inherited workers restart in the child.
         """
         ...
     def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
@@ -1042,10 +1081,13 @@ class Context:
     _span_links: list[Any]
     _is_remote: bool
     _reactivate: bool
+    _otel_sampling_state_data: Optional[float]
+    _otel_sampling_state_owner: Optional[Context]
     sampling_priority: Optional[Any]
     dd_origin: Optional[str]
     dd_user_id: Optional[str]
     _trace_id_64bits: Optional[int]
+    _trace_flags: int
     _traceflags: str
     _traceparent: str
     _tracestate: str
@@ -1073,6 +1115,12 @@ class Context:
     def remove_all_baggage_items(self) -> None: ...
     def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
     def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
+    def _tracestate_entries(self, parent_id: Optional[int] = None) -> list[tuple[str, str]]: ...
+    def _publish_sampling_decision(
+        self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
+    ) -> None: ...
+    @staticmethod
+    def _init_tracestate_helpers() -> None: ...
 
 class SpanData:
     name: str
@@ -1111,11 +1159,24 @@ class SpanData:
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
     def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
+    @property
+    def _local_root(self: _SpanDataT) -> _SpanDataT: ...
+    @_local_root.setter
+    def _local_root(self, value: SpanData) -> None: ...
+    @_local_root.deleter
+    def _local_root(self) -> None: ...
+    @property
+    def _service_entry_span(self: _SpanDataT) -> _SpanDataT: ...
+    @_service_entry_span.setter
+    def _service_entry_span(self, value: SpanData) -> None: ...
+    @_service_entry_span.deleter
+    def _service_entry_span(self) -> None: ...
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _has_meta_structs(self) -> bool: ...
     def _get_meta_structs(self) -> dict[str, Any]: ...
+    def _inherit_from_parent(self, parent: SpanData) -> None: ...
     def _set_link(
         self,
         trace_id: int,
@@ -1147,6 +1208,11 @@ class SpanData:
     def _get_str_attributes(self) -> Mapping[str, str]: ...
     def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
     def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+    def _set_default_context_attributes(
+        self,
+        meta: dict[str, str],
+        metrics: dict[str, Union[int, float]],
+    ) -> None: ...
 
 class SpanEvent:
     name: str
@@ -1459,6 +1525,12 @@ class RemoteConfigClient:
     """Native single-target remote config client (origin process).
 
     Children consume published configs via :class:`RemoteConfigReader` instead.
+
+    Passing ``api_key`` (together with ``site`` and ``hostname``) selects agentless
+    mode: configs are fetched from ``config.<site>`` rather than from the agent.
+
+    ``config_root`` and ``director_root`` are raw signed TUF root metadata that replace the
+    roots libdatadog embeds for the site. This is mostly for testing. They apply to agentless mode only.
     """
 
     def __new__(
@@ -1477,6 +1549,11 @@ class RemoteConfigClient:
         process_tags: Optional[list[tuple[str, str]]] = None,
         timeout_ms: int = 5000,
         test_session_token: Optional[str] = None,
+        site: Optional[str] = None,
+        api_key: Optional[str] = None,
+        hostname: Optional[str] = None,
+        config_root: Optional[str] = None,
+        director_root: Optional[str] = None,
     ) -> "RemoteConfigClient": ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""
@@ -1496,6 +1573,13 @@ class RemoteConfigClient:
         ...
     def get_client_id(self) -> str:
         """The remote config client id (a UUID); stable for the process lifetime."""
+        ...
+    def get_refresh_interval(self) -> float:
+        """Seconds to wait before the next poll.
+
+        Agentless mode follows the interval the backend recommends, refreshed on
+        every successful fetch; against the agent this is a fixed default.
+        """
         ...
     def enable_shared_memory(self) -> None:
         """Enable cross-process broadcast. Call on the origin before forking."""

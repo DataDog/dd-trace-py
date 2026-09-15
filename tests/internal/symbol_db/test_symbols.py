@@ -181,6 +181,25 @@ def test_symbols_decorated_methods():
     assert bar_scope.name == "bar"
 
 
+@pytest.mark.subprocess
+def test_symbols_finds_decorator_discarded_function():
+    # tests.submod.custom_decorated_stuff's "home" function is rebound to None
+    # by its decorator, so a namespace walk alone would miss it. Scope.from_module
+    # recovers it from ModuleCodeCollector's code objects instead.
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("symdb")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    assert custom_decorated_stuff.home is None
+
+    scope = Scope.from_module(custom_decorated_stuff)
+
+    assert any(s.name == "home" for s in scope.scopes)
+
+
 def test_symbols_to_json():
     assert Scope(
         scope_type=ScopeType.MODULE,

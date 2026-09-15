@@ -23,6 +23,7 @@ from ddtrace.internal import logger as ddlogger
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 
 
 log = ddlogger.get_logger(__name__)
@@ -114,7 +115,7 @@ class APIManager(Service):
             False: if sampled
             True: if we should collect
         """
-        if priority <= 0 and asm_config._apm_tracing_enabled:
+        if priority <= 0 and standalone_config.apm_tracing_enabled:
             return False
 
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
@@ -225,5 +226,5 @@ class APIManager(Service):
         report_api_security(True, nb_schemas, env.framework)
 
         # If we have a schema and APM tracing is disabled, force keep the trace
-        if nb_schemas > 0 and not asm_config._apm_tracing_enabled:
+        if nb_schemas > 0 and not standalone_config.apm_tracing_enabled:
             _asm_manual_keep(root)

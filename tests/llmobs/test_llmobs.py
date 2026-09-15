@@ -1258,8 +1258,8 @@ def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
     assert not span._has_attribute("llmobs_trace_id")
 
 
-@pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
-def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events, tracer, llmobs_env):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(apm_tracing_enabled=False)])
+def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events, tracer, ddtrace_global_config):
     from tests.utils import DummyWriter
 
     dummy_writer = DummyWriter()

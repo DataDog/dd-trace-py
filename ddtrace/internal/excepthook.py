@@ -17,20 +17,20 @@ owns the chain.
 """
 
 import sys
-import threading
 from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 
 
 log = get_logger(__name__)
 
 ExceptHookType = Callable[[type[BaseException], BaseException, Optional[TracebackType]], Any]
 
-_lock = threading.Lock()
+_lock = Lock()
 _hooks: list[ExceptHookType] = []
 # The hook that was installed before ddtrace took over sys.excepthook. Captured
 # once, the first time a callback is registered. Always run last.
