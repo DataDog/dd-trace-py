@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the Google ADK integration recorded every streaming
+    partial chunk as a separate output message on the agent span, duplicating the final response.
