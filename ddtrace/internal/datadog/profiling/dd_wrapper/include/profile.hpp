@@ -41,8 +41,8 @@ class Profile
     // Configuration for the pprof exporter
     std::vector<ddprof::SampleType> samplers{};
 
-    // The profile object is initialized here as a skeleton object, but it
-    // cannot be used until it's initialized by libdatadog
+    // Active libdatadog profile. Created during initialization and recreated after
+    // reset/fork; empty when initialization fails or after cleanup.
     std::optional<rust::Box<ddprof::Profile>> cur_profile{};
     Datadog::ProfilerStats cur_profiler_stats{};
 

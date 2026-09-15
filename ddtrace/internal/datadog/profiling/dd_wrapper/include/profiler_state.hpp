@@ -5,6 +5,7 @@
 #include "native_call_tracker.hpp"
 #include "profile.hpp"
 #include "types.hpp"
+#include "upload_cancellation.hpp"
 
 #include <array>
 #include <atomic>
@@ -96,8 +97,7 @@ class ProfilerState
     // Upload state
     // ========================================================================
     std::mutex upload_lock{};
-    std::mutex upload_cancel_mtx{};
-    std::optional<rust::Box<ddprof::CancellationToken>> upload_cancel{};
+    UploadCancellation upload_cancellation{};
     std::atomic<uint64_t> upload_seq{ 0 };
 
     // ========================================================================

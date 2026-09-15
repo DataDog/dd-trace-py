@@ -116,17 +116,7 @@ Datadog::Uploader::upload_unlocked()
     // failures are reported by Status below; this is not handling a thrown Rust
     // Result<T> from libdatadog.
     try {
-        auto new_cancel = ddprof::CancellationToken::create();
-        auto new_cancel_clone_for_request = new_cancel->clone();
-        auto& state = ProfilerState::get();
-        {
-            const std::lock_guard<std::mutex> cancel_lock(state.upload_cancel_mtx);
-            if (state.upload_cancel.has_value()) {
-                (*state.upload_cancel)->cancel();
-                state.upload_cancel.reset();
-            }
-            state.upload_cancel = std::move(new_cancel);
-        }
+        auto cancel_for_request = ProfilerState::get().upload_cancellation.start_upload();
 
         auto encoded = std::move(*encoded_profile);
         encoded_profile.reset();
@@ -139,7 +129,7 @@ Datadog::Uploader::upload_unlocked()
                                 rust::Str(process_tags.data(), process_tags.size()),
                                 rust::Str(internal_metadata_json.data(), internal_metadata_json.size()),
                                 rust::Str(info_json.data(), info_json.size()),
-                                *new_cancel_clone_for_request);
+                                *cancel_for_request);
         if (!status.check_and_print()) {
             profile_exporter.reset();
             return false;
@@ -177,10 +167,5 @@ Datadog::Uploader::unlock()
 void
 Datadog::Uploader::cancel_inflight()
 {
-    auto& state = ProfilerState::get();
-    const std::lock_guard<std::mutex> cancel_lock(state.upload_cancel_mtx);
-    if (state.upload_cancel.has_value()) {
-        (*state.upload_cancel)->cancel();
-        state.upload_cancel.reset();
-    }
+    ProfilerState::get().upload_cancellation.cancel_inflight();
 }

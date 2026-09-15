@@ -74,7 +74,8 @@ add_library(
     src/sample_manager.cpp
     src/static_sample_pool.cpp
     src/uploader.cpp
-    src/uploader_builder.cpp)
+    src/uploader_builder.cpp
+    src/upload_cancellation.cpp)
 
 # Add common configuration flags
 add_ddup_config(dd_wrapper)

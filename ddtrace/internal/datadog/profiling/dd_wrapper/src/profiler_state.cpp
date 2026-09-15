@@ -136,31 +136,17 @@ ProfilerState::cleanup()
 void
 ProfilerState::prefork()
 {
-    auto cancel_current_upload = [this]() {
-        const std::lock_guard<std::mutex> cancel_lock(upload_cancel_mtx);
-        if (upload_cancel.has_value()) {
-            (*upload_cancel)->cancel();
-            upload_cancel.reset();
-        }
-    };
-
     // Cancel inflight uploads to prevent state leaking to children.
-    cancel_current_upload();
+    upload_cancellation.cancel_inflight();
 
     // Keep cancelling and trying to acquire the lock until we succeed.
     while (!upload_lock.try_lock()) {
-        cancel_current_upload();
+        upload_cancellation.cancel_inflight();
         std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
     // upload_lock is now held - will be released in postfork_parent/child.
 
-    // Hold upload_cancel_mtx across fork so it cannot be locked by another thread
-    // in the child process. postfork_parent releases it; postfork_child replaces it.
-    upload_cancel_mtx.lock();
-    if (upload_cancel.has_value()) {
-        (*upload_cancel)->cancel();
-        upload_cancel.reset();
-    }
+    upload_cancellation.prefork();
 
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
     // inside the CXX Profile::add_dictionary_sample path when the child resets profile state.
@@ -174,7 +160,7 @@ void
 ProfilerState::postfork_parent()
 {
     profile_state.postfork_parent();
-    upload_cancel_mtx.unlock();
+    upload_cancellation.postfork_parent();
     upload_lock.unlock();
 }
 
@@ -194,8 +180,7 @@ ProfilerState::postfork_child()
 
     // Re-init the mutexes (placement-new to avoid UB with mutexes in undefined state after fork)
     new (&upload_lock) std::mutex();
-    new (&upload_cancel_mtx) std::mutex();
-    upload_cancel.reset();
+    upload_cancellation.postfork_child();
 
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
