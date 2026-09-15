@@ -3,11 +3,11 @@ import importlib
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -70,11 +70,7 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     if "database" in instance.options:
         tags[dbx.NAME] = instance.options["database"]
 
-    pin = Pin(
-        tags=tags,
-        _config=config.vertica["patch"]["vertica_python.vertica.cursor.Cursor"],
-    )
-    pin.onto(cursor)
+    cursor._datadog_vertica_tags = tags
 
 
 # tracing configuration
@@ -203,34 +199,14 @@ def _find_routine_config(config, instance, routine_name):
     return {}
 
 
-def _install_init(patch_item, patch_class, patch_mod, config):
-    patch_class_routine = "{}.{}".format(patch_class, "__init__")
-
-    # patch the __init__ of the class with a Pin instance containing the defaults
-    @wrapt.patch_function_wrapper(patch_mod, patch_class_routine)
-    def init_wrapper(wrapped, instance, args, kwargs):
-        r = wrapped(*args, **kwargs)
-
-        # create and attach a pin with the defaults
-        Pin(
-            tags=config.get("tags", {}),
-            _config=config["patch"][patch_item],
-        ).onto(instance)
-        return r
-
-
 def _install_routine(patch_routine, patch_class, patch_mod, config):
     patch_class_routine = "{}.{}".format(patch_class, patch_routine)
 
     @wrapt.patch_function_wrapper(patch_mod, patch_class_routine)
     def wrapper(wrapped, instance, args, kwargs):
-        # TODO?: remove Pin dependence
-        pin = Pin.get_from(instance)
-
-        if patch_routine in pin._config["routines"]:
-            conf = pin._config["routines"][patch_routine]
-        else:
-            conf = _find_routine_config(config, instance, patch_routine)
+        # TODO?: Pin state was replaced with integration configuration and
+        # cursor-local tags; remove this compatibility wrapper with the integration.
+        conf = _find_routine_config(config, instance, patch_routine)
 
         _dispatch_query_event(patch_routine, args, kwargs)
         enabled = conf.get("trace_enabled", True)
@@ -239,7 +215,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
         try:
             # shortcut if not enabled
-            if not enabled:
+            if not enabled or not is_tracing_enabled():
                 result = wrapped(*args, **kwargs)
                 return result
 
@@ -248,7 +224,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 operation_name,
                 span_type=conf.get("span_type"),
             ) as span:
-                set_service_and_source(span, trace_utils.ext_service(pin, config), config)
+                set_service_and_source(span, trace_utils.ext_service(None, config), config)
                 span._set_attribute(COMPONENT, config.integration_name)
                 span._set_attribute(dbx.SYSTEM, "vertica")
 
@@ -257,7 +233,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
                 if conf.get("measured", False):
                     span._set_attribute(_SPAN_MEASURED_KEY, 1)
-                span.set_tags(pin.tags)
+                span.set_tags(getattr(instance, "_datadog_vertica_tags", {}))
 
                 if "span_start" in conf:
                     conf["span_start"](instance, span, conf, *args, **kwargs)
@@ -279,7 +255,5 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 def _install(config):
     for patch_class_path in config["patch"]:
         patch_mod, _, patch_class = patch_class_path.rpartition(".")
-        _install_init(patch_class_path, patch_class, patch_mod, config)
-
         for patch_routine in config["patch"][patch_class_path]["routines"]:
             _install_routine(patch_routine, patch_class, patch_mod, config)
