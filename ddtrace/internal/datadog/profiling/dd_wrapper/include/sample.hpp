@@ -123,6 +123,7 @@ class Sample
     bool push_gpu_gputime(int64_t time, int64_t count);
     bool push_gpu_memory(int64_t size, int64_t count);
     bool push_gpu_flops(int64_t flops, int64_t count);
+    bool push_gctime(int64_t gctime, int64_t count);
 
     // Adds metadata to sample
     bool push_lock_name(std::string_view lock_name);

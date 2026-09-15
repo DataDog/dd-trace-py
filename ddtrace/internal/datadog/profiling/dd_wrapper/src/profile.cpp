@@ -130,6 +130,10 @@ Datadog::Profile::setup_samplers()
         val_idx.gpu_flops = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS);
         val_idx.gpu_flops_samples = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS_SAMPLES);
     }
+    if (0U != (type_mask & SampleType::GC)) {
+        val_idx.gc_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_GC_TIME);
+        val_idx.gc_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_GC_SAMPLES);
+    }
 
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.
@@ -179,7 +183,7 @@ Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
     max_nframes = _max_nframes;
 
     // Set the type mask
-    const unsigned int mask_as_int = type & SampleType::All;
+    const unsigned int mask_as_int = type & SampleType::Known;
     if (mask_as_int == 0) {
         // This can't happen in contemporary dd-trace-py, but we need better handling around this case
         if (!already_warned) {
