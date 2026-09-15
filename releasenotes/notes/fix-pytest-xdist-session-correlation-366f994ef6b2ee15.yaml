@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    CI visibility: Fixes an issue where test events can be reported without their test session when running pytest with xdist.
+    CI Visibility: Fixes an issue where test events can be reported without their test session when running
+    pytest-xdist with the legacy pytest plugin.
