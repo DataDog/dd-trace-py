@@ -10,6 +10,9 @@ stages:
   - shared-pipeline-publish
 
 variables:
+  # DIAGNOSTIC: force real pass/fail signal for quarantined/attempt-to-fix tests on
+  # this branch instead of having Test Optimization mask their outcome. Not for merge.
+  DD_TEST_MANAGEMENT_ENABLED: "false"
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false

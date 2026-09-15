@@ -426,6 +426,13 @@ def test_concurrent_futures_with_gevent():
         pid = os.fork()
 
     if pid == 0:
+        # DIAGNOSTIC: dump every thread's stack to stderr if the child hangs, to
+        # capture the CI-only hang before the subprocess mark's timeout=5 SIGTERMs
+        # us and destroys the evidence. Not for merge.
+        import faulthandler
+
+        faulthandler.dump_traceback_later(3, exit=False)
+
         from gevent import monkey
 
         monkey.patch_all()
@@ -437,6 +444,7 @@ def test_concurrent_futures_with_gevent():
             future = executor.submit(lambda: sleep(0.1) or 42)
             result = future.result()
             assert result == 42
+        faulthandler.cancel_dump_traceback_later()
         sys.exit(0)
     os.waitpid(pid, 0)
 
