@@ -5112,7 +5112,7 @@
     ],
     "DD_TRACE_STATS_CARDINALITY_LIMIT": [
       {
-        "implementation": "A",
+        "implementation": "C",
         "type": "int",
         "default": "7000"
       }
