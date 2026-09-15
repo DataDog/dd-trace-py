@@ -79,12 +79,6 @@ from ddtrace.testing.internal.writer import _get_async_flush_events
 
 
 try:
-    from pytest_timeout import _get_item_settings as _pytest_timeout_get_item_settings
-except (ImportError, AttributeError):
-    _pytest_timeout_get_item_settings = None
-
-
-try:
     pytest.hookimpl(specname="pytest_runtest_protocol")(lambda: None)
     _HOOKIMPL_SUPPORTS_SPECNAME = True
 except TypeError:
@@ -393,6 +387,12 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._osr_enabled = asbool(env.get(_OSR_ENABLED_ENV, "false"))
         # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
+
+        # pytest-timeout support: the per-attempt timer re-arm function from
+        # ``ddtrace.testing.internal.pytest._pytest_timeout``, resolved lazily in
+        # ``pytest_configure`` only when pytest-timeout is installed. ``None`` means
+        # pytest-timeout is absent and ``_reset_pytest_timeout`` is a no-op.
+        self._reset_pytest_timeout_timer: t.Optional[t.Callable[[pytest.Item], None]] = None
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -823,27 +823,16 @@ class TestOptPlugin(TestOptPluginProtocol):
         del pytest_runtest_protocol_wrapper
 
     def _reset_pytest_timeout(self, item: pytest.Item) -> None:
-        """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
+        """Re-arm pytest-timeout's timer for a fresh retry attempt.
 
-        pytest-timeout installs its per-test timer in its pytest_runtest_protocol hookwrapper,
-        which only fires once even when we retry by calling runtestprotocol() directly. Without
-        this reset, all retry attempts share the original timer and later attempts can time out
-        mid-teardown despite each attempt individually being well within the budget.
-
-        We only reset when func_only=False (the default), because when func_only=True pytest-timeout
-        installs the timer in pytest_runtest_call, which runtestprotocol() re-invokes per attempt
-        and therefore already gets a fresh budget on every retry.
+        All pytest-timeout support is encapsulated in
+        ``ddtrace.testing.internal.pytest._pytest_timeout``; the reset function is resolved
+        lazily in ``pytest_configure`` (only when pytest-timeout is installed) and stored on
+        ``self._reset_pytest_timeout_timer``. When pytest-timeout is absent this is ``None``
+        and the call is a no-op, so ``_do_one_test_run`` can invoke it unconditionally.
         """
-        if _pytest_timeout_get_item_settings is None or not item.config.pluginmanager.hasplugin("timeout"):
-            return
-        try:
-            settings = _pytest_timeout_get_item_settings(item)
-            if settings.timeout and settings.timeout > 0 and not settings.func_only:
-                hooks = item.config.pluginmanager.hook
-                hooks.pytest_timeout_cancel_timer(item=item)
-                hooks.pytest_timeout_set_timer(item=item, settings=settings)
-        except Exception:
-            log.debug("Could not reset pytest-timeout timer for test attempt", exc_info=True)
+        if self._reset_pytest_timeout_timer is not None:
+            self._reset_pytest_timeout_timer(item)
 
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
@@ -1733,12 +1722,14 @@ def pytest_configure(config: pytest.Config) -> None:
     # When pytest-timeout is installed and a retry feature (ATR/EFD/ATF) is active,
     # override its method="thread" timer (which calls os._exit) with a SIGALRM-based
     # timer so a timed-out test becomes a catchable failure that retries can handle.
-    # The override module is imported lazily so customers without pytest-timeout pay
-    # no import cost and never depend on it.
+    # All pytest-timeout support lives in _pytest_timeout, imported lazily so customers
+    # without pytest-timeout pay no import cost and never depend on it.
     if config.pluginmanager.hasplugin("timeout"):
         from ddtrace.testing.internal.pytest._pytest_timeout import PytestTimeoutRetryOverride
+        from ddtrace.testing.internal.pytest._pytest_timeout import reset_pytest_timeout_timer
 
         config.pluginmanager.register(PytestTimeoutRetryOverride(plugin), "_ddtrace_pytest_timeout_override")
+        plugin._reset_pytest_timeout_timer = reset_pytest_timeout_timer
 
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))

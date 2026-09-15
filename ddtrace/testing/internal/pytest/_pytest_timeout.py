@@ -43,6 +43,41 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+try:
+    from pytest_timeout import _get_item_settings as _get_pytest_timeout_settings
+except (ImportError, AttributeError):
+    # pytest-timeout is not installed. The functions below guard on this being None and
+    # become no-ops, so this module remains safe to import (and to call) without it.
+    _get_pytest_timeout_settings = None
+
+
+def reset_pytest_timeout_timer(item: pytest.Item) -> None:
+    """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
+
+    pytest-timeout installs its per-test timer in its ``pytest_runtest_protocol`` hookwrapper,
+    which only fires once even when we retry by calling ``runtestprotocol()`` directly. Without
+    this reset, all retry attempts share the original timer and later attempts can time out
+    mid-teardown despite each attempt individually being well within the budget.
+
+    We only reset when ``func_only=False`` (the default), because when ``func_only=True``
+    pytest-timeout installs the timer in ``pytest_runtest_call``, which ``runtestprotocol()``
+    re-invokes per attempt and therefore already gets a fresh budget on every retry.
+
+    No-op when pytest-timeout is not installed or not registered, so callers can invoke this
+    unconditionally on every test attempt.
+    """
+    if _get_pytest_timeout_settings is None or not item.config.pluginmanager.hasplugin("timeout"):
+        return
+    try:
+        settings = _get_pytest_timeout_settings(item)
+        if settings.timeout and settings.timeout > 0 and not settings.func_only:
+            hooks = item.config.pluginmanager.hook
+            hooks.pytest_timeout_cancel_timer(item=item)
+            hooks.pytest_timeout_set_timer(item=item, settings=settings)
+    except Exception:
+        log.debug("Could not reset pytest-timeout timer for test attempt", exc_info=True)
+
+
 class PytestTimeoutRetryOverride:
     """Override pytest-timeout's ``method="thread"`` timer with a SIGALRM-based one."""
 

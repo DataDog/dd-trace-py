@@ -14,6 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.pytest._pytest_timeout import reset_pytest_timeout_timer
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
@@ -1463,7 +1464,13 @@ class TestPrivateMethods:
 
 
 class TestResetPytestTimeout:
-    """Unit tests for TestOptPlugin._reset_pytest_timeout."""
+    """Unit tests for ddtrace.testing.internal.pytest._pytest_timeout.reset_pytest_timeout_timer.
+
+    The re-arm logic lives in _pytest_timeout (alongside the thread->signal override); these
+    tests exercise it directly by patching the module's ``_get_pytest_timeout_settings``.
+    """
+
+    _SETTINGS_PATH = "ddtrace.testing.internal.pytest._pytest_timeout._get_pytest_timeout_settings"
 
     def _make_item(self, hasplugin: bool = True) -> Mock:
         item = Mock()
@@ -1478,96 +1485,71 @@ class TestResetPytestTimeout:
 
     def test_no_op_when_import_unavailable(self) -> None:
         """No-op when pytest-timeout was not importable at startup."""
-        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item()
 
-        with patch("ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings", None):
-            plugin._reset_pytest_timeout(item)
+        with patch(self._SETTINGS_PATH, None):
+            reset_pytest_timeout_timer(item)
 
         item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
         item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
 
     def test_no_op_when_timeout_plugin_not_registered(self) -> None:
         """No-op when the 'timeout' plugin is absent from the session."""
-        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item(hasplugin=False)
 
-        with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
-            return_value=self._make_settings(),
-        ):
-            plugin._reset_pytest_timeout(item)
+        with patch(self._SETTINGS_PATH, return_value=self._make_settings()):
+            reset_pytest_timeout_timer(item)
 
         item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
         item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
 
     def test_no_op_when_func_only_true(self) -> None:
         """No-op when func_only=True: pytest-timeout already resets the timer per attempt in that mode."""
-        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item()
 
-        with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
-            return_value=self._make_settings(func_only=True),
-        ):
-            plugin._reset_pytest_timeout(item)
+        with patch(self._SETTINGS_PATH, return_value=self._make_settings(func_only=True)):
+            reset_pytest_timeout_timer(item)
 
         item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
         item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
 
     def test_no_op_when_timeout_is_none(self) -> None:
         """No-op when no timeout is configured for the item."""
-        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item()
 
-        with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
-            return_value=self._make_settings(timeout=None),
-        ):
-            plugin._reset_pytest_timeout(item)
+        with patch(self._SETTINGS_PATH, return_value=self._make_settings(timeout=None)):
+            reset_pytest_timeout_timer(item)
 
         item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
         item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
 
     def test_no_op_when_timeout_is_zero(self) -> None:
         """No-op when timeout=0 (explicitly disabled)."""
-        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item()
 
-        with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
-            return_value=self._make_settings(timeout=0),
-        ):
-            plugin._reset_pytest_timeout(item)
+        with patch(self._SETTINGS_PATH, return_value=self._make_settings(timeout=0)):
+            reset_pytest_timeout_timer(item)
 
         item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_not_called()
         item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_not_called()
 
     def test_cancels_and_rearms_timer(self) -> None:
         """Cancels the existing timer then arms a fresh one when all conditions are met."""
-        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item()
         settings = self._make_settings(timeout=30.0)
 
-        with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
-            return_value=settings,
-        ):
-            plugin._reset_pytest_timeout(item)
+        with patch(self._SETTINGS_PATH, return_value=settings):
+            reset_pytest_timeout_timer(item)
 
         item.config.pluginmanager.hook.pytest_timeout_cancel_timer.assert_called_once_with(item=item)
         item.config.pluginmanager.hook.pytest_timeout_set_timer.assert_called_once_with(item=item, settings=settings)
 
     def test_exception_is_swallowed(self) -> None:
         """Exceptions from _get_item_settings must not propagate and break retries."""
-        plugin = TestOptPlugin(session_manager=session_manager_mock().build_mock())
         item = self._make_item()
 
-        with patch(
-            "ddtrace.testing.internal.pytest.plugin._pytest_timeout_get_item_settings",
-            side_effect=RuntimeError("unexpected error from pytest-timeout"),
-        ):
-            plugin._reset_pytest_timeout(item)  # must not raise
+        with patch(self._SETTINGS_PATH, side_effect=RuntimeError("unexpected error from pytest-timeout")):
+            reset_pytest_timeout_timer(item)  # must not raise
 
 
 # =============================================================================
