@@ -2,7 +2,6 @@
 
 from copy import deepcopy
 import json
-import re
 from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
@@ -135,24 +134,6 @@ def _classify_transport_error(exc: BaseException) -> str:
     return AI_GUARD.ERROR_CLIENT if isinstance(exc, HttpClientError) else AI_GUARD.ERROR_INTERNAL
 
 
-# What replaces an endpoint anywhere it would otherwise be reported.
-_REDACTED = "<endpoint>"
-
-# A URL in any of the shapes an endpoint override reaches the transport as: absolute, scheme
-# relative, or the bare authority left when the scheme is missing. The last character cannot be
-# punctuation, so a URL at the end of a sentence does not swallow what closes it.
-_URL_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//[^\s'\"]*[^\s'\"(),.;]")
-
-
-def _scrub_urls(text: str) -> str:
-    """Replace every URL in text with a placeholder.
-
-    Nothing of the endpoint is kept: a credential can sit in the userinfo, in a path segment or
-    in a query parameter, and deciding per URL which part is safe is how it leaked before.
-    """
-    return _URL_RE.sub(_REDACTED, text)
-
-
 def _status_tag(status: Optional[int]) -> str:
     """Clamp a response status to the declared allowlist, keeping the tag bounded."""
     return str(status) if status in AI_GUARD.STATUSES else AI_GUARD.STATUS_OTHER
@@ -182,10 +163,6 @@ class AIGuardClient:
         self._meta = {"service": config.service, "env": config.env}
 
         self._timeout = aiguard_config._ai_guard_timeout // 1000
-
-        # The endpoint is deliberately absent: it can carry a credential, and these logs are what
-        # customers are asked to share during an investigation.
-        logger.debug("AI Guard client ready: timeout=%ss", self._timeout)
 
     @staticmethod
     def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
@@ -359,12 +336,7 @@ class AIGuardClient:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except Exception as e:
                     error_type = _classify_transport_error(e)
-                    # The message can quote the endpoint, credentials included, and the chained
-                    # traceback renders it again, so scrub the cause as well as our own message.
-                    self._scrub_exception(e)
-                    raise AIGuardClientError(
-                        message=f"Unexpected error calling AI Guard service: {self._scrub(str(e))}"
-                    ) from e
+                    raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
 
                 try:
                     result = response.get_json() or {}  # type: ignore[no-untyped-call]
@@ -515,32 +487,9 @@ class AIGuardClient:
                 )
                 raise
 
-    def _scrub(self, text: str) -> str:
-        """Remove the configured endpoint from text this client is about to report.
-
-        The literal value is removed first: an endpoint too malformed to match a URL still
-        reaches the transport, which quotes it back in its own messages.
-        """
-        if self._endpoint:
-            text = text.replace(self._endpoint, _REDACTED)
-        return _scrub_urls(text)
-
-    def _scrub_exception(self, exc: BaseException) -> None:
-        """Rewrite a transport failure's message in place, dropping the endpoint it quoted.
-
-        The exception is chained, and both exc_info logging and the span error tags render the
-        cause a second time, so scrubbing only our own message is not enough.
-        """
-        try:
-            exc.args = tuple(self._scrub(arg) if isinstance(arg, str) else arg for arg in exc.args)
-        except Exception:  # a custom exception may reject the assignment; the wrapper is still scrubbed
-            logger.debug("Could not scrub AI Guard transport error message", exc_info=True)
-
     def _execute_request(self, url: str, payload: Any) -> Response:
         parsed = urlparse(url)
-        # Userinfo is dropped rather than forwarded: AI Guard authenticates with the DD-API-KEY and
-        # DD-APPLICATION-KEY headers, and the transport logs and quotes the base URL it is given.
-        base_url = f"{parsed.scheme}://{parsed.netloc.rpartition('@')[2]}"
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
         conn = HTTPConnection(base_url, timeout=self._timeout)
         try:
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
