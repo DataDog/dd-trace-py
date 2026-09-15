@@ -3,6 +3,7 @@ from types import ModuleType
 import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 
@@ -67,6 +68,44 @@ class ThreadingConditionCollector(_lock.LockCollector):
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition
     MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "Condition"
+
+
+_thread_names_initialized: bool = False
+
+
+def init_thread_names() -> None:
+    """Record thread names in ddup so the memory profiler can label its samples."""
+    global _thread_names_initialized
+
+    if _thread_names_initialized or not ddup.is_available:
+        return
+    _thread_names_initialized = True
+
+    _thread_set_native_id = typing.cast(
+        typing.Callable[[threading.Thread], None],
+        ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
+    )
+    _thread_bootstrap_inner = typing.cast(
+        typing.Callable[[threading.Thread], None],
+        ddtrace_threading.Thread._bootstrap_inner,  # type: ignore[attr-defined]
+    )
+
+    def thread_set_native_id(self: threading.Thread) -> None:
+        _thread_set_native_id(self)
+        if self.ident is not None:
+            ddup.register_thread_name(self.ident, self.name)
+
+    def thread_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        _thread_bootstrap_inner(self, *args, **kwargs)
+        if self.ident is not None:
+            ddup.unregister_thread_name(self.ident)
+
+    ddtrace_threading.Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
+    ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
+
+    # Name any thread that was already running when the profiler started
+    for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
+        ddup.register_thread_name(thread_id, thread.name)
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
