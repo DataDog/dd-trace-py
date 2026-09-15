@@ -23,7 +23,7 @@ include:
     - |
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
       # Other test jobs remove the checkout package so Python imports use the wheel.
-      if [[ "${TEST_SUITE:-}" != "appsec_iast_native" ]]; then
+      if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
         rm -r "$CI_PROJECT_DIR/ddtrace"
       fi
     - export PYTHONPATH="$CI_PROJECT_DIR"
