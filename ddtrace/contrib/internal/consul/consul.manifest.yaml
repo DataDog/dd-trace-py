@@ -1,0 +1,12 @@
+_v: 1
+name: consul
+display_name: Consul
+description: Instruments synchronous Consul key-value store read, write, and delete operations performed through the Python
+  client.
+packages:
+- name: python-consul
+category:
+- db.client
+systems:
+- consul
+creation_date: '2019-09-04'

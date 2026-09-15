@@ -1,0 +1,11 @@
+_v: 1
+name: loguru
+display_name: Loguru
+description: Instruments Loguru log records by injecting Datadog trace correlation identifiers and configured service metadata
+  for trace-log correlation.
+packages:
+- name: loguru
+category:
+- other
+systems: []
+creation_date: '2023-10-25'
