@@ -2528,7 +2528,7 @@ class LLMObs(Service):
             return context
         return None
 
-    def _on_threading_submit(self) -> Optional[tuple[Optional[Context], Optional[RoutingContextType]]]:
+    def _on_threading_submit(self) -> tuple[Optional[Context], Optional[RoutingContextType]]:
         """Capture what must cross into an executor worker: LLMObs context plus routing.
 
         The futures integration only ferries this value from submit to execution without
@@ -2538,22 +2538,19 @@ class LLMObs(Service):
         """
         context = self._current_trace_context()
         routing = get_routing_context()
-        if context is None and routing is None:
-            return None
         return context, routing
 
     def _on_threading_execution(self, payload: Any) -> None:
         """Re-establish the submitting thread's LLMObs context and routing in the worker."""
         if isinstance(payload, tuple) and len(payload) == 2:
             context, routing = payload
+            _ROUTING_CONTEXTVAR.set(routing)
         else:
             # Another dispatcher of this event (or an older payload shape) sends the context
             # alone; there is simply no routing to restore in that case.
             context, routing = payload, None
         if context is not None:
             self._llmobs_context_provider.activate(context)
-        if routing is not None:
-            _ROUTING_CONTEXTVAR.set(routing)
 
     def _sample_span(self, span: Span) -> LLMObsSamplingDecision:
         if self._sampler.sample(span):
