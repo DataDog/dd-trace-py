@@ -310,3 +310,65 @@ class TestPytestTimeoutThreadMethodAtr:
             "expected pytest-timeout's thread timer to be used when ATR is inactive, "
             f"but timeout_timer was never called (calls={calls_file.read_text()})"
         )
+
+    def test_atr_active_thread_timeout_respects_debugger(self, pytester: Pytester, tmp_path: pathlib.Path) -> None:
+        """ATR active + method="thread" + debugger active: the timeout is suppressed, not forced.
+
+        pytest-timeout's ``timeout_sigalrm`` (the signal-method callback) honors debugger
+        detection: when ``is_debugging()`` is true (e.g. a pdb session via ``SUPPRESS_TIMEOUT``,
+        or a known debugger in ``sys.gettrace()``) it returns early without raising, so a test
+        being debugged is not interrupted. Our override delegates to ``timeout_sigalrm`` rather
+        than calling ``pytest.fail`` directly, so it inherits this behavior.
+
+        Before the fix (direct ``pytest.fail``), the test would fail even with the debugger
+        flag set. After the fix, the timeout is suppressed and the test runs to completion.
+        """
+        if not hasattr(signal, "SIGALRM"):
+            pytest.skip("SIGALRM is required for the thread->signal override")
+
+        calls_file = tmp_path / "timeout_timer_calls.txt"
+        calls_file.write_text("0")
+
+        pytester.makeconftest(self._make_timeout_timer_spy_conftest(calls_file))
+
+        # Simulate an active debugger session by setting pytest-timeout's SUPPRESS_TIMEOUT
+        # flag, which is_debugging() checks first. This mirrors what pytest_enter_pdb does.
+        pytester.makepyfile(
+            test_foo="""
+            import time
+            import pytest
+            import pytest_timeout
+
+            @pytest.mark.timeout(0.3, method="thread", func_only=True)
+            def test_debugged():
+                pytest_timeout.SUPPRESS_TIMEOUT = True  # pretend a debugger is active
+                time.sleep(1)  # exceeds the 0.3s timeout, but debugger suppresses it
+                pytest_timeout.SUPPRESS_TIMEOUT = False
+            """
+        )
+
+        known_tests: set[TestRef] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_debugged"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    auto_retries_enabled=True,
+                    known_tests_enabled=True,
+                    known_tests=known_tests,
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        # The timeout was suppressed because a debugger was "active", so the test passed.
+        assert result.ret == 0
+        assert_stats(result, passed=1)
+        # The os._exit thread-timer callback must never have been invoked.
+        assert int(calls_file.read_text()) == 0, (
+            "expected pytest-timeout's os._exit thread timer to be replaced by a SIGALRM "
+            f"timer, but timeout_timer was called {calls_file.read_text()} time(s)"
+        )
