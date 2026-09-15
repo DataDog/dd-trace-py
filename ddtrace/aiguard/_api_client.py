@@ -525,11 +525,27 @@ class AIGuardClient:
         return _scrub_urls(text)
 
     def _scrub_exception(self, exc: BaseException) -> bool:
-        """Rewrite a transport failure's message in place, dropping the endpoint it quoted.
+        """Rewrite a transport failure's messages in place, dropping the endpoint they quoted.
 
         Returns whether the result is provably clean, which is what makes the exception safe to
         chain: exc_info logging and the span error tags both render a chained cause again.
         """
+        # Every link has to be clean, not just this one: rendering a traceback walks __cause__ and
+        # __context__ too, and a chain can be cyclic, hence tracking what was already visited.
+        clean = True
+        seen = {id(exc)}
+        pending = [exc]
+        while pending:
+            current = pending.pop()
+            for link in (current.__cause__, current.__context__):
+                if link is not None and id(link) not in seen:
+                    seen.add(id(link))
+                    pending.append(link)
+            clean = self._scrub_exception_message(current) and clean
+        return clean
+
+    def _scrub_exception_message(self, exc: BaseException) -> bool:
+        """Scrub one link of an exception chain, returning whether it is provably clean."""
         try:
             exc.args = tuple(self._scrub(arg) if isinstance(arg, str) else arg for arg in exc.args)
             # A custom __str__ can ignore args, so only re-rendering proves the rewrite took.

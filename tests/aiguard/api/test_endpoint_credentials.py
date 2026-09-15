@@ -179,6 +179,68 @@ class TestCredentialsNeverReachAFailureReport:
         assert raised.value.__cause__ is None
         assert raised.value.__context__ is None
 
+    @pytest.mark.parametrize("secret", SECRETS)
+    @pytest.mark.parametrize("link", ["__cause__", "__context__"])
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_a_nested_link_is_scrubbed_before_the_chain_is_rendered(
+        self, add_count_metric, link, secret, caplog, test_spans, ai_guard_client
+    ):
+        """A rendered traceback walks the whole chain, so a clean outer message proves nothing about
+        the link underneath it: the transport wraps the failure that actually quoted the URL.
+        """
+        nested = ConnectionFailedError(f"error sending request for url ({SECRET_ENDPOINT}/evaluate)")
+        transport_error = ConnectionFailedError("client error (Connect)")
+        setattr(transport_error, link, nested)
+
+        with caplog.at_level("DEBUG", logger="ddtrace"):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
+                with pytest.raises(AIGuardClientError) as raised:
+                    ai_guard_client.evaluate(MESSAGES)
+
+        _assert_clean(secret, raised, caplog, test_spans)
+        # Scrubbing the chain is what earns the right to keep it: the cause is still reported.
+        assert raised.value.__cause__ is transport_error
+
+    @pytest.mark.parametrize("secret", SECRETS)
+    @pytest.mark.parametrize("link", ["__cause__", "__context__"])
+    @pytest.mark.parametrize("nested", [RejectsRewrite, IgnoresArgs], ids=["rejects_rewrite", "ignores_args"])
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_a_nested_link_that_cannot_be_proven_clean_drops_the_whole_chain(
+        self, add_count_metric, nested, link, secret, caplog, test_spans, ai_guard_client
+    ):
+        """One unprovable link anywhere in the chain is enough: the cause is dropped whole, because
+        chaining it would render that link along with the rest.
+        """
+        transport_error = ConnectionFailedError("client error (Connect)")
+        setattr(transport_error, link, nested())
+
+        with caplog.at_level("DEBUG", logger="ddtrace"):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
+                with pytest.raises(AIGuardClientError) as raised:
+                    ai_guard_client.evaluate(MESSAGES)
+
+        _assert_clean(secret, raised, caplog, test_spans)
+        assert raised.value.__cause__ is None
+        assert raised.value.__context__ is None
+
+    @pytest.mark.parametrize("secret", SECRETS)
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_a_cyclic_chain_is_scrubbed_without_looping(
+        self, add_count_metric, secret, caplog, test_spans, ai_guard_client
+    ):
+        """An exception chain can point back at itself, which a naive walk would follow forever."""
+        transport_error = ConnectionFailedError(f"error sending request for url ({SECRET_ENDPOINT}/evaluate)")
+        nested = ConnectionFailedError("client error (Connect)")
+        transport_error.__cause__ = nested
+        nested.__cause__ = transport_error
+
+        with caplog.at_level("DEBUG", logger="ddtrace"):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
+                with pytest.raises(AIGuardClientError) as raised:
+                    ai_guard_client.evaluate(MESSAGES)
+
+        _assert_clean(secret, raised, caplog, test_spans)
+
     @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
     def test_a_cause_that_rejects_rewriting_is_reported_without_its_message(
         self, add_count_metric, caplog, ai_guard_client
