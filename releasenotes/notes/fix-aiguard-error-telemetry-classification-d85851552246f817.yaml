@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where transport and unexpected internal evaluation failures were
+    reported as ``client_error``, making them difficult to diagnose.

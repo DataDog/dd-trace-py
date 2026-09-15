@@ -97,7 +97,7 @@ fn materialize_otel_sampling_decision_fn(py: Python<'_>) -> PyResult<Bound<'_, P
 }
 
 fn dd_trace_tracestate_max_bytes(py: Python<'_>) -> PyResult<usize> {
-    // AIDEV-NOTE: Python owns the propagation limits. Resolve this lazily to avoid
+    // Python owns the propagation limits. Resolve this lazily to avoid
     // making ddtrace.internal.constants import the native extension during startup.
     cached_const::<usize>(
         py,
@@ -148,7 +148,7 @@ pub struct Context {
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
     pub reactivate: bool,
-    // AIDEV-NOTE: Child contexts point otel_sampling_state_owner at the trace's
+    // Child contexts point the otel_sampling_state_owner at the trace's
     // owning Context. This keeps pending propagation state visible across copies
     // without allocating a holder or storing control data in meta/metrics.
     #[pyo3(get, set, name = "_otel_sampling_state_data")]
@@ -592,6 +592,23 @@ impl Context {
                 (key.to_string(), value.to_string())
             })
             .collect())
+    }
+
+    /// Eagerly resolve every Python helper that build_tracestate uses.
+    ///
+    /// Should be called once after ddtrace is fully initialised so that
+    /// the OnceLock caches are warm before any restricted environment
+    /// (Temporal sandbox, etc.) invokes _tracestate.
+    /// Without this, the first _tracestate call triggers py.import()
+    /// which may be blocked by the environment.
+    #[staticmethod]
+    fn _init_tracestate_helpers(py: Python<'_>) -> PyResult<()> {
+        w3c_get_dd_list_member_fn(py)?;
+        w3c_build_tracestate_members_fn(py)?;
+        normalize_otel_tracestate_fn(py)?;
+        materialize_otel_sampling_decision_fn(py)?;
+        dd_trace_tracestate_max_bytes(py)?;
+        Ok(())
     }
 
     fn _publish_sampling_decision(
