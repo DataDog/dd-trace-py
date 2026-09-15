@@ -5,6 +5,8 @@ import tempfile
 from unittest.mock import Mock
 from unittest.mock import patch
 
+import pytest
+
 from ddtrace.contrib.internal.coverage import patch as coverage_patch
 
 
@@ -219,7 +221,7 @@ class TestCoverageErrorHandling:
         coverage_patch.stop_coverage()
         assert not coverage_patch.is_coverage_running()
 
-    def test_generate_report_with_invalid_path(self) -> None:
+    def test_generate_report_with_invalid_path(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test generating report with invalid path."""
         _start_coverage_with_data()
         coverage_patch.stop_coverage()
@@ -230,6 +232,9 @@ class TestCoverageErrorHandling:
         # Should handle error gracefully and return None
         result = coverage_patch.generate_lcov_report(outfile=invalid_path)
         assert result is None
+        assert any(
+            "An exception occurred when running a coverage report" in record.message for record in caplog.records
+        )
 
         coverage_patch.erase_coverage()
 

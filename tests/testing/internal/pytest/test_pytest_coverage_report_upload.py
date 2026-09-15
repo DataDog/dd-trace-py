@@ -772,6 +772,8 @@ class TestCoverageConfigurationEdgeCases:
 
         # Should handle gracefully even with no tests
         assert result.ret == 5  # pytest exit code for no tests collected
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1
 
     def test_coverage_report_format_validation_edge_cases(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test LCOV format validation with edge cases."""

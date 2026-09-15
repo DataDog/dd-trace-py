@@ -16,7 +16,7 @@ def inject_sitecustomize(path):
     the current PYTHONPATH.
 
     :param path: package path containing ``sitecustomize.py`` module, starting
-                 from the ddtrace root folder
+                 from the repository root
     :returns: a cloned environment that includes an altered PYTHONPATH with
               the given `sitecustomize.py`
     """
