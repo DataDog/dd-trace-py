@@ -88,7 +88,5 @@ class DynamicATRRetriesHandler(AutoTestRetriesHandler):
         if self._retries_buckets is None:
             duration_retries = efd_settings.retries_for_duration(timeout_seconds)
         else:
-            duration_retries = self._retries_buckets[
-                efd_settings.retry_bucket_index_for_duration(timeout_seconds)
-            ]
+            duration_retries = self._retries_buckets[efd_settings.retry_bucket_index_for_duration(timeout_seconds)]
         return max(1, duration_retries)
