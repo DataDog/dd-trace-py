@@ -342,6 +342,39 @@ def test_span_context_event_inheritance(test_spans):
     assert span._get_str_attribute(COMPONENT) == "http"
 
 
+def test_span_context_event_pre_start_inheritance(test_spans):
+    """Test that tracing subscriber state can be composed before span creation."""
+
+    @dataclass
+    class TestTracingEvent(TracingEvent):
+        event_name = "test.pre_start"
+        span_type = "test"
+        span_kind = "client"
+
+        def __post_init__(self):
+            self.operation_name = "test.operation"
+
+    class BaseSubscriber(TracingSubscriber):
+        @classmethod
+        def on_span_starting(cls, ctx: core.ExecutionContext) -> None:
+            ctx.event.service = "base-service"
+
+    class TestSubscriber(BaseSubscriber):
+        event_names = (TestTracingEvent.event_name,)
+
+        @classmethod
+        def on_span_starting(cls, ctx: core.ExecutionContext) -> None:
+            ctx.event.resource = "child-resource"
+
+    with core.context_with_event(TestTracingEvent(component="test", integration_config={})):
+        pass
+
+    test_spans.assert_span_count(1)
+    span = test_spans.spans[0]
+    assert span.service == "base-service"
+    assert span.resource == "child-resource"
+
+
 def test_span_context_event_with_exception(test_spans):
     """Test that raised exceptions are recorded on the created span."""
 

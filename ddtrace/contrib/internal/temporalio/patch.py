@@ -42,13 +42,17 @@ def _enabled() -> bool:
 
 
 def _client_event(
-    event_type: type[TemporalEvent], input_data: Any, resource: str, tags: dict[str, str]
+    event_type: type[TemporalEvent],
+    input_data: Any,
+    payload_converter: Any,
+    resource: str,
+    tags: dict[str, str],
 ) -> TemporalEvent:
     return event_type(
         component=config.temporalio.integration_name,
         integration_config=config.temporalio,
         input_data=input_data,
-        payload_converter=temporalio.converter.PayloadConverter.default,
+        payload_converter=payload_converter,
         resource=resource,
         tags={**_BASE_TAGS, **tags},
     )
@@ -71,10 +75,9 @@ def _peer_tags(service_client: Any) -> dict[str, str]:
 
 # Temporal is an optional dependency, so its exported interceptor bases are Any in the repository typing environment.
 class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type: ignore[misc]
-    def __init__(self, next_interceptor: Any, namespace: str, peer_tags: dict[str, str]) -> None:
+    def __init__(self, next_interceptor: Any, root: "_DatadogTemporalInterceptor") -> None:
         super().__init__(next_interceptor)
-        self._namespace = namespace
-        self._peer_tags = peer_tags
+        self._root = root
 
     async def start_workflow(self, input_data: Any) -> Any:
         if not _enabled():
@@ -82,12 +85,13 @@ class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor): 
         event = _client_event(
             TemporalStartWorkflowEvent,
             input_data,
+            self._root.payload_converter,
             input_data.workflow,
             {
-                **self._peer_tags,
+                **self._root.peer_tags,
                 MESSAGING_DESTINATION_NAME: input_data.task_queue,
                 MESSAGING_OPERATION: "send",
-                "temporal.namespace": self._namespace,
+                "temporal.namespace": self._root.namespace,
                 "temporal.task_queue": input_data.task_queue,
                 "temporal.workflow.type": input_data.workflow,
             },
@@ -101,8 +105,9 @@ class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor): 
         event = _client_event(
             TemporalSignalWorkflowEvent,
             input_data,
+            self._root.payload_converter,
             input_data.signal,
-            {**self._peer_tags, MESSAGING_OPERATION: "send", "temporal.namespace": self._namespace},
+            {**self._root.peer_tags, MESSAGING_OPERATION: "send", "temporal.namespace": self._root.namespace},
         )
         with core.context_with_event(event):
             return await self.next.signal_workflow(input_data)
@@ -113,14 +118,19 @@ class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor): 
         event = _client_event(
             TemporalQueryWorkflowEvent,
             input_data,
+            self._root.payload_converter,
             input_data.query,
-            {**self._peer_tags, "temporal.namespace": self._namespace},
+            {**self._root.peer_tags, "temporal.namespace": self._root.namespace},
         )
         with core.context_with_event(event):
             return await self.next.query_workflow(input_data)
 
 
 class _DatadogActivityInboundInterceptor(temporalio.worker.ActivityInboundInterceptor):  # type: ignore[misc]
+    def __init__(self, next_interceptor: Any, root: "_DatadogTemporalInterceptor") -> None:
+        super().__init__(next_interceptor)
+        self._root = root
+
     async def execute_activity(self, input_data: Any) -> Any:
         if not _enabled():
             return await self.next.execute_activity(input_data)
@@ -140,7 +150,7 @@ class _DatadogActivityInboundInterceptor(temporalio.worker.ActivityInboundInterc
             component=config.temporalio.integration_name,
             integration_config=config.temporalio,
             input_data=input_data,
-            payload_converter=temporalio.converter.PayloadConverter.default,
+            payload_converter=self._root.payload_converter,
             resource=info.activity_type,
             tags=tags,
         )
@@ -208,19 +218,35 @@ class _DatadogWorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInte
 class _DatadogTemporalInterceptor(temporalio.client.Interceptor, temporalio.worker.Interceptor):  # type: ignore[misc]
     """Collect client and activity operation data without instrumenting replayed workflow code."""
 
-    def __init__(self, namespace: str, peer_tags: dict[str, str]) -> None:
+    def __init__(self, namespace: str, peer_tags: dict[str, str], payload_converter: Any) -> None:
         self._namespace = namespace
         self._peer_tags = peer_tags
+        self._payload_converter = payload_converter
+
+    @property
+    def namespace(self) -> str:
+        return self._namespace
+
+    @property
+    def peer_tags(self) -> dict[str, str]:
+        return self._peer_tags
+
+    @property
+    def payload_converter(self) -> Any:
+        return self._payload_converter
+
+    def update_payload_converter(self, payload_converter: Any) -> None:
+        self._payload_converter = payload_converter
 
     def intercept_client(
         self, next_interceptor: temporalio.client.OutboundInterceptor
     ) -> temporalio.client.OutboundInterceptor:
-        return _DatadogClientOutboundInterceptor(next_interceptor, self._namespace, self._peer_tags)
+        return _DatadogClientOutboundInterceptor(next_interceptor, self)
 
     def intercept_activity(
         self, next_interceptor: temporalio.worker.ActivityInboundInterceptor
     ) -> temporalio.worker.ActivityInboundInterceptor:
-        return _DatadogActivityInboundInterceptor(next_interceptor)
+        return _DatadogActivityInboundInterceptor(next_interceptor, self)
 
     def workflow_interceptor_class(self, input_data: Any) -> type[_DatadogWorkflowInboundInterceptor]:
         return _DatadogWorkflowInboundInterceptor
@@ -233,14 +259,23 @@ def _intercepted_client_init(
         return wrapped(*args, **kwargs)
 
     interceptors = list(kwargs.get("interceptors", ()))
-    if not any(isinstance(interceptor, _DatadogTemporalInterceptor) for interceptor in interceptors):
+    datadog_interceptor = next(
+        (interceptor for interceptor in interceptors if isinstance(interceptor, _DatadogTemporalInterceptor)), None
+    )
+    if datadog_interceptor is None:
         service_client = args[0] if args else kwargs.get("service_client")
         namespace = cast(str, kwargs.get("namespace", "default"))
+        data_converter = kwargs.get("data_converter", temporalio.converter.DataConverter.default)
+        datadog_interceptor = _DatadogTemporalInterceptor(
+            namespace, _peer_tags(service_client), data_converter.payload_converter
+        )
         kwargs = {
             **kwargs,
-            "interceptors": [_DatadogTemporalInterceptor(namespace, _peer_tags(service_client)), *interceptors],
+            "interceptors": [datadog_interceptor, *interceptors],
         }
-    return wrapped(*args, **kwargs)
+    result = wrapped(*args, **kwargs)
+    datadog_interceptor.update_payload_converter(instance.data_converter.payload_converter)
+    return result
 
 
 def patch() -> None:

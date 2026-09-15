@@ -56,15 +56,16 @@ class TemporalTracingSubscriber(TracingSubscriber[TemporalEvent]):
     )
 
     @classmethod
-    def _on_context_started(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
+    def on_span_starting(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
         event = ctx.event
         event.service = ext_service(None, event.integration_config)
         if event.event_name == TemporalEvents.RUN_ACTIVITY.value:
             event.use_active_context = False
             _extract_context(event)
 
-        super()._on_context_started(ctx)
-
+    @classmethod
+    def on_started(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
+        event = ctx.event
         if event.event_name != TemporalEvents.RUN_ACTIVITY.value:
             _inject_context(event, ctx)
 

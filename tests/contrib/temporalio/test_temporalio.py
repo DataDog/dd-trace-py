@@ -11,6 +11,8 @@ import temporalio.activity
 from temporalio.client import Client
 from temporalio.client import Interceptor as ClientInterceptor
 from temporalio.client import OutboundInterceptor as ClientOutboundInterceptor
+from temporalio.converter import DataConverter
+from temporalio.converter import DefaultPayloadConverter
 from temporalio.converter import PayloadConverter
 from temporalio.worker import ActivityInboundInterceptor
 from temporalio.worker import WorkflowInboundInterceptor
@@ -79,7 +81,7 @@ class _ForwardingWorkflowInbound(WorkflowInboundInterceptor):
         assert self.outbound is not None
         activity_input = SimpleNamespace(headers={})
         self.outbound.start_activity(activity_input)
-        return activity_input.headers
+        return cast(dict[str, Any], activity_input.headers)
 
 
 class _RecordingWorkflowOutbound(WorkflowOutboundInterceptor):
@@ -90,9 +92,18 @@ class _RecordingWorkflowOutbound(WorkflowOutboundInterceptor):
         return object()
 
 
-def _new_client(recorder: _RecordingClientInterceptor, target_host: str | None = None) -> Client:
+def _new_client(
+    recorder: _RecordingClientInterceptor,
+    target_host: str | None = None,
+    data_converter: DataConverter = DataConverter.default,
+) -> Client:
     service_client = SimpleNamespace(config=SimpleNamespace(target_host=target_host))
-    return Client(cast(Any, service_client), namespace="test-namespace", interceptors=[recorder])
+    return Client(
+        cast(Any, service_client),
+        namespace="test-namespace",
+        data_converter=data_converter,
+        interceptors=[recorder],
+    )
 
 
 def _datadog_interceptor(client: Client) -> Any:
@@ -245,6 +256,43 @@ async def test_activity_execution_and_distributed_context(
     assert consumer.get_tag("messaging.system") == "temporal"
     assert consumer.get_tag("messaging.destination.name") == "greetings"
     assert consumer.get_tag("messaging.operation") == "process"
+
+
+@pytest.mark.asyncio
+async def test_distributed_context_uses_configured_payload_converter(
+    monkeypatch: pytest.MonkeyPatch,
+    tracer: Any,
+) -> None:
+    class RecordingPayloadConverter(DefaultPayloadConverter):
+        encoded = 0
+        decoded = 0
+
+        def to_payloads(self, values: Any) -> Any:
+            type(self).encoded += 1
+            return super().to_payloads(values)
+
+        def from_payloads(self, payloads: Any, type_hints: Any = None) -> Any:
+            type(self).decoded += 1
+            return super().from_payloads(payloads, type_hints)
+
+    client = _new_client(
+        _RecordingClientInterceptor(),
+        data_converter=DataConverter(payload_converter_class=RecordingPayloadConverter),
+    )
+    datadog_interceptor = _datadog_interceptor(client)
+    start_input = _input_for("start_workflow")
+
+    with override_global_tracer(tracer):
+        assert await client._impl.start_workflow(start_input) == "workflow-started"
+        monkeypatch.setattr(temporalio.activity, "info", _activity_info)
+        activity_interceptor = datadog_interceptor.intercept_activity(_ExecutingActivityInbound())
+        activity_input = SimpleNamespace(
+            fn=_sync_activity, args=["Temporal"], executor=None, headers=start_input.headers
+        )
+        assert await activity_interceptor.execute_activity(activity_input) == "hello Temporal"
+
+    assert RecordingPayloadConverter.encoded == 1
+    assert RecordingPayloadConverter.decoded == 1
 
 
 @pytest.mark.asyncio
