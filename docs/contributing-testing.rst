@@ -144,7 +144,9 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run the environment without ``-s`` so that the ddtrace installation is refreshed:
+For a direct ``scripts/ddtest riot run`` invocation, add ``--recreate-venvs`` after cleaning so
+Riot does not reuse an editable venv whose native extensions were removed. For ``scripts/run-tests``,
+run the environment without ``-s`` so that the ddtrace installation is refreshed:
 
 .. code-block:: bash
 
