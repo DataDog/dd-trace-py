@@ -29,7 +29,9 @@ def flask_wsgi_application() -> str:
 
 @pytest.fixture
 def flask_command(flask_wsgi_application: str, flask_port: str) -> list[str]:
-    cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
+    # See the note in test_appsec_flask_snapshot.py: threads let /shutdown overtake the
+    # preceding request and lose its trace.
+    cmd = "ddtrace-run flask run --without-threads -h 0.0.0.0 -p %s" % (flask_port,)
     return cmd.split()
 
 
@@ -75,14 +77,10 @@ def flask_client(
                 "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
             )
         yield client
-        try:
-            client.get_ignored("/shutdown")
-        except Exception:
-            pass
-        # At this point the traces have been sent to the test agent
-        # but the test agent hasn't necessarily finished processing
-        # the traces (race condition) so wait just a bit for that
-        # processing to complete.
+        # Its response means the flush finished, so the SIGKILL below cannot preempt it.
+        assert client.get_ignored("/shutdown", timeout=10.0).status_code == 200
+        # These tests declare no wait_for_num_traces, so snapshot_context does not poll: the agent
+        # may have the payload without having processed it yet.
         time.sleep(0.2)
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
