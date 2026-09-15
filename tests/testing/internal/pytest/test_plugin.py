@@ -1875,10 +1875,13 @@ class TestXdistCrashRequeue:
         plugin = self._build_plugin(atr=True)
         sched = Mock()
         report = self._make_report()
+        crashitem = "test_foo.py::test_a"
 
-        plugin.pytest_handlecrashitem(crashitem="test_foo.py::test_a", report=report, sched=sched)
+        # Simulate logstart (fires before the test runs, before any crash).
+        plugin.pytest_runtest_logstart(nodeid=crashitem, location=None)
+        plugin.pytest_handlecrashitem(crashitem=crashitem, report=report, sched=sched)
 
-        sched.mark_test_pending.assert_called_once_with("test_foo.py::test_a")
+        sched.mark_test_pending.assert_called_once_with(crashitem)
         assert report.outcome == "rerun"
         props = dict(report.user_properties)
         assert props["dd_retry_reason"] == "xdist_worker_crash"
@@ -1899,8 +1902,10 @@ class TestXdistCrashRequeue:
         sched = Mock()
         crashitem = "test_foo.py::test_a"
 
+        # Simulate logstart before each crash so the duration is measured.
         # First two crashes: re-queued (max_retries == 2).
         for expected_number in (1, 2):
+            plugin.pytest_runtest_logstart(nodeid=crashitem, location=None)
             report = self._make_report()
             plugin.pytest_handlecrashitem(crashitem=crashitem, report=report, sched=sched)
             assert report.outcome == "rerun"
@@ -1908,6 +1913,7 @@ class TestXdistCrashRequeue:
         assert sched.mark_test_pending.call_count == 2
 
         # Third crash: cap reached, no re-queue, report stays as the failure.
+        plugin.pytest_runtest_logstart(nodeid=crashitem, location=None)
         report = self._make_report()
         plugin.pytest_handlecrashitem(crashitem=crashitem, report=report, sched=sched)
         # mark_test_pending was called twice (for the first two crashes), not a third time:
@@ -1920,8 +1926,10 @@ class TestXdistCrashRequeue:
         sched = Mock()
 
         for _ in range(3):
+            plugin.pytest_runtest_logstart(nodeid="test_a.py::test_a", location=None)
             plugin.pytest_handlecrashitem(crashitem="test_a.py::test_a", report=self._make_report(), sched=sched)
         for _ in range(3):
+            plugin.pytest_runtest_logstart(nodeid="test_b.py::test_b", location=None)
             plugin.pytest_handlecrashitem(crashitem="test_b.py::test_b", report=self._make_report(), sched=sched)
 
         assert sched.mark_test_pending.call_count == 6

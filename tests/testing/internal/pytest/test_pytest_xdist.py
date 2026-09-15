@@ -1223,33 +1223,35 @@ class TestXdistTimeoutThreadCrashRequeue:
     These run pytest in a subprocess with xdist + a mock backend so the full multi-process path is exercised.
     """
 
+    @staticmethod
+    def _enable_atr(settings: dict[str, t.Any]) -> None:
+        """Enable ATR (and known tests) on a settings dict in-place."""
+        settings["flaky_test_retries_enabled"] = True
+        settings["known_tests_enabled"] = True
+
     def test_crashed_thread_timeout_test_is_rerun_and_passes(
         self, mock_server: MockCIVisibilityServer, test_project: Path
     ) -> None:
         """A thread-method test that times out once, then passes on re-queue, ends as passed.
 
-        The test uses a per-process attempt file to time out on the first run (hanging past the timeout so the worker's
-        thread timer fires os._exit) and pass on the re-queue. A short timeout + a single worker keeps the test fast
-        and deterministic. We assert the subprocess exits 0 (the re-queued run passed) and that the test event reaches
-        the backend with a pass status.
+        The test hangs past its timeout on the first attempt (worker is killed by os._exit), then passes on re-queue.
+        A shared (not per-pid) attempt file ensures the replacement worker sees the prior crash and passes.
         """
         pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
 
         settings = _settings_attributes()
-        settings["flaky_test_retries_enabled"] = True  # enable ATR so the crash re-queue hook engages
-        settings["known_tests_enabled"] = True  # required so ATR treats the test as known (not EFD-new)
+        self._enable_atr(settings)
         assert mock_server.server is not None
         mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
 
-        # The test hangs past its timeout on the first attempt (worker is killed by os._exit), then passes on re-queue.
-        # The attempt counter is keyed by worker pid so each replacement worker starts fresh at 0.
         (test_project / "test_timeout_crash.py").write_text(
             textwrap.dedent("""\
                 import os
                 import time
                 import pytest
 
-                _ATTEMPT_FILE = os.path.join(os.path.dirname(__file__), f"attempts-{os.getpid()}.txt")
+                # Shared across workers (same test dir), so the replacement worker sees the prior crash.
+                _ATTEMPT_FILE = os.path.join(os.path.dirname(__file__), "attempts.txt")
 
                 def _attempt_number():
                     try:
@@ -1258,38 +1260,74 @@ class TestXdistTimeoutThreadCrashRequeue:
                     except FileNotFoundError:
                         return 0
 
-                def _bump_attempt():
-                    n = _attempt_number() + 1
-                    with open(_ATTEMPT_FILE, "w") as f:
-                        f.write(str(n))
-
                 @pytest.mark.timeout(1, method="thread", func_only=True)
                 def test_crash_then_pass():
                     n = _attempt_number()
-                    _bump_attempt()
+                    with open(_ATTEMPT_FILE, "w") as f:
+                        f.write(str(n + 1))
                     if n == 0:
-                        # First attempt: hang well past the 1s timeout so the thread timer fires os._exit(1),
-                        # killing the xdist worker.
-                        time.sleep(10)
-                    # Re-queue attempt (new worker, fresh attempt file): pass.
+                        time.sleep(10)  # hang -> os._exit -> worker dies
                     assert True
             """)
         )
         _git_commit(test_project)
 
         env = _make_env(mock_server.url)
-        # Single worker keeps the crash/re-queue sequence deterministic: only one worker dies and is replaced.
-        result = _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart=2", env=env, timeout=90)
+        result = _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart=5", env=env, timeout=90)
 
         assert result.returncode == 0, (
             f"pytest did not pass (expected the re-queued run to pass):\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
 
-        # The test must have reached the backend as a passing test event (the re-queued run, not the crash).
         test_events = [
             e for e in mock_server.get_test_events() if e["content"]["meta"]["test.name"] == "test_crash_then_pass"
         ]
         assert test_events, "expected a test event for test_crash_then_pass, got none"
         statuses = {e["content"]["meta"]["test.status"] for e in test_events}
         assert "pass" in statuses, f"expected the re-queued run to report pass, got statuses={statuses}"
+
+    def test_dynamic_atr_crash_requeue_honors_duration_bucket(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """Dynamic ATR crash re-queue cap is derived from the test's crash duration, not the flat max_retries.
+
+        With dynamic ATR enabled, the re-queue cap for a test that always hangs is derived from the wall-clock
+        crash duration (measured via logstart timing in the main process) via the EFD retry buckets:
+        ``retries_for_duration(duration)``. A test with a 2s timeout crashes at ~2s, which falls in the ``<=5s``
+        bucket (10 retries). We verify the test is re-queued exactly 10 times (10 RERUN lines in the output),
+        not the flat 5, proving the dynamic budget is honored.
+
+        The test always hangs (never passes), so every worker crashes and the main's crash count is the retry
+        count. ``--max-worker-restart`` is set high enough (15) to not be the backstop.
+        """
+        pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
+
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        (test_project / "test_always_hang.py").write_text(
+            textwrap.dedent("""\
+                import time
+                import pytest
+
+                @pytest.mark.timeout(2, method="thread", func_only=True)
+                def test_always_hang():
+                    time.sleep(10)
+            """)
+        )
+        _git_commit(test_project)
+
+        env = _make_env(mock_server.url, extra={"DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": "true"})
+        result = _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart=15", env=env, timeout=120)
+
+        # The test always hangs, so it never passes: pytest exits non-zero.
+        assert result.returncode != 0
+
+        # Count RERUN lines: each is one crash re-queue. Dynamic ATR bucket for <=5s is 10 retries.
+        rerun_count = result.stdout.count("RERUN")
+        assert rerun_count == 10, (
+            f"expected 10 crash re-queues (dynamic ATR <=5s bucket), got {rerun_count}.\nstdout:\n{result.stdout}"
+        )

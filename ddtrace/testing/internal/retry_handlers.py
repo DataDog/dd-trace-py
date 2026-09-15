@@ -72,6 +72,16 @@ class RetryHandler(ABC):
         (e.g. EFD, which scales with test duration), return the largest budget the handler would ever grant.
         """
 
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
+        """The retry budget for a test whose initial attempt lasts ~``timeout_seconds``.
+
+        Non-dynamic handlers ignore the duration and return their flat ``max_retries``. Dynamic handlers
+        (e.g. DynamicATRRetriesHandler) override this to compute the budget from the duration, mirroring
+        their per-test logic but without a live ``Test`` object. Used by the xdist main process to compute
+        the crash re-queue cap from the pytest-timeout value.
+        """
+        return self.max_retries
+
 
 class AutoTestRetriesHandler(RetryHandler):
     def __init__(self, settings: Settings) -> None:
