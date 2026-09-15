@@ -970,7 +970,7 @@ venv = Venv(
                             "~=5.2",
                             latest,
                         ],
-                        "redis": "~=3.5",
+                        "redis": "~=4.5",
                     },
                 ),
                 Venv(
