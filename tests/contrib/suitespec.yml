@@ -210,6 +210,8 @@ components:
     - ddtrace/contrib/internal/structlog/*
   subprocess:
     - ddtrace/contrib/internal/subprocess/*
+  temporalio:
+    - ddtrace/contrib/internal/temporalio/*
   tornado:
     - ddtrace/contrib/internal/tornado/*
   urllib3:
@@ -2667,6 +2669,23 @@ suites:
       variants:
         - name: subprocess
           dependencies: [pytest-randomly]
+  temporalio:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@temporalio'
+      - tests/contrib/temporalio/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/temporalio
+      variants:
+        - name: temporalio
+          python: ['3.9']
+          dependencies: ['temporalio==1.0.0', 'pytest-asyncio==0.23.7', pytest-randomly]
+        - name: temporalio
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [temporalio, 'pytest-asyncio==0.23.7', pytest-randomly]
   logging:
     parallelism: 1
     paths:

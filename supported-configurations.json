@@ -3798,6 +3798,13 @@
         "default": "[]"
       }
     ],
+    "DD_TEMPORALIO_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_THIRD_PARTY_DETECTION_INCLUDES": [
       {
         "implementation": "A",
@@ -5114,6 +5121,13 @@
       }
     ],
     "DD_TRACE_SUBPROCESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_TEMPORALIO_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",

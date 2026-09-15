@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    temporalio: Adds tracing for workflow starts, signals, queries, and activity execution, with distributed trace context propagated from workflow starts to activities. Set ``DD_TEMPORALIO_DISTRIBUTED_TRACING=false`` to disable context propagation while retaining spans.
