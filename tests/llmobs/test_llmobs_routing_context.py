@@ -483,3 +483,40 @@ def test_routed_requests_use_direct_path_and_keep_extra_headers(monkeypatch):
     assert headers["Authorization"] == "Bearer-custom-token", "configured proxy header was dropped"
     assert EVP_SUBDOMAIN_HEADER_NAME not in headers
     assert intake == f"{AGENTLESS_SPAN_BASE_URL}.{DD_SITE}"
+
+
+def test_routing_survives_thread_pool_when_worker_creates_first_llm_span(llmobs, _llmobs_backend):
+    """The worker creates the first LLM span of the trace, so nothing seeded routing before it.
+
+    This is the shape of a web handler that opens a routing context and then offloads the model
+    call, e.g. via run_in_executor: the request span exists, but the first LLM span of the trace
+    is created inside the worker.
+    """
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    def background_work():
+        with llmobs.workflow(name="first-llm-span-in-thread"):
+            llmobs.annotate(input_data="threaded")
+
+    patch_futures()
+    try:
+        with llmobs._instance.tracer.trace("web.request"):
+            with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    pool.submit(background_work).result()
+    finally:
+        unpatch_futures()
+
+    _wait_for_requests(reqs, initial_count + 1)
+
+    sent = {}
+    for request in reqs[initial_count:]:
+        body = json.loads(request["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for span in event.get("spans", []):
+                sent[span.get("name")] = _api_key(request)
+
+    assert sent.get("first-llm-span-in-thread") == TENANT_A_KEY, (
+        f"worker-created span went to {sent.get('first-llm-span-in-thread')} instead of the tenant org"
+    )

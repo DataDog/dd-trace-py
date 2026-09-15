@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
@@ -6,7 +5,6 @@ from dataclasses import field
 import inspect
 import math
 import sys
-import threading
 import time
 from typing import Any
 from typing import Callable
@@ -217,9 +215,6 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
-
-# Upper bound on remembered per-trace routing entries; see LLMObs._remember_trace_routing.
-_ROUTING_TRACE_CACHE_SIZE = 1024
 
 _STANDARD_INTEGRATION_SPAN_NAMES = (
     CLAUDE_AGENT_SDK_APM_SPAN_NAME,
@@ -641,62 +636,6 @@ class LLMObs(Service):
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
         self._sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
-        # Routing in effect per trace id, so spans created in worker threads (where the
-        # contextvar is not visible) still reach the right org. See _remember_trace_routing.
-        self._routing_by_trace: "OrderedDict[int, tuple[RoutingContextType, int]]" = OrderedDict()
-        self._routing_lock = RLock()
-
-    def _remember_trace_routing(self, span: Span, routing: RoutingContextType) -> None:
-        """Record the routing in effect for this trace so later spans in it can find it.
-
-        Deliberately process-local. The routing context holds an API key, so it must never go
-        into span meta or baggage, both of which are serialized and propagated over the wire.
-        A consequence is that routing does not follow a distributed trace into another service,
-        which is the behaviour we want: a downstream service should not silently inherit a
-        tenant credential it was never given.
-
-        Bounded rather than lifecycle-tracked: the LLM span is usually not the local root, so
-        there is no single finish event that reliably marks a trace as done. Evicting the oldest
-        entry keeps this from growing without bound in a long-lived process.
-
-        The originating thread is recorded alongside it so the fallback only fires across a
-        thread boundary. On the original thread an absent contextvar is a real answer.
-        """
-        with self._routing_lock:
-            self._routing_by_trace[span.trace_id] = (routing, threading.get_ident())
-            self._routing_by_trace.move_to_end(span.trace_id)
-            while len(self._routing_by_trace) > _ROUTING_TRACE_CACHE_SIZE:
-                self._routing_by_trace.popitem(last=False)
-
-    def _inherited_routing(self, span: Span) -> Optional[RoutingContextType]:
-        """Find the routing that applies to this span when none is ambient.
-
-        Contextvars do not cross into a worker thread, so a span created inside a
-        ThreadPoolExecutor sees no routing context even though the trace itself was propagated.
-        Without this, part of a routed trace goes to the default org -- for a multi-tenant
-        caller, one tenant's data landing in another org.
-
-        In-process ancestors are checked first, then the trace id. The thread hop clones the
-        Context and leaves the child span with no parent Span, so the trace id is the only
-        handle that survives it.
-        """
-        parent = span._parent
-        while parent is not None:
-            routing = parent._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY)
-            if routing is not None:
-                return cast(RoutingContextType, routing)
-            parent = parent._parent
-        with self._routing_lock:
-            entry = self._routing_by_trace.get(span.trace_id)
-        if entry is None:
-            return None
-        routing, origin_thread = entry
-        if origin_thread == threading.get_ident():
-            # Same thread that opened the routing context, so the contextvar is authoritative:
-            # its absence means the caller deliberately left the context, and this span belongs
-            # in the default org even though earlier spans of the trace were routed.
-            return None
-        return routing
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -704,10 +643,6 @@ class LLMObs(Service):
             # Capture routing at start: the span may finish in a different execution context,
             # where the contextvar set by routing_context() is no longer visible.
             routing = get_routing_context()
-            if routing is not None:
-                self._remember_trace_routing(span, routing)
-            else:
-                routing = self._inherited_routing(span)
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
             telemetry.record_span_started()
@@ -980,8 +915,8 @@ class LLMObs(Service):
             "http.activate_distributed_headers",
             self._activate_llmobs_distributed_context_soft_fail,
         )
-        core.reset_listeners("threading.submit", self._current_trace_context)
-        core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
+        core.reset_listeners("threading.submit", self._on_threading_submit)
+        core.reset_listeners("threading.execution", self._on_threading_execution)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
         core.reset_listeners("asyncio.execute_task", self._on_asyncio_execute_task)
 
@@ -1147,8 +1082,8 @@ class LLMObs(Service):
                 "http.activate_distributed_headers",
                 cls._activate_llmobs_distributed_context_soft_fail,
             )
-            core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
-            core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
+            core.on("threading.submit", cls._instance._on_threading_submit, "llmobs_ctx")
+            core.on("threading.execution", cls._instance._on_threading_execution)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
             core.on("asyncio.execute_task", cls._instance._on_asyncio_execute_task)
 
@@ -2592,6 +2527,33 @@ class LLMObs(Service):
             _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
             return context
         return None
+
+    def _on_threading_submit(self) -> Optional[tuple[Optional[Context], Optional[RoutingContextType]]]:
+        """Capture what must cross into an executor worker: LLMObs context plus routing.
+
+        The futures integration only ferries this value from submit to execution without
+        inspecting it, so routing rides along here rather than needing a change to that shared
+        integration. Contextvars do not cross a thread boundary on their own, and routing that
+        failed to cross would send a tenant's spans to the default org.
+        """
+        context = self._current_trace_context()
+        routing = get_routing_context()
+        if context is None and routing is None:
+            return None
+        return context, routing
+
+    def _on_threading_execution(self, payload: Any) -> None:
+        """Re-establish the submitting thread's LLMObs context and routing in the worker."""
+        if isinstance(payload, tuple) and len(payload) == 2:
+            context, routing = payload
+        else:
+            # Another dispatcher of this event (or an older payload shape) sends the context
+            # alone; there is simply no routing to restore in that case.
+            context, routing = payload, None
+        if context is not None:
+            self._llmobs_context_provider.activate(context)
+        if routing is not None:
+            _ROUTING_CONTEXTVAR.set(routing)
 
     def _sample_span(self, span: Span) -> LLMObsSamplingDecision:
         if self._sampler.sample(span):
