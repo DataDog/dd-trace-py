@@ -125,6 +125,7 @@ class ThreadInfo
 
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
+    bool is_asyncio_boundary_frame(EchionSampler&, const Frame&) const;
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
     void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long, microsecond_t wall_time_us);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
