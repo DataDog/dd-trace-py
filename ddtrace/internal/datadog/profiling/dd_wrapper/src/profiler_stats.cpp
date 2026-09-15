@@ -59,6 +59,13 @@ Datadog::ProfilerStats::reset_state()
     sampling_interval_us = std::nullopt;
     string_table_count = std::nullopt;
     copy_memory_error_count = 0;
+    interpreter_traversal_generation_read_failure_count = 0;
+    interpreter_traversal_next_read_failure_count = 0;
+    interpreter_traversal_id_read_failure_count = 0;
+    interpreter_traversal_thread_head_read_failure_count = 0;
+    interpreter_traversal_cycle_count = 0;
+    interpreter_traversal_limit_exceeded_count = 0;
+    interpreter_traversal_empty_inventory_count = 0;
     heap_tracker_size = std::nullopt;
     heap_tracker_cap_drops = std::nullopt;
     asyncio_task_count = std::nullopt;
@@ -142,6 +149,48 @@ size_t
 Datadog::ProfilerStats::get_copy_memory_error_count() const
 {
     return copy_memory_error_count;
+}
+
+void
+Datadog::ProfilerStats::increment_interpreter_traversal_generation_read_failure_count()
+{
+    interpreter_traversal_generation_read_failure_count++;
+}
+
+void
+Datadog::ProfilerStats::increment_interpreter_traversal_next_read_failure_count()
+{
+    interpreter_traversal_next_read_failure_count++;
+}
+
+void
+Datadog::ProfilerStats::increment_interpreter_traversal_id_read_failure_count()
+{
+    interpreter_traversal_id_read_failure_count++;
+}
+
+void
+Datadog::ProfilerStats::increment_interpreter_traversal_thread_head_read_failure_count()
+{
+    interpreter_traversal_thread_head_read_failure_count++;
+}
+
+void
+Datadog::ProfilerStats::increment_interpreter_traversal_cycle_count()
+{
+    interpreter_traversal_cycle_count++;
+}
+
+void
+Datadog::ProfilerStats::increment_interpreter_traversal_limit_exceeded_count()
+{
+    interpreter_traversal_limit_exceeded_count++;
+}
+
+void
+Datadog::ProfilerStats::increment_interpreter_traversal_empty_inventory_count()
+{
+    interpreter_traversal_empty_inventory_count++;
 }
 
 void
@@ -236,7 +285,7 @@ std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
     std::string internal_metadata_json;
-    internal_metadata_json.reserve(128);
+    internal_metadata_json.reserve(512);
 
     internal_metadata_json += "{";
 
@@ -304,6 +353,34 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("interpreter_traversal_generation_read_failure_count": )";
+    append_to_string(internal_metadata_json, interpreter_traversal_generation_read_failure_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("interpreter_traversal_next_read_failure_count": )";
+    append_to_string(internal_metadata_json, interpreter_traversal_next_read_failure_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("interpreter_traversal_id_read_failure_count": )";
+    append_to_string(internal_metadata_json, interpreter_traversal_id_read_failure_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("interpreter_traversal_thread_head_read_failure_count": )";
+    append_to_string(internal_metadata_json, interpreter_traversal_thread_head_read_failure_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("interpreter_traversal_cycle_count": )";
+    append_to_string(internal_metadata_json, interpreter_traversal_cycle_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("interpreter_traversal_limit_exceeded_count": )";
+    append_to_string(internal_metadata_json, interpreter_traversal_limit_exceeded_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("interpreter_traversal_empty_inventory_count": )";
+    append_to_string(internal_metadata_json, interpreter_traversal_empty_inventory_count);
     internal_metadata_json += ",";
 
     internal_metadata_json += R"("sample_capture_cpu_time_us": )";

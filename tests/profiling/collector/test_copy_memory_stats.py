@@ -32,6 +32,18 @@ def test_copy_memory_error_count_present():
             metadata = json.load(fp)
         assert "copy_memory_error_count" in metadata, f"Missing copy_memory_error_count in {f}: {metadata}"
         assert metadata["copy_memory_error_count"] >= 0, f"copy_memory_error_count must be non-negative: {metadata}"
+        interpreter_traversal_counters = (
+            "interpreter_traversal_generation_read_failure_count",
+            "interpreter_traversal_next_read_failure_count",
+            "interpreter_traversal_id_read_failure_count",
+            "interpreter_traversal_thread_head_read_failure_count",
+            "interpreter_traversal_cycle_count",
+            "interpreter_traversal_limit_exceeded_count",
+            "interpreter_traversal_empty_inventory_count",
+        )
+        for counter in interpreter_traversal_counters:
+            assert counter in metadata, f"Missing {counter} in {f}: {metadata}"
+            assert metadata[counter] >= 0, f"{counter} must be non-negative: {metadata}"
         assert "fast_copy_memory_user_disabled" in metadata, (
             f"Missing fast_copy_memory_user_disabled in {f}: {metadata}"
         )

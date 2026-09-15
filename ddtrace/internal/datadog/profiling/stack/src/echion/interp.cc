@@ -1,41 +1,48 @@
 #include <echion/interp.h>
 
-bool
+#include <algorithm>
+#include <array>
+
+InterpreterTraversalResult
 for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback)
 {
-    bool all_interpreter_data_captured = true;
-
-    // Limit interpreter iteration to prevent infinite loops from cycles or corrupted memory.
-    // This limit is based on CPython's tachyon profiler (256) and should be more than
-    // enough for realistic use cases (most applications use 1 interpreter).
-    const size_t MAX_INTERPRETERS = 256;
+    InterpreterTraversalResult result;
+    std::array<char*, MAX_INTERPRETERS> visited;
+    size_t visited_count = 0;
 
     char* interp_addr = reinterpret_cast<char*>(runtime->interpreters.head);
-    char* prev_interp_addr = nullptr;
+    if (interp_addr == nullptr) {
+        result.add(InterpreterTraversalIssue::EmptyInventory);
+        return result;
+    }
 
-    // Safety: prevent infinite loops from cycles or corrupted interpreter linked lists
-    for (size_t iteration_count = 0; iteration_count < MAX_INTERPRETERS && interp_addr != NULL; ++iteration_count) {
-
-        // Cycle detection: if we didn't advance from previous iteration, we're stuck
-        if (prev_interp_addr != nullptr && interp_addr == prev_interp_addr) {
-            return false; // Cycle detected or failed to advance
+    // Keep a fixed-size address inventory so arbitrary cycles are detected without allocating
+    // from the sampling thread. The hard bound also protects against corrupted linked lists.
+    while (interp_addr != nullptr && visited_count < MAX_INTERPRETERS) {
+        if (std::find(visited.begin(), visited.begin() + visited_count, interp_addr) !=
+            visited.begin() + visited_count) {
+            result.add(InterpreterTraversalIssue::CycleDetected);
+            return result;
         }
-        prev_interp_addr = interp_addr;
+        visited[visited_count++] = interp_addr;
 
         InterpreterInfo interpreter_info = { 0 };
         interpreter_info.interp = reinterpret_cast<PyInterpreterState*>(interp_addr);
 #if PY_VERSION_HEX >= 0x030e0000
-        all_interpreter_data_captured &=
-          !copy_type(interp_addr + runtime->debug_offsets.interpreter_state.code_object_generation,
-                     interpreter_info.code_object_generation);
+        if (copy_type(interp_addr + runtime->debug_offsets.interpreter_state.code_object_generation,
+                      interpreter_info.code_object_generation)) {
+            result.add(InterpreterTraversalIssue::CodeObjectGenerationUnreadable);
+        }
 #endif
 
-        // Always read next pointer first - we need it to advance
-        if (copy_type(interp_addr + offsetof(PyInterpreterState, next), interpreter_info.next))
-            return false; // Can't read next, can't advance - stop iteration
+        // The next pointer is required to continue traversing the list.
+        if (copy_type(interp_addr + offsetof(PyInterpreterState, next), interpreter_info.next)) {
+            result.add(InterpreterTraversalIssue::NextUnreadable);
+            return result;
+        }
 
         if (copy_type(interp_addr + offsetof(PyInterpreterState, id), interpreter_info.id)) {
-            all_interpreter_data_captured = false;
+            result.add(InterpreterTraversalIssue::IdUnreadable);
             interp_addr = reinterpret_cast<char*>(interpreter_info.next);
             continue;
         }
@@ -46,16 +53,17 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         if (copy_type(interp_addr + offsetof(PyInterpreterState, tstate_head), interpreter_info.tstate_head))
 #endif
         {
-            all_interpreter_data_captured = false;
+            result.add(InterpreterTraversalIssue::ThreadHeadUnreadable);
             interp_addr = reinterpret_cast<char*>(interpreter_info.next);
             continue;
         }
 
         callback(interpreter_info);
-
-        // Move to next interpreter
         interp_addr = reinterpret_cast<char*>(interpreter_info.next);
     }
 
-    return all_interpreter_data_captured && interp_addr == NULL;
+    if (interp_addr != nullptr) {
+        result.add(InterpreterTraversalIssue::LimitExceeded);
+    }
+    return result;
 }

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace {
 
@@ -117,6 +118,54 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
     EXPECT_TRUE(thread.current_greenlets.empty());
 }
 
+TEST(InterpreterTraversal, ReportsEmptyInventory)
+{
+    _PyRuntimeState runtime{};
+    size_t callback_count = 0;
+
+    const auto result = for_each_interp(&runtime, [&](InterpreterInfo&) { callback_count++; });
+
+    EXPECT_FALSE(result.complete());
+    EXPECT_TRUE(result.has(InterpreterTraversalIssue::EmptyInventory));
+    EXPECT_EQ(callback_count, 0);
+}
+
+TEST(InterpreterTraversal, DetectsMultiNodeCycle)
+{
+    _PyRuntimeState runtime{};
+    PyInterpreterState first{};
+    PyInterpreterState second{};
+    first.next = &second;
+    second.next = &first;
+    runtime.interpreters.head = &first;
+    size_t callback_count = 0;
+
+    const auto result = for_each_interp(&runtime, [&](InterpreterInfo&) { callback_count++; });
+
+    EXPECT_FALSE(result.complete());
+    EXPECT_TRUE(result.has(InterpreterTraversalIssue::CycleDetected));
+    EXPECT_FALSE(result.has(InterpreterTraversalIssue::LimitExceeded));
+    EXPECT_EQ(callback_count, 2);
+}
+
+TEST(InterpreterTraversal, ReportsTraversalLimit)
+{
+    _PyRuntimeState runtime{};
+    std::vector<PyInterpreterState> interpreters(MAX_INTERPRETERS + 1);
+    for (size_t i = 0; i + 1 < interpreters.size(); i++) {
+        interpreters[i].next = &interpreters[i + 1];
+    }
+    runtime.interpreters.head = &interpreters.front();
+    size_t callback_count = 0;
+
+    const auto result = for_each_interp(&runtime, [&](InterpreterInfo&) { callback_count++; });
+
+    EXPECT_FALSE(result.complete());
+    EXPECT_TRUE(result.has(InterpreterTraversalIssue::LimitExceeded));
+    EXPECT_FALSE(result.has(InterpreterTraversalIssue::CycleDetected));
+    EXPECT_EQ(callback_count, MAX_INTERPRETERS);
+}
+
 #if PY_VERSION_HEX >= 0x030e0000
 TEST(SamplingCycleState, ReadsCodeObjectGenerationFromRuntimeOffset)
 {
@@ -129,7 +178,8 @@ TEST(SamplingCycleState, ReadsCodeObjectGenerationFromRuntimeOffset)
       offsetof(InterpreterWithAlternateGeneration, generation);
 
     InterpreterInfo result;
-    ASSERT_TRUE(for_each_interp(&runtime, [&](InterpreterInfo& info) { result = info; }));
+    const auto traversal = for_each_interp(&runtime, [&](InterpreterInfo& info) { result = info; });
+    ASSERT_TRUE(traversal.complete());
     EXPECT_EQ(result.interp, &node.interpreter);
     EXPECT_EQ(result.code_object_generation, 42);
 }
