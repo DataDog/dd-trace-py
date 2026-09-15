@@ -1835,19 +1835,17 @@ class TestXdistCrashRequeue:
     """
 
     @staticmethod
-    def _build_plugin(atr: bool = False, efd: bool = False, test_management: bool = False) -> XdistTestOptPlugin:
+    def _build_plugin(atr: bool = False) -> XdistTestOptPlugin:
         from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
-        from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
         from ddtrace.testing.internal.settings_data import Settings as _Settings
-        from ddtrace.testing.internal.settings_data import TestManagementSettings
 
         builder = session_manager_mock()
-        # XdistTestOptPlugin builds its retry handlers from manager.settings (not manager.retry_handlers,
-        # which is empty in the main process under xdist). Toggle the settings flags to enable each feature.
+        # XdistTestOptPlugin builds its retry handlers from manager.settings (not
+        # manager.retry_handlers, which is empty in the main process under xdist).
+        # Only ATR (and dynamic ATR) handlers are registered for crash re-queues;
+        # EFD and ATF have should_apply guards the main can't evaluate.
         builder._settings = _Settings(
-            early_flake_detection=EarlyFlakeDetectionSettings(enabled=efd),
             auto_test_retries=AutoTestRetriesSettings(enabled=atr),
-            test_management=TestManagementSettings(enabled=test_management),
         )
         main_plugin = TestOptPlugin(session_manager=builder.build_mock())
         return XdistTestOptPlugin(main_plugin)
@@ -1953,13 +1951,15 @@ class TestXdistCrashRequeue:
         assert report.outcome == "failed"  # not relabeled
 
     def test_logfinish_cleans_up_start_time(self) -> None:
-        """pytest_runtest_logfinish removes the start time so the dict doesn't grow unbounded."""
+        """pytest_runtest_logfinish removes per-nodeid state so dicts don't grow unbounded."""
         plugin = self._build_plugin(atr=True)
         nodeid = "test_foo.py::test_a"
         plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
         assert nodeid in plugin._start_times_by_nodeid
+        assert nodeid in plugin._tests_by_nodeid
         plugin.pytest_runtest_logfinish(nodeid=nodeid, location=None)
         assert nodeid not in plugin._start_times_by_nodeid
+        assert nodeid not in plugin._tests_by_nodeid
 
     def test_crash_emits_backend_fail_test_run(self) -> None:
         """A worker crash emits a fail-status TestRun to the backend with retry tags.
@@ -2044,6 +2044,75 @@ class TestXdistCrashRequeue:
         plugin.pytest_runtest_logstart(nodeid="test_foo.py::test_a", location=None)
         plugin.pytest_handlecrashitem(crashitem="test_foo.py::test_a", report=self._make_report(), sched=Mock())
         plugin.main_plugin.manager.writer.put_item.assert_not_called()
+
+    def test_last_crash_event_emitted_when_cap_reached(self) -> None:
+        """The final crash (that hits the cap) still emits a backend TestRun.
+
+        Without this, the backend would miss the last failed attempt. The cap check
+        must not skip the crash event emission.
+        """
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+        from ddtrace.testing.internal.test_data import TestSession
+
+        plugin = self._build_plugin(atr=True)
+        real_session = TestSession(name="test-session")
+        plugin.main_plugin.manager.session = real_session
+        plugin.main_plugin.manager.discover_test = Mock(
+            side_effect=lambda test_ref, **kw: (
+                real_session.get_or_create_child(test_ref.suite.module.name)[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0].get_or_create_child(
+                    test_ref.suite.name
+                )[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0]
+                .get_or_create_child(test_ref.suite.name)[0]
+                .get_or_create_child(test_ref.name)[0],
+            )
+        )
+        atr_handler = next(h for h in plugin._retry_handlers if isinstance(h, AutoTestRetriesHandler))
+        atr_handler.max_retries_per_test = 2
+        nodeid = "test_foo.py::test_crash"
+        writer = plugin.main_plugin.manager.writer
+
+        # First two crashes: re-queued (cap = 2).
+        for _ in range(2):
+            plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+            plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
+        assert writer.put_item.call_count == 2
+
+        # Third crash: cap reached, no re-queue, but the crash event is still emitted.
+        plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+        report = self._make_report()
+        plugin.pytest_handlecrashitem(crashitem=nodeid, report=report, sched=Mock())
+        assert writer.put_item.call_count == 3  # three crash events total
+        assert report.outcome == "failed"  # not relabeled (no re-queue)
+
+    def test_atr_session_limit_decremented(self) -> None:
+        """Each crash re-queue decrements the ATR session-level retry limit."""
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+        from ddtrace.testing.internal.test_data import TestSession
+
+        plugin = self._build_plugin(atr=True)
+        real_session = TestSession(name="test-session")
+        plugin.main_plugin.manager.session = real_session
+        plugin.main_plugin.manager.discover_test = Mock(
+            side_effect=lambda test_ref, **kw: (
+                real_session.get_or_create_child(test_ref.suite.module.name)[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0].get_or_create_child(
+                    test_ref.suite.name
+                )[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0]
+                .get_or_create_child(test_ref.suite.name)[0]
+                .get_or_create_child(test_ref.name)[0],
+            )
+        )
+        atr_handler = next(h for h in plugin._retry_handlers if isinstance(h, AutoTestRetriesHandler))
+        initial_limit = atr_handler.max_tests_to_retry_per_session
+        nodeid = "test_foo.py::test_crash"
+
+        # One crash + re-queue: session limit should decrement by 1.
+        plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+        plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
+        assert atr_handler.max_tests_to_retry_per_session == initial_limit - 1
 
 
 class TestOutcomeProcessing:

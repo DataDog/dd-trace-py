@@ -156,9 +156,7 @@ from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandle
 from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
 from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
-from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
-from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -224,10 +222,12 @@ class XdistTestOptPlugin:
                 # ATR should not retry any test, so don't register the handler.
                 if atr.max_tests_to_retry_per_session > 0:
                     self._retry_handlers.append(atr)
-        if s.early_flake_detection.enabled:
-            self._retry_handlers.append(EarlyFlakeDetectionHandler(s))
-        if s.test_management.enabled:
-            self._retry_handlers.append(AttemptToFixHandler(s))
+        # Only ATR (and dynamic ATR) handlers are used for crash re-queues. EFD and ATF
+        # have should_apply guards (is_new, is_attempt_to_fix) that the main process
+        # cannot evaluate without per-test state, so registering them would re-queue tests
+        # that those handlers would not have retried in-process. ATR has no such guard
+        # (should_apply always returns True when max_tests_to_retry_per_session > 0),
+        # so it is safe to use from the main.
 
     @pytest.hookimpl
     def pytest_configure_node(self, node: t.Any) -> None:
@@ -281,13 +281,14 @@ class XdistTestOptPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logfinish(self, nodeid: str, location: t.Any) -> None:
-        """Clean up the start time for a test that completed normally (no crash).
+        """Clean up per-nodeid state for a test that completed normally (no crash).
 
-        Without this, _start_times_by_nodeid would grow with the full test count in large sessions.
-        The entry is only needed between logstart and either logfinish (normal completion) or
-        handlecrashitem (crash); removing it here keeps the dict bounded to in-flight tests.
+        Without this, _start_times_by_nodeid and _tests_by_nodeid would grow with the full
+        test count in large sessions. The entries are only needed between logstart and
+        either logfinish (normal completion) or handlecrashitem (crash).
         """
         self._start_times_by_nodeid.pop(nodeid, None)
+        self._tests_by_nodeid.pop(nodeid, None)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_handlecrashitem(self, crashitem: str, report: pytest.TestReport, sched: t.Any) -> None:
@@ -320,18 +321,22 @@ class XdistTestOptPlugin:
             self._cached_reasons_by_nodeid[crashitem] = winning_handler.retry_reason
 
         count = self._crash_retries.get(crashitem, 0)
+
+        # Emit a backend event for every crash, including the last one that hits the cap, so
+        # the backend sees the full retry history (all crashes = fail, then the final result).
+        self._emit_crash_test_run(
+            crashitem, count + 1, duration, self._cached_reasons_by_nodeid.get(crashitem, "auto_test_retry")
+        )
+
         if count >= max_requeue:
             return None
 
         self._crash_retries[crashitem] = count + 1
+        # Decrement the ATR session-level retry limit so it is honored across all tests.
+        for handler in retry_handlers:
+            if isinstance(handler, AutoTestRetriesHandler):
+                handler.max_tests_to_retry_per_session -= 1
         sched.mark_test_pending(crashitem)
-
-        # Emit a backend event for the crashed attempt so the backend sees the full retry
-        # history (crash = fail, then the re-queue's result). Without this, the backend would
-        # only see the re-queue's result with no indication the test was retried.
-        self._emit_crash_test_run(
-            crashitem, count + 1, duration, self._cached_reasons_by_nodeid.get(crashitem, "xdist_worker_crash")
-        )
 
         # Relabel the crash report as a retry so pytest's terminal summary does not count it
         # as a final failure; the re-queued run will emit its own pass/fail report that
