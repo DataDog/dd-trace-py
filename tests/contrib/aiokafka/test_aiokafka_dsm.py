@@ -60,19 +60,27 @@ async def test_data_streams_pathway_stats(dsm_processor):
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
-        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
+        producer_cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
 
     async with consumer_ctx([topic]) as consumer:
         await consumer.getone()
         await consumer.commit()
+        consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "") or ""
 
     pathway_stats = pathway_stats_merged(dsm_processor)
 
+    # The producer and consumer resolve their Kafka cluster id independently on
+    # separate clients (aiokafka _get_cluster_id caches failures for 5 minutes),
+    # so either edge may end up tagged with a real id while the other resolved "".
+    # Build each edge's expected tags from its own client's cluster id instead of
+    # assuming they match, otherwise the expected consumer hash flakes whenever the
+    # two clients disagree on whether the cluster id was resolved.
     producer_tags = ["direction:out", f"topic:{topic}", "type:kafka"]
     consumer_tags = ["direction:in", f"group:{GROUP_ID}", f"topic:{topic}", "type:kafka"]
-    if cluster_id:
-        producer_tags.append(f"kafka_cluster_id:{cluster_id}")
-        consumer_tags.append(f"kafka_cluster_id:{cluster_id}")
+    if producer_cluster_id:
+        producer_tags.append(f"kafka_cluster_id:{producer_cluster_id}")
+    if consumer_cluster_id:
+        consumer_tags.append(f"kafka_cluster_id:{consumer_cluster_id}")
 
     # Compute expected hashes based on edge tags to verify pathway continuity
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)

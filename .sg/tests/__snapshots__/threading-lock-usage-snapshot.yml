@@ -1,0 +1,50 @@
+id: threading-lock-usage
+snapshots:
+  from threading import Lock as TLock:
+    labels:
+    - source: from threading import Lock as TLock
+      style: primary
+      start: 0
+      end: 35
+  from threading import Lock, Thread:
+    labels:
+    - source: from threading import Lock, Thread
+      style: primary
+      start: 0
+      end: 34
+  from threading import RLock as TRLock:
+    labels:
+    - source: from threading import RLock as TRLock
+      style: primary
+      start: 0
+      end: 37
+  from threading import RLock, Thread:
+    labels:
+    - source: from threading import RLock, Thread
+      style: primary
+      start: 0
+      end: 35
+  from threading import Thread, Lock:
+    labels:
+    - source: from threading import Thread, Lock
+      style: primary
+      start: 0
+      end: 34
+  from threading import Thread, RLock:
+    labels:
+    - source: from threading import Thread, RLock
+      style: primary
+      start: 0
+      end: 35
+  import threading; lock = threading.Lock():
+    labels:
+    - source: threading.Lock()
+      style: primary
+      start: 25
+      end: 41
+  import threading; lock = threading.RLock():
+    labels:
+    - source: threading.RLock()
+      style: primary
+      start: 25
+      end: 42

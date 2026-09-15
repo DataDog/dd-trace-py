@@ -331,7 +331,7 @@ wheel directory layout.
   output, not just in source code.
 - **Flag for human verification:** If this change affects build layout, linking,
   or conditional compilation, it must be tested on an actual release wheel
-  (in-tree/riot builds may not reproduce wheel-specific issues).
+  (in-tree editable builds may not reproduce wheel-specific issues).
 - For linking changes, have the symbols been verified present in the final
   `.so`?
 
@@ -495,4 +495,3 @@ def __dealloc__(self):
         SampleManager.drop_sample(self.ptr)
         self.ptr = NULL
 ```
-

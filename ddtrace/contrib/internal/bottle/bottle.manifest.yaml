@@ -1,0 +1,11 @@
+_v: 1
+name: bottle
+display_name: Bottle
+description: Instruments inbound HTTP requests handled by Bottle route callbacks, including route metadata, response status,
+  and distributed trace context extraction.
+packages:
+- name: bottle
+category:
+- http.server
+systems: []
+creation_date: '2016-11-01'

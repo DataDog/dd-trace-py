@@ -26,6 +26,13 @@
         "default": null
       }
     ],
+    "DD_AGENTLESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": [
       {
         "implementation": "A",
@@ -842,6 +849,20 @@
         "implementation": "B",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": null
       }
     ],
     "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": [
@@ -2955,9 +2976,9 @@
     ],
     "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_PROFILING_NAME_INSPECT_DIR": [
@@ -2975,13 +2996,6 @@
       }
     ],
     "DD_PROFILING_NATIVE_HEAP_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
-    "DD_PROFILING_NATIVE_TESTS": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -3334,6 +3348,20 @@
         "aliases": [
           "DD_REDIS_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
       }
     ],
     "DD_REMOTE_CONFIGURATION_ENABLED": [
@@ -3855,6 +3883,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_ANYIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOHTTP_CLIENT_ENABLED": [

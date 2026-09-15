@@ -34,11 +34,15 @@ class TestLLMObsBedrock:
         model_id=None,
         input_message=False,
         output_message=False,
+        output_role=None,
         metadata=None,
         metrics=None,
     ):
         expected_input = [{"content": mock.ANY, "role": "user"}] if input_message else [{"content": mock.ANY}]
-        expected_output = [{"content": mock.ANY} for _ in range(n_output)] if output_message else []
+        expected_output_message = {"content": mock.ANY}
+        if output_role:
+            expected_output_message["role"] = output_role
+        expected_output = [dict(expected_output_message) for _ in range(n_output)] if output_message else []
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(span),
@@ -90,6 +94,9 @@ class TestLLMObsBedrock:
             model_id=model,
             input_message="message" in provider,
             output_message=True,
+            # Anthropic Messages responses carry content blocks, so the role is
+            # captured the same way the Anthropic SDK and Converse integrations do.
+            output_role="assistant" if provider == "anthropic_message" else None,
             metadata=expected_metadata,
         )
 

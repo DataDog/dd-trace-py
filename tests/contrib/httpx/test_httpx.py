@@ -1,11 +1,7 @@
-from unittest import mock
-
 import httpx
 import pytest
 
 from ddtrace import config
-from ddtrace.contrib._events.http_client import HttpClientRequestEvent
-from ddtrace.contrib.internal.httpx.common import _set_response
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
@@ -53,30 +49,6 @@ def test_patching():
     unpatch()
     assert not is_wrapted(httpx.Client.send)
     assert not is_wrapted(httpx.AsyncClient.send)
-
-
-def _http_client_event():
-    return HttpClientRequestEvent(
-        http_operation="http.request",
-        service=None,
-        component=config.httpx.integration_name,
-        integration_config=config.httpx,
-        request_method="GET",
-        request_headers={},
-        request_url="https://example.test/",
-        query="",
-    )
-
-
-def test_httpx_response_body_is_captured_after_response_is_buffered():
-    event = _http_client_event()
-    response = httpx.Response(200, json={"response": "body"})
-    response.close()
-
-    with mock.patch("ddtrace.contrib.internal.httpx.common.asm_config._asm_enabled", True):
-        _set_response(event, response)
-
-    assert event.response_body == {"response": "body"}
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])

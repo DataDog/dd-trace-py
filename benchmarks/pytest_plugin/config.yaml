@@ -1,0 +1,12 @@
+# Control: plugin loaded but never activated (--ddtrace not passed). Both baseline and
+# candidate ddtrace builds should match here; used to confirm pytest itself is stable.
+baseline: &base
+  ntests: 1000
+  nmodules: 5
+  ddtrace: false
+
+# Primary: plugin active, hermetic offline mode (NoOp backend, all features off).
+# This is the config that detects per-test overhead regressions/improvements.
+ddtrace:
+  <<: *base
+  ddtrace: true

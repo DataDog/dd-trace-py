@@ -30,6 +30,7 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 
@@ -192,7 +193,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         raw = dynamic_params.get("block")
         if raw is None:
             return server_block
-        # AIDEV-NOTE: intentionally fail-secure — only the literal "false" is treated as
+        # intentionally fail-secure — only the literal "false" is treated as
         # "don't add block"; any other value errs toward blocking. The `or server_block`
         # below means dynamic params can never weaken server policy regardless.
         dynamic_block = raw if isinstance(raw, bool) else str(raw).lower() != "false"
@@ -206,7 +207,13 @@ class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
         try:
             verbose_proxy_logger.debug("Datadog AI Guard: Making request to endpoint")
             block = self._resolve_block(dynamic_params)
-            response = await asyncio.to_thread(self._client.evaluate, messages, Options(block=block))
+            response = await asyncio.to_thread(
+                self._client.evaluate,
+                messages,
+                Options(block=block),
+                source=AI_GUARD.SOURCE_AUTO,
+                integration=AI_GUARD.INTEGRATION_LITELLM,
+            )
             if response["action"] in ("DENY", "ABORT"):
                 verbose_proxy_logger.debug(
                     "Datadog AI Guard: monitor mode - violation detected but allowing request. "

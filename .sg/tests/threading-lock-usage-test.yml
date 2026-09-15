@@ -1,0 +1,21 @@
+id: threading-lock-usage
+valid:
+  # These should NOT trigger the rule (valid code)
+  - from ddtrace.internal.threads import Lock; lock = Lock()
+  - from ddtrace.internal.threads import RLock; lock = RLock()
+  - import threading; threading.Event()
+  - import threading; threading.current_thread()
+  - from threading import Thread
+
+invalid:
+  # Direct attribute calls
+  - import threading; lock = threading.Lock()
+  - import threading; lock = threading.RLock()
+  # Aliased imports
+  - from threading import Lock as TLock
+  - from threading import RLock as TRLock
+  # Comma-separated imports
+  - from threading import Thread, Lock
+  - from threading import Lock, Thread
+  - from threading import Thread, RLock
+  - from threading import RLock, Thread
