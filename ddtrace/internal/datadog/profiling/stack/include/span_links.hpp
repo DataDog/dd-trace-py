@@ -39,6 +39,14 @@ struct Span
 
 using SpanAttribution = std::optional<Span>;
 
+struct TaskSpanContext
+{
+    // When true, span is authoritative even when empty. An empty value means the task is unattributed and suppresses
+    // thread fallback.
+    bool use_task_attribution = false;
+    SpanAttribution span;
+};
+
 class SpanLinks
 {
   public:
