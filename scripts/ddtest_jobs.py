@@ -153,7 +153,9 @@ def emit_ddtest_jobs(
         # Plan only collects; it sends no traces, so it never waits for the
         # testagent even for snapshot suites.
         if wait_for and not plan:
-            print(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}", file=f)
+            # Retry up to twice on transient pip network failures; service-check
+            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
+            print(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}", file=f)
 
     def emit_variables(extra: t.Optional[dict[str, str]] = None) -> None:
         print("  variables:", file=f)

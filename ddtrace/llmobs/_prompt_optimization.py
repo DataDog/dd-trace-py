@@ -4,10 +4,10 @@ from copy import deepcopy
 from dataclasses import dataclass
 import inspect
 import random
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Protocol
 from typing import Sequence
 from typing import TypedDict
 from typing import Union
@@ -22,10 +22,28 @@ from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import ExperimentRowResult
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
+from ddtrace.llmobs._experiment import SyncExperiment
+from ddtrace.llmobs._experiment import TaskType
 
 
-if TYPE_CHECKING:
-    from ddtrace.llmobs import LLMObs
+class _PromptOptimizationService(Protocol):
+    """Experiment factory used by optimization, without importing the service."""
+
+    @property
+    def enabled(self) -> bool: ...
+
+    def experiment(
+        self,
+        *,
+        name: str,
+        task: TaskType,
+        dataset: Dataset,
+        evaluators: Sequence[EvaluatorType],
+        project_name: Optional[str] = None,
+        config: Optional[ConfigType] = None,
+        summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
+        runs: Optional[int] = 1,
+    ) -> SyncExperiment: ...
 
 
 log = get_logger(__name__)
@@ -580,7 +598,7 @@ class PromptOptimization:
         summary_evaluators: Sequence[SummaryEvaluatorType],
         compute_score: Callable[[dict[str, dict[str, Any]]], float],
         labelization_function: Optional[Callable[[dict[str, Any]], str]],
-        _llmobs_instance: Optional["LLMObs"] = None,
+        _llmobs_instance: Optional[_PromptOptimizationService] = None,
         tags: Optional[dict[str, str]] = None,
         max_iterations: int = 5,
         stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,

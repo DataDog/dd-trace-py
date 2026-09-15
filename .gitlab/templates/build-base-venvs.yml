@@ -8,7 +8,6 @@ build_base_venvs:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
-    DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     # S3-backed sccache, matches the wheel-build jobs in .gitlab/package.yml
     SCCACHE_BUCKET: 'dd-trace-py-builds'
