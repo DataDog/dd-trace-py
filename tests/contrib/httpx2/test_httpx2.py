@@ -1,3 +1,5 @@
+from unittest import mock
+
 import httpx2
 import pytest
 
@@ -90,6 +92,19 @@ async def test_get_200():
     async with httpx2.AsyncClient() as client:
         resp = await client.get(url, headers=DEFAULT_HEADERS)
         assert resp.status_code == 200
+
+
+def test_otel_semantics_use_shared_http_client_subscriber(test_spans):
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        response = httpx2.get(get_url("/status/200"), headers=DEFAULT_HEADERS)
+
+    assert response.status_code == 200
+    span = test_spans.find_span(name="http.request")
+    assert span.resource == "GET"
+    assert span.get_tag("http.request.method") == "GET"
+    assert span.get_tag("url.full") == get_url("/status/200")
+    assert span.get_tag("http.method") is None
+    assert span.get_tag("http.url") is None
 
 
 @pytest.mark.asyncio
