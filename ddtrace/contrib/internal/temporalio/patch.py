@@ -153,6 +153,61 @@ class _DatadogActivityInboundInterceptor(temporalio.worker.ActivityInboundInterc
             return await self.next.execute_activity(input_data)
 
 
+class _DatadogWorkflowInboundInterceptor(temporalio.worker.WorkflowInboundInterceptor):  # type: ignore[misc]
+    """Forward trace headers through replayed workflow code without creating spans there."""
+
+    def __init__(self, next_interceptor: Any) -> None:
+        super().__init__(next_interceptor)
+        self._context_payload: Optional[temporalio.api.common.v1.Payload] = None
+
+    def init(self, outbound: Any) -> None:
+        super().init(_DatadogWorkflowOutboundInterceptor(outbound, self))
+
+    async def execute_workflow(self, input_data: Any) -> Any:
+        self._context_payload = input_data.headers.get(_CONTEXT_HEADER)
+        return await self.next.execute_workflow(input_data)
+
+    def inject_headers(
+        self, headers: Mapping[str, temporalio.api.common.v1.Payload]
+    ) -> Mapping[str, temporalio.api.common.v1.Payload]:
+        if self._context_payload is None:
+            return headers
+        return {**headers, _CONTEXT_HEADER: self._context_payload}
+
+
+class _DatadogWorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor):  # type: ignore[misc]
+    def __init__(self, next_interceptor: Any, root: _DatadogWorkflowInboundInterceptor) -> None:
+        super().__init__(next_interceptor)
+        self._root = root
+
+    def _inject(self, input_data: Any) -> None:
+        input_data.headers = self._root.inject_headers(input_data.headers)
+
+    def continue_as_new(self, input_data: Any) -> Any:
+        self._inject(input_data)
+        return self.next.continue_as_new(input_data)
+
+    async def signal_child_workflow(self, input_data: Any) -> Any:
+        self._inject(input_data)
+        return await self.next.signal_child_workflow(input_data)
+
+    async def signal_external_workflow(self, input_data: Any) -> Any:
+        self._inject(input_data)
+        return await self.next.signal_external_workflow(input_data)
+
+    def start_activity(self, input_data: Any) -> Any:
+        self._inject(input_data)
+        return self.next.start_activity(input_data)
+
+    async def start_child_workflow(self, input_data: Any) -> Any:
+        self._inject(input_data)
+        return await self.next.start_child_workflow(input_data)
+
+    def start_local_activity(self, input_data: Any) -> Any:
+        self._inject(input_data)
+        return self.next.start_local_activity(input_data)
+
+
 class _DatadogTemporalInterceptor(temporalio.client.Interceptor, temporalio.worker.Interceptor):  # type: ignore[misc]
     """Trace client and activity boundaries without entering replayed workflow code."""
 
@@ -165,6 +220,9 @@ class _DatadogTemporalInterceptor(temporalio.client.Interceptor, temporalio.work
         self, next_interceptor: temporalio.worker.ActivityInboundInterceptor
     ) -> temporalio.worker.ActivityInboundInterceptor:
         return _DatadogActivityInboundInterceptor(next_interceptor)
+
+    def workflow_interceptor_class(self, input_data: Any) -> type[_DatadogWorkflowInboundInterceptor]:
+        return _DatadogWorkflowInboundInterceptor
 
 
 def _traced_client_init(

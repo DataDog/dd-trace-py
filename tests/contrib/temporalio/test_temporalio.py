@@ -12,6 +12,8 @@ from temporalio.client import Interceptor as ClientInterceptor
 from temporalio.client import OutboundInterceptor as ClientOutboundInterceptor
 from temporalio.converter import PayloadConverter
 from temporalio.worker import ActivityInboundInterceptor
+from temporalio.worker import WorkflowInboundInterceptor
+from temporalio.worker import WorkflowOutboundInterceptor
 
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.temporalio.patch import unpatch
@@ -61,6 +63,28 @@ class _ExecutingActivityInbound(ActivityInboundInterceptor):
         if inspect.isawaitable(result):
             return await result
         return result
+
+
+class _ForwardingWorkflowInbound(WorkflowInboundInterceptor):
+    def __init__(self) -> None:
+        self.outbound: WorkflowOutboundInterceptor | None = None
+
+    def init(self, outbound: WorkflowOutboundInterceptor) -> None:
+        self.outbound = outbound
+
+    async def execute_workflow(self, input_data: Any) -> dict[str, Any]:
+        assert self.outbound is not None
+        activity_input = SimpleNamespace(headers={})
+        self.outbound.start_activity(activity_input)
+        return activity_input.headers
+
+
+class _RecordingWorkflowOutbound(WorkflowOutboundInterceptor):
+    def __init__(self) -> None:
+        pass
+
+    def start_activity(self, input_data: Any) -> object:
+        return object()
 
 
 def _new_client(recorder: _RecordingClientInterceptor) -> Client:
@@ -187,9 +211,15 @@ async def test_activity_execution_and_distributed_context(
         assert len(injected_headers) > 1
         assert str(parent._trace_id_64bits) in _decoded_headers(injected_headers)
 
+        datadog_interceptor = _datadog_interceptor(client)
+        workflow_interceptor_type = datadog_interceptor.workflow_interceptor_class(SimpleNamespace())
+        workflow_interceptor = workflow_interceptor_type(_ForwardingWorkflowInbound())
+        workflow_interceptor.init(_RecordingWorkflowOutbound())
+        forwarded_headers = await workflow_interceptor.execute_workflow(SimpleNamespace(headers=injected_headers))
+
         monkeypatch.setattr(temporalio.activity, "info", _activity_info)
-        activity_interceptor = _datadog_interceptor(client).intercept_activity(_ExecutingActivityInbound())
-        activity_input = SimpleNamespace(fn=activity_fn, args=["Temporal"], executor=None, headers=injected_headers)
+        activity_interceptor = datadog_interceptor.intercept_activity(_ExecutingActivityInbound())
+        activity_input = SimpleNamespace(fn=activity_fn, args=["Temporal"], executor=None, headers=forwarded_headers)
         assert await activity_interceptor.execute_activity(activity_input) == "hello Temporal"
 
     spans = test_spans.pop()
