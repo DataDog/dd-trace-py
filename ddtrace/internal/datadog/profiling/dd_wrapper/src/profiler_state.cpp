@@ -34,8 +34,7 @@ ProfilerState::init_profiles_dictionary()
     }
 
     auto result = ddprof::ProfileDictionary::create();
-    if (!result->ok()) {
-        std::cerr << "could not initialise CXX profiles dictionary: " << std::string(result->message()) << std::endl;
+    if (!result->check_and_print()) {
         return false;
     }
     profiles_dictionary.emplace(result->take_value());
@@ -51,6 +50,9 @@ ProfilerState::get_profiles_dictionary()
     if (!profiles_dictionary.has_value()) {
         return nullptr;
     }
+    // TODO: Avoid returning a raw pointer after releasing profiles_dictionary_mtx.
+    // A follow-up should make dictionary access safe against concurrent cleanup
+    // or fork-child dictionary replacement.
     return &profiles_dictionary.value().operator*();
 }
 
@@ -85,7 +87,10 @@ ProfilerState::start()
             return;
         }
 
-        // Initialize the Profile object
+        // TODO: If profile initialization fails after the dictionary is created,
+        // call_once still records this initialization attempt as done. A follow-up
+        // should either clean up partial state here or replace this with a
+        // retryable initialization state machine.
         if (!profile_state.one_time_init(type_mask, max_nframes)) {
             return;
         }
@@ -106,6 +111,10 @@ ProfilerState::start()
 void
 ProfilerState::cleanup()
 {
+    // Mark the profiler unavailable before dropping profile state so callers
+    // that check ddup_is_initialized() will not borrow an empty profile.
+    initialized_.store(false, std::memory_order_release);
+
     // Clear the profile, decreasing the refcount on the ProfileDictionary
     profile_state.cleanup();
 

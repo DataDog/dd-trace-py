@@ -47,7 +47,8 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const
 void
 Datadog::Profile::cleanup()
 {
-    // Drop the profile and release its resources
+    // TODO: Coordinate cleanup with in-flight sampling. Resetting cur_profile
+    // without profile_mtx can race with collect() using the active profile.
     cur_profile.reset();
 }
 
