@@ -990,7 +990,6 @@ def test_is_namedtuple_type_rejects_non_namedtuples(_type):
     assert not utils._is_namedtuple_type(_type)
 
 
-@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
 def test_is_namedtuple_type_detects_subclasses():
     # A subclass of a namedtuple inherits a valid _fields tuple, so it is still
     # treated as a namedtuple.
@@ -1013,13 +1012,11 @@ def test_capture_value_namedtuple(_type):
     }
 
 
-@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
 def test_serialize_namedtuple_subclass():
     subclass = type("FurtherSubclass", (PointFunctional,), {})
     assert utils.serialize(subclass(1, 2)) == "FurtherSubclass(x=1, y=2)"
 
 
-@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
 def test_capture_value_namedtuple_subclass():
     assert utils.capture_value(PointFunctional(1, 2)) == {
         "type": PointFunctional.__qualname__,
@@ -1030,7 +1027,6 @@ def test_capture_value_namedtuple_subclass():
     }
 
 
-@pytest.mark.skip("Currently fails because we don't walk the MRO to find the fields.")
 def test_capture_value_namedtuple_subclass_subclass():
     subclass = type("FurtherSubclass", (PointFunctional,), {})
 
@@ -1110,3 +1106,48 @@ def test_capture_value_namedtuple_redacts_sensitive_fields():
             "password": utils.redacted_value("secret"),
         },
     }
+
+
+def test_capture_value_namedtuple_like_banning_iteration():
+    # Some tuple subclasses expose a namedtuple-style _fields tuple but ban
+    # __iter__ (e.g. Dagster's @record classes) to prevent tuple-style
+    # unpacking. Capturing such a value must not call the banned __iter__
+    # and must still recover the field values.
+    class BannedIterPoint(PointFunctional):
+        def __iter__(self):
+            raise Exception("Iteration is not allowed on this type.")
+
+    value = BannedIterPoint(1, 2)
+    with pytest.raises(Exception):
+        iter(value)
+
+    expected_fields = {
+        "x": {"type": "int", "value": "1"},
+        "y": {"type": "int", "value": "2"},
+    }
+    assert utils.capture_value(value) == {
+        "type": BannedIterPoint.__qualname__,
+        "fields": expected_fields,
+    }
+    assert utils.serialize(value) == "BannedIterPoint(x=1, y=2)"
+
+
+def test_capture_value_unresolvable_fields():
+    # If field resolution fails outright we must degrade gracefully rather
+    # than let the exception escape into the instrumented application.
+    class Unresolvable:
+        # Empty slots so instances have no __dict__ and field resolution has
+        # to fall back to slot discovery.
+        __slots__ = ()
+
+    # CPython only validates __slots__ at class creation, so assign the bogus
+    # value afterwards to make slot discovery raise.
+    Unresolvable.__slots__ = 42  # pyright: ignore[reportAttributeAccessIssue]  # not iterable
+
+    value = Unresolvable()
+
+    assert utils.capture_value(value) == {
+        "type": Unresolvable.__qualname__,
+        "notCapturedReason": "unresolvableFields",
+    }
+    assert utils.serialize(value) == object.__repr__(value)

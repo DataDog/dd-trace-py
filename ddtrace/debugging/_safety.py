@@ -2,6 +2,7 @@ from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from itertools import chain
 from types import FrameType
+from types import MappingProxyType
 from typing import Any
 from typing import Iterator
 from typing import Optional
@@ -10,6 +11,11 @@ from ddtrace.internal.safety import get_slots
 
 
 GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]  # noqa: F821
+
+# Mappings whose __getitem__ is implemented in C and therefore cannot run user
+# code. A class __dict__ is always a mappingproxy; a plain instance __dict__ is
+# a dict.
+SAFE_MAPPING_TYPES = frozenset({dict, MappingProxyType})
 
 # Direct handle on type's own __qualname__ getset_descriptor.
 _type_qualname_descriptor: Any = type.__dict__["__qualname__"]  # type: ignore[index]
@@ -74,6 +80,26 @@ def safe_getattr(obj: Any, name: str, default: Optional[Any] = None) -> Optional
         return default
 
 
+def safe_get_type_attr(cls: type, name: str, default: Optional[Any] = None) -> Optional[Any]:
+    # Static attribute lookup over a class's MRO. Each class's own __dict__ is
+    # read directly rather than going through getattr, so a descriptor (or a
+    # metaclass __getattr__) is never invoked and no user code ever runs.
+
+    mro = safe_getattr(cls, "__mro__", None)
+    if type(mro) is not tuple:
+        return default
+
+    for base in mro:
+        base_dict = safe_getattr(base, "__dict__", None)
+        if type(base_dict) in SAFE_MAPPING_TYPES:
+            try:
+                return base_dict[name]  # type: ignore[index]
+            except KeyError:
+                continue
+
+    return default
+
+
 def safe_getitem(obj: Any, index: Any) -> Any:
     if isinstance(obj, list):
         return list.__getitem__(obj, index)
@@ -92,6 +118,14 @@ def _safe_dict(o: Any) -> dict[str, Any]:
         pass  # nosec
 
     raise AttributeError("No safe __dict__")
+
+
+def get_namedtuple_fields(obj: Any, fields: tuple[str, ...]) -> dict[str, Any]:
+    # Read items positionally via the tuple base type instead of iterating
+    # obj directly (i.e. instead of zip(fields, obj)): some namedtuple-like
+    # classes are genuine tuple subclasses but override __iter__ (and other
+    # tuple dunders) to ban tuple-style access.
+    return dict(zip(fields, (tuple.__getitem__(obj, i) for i in range(tuple.__len__(obj)))))
 
 
 def get_fields(obj: Any) -> dict[str, Any]:
