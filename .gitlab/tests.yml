@@ -26,7 +26,6 @@ include:
       if [[ "${TEST_SUITE:-}" != "appsec_iast_native" ]]; then
         rm -r "$CI_PROJECT_DIR/ddtrace"
       fi
-    - export PYTHONPATH="$CI_PROJECT_DIR"
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
