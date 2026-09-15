@@ -94,11 +94,11 @@ system-tests parametric:
 
 include:
   - project: 'DataDog/system-tests'
-    ref: 'de534bc7bcba4f217cb6444e22d7890b52cf64da'
+    ref: '59f30a15bf59bd3f0a4a32dc340bf365a2f8a8cd'
     file: 'utils/ci/gitlab/main.yml'
     inputs:
       stage: "tests"
-      ref: 'de534bc7bcba4f217cb6444e22d7890b52cf64da'
+      ref: '59f30a15bf59bd3f0a4a32dc340bf365a2f8a8cd'
       allow_failure: true
       # condition: '$CI_COMMIT_BRANCH == "main"'
 
