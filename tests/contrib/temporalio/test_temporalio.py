@@ -162,13 +162,12 @@ async def test_client_operations(
     recorder = _RecordingClientInterceptor()
     input_data = _input_for(operation)
 
-    with override_global_tracer(tracer), override_config("temporalio", {"service": "temporal-test"}):
+    with override_global_tracer(tracer):
         client = _new_client(recorder)
         assert await getattr(client._impl, operation)(input_data) == result
 
     _datadog_interceptor(client)
     span = _operation_span(test_spans.pop(), span_name)
-    assert span.service == "temporal-test"
     assert span.span_type == SpanTypes.WORKER
     assert span.resource == resource
     assert span.get_tag(SPAN_KIND) == kind
@@ -212,25 +211,29 @@ async def _async_activity(name: str) -> str:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("activity_fn", [_sync_activity, _async_activity])
-async def test_activity_execution_and_distributed_context(
+async def test_end_to_end_workflow_activity_span_structure(
     monkeypatch: pytest.MonkeyPatch,
     tracer: Any,
     test_spans: Any,
     activity_fn: Any,
 ) -> None:
     recorder = _RecordingClientInterceptor()
-    start_input = _input_for("start_workflow")
-    existing_payload = PayloadConverter.default.to_payloads(["keep-me"])[0]
-    start_input.headers["application-header"] = existing_payload
-
     with override_global_tracer(tracer):
         client = _new_client(recorder)
         with tracer.trace("test.parent") as parent:
-            assert await client._impl.start_workflow(start_input) == "workflow-started"
+            assert (
+                await client.start_workflow(
+                    "GreetingWorkflow",
+                    id="workflow-id-secret",
+                    task_queue="greetings",
+                )
+                == "workflow-started"
+            )
 
+        assert recorder.outbound is not None
+        start_input = recorder.outbound.inputs["start_workflow"]
         injected_headers = start_input.headers
-        assert injected_headers["application-header"] is existing_payload
-        assert len(injected_headers) > 1
+        assert len(injected_headers) == 1
         assert str(parent._trace_id_64bits) in _decoded_headers(injected_headers)
 
         datadog_interceptor = _datadog_interceptor(client)
@@ -245,8 +248,12 @@ async def test_activity_execution_and_distributed_context(
         assert await activity_interceptor.execute_activity(activity_input) == "hello Temporal"
 
     spans = test_spans.pop()
+    assert len(spans) == 3
     producer = _operation_span(spans, "temporal.start_workflow")
     consumer = _operation_span(spans, "temporal.run_activity")
+    root = _operation_span(spans, "test.parent")
+    assert producer.trace_id == root.trace_id
+    assert producer.parent_id == root.span_id
     assert consumer.trace_id == producer.trace_id
     assert consumer.parent_id == producer.span_id
     assert consumer.span_type == SpanTypes.WORKER

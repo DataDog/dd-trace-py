@@ -7,7 +7,6 @@ from ddtrace.contrib._events.temporalio import TEMPORAL_CONTEXT_HEADER
 from ddtrace.contrib._events.temporalio import TemporalContextForwardEvent
 from ddtrace.contrib._events.temporalio import TemporalEvent
 from ddtrace.contrib._events.temporalio import TemporalEvents
-from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
@@ -58,7 +57,6 @@ class TemporalTracingSubscriber(TracingSubscriber[TemporalEvent]):
     @classmethod
     def on_span_starting(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
         event = ctx.event
-        event.service = ext_service(None, event.integration_config)
         if event.event_name == TemporalEvents.RUN_ACTIVITY.value:
             event.use_active_context = False
             _extract_context(event)

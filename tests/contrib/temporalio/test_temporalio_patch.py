@@ -58,14 +58,12 @@ def test_schema_v1_service_and_operation_names() -> None:
     from ddtrace.contrib._events.temporalio import TemporalQueryWorkflowEvent
     from ddtrace.contrib._events.temporalio import TemporalRunActivityEvent
     from ddtrace.contrib._events.temporalio import TemporalStartWorkflowEvent
-    from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 
     importlib.import_module("ddtrace.contrib.internal.temporalio.patch")
     event_kwargs = {"component": "temporalio", "integration_config": config.temporalio}
     assert TemporalStartWorkflowEvent(**event_kwargs).operation_name == "temporal.send"
     assert TemporalRunActivityEvent(**event_kwargs).operation_name == "temporal.process"
     assert TemporalQueryWorkflowEvent(**event_kwargs).operation_name == "temporal.client.request"
-    assert config.temporalio._default_service == DEFAULT_SPAN_SERVICE_NAME
 
 
 @pytest.mark.subprocess(env={"DD_TEMPORALIO_DISTRIBUTED_TRACING": "false"})

@@ -3805,16 +3805,6 @@
         "default": "true"
       }
     ],
-    "DD_TEMPORALIO_SERVICE": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null,
-        "aliases": [
-          "DD_TEMPORALIO_SERVICE_NAME"
-        ]
-      }
-    ],
     "DD_THIRD_PARTY_DETECTION_INCLUDES": [
       {
         "implementation": "A",

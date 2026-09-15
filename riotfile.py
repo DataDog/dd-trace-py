@@ -3756,9 +3756,6 @@ venv = Venv(
         ),
         Venv(
             name="temporalio",
-            env={
-                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
-            },
             command="pytest {cmdargs} tests/contrib/temporalio",
             pkgs={
                 "temporalio": latest,

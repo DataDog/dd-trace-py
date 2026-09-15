@@ -26,15 +26,6 @@ integration::
 Configuration
 ~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.temporalio["service"]
-
-   The service name reported for Temporal spans.
-
-   This option can also be set with the ``DD_TEMPORALIO_SERVICE`` environment
-   variable.
-
-   Default: ``"temporalio"``
-
 .. py:data:: ddtrace.config.temporalio["distributed_tracing"]
 
    Propagate trace context through Temporal headers.
@@ -46,7 +37,6 @@ Configuration
 """
 
 from ddtrace import config
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
 
@@ -54,8 +44,6 @@ from ddtrace.internal.utils.formats import asbool
 config._add(
     "temporalio",
     {
-        # Schema functions are selected dynamically and are untyped.
-        "_default_service": schematize_service_name("temporalio"),  # type: ignore[operator]
         "distributed_tracing": asbool(_get_config("DD_TEMPORALIO_DISTRIBUTED_TRACING", default=True)),
     },
 )  # type: ignore[no-untyped-call]
