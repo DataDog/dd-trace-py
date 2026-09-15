@@ -1,0 +1,12 @@
+_v: 1
+name: aredis
+display_name: aredis
+description: Instruments asynchronous Redis command and pipeline execution through aredis clients, recording command text
+  and connection metadata.
+packages:
+- name: aredis
+category:
+- db.client
+systems:
+- redis
+creation_date: '2021-10-06'

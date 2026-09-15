@@ -1,0 +1,12 @@
+_v: 1
+name: rediscluster
+display_name: redis-py-cluster
+description: Instruments Redis Cluster client commands and clustered pipeline execution performed through the redis-py-cluster
+  Python library.
+packages:
+- name: redis-py-cluster
+category:
+- db.client
+systems:
+- redis
+creation_date: '2018-10-03'
