@@ -60,6 +60,7 @@ def test_code_provenance_uploaded() -> None:
     from http.server import HTTPServer
     import queue
     import threading
+    from typing import cast
 
     from ddtrace._trace.tracer import Tracer as DDTracer
     from ddtrace.internal.datadog.profiling import ddup
