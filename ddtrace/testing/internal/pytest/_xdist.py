@@ -260,9 +260,18 @@ class XdistTestOptPlugin:
             module_name, suite_name, test_name = nodeid_to_names(nodeid)
             test_ref = TestRef(SuiteRef(ModuleRef(module_name), suite_name), test_name)
             try:
+                # Set module_path from the nodeid so the serializer has the required attribute.
+                # module_name uses dots (e.g. "tests.sub"), but the file path uses slashes.
+                from pathlib import Path
+
+                module_path = Path(module_name.replace(".", "/")) if module_name else Path("")
+
+                def _on_new_module(module: t.Any) -> None:
+                    module.set_location(module_path=module_path)
+
                 _, _, test = self.main_plugin.manager.discover_test(
                     test_ref,
-                    on_new_module=lambda m: None,
+                    on_new_module=_on_new_module,
                     on_new_suite=lambda s: None,
                     on_new_test=lambda t: None,
                 )
@@ -359,8 +368,15 @@ class XdistTestOptPlugin:
                 TestTag.RETRY_REASON: retry_reason,
             }
         )
-        # Set a minimal duration so the backend has timing context. Use the measured crash
-        # duration (setup + call up to the timeout) in nanoseconds.
-        test_run.start_ns = int((time.monotonic() - duration) * 1e9) if duration > 0 else int(time.monotonic() * 1e9)
+        # The worker would have set trace_id/span_id from its trace context; the main doesn't have
+        # one for the crash, so generate IDs (the backend uses them for correlation).
+        from ddtrace.testing.internal.utils import _gen_item_id
+
+        test_run.trace_id = _gen_item_id()
+        test_run.span_id = _gen_item_id()
+        # Set start_ns to wall-clock time (time.time_ns, not monotonic) so the backend has a real
+        # timestamp. The start is approximated as "now minus the measured crash duration."
+        now_ns = time.time_ns()
+        test_run.start_ns = int(now_ns - duration * 1e9) if duration > 0 else now_ns
         test_run.finish()
         self.main_plugin.manager.writer.put_item(test_run)
