@@ -6,7 +6,7 @@
 #include "dd_wrapper/include/sample.hpp"
 #include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "echion/danger.h"
 #include "echion/echion_sampler.h"
@@ -783,8 +783,8 @@ stack_postfork_cleanup()
     // Update PID in Echion
     _set_pid(getpid());
 
-    // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
-    ThreadSpanLinks::postfork_child();
+    // Reset SpanLinks state (reset locks, clear span-thread mappings)
+    SpanLinks::postfork_child();
 
     // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
     OriginTaskLinks::postfork_child();
@@ -814,7 +814,7 @@ __attribute__((constructor)) void
 stack_init()
 {
     _set_pid(getpid());
-    ThreadSpanLinks::postfork_child();
+    SpanLinks::postfork_child();
     OriginTaskLinks::postfork_child();
 }
 

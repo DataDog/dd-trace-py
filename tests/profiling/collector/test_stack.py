@@ -1535,7 +1535,7 @@ def test_span_id_in_profile_after_fork() -> None:
                 print(
                     f"FAIL: no profile sample in child carries span_id={span_id} / "
                     f"local_root_span_id={local_root_span_id}.\n"
-                    "ThreadSpanLinks was not repopulated after fork.\n"
+                    "SpanLinks was not repopulated after fork.\n"
                     f"AssertionError: {e}"
                 )
                 os._exit(1)

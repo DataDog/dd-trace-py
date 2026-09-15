@@ -2,7 +2,7 @@
 
 #include "origin_task_links.hpp"
 #include "sampler.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "dd_wrapper/include/clock.hpp"
 #include "dd_wrapper/include/sample_manager.hpp"
@@ -59,7 +59,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     sample->push_walltime(thread_state.wall_time_ns, 1);
 
-    const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    const std::optional<Span> active_span = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
     if (active_span) {
         sample->push_span_id(active_span->span_id);
         sample->push_local_root_span_id(active_span->local_root_span_id);
@@ -108,7 +108,7 @@ StackRenderer::render_cpu_sample_begin(std::string_view name,
     thread_state.wall_time_ns = 0;
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
 
-    const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    const std::optional<Span> active_span = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
     if (active_span) {
         sample->push_span_id(active_span->span_id);
         sample->push_local_root_span_id(active_span->local_root_span_id);
@@ -153,7 +153,7 @@ StackRenderer::render_task_begin(std::string_view task_name,
 
         // We also want to make sure the tid -> span_id mapping is present in the sample for the task
         const std::optional<Span> active_span =
-          ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
+          SpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
         if (active_span) {
             sample->push_span_id(active_span->span_id);
             sample->push_local_root_span_id(active_span->local_root_span_id);

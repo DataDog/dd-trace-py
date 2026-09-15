@@ -12,7 +12,7 @@
 #include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
 #include "sampler.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
@@ -82,11 +82,11 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear ThreadSpanLinks. The memory should be cleared up
-    // when the program exits as ThreadSpanLinks is a static singleton instance.
+    // Explicitly clear SpanLinks. The memory should be cleared up
+    // when the program exits as SpanLinks is a static singleton instance.
     // However, this was necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
-    ThreadSpanLinks::get_instance().reset();
+    SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
     // Sampler above.
@@ -158,7 +158,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
-    ThreadSpanLinks::get_instance().unlink_span(id);
+    SpanLinks::get_instance().unlink_span(id);
     OriginTaskLinks::get_instance().unlink_origin_task(id);
     Py_END_ALLOW_THREADS;
 
@@ -195,7 +195,7 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         span_type = empty_string.c_str();
     }
 
-    auto& links = ThreadSpanLinks::get_instance();
+    auto& links = SpanLinks::get_instance();
     links.on_link_start(span_id);
 
     Py_BEGIN_ALLOW_THREADS;
@@ -232,7 +232,7 @@ stack_unlink_span(PyObject* self, PyObject* args)
     uint64_t thread_id = state->thread_id;
 
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    SpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -250,7 +250,7 @@ stack_clear_span(PyObject* self, PyObject* args)
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
+    SpanLinks::get_instance().unlink_span(state->thread_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -266,7 +266,7 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    auto& links = ThreadSpanLinks::get_instance();
+    auto& links = SpanLinks::get_instance();
     if (links.on_span_finish(span_id)) {
         Py_BEGIN_ALLOW_THREADS;
         links.unlink_finished_span(span_id);
