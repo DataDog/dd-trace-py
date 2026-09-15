@@ -76,3 +76,17 @@ class DynamicATRRetriesHandler(AutoTestRetriesHandler):
 
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return test.last_test_run.get_status() == TestStatus.FAIL and retries_so_far < self._max_retries_for(test)
+
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
+        """The dynamic retry budget for a test whose initial attempt lasts ~``timeout_seconds``.
+
+        Used by the xdist main process (which has no live ``Test`` object) to compute the crash re-queue cap from
+        the pytest-timeout value stashed on the worker's setup report. Mirrors ``_get_max_retries_for`` but takes
+        a duration instead of a ``Test``.
+        """
+        efd_settings = self.settings.early_flake_detection
+        if self._retries_buckets is None:
+            duration_retries = efd_settings.retries_for_duration(timeout_seconds)
+        else:
+            duration_retries = self._retries_buckets[efd_settings.retry_bucket_index_for_duration(timeout_seconds)]
+        return max(1, duration_retries)

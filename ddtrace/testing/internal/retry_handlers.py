@@ -62,6 +62,24 @@ class RetryHandler(ABC):
         Return a human-readable name of the retry handler.
         """
 
+    @property
+    @abstractmethod
+    def retry_reason(self) -> str:
+        """The backend tag value for the retry reason (e.g. "auto_test_retry").
+
+        Used by the xdist main process when emitting crash-attempt TestRun events so the
+        backend knows which retry feature triggered the re-queue.
+        """
+
+    @abstractmethod
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
+        """The retry budget for a test whose initial attempt lasts ~``timeout_seconds``.
+
+        Used by the xdist main process to compute the crash re-queue cap from the measured crash duration
+        (wall-clock from logstart to handlecrashitem). For handlers with a flat budget (ATR, ATF) this is a
+        constant; for dynamic handlers (DynamicATRRetriesHandler) it is derived from the EFD retry buckets.
+        """
+
 
 class AutoTestRetriesHandler(RetryHandler):
     def __init__(self, settings: Settings) -> None:
@@ -71,6 +89,13 @@ class AutoTestRetriesHandler(RetryHandler):
 
     def get_pretty_name(self) -> str:
         return "Auto Test Retries"
+
+    @property
+    def retry_reason(self) -> str:
+        return "auto_test_retry"
+
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
+        return self.max_retries_per_test
 
     def should_apply(self, test: Test) -> bool:
         return self.max_tests_to_retry_per_session > 0
@@ -104,6 +129,18 @@ class EarlyFlakeDetectionHandler(RetryHandler):
 
     def get_pretty_name(self) -> str:
         return "Early Flake Detection"
+
+    @property
+    def retry_reason(self) -> str:
+        return "early_flake_detection"
+
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
+        # EFD aborts retries for tests that run longer than 5 minutes (EFD_ABORT_TEST_SECONDS). Honor that
+        # cutoff here so the crash re-queue cap is 0 (no re-queue) for long-running tests, matching the
+        # in-process EFD behavior. For shorter tests, derive the budget from the EFD retry buckets.
+        if timeout_seconds > self.EFD_ABORT_TEST_SECONDS:
+            return 0
+        return self.settings.early_flake_detection.retries_for_duration(timeout_seconds)
 
     def should_apply(self, test: Test) -> bool:
         # NOTE: currently we replicate dd-trace-py's behavior and disable EFD for parameterized tests. This is
@@ -159,6 +196,13 @@ class EarlyFlakeDetectionHandler(RetryHandler):
 class AttemptToFixHandler(RetryHandler):
     def get_pretty_name(self) -> str:
         return "Attempt to Fix"
+
+    @property
+    def retry_reason(self) -> str:
+        return "attempt_to_fix"
+
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
+        return self.settings.test_management.attempt_to_fix_retries
 
     def should_apply(self, test: Test) -> bool:
         return test.is_attempt_to_fix()
