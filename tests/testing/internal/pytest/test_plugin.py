@@ -1937,6 +1937,30 @@ class TestXdistCrashRequeue:
 
         assert sched.mark_test_pending.call_count == 6
 
+    def test_no_requeue_when_atr_session_limit_is_zero(self) -> None:
+        """When DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT=0, ATR is disabled and crashes are not re-queued."""
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+
+        with patch("ddtrace.internal.settings.env.get", return_value="0"):
+            plugin = self._build_plugin(atr=True)
+        # With session limit 0, no ATR handler is registered.
+        assert not any(isinstance(h, AutoTestRetriesHandler) for h in plugin._retry_handlers)
+        sched = Mock()
+        report = self._make_report()
+        plugin.pytest_runtest_logstart(nodeid="test_foo.py::test_a", location=None)
+        plugin.pytest_handlecrashitem(crashitem="test_foo.py::test_a", report=report, sched=sched)
+        sched.mark_test_pending.assert_not_called()
+        assert report.outcome == "failed"  # not relabeled
+
+    def test_logfinish_cleans_up_start_time(self) -> None:
+        """pytest_runtest_logfinish removes the start time so the dict doesn't grow unbounded."""
+        plugin = self._build_plugin(atr=True)
+        nodeid = "test_foo.py::test_a"
+        plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+        assert nodeid in plugin._start_times_by_nodeid
+        plugin.pytest_runtest_logfinish(nodeid=nodeid, location=None)
+        assert nodeid not in plugin._start_times_by_nodeid
+
 
 class TestOutcomeProcessing:
     """Test test outcome processing methods."""

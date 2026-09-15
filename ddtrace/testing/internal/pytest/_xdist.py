@@ -1,106 +1,126 @@
 """Datadog Test Optimization hooks for pytest-xdist.
 
-This module is imported lazily, only when pytest-xdist is installed (see ``pytest_configure`` in
-``ddtrace.testing.internal.pytest.plugin``), so customers without xdist pay no import cost.
+This module is imported lazily, only when pytest-xdist is installed (see pytest_configure in
+ddtrace.testing.internal.pytest.plugin), so customers without xdist pay no import cost.
 
 It owns the main-process side of xdist integration:
-- ``pytest_configure_node`` - passes the Datadog session id to each worker.
-- ``pytest_testnodedown`` - aggregates ITR skip counts from workers.
-- ``pytest_handlecrashitem`` - re-queues a test whose worker crashed (e.g. pytest-timeout
-  ``method="thread"`` calling ``os._exit``) so Datadog retries (ATR/EFD/ATF) can still reach it
+- pytest_configure_node: passes the Datadog session id to each worker.
+- pytest_testnodedown: aggregates ITR skip counts from workers.
+- pytest_handlecrashitem: re-queues a test whose worker crashed (e.g. pytest-timeout
+  method="thread" calling os._exit) so Datadog retries (ATR/EFD/ATF) can still reach it
   on a replacement worker.
 
 Why pytest_handlecrashitem exists
 ---------------------------------
-When a worker dies mid-test (pytest-timeout's ``method="thread"`` calls ``os._exit(1)`` on timeout),
-xdist reports the test as failed and replaces the worker, but does *not* retry the crashed test.
-Datadog in-process retries (ATR/EFD/ATF) live *inside the worker*, so they are lost with it - the
-test is never retried. This hook closes that gap: when a retry feature is active, we re-queue the
-crashed test to a replacement worker via ``sched.mark_test_pending`` so it gets a clean re-run, with
-its original timeout method preserved (no SIGALRM override, no signal-cancellation side effects -
-customers who deliberately chose ``method="thread"`` to avoid ``method="signal"`` cancellation bugs
-are not penalized). The crash attempt's failure report is relabeled ``rerun`` so it does not count
+When a worker dies mid-test (pytest-timeout's "thread" method calls os._exit(1) on timeout), xdist
+reports the test as failed and replaces the worker, but does not retry the crashed test. Datadog
+in-process retries (ATR/EFD/ATF) live inside the worker, so they are lost with it — the test is
+never retried. This hook closes that gap: when a retry feature is active, we re-queue the crashed
+test to a replacement worker via sched.mark_test_pending so it gets a clean re-run, with its
+original timeout method preserved (no SIGALRM override, no signal-cancellation side effects —
+customers who deliberately chose method="thread" to avoid method="signal" cancellation bugs are
+not penalized). The crash attempt's failure report is relabeled "rerun" so it does not count
 toward pytest's pass/fail tally; the re-queue's own result determines the outcome.
 
 Crash re-queue vs in-worker ATR retry
 -------------------------------------
 These are different mechanisms at different levels:
 
-- **In-worker ATR retry** happens inside one *living* worker: a test fails normally (e.g. assertion
-  error, not a crash) and the worker re-runs it up to its budget, counting attempts and deciding the
-  final status. This already works today and is untouched here.
-- **Crash re-queue** happens in the *main process* across worker deaths: the worker is dead, so
-  there is no living worker to do in-process ATR. The main re-runs the test on a *new* worker, which
-  then starts fresh and applies its own in-worker ATR from scratch.
+- In-worker ATR retry happens inside one living worker: a test fails normally (e.g. assertion
+  error, not a crash) and the worker re-runs it up to its budget, counting attempts and deciding
+  the final status. This already works today and is untouched here.
+- Crash re-queue happens in the main process across worker deaths: the worker is dead, so
+  there is no living worker to do in-process ATR. The main re-runs the test on a new worker,
+  which then starts fresh and applies its own in-worker ATR from scratch.
 
-The retry budget lives in the worker, and the worker is dead - so a naive re-queue would let each
-replacement worker apply a full budget again, and the global budget would not be honored across
-worker deaths.
+The retry budget lives in the worker, and the worker is dead — so a naive re-queue would let
+each replacement worker apply a full budget again, and the global budget would not be honored
+across worker deaths.
 
 How the budget is honored here (and why it is exact for the common case)
 -----------------------------------------------------------------------
-For the dominant crash scenario - a test that *always* hangs (the motivating case for
-``method="thread"``) - each worker dies during attempt 0, *before* the in-worker ATR loop ever runs.
-So **zero in-worker retries happen on a crashing attempt**: each worker death is exactly one
-attempt, and the worker never builds a retry count of its own. That means the main process's crash
-count *is* the retry count: capping re-queues at the configured budget honors the global budget
-exactly, with no cross-process state needed.
+For the dominant crash scenario — a test that always hangs (the motivating case for
+method="thread") — each worker dies during attempt 0, before the in-worker ATR loop ever runs.
+So zero in-worker retries happen on a crashing attempt: each worker death is exactly one
+attempt, and the worker never builds a retry count of its own. That means the main process's
+crash count is the retry count: capping re-queues at the configured budget honors the global
+budget exactly, with no cross-process state needed.
 
   attempt 0 (initial)            -> crash        (0 retries)
   re-queue -> attempt 0 (retry 1) -> crash       (1 retry)
   ...
   re-queue -> attempt 0 (retry N) -> crash       (N retries) -> cap reached, stop
 
-The cap is ``max(handler.max_retries_for_timeout(duration) for handler in self._retry_handlers)``
-where ``duration`` is the wall-clock time the test ran before crashing (measured in the main process;
-see below). For ATR - the customer's feature - the budget is a flat ``max_retries_per_test`` (default 5),
-so the duration is ignored and the budget is honored exactly. For dynamic ATR, the budget is derived
-from the duration via the EFD retry buckets (``retries_for_duration``). EFD's 5-minute abort
-threshold (``EFD_ABORT_TEST_SECONDS = 300``) is honored: a test that runs longer than 5 minutes gets 0
-retries from EFD, matching the in-process behavior. Dynamic ATR has no such cutoff. The ``max`` across
-handlers is used because the main process cannot determine which handler would have applied to the
-crashed test (that depends on per-test properties like ``is_new()`` / ``is_attempt_to_fix()`` that the main
-does not have without running the test); it also ensures that if ATR is also active, its budget still applies
-even when EFD aborts. xdist's own ``max_worker_restart`` remains the global backstop across all tests.
+The cap is max(handler.max_retries_for_timeout(duration) for handler in self._retry_handlers)
+where duration is the wall-clock time the test ran before crashing (measured in the main
+process; see below). For ATR — the customer's feature — the budget is a flat
+max_retries_per_test (default 5), so the duration is ignored and the budget is honored
+exactly. For dynamic ATR, the budget is derived from the duration via the EFD retry buckets
+(retries_for_duration). EFD's 5-minute abort threshold (EFD_ABORT_TEST_SECONDS = 300) is
+honored: a test that runs longer than 5 minutes gets 0 retries from EFD, matching the
+in-process behavior. Dynamic ATR has no such cutoff. The max across handlers is used
+because the main process cannot determine which handler would have applied to the crashed
+test (that depends on per-test properties like is_new() / is_attempt_to_fix() that the main
+does not have without running the test); it also ensures that if ATR is also active, its budget
+still applies even when EFD aborts. xdist's own max_worker_restart remains the global backstop
+across all tests.
 
-The handlers are built in ``__init__`` from ``manager.settings`` (not ``manager.retry_handlers``)
-because the main (controller) process prohibits collection, so ``SessionManager.setup_retry_handlers``
-never runs there and ``manager.retry_handlers`` stays empty in the main. We only ever query
-``max_retries_for_timeout`` (a session-level constant per handler), never
-``should_apply``/``should_retry`` (which need per-test state the main does not have).
+The cap is cached per nodeid from the first crash: DynamicATRRetriesHandler caches the bucket
+selected from the initial attempt (via lru_cache), so we do the same here — the first crash's
+duration determines the cap for all subsequent re-queues of that test, preventing the cap from
+shrinking or growing if later replacement workers crash after different durations.
+
+The handlers are built in __init__ from manager.settings (not manager.retry_handlers)
+because the main (controller) process prohibits collection, so
+SessionManager.setup_retry_handlers never runs there and manager.retry_handlers stays empty in
+the main. We only ever query max_retries_for_timeout (a session-level constant per handler),
+never should_apply/should_retry (which need per-test state the main does not have). ATR's
+session-level retry limit (max_tests_to_retry_per_session, from
+DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT) is also honored: when it is 0, no ATR handler is
+registered, so crashed tests are not re-queued.
 
 How the crash duration is measured (wall-clock from logstart)
 -------------------------------------------------------------
-The main process receives ``pytest_runtest_logstart`` (re-fired by xdist's ``worker_logstart``)
-*before* the worker runs the test, so it fires before any crash. We record ``time.time()`` per nodeid
-in a ``pytest_runtest_logstart`` hookimpl. When ``pytest_handlecrashitem`` fires, the delta between
-now and the recorded start time approximates how long the test ran before crashing (setup + call up
-to the timeout). This is purely main-process state - no files, no reliance on worker-sent data
-surviving ``os._exit`` (which kills the worker before the xdist channel can flush in-flight
-reports).
+The main process receives pytest_runtest_logstart (re-fired by xdist's worker_logstart) before
+the worker runs the test, so it fires before any crash. We record time.monotonic() per nodeid
+in a pytest_runtest_logstart hookimpl. When pytest_handlecrashitem fires, the delta between
+now and the recorded start time approximates how long the test ran before crashing (setup +
+call up to the timeout). This is purely main-process state — no files, no reliance on
+worker-sent data surviving os._exit (which kills the worker before the xdist channel can
+flush in-flight reports). A monotonic clock is used so system clock changes don't affect the
+elapsed-time measurement.
 
-The delta includes setup time and xdist's worker-death detection latency (~10-50ms in practice,
-negligible for bucket classification). At a bucket boundary the delta may be slightly
-over-measured (setup time pushes it into the next-higher bucket), which is the *safe* direction
-(more retries, not fewer). The delta is also slightly *under*-measured by the detection latency,
-which at worst pushes a boundary test into the *lower* bucket (more retries) - also safe.
+The delta includes setup time and xdist's worker-death detection latency (~10-50ms in
+practice, negligible for bucket classification). At a bucket boundary the delta may be
+slightly over-measured (setup time pushes it into the next-higher bucket), which is the safe
+direction (more retries, not fewer). The delta is also slightly under-measured by the
+detection latency, which at worst pushes a boundary test into the lower bucket (more
+retries) — also safe.
+
+Start times are cleaned up when a test completes normally (via pytest_runtest_logfinish) so
+the dict does not grow unbounded in large sessions. They are also popped on crash
+(handlecrashitem), so only in-flight tests retain an entry.
 
 Known bounded imprecision (the mixed path)
 ------------------------------------------
-The only case where the global budget is not honored exactly is the *mixed* path: a worker does
-some in-worker ATR retries (the test fails normally a few times), *then* crashes on a later attempt.
-The replacement worker starts fresh and could redo a full in-worker budget, so the total can exceed
-the configured budget by at most one worker's budget. This requires "fails normally several times,
-then hangs" - uncommon, and bounded. Closing that gap exactly needs persisting retry state across
-the process boundary, which is deferred (see below).
+The only case where the global budget is not honored exactly is the mixed path: a worker
+does some in-worker ATR retries (the test fails normally a few times), then crashes on a
+later attempt. The replacement worker starts fresh and could redo a full in-worker
+budget, so the total can exceed the configured budget by at most one worker's budget.
+This requires "fails normally several times, then hangs" — uncommon, and bounded. Closing
+that gap exactly needs persisting retry state across the process boundary, which is deferred
+(see below).
 
 Deferred follow-ups (not in this PR)
 ------------------------------------
-1. **Backend visibility of the crash attempt.** Today the backend sees only the re-run's result (the
-   crash attempt's buffered start event is lost to ``os._exit`` and the main process does not emit
-   per-test events under xdist). A follow-up will make the main process emit a backend "retry attempt
-   (crashed)" event per crash so ATR retry counts/visibility are preserved across worker restarts.
-2. **Exact global budget for the mixed path** (cross-process retry-state persistence).
+1. Backend visibility of the crash attempt. Today the backend sees only the re-run's result
+   (the crash attempt's buffered start event is lost to os._exit and the main process does
+   not emit per-test events under xdist). A follow-up will make the main process emit a
+   backend "retry attempt (crashed)" event per crash so ATR retry counts/visibility are
+   preserved across worker restarts. This also covers preserving EFD/ATF final-status
+   semantics across worker crashes (e.g. an ATF test that crashes then passes should be
+   reported as failed, not passed).
+2. Exact global budget for the mixed path (cross-process retry-state persistence).
 """
 
 from __future__ import annotations
@@ -135,31 +155,41 @@ class XdistTestOptPlugin:
     __test__ = False
 
     def __init__(self, main_plugin: t.Any) -> None:
-        # ``main_plugin`` is a TestOptPlugin; typed as Any to avoid an import cycle with the plugin module
+        # main_plugin is a TestOptPlugin; typed as Any to avoid an import cycle with the plugin module
         # (which imports this one lazily).
         self.main_plugin = main_plugin
-        # Per-nodeid count of crash re-queues we have triggered, so a test that crashes repeatedly does not
-        # re-queue forever. Capped at the retry budget of the active handlers (see pytest_handlecrashitem).
+        # Per-nodeid count of crash re-queues we have triggered, so a test that crashes repeatedly
+        # does not re-queue forever. Capped at the retry budget of the active handlers.
         self._crash_retries: dict[str, int] = {}
-        # Per-nodeid wall-clock start time recorded at pytest_runtest_logstart (before the worker runs the
-        # test, so before any crash). Used to measure how long the test ran before crashing, which drives
-        # the duration-aware re-queue cap for dynamic ATR/EFD. See module docstring.
+        # Per-nodeid wall-clock start time recorded at pytest_runtest_logstart (before the worker
+        # runs the test, so before any crash). Used to measure how long the test ran before crashing,
+        # which drives the duration-aware re-queue cap for dynamic ATR/EFD. Cleaned up on normal
+        # completion (logfinish) and on crash (handlecrashitem).
         self._start_times_by_nodeid: dict[str, float] = {}
-        # Retry handlers for this session, built from settings. The main (controller) process prohibits
-        # collection (DSession.pytest_collection returns True), so pytest_collection_finish never fires in
-        # the main and SessionManager.setup_retry_handlers() never runs there — manager.retry_handlers stays
-        # empty in the main. Since pytest_handlecrashitem runs in the main, we cannot rely on that list.
-        # Instead we build the handler instances here from settings, purely to query max_retries_for_timeout
-        # for the cap.
-        # We never call should_apply/should_retry (those need per-test state the main doesn't have); we only
-        # need the retry budget, which is a session-level constant per handler.
+        # Per-nodeid cached re-queue cap, computed from the first crash's duration. Mirrors
+        # DynamicATRRetriesHandler's lru_cache behavior: the initial attempt's duration determines
+        # the bucket for all subsequent retries of that test.
+        self._cached_caps_by_nodeid: dict[str, int] = {}
+        # Retry handlers for this session, built from settings. The main (controller) process
+        # prohibits collection (DSession.pytest_collection returns True), so
+        # pytest_collection_finish never fires in the main and
+        # SessionManager.setup_retry_handlers() never runs there — manager.retry_handlers stays
+        # empty in the main. Since pytest_handlecrashitem runs in the main, we cannot rely on
+        # that list. Instead we build the handler instances here from settings, purely to
+        # query max_retries_for_timeout for the cap. We never call should_apply/should_retry
+        # (those need per-test state the main doesn't have); we only need the retry budget,
+        # which is a session-level constant per handler.
         s = main_plugin.manager.settings
         self._retry_handlers: list[RetryHandler] = []
         if s.auto_test_retries.enabled:
             if is_dynamic_retries_enabled():
                 self._retry_handlers.append(DynamicATRRetriesHandler(s, get_retries_buckets()))
             else:
-                self._retry_handlers.append(AutoTestRetriesHandler(s))
+                atr = AutoTestRetriesHandler(s)
+                # Honor the session-level retry limit: when max_tests_to_retry_per_session is 0,
+                # ATR should not retry any test, so don't register the handler.
+                if atr.max_tests_to_retry_per_session > 0:
+                    self._retry_handlers.append(atr)
         if s.early_flake_detection.enabled:
             self._retry_handlers.append(EarlyFlakeDetectionHandler(s))
         if s.test_management.enabled:
@@ -181,39 +211,52 @@ class XdistTestOptPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logstart(self, nodeid: str, location: t.Any) -> None:
-        """Record the wall-clock start time for each test before the worker runs it.
+        """Record the monotonic start time for each test before the worker runs it.
 
-        xdist re-fires ``pytest_runtest_logstart`` in the main process (via ``worker_logstart``) *before*
+        xdist re-fires pytest_runtest_logstart in the main process (via worker_logstart) before
         the worker executes the test. For a test that crashes during the call (e.g. pytest-timeout
-        ``method="thread"`` calling ``os._exit``), this fires before the crash, so we have a reliable
-        start time to measure the crash duration from. See module docstring for why this is main-process
-        state (no reliance on worker-sent data surviving ``os._exit``).
+        method="thread" calling os._exit), this fires before the crash, so we have a reliable
+        start time to measure the crash duration from. See module docstring for why this is
+        main-process state (no reliance on worker-sent data surviving os._exit).
         """
-        self._start_times_by_nodeid[nodeid] = time.time()
+        self._start_times_by_nodeid[nodeid] = time.monotonic()
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logfinish(self, nodeid: str, location: t.Any) -> None:
+        """Clean up the start time for a test that completed normally (no crash).
+
+        Without this, _start_times_by_nodeid would grow with the full test count in large sessions.
+        The entry is only needed between logstart and either logfinish (normal completion) or
+        handlecrashitem (crash); removing it here keeps the dict bounded to in-flight tests.
+        """
+        self._start_times_by_nodeid.pop(nodeid, None)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_handlecrashitem(self, crashitem: str, report: pytest.TestReport, sched: t.Any) -> None:
         """Re-queue a test whose xdist worker crashed so a retry feature can reach it.
 
-        See the module docstring for the full rationale (crash re-queue vs in-worker ATR, how the
-        budget is honored, and how the crash duration is measured). In short: when a retry feature is
-        active, re-queue the crashed test to a replacement worker via ``sched.mark_test_pending`` and
-        relabel the crash report ``rerun`` so it does not count as a final failure. No-op when no retry
-        feature is active, leaving xdist's default behavior (report failure, replace worker, no
-        re-queue) untouched.
+        See the module docstring for the full rationale. In short: when a retry feature is
+        active, re-queue the crashed test to a replacement worker via sched.mark_test_pending
+        and relabel the crash report "rerun" so it does not count as a final failure. No-op
+        when no retry feature is active, leaving xdist's default behavior (report failure,
+        replace worker, no re-queue) untouched.
         """
         retry_handlers = self._retry_handlers
         if not retry_handlers:
             return None
 
-        # Measure how long the test ran before crashing (setup + call up to the timeout). This drives the
-        # duration-aware re-queue cap for dynamic ATR/EFD. If we have no start time (e.g. the test crashed
-        # before logstart, which shouldn't happen), duration defaults to 0 — for flat-budget handlers (ATR,
-        # ATF) this is irrelevant (they return a constant); for dynamic handlers it maps to the largest bucket
-        # (retries_for_duration(0) = <=5s bucket), which is a safe conservative ceiling.
+        # Measure how long the test ran before crashing (setup + call up to the timeout).
+        # Use a monotonic clock so system clock changes don't affect the measurement.
         start_time = self._start_times_by_nodeid.pop(crashitem, None)
-        duration = (time.time() - start_time) if start_time is not None else 0.0
-        max_requeue = max(handler.max_retries_for_timeout(duration) for handler in retry_handlers)
+        duration = (time.monotonic() - start_time) if start_time is not None else 0.0
+
+        # Cache the cap from the first crash's duration, mirroring DynamicATRRetriesHandler's
+        # lru_cache: the initial attempt's duration determines the bucket for all subsequent
+        # re-queues of that test.
+        max_requeue = self._cached_caps_by_nodeid.get(crashitem)
+        if max_requeue is None:
+            max_requeue = max(handler.max_retries_for_timeout(duration) for handler in retry_handlers)
+            self._cached_caps_by_nodeid[crashitem] = max_requeue
 
         count = self._crash_retries.get(crashitem, 0)
         if count >= max_requeue:
@@ -222,8 +265,9 @@ class XdistTestOptPlugin:
         self._crash_retries[crashitem] = count + 1
         sched.mark_test_pending(crashitem)
 
-        # Relabel the crash report as a retry so pytest's terminal summary does not count it as a final failure;
-        # the re-queued run will emit its own pass/fail report that determines the outcome.
+        # Relabel the crash report as a retry so pytest's terminal summary does not count it
+        # as a final failure; the re-queued run will emit its own pass/fail report that
+        # determines the outcome.
         report.outcome = "rerun"
         report.user_properties = list(report.user_properties) + [
             (_CRASH_RETRY_REASON_KEY, _CRASH_RETRY_REASON_VALUE),
