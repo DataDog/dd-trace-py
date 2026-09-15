@@ -62,6 +62,16 @@ class RetryHandler(ABC):
         Return a human-readable name of the retry handler.
         """
 
+    @property
+    @abstractmethod
+    def max_retries(self) -> int:
+        """The maximum number of retries this handler will perform for a single test.
+
+        Used by callers that need an upper bound without a live ``Test`` object (e.g. the xdist main process
+        deciding how many times to re-queue a crashed worker's test). For handlers whose budget is dynamic
+        (e.g. EFD, which scales with test duration), return the largest budget the handler would ever grant.
+        """
+
 
 class AutoTestRetriesHandler(RetryHandler):
     def __init__(self, settings: Settings) -> None:
@@ -71,6 +81,10 @@ class AutoTestRetriesHandler(RetryHandler):
 
     def get_pretty_name(self) -> str:
         return "Auto Test Retries"
+
+    @property
+    def max_retries(self) -> int:
+        return self.max_retries_per_test
 
     def should_apply(self, test: Test) -> bool:
         return self.max_tests_to_retry_per_session > 0
@@ -104,6 +118,12 @@ class EarlyFlakeDetectionHandler(RetryHandler):
 
     def get_pretty_name(self) -> str:
         return "Early Flake Detection"
+
+    @property
+    def max_retries(self) -> int:
+        # EFD's budget is dynamic (scales with test duration). Return the largest bucket so callers get a safe
+        # upper bound without a live Test object.
+        return self.settings.early_flake_detection.slow_test_retries_5s
 
     def should_apply(self, test: Test) -> bool:
         # NOTE: currently we replicate dd-trace-py's behavior and disable EFD for parameterized tests. This is
@@ -159,6 +179,10 @@ class EarlyFlakeDetectionHandler(RetryHandler):
 class AttemptToFixHandler(RetryHandler):
     def get_pretty_name(self) -> str:
         return "Attempt to Fix"
+
+    @property
+    def max_retries(self) -> int:
+        return self.settings.test_management.attempt_to_fix_retries
 
     def should_apply(self, test: Test) -> bool:
         return test.is_attempt_to_fix()

@@ -17,7 +17,7 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
-from ddtrace.testing.internal.pytest.plugin import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
@@ -1823,6 +1823,101 @@ class TestXdistPlugin:
 
         # Verify session ID was passed to worker
         assert mock_node.workerinput["dd_session_id"] == "test-session-123"
+
+
+class TestXdistCrashRequeue:
+    """Unit tests for XdistTestOptPlugin.pytest_handlecrashitem (worker-crash re-queue).
+
+    These exercise the hook logic in isolation (no real xdist/subprocess): a mock scheduler records
+    ``mark_test_pending`` calls and a mock report records the outcome relabel. End-to-end behavior
+    (a crashed worker's test being re-run on a replacement worker) is covered separately under
+    tests/testing/internal/pytest/test_pytest_xdist.py.
+    """
+
+    @staticmethod
+    def _build_plugin(retry_handlers: t.Optional[list] = None) -> XdistTestOptPlugin:
+        builder = session_manager_mock()
+        # ``retry_handlers`` is the single source of truth for "retries active". A non-empty list simulates
+        # ATR/EFD/ATF being enabled; an empty list simulates all retry features off.
+        builder._retry_handlers = retry_handlers if retry_handlers is not None else []
+        main_plugin = TestOptPlugin(session_manager=builder.build_mock())
+        return XdistTestOptPlugin(main_plugin)
+
+    @staticmethod
+    def _make_report() -> Mock:
+        report = Mock(spec=pytest.TestReport)
+        report.outcome = "failed"
+        report.user_properties = []
+        return report
+
+    def test_no_requeue_when_retries_inactive(self) -> None:
+        """With no retry feature active, xdist's default behavior is left untouched (no re-queue)."""
+        plugin = self._build_plugin(retry_handlers=[])
+        sched = Mock()
+        report = self._make_report()
+
+        plugin.pytest_handlecrashitem(crashitem="test_foo.py::test_a", report=report, sched=sched)
+
+        sched.mark_test_pending.assert_not_called()
+        assert report.outcome == "failed"  # not relabeled
+
+    def test_requeue_when_retries_active(self) -> None:
+        """With a retry feature active, the crashed test is re-queued and the crash report is relabeled rerun."""
+        handler = Mock()
+        handler.max_retries = 5
+        plugin = self._build_plugin(retry_handlers=[handler])
+        sched = Mock()
+        report = self._make_report()
+
+        plugin.pytest_handlecrashitem(crashitem="test_foo.py::test_a", report=report, sched=sched)
+
+        sched.mark_test_pending.assert_called_once_with("test_foo.py::test_a")
+        assert report.outcome == "rerun"
+        props = dict(report.user_properties)
+        assert props["dd_retry_reason"] == "xdist_worker_crash"
+        assert props["dd_retry_number"] == 1
+
+    def test_cap_reached_stops_requeuing(self) -> None:
+        """A test that crashes repeatedly is only re-queued up to the handler's retry budget, then the failure stands."""
+        handler = Mock()
+        handler.max_retries = 2
+        plugin = self._build_plugin(retry_handlers=[handler])
+        sched = Mock()
+        crashitem = "test_foo.py::test_a"
+
+        # First two crashes: re-queued (handler.max_retries == 2).
+        for expected_number in (1, 2):
+            report = self._make_report()
+            plugin.pytest_handlecrashitem(crashitem=crashitem, report=report, sched=sched)
+            assert report.outcome == "rerun"
+            assert dict(report.user_properties)["dd_retry_number"] == expected_number
+        assert sched.mark_test_pending.call_count == 2
+
+        # Third crash: cap reached, no re-queue, report stays as the failure.
+        report = self._make_report()
+        plugin.pytest_handlecrashitem(crashitem=crashitem, report=report, sched=sched)
+        # mark_test_pending was called twice (for the first two crashes), not a third time:
+        assert sched.mark_test_pending.call_count == 2
+        assert report.outcome == "failed"  # not relabeled
+
+    def test_per_nodeid_independent_counts(self) -> None:
+        """Each crashed test gets its own re-queue budget."""
+        handler = Mock()
+        handler.max_retries = 5
+        plugin = self._build_plugin(retry_handlers=[handler])
+        sched = Mock()
+
+        for _ in range(3):
+            plugin.pytest_handlecrashitem(
+                crashitem="test_a.py::test_a", report=self._make_report(), sched=sched
+            )
+        for _ in range(3):
+            plugin.pytest_handlecrashitem(
+                crashitem="test_b.py::test_b", report=self._make_report(), sched=sched
+            )
+
+        assert sched.mark_test_pending.call_count == 6
+
 
 
 class TestOutcomeProcessing:

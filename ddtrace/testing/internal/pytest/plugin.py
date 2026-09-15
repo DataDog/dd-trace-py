@@ -1508,28 +1508,6 @@ class RetryReports:
         return None
 
 
-class XdistTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
-        self.main_plugin = main_plugin
-
-    @pytest.hookimpl
-    def pytest_configure_node(self, node: t.Any) -> None:
-        """
-        Pass test session id from the main process to xdist workers.
-        """
-        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
-
-    @pytest.hookimpl
-    def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
-        """
-        Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
-        """
-        if not hasattr(node, "workeroutput"):
-            return
-
-        if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
-
 
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
     return {report.when: report for report in reports}
@@ -1731,6 +1709,8 @@ def pytest_configure(config: pytest.Config) -> None:
     config.pluginmanager.add_hookspecs(TestOptHooks)
 
     if config.pluginmanager.hasplugin("xdist"):
+        from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
 
     if config.pluginmanager.hasplugin("pytest-bdd") or config.pluginmanager.hasplugin("bdd"):
