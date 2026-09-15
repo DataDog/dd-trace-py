@@ -11,7 +11,12 @@ from tests.contrib.patch import PatchTestCase
 
 _VERSION = pymongo.version_tuple
 
-if _VERSION >= (4, 9):
+if _VERSION >= (4, 18):
+    from pymongo.synchronous.command_runner import run_bulk_write_command
+    from pymongo.synchronous.cursor_base import _CursorBase
+    from pymongo.synchronous.pool import Connection
+    from pymongo.synchronous.pool import Pool
+elif _VERSION >= (4, 9):
     from pymongo.synchronous.pool import Connection
     from pymongo.synchronous.server import Server
 elif _VERSION >= (4, 5):
@@ -22,7 +27,12 @@ else:
     from pymongo.server import Server
 
 # Import async classes if available (pymongo >= 4.12)
-if _VERSION >= (4, 12):
+if _VERSION >= (4, 18):
+    from pymongo.asynchronous.command_runner import run_bulk_write_command as async_run_bulk_write_command
+    from pymongo.asynchronous.cursor_base import _AsyncCursorBase
+    from pymongo.asynchronous.pool import AsyncConnection
+    from pymongo.asynchronous.pool import Pool as AsyncPool
+elif _VERSION >= (4, 12):
     from pymongo.asynchronous.pool import AsyncConnection
     from pymongo.asynchronous.server import Server as AsyncServer
 
@@ -36,24 +46,36 @@ class TestPymongoPatch(PatchTestCase.Base):
 
     def _assert_sync_wrapped(self, assert_method, pymongo):
         """Assert sync methods are wrapped/unwrapped."""
-        if _VERSION >= (3, 12):
+        if _VERSION >= (4, 18):
+            assert_method(_CursorBase._run_with_conn)
+        elif _VERSION >= (3, 12):
             assert_method(Server.run_operation)
         elif _VERSION >= (3, 9):
             assert_method(Server.run_operation_with_response)
         else:
             assert_method(Server.send_message_with_response)
 
-        if _VERSION >= (4, 5):
+        if _VERSION >= (4, 18):
+            assert_method(Pool.checkout)
+        elif _VERSION >= (4, 5):
             assert_method(Server.checkout)
         else:
             assert_method(Server.get_socket)
 
         assert_method(Connection.command)
-        assert_method(Connection.write_command)
+        if _VERSION >= (4, 18):
+            assert_method(run_bulk_write_command)
+        else:
+            assert_method(Connection.write_command)
 
     def _assert_async_wrapped(self, assert_method):
         """Assert async methods are wrapped/unwrapped (pymongo >= 4.12 only)."""
-        if _VERSION >= (4, 12):
+        if _VERSION >= (4, 18):
+            assert_method(_AsyncCursorBase._run_with_conn)  # type: ignore[name-defined]
+            assert_method(AsyncPool.checkout)  # type: ignore[name-defined]
+            assert_method(AsyncConnection.command)  # type: ignore[name-defined]
+            assert_method(async_run_bulk_write_command)  # type: ignore[name-defined]
+        elif _VERSION >= (4, 12):
             assert_method(AsyncServer.run_operation)  # type: ignore[name-defined]
             assert_method(AsyncServer.checkout)  # type: ignore[name-defined]
             assert_method(AsyncConnection.command)  # type: ignore[name-defined]
@@ -68,19 +90,5 @@ class TestPymongoPatch(PatchTestCase.Base):
         self._assert_async_wrapped(self.assert_not_wrapped)
 
     def assert_not_module_double_patched(self, pymongo):
-        self.assert_not_double_wrapped(Connection.command)
-        self.assert_not_double_wrapped(Connection.write_command)
-
-        if _VERSION >= (3, 12):
-            self.assert_not_double_wrapped(Server.run_operation)
-        elif _VERSION >= (3, 9):
-            self.assert_not_double_wrapped(Server.run_operation_with_response)
-        else:
-            self.assert_not_double_wrapped(Server.send_message_with_response)
-
-        if _VERSION >= (4, 5):
-            self.assert_not_double_wrapped(Server.checkout)
-        else:
-            self.assert_not_double_wrapped(Server.get_socket)
-
+        self._assert_sync_wrapped(self.assert_not_double_wrapped, pymongo)
         self._assert_async_wrapped(self.assert_not_double_wrapped)
