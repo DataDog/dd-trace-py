@@ -35,7 +35,7 @@ def test_taint_pyobject_in_copied_context_returns_owned_reference():
     refcount_after = sys.getrefcount(value)
 
     if returned is not value or refcount_after != refcount_before + 1:
-        # AIDEV-NOTE: Avoid normal cleanup: both names appear to own the same
+        # Avoid normal cleanup: both names appear to own the same
         # reference, which can turn this deterministic check into a UAF crash.
         os._exit(1)
 
