@@ -7,6 +7,7 @@ src/native/                         @DataDog/apm-core-python
 lib-injection/                      @DataDog/apm-core-python
 tests/wrapping/                     @DataDog/apm-core-python
 tests/lib_injection/                @DataDog/apm-core-python
+tests/internal                      @DataDog/apm-core-python
 
 # Framework Integrations
 ddtrace/ext/                        @DataDog/python-guild @DataDog/apm-idm-python
@@ -132,7 +133,6 @@ docs/                               @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
-tests/lib-injection                 @DataDog/apm-core-python
 
 # Test Visibility and related
 # ddtrace files
