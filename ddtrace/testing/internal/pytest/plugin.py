@@ -38,6 +38,7 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -1506,29 +1507,6 @@ class RetryReports:
             return self.reports_by_outcome["failed"][0]
 
         return None
-
-
-class XdistTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
-        self.main_plugin = main_plugin
-
-    @pytest.hookimpl
-    def pytest_configure_node(self, node: t.Any) -> None:
-        """
-        Pass test session id from the main process to xdist workers.
-        """
-        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
-
-    @pytest.hookimpl
-    def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
-        """
-        Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
-        """
-        if not hasattr(node, "workeroutput"):
-            return
-
-        if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:

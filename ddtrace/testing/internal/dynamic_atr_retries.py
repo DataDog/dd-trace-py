@@ -60,15 +60,11 @@ class DynamicATRRetriesHandler(AutoTestRetriesHandler):
 
     def _get_max_retries_for(self, test: Test) -> int:
         """Cache the initial-duration classification for every retry of a test."""
-        initial_attempt_seconds = test.test_runs[0].seconds_so_far()
-        efd_settings = self.settings.early_flake_detection
-        if self._retries_buckets is None:
-            duration_retries = efd_settings.retries_for_duration(initial_attempt_seconds)
-        else:
-            duration_retries = self._retries_buckets[
-                efd_settings.retry_bucket_index_for_duration(initial_attempt_seconds)
-            ]
-        return max(1, duration_retries)
+        return dynamic_retries_for_duration(
+            self.settings,
+            self._retries_buckets,
+            test.test_runs[0].seconds_so_far(),
+        )
 
     def should_retry(self, test: Test) -> bool:
         if test.has_passed():
@@ -76,3 +72,17 @@ class DynamicATRRetriesHandler(AutoTestRetriesHandler):
 
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return test.last_test_run.get_status() == TestStatus.FAIL and retries_so_far < self._max_retries_for(test)
+
+
+def dynamic_retries_for_duration(
+    settings: Settings,
+    retries_buckets: t.Optional[tuple[int, int, int, int, int]],
+    duration: float,
+) -> int:
+    """Return the dynamic ATR retry budget selected by an initial attempt's duration."""
+    efd_settings = settings.early_flake_detection
+    if retries_buckets is None:
+        duration_retries = efd_settings.retries_for_duration(duration)
+    else:
+        duration_retries = retries_buckets[efd_settings.retry_bucket_index_for_duration(duration)]
+    return max(1, duration_retries)

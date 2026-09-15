@@ -1,0 +1,142 @@
+"""pytest-xdist support for Test Optimization."""
+
+from __future__ import annotations
+
+import time
+import typing as t
+
+from _pytest.reports import TestReport
+import pytest
+
+from ddtrace.testing.internal.dynamic_atr_retries import dynamic_retries_for_duration
+from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
+from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+
+
+_CRASH_RETRY_REASON = "xdist_worker_crash"
+
+
+class XdistTestOptPlugin:
+    """Handle controller-side xdist coordination."""
+
+    __test__ = False
+
+    def __init__(self, main_plugin: TestOptPluginProtocol) -> None:
+        self.main_plugin = main_plugin
+        self._start_times: dict[str, float] = {}
+        self._crash_retry_counts: dict[str, int] = {}
+        self._crash_retry_limits: dict[str, int] = {}
+        self._session_counted_nodeids: set[str] = set()
+        self._worker_retried_nodeids: set[str] = set()
+
+        manager = main_plugin.manager
+        settings = manager.settings
+        atr = AutoTestRetriesHandler(settings)
+        self._enabled = (
+            settings.auto_test_retries.enabled
+            and not settings.early_flake_detection.enabled
+            and not settings.test_management.enabled
+        )
+        self._remaining_session_retries = atr.max_tests_to_retry_per_session
+        self._flat_retry_limit = atr.max_retries_per_test
+        self._atr_pretty_name = atr.get_pretty_name()
+        self._dynamic_retries = is_dynamic_retries_enabled()
+        self._dynamic_retry_buckets = get_retries_buckets() if self._dynamic_retries else None
+
+    @pytest.hookimpl
+    def pytest_configure_node(self, node: t.Any) -> None:
+        """Pass the test session ID from the controller to a worker."""
+        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
+
+    @pytest.hookimpl
+    def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
+        """Add a worker's ITR skip count to the controller session."""
+        if not hasattr(node, "workeroutput"):
+            return
+
+        if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
+            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logstart(self, nodeid: str, location: t.Any) -> None:
+        """Record when an attempt starts so dynamic ATR can classify its duration."""
+        if self._enabled:
+            self._start_times[nodeid] = time.monotonic()
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logreport(self, report: TestReport) -> None:
+        """Remember when the worker already performed an in-process ATR attempt."""
+        if not self._enabled:
+            return
+
+        properties = dict(report.user_properties)
+        if properties.get("dd_retry_reason") == self._atr_pretty_name:
+            self._worker_retried_nodeids.add(report.nodeid)
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logfinish(self, nodeid: str, location: t.Any) -> None:
+        """Discard per-test controller state after normal completion."""
+        self._clear_test_state(nodeid)
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_handlecrashitem(self, crashitem: str, report: TestReport, sched: t.Any) -> None:
+        """Let ATR retry a test whose worker exited before reporting its result."""
+        # AIDEV-NOTE: EFD and ATF depend on worker-owned applicability and final-status state. Enabling this hook when
+        # either feature is active can select a different policy after the crash. ATR-only sessions are safe because
+        # ATR applies uniformly and its last result is authoritative.
+        if not self._enabled:
+            return
+
+        # A worker can emit some ATR attempt reports and then die on a later attempt. Requeueing would restart the
+        # in-worker budget from zero, so preserve the global limit by treating that crash as final.
+        if crashitem in self._worker_retried_nodeids:
+            self._clear_test_state(crashitem)
+            return
+
+        if crashitem not in self._session_counted_nodeids and self._remaining_session_retries <= 0:
+            self._clear_test_state(crashitem)
+            return
+
+        retry_count = self._crash_retry_counts.get(crashitem, 0)
+        retry_limit = self._crash_retry_limits.get(crashitem)
+        if retry_limit is None:
+            start_time = self._start_times.pop(crashitem, None)
+            duration = time.monotonic() - start_time if start_time is not None else 0.0
+            if self._dynamic_retries:
+                retry_limit = dynamic_retries_for_duration(
+                    self.main_plugin.manager.settings,
+                    self._dynamic_retry_buckets,
+                    duration,
+                )
+            else:
+                retry_limit = self._flat_retry_limit
+            self._crash_retry_limits[crashitem] = retry_limit
+
+        if retry_count >= retry_limit:
+            self._clear_test_state(crashitem)
+            return
+
+        if crashitem not in self._session_counted_nodeids:
+            self._session_counted_nodeids.add(crashitem)
+            self._remaining_session_retries -= 1
+
+        retry_count += 1
+        self._crash_retry_counts[crashitem] = retry_count
+        sched.mark_test_pending(crashitem)
+
+        previous_outcome = report.outcome
+        report.outcome = "rerun"
+        report.user_properties = list(report.user_properties) + [
+            ("dd_retry_outcome", previous_outcome),
+            ("dd_retry_reason", _CRASH_RETRY_REASON),
+            ("dd_retry_number", retry_count),
+        ]
+
+    def _clear_test_state(self, nodeid: str) -> None:
+        """Discard state that is no longer needed for a test."""
+        self._start_times.pop(nodeid, None)
+        self._crash_retry_counts.pop(nodeid, None)
+        self._crash_retry_limits.pop(nodeid, None)
+        self._worker_retried_nodeids.discard(nodeid)
