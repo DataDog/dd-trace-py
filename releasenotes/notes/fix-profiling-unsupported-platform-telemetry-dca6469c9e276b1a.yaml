@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where error-level instrumentation telemetry (for example,
+    ``Failed to load stack module ... disabling stack profiling``) was reported on platforms
+    where profiling is not supported, such as Windows. The profiler now detects unsupported
+    platforms up front and disables itself quietly instead of attempting to load native
+    extensions that are never built there.
