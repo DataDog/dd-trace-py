@@ -520,3 +520,42 @@ def test_routing_survives_thread_pool_when_worker_creates_first_llm_span(llmobs,
     assert sent.get("first-llm-span-in-thread") == TENANT_A_KEY, (
         f"worker-created span went to {sent.get('first-llm-span-in-thread')} instead of the tenant org"
     )
+
+
+def test_thread_pool_worker_does_not_reuse_routing(llmobs, _llmobs_backend):
+    """An unrouted job must not inherit routing left on a reused worker."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+    default_api_key = llmobs._instance._llmobs_span_writer._api_key
+
+    def background_work(name):
+        with llmobs.workflow(name=name):
+            pass
+
+    patch_futures()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+                pool.submit(background_work, "tenant").result()
+
+            # Flush separately so both destinations produce observable requests
+            # even when the second job is incorrectly routed to the first.
+            llmobs_service.flush()
+            _wait_for_requests(reqs, initial_count + 1)
+
+            pool.submit(background_work, "default").result()
+    finally:
+        unpatch_futures()
+
+    llmobs_service.flush()
+    _wait_for_requests(reqs, initial_count + 2)
+
+    sent = {}
+    for request in reqs[initial_count:]:
+        body = json.loads(request["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for span in event.get("spans", []):
+                sent[span["name"]] = _api_key(request)
+
+    assert sent["tenant"] == TENANT_A_KEY
+    assert sent["default"] == default_api_key
