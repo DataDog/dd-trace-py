@@ -100,15 +100,15 @@ include:
       stage: "tests"
       ref: '59f30a15bf59bd3f0a4a32dc340bf365a2f8a8cd'
       allow_failure: true
-      condition: '$CI_COMMIT_BRANCH == "main"'
+      # condition: '$CI_COMMIT_BRANCH == "main"'
 
 "build lambda layer":
   image: registry.ddbuild.io/images/docker:27.3.1
   tags: ["docker-in-docker:amd64"]
   stage: package
   allow_failure: true
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+  # rules:
+  #   - if: '$CI_COMMIT_BRANCH == "main"'
   needs:
     - job: "build linux: [amd64, cp313-cp313, v133965508-8f84bce-manylinux2014_x86_64]"
       artifacts: true
@@ -146,8 +146,8 @@ system_tests_param:
   extends: .system_tests_param_base
   allow_failure: true
   stage: tests
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+  # rules:
+  #   - if: '$CI_COMMIT_BRANCH == "main"'
   needs:
     - job: "build linux: [amd64, cp311-cp311, v133965508-8f84bce-manylinux2014_x86_64]"
       artifacts: false
