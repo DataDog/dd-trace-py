@@ -1083,6 +1083,54 @@ def test_inject_stale_agent_name_not_paired_with_new_id(llmobs):
     assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
 
 
+def test_queued_work_keeps_agent_attribution_when_sibling_clears(llmobs):
+    """Work queued under an agent keeps its attribution when a later sibling clears.
+
+    The task and thread hooks store _current_trace_context() when work is submitted and
+    activate it once that work runs. The returned context therefore has to be a snapshot: if it
+    shared the trace-level _meta, the clear performed by a sibling span with no agent ancestor
+    would strip the queued work's attribution before it ever ran.
+    """
+    with llmobs.workflow(name="handle_request"):
+        with llmobs.agent(name="triage") as agent_span:
+            queued_ctx = llmobs._instance._current_trace_context()
+        agent_span_id = str(agent_span.span_id)
+        assert queued_ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == agent_span_id
+
+        with llmobs.tool(name="write_audit_log"):
+            sibling_ctx = llmobs._instance._current_trace_context()
+
+        # The sibling has no agent ancestor, so it propagates nothing.
+        assert sibling_ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) is None
+        assert sibling_ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+        # The queued context is unaffected by that clear and still names the agent.
+        assert queued_ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == agent_span_id
+        assert queued_ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) == "triage"
+
+        # The root cause: the trace-level _meta was never written to in the first place.
+        assert PROPAGATED_PARENT_AGENT_ID_KEY not in agent_span.context._meta
+        assert PROPAGATED_PARENT_AGENT_NAME_KEY not in agent_span.context._meta
+
+
+def test_current_trace_context_does_not_mutate_shared_trace_meta(llmobs):
+    """The snapshot must not leak this span's per-span values into trace-level state."""
+    with llmobs.workflow(name="root") as root_span:
+        with llmobs.agent(name="triage") as agent_span:
+            ctx = llmobs._instance._current_trace_context()
+            # A snapshot, not the live context the active span carries.
+            assert ctx is not agent_span.context
+            assert ctx._meta is not agent_span.context._meta
+            # Identity is preserved, so activating the snapshot rejoins the same trace at the
+            # same point.
+            assert ctx.trace_id == agent_span.context.trace_id
+            assert ctx.span_id == agent_span.context.span_id
+            # The attribution landed on the snapshot and nowhere else.
+            assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+            assert PROPAGATED_PARENT_AGENT_ID_KEY not in agent_span.context._meta
+        assert PROPAGATED_PARENT_AGENT_ID_KEY not in root_span.context._meta
+
+
 def test_inject_agent_attribution_still_set_for_child_inside_agent(llmobs):
     """No over-clearing: a child inside the agent still propagates the agent."""
     with llmobs.workflow(name="root"):
