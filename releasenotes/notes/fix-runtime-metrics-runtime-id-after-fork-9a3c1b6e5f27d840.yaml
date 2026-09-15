@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where ``runtime.python.*`` metrics emitted by a forked worker
+    carried the parent process's ``runtime-id`` when runtime metrics were enabled before the
+    fork (gunicorn/uWSGI preload, or single-step instrumentation).
