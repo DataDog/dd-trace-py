@@ -55,7 +55,7 @@ class TemporalTracingSubscriber(TracingSubscriber[TemporalEvent]):
     )
 
     @classmethod
-    def on_span_starting(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
+    def before_span_start(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
         event = ctx.event
         if event.event_name == TemporalEvents.RUN_ACTIVITY.value:
             event.use_active_context = False
