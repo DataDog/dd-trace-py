@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    LLM Observability: distributed LLMObs context (parent span ID, trace ID, ML app, session ID,
+    sampling, and agent attribution) is now also propagated in the W3C ``baggage`` header under
+    the ``llmobs.*`` namespace, in addition to the existing ``_dd.p.llmobs_*`` propagating tags.
+    Baggage is injected and extracted independently of APM trace identity, so LLMObs traces are
+    no longer fragmented by a hop that discards the APM distributed tracing headers (for example
+    a proxy or middleware that drops them to start a fresh local trace). Inbound requests are read
+    from both carriers, preferring baggage when both are present, so this is backwards compatible
+    with services running older tracer versions on either side of the hop.
