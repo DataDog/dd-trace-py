@@ -39,6 +39,7 @@ ProfilerState::init_profiles_dictionary()
         return false;
     }
     profiles_dictionary.emplace(result->take_value());
+    profiles_dictionary.value()->set_error_policy(ddprof::ErrorPolicy::PrintOncePerOperation);
 
     return true;
 }
@@ -70,7 +71,6 @@ ProfilerState::init_interned_strings()
 
     // Intern the empty string, which is used frequently.
     if (!dict->intern_string("", cached_empty_string_id)) {
-        std::cerr << take_error_message(*dict, "intern empty string") << std::endl;
         return false;
     }
 

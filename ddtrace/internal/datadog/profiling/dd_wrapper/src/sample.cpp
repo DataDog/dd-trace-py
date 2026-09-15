@@ -29,7 +29,6 @@ Datadog::intern_string(std::string_view s)
     // so production parity may require a CXX lossy insertion variant.
     ddprof::DictionaryStringId id{};
     if (!dict->intern_string(rust::Str(s.data(), s.size()), id)) {
-        std::cerr << take_error_message(*dict, "intern CXX dictionary string") << std::endl;
         return std::nullopt;
     }
     return id;
@@ -52,7 +51,6 @@ Datadog::intern_function(string_id name, string_id filename)
             filename,
           },
           id)) {
-        std::cerr << take_error_message(*dict, "intern CXX dictionary function") << std::endl;
         return std::nullopt;
     }
     return id;

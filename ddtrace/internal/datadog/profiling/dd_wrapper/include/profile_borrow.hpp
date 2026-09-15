@@ -29,9 +29,7 @@ class ProfileBorrow
     ProfileBorrow& operator=(ProfileBorrow&& other) noexcept;
 
     // Accessors
-    rust::Box<ddprof::EncodedProfile> serialize();
-    bool add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint);
-    bool add_endpoint_count(std::string_view endpoint, std::int64_t value);
+    ddprof::Profile& profile();
     ProfilerStats& stats();
 };
 

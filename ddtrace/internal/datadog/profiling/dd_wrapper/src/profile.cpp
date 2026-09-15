@@ -41,6 +41,7 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types,
         return false;
     }
     profile.emplace(result->take_value());
+    profile.value()->set_error_policy(Datadog::ddprof::ErrorPolicy::PrintOncePerOperation);
     return true;
 }
 
@@ -211,38 +212,12 @@ Datadog::Profile::val()
 }
 
 bool
-Datadog::Profile::add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint)
-{
-    if (!cur_profile.value()->add_endpoint(static_cast<std::uint64_t>(local_root_span_id),
-                                           rust::Str(endpoint.data(), endpoint.size()))) {
-        std::cerr << take_error_message(*cur_profile.value(), "CXX add_endpoint") << std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool
-Datadog::Profile::add_endpoint_count(std::string_view endpoint, std::int64_t value)
-{
-    if (!cur_profile.value()->add_endpoint_count(rust::Str(endpoint.data(), endpoint.size()), value)) {
-        std::cerr << take_error_message(*cur_profile.value(), "CXX add_endpoint_count") << std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool
 Datadog::Profile::collect(const ddprof::DictionarySample& sample, int64_t endtime_ns)
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
     const auto ok = endtime_ns == 0 ? cur_profile.value()->add_dictionary_sample(sample)
                                     : cur_profile.value()->add_dictionary_sample(sample, endtime_ns);
     if (!ok) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << take_error_message(*cur_profile.value(), "CXX add_dictionary_sample") << std::endl;
-        }
         return false;
     }
     return true;

@@ -1620,7 +1620,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9#29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9"
+source = "git+https://github.com/DataDog/libdatadog?rev=040adbc73ad26e01c769af769796f12e0cff45d6#040adbc73ad26e01c769af769796f12e0cff45d6"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1657,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "5.2.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9#29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9"
+source = "git+https://github.com/DataDog/libdatadog?rev=040adbc73ad26e01c769af769796f12e0cff45d6#040adbc73ad26e01c769af769796f12e0cff45d6"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1969,7 +1969,7 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9#29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9"
+source = "git+https://github.com/DataDog/libdatadog?rev=040adbc73ad26e01c769af769796f12e0cff45d6#040adbc73ad26e01c769af769796f12e0cff45d6"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1988,7 +1988,7 @@ dependencies = [
  "httparse",
  "indexmap 2.14.0",
  "libdd-alloc",
- "libdd-common 5.2.0 (git+https://github.com/DataDog/libdatadog?rev=29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9)",
+ "libdd-common 5.2.0 (git+https://github.com/DataDog/libdatadog?rev=040adbc73ad26e01c769af769796f12e0cff45d6)",
  "libdd-profiling-protobuf",
  "mime",
  "parking_lot",
@@ -2011,7 +2011,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9#29f968ef13ee1b3adaddd3f0a912e84d5c70d3c9"
+source = "git+https://github.com/DataDog/libdatadog?rev=040adbc73ad26e01c769af769796f12e0cff45d6#040adbc73ad26e01c769af769796f12e0cff45d6"
 dependencies = [
  "prost",
 ]
@@ -4489,7 +4489,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -16,7 +16,6 @@ namespace Datadog {
 class Uploader
 {
   private:
-    std::string errmsg;
     std::string output_filename;
     std::optional<rust::Box<ddprof::ProfileExporter>> profile_exporter{};
     std::optional<rust::Box<ddprof::EncodedProfile>> encoded_profile{};
@@ -45,8 +44,7 @@ class Uploader
     Uploader& operator=(const Uploader&) = delete;
 
     Uploader(Uploader&& other) noexcept
-      : errmsg{ std::move(other.errmsg) }
-      , output_filename{ std::move(other.output_filename) }
+      : output_filename{ std::move(other.output_filename) }
       , profile_exporter{ std::move(other.profile_exporter) }
       , encoded_profile{ std::move(other.encoded_profile) }
       , profiler_stats{ other.profiler_stats }
@@ -62,7 +60,6 @@ class Uploader
             if (owns_upload_state) {
                 cancel_inflight();
             }
-            errmsg = std::move(other.errmsg);
             output_filename = std::move(other.output_filename);
             profile_exporter = std::move(other.profile_exporter);
             encoded_profile = std::move(other.encoded_profile);

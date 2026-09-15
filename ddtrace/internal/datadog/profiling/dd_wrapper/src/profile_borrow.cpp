@@ -1,8 +1,6 @@
 #include "profile_borrow.hpp"
 #include "profile.hpp"
 
-#include <stdexcept>
-
 Datadog::ProfileBorrow::ProfileBorrow(Profile& profile)
   : profile_ptr(&profile)
 {
@@ -39,26 +37,10 @@ Datadog::ProfileBorrow::operator=(ProfileBorrow&& other) noexcept
     return *this;
 }
 
-rust::Box<Datadog::ddprof::EncodedProfile>
-Datadog::ProfileBorrow::serialize()
+Datadog::ddprof::Profile&
+Datadog::ProfileBorrow::profile()
 {
-    auto result = profile_ptr->cur_profile.value()->serialize();
-    if (!result->ok()) {
-        throw std::runtime_error(std::string(result->message()));
-    }
-    return result->take_value();
-}
-
-bool
-Datadog::ProfileBorrow::add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint)
-{
-    return profile_ptr->add_endpoint(local_root_span_id, endpoint);
-}
-
-bool
-Datadog::ProfileBorrow::add_endpoint_count(std::string_view endpoint, std::int64_t value)
-{
-    return profile_ptr->add_endpoint_count(endpoint, value);
+    return *profile_ptr->cur_profile.value();
 }
 
 Datadog::ProfilerStats&

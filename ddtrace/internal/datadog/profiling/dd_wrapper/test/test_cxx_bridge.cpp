@@ -59,7 +59,7 @@ take_error_message(ddprof::Profile& profile)
     if (errors.empty()) {
         return "no error details";
     }
-    return std::string(errors[0].operation) + ": " + std::string(errors[0].message);
+    return std::string(errors[0].operation_name()) + ": " + std::string(errors[0].message);
 }
 
 std::string
@@ -69,7 +69,7 @@ take_error_message(const ddprof::ProfileDictionary& dictionary)
     if (errors.empty()) {
         return "no error details";
     }
-    return std::string(errors[0].operation) + ": " + std::string(errors[0].message);
+    return std::string(errors[0].operation_name()) + ": " + std::string(errors[0].message);
 }
 
 ddprof::DictionaryStringId

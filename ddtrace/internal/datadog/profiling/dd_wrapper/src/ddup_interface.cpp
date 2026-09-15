@@ -203,13 +203,11 @@ ddup_profile_set_endpoints(
   // NOLINTNEXTLINE(performance-unnecessary-value-param)
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
+    auto& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
-        if (!borrowed.add_endpoint(span_id, trace_endpoint) && !already_warned) {
-            already_warned = true;
-            std::cerr << "Error setting endpoint" << std::endl;
-        }
+        profile.add_endpoint(static_cast<std::uint64_t>(span_id),
+                             rust::Str(trace_endpoint.data(), trace_endpoint.size()));
     }
 }
 
@@ -220,12 +218,9 @@ ddup_profile_add_endpoint_counts(
   // NOLINTNEXTLINE(performance-unnecessary-value-param)
   std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
+    auto& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
-        if (!borrowed.add_endpoint_count(trace_endpoint, count) && !already_warned) {
-            already_warned = true;
-            std::cerr << "Error adding endpoint count" << std::endl;
-        }
+        profile.add_endpoint_count(rust::Str(trace_endpoint.data(), trace_endpoint.size()), count);
     }
 }

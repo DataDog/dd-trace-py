@@ -111,6 +111,10 @@ Datadog::Uploader::upload_unlocked()
     rust::Vec<ddprof::Tag> additional_tags;
     const auto& info_json = ProfilerState::get().profiler_settings_info_json;
 
+    // Keep one local exception boundary around upload setup so unexpected C++
+    // exceptions leave the Uploader in a clean state. Expected libdatadog upload
+    // failures are reported by Status below; this is not handling a thrown Rust
+    // Result<T> from libdatadog.
     try {
         auto new_cancel = ddprof::CancellationToken::create();
         auto new_cancel_clone_for_request = new_cancel->clone();
@@ -136,16 +140,14 @@ Datadog::Uploader::upload_unlocked()
                                 rust::Str(internal_metadata_json.data(), internal_metadata_json.size()),
                                 rust::Str(info_json.data(), info_json.size()),
                                 *new_cancel_clone_for_request);
-        if (!status_ok(status, "upload CXX profile", &errmsg)) {
-            std::cerr << errmsg << std::endl;
+        if (!status.check_and_print()) {
             profile_exporter.reset();
             return false;
         }
         profile_exporter.reset();
         return true;
     } catch (const std::exception& err) {
-        errmsg = std::string("Error uploading CXX profile: ") + err.what();
-        std::cerr << errmsg << std::endl;
+        std::cerr << "Error uploading CXX profile: " << err.what() << std::endl;
         profile_exporter.reset();
         return false;
     }

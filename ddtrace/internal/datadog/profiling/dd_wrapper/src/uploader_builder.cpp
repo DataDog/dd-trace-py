@@ -4,7 +4,6 @@
 #include "profiler_state.hpp"
 #include "sample.hpp"
 
-#include <exception>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -203,11 +202,11 @@ Datadog::UploaderBuilder::build()
         std::swap(stats, borrowed.stats());
         borrowed.stats().copy_fast_copy_metadata_from(stats);
 
-        try {
-            encoded = borrowed.serialize();
-        } catch (const std::exception& err) {
-            return std::string("Error serializing CXX profile: ") + err.what();
+        auto encoded_result = borrowed.profile().serialize();
+        if (!encoded_result->ok()) {
+            return "Error serializing CXX profile: " + std::string(encoded_result->message());
         }
+        encoded = encoded_result->take_value();
     }
 
     return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
