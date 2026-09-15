@@ -810,12 +810,6 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
     return true;
 }
 
-void
-Datadog::Sample::set_timeline(bool enabled)
-{
-    ProfilerState::get().timeline_enabled = enabled;
-}
-
 bool
 Datadog::Sample::is_timeline_enabled()
 {

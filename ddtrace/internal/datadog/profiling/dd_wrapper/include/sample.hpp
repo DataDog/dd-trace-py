@@ -142,7 +142,6 @@ class Sample
 
     // Interacts with static Sample state
     static bool is_timeline_enabled();
-    static void set_timeline(bool enabled);
 
     // Pytorch GPU metadata
     bool push_gpu_device_name(std::string_view device_name);
