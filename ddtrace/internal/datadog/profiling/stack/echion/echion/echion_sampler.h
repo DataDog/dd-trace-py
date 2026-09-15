@@ -4,6 +4,8 @@
 #define Py_BUILD_CORE
 #include <Python.h>
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <random>
@@ -11,6 +13,7 @@
 #include <unordered_set>
 
 #include <echion/cache.h>
+#include <echion/config.h>
 #include <echion/frame.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
@@ -73,6 +76,9 @@ class EchionSampler
     // reflects tasks from the sampled subset, not all threads in the process.
     // Only accessed from the sampling thread, so no lock/atomic is needed.
     size_t asyncio_task_count_ = 0;
+
+    // Maximum number of frames to collect for plain thread stacks.
+    size_t stack_max_frames_ = g_default_max_nframes;
 
     // Maximum number of leaf tasks / greenlets to unwind and emit per cycle.
     // 0 means unlimited.
@@ -149,6 +155,9 @@ class EchionSampler
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
+
+    void set_max_frames(size_t max_frames) { stack_max_frames_ = std::max<size_t>(max_frames, 1); }
+    [[nodiscard]] size_t stack_max_frames() const { return stack_max_frames_; }
 
     unsigned int max_tasks_per_sample() const { return max_tasks_per_sample_; }
     void set_max_tasks_per_sample(unsigned int value) { max_tasks_per_sample_ = value; }
