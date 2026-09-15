@@ -6,6 +6,8 @@ stages:
   - fuzz
   - shared-pipeline-test
   - benchmarks
+  - python-flask-realworld-parallel
+  - python-flask-realworld-parallel-slo
   - release
   - shared-pipeline-publish
 
@@ -80,6 +82,19 @@ include:
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
+  - project: 'DataDog/apm-reliability/apm-sdks-benchmarks'
+    file: '.gitlab/ci-python-flask-realworld-parallel.yml'
+    ref: 'main'
+
+# Pin the benchmarking-platform image for the python-flask-realworld-parallel jobs
+# included from DataDog/apm-reliability/apm-sdks-benchmarks above.
+linux-python-flask-realworld-parallel:
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
+  needs:
+    - job: "upload all"
+
+python-flask-realworld-parallel-check-slo-breaches:
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
 
 "pipeline variables":
   stage: .pre
@@ -204,18 +219,6 @@ microbenchmarks:
     # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
     # so downstream code must treat that literal as unset.
     BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
-
-apm-sdk-benchmarks:
-  stage: benchmarks
-  when: manual
-  allow_failure: true
-  needs:
-    - job: "upload all"
-  trigger:
-    project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
-  variables:
-    TARGET_REF: $CI_PIPELINE_ID
 
 macrobenchmarks:
   stage: benchmarks
