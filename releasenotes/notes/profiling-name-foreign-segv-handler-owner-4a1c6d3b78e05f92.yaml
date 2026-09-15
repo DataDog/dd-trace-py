@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: the stack profiler's SIGSEGV/SIGBUS handler takeover messages now name the
+    owner of each signal, resolved to its shared object and offset (and symbol, when exported),
+    so the component that installed the foreign handler can be identified from logs.

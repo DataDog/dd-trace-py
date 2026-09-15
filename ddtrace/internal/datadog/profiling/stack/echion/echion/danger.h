@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -30,6 +31,15 @@ uninstall_segv_handler();
 // Returns true only if our signal handler owns both SIGSEGV and SIGBUS; false on any error.
 bool
 segv_handler_installed();
+
+// Names the current owner of SIGSEGV and SIGBUS, resolving foreign handler addresses to
+// their shared object and nearest symbol, e.g.
+//   "SIGSEGV=/lib/libtorch_cpu.so+0x3f1a8 (fatal_signal_handler), SIGBUS=ddtrace".
+// For diagnostics only, to attribute a handler takeover to the component responsible.
+// Uses dladdr and allocates, so it is not async-signal-safe: call it from ordinary code
+// such as the sampling loop, never from inside a signal handler.
+std::string
+describe_segv_handler_owners();
 
 #if defined PL_LINUX
 ssize_t
