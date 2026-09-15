@@ -9,6 +9,8 @@ from io import StringIO
 import logging
 from pathlib import Path
 import random
+import signal
+import threading
 import traceback
 import typing as t
 
@@ -1570,6 +1572,91 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_addoption(parser)
 
 
+class _PytestTimeoutRetryOverride:
+    """Override pytest-timeout's ``method="thread"`` timer with a SIGALRM-based one.
+
+    pytest-timeout's ``"thread"`` method arms a ``threading.Timer`` whose callback
+    (``pytest_timeout.timeout_timer``) dumps stacks and calls ``os._exit(1)``. That
+    hard-kills the process, so the first timed-out test takes the whole session down
+    before Datadog Auto Test Retries (ATR), Early Flake Detection (EFD), or
+    Attempt-to-Fix (ATF) can retry it. ``func_only`` only changes where the timer is
+    armed; it does not change the ``os._exit`` behavior.
+
+    When a retry feature is active, we win pytest-timeout's ``firstresult=True``
+    ``pytest_timeout_set_timer`` hook (our impl is ``tryfirst=True``, pytest-timeout's is
+    ``trylast=True``) and install a SIGALRM itimer instead. On timeout the signal handler
+    raises ``pytest.fail`` — a catchable failure — so the test becomes a normal failure
+    that retries can handle, and the process stays alive.
+
+    This is a no-op when no retry feature is active, so customers not using ATR/EFD/ATF
+    see no behavior change. When SIGALRM is unavailable (e.g. Windows) or we are not in
+    the main thread, we cannot install the signal timer; we fall back to pytest-timeout's
+    thread timer and warn once that retries will not survive a timeout.
+    """
+
+    __test__ = False
+
+    _OVERRIDE_ATTR = "_ddtrace_pytest_timeout_override"
+
+    def __init__(self, plugin: "TestOptPlugin") -> None:
+        self._plugin = plugin
+        self._warned_no_sigalrm = False
+
+    def _retries_active(self) -> bool:
+        s = self._plugin.manager.settings
+        return s.auto_test_retries.enabled or s.early_flake_detection.enabled or s.test_management.enabled
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_timeout_set_timer(self, item: pytest.Item, settings: t.Any) -> t.Optional[bool]:
+        if _pytest_timeout_get_item_settings is None or not item.config.pluginmanager.hasplugin("timeout"):
+            return None
+        if not self._retries_active():
+            return None
+        # Only the thread method calls os._exit(); the signal method already raises a catchable failure.
+        if settings.method != "thread" or not settings.timeout or settings.timeout <= 0:
+            return None
+        if not hasattr(signal, "SIGALRM") or threading.current_thread() is not threading.main_thread():
+            if not self._warned_no_sigalrm:
+                self._warned_no_sigalrm = True
+                log.warning(
+                    "Datadog Test Optimization retries are active, but pytest-timeout method=\"thread\" "
+                    "cannot be overridden with a signal-based timer here (SIGALRM is unavailable or not "
+                    "in the main thread). A timed-out test may kill the process before retries can run; "
+                    "use method=\"signal\" for retry support."
+                )
+            return None
+
+        timeout = settings.timeout
+
+        def handler(signum, frame):  # noqa: ARG001
+            __tracebackhide__ = True
+            pytest.fail("Timeout (>%ss) from pytest-timeout [overridden by Datadog Test Optimization]." % timeout)
+
+        def cancel() -> None:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+        item.cancel_timeout = cancel
+        setattr(item, self._OVERRIDE_ATTR, True)
+        signal.signal(signal.SIGALRM, handler)
+        signal.setitimer(signal.ITIMER_REAL, timeout)
+        return True
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_timeout_cancel_timer(self, item: pytest.Item) -> t.Optional[bool]:
+        # Only claim the cancel when we claimed the set; otherwise let pytest-timeout's own
+        # cancel_timer (trylast) run so it can clean up the timer it installed.
+        if not getattr(item, self._OVERRIDE_ATTR, False):
+            return None
+        try:
+            cancel = getattr(item, "cancel_timeout", None)
+            if cancel is not None:
+                cancel()
+        finally:
+            setattr(item, self._OVERRIDE_ATTR, False)
+        return True
+
+
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
     return not asbool(env.get("DD_CIVISIBILITY_ENABLED", "true"))
 
@@ -1729,6 +1816,12 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config.pluginmanager.register(plugin)
     config.pluginmanager.add_hookspecs(TestOptHooks)
+
+    # When pytest-timeout is installed and a retry feature (ATR/EFD/ATF) is active,
+    # override its method="thread" timer (which calls os._exit) with a SIGALRM-based
+    # timer so a timed-out test becomes a catchable failure that retries can handle.
+    if config.pluginmanager.hasplugin("timeout"):
+        config.pluginmanager.register(_PytestTimeoutRetryOverride(plugin), "_ddtrace_pytest_timeout_override")
 
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))

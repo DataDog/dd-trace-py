@@ -15,6 +15,7 @@ correct end-to-end.
 from __future__ import annotations
 
 import pathlib
+import signal
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
@@ -169,3 +170,143 @@ def pytest_timeout_cancel_timer(item):
         # EFD: 1 initial attempt + 10 retries = 11 attempts.
         # 1 (pytest-timeout hookwrapper) + 11 (our _reset_pytest_timeout) = 12.
         assert int(count_file.read_text()) == 12
+
+
+class TestPytestTimeoutThreadMethodAtr:
+    """Regression tests for ``method="thread"`` compatibility with ATR/EFD retries.
+
+    pytest-timeout's ``"thread"`` method arms a ``threading.Timer`` whose callback
+    (``pytest_timeout.timeout_timer``) dumps stacks and calls ``os._exit(1)``. That
+    hard-kills the process, so the first timed-out test takes the whole session down
+    before Datadog Auto Test Retries (or Early Flake Detection) ever gets a chance to
+    run. ``func_only=True`` only changes *where* the timer is armed
+    (``pytest_runtest_call`` instead of ``pytest_runtest_protocol``); it does not
+    change the ``os._exit`` behavior, so it does not help.
+
+    Our plugin overrides the timer with a SIGALRM-based one (which raises
+    ``pytest.fail``, a catchable failure) whenever retries are active, so a timed-out
+    test becomes a normal failure that ATR can retry.
+
+    Safety: these tests patch ``pytest_timeout.timeout_timer`` to a recording no-op so
+    the ``os._exit`` path can never fire, even on unfixed code. That lets the tests run
+    in-process (``inline_run``) without risking the test runner. The regression marker
+    is whether the ``os._exit`` callback was invoked: after the fix it must *not* be
+    (our SIGALRM timer replaced the thread timer), and the timed-out test must be
+    retried by ATR instead of killing the process.
+    """
+
+    @staticmethod
+    def _make_timeout_timer_spy_conftest(calls_file: pathlib.Path) -> str:
+        return (
+            "import pathlib\n"
+            "import pytest_timeout\n"
+            "\n"
+            f"_calls = pathlib.Path(r'{calls_file}')\n"
+            "\n"
+            "def _spy_timeout_timer(item, settings):\n"
+            "    # Record the call but do NOT call os._exit(1). This neutralizes the\n"
+            "    # dangerous thread-timer path so the test is safe even on unfixed code.\n"
+            "    _calls.write_text(str(int(_calls.read_text()) + 1))\n"
+            "\n"
+            "pytest_timeout.timeout_timer = _spy_timeout_timer\n"
+        )
+
+    def test_atr_active_thread_method_replaced_by_signal(self, pytester: Pytester, tmp_path: pathlib.Path) -> None:
+        """ATR active + method="thread": the os._exit timer is not installed; ATR retries.
+
+        Before the fix: pytest-timeout installs its threading.Timer; the patched
+        timeout_timer callback fires (count > 0) but does not os._exit, so the hanging
+        test runs to completion and passes -> ATR never engages -> passed=1.
+
+        After the fix: our plugin installs a SIGALRM timer that raises pytest.fail at
+        the timeout; the test fails, ATR retries it (every attempt times out) -> final
+        failed=1, and the os._exit callback is never invoked -> count == 0.
+        """
+        if not hasattr(signal, "SIGALRM"):
+            pytest.skip("SIGALRM is required for the thread->signal override")
+
+        calls_file = tmp_path / "timeout_timer_calls.txt"
+        calls_file.write_text("0")
+
+        pytester.makeconftest(self._make_timeout_timer_spy_conftest(calls_file))
+
+        pytester.makepyfile(
+            test_foo="""
+            import time
+            import pytest
+
+            @pytest.mark.timeout(0.3, method="thread", func_only=True)
+            def test_hang():
+                time.sleep(1)  # exceeds the 0.3s timeout
+            """
+        )
+
+        known_tests: set[TestRef] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_hang"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    auto_retries_enabled=True,
+                    known_tests_enabled=True,
+                    known_tests=known_tests,
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 1
+        assert_stats(result, failed=1)
+        # The os._exit thread-timer callback must never have been invoked: our plugin
+        # replaced it with a SIGALRM timer so ATR could retry the timed-out test.
+        assert int(calls_file.read_text()) == 0, (
+            "expected pytest-timeout's os._exit thread timer to be replaced by a SIGALRM "
+            f"timer when ATR is active, but timeout_timer was called {calls_file.read_text()} time(s)"
+        )
+
+    def test_atr_inactive_thread_method_left_untouched(self, pytester: Pytester, tmp_path: pathlib.Path) -> None:
+        """ATR inactive + method="thread": we do not interfere; the thread timer is used.
+
+        Without retries active our override is a no-op, so pytest-timeout's own thread
+        timer is installed. The patched timeout_timer callback fires (count >= 1) but
+        does not os._exit, so the hanging test runs to completion and passes. This
+        guards against us changing behavior for customers who are not using ATR/EFD.
+        """
+        if not hasattr(signal, "SIGALRM"):
+            pytest.skip("SIGALRM is required for the thread->signal override")
+
+        calls_file = tmp_path / "timeout_timer_calls.txt"
+        calls_file.write_text("0")
+
+        pytester.makeconftest(self._make_timeout_timer_spy_conftest(calls_file))
+
+        pytester.makepyfile(
+            test_foo="""
+            import time
+            import pytest
+
+            @pytest.mark.timeout(0.3, method="thread", func_only=True)
+            def test_hang():
+                time.sleep(1)
+            """
+        )
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(),
+            ),
+            setup_standard_mocks(),
+        ):
+            result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        assert_stats(result, passed=1)
+        # Without ATR we leave pytest-timeout's thread timer in place.
+        assert int(calls_file.read_text()) >= 1, (
+            "expected pytest-timeout's thread timer to be used when ATR is inactive, "
+            f"but timeout_timer was never called (calls={calls_file.read_text()})"
+        )
