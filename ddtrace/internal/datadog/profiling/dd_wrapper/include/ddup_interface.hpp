@@ -42,6 +42,13 @@ extern "C"
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_set_process_id();
 
+    // Thread names for collectors that cannot read them from the interpreter
+    // themselves. Call these only from a safe point, never from inside an
+    // allocator hook.
+    void ddup_register_thread_name(int64_t thread_id, std::string_view name);
+    void ddup_unregister_thread_name(int64_t thread_id);
+    size_t ddup_thread_name_count();
+
     // Pass by value is intentional: the map may be modified concurrently by other threads,
     // so we take a copy to avoid data races while iterating.
     void ddup_profile_set_endpoints(

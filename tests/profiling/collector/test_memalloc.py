@@ -134,12 +134,51 @@ def test_memory_collector(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            # Memory profiler uses Python C APIs to get thread id and there's
-            # no Python C API to get thread name. We can consider using Echion's
-            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
-            # uses thread_id as a fallback for thread_name.
-            thread_name=str(threading.main_thread().ident),
+            # The allocator hook has no safe way to read the name from the
+            # interpreter, so it reports the name that MemoryCollector.start
+            # recorded in ddup's thread name registry.
+            thread_name="MainThread",
             thread_id=threading.main_thread().ident,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="_allocate_1k", filename="test_memalloc.py", line_no=_ALLOC_LINE_NUMBER
+                )
+            ],
+        ),
+    )
+
+
+def test_memory_collector_names_worker_threads(tmp_path: Path) -> None:
+    """Allocation samples are labelled with the allocating thread's name."""
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_names_worker_threads")
+
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+    allocated = threading.Event()
+
+    with mc:
+
+        def alloc() -> None:
+            _allocate_1k()
+            allocated.set()
+
+        alloc_thread = threading.Thread(name="my-allocator", target=alloc)
+        alloc_thread.start()
+        assert allocated.wait(timeout=30)
+        mc.snapshot()
+
+    alloc_thread.join()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="my-allocator",
             locations=[
                 pprof_utils.StackLocation(
                     function_name="_allocate_1k", filename="test_memalloc.py", line_no=_ALLOC_LINE_NUMBER
@@ -1342,11 +1381,7 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            # Memory profiler uses Python C APIs to get thread id and there's
-            # no Python C API to get thread name. We can consider using Echion's
-            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
-            # uses thread_id as a fallback for thread_name.
-            thread_name=str(threading.main_thread().ident),
+            thread_name="MainThread",
             thread_id=threading.main_thread().ident,
             locations=[
                 loc("inner_frame"),

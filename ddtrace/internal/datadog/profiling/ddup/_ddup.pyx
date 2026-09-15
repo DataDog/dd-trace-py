@@ -98,6 +98,9 @@ cdef extern from "ddup_interface.hpp":
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
     void ddup_set_process_id()
+    void ddup_register_thread_name(int64_t thread_id, string_view name)
+    void ddup_unregister_thread_name(int64_t thread_id)
+    size_t ddup_thread_name_count()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
@@ -257,6 +260,18 @@ cdef call_ddup_push_threadinfo(Sample* sample, int64_t thread_id, int64_t thread
     if utf8_data != NULL:
         sample.push_threadinfo(thread_id, thread_native_id, string_view(utf8_data, utf8_size))
 
+cdef call_ddup_register_thread_name(int64_t thread_id, name: StringType):
+    if not name:
+        return
+    if isinstance(name, bytes):
+        ddup_register_thread_name(thread_id, string_view(<const char*>name, len(name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_register_thread_name(thread_id, string_view(utf8_data, utf8_size))
+
 cdef call_ddup_push_task_name(Sample* sample, task_name: StringType):
     if not task_name:
         return
@@ -406,6 +421,23 @@ def start() -> None:
 
 def set_profiler_settings_json(settings_json: StringType) -> None:
     call_func_with_str(ddup_set_profiler_settings_json, settings_json)
+
+
+def register_thread_name(thread_id: int, name: StringType) -> None:
+    """Record the name of a thread so the memory profiler can label its samples.
+
+    The memory profiler samples from inside CPython's allocator hook and cannot
+    read the name from the interpreter itself, so it reads it from here.
+    """
+    call_ddup_register_thread_name(thread_id, name)
+
+
+def unregister_thread_name(thread_id: int) -> None:
+    ddup_unregister_thread_name(thread_id)
+
+
+def thread_name_count() -> int:
+    return ddup_thread_name_count()
 
 
 def _get_endpoint(tracer)-> str:

@@ -65,6 +65,7 @@ add_library(
     src/sample.cpp
     src/sample_manager.cpp
     src/static_sample_pool.cpp
+    src/thread_name_tracker.cpp
     src/uploader.cpp
     src/uploader_builder.cpp)
 
