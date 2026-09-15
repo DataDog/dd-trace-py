@@ -5,8 +5,8 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -46,10 +46,6 @@ def patch():
         return
     molten._datadog_patch = True
 
-    pin = Pin()
-
-    pin.onto(molten)
-
     _w(molten.BaseApp, "__init__", patch_app_init)
     _w(molten.App, "__call__", patch_app_call)
 
@@ -58,18 +54,12 @@ def unpatch():
     if getattr(molten, "_datadog_patch", False):
         molten._datadog_patch = False
 
-        pin = Pin.get_from(molten)
-        if pin:
-            pin.remove_from(molten)
-
         _u(molten.BaseApp, "__init__")
         _u(molten.App, "__call__")
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(molten)
-
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     # DEV: This is safe because this is the args for a WSGI handler
@@ -84,7 +74,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
             "molten.request",
             span_name=schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.WEB,
-            service=trace_utils.int_service(pin, config.molten),
+            service=trace_utils.int_service(None, config.molten),
             resource=resource,
             tags={},
             distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
@@ -100,8 +90,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
-            pin = Pin.get_from(molten)
-            if not pin or not pin.enabled():
+            if not is_tracing_enabled():
                 return wrapped(*args, **kwargs)
 
             status, headers, exc_info = args
@@ -147,10 +136,7 @@ def patch_app_init(wrapped, instance, args, kwargs):
     # allow instance to be initialized before wrapping them
     wrapped(*args, **kwargs)
 
-    # add Pin to instance
-    pin = Pin.get_from(molten)
-
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return
 
     # Wrappers here allow us to trace objects without altering class or instance
