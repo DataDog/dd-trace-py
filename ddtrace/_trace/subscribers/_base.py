@@ -1,6 +1,5 @@
 from types import TracebackType
 from typing import Any
-from typing import Callable
 from typing import ClassVar
 from typing import Generic
 from typing import Optional
@@ -133,27 +132,9 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
     # Register here events that just create / finish spans
     event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
-    _before_span_start_handlers: ClassVar[tuple[Callable[..., None], ...]] = ()
-
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        cls._before_span_start_handlers = tuple(
-            base_cls.before_span_start
-            for base_cls in reversed(cls.__mro__[:-1])
-            if issubclass(base_cls, TracingSubscriber)
-            and "before_span_start" in base_cls.__dict__
-            and base_cls is not TracingSubscriber
-        )
-
-    @classmethod
-    def before_span_start(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
-        """Prepare tracing event state before its span is created."""
-        pass
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
-        for handler in cls._before_span_start_handlers:
-            handler(ctx)
         _start_span(ctx)
         for handler in cls._started_handlers:
             handler(ctx)

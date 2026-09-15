@@ -1,12 +1,10 @@
-from typing import cast
-
 from ddtrace import config
-from ddtrace._trace.context import Context
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib._events.temporalio import TEMPORAL_CONTEXT_HEADER
 from ddtrace.contrib._events.temporalio import TemporalContextForwardEvent
 from ddtrace.contrib._events.temporalio import TemporalEvent
 from ddtrace.contrib._events.temporalio import TemporalEvents
+from ddtrace.contrib._events.temporalio import TemporalHeadersDecodeEvent
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
@@ -31,21 +29,6 @@ def _inject_context(event: TemporalEvent, ctx: core.ExecutionContext[TemporalEve
         log.debug("Failed to inject trace context into Temporal headers", exc_info=True)
 
 
-def _extract_context(event: TemporalEvent) -> None:
-    if not config.temporalio.distributed_tracing:
-        return
-    payload = event.input_data.headers.get(TEMPORAL_CONTEXT_HEADER)
-    if payload is None:
-        return
-    try:
-        carrier = event.payload_converter.from_payloads([payload])[0]
-        if isinstance(carrier, dict):
-            # HTTPPropagator.extract predates type annotations but returns a Context.
-            event.distributed_context = cast(Context, HTTPPropagator.extract(carrier))  # type: ignore[no-untyped-call]
-    except Exception:
-        log.debug("Failed to extract trace context from Temporal headers", exc_info=True)
-
-
 class TemporalTracingSubscriber(TracingSubscriber[TemporalEvent]):
     event_names = (
         TemporalEvents.START_WORKFLOW.value,
@@ -55,17 +38,26 @@ class TemporalTracingSubscriber(TracingSubscriber[TemporalEvent]):
     )
 
     @classmethod
-    def before_span_start(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
-        event = ctx.event
-        if event.event_name == TemporalEvents.RUN_ACTIVITY.value:
-            event.use_active_context = False
-            _extract_context(event)
-
-    @classmethod
     def on_started(cls, ctx: core.ExecutionContext[TemporalEvent]) -> None:
         event = ctx.event
         if event.event_name != TemporalEvents.RUN_ACTIVITY.value:
             _inject_context(event, ctx)
+
+
+class TemporalHeadersDecodeSubscriber(Subscriber):
+    event_names = (TemporalEvents.DECODE_HEADERS.value,)
+
+    @classmethod
+    def on_event(cls, event_instance: TemporalHeadersDecodeEvent) -> None:
+        payload = event_instance.input_data.headers.get(TEMPORAL_CONTEXT_HEADER)
+        if payload is None:
+            return
+        try:
+            carrier = event_instance.payload_converter.from_payloads([payload])[0]
+            if isinstance(carrier, dict):
+                event_instance.request_headers = carrier
+        except Exception:
+            log.debug("Failed to decode trace context from Temporal headers", exc_info=True)
 
 
 class TemporalContextForwardSubscriber(Subscriber):

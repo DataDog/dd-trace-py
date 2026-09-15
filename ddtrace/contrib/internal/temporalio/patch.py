@@ -12,6 +12,7 @@ import temporalio.worker
 from ddtrace import config
 from ddtrace.contrib._events.temporalio import TemporalContextForwardEvent
 from ddtrace.contrib._events.temporalio import TemporalEvent
+from ddtrace.contrib._events.temporalio import TemporalHeadersDecodeEvent
 from ddtrace.contrib._events.temporalio import TemporalQueryWorkflowEvent
 from ddtrace.contrib._events.temporalio import TemporalRunActivityEvent
 from ddtrace.contrib._events.temporalio import TemporalSignalWorkflowEvent
@@ -146,13 +147,20 @@ class _DatadogActivityInboundInterceptor(temporalio.worker.ActivityInboundInterc
             "temporal.task_queue": info.task_queue,
             "temporal.workflow.type": info.workflow_type,
         }
+        headers_event = TemporalHeadersDecodeEvent(
+            input_data=input_data,
+            payload_converter=self._root.payload_converter,
+        )
+        core.dispatch_event(headers_event)
         event = TemporalRunActivityEvent(
             component=config.temporalio.integration_name,
             integration_config=config.temporalio,
             input_data=input_data,
             payload_converter=self._root.payload_converter,
+            request_headers=headers_event.request_headers,
             resource=info.activity_type,
             tags=tags,
+            activate_distributed_headers=True,
         )
         with core.context_with_event(event):
             return await self.next.execute_activity(input_data)

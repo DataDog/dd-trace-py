@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
@@ -17,6 +18,7 @@ class TemporalEvents(Enum):
     SIGNAL_WORKFLOW = "temporal.signal_workflow"
     QUERY_WORKFLOW = "temporal.query_workflow"
     RUN_ACTIVITY = "temporal.run_activity"
+    DECODE_HEADERS = "temporal.headers.decode"
     FORWARD_CONTEXT = "temporal.context.forward"
 
 
@@ -27,6 +29,16 @@ TEMPORAL_CONTEXT_HEADER = "_datadog"
 class TemporalEvent(TracingEvent):
     input_data: Any = event_field(default=None)
     payload_converter: Any = event_field(default=None)
+    request_headers: Optional[dict[str, str]] = event_field(default=None)
+
+
+@dataclass
+class TemporalHeadersDecodeEvent(Event):
+    event_name = TemporalEvents.DECODE_HEADERS.value
+
+    input_data: Any = event_field()
+    payload_converter: Any = event_field()
+    request_headers: Optional[dict[str, str]] = event_field(default=None)
 
 
 @dataclass
