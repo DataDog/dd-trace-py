@@ -1,14 +1,7 @@
-"""Tests for ddtrace.internal.monitoring, the multiplexed sys.monitoring layer.
-
-The multiplexer is supported on Python 3.12+. PY_UNWIND is a per-code event
-only on 3.15+ (it is a global-only "other" event on 3.12-3.14, and its event
-bit even moves 0x1000 -> 0x2000), so handlers that override ``on_py_unwind``
-are rejected below 3.15.
-"""
+"""Tests for the multiplexed sys.monitoring layer on Python 3.12+."""
 
 import sys
 from types import CodeType
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Iterator
@@ -18,12 +11,10 @@ from typing import cast
 import pytest
 
 
-# The multiplexer imports on 3.12+. Under a type checker we import it directly
-# so member/base-class references resolve.
-if TYPE_CHECKING:
-    from ddtrace.internal import monitoring
-else:
-    monitoring = pytest.importorskip("ddtrace.internal.monitoring")
+if sys.version_info < (3, 12):
+    pytest.skip("ddtrace.internal.monitoring requires Python 3.12+", allow_module_level=True)
+
+from ddtrace.internal import monitoring
 
 
 # PY_UNWIND became a per-code event only in 3.15; on 3.12-3.14 the multiplexer
@@ -36,13 +27,17 @@ class _MonitoringEvents(Protocol):
     """Subset of sys.monitoring.events used by these tests."""
 
     PY_START: int
+    PY_RETURN: int
     PY_UNWIND: int
+    LINE: int
+    EXCEPTION_HANDLED: int
 
 
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
 # source module under a pre-3.15 Python version.
 _E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)  # type: ignore[has-type]
 _DISABLE: object = cast(object, monitoring._DISABLE)  # type: ignore[has-type]
+_LOCAL_EVENTS: int = cast(int, monitoring._LOCAL_EVENTS)  # type: ignore[has-type]
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
@@ -117,6 +112,19 @@ class RaisingUnwindHandler(monitoring.MonitoringEventHandler):
         raise RuntimeError("unwind handler exploded")
 
 
+class HandledExceptionHandler(monitoring.MonitoringEventHandler):
+    def __init__(self) -> None:
+        self.handled: list[tuple[CodeType, BaseException]] = []
+
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        self.handled.append((code, exception))
+
+
+class RaisingHandledExceptionHandler(monitoring.MonitoringEventHandler):
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        raise RuntimeError("handled-exception handler exploded")
+
+
 @pytest.fixture
 def registered() -> Iterator[
     Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler]
@@ -133,6 +141,21 @@ def registered() -> Iterator[
 
     for code, handler in registrations:
         monitoring.unregister(code, handler)
+
+
+@pytest.fixture
+def registered_global() -> Iterator[Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler]]:
+    registrations: list[monitoring.MonitoringEventHandler] = []
+
+    def _register(handler: monitoring.MonitoringEventHandler) -> monitoring.MonitoringEventHandler:
+        monitoring.register_global(handler)
+        registrations.append(handler)
+        return handler
+
+    yield _register
+
+    for handler in registrations:
+        monitoring.unregister_global(handler)
 
 
 @_py315
@@ -402,6 +425,42 @@ def test_py_start_disable_forwarded_when_all_handlers_return_disable(
     assert handler.count == 2, "refresh() must re-arm the disabled PY_START event"
 
 
+def test_register_rearms_disabled_py_start_for_new_handler(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """Adding a handler re-arms an event disabled by an existing handler."""
+
+    class DisablingStartHandler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.count = 0
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
+            self.count += 1
+            return _DISABLE
+
+    class PassiveStartHandler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.count = 0
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            self.count += 1
+
+    def fn() -> None:
+        pass
+
+    disabling: DisablingStartHandler = registered(fn.__code__, DisablingStartHandler())  # type: ignore[assignment]
+    fn()
+    fn()
+    assert disabling.count == 1
+
+    passive: PassiveStartHandler = registered(fn.__code__, PassiveStartHandler())  # type: ignore[assignment]
+    fn()
+    fn()
+
+    assert disabling.count == 3
+    assert passive.count == 2
+
+
 def test_py_start_continues_when_any_handler_declines_disable(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
@@ -430,6 +489,87 @@ def test_py_start_continues_when_any_handler_declines_disable(
     assert passive.count == 1
 
 
+def test_global_and_local_events_share_the_same_tool(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A global EXCEPTION_HANDLED handler coexists with a local LINE handler."""
+
+    def fn() -> None:
+        try:
+            raise ValueError("handled")
+        except ValueError:
+            pass
+
+    line_handler: LineHandler = registered(fn.__code__, LineHandler())  # type: ignore[assignment]
+    exception_handler = cast(HandledExceptionHandler, registered_global(HandledExceptionHandler()))
+
+    tool_id = monitoring._tool_id
+    assert tool_id is not None
+    assert _sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED
+    assert _sys_monitoring.get_local_events(tool_id, fn.__code__) & _E.LINE
+
+    fn()
+
+    assert line_handler.lines
+    assert any(code is fn.__code__ and exc.args == ("handled",) for code, exc in exception_handler.handled)
+
+    handled_count = len(exception_handler.handled)
+    monitoring.unregister_global(exception_handler)
+    assert not (_sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED)
+    assert _sys_monitoring.get_local_events(tool_id, fn.__code__) & _E.LINE
+
+    fn()
+    assert len(exception_handler.handled) == handled_count
+
+
+def test_global_registration_preserves_disabled_local_events(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """Changing global events must not reset local DISABLE state."""
+
+    def fn() -> None:
+        value = 1
+        value += 1
+
+    line_handler: LineHandler = registered(fn.__code__, LineHandler(disable=True))  # type: ignore[assignment]
+    fn()
+    disabled_count = len(line_handler.lines)
+    fn()
+    assert len(line_handler.lines) == disabled_count
+
+    exception_handler = registered_global(HandledExceptionHandler())
+    fn()
+    assert len(line_handler.lines) == disabled_count
+
+    monitoring.unregister_global(exception_handler)
+    fn()
+    assert len(line_handler.lines) == disabled_count
+
+
+def test_exception_handled_handler_failure_does_not_skip_siblings(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """One failing global handler must not affect other handlers or user code."""
+
+    def fn() -> None:
+        pass
+
+    registered_global(RaisingHandledExceptionHandler())
+    sibling: HandledExceptionHandler = registered_global(HandledExceptionHandler())  # type: ignore[assignment]
+    exception = ValueError("handled")
+
+    monitoring._on_exception_handled(fn.__code__, 0, exception)
+
+    assert (fn.__code__, exception) in sibling.handled
+
+
+def test_register_global_rejects_local_only_handler() -> None:
+    with pytest.raises(ValueError, match="no global"):
+        monitoring.register_global(LineHandler())
+
+
 @_below_315
 def test_py_unwind_handler_rejected_below_315() -> None:
     """A handler overriding on_py_unwind cannot be registered on 3.12-3.14."""
@@ -447,9 +587,9 @@ def test_py_unwind_handler_rejected_below_315() -> None:
 
 @_below_315
 def test_local_events_exclude_py_unwind_below_315() -> None:
-    """``_LOCAL_EVENTS`` must not include PY_UNWIND on 3.12-3.14 (set_local_events rejects it)."""
+    """_LOCAL_EVENTS must omit PY_UNWIND when set_local_events rejects it."""
 
-    assert not (monitoring._LOCAL_EVENTS & _E.PY_UNWIND), "PY_UNWIND is not a local event on 3.12-3.14"
-    assert monitoring._LOCAL_EVENTS & _E.PY_START
-    assert monitoring._LOCAL_EVENTS & _E.PY_RETURN
-    assert monitoring._LOCAL_EVENTS & _E.LINE
+    assert not (_LOCAL_EVENTS & _E.PY_UNWIND), "PY_UNWIND is not a local event on 3.12-3.14"
+    assert _LOCAL_EVENTS & _E.PY_START
+    assert _LOCAL_EVENTS & _E.PY_RETURN
+    assert _LOCAL_EVENTS & _E.LINE

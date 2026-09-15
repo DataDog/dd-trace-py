@@ -8,10 +8,8 @@ import pytest
 def test_coverage_id_clash_does_not_affect_ddtrace():
     """Another tool holding COVERAGE_ID must not prevent ddtrace from collecting coverage.
 
-    ddtrace's coverage registers with the shared sys.monitoring multiplexer, which owns a single
-    tool slot on ddtrace's behalf and tries slots 4 then 3 (it never uses COVERAGE_ID/slot 1, the
-    slot conventionally held by coverage.py). So if only COVERAGE_ID (slot 1) is taken, ddtrace
-    still collects coverage using slot 4.
+    ddtrace's coverage registers with the shared sys.monitoring multiplexer, which tries custom
+    slots 4 and 3. It never uses COVERAGE_ID (slot 1), the slot conventionally held by coverage.py.
     """
     import os
     from pathlib import Path
@@ -53,15 +51,9 @@ def test_coverage_id_clash_does_not_affect_ddtrace():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(out=None, err=None)
 def test_dd_tool_slot_clash_causes_graceful_degradation():
-    """If both multiplexer candidate slots (4, 3) are taken, ddtrace logs a warning and skips coverage.
-
-    Coverage routes through the shared multiplexer, which only tries slots 4 and 3 (it deliberately
-    avoids COVERAGE_ID/slot 1 so it never collides with external coverage tools). If another tool
-    already holds both 4 and 3, the multiplexer cannot claim a slot, coverage degrades gracefully,
-    and no lines are instrumented.
-    """
+    """If both custom slots are taken, ddtrace logs a warning and skips coverage."""
     import os
     from pathlib import Path
     import sys
@@ -73,8 +65,6 @@ def test_dd_tool_slot_clash_causes_graceful_degradation():
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    # The multiplexer's candidate slots (ddtrace.internal.monitoring._CANDIDATE_TOOL_IDS).
-    # Claim both before install — ddtrace must degrade gracefully.
     for slot in (4, 3):
         sys.monitoring.use_tool_id(slot, "something_else")
 

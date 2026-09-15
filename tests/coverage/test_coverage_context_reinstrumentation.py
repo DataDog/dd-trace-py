@@ -460,11 +460,9 @@ def test_sequential_contexts_with_other_monitoring_tool():
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_repeated_execution_with_other_monitoring_tool():
     """
-    Test that repeatedly executed code properly isolates coverage between contexts
-    when another sys.monitoring tool is active (DISABLE optimisation disabled).
-
-    Without DISABLE, events keep firing on every line execution.  This test verifies
-    that CoverageLines.add() idempotency and context-stack isolation still work correctly.
+    Test that repeatedly executed code stays isolated between contexts when another
+    sys.monitoring tool is active. Coverage uses tool-scoped DISABLE and re-arming, so the
+    other tool must remain unaffected while each context records its own execution.
     """
     import os
     from pathlib import Path

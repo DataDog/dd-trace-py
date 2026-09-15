@@ -11,6 +11,7 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.coverage.instrumentation import _rearm_disabled
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -36,7 +37,6 @@ _original_exec = exec
 # Compiled at import time so it matches the running Python version.
 _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
-_PY_GE_312 = sys.version_info >= (3, 12)
 _PY_GE_313 = sys.version_info >= (3, 13)
 _PY_GE_314 = sys.version_info >= (3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
@@ -398,10 +398,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             # later that calls code from an earlier module still records those lines. The
             # touched set is cleared each entry, so this is O(total instrumented code) across
             # the whole run, not O(n) per context.
-            if _PY_GE_312:
-                from ddtrace.internal.coverage.instrumentation_py3_12 import _rearm_disabled
-
-                _rearm_disabled()
+            _rearm_disabled()
 
             return self
 

@@ -16,6 +16,69 @@ skipif_errortracking_not_supported = pytest.mark.skipif(
 )
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring requires Python 3.12+")
+@run_in_subprocess()
+def test_handled_exception_reporting_uses_shared_monitoring_tool():
+    import sys
+
+    from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _install_sys_monitoring_reporting
+    from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _uninstall_sys_monitoring_reporting
+    from ddtrace.internal import monitoring
+
+    _install_sys_monitoring_reporting()
+    tool_id = monitoring._tool_id
+    assert tool_id in (4, 3)
+    assert sys.monitoring.get_tool(tool_id) == "ddtrace"
+    assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.EXCEPTION_HANDLED
+
+    class LineHandler(monitoring.MonitoringEventHandler):
+        def __init__(self):
+            self.lines = []
+
+        def on_py_line(self, code, line_number):
+            self.lines.append(line_number)
+
+    def target():
+        pass
+
+    line_handler = LineHandler()
+    monitoring.register(target.__code__, line_handler)
+    assert sys.monitoring.get_local_events(tool_id, target.__code__) & sys.monitoring.events.LINE
+
+    _uninstall_sys_monitoring_reporting()
+    assert sys.monitoring.get_tool(tool_id) == "ddtrace"
+    assert not (sys.monitoring.get_events(tool_id) & sys.monitoring.events.EXCEPTION_HANDLED)
+    assert sys.monitoring.get_local_events(tool_id, target.__code__) & sys.monitoring.events.LINE
+
+    target()
+    assert line_handler.lines
+    monitoring.unregister(target.__code__, line_handler)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring requires Python 3.12+")
+@pytest.mark.subprocess(out=None, err=None)
+def test_handled_exception_reporting_preserves_external_tools_when_unavailable():
+    import sys
+
+    for tool_id in (4, 3):
+        sys.monitoring.use_tool_id(tool_id, f"external-{tool_id}")
+
+    from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _install_sys_monitoring_reporting
+    from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _uninstall_sys_monitoring_reporting
+    from ddtrace.internal import monitoring
+
+    try:
+        _install_sys_monitoring_reporting()
+    except monitoring.MonitoringToolUnavailable:
+        pass
+    else:
+        raise AssertionError("error tracking unexpectedly acquired an occupied tool slot")
+
+    _uninstall_sys_monitoring_reporting()
+    assert sys.monitoring.get_tool(4) == "external-4"
+    assert sys.monitoring.get_tool(3) == "external-3"
+
+
 @skipif_errortracking_not_supported
 class ErrorTestCases(TracerTestCase):
     """
@@ -258,16 +321,16 @@ class UserCodeErrorTestCases(TracerTestCase):
                 except ValueError:
                     value += "<except_f>"
             if use_maincode:
-                import main_code  # type: ignore
+                import main_code
 
-                value = main_code.main_user_code(value)  # type: ignore
+                value = main_code.main_user_code(value)
 
             if use_submodules:
-                import submodule.submodule_1 as sub_1  # type: ignore
-                import submodule.submodule_2 as sub_2  # type: ignore
+                import submodule.submodule_1 as sub_1
+                import submodule.submodule_2 as sub_2
 
-                value += sub_1.submodule_1_f()  # type: ignore
-                value += sub_2.submodule_2_f()  # type: ignore
+                value += sub_1.submodule_1_f()
+                value += sub_2.submodule_2_f()
 
         f()
         HandledExceptionCollector.disable()

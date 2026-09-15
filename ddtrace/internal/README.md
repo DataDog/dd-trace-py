@@ -342,11 +342,9 @@ machinery in a well-defined order.
 
 ## The `sys.monitoring` Multiplexer
 
-`sys.monitoring` (PEP 669, Python 3.12+) grants a limited number of tool IDs,
-and only one tool may own a given event at a time. Since multiple ddtrace
-sub-systems may need PY_START/PY_RETURN/PY_UNWIND/LINE events on overlapping
-code objects, `ddtrace.internal.monitoring` claims a single tool ID on behalf
-of all of them and fans events out to per-code-object handlers.
+`sys.monitoring` (PEP 669, Python 3.12+) grants a limited number of tool IDs.
+`ddtrace.internal.monitoring` claims one ID on behalf of ddtrace subsystems and
+fans local events out per code object and global events out process-wide.
 
 
 ### The `MonitoringEventHandler` Interface
@@ -370,7 +368,7 @@ class MyHandler(monitoring.MonitoringEventHandler):
         return None
 ```
 
-Register and unregister with the handler instance itself as the key:
+Register and unregister local handlers with the handler instance as the key:
 
 ```python
 handler = MyHandler()
@@ -379,32 +377,43 @@ monitoring.register(code, handler)
 monitoring.unregister(code, handler)
 ```
 
+Global handlers use the same interface without a code object:
+
+```python
+class ExceptionHandler(monitoring.MonitoringEventHandler):
+    def on_exception_handled(self, code, instruction_offset, exception): ...
+
+
+handler = ExceptionHandler()
+monitoring.register_global(handler)
+...
+monitoring.unregister_global(handler)
+```
+
 > [!WARNING]
 > Do not call `register()` or `unregister()` from inside a handler method —
 > doing so mutates the handler list while it is being iterated.
 
 ### Local vs. Global Events
 
-All events multiplexed here (`PY_START`, `PY_RETURN`, `PY_UNWIND`, `LINE`) are
-enabled **locally**, per code object, via `set_local_events()` — never
-globally. This keeps monitoring overhead confined to the code objects that
-actually have handlers registered.
+PY_START, PY_RETURN, LINE, and Python 3.15+'s PY_UNWIND are enabled locally
+per code object. EXCEPTION_HANDLED is enabled globally only while at least one
+global handler is registered. On Python 3.12–3.14, PY_UNWIND is not available
+as a local event, so the multiplexer rejects handlers that request it.
 
 ### `DISABLE` and `refresh()`
 
-A `DISABLE` returned from `on_py_line()` is sticky in CPython until the local
-event set changes or `restart_events()` resets it. Because `restart_events()`
-is global and would clear other tools' disabled-event state too, the
-multiplexer instead re-arms a code object's own local events by toggling them
-off and back on (see `_rearm_local_events()`), which is exactly what
-`register()` does automatically when a new LINE handler is added for code that
-already had one. Call `monitoring.refresh(code)` directly if you need to
-re-arm LINE events for a code object without changing its registered
-handlers.
+A `DISABLE` returned from a local event callback is sticky in CPython until
+the local event set changes or `restart_events()` resets it. Because
+`restart_events()` is global and would clear other tools' disabled-event state,
+the multiplexer re-arms a code object's own events by toggling them off and
+back on (see `_rearm_local_events()`). `register()` does this automatically
+when a new handler shares an event that may already be disabled. Call
+`monitoring.refresh(code)` to re-arm events without changing handlers.
 
 ### Error Isolation
 
-An exception raised by a handler is logged and does not propagate to CPython,
-and does not count as a vote to disable LINE events — a single failing
-handler must not silence monitoring for everyone else registered on the same
-code object.
+LINE and global handler failures are logged and isolated so one subsystem
+cannot disrupt another. PY_START, PY_RETURN, and PY_UNWIND handler failures
+propagate to the monitored frame; handlers for those lifecycle events must
+handle their own failures when isolation is required.
