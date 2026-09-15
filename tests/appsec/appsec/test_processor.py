@@ -317,7 +317,7 @@ def test_ip_update_rules_and_block(tracer):
                 ],
             ),
         )
-        # AIDEV-NOTE: WAF updates apply to request contexts created after the update.
+        # WAF updates apply to request contexts created after the update.
         # A nested same-service WEB span is part of the current service entry, not a new request.
         with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED) as span:
             set_http_meta(

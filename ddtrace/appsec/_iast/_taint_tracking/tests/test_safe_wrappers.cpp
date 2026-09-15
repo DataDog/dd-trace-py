@@ -1,6 +1,7 @@
-#include <gtest/gtest.h>
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
+
+#include <gtest/gtest.h>
 
 #include "api/safe_context.h"
 #include "api/safe_initializer.h"
