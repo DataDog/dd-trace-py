@@ -7,8 +7,8 @@ This folder is how we test the review skill (and the rest of `AGENTS.md`). It is
 This repo already had a suite (`python-tracer-agent-v0.1.yaml`). The skill landing
 appends one starter case; it does not replace the existing AGENTS.md cases.
 
-Same gate as [`dd-trace-js#10137`](https://github.com/DataDog/dd-trace-js/pull/10137) and
-[`dd-trace-java#12409`](https://github.com/DataDog/dd-trace-java/pull/12409).
+Same gate as [`dd-trace-js#10290`](https://github.com/DataDog/dd-trace-js/pull/10290) and
+[`dd-trace-java#12460`](https://github.com/DataDog/dd-trace-java/pull/12460).
 
 It answers: *did an edit to a review rule make the agent better or worse?*
 
