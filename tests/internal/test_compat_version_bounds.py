@@ -98,12 +98,18 @@ def test_py315_feature_gate_does_not_follow_next_max(monkeypatch: pytest.MonkeyP
     assert not compat.is_wrap_supported((3, 17))
 
 
-def test_wrapping_modules_import():
+def test_wrapping_modules_import() -> None:
     import ddtrace.internal.bytecode_injection  # noqa: F401
     import ddtrace.internal.module  # noqa: F401
     import ddtrace.internal.wrapping.asyncs  # noqa: F401
-    import ddtrace.internal.wrapping.context  # noqa: F401
     import ddtrace.internal.wrapping.generators  # noqa: F401
+
+    # wrapping.context fail-closes at import when wrap is unsupported (3.16+).
+    if is_wrap_supported():
+        import ddtrace.internal.wrapping.context  # noqa: F401
+    else:
+        with pytest.raises(NotImplementedError, match="not supported yet"):
+            import ddtrace.internal.wrapping.context  # noqa: F401
 
 
 @pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() trampoline on 3.15")
