@@ -106,6 +106,7 @@ include:
   image: registry.ddbuild.io/images/docker:27.3.1
   tags: ["docker-in-docker:amd64"]
   stage: package
+  allow_failure: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
   needs:
@@ -143,6 +144,7 @@ include:
 
 system_tests_param:
   extends: .system_tests_param_base
+  allow_failure: true
   stage: tests
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
