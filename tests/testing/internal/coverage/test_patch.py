@@ -15,6 +15,7 @@ def _covered_function() -> None:
 
 
 def _start_coverage_with_data() -> None:
+    # Enter a new measured frame so wheel-only runs collect deterministic coverage data.
     coverage_patch.start_coverage(include=[__file__])
     _covered_function()
 
@@ -182,6 +183,7 @@ class TestCoverageIntegration:
 
     def test_lcov_report_with_no_data(self) -> None:
         """Test generating LCOV report with no coverage data."""
+        # Limit measurement to an unexecuted file so incidental imports cannot create data.
         coverage_patch.start_coverage(include=[str(Path(__file__).with_name("__init__.py"))])
         coverage_patch.stop_coverage(save=True, erase=False)
 
@@ -327,6 +329,7 @@ class TestCoveragePatching:
             # Test text report (without outfile parameter which is not supported by coverage.report())
             text_pct = coverage_patch.generate_coverage_report("text")
             assert text_pct is not None
+            # Fixture size is incidental; verify each formatter returns a valid nonzero percentage.
             assert 0.0 < text_pct <= 100.0
 
             # Test LCOV report
