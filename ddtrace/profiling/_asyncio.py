@@ -39,6 +39,24 @@ _TASK_CONTEXT_IS_READABLE = sys.version_info >= (3, 12)
 _task_span_finalizers: dict[int, weakref.finalize[..., typing.Any]] = {}
 
 
+def _safe_clear_thread_span() -> None:
+    try:
+        _span_links.clear_thread_span()
+    except Exception:  # nosec B110
+        pass
+
+
+def _run_with_anyio_span(func: typing.Callable[..., typing.Any], *args: typing.Any) -> typing.Any:
+    try:
+        _span_links.link_thread_span_context()
+    except Exception:  # nosec B110
+        _safe_clear_thread_span()
+    try:
+        return func(*args)
+    finally:
+        _safe_clear_thread_span()
+
+
 def _clear_native_task_span(task_id: int) -> None:
     _span_links.clear_task_span(task_id)
 
@@ -78,6 +96,27 @@ def _reset_task_span_state_after_fork() -> None:
 
 
 forksafe.register(_reset_task_span_state_after_fork)
+
+
+@ModuleWatchdog.after_module_imported("anyio.to_thread")
+def _(to_thread: ModuleType) -> None:
+    if not config.stack.enabled or not stack.is_available:
+        return
+
+    @partial(wrap, to_thread.run_sync)
+    def _(
+        f: typing.Callable[..., typing.Any],
+        args: tuple[typing.Any, ...],
+        kwargs: dict[str, typing.Any],
+    ) -> typing.Any:
+        try:
+            func: typing.Optional[typing.Callable[..., typing.Any]] = get_argument_value(args, kwargs, 0, "func")
+            if func is None:
+                return f(*args, **kwargs)
+            args, kwargs = set_argument_value(args, kwargs, 0, "func", partial(_run_with_anyio_span, func))
+        except Exception:
+            return f(*args, **kwargs)
+        return f(*args, **kwargs)
 
 
 def _track_asyncio_loop(thread_id: int, loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:

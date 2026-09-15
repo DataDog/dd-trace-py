@@ -48,6 +48,34 @@ suites:
         - name: profile
           python: ['3.11', '3.12', '3.13']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
+  profile-anyio:
+    env:
+      DD_TRACE_AGENT_URL: ''
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@profiling'
+      - '@vendor'
+      - tests/profiling/suitespec.yml
+      - tests/profiling/collector/test_anyio_span_links.py
+    pattern: profile-anyio
+    retry: 2
+    matrix:
+      command: >-
+        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        {cmdargs} tests/profiling/collector/test_anyio_span_links.py
+      env:
+        CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
+      python: ['3.12']
+      variants:
+        - name: profile-anyio
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, anyio, protobuf]
   profile-uwsgi:
     env:
       DD_TRACE_AGENT_URL: ''
