@@ -200,8 +200,14 @@ class XdistTestOptPlugin:
         # triggered the re-queue (e.g. "auto_test_retry", "early_flake_detection").
         self._cached_reasons_by_nodeid: dict[str, str] = {}
         # Per-nodeid Test objects discovered in the main's session via logstart. Used to emit
-        # backend crash-attempt events (see _emit_crash_test_run).
+        # backend crash-attempt events (see _emit_crash_test_run). Cleaned up on normal
+        # completion (logfinish) and on crash (handlecrashitem).
         self._tests_by_nodeid: dict[str, t.Any] = {}
+        # Nodeids that have already been counted toward the ATR session-level retry
+        # limit. The limit is decremented once per test (on first crash re-queue), not
+        # per crash, matching in-process ATR which decrements in get_final_status (once
+        # per test that was retried at least once).
+        self._session_limit_counted: set[str] = set()
         # Retry handlers for this session, built from settings. The main (controller) process
         # prohibits collection (DSession.pytest_collection returns True), so
         # pytest_collection_finish never fires in the main and
@@ -324,6 +330,10 @@ class XdistTestOptPlugin:
 
         # Emit a backend event for every crash, including the last one that hits the cap, so
         # the backend sees the full retry history (all crashes = fail, then the final result).
+        # The crash event's attempt_number is assigned naturally by make_test_run (0 for the
+        # first crash, 1 for the second, etc.) — we do not override it. The replacement
+        # worker reports attempt 0 (fresh Test); the backend distinguishes crash from
+        # re-queue via IS_RETRY tags + timestamps.
         self._emit_crash_test_run(
             crashitem, count + 1, duration, self._cached_reasons_by_nodeid.get(crashitem, "auto_test_retry")
         )
@@ -332,10 +342,14 @@ class XdistTestOptPlugin:
             return None
 
         self._crash_retries[crashitem] = count + 1
-        # Decrement the ATR session-level retry limit so it is honored across all tests.
-        for handler in retry_handlers:
-            if isinstance(handler, AutoTestRetriesHandler):
-                handler.max_tests_to_retry_per_session -= 1
+        # Decrement the ATR session-level retry limit once per test (on first crash
+        # re-queue), matching in-process ATR which decrements in get_final_status (once
+        # per test that was retried at least once).
+        if crashitem not in self._session_limit_counted:
+            self._session_limit_counted.add(crashitem)
+            for handler in retry_handlers:
+                if isinstance(handler, AutoTestRetriesHandler):
+                    handler.max_tests_to_retry_per_session -= 1
         sched.mark_test_pending(crashitem)
 
         # Relabel the crash report as a retry so pytest's terminal summary does not count it
@@ -366,10 +380,10 @@ class XdistTestOptPlugin:
             return
 
         test_run = test.make_test_run()
-        # Override the auto-assigned attempt_number (which starts at 0 for the main's fresh Test
-        # object) with the crash count — the crash is retry #1, #2, etc., since the worker's initial
-        # attempt (attempt 0) died with the worker and is not in the main's test_runs list.
-        test_run.attempt_number = attempt_number
+        # The attempt_number is assigned naturally by make_test_run (0 for the first crash,
+        # 1 for the second, etc.) — we do not override it. The replacement worker reports
+        # attempt 0 (fresh Test); the backend distinguishes crash from re-queue via
+        # IS_RETRY tags + timestamps. See module docstring for the known limitation.
         test_run.set_status(TestStatus.FAIL)
         test_run.set_tags(
             {

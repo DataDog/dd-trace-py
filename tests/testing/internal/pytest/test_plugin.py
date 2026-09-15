@@ -2001,8 +2001,13 @@ class TestXdistCrashRequeue:
         assert test_run.tags.get(TestTag.IS_RETRY) == "true"
         assert test_run.tags.get(TestTag.RETRY_REASON) == "auto_test_retry"
 
-    def test_crash_test_run_attempt_number_matches_crash_count(self) -> None:
-        """The crash TestRun's attempt_number increments with each crash for the same test."""
+    def test_crash_test_run_attempt_number_increments(self) -> None:
+        """The crash TestRun's attempt_number is assigned naturally by make_test_run.
+
+        The first crash is attempt 0 (the initial attempt that died), the second crash is
+        attempt 1, etc. We do not override attempt_number. The replacement worker reports
+        attempt 0 (fresh Test); the backend distinguishes via IS_RETRY tags + timestamps.
+        """
         from ddtrace.testing.internal.test_data import TestSession
 
         plugin = self._build_plugin(atr=True)
@@ -2023,17 +2028,17 @@ class TestXdistCrashRequeue:
         nodeid = "test_foo.py::test_crash"
         writer = plugin.main_plugin.manager.writer
 
-        # First crash: attempt_number should be 1 (first retry).
+        # First crash: attempt_number should be 0 (initial attempt that died).
         plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
         plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
         first_run = writer.put_item.call_args[0][0]
-        assert first_run.attempt_number == 1
+        assert first_run.attempt_number == 0
 
-        # Second crash: attempt_number should be 2.
+        # Second crash: attempt_number should be 1.
         plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
         plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
         second_run = writer.put_item.call_args[0][0]
-        assert second_run.attempt_number == 2
+        assert second_run.attempt_number == 1
 
         # Two TestRuns emitted total.
         assert writer.put_item.call_count == 2
@@ -2086,8 +2091,13 @@ class TestXdistCrashRequeue:
         assert writer.put_item.call_count == 3  # three crash events total
         assert report.outcome == "failed"  # not relabeled (no re-queue)
 
-    def test_atr_session_limit_decremented(self) -> None:
-        """Each crash re-queue decrements the ATR session-level retry limit."""
+    def test_atr_session_limit_decremented_once_per_test(self) -> None:
+        """The ATR session-level retry limit is decremented once per test, not per crash.
+
+        In-process ATR decrements max_tests_to_retry_per_session in get_final_status (once per test
+        that was retried at least once). A test that crashes 3 times should decrement by 1,
+        not 3, so other tests don't lose their retry budget.
+        """
         from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
         from ddtrace.testing.internal.test_data import TestSession
 
@@ -2106,12 +2116,14 @@ class TestXdistCrashRequeue:
             )
         )
         atr_handler = next(h for h in plugin._retry_handlers if isinstance(h, AutoTestRetriesHandler))
+        atr_handler.max_retries_per_test = 5  # allow multiple crashes
         initial_limit = atr_handler.max_tests_to_retry_per_session
         nodeid = "test_foo.py::test_crash"
 
-        # One crash + re-queue: session limit should decrement by 1.
-        plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
-        plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
+        # Three crashes for the same test: session limit should decrement by 1 (once per test).
+        for _ in range(3):
+            plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+            plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
         assert atr_handler.max_tests_to_retry_per_session == initial_limit - 1
 
 
