@@ -41,6 +41,7 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+from tests.utils import package_installed
 
 
 @pytest.fixture(autouse=True)
@@ -740,6 +741,17 @@ def test_connection():
         assert span.span_type == "sql"
         assert span.get_tag("django.db.vendor") == "sqlite"
         assert span.get_tag("django.db.alias") == "default"
+
+
+@pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
+@pytest.mark.skipif(not package_installed("psycopg"), reason="Psycopg3 not installed")
+def test_psycopg3_django_cursor_uses_psycopg_tracing():
+    from django.db.backends.postgresql.base import Cursor
+
+    from ddtrace.contrib.internal.django.database import get_traced_cursor_cls
+    from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
+
+    assert get_traced_cursor_cls(Cursor) is Psycopg3TracedCursor
 
 
 """

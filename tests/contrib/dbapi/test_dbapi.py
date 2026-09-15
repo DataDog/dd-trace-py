@@ -1,9 +1,12 @@
 import mock
 import pytest
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
@@ -29,14 +32,6 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
-
-    def test_query_is_blocked_before_execution(self):
-        for method in ("execute", "executemany"):
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException):
-                with pytest.raises(BlockingException):
-                    getattr(TracedCursor(self.cursor, cfg={}), method)("SELECT 1")
-
-            getattr(self.cursor, method).assert_not_called()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):
@@ -616,3 +611,105 @@ class TestTracedConnection(TracerTestCase):
 
         spans = self.pop_spans()
         assert len(spans) == 0
+
+
+@pytest.mark.parametrize("method", ["execute", "executemany"])
+@pytest.mark.parametrize("rendering_error", [False, True])
+@pytest.mark.parametrize("driver_error", [False, True])
+def test_query_event_rendering_fail_open(method, rendering_error, driver_error, tracer):
+    query, parameters, option, result = object(), object(), object(), object()
+    expected = RuntimeError("driver error")
+    driver = mock.Mock(rowcount=0)
+    operation = getattr(driver, method)
+    operation.return_value = result
+    if driver_error:
+        operation.side_effect = expected
+    render = mock.Mock(return_value=None, side_effect=ValueError("cannot render") if rendering_error else None)
+
+    class RenderingCursor(TracedCursor):
+        def _render_dbapi_query(self, query):
+            return render(query)
+
+    cursor = RenderingCursor(driver, cfg={})
+    listener = mock.Mock()
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        if driver_error:
+            with pytest.raises(RuntimeError) as exc_info:
+                getattr(cursor, method)(query, parameters, option=option)
+            assert exc_info.value is expected
+        else:
+            assert getattr(cursor, method)(query, parameters, option=option) is result
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+
+    render.assert_called_once_with(query)
+    listener.assert_not_called()
+    operation.assert_called_once_with(query, parameters, option=option)
+    assert operation.call_args.args[0] is query
+    assert operation.call_args.args[1] is parameters
+    assert operation.call_args.kwargs["option"] is option
+    assert cursor._self_last_execute_operation is query
+
+
+@pytest.mark.parametrize("method", ["execute", "executemany"])
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+@pytest.mark.parametrize("has_listener", [False, True])
+def test_query_event_rendering_enablement(method, tracing_enabled, has_listener, tracer, test_spans):
+    tracer.enabled = tracing_enabled
+    query = object()
+    render = mock.Mock(return_value="SELECT 1")
+
+    class RenderingCursor(TracedCursor):
+        def _render_dbapi_query(self, query):
+            return render(query)
+
+    driver = mock.Mock(rowcount=0)
+    listener = mock.Mock()
+    cursor = RenderingCursor(driver, cfg={})
+    # Isolate the no-listener case from product subscribers registered by the test harness.
+    with mock.patch.object(core, "has_listeners", return_value=has_listener):
+        if has_listener:
+            core.on(DbQueryEvent.event_name, listener)
+        try:
+            getattr(cursor, method)(query)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+    assert render.call_count == int(has_listener)
+    if has_listener:
+        listener.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="sql"))
+    else:
+        listener.assert_not_called()
+    assert [span.resource for span in test_spans.spans] == ([""] if tracing_enabled else [])
+    getattr(driver, method).assert_called_once_with(query)
+
+
+@pytest.mark.parametrize("method", ["execute", "executemany"])
+@pytest.mark.parametrize("query", ["SELECT 1", b"SELECT 1"])
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+def test_query_is_blocked_before_execution(method, query, tracing_enabled, tracer):
+    tracer.enabled = tracing_enabled
+    driver = mock.Mock(rowcount=0)
+    expected = BlockingException()
+    listener = mock.Mock(side_effect=expected)
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        with pytest.raises(BlockingException) as exc_info:
+            getattr(TracedCursor(driver, cfg={}), method)(query)
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+
+    assert exc_info.value is expected
+    listener.assert_called_once_with(DbQueryEvent(query=query, span_name_prefix="sql"))
+    getattr(driver, method).assert_not_called()
+
+
+@pytest.mark.parametrize("cursor_type", [Psycopg2TracedCursor, Psycopg3TracedCursor])
+def test_psycopg_query_rendering_without_optional_modules(cursor_type):
+    # psycopg2-only and older Python installations must not import psycopg3 or templatelib.
+    with mock.patch.dict("sys.modules", {"psycopg": None, "psycopg.sql": None, "string.templatelib": None}):
+        with mock.patch("builtins.__import__", side_effect=AssertionError("unexpected import")):
+            cursor = cursor_type(mock.Mock(rowcount=0), cfg={})
+            assert cursor._render_dbapi_query("SELECT 1") == "SELECT 1"
+            assert cursor._render_dbapi_query(object()) is None

@@ -1,5 +1,10 @@
+from contextlib import suppress
+from typing import Optional
+from typing import Union
+
 from aiopg import __version__
 from aiopg.utils import _ContextManager
+from psycopg2 import sql
 import wrapt
 
 from ddtrace import config
@@ -9,6 +14,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.psycopg.cursor import _render_composable_query
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -31,6 +37,11 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
+
+    def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
+        if isinstance(query, (str, bytes)):
+            return query
+        return _render_composable_query(query, sql, self.__wrapped__._impl)
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
@@ -63,16 +74,24 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if core.has_listeners(DbQueryEvent.event_name):
+            rendered_query = None
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+            if rendered_query is not None:
+                core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if core.has_listeners(DbQueryEvent.event_name):
+            rendered_query = None
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+            if rendered_query is not None:
+                core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 

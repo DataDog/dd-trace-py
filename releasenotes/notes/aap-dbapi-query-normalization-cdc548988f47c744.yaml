@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AAP: Fixes an issue where SQL injection attack detection and blocking do not inspect database
+    queries supplied as bytes or supported psycopg composables and templates.

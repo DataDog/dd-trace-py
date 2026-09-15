@@ -59,6 +59,8 @@ async def patched_connect(connect_func, _, args, kwargs):
     return AIOTracedConnection(conn, db_tags=tags)
 
 
+# AIDEV-NOTE: Keep this cursor on ObjectProxy. TracedAsyncCursor's inherited
+# methods assume a different _trace_method signature and change callproc behavior.
 class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a aiomysql cursor and traces its queries."""
 
@@ -103,7 +105,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                     s._set_attribute("db.rownumber", self.rownumber)
 
     async def executemany(self, query, *args, **kwargs):
-        if isinstance(query, str):
+        if isinstance(query, (str, bytes)) and core.has_listeners(DbQueryEvent.event_name):
             core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="mysql"))
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
@@ -111,7 +113,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
+        if isinstance(query, (str, bytes)) and core.has_listeners(DbQueryEvent.event_name):
             core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="mysql"))
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
