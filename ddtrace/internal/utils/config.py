@@ -1,10 +1,9 @@
 import os
 import sys
-import typing  # noqa:F401
+from typing import Optional
 
 
-def get_application_name():
-    # type: () -> typing.Optional[str]
+def get_application_name() -> Optional[str]:
     """Attempts to find the application name using system arguments."""
     try:
         import __main__

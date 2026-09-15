@@ -1,9 +1,9 @@
 #pragma once
 
+#include <Python.h>
+
 #include <cstddef>
 #include <cstdint>
-
-#include <Python.h>
 
 // Include Sample class header to enable calling functions from Sample.cpp
 #include "sample.hpp"
