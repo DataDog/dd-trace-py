@@ -122,14 +122,13 @@ Datadog::Uploader::upload_unlocked()
         encoded_profile.reset();
 
         const auto status = (*profile_exporter)
-                              ->send_encoded_profile_with_cancellation(
-                                std::move(encoded),
-                                std::move(files_to_compress),
-                                std::move(additional_tags),
-                                rust::Str(process_tags.data(), process_tags.size()),
-                                rust::Str(internal_metadata_json.data(), internal_metadata_json.size()),
-                                rust::Str(info_json.data(), info_json.size()),
-                                *cancel_for_request);
+                              ->send_encoded_profile_with_cancellation(std::move(encoded),
+                                                                       std::move(files_to_compress),
+                                                                       std::move(additional_tags),
+                                                                       to_rust_str(process_tags),
+                                                                       to_rust_str(internal_metadata_json),
+                                                                       to_rust_str(info_json),
+                                                                       *cancel_for_request);
         if (!status.check_and_print()) {
             profile_exporter.reset();
             return false;

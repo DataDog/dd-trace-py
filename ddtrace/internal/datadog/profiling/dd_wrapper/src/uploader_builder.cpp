@@ -176,14 +176,13 @@ Datadog::UploaderBuilder::build()
                                       join(reasons, ", ") };
     }
 
-    auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(
-      rust::Str(g_library_name.data(), g_library_name.size()),
-      rust::Str(state.profiler_version.data(), state.profiler_version.size()),
-      rust::Str(family.data(), family.size()),
-      std::move(tags),
-      rust::Str(state.url.data(), state.url.size()),
-      state.max_timeout_ms,
-      false);
+    auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(to_rust_str(g_library_name),
+                                                                          to_rust_str(state.profiler_version),
+                                                                          to_rust_str(family),
+                                                                          std::move(tags),
+                                                                          to_rust_str(state.url),
+                                                                          state.max_timeout_ms,
+                                                                          false);
     if (!exporter_result->ok()) {
         return Datadog::ErrorMessage{ std::string("Error initializing CXX exporter: ") +
                                       std::string(exporter_result->message()) };

@@ -28,7 +28,7 @@ Datadog::intern_string(std::string_view s)
     // R&D caveat: the C FFI path used CONVERT_LOSSY. The CXX API takes rust::Str,
     // so production parity may require a CXX lossy insertion variant.
     ddprof::DictionaryStringId id{};
-    if (!dict->intern_string(rust::Str(s.data(), s.size()), id)) {
+    if (!dict->intern_string(to_rust_str(s), id)) {
         return std::nullopt;
     }
     return id;
@@ -287,10 +287,10 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
       .key = *maybe_key_id,
       // Do not intern this because it could be a memory leak if values are high-cardinality.
       // For example, asyncio Task names are dynamic and only persist for the duration of the Task.
-      .str = rust::Str(val_str.data(), val_str.size()),
+      .str = to_rust_str(val_str),
       .num = 0,
       // Do not intern this because it could be a memory leak if values are high-cardinality.
-      .num_unit = rust::Str(unit_str.data(), unit_str.size()),
+      .num_unit = to_rust_str(unit_str),
     });
     return true;
 }

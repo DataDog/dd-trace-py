@@ -16,6 +16,12 @@ namespace ddprof = datadog::profiling;
 using string_id = ddprof::DictionaryStringId;
 using function_id = ddprof::DictionaryFunctionId;
 
+inline rust::Str
+to_rust_str(std::string_view value)
+{
+    return rust::Str(value.data(), value.size());
+}
+
 // Intern a string into libdatadog, returning a string ID
 // (or nullopt if interning failed).
 // Passing the same string twice will deduplicate the string and return
@@ -117,7 +123,7 @@ add_tag(rust::Vec<ddprof::Tag>& tags, std::string_view key, std::string_view val
     // C++ guard for tag-vector construction, not libdatadog Rust Result<T>
     // propagation through CXX.
     try {
-        tags.push_back(ddprof::Tag{ rust::Str(key.data(), key.size()), rust::Str(val.data(), val.size()) });
+        tags.push_back(ddprof::Tag{ to_rust_str(key), to_rust_str(val) });
         return true;
     } catch (const std::exception& err) {
         if (!already_warned) {
