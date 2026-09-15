@@ -12,6 +12,31 @@
 
 using namespace Datadog;
 
+namespace {
+
+void
+cancel_and_drop(ddog_CancellationToken& cancel)
+{
+    if (cancel.inner != nullptr) {
+        ddog_CancellationToken_cancel(&cancel);
+        ddog_CancellationToken_drop(&cancel);
+    }
+}
+
+} // namespace
+
+void
+Datadog::Uploader::drop_exporter()
+{
+    auto& state = ProfilerState::get();
+    // Cancellation wakes the Tokio runtime. Keep it serialized with exporter destruction,
+    // which closes the runtime's wake file descriptor.
+    const std::lock_guard<std::mutex> cancel_guard(state.upload_cancel_lock);
+    auto current_cancel = state.upload_cancel.exchange({ .inner = nullptr });
+    cancel_and_drop(current_cancel);
+    ddog_prof_Exporter_drop(&ddog_exporter);
+}
+
 Datadog::Uploader::Uploader(std::string_view _output_filename,
                             ddog_prof_ProfileExporter _ddog_exporter,
                             ddog_prof_EncodedProfile _encoded_profile,
@@ -30,18 +55,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
 
 Datadog::Uploader::~Uploader()
 {
-    // We need to call _drop() on the exporter and the cancellation token,
-    // as their inner pointers are allocated on the Rust side. And since
-    // there could be a request in flight, we first need to cancel it. Then,
-    // we drop the exporter and the cancellation token.
-    auto current_cancel = ProfilerState::get().upload_cancel.exchange({ .inner = nullptr });
-
-    if (current_cancel.inner != nullptr) {
-        ddog_CancellationToken_cancel(&current_cancel);
-        ddog_CancellationToken_drop(&current_cancel);
-    }
-
-    ddog_prof_Exporter_drop(&ddog_exporter);
+    drop_exporter();
     ddog_prof_EncodedProfile_drop(&encoded_profile);
 }
 
@@ -158,11 +172,11 @@ Datadog::Uploader::upload_unlocked()
     // cancels our upload and drops the handle (which would free the token).
     auto new_cancel = ddog_CancellationToken_new();
     auto new_cancel_clone_for_request = ddog_CancellationToken_clone(&new_cancel);
-    auto current_cancel = ProfilerState::get().upload_cancel.exchange(new_cancel);
-
-    if (current_cancel.inner != nullptr) {
-        ddog_CancellationToken_cancel(&current_cancel);
-        ddog_CancellationToken_drop(&current_cancel);
+    {
+        auto& state = ProfilerState::get();
+        const std::lock_guard<std::mutex> cancel_guard(state.upload_cancel_lock);
+        auto current_cancel = state.upload_cancel.exchange(new_cancel);
+        cancel_and_drop(current_cancel);
     }
 
     auto res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
@@ -183,7 +197,6 @@ Datadog::Uploader::upload_unlocked()
         ret = false;
     }
     ddog_CancellationToken_drop(&new_cancel_clone_for_request);
-    ddog_prof_Exporter_drop(&ddog_exporter);
 
     return ret;
 }
@@ -215,10 +228,8 @@ Datadog::Uploader::cancel_inflight()
     // Cancel the current upload if there is one.
     // We replace the cancellation token with a null token as we don't have anything
     // else to provide (here, we are not starting a new upload).
-    auto current_cancel = ProfilerState::get().upload_cancel.exchange({ .inner = nullptr });
-
-    if (current_cancel.inner != nullptr) {
-        ddog_CancellationToken_cancel(&current_cancel);
-        ddog_CancellationToken_drop(&current_cancel);
-    }
+    auto& state = ProfilerState::get();
+    const std::lock_guard<std::mutex> cancel_guard(state.upload_cancel_lock);
+    auto current_cancel = state.upload_cancel.exchange({ .inner = nullptr });
+    cancel_and_drop(current_cancel);
 }

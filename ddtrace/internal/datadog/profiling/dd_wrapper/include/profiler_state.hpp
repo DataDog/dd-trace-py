@@ -95,6 +95,9 @@ class ProfilerState
     // Upload state
     // ========================================================================
     std::mutex upload_lock{};
+    // AIDEV-NOTE: Cancellation wakes the Tokio runtime while exporter destruction closes its
+    // wake file descriptor. Every cancellation and exporter drop must hold this lock.
+    std::mutex upload_cancel_lock{};
     // ddog_CancellationToken is documented as an opaque type, but we access .inner directly to
     // zero-initialize it: the C API provides no constructor, and the default value of .inner
     // is undefined. We check .inner != nullptr as a sentinel for "a token is in flight".
