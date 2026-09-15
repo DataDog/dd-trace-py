@@ -375,6 +375,9 @@ ddtrace/contrib/internal/azure_functions                  @DataDog/apm-serverles
 ddtrace/contrib/internal/azure_servicebus                 @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
 tests/contrib/azure_functions*                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
 tests/snapshots/tests.contrib.azure_functions*            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+ddtrace/contrib/internal/azure_durable_functions          @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/contrib/azure_durable_functions                     @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/snapshots/tests.contrib.azure_durable_functions*    @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
 
 # Azure SDK
 ddtrace/ext/azure_eventhubs.py                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
