@@ -1,0 +1,11 @@
+_v: 1
+name: langchain
+display_name: LangChain
+description: Instruments LangChain model generation, embeddings, retrieval, tools, chains, and runnable workflows across synchronous,
+  asynchronous, and streaming operations.
+packages:
+- name: langchain-core
+category:
+- gen_ai
+systems: []
+creation_date: '2023-07-13'
