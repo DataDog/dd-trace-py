@@ -86,6 +86,8 @@ components:
     - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
+  context_watcher:
+    - ddtrace/internal/_context_watcher.py
   datastreams:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
@@ -467,6 +469,7 @@ suites:
       - '@futures'
       - '@ci_visibility'
       - '@vendor'
+      - '@context_watcher'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
