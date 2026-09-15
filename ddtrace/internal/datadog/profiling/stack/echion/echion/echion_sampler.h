@@ -171,9 +171,10 @@ class EchionSampler
     void invalidate_frame_identity_cache() { frame_cache_.clear(); }
 
 #if PY_VERSION_HEX >= 0x030e0000
-    bool update_code_object_generations(const std::vector<InterpreterInfo>& interpreters, bool snapshot_complete)
+    bool update_code_object_generations(const std::vector<InterpreterInfo>& interpreters,
+                                        bool all_interpreter_data_captured)
     {
-        if (!snapshot_complete || interpreters.empty()) {
+        if (!all_interpreter_data_captured || interpreters.empty()) {
             invalidate_frame_identity_cache();
             code_object_generations_.clear();
             return false;

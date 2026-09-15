@@ -3,7 +3,7 @@
 bool
 for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback)
 {
-    bool snapshot_complete = true;
+    bool all_interpreter_data_captured = true;
 
     // Limit interpreter iteration to prevent infinite loops from cycles or corrupted memory.
     // This limit is based on CPython's tachyon profiler (256) and should be more than
@@ -25,8 +25,9 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         InterpreterInfo interpreter_info = { 0 };
         interpreter_info.interp = reinterpret_cast<PyInterpreterState*>(interp_addr);
 #if PY_VERSION_HEX >= 0x030e0000
-        snapshot_complete &= !copy_type(interp_addr + runtime->debug_offsets.interpreter_state.code_object_generation,
-                                        interpreter_info.code_object_generation);
+        all_interpreter_data_captured &=
+          !copy_type(interp_addr + runtime->debug_offsets.interpreter_state.code_object_generation,
+                     interpreter_info.code_object_generation);
 #endif
 
         // Always read next pointer first - we need it to advance
@@ -34,7 +35,7 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
             return false; // Can't read next, can't advance - stop iteration
 
         if (copy_type(interp_addr + offsetof(PyInterpreterState, id), interpreter_info.id)) {
-            snapshot_complete = false;
+            all_interpreter_data_captured = false;
             interp_addr = reinterpret_cast<char*>(interpreter_info.next);
             continue;
         }
@@ -45,7 +46,7 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         if (copy_type(interp_addr + offsetof(PyInterpreterState, tstate_head), interpreter_info.tstate_head))
 #endif
         {
-            snapshot_complete = false;
+            all_interpreter_data_captured = false;
             interp_addr = reinterpret_cast<char*>(interpreter_info.next);
             continue;
         }
@@ -56,5 +57,5 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         interp_addr = reinterpret_cast<char*>(interpreter_info.next);
     }
 
-    return snapshot_complete && interp_addr == NULL;
+    return all_interpreter_data_captured && interp_addr == NULL;
 }

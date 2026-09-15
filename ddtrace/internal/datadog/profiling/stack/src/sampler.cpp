@@ -261,16 +261,16 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
     auto* const runtime = &_PyRuntime;
 
     interpreter_candidates.clear();
-    const bool interpreter_snapshot_complete =
+    const bool all_interpreter_data_captured =
       for_each_interp(runtime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
 #if PY_VERSION_HEX >= 0x030e0000
     // This lock-free snapshot can race with code destruction during the sampling cycle. In that case, the current
     // cycle may use stale frame metadata; the next cycle observes the generation change and clears the cache.
-    if (!echion->update_code_object_generations(interpreter_candidates, interpreter_snapshot_complete)) {
+    if (!echion->update_code_object_generations(interpreter_candidates, all_interpreter_data_captured)) {
         return;
     }
 #else
-    (void)interpreter_snapshot_complete;
+    (void)all_interpreter_data_captured;
 #endif
 
     // When max_threads_per_sample is set, we collect all threads first, then apply
