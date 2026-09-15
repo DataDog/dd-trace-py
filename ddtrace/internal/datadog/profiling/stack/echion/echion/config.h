@@ -4,5 +4,5 @@
 
 #pragma once
 
-// Maximum number of frames to unwind
-inline unsigned int max_frames = 2048;
+// Safety limit for Python frames collected while discovering and stitching task-aware stacks.
+inline constexpr unsigned int MAX_TASK_FRAMES = 2048;

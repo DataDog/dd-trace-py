@@ -1582,7 +1582,7 @@ venv = Venv(
         ),
         Venv(
             name="pymemcache",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "pytest-randomly": latest,
                 "pymemcache": [
@@ -1968,6 +1968,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.14"),
                     pkgs={"fastapi": latest, "hypothesis": latest},
                 ),
+            ],
+        ),
+        Venv(
+            name="anyio",
+            command="pytest {cmdargs} tests/contrib/anyio",
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                Venv(pys="3.9", pkgs={"anyio": "==3.4.0", "trio": "<0.22"}),
+                Venv(pys="3.10", pkgs={"anyio": "<4.0", "trio": "<0.22"}),
+                Venv(pys=select_pys(), pkgs={"anyio": latest, "trio": latest}),
             ],
         ),
         Venv(
@@ -4662,6 +4672,16 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            # Cross-product tests: a security/AI product in standalone mode alongside another
+            # product. Owned by no single product team, see tests/standalone/.
+            name="standalone",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
+            command="pytest {cmdargs} tests/standalone/",
+            pys=select_pys(),
+        ),
+        Venv(
             name="ai_guard_langchain",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -4743,7 +4763,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
-                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # ``pyyaml`` lets the cassette smoke test parse the
                 # anthropic contrib VCR fixtures. Pinned to a single version
                 # because the suite only uses ``yaml.safe_load``.
                 "pyyaml": latest,
