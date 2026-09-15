@@ -9,7 +9,7 @@ from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
-from ddtrace.internal.compat import is_at_least_py315
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
@@ -30,7 +30,7 @@ class InvalidLine(Exception):
     """
 
 
-if is_at_least_py315():
+if is_at_least_py(3, 15):
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos

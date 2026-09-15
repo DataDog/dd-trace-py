@@ -19,13 +19,23 @@ from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import is_at_least_next_max_py
-from ddtrace.internal.compat import is_at_least_py315
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_py_version_within_bounds
 from ddtrace.internal.compat import is_wrap_supported
 
 
 # wrap() is live on 3.15+ while is_wrap_supported().
-_WRAP_ON_315: bool = is_at_least_py315() and is_wrap_supported()
+_WRAP_ON_315: bool = is_at_least_py(3, 15) and is_wrap_supported()
+
+_FEATURE_GATE_MODULES: tuple[str, ...] = (
+    "ddtrace/internal/wrapping/context.py",
+    "ddtrace/internal/wrapping/asyncs.py",
+    "ddtrace/internal/wrapping/generators.py",
+    "ddtrace/internal/monitoring.py",
+    "ddtrace/internal/bytecode_injection/__init__.py",
+    "ddtrace/internal/coverage/instrumentation_py3_12.py",
+    "ddtrace/internal/coverage/import_instrumentation_py3_12.py",
+)
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
@@ -79,18 +89,53 @@ def test_version_bound_helpers() -> None:
     assert not is_wrap_supported(fail_close)
     running: tuple[int, ...] = PYTHON_VERSION_INFO[:2]
     assert is_at_least_next_max_py() is is_at_least_next_max_py(running)
-    assert not is_at_least_py315((3, 14))
-    assert is_at_least_py315((3, 15))
-    assert is_at_least_py315((3, 16))
-    assert is_at_least_py315() is is_at_least_py315(running)
+    assert not is_at_least_py(3, 15, version=(3, 14))
+    assert is_at_least_py(3, 15, version=(3, 15))
+    assert is_at_least_py(3, 15, version=(3, 16))
+    assert is_at_least_py(3, 15) is is_at_least_py(3, 15, version=running)
+    assert is_at_least_py(3, 10, version=(3, 10))
+    assert not is_at_least_py(3, 10, version=(3, 9))
 
 
-def test_py315_feature_gate_does_not_follow_next_max(monkeypatch: pytest.MonkeyPatch) -> None:
-    """3.15 backend gates stay true on 3.15 after NEXT_MAX_PY moves to 3.16."""
+def _is_at_least_py_315_call(node: ast.Call) -> bool:
+    func: ast.expr = node.func
+    if not isinstance(func, ast.Name) or func.id != "is_at_least_py":
+        return False
+    if any(isinstance(arg, ast.Starred) for arg in node.args):
+        return False
+    if len(node.args) < 2:
+        return False
+    major: ast.expr = node.args[0]
+    minor: ast.expr = node.args[1]
+    return (
+        isinstance(major, ast.Constant) and major.value == 3 and isinstance(minor, ast.Constant) and minor.value == 15
+    )
+
+
+def test_py315_feature_gate_does_not_follow_next_max() -> None:
+    """Wrap/coverage/monitoring 3.15 gates pass (3, 15), not NEXT_MAX_PY."""
+    for relpath in _FEATURE_GATE_MODULES:
+        source: str = (_REPO_ROOT / relpath).read_text()
+        tree: ast.Module = ast.parse(source)
+        banned: set[str] = {"NEXT_MAX_PY", "is_at_least_next_max_py"}
+        found_315_gate: bool = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and node.id in banned:
+                pytest.fail(f"{relpath} references {node.id}; 3.15 feature gates must not follow NEXT_MAX_PY")
+            if isinstance(node, ast.alias) and node.name in banned:
+                pytest.fail(f"{relpath} imports {node.name}; 3.15 feature gates must not follow NEXT_MAX_PY")
+            if isinstance(node, ast.Call) and _is_at_least_py_315_call(node):
+                found_315_gate = True
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "is_at_least_py":
+                pytest.fail(f"{relpath} calls is_at_least_py without literal (3, 15)")
+        assert found_315_gate, f"{relpath} must call is_at_least_py(3, 15)"
+
+
+def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """is_at_least_next_max_py and is_wrap_supported read NEXT_MAX_PY."""
     import ddtrace.internal.compat as compat
 
     monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 16))
-    assert compat.is_at_least_py315((3, 15))
     assert not compat.is_at_least_next_max_py((3, 15))
     assert compat.is_at_least_next_max_py((3, 16))
     assert compat.is_wrap_supported((3, 15))

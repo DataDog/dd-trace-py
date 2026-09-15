@@ -21,12 +21,12 @@ from typing import NamedTuple
 from typing import Optional
 import weakref
 
-from ddtrace.internal.compat import is_at_least_py315
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if not is_at_least_py315():
+if not is_at_least_py(3, 15):
     raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
 
 log = get_logger(__name__)

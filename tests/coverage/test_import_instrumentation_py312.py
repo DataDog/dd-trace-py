@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from ddtrace.internal.compat import is_at_least_py315
+from ddtrace.internal.compat import is_at_least_py
 
 
 pytestmark = pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ bytecode")
@@ -24,7 +24,7 @@ def _exec_with_import_hooks(source: str):
 
 
 @pytest.mark.skipif(
-    is_at_least_py315(),
+    is_at_least_py(3, 15),
     reason="TODO(py-315): accurate import hook injection is not supported on Python 3.15+",
 )
 def test_import_hook_injection_skips_runtime_false_import():
@@ -35,7 +35,7 @@ def test_import_hook_injection_skips_runtime_false_import():
 
 
 @pytest.mark.skipif(
-    is_at_least_py315(),
+    is_at_least_py(3, 15),
     reason="TODO(py-315): accurate import hook injection is not supported on Python 3.15+",
 )
 def test_import_hook_injection_tracks_function_local_import_only_when_called():
@@ -67,7 +67,7 @@ def test_import_hook_injection_tracks_function_local_import_only_when_called():
 
 
 @pytest.mark.skipif(
-    not is_at_least_py315(),
+    not is_at_least_py(3, 15),
     reason="TODO(py-315): accurate import hook injection is supported before Python 3.15",
 )
 def test_import_hook_injection_is_not_supported():

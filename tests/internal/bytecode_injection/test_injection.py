@@ -14,7 +14,7 @@ from ddtrace.internal.bytecode_injection import eject_hook
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.bytecode_injection import inject_hooks
-from ddtrace.internal.compat import is_at_least_py315
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.utils.inspection import linenos
 
 
@@ -42,7 +42,7 @@ def injected_hook(
 
     eject_hook(f, hook, line, arg)
 
-    if is_at_least_py315():
+    if is_at_least_py(3, 15):
         # The 3.15+ monitoring-based injection path attaches hooks via
         # sys.monitoring rather than rewriting bytecode, so the code object is
         # intentionally left unchanged across inject/eject.
@@ -309,7 +309,7 @@ def test_for_block():
     with injected_hook(for_loop, hook, arg, line=for_loop.__code__.co_firstlineno + 2):
         for_loop()
 
-    if is_at_least_py315():
+    if is_at_least_py(3, 15):
         # The monitoring-based path fires a LINE event every time the loop
         # header line is (re-)entered, i.e. once per iteration, rather than
         # once at loop setup as the bytecode-rewriting path does.
@@ -320,7 +320,7 @@ def test_for_block():
 
 
 @pytest.mark.skipif(
-    not is_at_least_py315(),
+    not is_at_least_py(3, 15),
     reason="line hook registry is only keyed by code identity on 3.15+",
 )
 def test_line_hooks_isolated_across_structurally_equal_code_objects():
@@ -348,7 +348,7 @@ def test_line_hooks_isolated_across_structurally_equal_code_objects():
 
 
 @pytest.mark.skipif(
-    not is_at_least_py315(),
+    not is_at_least_py(3, 15),
     reason="line hook registry is only keyed by code identity on 3.15+",
 )
 def test_line_hooks_isolated_across_code_replace_clone():
