@@ -1941,7 +1941,7 @@ class TestXdistCrashRequeue:
         """When DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT=0, ATR is disabled and crashes are not re-queued."""
         from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 
-        with patch("ddtrace.internal.settings.env.get", return_value="0"):
+        with patch.dict("os.environ", {"DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "0"}):
             plugin = self._build_plugin(atr=True)
         # With session limit 0, no ATR handler is registered.
         assert not any(isinstance(h, AutoTestRetriesHandler) for h in plugin._retry_handlers)
