@@ -373,6 +373,22 @@ Sampler::take_sampling_thread_error()
 }
 
 void
+Sampler::record_foreign_segv_handler(bool already_owned, std::string owner)
+{
+    const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
+    foreign_segv_handler_ = ForeignSegvHandler{ already_owned, std::move(owner) };
+}
+
+std::optional<ForeignSegvHandler>
+Sampler::take_foreign_segv_handler()
+{
+    const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
+    std::optional<ForeignSegvHandler> handler;
+    handler.swap(foreign_segv_handler_);
+    return handler;
+}
+
+void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     seed_fast_copy_profiler_stats();
@@ -459,10 +475,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // the process.
                         handler_fallback_done = true;
                         mark_fast_copy_syscall_fallback();
-                        std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
-                                     "handler ("
-                                  << describe_segv_handler_owners()
-                                  << "); keeping the syscall-based memory copy to avoid crashing." << std::endl;
+                        record_foreign_segv_handler(true, describe_segv_handler_owners());
                     }
                 }
             } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
@@ -473,10 +486,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
                 mark_fast_copy_syscall_fallback();
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component ("
-                          << describe_segv_handler_owners()
-                          << "); falling back to syscall-based memory copy to avoid crashing." << std::endl;
+                record_foreign_segv_handler(false, describe_segv_handler_owners());
                 if (!set_fast_copy_enabled(false)) {
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would
@@ -647,6 +657,11 @@ Sampler::postfork_child()
     // reporting it again here would attribute it to the wrong process.
     new (&sampling_thread_error_mutex_) std::mutex();
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
+
+    // Likewise drop any handler-takeover notice inherited from the parent; the child
+    // re-detects its own takeover, and the parent reports its own.
+    new (&foreign_segv_handler_mutex_) std::mutex();
+    new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {

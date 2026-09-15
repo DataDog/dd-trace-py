@@ -1513,3 +1513,42 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
             ),
             print_samples_on_failure=True,
         )
+
+
+@pytest.mark.parametrize(
+    "already_owned,expected_phrase",
+    [
+        (False, "taken over after the profiler had upgraded to the faster copy"),
+        (True, "already foreign when the profiler finished warming up"),
+    ],
+)
+def test_snapshot_names_foreign_segv_handler_owner(
+    caplog: pytest.LogCaptureFixture, already_owned: bool, expected_phrase: str
+) -> None:
+    """snapshot() reports a handler takeover at warning level, naming the foreign owner."""
+    import logging
+
+    owner: str = "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace"
+    with mock.patch(
+        "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
+        return_value=(already_owned, owner),
+    ):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with caplog.at_level(logging.WARNING, logger="ddtrace.profiling.collector.stack"):
+                stack.StackCollector.snapshot()
+
+    assert [r.levelname for r in caplog.records] == ["WARNING"]
+    assert owner in caplog.text
+    assert expected_phrase in caplog.text
+
+
+def test_snapshot_silent_without_foreign_segv_handler(caplog: pytest.LogCaptureFixture) -> None:
+    """snapshot() says nothing while the profiler still owns SIGSEGV/SIGBUS."""
+    import logging
+
+    with mock.patch("ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler", return_value=None):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with caplog.at_level(logging.WARNING, logger="ddtrace.profiling.collector.stack"):
+                stack.StackCollector.snapshot()
+
+    assert caplog.records == []
