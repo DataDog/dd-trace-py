@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    niquests: Adds tracing for synchronous and asynchronous HTTP requests made with Niquests 3.0 and later,
+    including streamed requests and distributed trace propagation. Use ``DD_NIQUESTS_SERVICE`` to set the
+    service name, ``DD_NIQUESTS_DISTRIBUTED_TRACING=false`` to disable propagation, or
+    ``DD_NIQUESTS_SPLIT_BY_DOMAIN=true`` to use request domains as service names.

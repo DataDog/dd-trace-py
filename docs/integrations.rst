@@ -436,6 +436,13 @@ mysqlclient
 .. automodule:: ddtrace.contrib.internal.mysqldb
 
 
+.. _niquests:
+
+Niquests
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.niquests
+
+
 .. _openai:
 
 OpenAI
