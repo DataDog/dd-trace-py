@@ -1,0 +1,12 @@
+_v: 1
+name: algoliasearch
+display_name: Algolia
+description: Instruments Algolia index search operations, capturing configured query details plus processing time and result
+  hit counts.
+packages:
+- name: algoliasearch
+category:
+- db.client
+systems:
+- algolia
+creation_date: '2019-04-24'

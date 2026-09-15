@@ -89,6 +89,9 @@ def patch():
 
     mysql._datadog_patch = True
     _w("mysql.connector", "connect", _connect)
+    # Connect is a separate module binding for the same function, so it must be wrapped independently.
+    if hasattr(mysql.connector, "Connect"):
+        _w("mysql.connector", "Connect", _connect)
 
     if getattr(mysql.connector, "aio", None):
         _w("mysql.connector.aio", "connect", _connect_async)
@@ -106,6 +109,8 @@ def unpatch():
 
     mysql._datadog_patch = False
     _u(mysql.connector, "connect")
+    if hasattr(mysql.connector, "Connect"):
+        _u(mysql.connector, "Connect")
 
     if getattr(mysql.connector, "aio", None):
         _u(mysql.connector.aio, "connect")
