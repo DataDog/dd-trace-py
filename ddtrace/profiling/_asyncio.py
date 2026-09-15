@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from functools import partial
 import sys
+from types import CodeType
 from types import ModuleType
 import typing
 
@@ -10,6 +11,8 @@ import typing
 if typing.TYPE_CHECKING:
     import asyncio
     import asyncio as aio
+
+    from ddtrace.internal import monitoring as _monitoring
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
@@ -19,7 +22,83 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
 
 
+if sys.version_info >= (3, 15):
+    from ddtrace.internal import monitoring as _monitoring
+
+
 ASYNCIO_IMPORTED: bool = False
+
+
+_ASYNCIO_MONITORING_MIN: tuple[int, int] = (3, 15)
+_monitoring_tool_id: typing.Optional[int] = None
+_py_return_handlers: dict[int, typing.Callable[[object], None]] = {}
+
+
+class _AsyncioReturnHookDispatch:
+    """PY_RETURN dispatch for the asyncio task-creation hooks.
+
+    Kept outside the version gate so it can be instantiated and exercised on
+    interpreters below 3.15; _AsyncioMonitoringHandler adds the 3.15-only
+    MonitoringEventHandler base.
+    """
+
+    def __init__(self) -> None:
+        self.handlers: dict[int, typing.Callable[[object], None]] = _py_return_handlers
+
+    def on_py_return(self, code: CodeType, instruction_offset: int, return_value: object) -> None:
+        handler: typing.Optional[typing.Callable[[object], None]] = self.handlers.get(id(code))
+        if handler is not None:
+            handler(return_value)
+
+
+if sys.version_info >= _ASYNCIO_MONITORING_MIN:
+
+    class _AsyncioMonitoringHandler(_AsyncioReturnHookDispatch, _monitoring.MonitoringEventHandler):
+        pass
+
+    _monitoring_handler: typing.Optional[_AsyncioMonitoringHandler] = None
+
+
+def _do_register_return_hook(
+    monitoring_handler: _AsyncioReturnHookDispatch,
+    func: typing.Callable[..., typing.Any],
+    handler: typing.Callable[[object], None],
+) -> bool:
+    """Point monitoring_handler at handler for the code object of func.
+
+    Split out of _register_return_hook, which owns the version gate, so the
+    registration and unwinding paths stay testable below 3.15.
+    """
+    global _monitoring_tool_id
+
+    event_handler: typing.Any = typing.cast(typing.Any, monitoring_handler)
+    code: typing.Optional[CodeType] = None
+    try:
+        code = func.__code__
+        monitoring_handler.handlers[id(code)] = handler
+        _monitoring.register(code, event_handler)
+        _monitoring_tool_id = _monitoring.get_tool_id()
+        return True
+    except Exception:
+        if code is not None:
+            monitoring_handler.handlers.pop(id(code), None)
+            try:
+                _monitoring.unregister(code, event_handler)
+            except Exception:  # nosec B110 — unwinding an already-failed registration
+                pass
+        return False  # best-effort monitoring; fall back to wrap()
+
+
+def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
+    if sys.version_info >= _ASYNCIO_MONITORING_MIN:
+        global _monitoring_handler
+
+        if _monitoring_handler is None:
+            _monitoring_handler = _AsyncioMonitoringHandler()
+
+        return _do_register_return_hook(_monitoring_handler, func, handler)
+
+    return False
 
 
 def current_task() -> typing.Optional[asyncio.Task[typing.Any]]:
@@ -201,47 +280,59 @@ def _(asyncio: ModuleType) -> None:
 
             return f(*args, **kwargs)
 
-        # Wrap asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+)
-        if sys.hexversion >= 0x030B0000:  # Python 3.11+
+        # Hook asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+).
+        if sys.hexversion >= 0x030B0000:
             taskgroups_module: typing.Optional[ModuleType] = sys.modules.get("asyncio.taskgroups")
             if taskgroups_module is not None:
                 taskgroup_class: typing.Optional[type[typing.Any]] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
-                    @partial(wrap, taskgroup_class.create_task)
-                    def _(
-                        f: typing.Callable[..., aio.Task[typing.Any]],
-                        args: tuple[typing.Any, ...],
-                        kwargs: dict[str, typing.Any],
-                    ) -> aio.Task[typing.Any]:
-                        result: aio.Task[typing.Any] = f(*args, **kwargs)
-
+                    def _on_taskgroup_create_task_return(return_value: object) -> None:
+                        task: typing.Optional[aio.Task[typing.Any]] = typing.cast(
+                            "typing.Optional[aio.Task[typing.Any]]", return_value
+                        )
                         parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
-                        if parent is not None and result is not None:
-                            # Link parent task to the task created by TaskGroup
-                            stack.link_tasks(parent, result)
+                        if parent is not None and task is not None:
+                            stack.link_tasks(parent, task)
 
-                        return result
+                    if not _register_return_hook(taskgroup_class.create_task, _on_taskgroup_create_task_return):
+
+                        @partial(wrap, taskgroup_class.create_task)
+                        def _(
+                            f: typing.Callable[..., aio.Task[typing.Any]],
+                            args: tuple[typing.Any, ...],
+                            kwargs: dict[str, typing.Any],
+                        ) -> aio.Task[typing.Any]:
+                            result: aio.Task[typing.Any] = f(*args, **kwargs)
+                            parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+                            if parent is not None and result is not None:
+                                stack.link_tasks(parent, result)
+                            return result
 
         # Note: asyncio.timeout and asyncio.timeout_at don't create child tasks.
         # They are context managers that schedule a callback to cancel the current task
         # if it times out. The timeout._task is the same as the current task, so there's
         # no parent-child relationship to link. The timeout mechanism is handled by the
         # event loop's timeout handler, not by creating new tasks.
-        @partial(wrap, sys.modules["asyncio"].tasks.create_task)
-        def _(
-            f: typing.Callable[..., aio.Task[typing.Any]],
-            args: tuple[typing.Any, ...],
-            kwargs: dict[str, typing.Any],
-        ) -> aio.Task[typing.Any]:
-            # kwargs will typically contain context (Python 3.11+ only) and eager_start (Python 3.14+ only)
-            task: aio.Task[typing.Any] = f(*args, **kwargs)
+        def _on_create_task_return(return_value: object) -> None:
+            task: aio.Task[typing.Any] = typing.cast("aio.Task[typing.Any]", return_value)
             parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
-
             if parent is not None:
                 stack.weak_link_tasks(parent, task)
 
-            return task
+        if not _register_return_hook(sys.modules["asyncio"].tasks.create_task, _on_create_task_return):
+
+            @partial(wrap, sys.modules["asyncio"].tasks.create_task)
+            def _(
+                f: typing.Callable[..., aio.Task[typing.Any]],
+                args: tuple[typing.Any, ...],
+                kwargs: dict[str, typing.Any],
+            ) -> aio.Task[typing.Any]:
+                task: aio.Task[typing.Any] = f(*args, **kwargs)
+                parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+                if parent is not None:
+                    stack.weak_link_tasks(parent, task)
+                return task
 
         _call_init_asyncio(asyncio)
 

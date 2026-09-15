@@ -234,6 +234,11 @@ def _setup() -> int:
     return _tool_id
 
 
+def get_tool_id() -> int:
+    """Return the shared ddtrace sys.monitoring tool ID, allocating it if needed."""
+    return _setup()
+
+
 # ---------------------------------------------------------------------------
 # Hot-path callbacks — no lock; iterate a pre-built handler snapshot tuple
 # ---------------------------------------------------------------------------
