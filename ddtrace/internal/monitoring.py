@@ -21,14 +21,13 @@ from typing import NamedTuple
 from typing import Optional
 import weakref
 
-from ddtrace.internal.compat import NEXT_MAX_PY
-from ddtrace.internal.compat import is_at_least_next_max_py
+from ddtrace.internal.compat import is_at_least_py315
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if not is_at_least_next_max_py():
-    raise ImportError("ddtrace.internal.monitoring requires Python %s.%s+" % NEXT_MAX_PY)
+if not is_at_least_py315():
+    raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
 
 log = get_logger(__name__)
 

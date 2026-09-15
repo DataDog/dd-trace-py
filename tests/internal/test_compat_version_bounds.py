@@ -1,8 +1,8 @@
 """Python 3.15 wrapping: trampoline plus 3.15 generator/coroutine assemblies.
 
 wrap() / wrap_bytecode() run on NEXT_MAX_PY and fail closed from NEXT_MAX_PY+1.
-@lazy uses WrappingContext.wrap() (sys.monitoring) on NEXT_MAX_PY. inject_hook is
-monitoring-based on NEXT_MAX_PY.
+@lazy uses WrappingContext.wrap() (sys.monitoring) on 3.15+. inject_hook is
+monitoring-based on 3.15+.
 """
 
 # mypy: follow-imports=silent
@@ -19,12 +19,13 @@ from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import is_at_least_next_max_py
+from ddtrace.internal.compat import is_at_least_py315
 from ddtrace.internal.compat import is_py_version_within_bounds
 from ddtrace.internal.compat import is_wrap_supported
 
 
-# wrap() is live on NEXT_MAX_PY while is_wrap_supported().
-_WRAP_ON_NEXT_MAX: bool = is_at_least_next_max_py() and is_wrap_supported()
+# wrap() is live on 3.15+ while is_wrap_supported().
+_WRAP_ON_315: bool = is_at_least_py315() and is_wrap_supported()
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
@@ -78,6 +79,23 @@ def test_version_bound_helpers() -> None:
     assert not is_wrap_supported(fail_close)
     running: tuple[int, ...] = PYTHON_VERSION_INFO[:2]
     assert is_at_least_next_max_py() is is_at_least_next_max_py(running)
+    assert not is_at_least_py315((3, 14))
+    assert is_at_least_py315((3, 15))
+    assert is_at_least_py315((3, 16))
+    assert is_at_least_py315() is is_at_least_py315(running)
+
+
+def test_py315_feature_gate_does_not_follow_next_max(monkeypatch: pytest.MonkeyPatch) -> None:
+    """3.15 backend gates stay true on 3.15 after NEXT_MAX_PY moves to 3.16."""
+    import ddtrace.internal.compat as compat
+
+    monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 16))
+    assert compat.is_at_least_py315((3, 15))
+    assert not compat.is_at_least_next_max_py((3, 15))
+    assert compat.is_at_least_next_max_py((3, 16))
+    assert compat.is_wrap_supported((3, 15))
+    assert compat.is_wrap_supported((3, 16))
+    assert not compat.is_wrap_supported((3, 17))
 
 
 def test_wrapping_modules_import():
@@ -88,7 +106,7 @@ def test_wrapping_modules_import():
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
 
-@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="wrap() trampoline on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() trampoline on 3.15")
 def test_wrap_runs_on_315():
     from ddtrace.internal.wrapping import wrap
 
@@ -119,7 +137,7 @@ def test_wrap_runs_on_315():
     assert seen == ["sync", "gen"]
 
 
-@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="wrap() coroutine on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() coroutine on 3.15")
 @pytest.mark.asyncio
 async def test_wrap_coroutine_on_315():
     from ddtrace.internal.wrapping import wrap
@@ -166,7 +184,7 @@ def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
         wrapping.wrap_bytecode(wrapper, f)
 
 
-@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="lazy module wrap on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="lazy module wrap on 3.15")
 def test_lazy_module_decorator_without_bytecode_wrap():
     import tests.internal.lazy as lazy_module
 
@@ -183,7 +201,7 @@ def test_exec_lazy_init_without_source():
     assert module_globals["exported"] == 123
 
 
-@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="debugging products load on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="debugging products load on 3.15")
 def test_debugging_products_load_without_failure():
     from ddtrace.internal.products import ProductManager
 
@@ -198,7 +216,7 @@ def test_debugging_products_load_without_failure():
         assert product_name not in product_manager._failed
 
 
-@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="inject_hook on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="inject_hook on 3.15")
 def test_inject_hook_does_not_raise_on_315():
     from ddtrace.internal.bytecode_injection import inject_hook
     from ddtrace.internal.utils.inspection import linenos

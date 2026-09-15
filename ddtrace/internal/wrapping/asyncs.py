@@ -6,7 +6,7 @@ from typing import Optional
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import is_at_least_next_max_py
+from ddtrace.internal.compat import is_at_least_py315
 
 
 PY = sys.version_info[:2]
@@ -57,7 +57,7 @@ COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY: Optional[Assembly] = None
 
-if is_at_least_next_max_py(PY):
+if is_at_least_py315(PY):
     _ensure_common_constant_none()
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(

@@ -16,6 +16,7 @@ __all__ = [
     "NEXT_PY_UNSUPPORTED_MSG",
     "PYTHON_VERSION_INFO",
     "is_at_least_next_max_py",
+    "is_at_least_py315",
     "is_py_version_within_bounds",
     "is_wrap_supported",
 ]
@@ -47,6 +48,12 @@ def is_at_least_next_max_py(version: Optional[tuple[int, ...]] = None) -> bool:
     """True if version is at or past NEXT_MAX_PY."""
     version = version or PYTHON_VERSION_INFO[:2]
     return version[:2] >= NEXT_MAX_PY
+
+
+def is_at_least_py315(version: Optional[tuple[int, ...]] = None) -> bool:
+    """True from CPython 3.15 on. Pinned; does not follow NEXT_MAX_PY."""
+    version = version or PYTHON_VERSION_INFO[:2]
+    return version[:2] >= (3, 15)
 
 
 def is_wrap_supported(version: Optional[tuple[int, ...]] = None) -> bool:
