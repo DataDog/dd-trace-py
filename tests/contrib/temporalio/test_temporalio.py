@@ -19,6 +19,8 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.temporalio.patch import unpatch
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.peer_service.processor import PeerServiceProcessor
+from ddtrace.internal.settings.peer_service import PeerServiceConfig
 from tests.utils import override_config
 from tests.utils import override_global_tracer
 
@@ -87,8 +89,9 @@ class _RecordingWorkflowOutbound(WorkflowOutboundInterceptor):
         return object()
 
 
-def _new_client(recorder: _RecordingClientInterceptor) -> Client:
-    return Client(cast(Any, object()), interceptors=[recorder])
+def _new_client(recorder: _RecordingClientInterceptor, target_host: str | None = None) -> Client:
+    service_client = SimpleNamespace(config=SimpleNamespace(target_host=target_host))
+    return Client(cast(Any, service_client), namespace="test-namespace", interceptors=[recorder])
 
 
 def _datadog_interceptor(client: Client) -> Any:
@@ -112,7 +115,7 @@ def _input_for(operation: str) -> SimpleNamespace:
         "run_id": "run-id-secret",
     }
     if operation == "start_workflow":
-        values.update(workflow="GreetingWorkflow", start_signal=None)
+        values.update(workflow="GreetingWorkflow", task_queue="greetings", start_signal=None)
     elif operation == "signal_workflow":
         values.update(signal="GreetingSignal")
     else:
@@ -159,6 +162,13 @@ async def test_client_operations(
     assert span.get_tag(SPAN_KIND) == kind
     assert span.get_tag("component") == "temporalio"
     assert span.get_tag("messaging.system") == "temporal"
+    assert span.get_tag("temporal.namespace") == "test-namespace"
+    if operation == "start_workflow":
+        assert span.get_tag("messaging.destination.name") == "greetings"
+        assert span.get_tag("messaging.operation") == "send"
+        assert span.get_tag("temporal.task_queue") == "greetings"
+    elif operation == "signal_workflow":
+        assert span.get_tag("messaging.operation") == "send"
     assert "workflow-id-secret" not in repr(span.get_tags())
     assert "run-id-secret" not in repr(span.get_tags())
 
@@ -232,6 +242,8 @@ async def test_activity_execution_and_distributed_context(
     assert consumer.get_tag(SPAN_KIND) == SpanKind.CONSUMER
     assert consumer.get_tag("component") == "temporalio"
     assert consumer.get_tag("messaging.system") == "temporal"
+    assert consumer.get_tag("messaging.destination.name") == "greetings"
+    assert consumer.get_tag("messaging.operation") == "process"
 
 
 @pytest.mark.asyncio
@@ -271,6 +283,35 @@ async def test_disabled_configuration_does_not_trace_or_propagate(tracer: Any, t
 
     assert input_data.headers == {}
     assert test_spans.pop() == []
+
+
+@pytest.mark.asyncio
+async def test_distributed_tracing_can_be_disabled_without_disabling_spans(tracer: Any, test_spans: Any) -> None:
+    input_data = _input_for("start_workflow")
+
+    with override_global_tracer(tracer), override_config("temporalio", {"distributed_tracing": False}):
+        client = _new_client(_RecordingClientInterceptor())
+        assert await client._impl.start_workflow(input_data) == "workflow-started"
+
+    assert input_data.headers == {}
+    _operation_span(test_spans.pop(), "temporal.start_workflow")
+
+
+@pytest.mark.asyncio
+async def test_peer_service_source_tags(tracer: Any, test_spans: Any) -> None:
+    input_data = _input_for("query_workflow")
+
+    with override_global_tracer(tracer):
+        client = _new_client(_RecordingClientInterceptor(), target_host="temporal.example:7233")
+        assert await client._impl.query_workflow(input_data) == "workflow-queried"
+
+    span = _operation_span(test_spans.pop(), "temporal.query_workflow")
+    assert span.get_tag("out.host") == "temporal.example"
+    assert span.get_tag("network.destination.port") == "7233"
+
+    PeerServiceProcessor(PeerServiceConfig(set_defaults_enabled=True)).process_trace([span])
+    assert span.get_tag("peer.service") == "temporal.example"
+    assert span.get_tag("_dd.peer.service.source") == "out.host"
 
 
 @pytest.mark.asyncio

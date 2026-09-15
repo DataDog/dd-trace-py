@@ -4,6 +4,9 @@ from enum import Enum
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.schema import SpanDirection
+from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema import schematize_url_operation
 
 
 class TemporalEvents(Enum):
@@ -21,7 +24,10 @@ class TemporalStartWorkflowEvent(TracingEvent):
     span_type = SpanTypes.WORKER
 
     def __post_init__(self) -> None:
-        self.operation_name = self.event_name
+        # Schema functions are selected dynamically and are untyped.
+        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]
+            self.event_name, provider="temporal", direction=SpanDirection.OUTBOUND
+        )
 
 
 @dataclass
@@ -32,7 +38,10 @@ class TemporalSignalWorkflowEvent(TracingEvent):
     span_type = SpanTypes.WORKER
 
     def __post_init__(self) -> None:
-        self.operation_name = self.event_name
+        # Schema functions are selected dynamically and are untyped.
+        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]
+            self.event_name, provider="temporal", direction=SpanDirection.OUTBOUND
+        )
 
 
 @dataclass
@@ -43,7 +52,10 @@ class TemporalQueryWorkflowEvent(TracingEvent):
     span_type = SpanTypes.WORKER
 
     def __post_init__(self) -> None:
-        self.operation_name = self.event_name
+        # Schema functions are selected dynamically and are untyped.
+        self.operation_name = schematize_url_operation(  # type: ignore[operator]
+            self.event_name, protocol="temporal", direction=SpanDirection.OUTBOUND
+        )
 
 
 @dataclass
@@ -54,4 +66,7 @@ class TemporalRunActivityEvent(TracingEvent):
     span_type = SpanTypes.WORKER
 
     def __post_init__(self) -> None:
-        self.operation_name = self.event_name
+        # Schema functions are selected dynamically and are untyped.
+        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]
+            self.event_name, provider="temporal", direction=SpanDirection.PROCESSING
+        )

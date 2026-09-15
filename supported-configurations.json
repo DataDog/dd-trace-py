@@ -3798,6 +3798,13 @@
         "default": "[]"
       }
     ],
+    "DD_TEMPORALIO_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TEMPORALIO_SERVICE": [
       {
         "implementation": "A",

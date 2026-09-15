@@ -1,3 +1,4 @@
+import pytest
 import temporalio
 from temporalio.client import Client
 
@@ -47,3 +48,31 @@ def test_unpatch_restores_client_construction() -> None:
     unpatch()
 
     assert not _is_wrapped(Client.__init__)
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
+def test_schema_v1_service_and_operation_names() -> None:
+    import importlib
+
+    from ddtrace import config
+    from ddtrace.contrib._events.temporalio import TemporalQueryWorkflowEvent
+    from ddtrace.contrib._events.temporalio import TemporalRunActivityEvent
+    from ddtrace.contrib._events.temporalio import TemporalStartWorkflowEvent
+    from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+
+    importlib.import_module("ddtrace.contrib.internal.temporalio.patch")
+    event_kwargs = {"component": "temporalio", "integration_config": config.temporalio}
+    assert TemporalStartWorkflowEvent(**event_kwargs).operation_name == "temporal.send"
+    assert TemporalRunActivityEvent(**event_kwargs).operation_name == "temporal.process"
+    assert TemporalQueryWorkflowEvent(**event_kwargs).operation_name == "temporal.client.request"
+    assert config.temporalio._default_service == DEFAULT_SPAN_SERVICE_NAME
+
+
+@pytest.mark.subprocess(env={"DD_TEMPORALIO_DISTRIBUTED_TRACING": "false"})
+def test_distributed_tracing_environment_configuration() -> None:
+    import importlib
+
+    from ddtrace import config
+
+    importlib.import_module("ddtrace.contrib.internal.temporalio.patch")
+    assert config.temporalio.distributed_tracing is False

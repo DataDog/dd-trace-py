@@ -21,4 +21,17 @@ integration::
     from ddtrace import patch
 
     patch(temporalio=True)
+
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.temporalio["distributed_tracing"]
+
+   Propagate trace context through Temporal headers.
+
+   This option can also be set with the
+   ``DD_TEMPORALIO_DISTRIBUTED_TRACING`` environment variable.
+
+   Default: ``True``
 """
