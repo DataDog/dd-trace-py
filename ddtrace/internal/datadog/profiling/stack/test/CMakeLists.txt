@@ -85,6 +85,7 @@ endfunction()
 # Add the tests
 dd_wrapper_add_test(test_span_links test_span_links.cpp)
 dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
+dd_wrapper_add_test(test_cache test_cache.cpp)
 
 function(configure_stack_internal_test name)
     target_include_directories(${name} PRIVATE ../..)
