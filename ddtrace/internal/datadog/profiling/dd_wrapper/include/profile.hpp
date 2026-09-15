@@ -73,6 +73,6 @@ class Profile
     bool add_endpoint_count(std::string_view endpoint, std::int64_t value);
 
     // collect
-    bool collect(const ddprof::Sample2& sample, int64_t endtime_ns);
+    bool collect(const ddprof::DictionarySample& sample, int64_t endtime_ns);
 };
 } // namespace Datadog

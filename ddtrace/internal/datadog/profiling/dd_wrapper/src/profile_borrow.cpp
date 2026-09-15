@@ -1,6 +1,8 @@
 #include "profile_borrow.hpp"
 #include "profile.hpp"
 
+#include <stdexcept>
+
 Datadog::ProfileBorrow::ProfileBorrow(Profile& profile)
   : profile_ptr(&profile)
 {
@@ -40,7 +42,11 @@ Datadog::ProfileBorrow::operator=(ProfileBorrow&& other) noexcept
 rust::Box<Datadog::ddprof::EncodedProfile>
 Datadog::ProfileBorrow::serialize()
 {
-    return profile_ptr->cur_profile.value()->serialize();
+    auto result = profile_ptr->cur_profile.value()->serialize();
+    if (!result->ok()) {
+        throw std::runtime_error(std::string(result->message()));
+    }
+    return result->take_value();
 }
 
 bool

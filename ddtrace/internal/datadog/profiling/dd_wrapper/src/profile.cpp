@@ -28,19 +28,19 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types,
         return false;
     }
 
-    try {
-        rust::Vec<Datadog::ddprof::SampleType> cxx_sample_types;
-        for (const auto sample_type : sample_types) {
-            cxx_sample_types.push_back(sample_type);
-        }
-        profile.emplace(Datadog::ddprof::Profile::create_with_dictionary(std::move(cxx_sample_types), period, *dict));
-    } catch (const std::exception& err) {
+    rust::Vec<Datadog::ddprof::SampleType> cxx_sample_types;
+    for (const auto sample_type : sample_types) {
+        cxx_sample_types.push_back(sample_type);
+    }
+    auto result = Datadog::ddprof::Profile::create_with_dictionary(std::move(cxx_sample_types), period, *dict);
+    if (!result->ok()) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Error creating CXX profile: " << err.what() << std::endl;
+            std::cerr << "Error creating CXX profile: " << std::string(result->message()) << std::endl;
         }
         return false;
     }
+    profile.emplace(result->take_value());
     return true;
 }
 
@@ -56,12 +56,11 @@ Datadog::Profile::reset_profile()
         return false;
     }
 
-    try {
-        cur_profile.value()->reset();
-    } catch (const std::exception& err) {
+    cur_profile.reset();
+    if (!make_profile(samplers, default_period, cur_profile)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Could not reset CXX profile: " << err.what() << std::endl;
+            std::cerr << "Could not reset CXX profile" << std::endl;
         }
         return false;
     }
@@ -214,39 +213,35 @@ Datadog::Profile::val()
 bool
 Datadog::Profile::add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint)
 {
-    try {
-        cur_profile.value()->add_endpoint(static_cast<std::uint64_t>(local_root_span_id),
-                                          rust::Str(endpoint.data(), endpoint.size()));
-        return true;
-    } catch (const std::exception& err) {
-        std::cerr << "CXX add_endpoint failed: " << err.what() << std::endl;
+    if (!cur_profile.value()->add_endpoint(static_cast<std::uint64_t>(local_root_span_id),
+                                           rust::Str(endpoint.data(), endpoint.size()))) {
+        std::cerr << take_error_message(*cur_profile.value(), "CXX add_endpoint") << std::endl;
         return false;
     }
+    return true;
 }
 
 bool
 Datadog::Profile::add_endpoint_count(std::string_view endpoint, std::int64_t value)
 {
-    try {
-        cur_profile.value()->add_endpoint_count(rust::Str(endpoint.data(), endpoint.size()), value);
-        return true;
-    } catch (const std::exception& err) {
-        std::cerr << "CXX add_endpoint_count failed: " << err.what() << std::endl;
+    if (!cur_profile.value()->add_endpoint_count(rust::Str(endpoint.data(), endpoint.size()), value)) {
+        std::cerr << take_error_message(*cur_profile.value(), "CXX add_endpoint_count") << std::endl;
         return false;
     }
+    return true;
 }
 
 bool
-Datadog::Profile::collect(const ddprof::Sample2& sample, int64_t endtime_ns)
+Datadog::Profile::collect(const ddprof::DictionarySample& sample, int64_t endtime_ns)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
-    try {
-        cur_profile.value()->add_sample2(sample, endtime_ns);
-    } catch (const std::exception& err) {
+    const auto ok = endtime_ns == 0 ? cur_profile.value()->add_dictionary_sample(sample)
+                                    : cur_profile.value()->add_dictionary_sample(sample, endtime_ns);
+    if (!ok) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "CXX add_sample2 failed: " << err.what() << std::endl;
+            std::cerr << take_error_message(*cur_profile.value(), "CXX add_dictionary_sample") << std::endl;
         }
         return false;
     }
@@ -257,7 +252,7 @@ void
 Datadog::Profile::prefork()
 {
     // Lock the profile mutex before fork to ensure the sampling thread is not
-    // mid-allocation inside add_sample2 when the fork happens. If the sampling
+    // mid-allocation inside add_dictionary_sample when the fork happens. If the sampling
     // thread is currently inside collect(), this will block until it finishes,
     // guaranteeing the IndexSet<StackTrace> is in a fully-consistent state
     // before the child drops the profile.

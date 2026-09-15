@@ -35,7 +35,7 @@ struct StringArena
 {
   private:
     // Default size, in bytes, of each Chunk. Frame strings (function names,
-    // filenames) are interned directly into libdatadog's ProfilesDictionary,
+    // filenames) are interned directly into libdatadog's ProfileDictionary,
     // so only label values (thread name, task name, trace type, lock name,
     // etc.) are stored here. Typical total per sample is 20-150 bytes.
     // 256 bytes covers the vast majority of samples; insert() allocates a
@@ -65,8 +65,8 @@ struct StringArena
 
 } // namespace internal
 
-using string_id = ddprof::StringId2;
-using function_id = ddprof::FunctionId2;
+using string_id = ddprof::DictionaryStringId;
+using function_id = ddprof::DictionaryFunctionId;
 
 std::optional<string_id>
 intern_string(std::string_view s);
@@ -86,13 +86,13 @@ class Sample
     std::string errmsg;
 
     // Keeps temporary buffer of frames in the stack
-    std::vector<ddprof::Location2> locations;
+    std::vector<ddprof::DictionaryLocation> locations;
     size_t dropped_frames = 0;
     bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
     // Storage for labels
-    std::vector<ddprof::Label2> labels{};
+    std::vector<ddprof::DictionaryLabel> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};

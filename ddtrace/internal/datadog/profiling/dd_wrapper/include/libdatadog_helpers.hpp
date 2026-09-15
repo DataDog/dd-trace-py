@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <libdd-profiling/src/cxx.rs.h>
 
@@ -19,7 +20,7 @@ namespace ddprof = datadog::profiling;
 // Note: although this function is a wrapper around libdatadog utilities,
 // it maintains a local cache of string -> string ID mappings to avoid
 // redundant FFI boundary-crossing calls.
-std::optional<ddprof::StringId2>
+std::optional<ddprof::DictionaryStringId>
 intern_string(std::string_view s);
 
 // There's currently no need to offer custom tags, so there's no interface for
@@ -132,14 +133,39 @@ add_tag(rust::Vec<ddprof::Tag>& tags, const ExportTagKey key, std::string_view v
     return add_tag(tags, key_sv, val, errmsg);
 }
 
+inline bool
+status_ok(const ddprof::Status& status, std::string_view operation, std::string* errmsg = nullptr)
+{
+    if (status.ok()) {
+        return true;
+    }
+
+    auto message = std::string(operation) + " failed: " + std::string(status.message());
+    if (errmsg != nullptr) {
+        *errmsg = std::move(message);
+    }
+    return false;
+}
+
+template<typename ErrorOwner>
+inline std::string
+take_error_message(ErrorOwner& owner, std::string_view operation)
+{
+    auto errors = owner.take_errors();
+    if (errors.empty()) {
+        return std::string(operation) + " failed";
+    }
+    return std::string(errors[0].operation) + " failed: " + std::string(errors[0].message);
+}
+
 namespace internal {
 
 // Fork-safe cached interning for tag and label keys
 // Caches are stored in the ProfilerState singleton and reset on fork
-std::optional<ddprof::StringId2>
+std::optional<ddprof::DictionaryStringId>
 to_interned_string(ExportTagKey key);
 
-std::optional<ddprof::StringId2>
+std::optional<ddprof::DictionaryStringId>
 to_interned_string(ExportLabelKey key);
 
 } // namespace internal

@@ -25,14 +25,14 @@ Datadog::intern_string(std::string_view s)
         return std::nullopt;
     }
 
-    try {
-        // R&D caveat: the C FFI path used CONVERT_LOSSY. The CXX API takes rust::Str,
-        // so production parity may require a CXX lossy insertion variant.
-        return dict->insert_string(rust::Str(s.data(), s.size()));
-    } catch (const std::exception& err) {
-        std::cerr << "Error inserting CXX dictionary string: " << err.what() << std::endl;
+    // R&D caveat: the C FFI path used CONVERT_LOSSY. The CXX API takes rust::Str,
+    // so production parity may require a CXX lossy insertion variant.
+    ddprof::DictionaryStringId id{};
+    if (!dict->intern_string(rust::Str(s.data(), s.size()), id)) {
+        std::cerr << take_error_message(*dict, "intern CXX dictionary string") << std::endl;
         return std::nullopt;
     }
+    return id;
 }
 
 std::optional<Datadog::function_id>
@@ -44,16 +44,18 @@ Datadog::intern_function(string_id name, string_id filename)
         return std::nullopt;
     }
 
-    try {
-        return dict->insert_function(ddprof::Function2{
-          name,
-          state.cached_empty_string_id, // No support for system_name in Python
-          filename,
-        });
-    } catch (const std::exception& err) {
-        std::cerr << "Error inserting CXX dictionary function: " << err.what() << std::endl;
+    ddprof::DictionaryFunctionId id{};
+    if (!dict->intern_function(
+          ddprof::DictionaryFunction{
+            name,
+            state.cached_empty_string_id, // No support for system_name in Python
+            filename,
+          },
+          id)) {
+        std::cerr << take_error_message(*dict, "intern CXX dictionary function") << std::endl;
         return std::nullopt;
     }
+    return id;
 }
 
 Datadog::internal::StringArena::StringArena()
@@ -350,7 +352,7 @@ Datadog::Sample::export_sample()
         has_dropped_frames_indicator = true;
     }
 
-    const ddprof::Sample2 sample = {
+    const ddprof::DictionarySample sample = {
         .locations = { locations.data(), locations.size() },
         .values = { values.data(), values.size() },
         .labels = { labels.data(), labels.size() },

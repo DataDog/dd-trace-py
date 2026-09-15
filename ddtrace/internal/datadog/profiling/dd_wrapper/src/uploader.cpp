@@ -112,8 +112,8 @@ Datadog::Uploader::upload_unlocked()
     const auto& info_json = ProfilerState::get().profiler_settings_info_json;
 
     try {
-        auto new_cancel = ddprof::new_cancellation_token();
-        auto new_cancel_clone_for_request = new_cancel->clone_token();
+        auto new_cancel = ddprof::CancellationToken::create();
+        auto new_cancel_clone_for_request = new_cancel->clone();
         auto& state = ProfilerState::get();
         {
             const std::lock_guard<std::mutex> cancel_lock(state.upload_cancel_mtx);
@@ -127,15 +127,20 @@ Datadog::Uploader::upload_unlocked()
         auto encoded = std::move(*encoded_profile);
         encoded_profile.reset();
 
-        (*profile_exporter)
-          ->send_encoded_profile_with_cancellation(
-            std::move(encoded),
-            std::move(files_to_compress),
-            std::move(additional_tags),
-            rust::Str(process_tags.data(), process_tags.size()),
-            rust::Str(internal_metadata_json.data(), internal_metadata_json.size()),
-            rust::Str(info_json.data(), info_json.size()),
-            *new_cancel_clone_for_request);
+        const auto status = (*profile_exporter)
+                              ->send_encoded_profile_with_cancellation(
+                                std::move(encoded),
+                                std::move(files_to_compress),
+                                std::move(additional_tags),
+                                rust::Str(process_tags.data(), process_tags.size()),
+                                rust::Str(internal_metadata_json.data(), internal_metadata_json.size()),
+                                rust::Str(info_json.data(), info_json.size()),
+                                *new_cancel_clone_for_request);
+        if (!status_ok(status, "upload CXX profile", &errmsg)) {
+            std::cerr << errmsg << std::endl;
+            profile_exporter.reset();
+            return false;
+        }
         profile_exporter.reset();
         return true;
     } catch (const std::exception& err) {

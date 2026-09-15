@@ -2,256 +2,268 @@
 
 #include <array>
 #include <cstdint>
-#include <exception>
+#include <stdexcept>
+#include <string>
 #include <utility>
 
-#include <libdd-profiling/src/cxx.rs.h>
+#include "datadog/profiling.hpp"
+
+namespace ddprof = datadog::profiling;
+
+namespace {
+
+rust::Vec<ddprof::SampleType>
+wall_time_sample_types()
+{
+    rust::Vec<ddprof::SampleType> sample_types;
+    sample_types.push_back(ddprof::SampleType::WallTime);
+    return sample_types;
+}
+
+rust::Box<ddprof::Profile>
+create_profile()
+{
+    const ddprof::Period period{ ddprof::SampleType::WallTime, 1 };
+    auto result = ddprof::Profile::create(wall_time_sample_types(), period);
+    if (!result->ok()) {
+        throw std::runtime_error(std::string(result->message()));
+    }
+    return result->take_value();
+}
+
+rust::Box<ddprof::ProfileDictionary>
+create_dictionary()
+{
+    auto result = ddprof::ProfileDictionary::create();
+    if (!result->ok()) {
+        throw std::runtime_error(std::string(result->message()));
+    }
+    return result->take_value();
+}
+
+rust::Box<ddprof::Profile>
+create_dictionary_profile(const ddprof::ProfileDictionary& dictionary)
+{
+    const ddprof::Period period{ ddprof::SampleType::WallTime, 1 };
+    auto result = ddprof::Profile::create_with_dictionary(wall_time_sample_types(), period, dictionary);
+    if (!result->ok()) {
+        throw std::runtime_error(std::string(result->message()));
+    }
+    return result->take_value();
+}
+
+std::string
+take_error_message(ddprof::Profile& profile)
+{
+    auto errors = profile.take_errors();
+    if (errors.empty()) {
+        return "no error details";
+    }
+    return std::string(errors[0].operation) + ": " + std::string(errors[0].message);
+}
+
+std::string
+take_error_message(const ddprof::ProfileDictionary& dictionary)
+{
+    auto errors = dictionary.take_errors();
+    if (errors.empty()) {
+        return "no error details";
+    }
+    return std::string(errors[0].operation) + ": " + std::string(errors[0].message);
+}
+
+ddprof::DictionaryStringId
+intern_string(const ddprof::ProfileDictionary& dictionary, const char* value)
+{
+    ddprof::DictionaryStringId id{};
+    if (!dictionary.intern_string(value, id)) {
+        throw std::runtime_error(take_error_message(dictionary));
+    }
+    return id;
+}
+
+ddprof::DictionaryMappingId
+intern_mapping(const ddprof::ProfileDictionary& dictionary,
+               ddprof::DictionaryStringId filename,
+               ddprof::DictionaryStringId build_id)
+{
+    ddprof::DictionaryMappingId id{};
+    if (!dictionary.intern_mapping(ddprof::DictionaryMapping{ 0x10000000, 0x20000000, 0, filename, build_id }, id)) {
+        throw std::runtime_error(take_error_message(dictionary));
+    }
+    return id;
+}
+
+ddprof::DictionaryFunctionId
+intern_function(const ddprof::ProfileDictionary& dictionary,
+                ddprof::DictionaryStringId name,
+                ddprof::DictionaryStringId system_name,
+                ddprof::DictionaryStringId filename)
+{
+    ddprof::DictionaryFunctionId id{};
+    if (!dictionary.intern_function(ddprof::DictionaryFunction{ name, system_name, filename }, id)) {
+        throw std::runtime_error(take_error_message(dictionary));
+    }
+    return id;
+}
+
+rust::Box<ddprof::EncodedProfile>
+serialize(ddprof::Profile& profile)
+{
+    auto result = profile.serialize();
+    if (!result->ok()) {
+        throw std::runtime_error(std::string(result->message()));
+    }
+    return result->take_value();
+}
+
+} // namespace
 
 TEST(LibdatadogCxxBridgeTest, ProfilingTypesCompile)
 {
-    datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-    EXPECT_EQ(period.value_type, datadog::profiling::SampleType::WallTime);
+    ddprof::Period period{ ddprof::SampleType::WallTime, 1 };
+    EXPECT_EQ(period.value_type, ddprof::SampleType::WallTime);
     EXPECT_EQ(period.value, 1);
 
-    rust::Vec<datadog::profiling::SampleType> sample_types;
-    sample_types.push_back(datadog::profiling::SampleType::WallTime);
+    auto sample_types = wall_time_sample_types();
     EXPECT_EQ(sample_types.size(), 1);
-    EXPECT_EQ(sample_types[0], datadog::profiling::SampleType::WallTime);
+    EXPECT_EQ(sample_types[0], ddprof::SampleType::WallTime);
 }
 
 TEST(LibdatadogCxxBridgeTest, CreateAddAndSerializeProfile)
 {
-    try {
-        rust::Vec<datadog::profiling::SampleType> sample_types;
-        sample_types.push_back(datadog::profiling::SampleType::WallTime);
-        const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-        auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
+    auto profile = create_profile();
+    std::array<ddprof::Location, 1> locations{ ddprof::Location{
+      ddprof::Mapping{ 0, 0, 0, "", "" },
+      ddprof::Function{ "stage2_function", "", "stage2_file.py" },
+      0,
+      12,
+    } };
+    std::array<std::int64_t, 1> values{ 1'000'000 };
+    std::array<ddprof::Label, 0> labels{};
 
-        datadog::profiling::Sample sample;
-        sample.values.push_back(1'000'000);
-        sample.locations.push_back(datadog::profiling::Location{
-          datadog::profiling::Mapping{ 0, 0, 0, "", "" },
-          datadog::profiling::Function{ "stage2_function", "", "stage2_file.py" },
-          0,
-          12,
-        });
-
-        profile->add_sample(sample);
-        auto encoded = profile->serialize_to_vec();
-
-        EXPECT_GT(encoded.size(), 0);
-    } catch (const std::exception& err) {
-        FAIL() << "libdatadog CXX bridge call failed: " << err.what();
-    }
+    ASSERT_TRUE(profile->add_sample(ddprof::views::sample(locations, values, labels)));
+    EXPECT_GT(serialize(*profile)->bytes().size(), 0);
 }
 
 TEST(LibdatadogCxxBridgeTest, CreateAddTimestampedAndSerializeProfile)
 {
-    try {
-        rust::Vec<datadog::profiling::SampleType> sample_types;
-        sample_types.push_back(datadog::profiling::SampleType::WallTime);
-        const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-        auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
-
-        datadog::profiling::Sample sample;
-        sample.values.push_back(1'000'000);
-        sample.locations.push_back(datadog::profiling::Location{
-          datadog::profiling::Mapping{ 0, 0, 0, "", "" },
-          datadog::profiling::Function{ "stage2_timestamped_function", "", "stage2_timestamped_file.py" },
-          0,
-          12,
-        });
-
-        profile->add_sample_with_timestamp(sample, 42);
-        auto encoded = profile->serialize_to_vec();
-
-        EXPECT_GT(encoded.size(), 0);
-    } catch (const std::exception& err) {
-        FAIL() << "libdatadog CXX bridge timestamped call failed: " << err.what();
-    }
-}
-
-TEST(LibdatadogCxxBridgeTest, CreateAddApi2AndSerializeProfile)
-{
-    try {
-        auto dictionary = datadog::profiling::ProfilesDictionary::create();
-        const auto mapping_filename = dictionary->insert_string("/usr/lib/libstage2.so");
-        const auto build_id = dictionary->insert_string("stage2-build-id");
-        const auto function_name = dictionary->insert_string("stage2_api2_function");
-        const auto system_name = dictionary->insert_string("_Z19stage2_api2_functionv");
-        const auto file_name = dictionary->insert_string("stage2_api2_file.py");
-        const auto label_key = dictionary->insert_string("pid");
-
-        const auto mapping = dictionary->insert_mapping(datadog::profiling::Mapping2{
-          0x10000000,
-          0x20000000,
-          0,
-          mapping_filename,
-          build_id,
-        });
-        const auto function = dictionary->insert_function(datadog::profiling::Function2{
-          function_name,
-          system_name,
-          file_name,
-        });
-
-        rust::Vec<datadog::profiling::SampleType> sample_types;
-        sample_types.push_back(datadog::profiling::SampleType::WallTime);
-        const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-        auto profile =
-          datadog::profiling::Profile::create_with_dictionary(std::move(sample_types), period, *dictionary);
-
-        std::array<datadog::profiling::Location2, 1> locations{ datadog::profiling::Location2{
-          mapping,
-          function,
-          0x10003000,
-          12,
-        } };
-        std::array<std::int64_t, 1> values{ 1'000'000 };
-        std::array<datadog::profiling::Label2, 1> labels{ datadog::profiling::Label2{
-          label_key,
-          "",
-          101,
-          "",
-        } };
-        const datadog::profiling::Sample2 sample{
-            { locations.data(), locations.size() },
-            { values.data(), values.size() },
-            { labels.data(), labels.size() },
-        };
-
-        profile->add_sample2(sample, 42);
-        profile->add_sample2(sample, 0);
-        auto encoded = profile->serialize_to_vec();
-
-        EXPECT_GT(encoded.size(), 0);
-    } catch (const std::exception& err) {
-        FAIL() << "libdatadog CXX bridge api2 call failed: " << err.what();
-    }
-}
-
-TEST(LibdatadogCxxBridgeTest, CreateEncodedProfileAndReadBytes)
-{
-    try {
-        rust::Vec<datadog::profiling::SampleType> sample_types;
-        sample_types.push_back(datadog::profiling::SampleType::WallTime);
-        const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-        auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
-
-        datadog::profiling::Sample sample;
-        sample.values.push_back(1'000'000);
-        sample.locations.push_back(datadog::profiling::Location{
-          datadog::profiling::Mapping{ 0, 0, 0, "", "" },
-          datadog::profiling::Function{ "encoded_profile_function", "", "encoded_profile_file.py" },
-          0,
-          12,
-        });
-
-        profile->add_sample(sample);
-        auto encoded = profile->serialize();
-        auto bytes = encoded->bytes();
-
-        EXPECT_GT(bytes.size(), 0);
-    } catch (const std::exception& err) {
-        FAIL() << "libdatadog CXX encoded profile call failed: " << err.what();
-    }
-}
-
-TEST(LibdatadogCxxBridgeTest, SendEncodedProfileApiCompilesAndReportsError)
-{
-    rust::Vec<datadog::profiling::SampleType> sample_types;
-    sample_types.push_back(datadog::profiling::SampleType::WallTime);
-    const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-    auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
-
-    datadog::profiling::Sample sample;
-    sample.values.push_back(1'000'000);
-    sample.locations.push_back(datadog::profiling::Location{
-      datadog::profiling::Mapping{ 0, 0, 0, "", "" },
-      datadog::profiling::Function{ "send_encoded_profile_function", "", "send_encoded_profile_file.py" },
+    auto profile = create_profile();
+    std::array<ddprof::Location, 1> locations{ ddprof::Location{
+      ddprof::Mapping{ 0, 0, 0, "", "" },
+      ddprof::Function{ "stage2_timestamped_function", "", "stage2_timestamped_file.py" },
       0,
       12,
-    });
-    profile->add_sample(sample);
-    auto encoded = profile->serialize();
+    } };
+    std::array<std::int64_t, 1> values{ 1'000'000 };
+    std::array<ddprof::Label, 0> labels{};
 
-    rust::Vec<datadog::profiling::Tag> tags;
-    tags.push_back(datadog::profiling::Tag{ "language", "python" });
-    auto exporter = datadog::profiling::ProfileExporter::create_agent_exporter(
-      "dd-trace-py", "test", "python", std::move(tags), "http://127.0.0.1:1", 1, false);
-
-    EXPECT_THROW(exporter->send_encoded_profile(std::move(encoded), {}, {}, "", "{}", ""), std::exception);
+    ASSERT_TRUE(profile->add_sample(ddprof::views::sample(locations, values, labels), 42));
+    EXPECT_GT(serialize(*profile)->bytes().size(), 0);
 }
 
-TEST(LibdatadogCxxBridgeTest, RejectsApi2OnProfileWithoutDictionary)
+TEST(LibdatadogCxxBridgeTest, CreateAddDictionaryAndSerializeProfile)
 {
-    auto dictionary = datadog::profiling::ProfilesDictionary::create();
-    const auto mapping_filename = dictionary->insert_string("/usr/lib/libstage2.so");
-    const auto build_id = dictionary->insert_string("stage2-build-id");
-    const auto function_name = dictionary->insert_string("stage2_api2_function");
-    const auto system_name = dictionary->insert_string("_Z19stage2_api2_functionv");
-    const auto file_name = dictionary->insert_string("stage2_api2_file.py");
+    auto dictionary = create_dictionary();
+    const auto mapping_filename = intern_string(*dictionary, "/usr/lib/libstage2.so");
+    const auto build_id = intern_string(*dictionary, "stage2-build-id");
+    const auto function_name = intern_string(*dictionary, "stage2_dictionary_function");
+    const auto system_name = intern_string(*dictionary, "_Z26stage2_dictionary_functionv");
+    const auto file_name = intern_string(*dictionary, "stage2_dictionary_file.py");
+    const auto label_key = intern_string(*dictionary, "pid");
+    const auto mapping = intern_mapping(*dictionary, mapping_filename, build_id);
+    const auto function = intern_function(*dictionary, function_name, system_name, file_name);
 
-    const auto mapping = dictionary->insert_mapping(datadog::profiling::Mapping2{
-      0x10000000,
-      0x20000000,
-      0,
-      mapping_filename,
-      build_id,
-    });
-    const auto function = dictionary->insert_function(datadog::profiling::Function2{
-      function_name,
-      system_name,
-      file_name,
-    });
-
-    rust::Vec<datadog::profiling::SampleType> sample_types;
-    sample_types.push_back(datadog::profiling::SampleType::WallTime);
-    const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-    auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
-
-    std::array<datadog::profiling::Location2, 1> locations{ datadog::profiling::Location2{
+    auto profile = create_dictionary_profile(*dictionary);
+    std::array<ddprof::DictionaryLocation, 1> locations{ ddprof::DictionaryLocation{
       mapping,
       function,
       0x10003000,
       12,
     } };
     std::array<std::int64_t, 1> values{ 1'000'000 };
-    const datadog::profiling::Sample2 sample{
-        { locations.data(), locations.size() },
-        { values.data(), values.size() },
-        {},
-    };
+    std::array<ddprof::DictionaryLabel, 1> labels{ ddprof::DictionaryLabel{ label_key, "", 101, "" } };
+    const auto sample = ddprof::views::dictionary_sample(locations, values, labels);
 
-    EXPECT_THROW(profile->add_sample2(sample, 42), std::exception);
+    ASSERT_TRUE(profile->add_dictionary_sample(sample, 42));
+    ASSERT_TRUE(profile->add_dictionary_sample(sample));
+    EXPECT_GT(serialize(*profile)->bytes().size(), 0);
+}
+
+TEST(LibdatadogCxxBridgeTest, SendEncodedProfileApiCompilesAndReportsError)
+{
+    auto profile = create_profile();
+    std::array<ddprof::Location, 1> locations{ ddprof::Location{
+      ddprof::Mapping{ 0, 0, 0, "", "" },
+      ddprof::Function{ "send_encoded_profile_function", "", "send_encoded_profile_file.py" },
+      0,
+      12,
+    } };
+    std::array<std::int64_t, 1> values{ 1'000'000 };
+    std::array<ddprof::Label, 0> labels{};
+    ASSERT_TRUE(profile->add_sample(ddprof::views::sample(locations, values, labels)));
+    auto encoded = serialize(*profile);
+
+    rust::Vec<ddprof::Tag> tags;
+    tags.push_back(ddprof::Tag{ "language", "python" });
+    auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(
+      "dd-trace-py", "test", "python", std::move(tags), "http://127.0.0.1:1", 1, false);
+    ASSERT_TRUE(exporter_result->check_and_print());
+    auto exporter = exporter_result->take_value();
+
+    const auto status = exporter->send_encoded_profile(std::move(encoded), {}, {}, "", "{}", "");
+    EXPECT_FALSE(status.ok());
+}
+
+TEST(LibdatadogCxxBridgeTest, RejectsDictionarySampleOnProfileWithoutDictionary)
+{
+    auto dictionary = create_dictionary();
+    const auto mapping_filename = intern_string(*dictionary, "/usr/lib/libstage2.so");
+    const auto build_id = intern_string(*dictionary, "stage2-build-id");
+    const auto function_name = intern_string(*dictionary, "stage2_dictionary_function");
+    const auto system_name = intern_string(*dictionary, "_Z26stage2_dictionary_functionv");
+    const auto file_name = intern_string(*dictionary, "stage2_dictionary_file.py");
+    const auto mapping = intern_mapping(*dictionary, mapping_filename, build_id);
+    const auto function = intern_function(*dictionary, function_name, system_name, file_name);
+
+    auto profile = create_profile();
+    std::array<ddprof::DictionaryLocation, 1> locations{ ddprof::DictionaryLocation{
+      mapping,
+      function,
+      0x10003000,
+      12,
+    } };
+    std::array<std::int64_t, 1> values{ 1'000'000 };
+    std::array<ddprof::DictionaryLabel, 0> labels{};
+    const auto sample = ddprof::views::dictionary_sample(locations, values, labels);
+
+    EXPECT_FALSE(profile->add_dictionary_sample(sample, 42));
+    EXPECT_NE(take_error_message(*profile).find("profiles dictionary not set"), std::string::npos);
 }
 
 TEST(LibdatadogCxxBridgeTest, RejectsInvalidSampleValueCount)
 {
-    rust::Vec<datadog::profiling::SampleType> sample_types;
-    sample_types.push_back(datadog::profiling::SampleType::WallTime);
-    const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-    auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
+    auto profile = create_profile();
+    std::array<ddprof::Location, 0> locations{};
+    std::array<std::int64_t, 0> values{};
+    std::array<ddprof::Label, 0> labels{};
 
-    datadog::profiling::Sample sample;
-    EXPECT_THROW(profile->add_sample(sample), std::exception);
+    EXPECT_FALSE(profile->add_sample(ddprof::views::sample(locations, values, labels)));
+    EXPECT_FALSE(profile->take_errors().empty());
 }
 
 TEST(LibdatadogCxxBridgeTest, RejectsZeroTimestamp)
 {
-    rust::Vec<datadog::profiling::SampleType> sample_types;
-    sample_types.push_back(datadog::profiling::SampleType::WallTime);
-    const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
-    auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
-
-    datadog::profiling::Sample sample;
-    sample.values.push_back(1'000'000);
-    sample.locations.push_back(datadog::profiling::Location{
-      datadog::profiling::Mapping{ 0, 0, 0, "", "" },
-      datadog::profiling::Function{ "stage2_timestamped_function", "", "stage2_timestamped_file.py" },
+    auto profile = create_profile();
+    std::array<ddprof::Location, 1> locations{ ddprof::Location{
+      ddprof::Mapping{ 0, 0, 0, "", "" },
+      ddprof::Function{ "stage2_timestamped_function", "", "stage2_timestamped_file.py" },
       0,
       12,
-    });
+    } };
+    std::array<std::int64_t, 1> values{ 1'000'000 };
+    std::array<ddprof::Label, 0> labels{};
 
-    EXPECT_THROW(profile->add_sample_with_timestamp(sample, 0), std::exception);
+    EXPECT_FALSE(profile->add_sample(ddprof::views::sample(locations, values, labels), 0));
+    EXPECT_NE(take_error_message(*profile).find("endtime_ns must be non-zero"), std::string::npos);
 }

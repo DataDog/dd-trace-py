@@ -33,17 +33,17 @@ ProfilerState::init_profiles_dictionary()
         return false;
     }
 
-    try {
-        profiles_dictionary.emplace(ddprof::ProfilesDictionary::create());
-    } catch (const std::exception& err) {
-        std::cerr << "could not initialise CXX profiles dictionary: " << err.what() << std::endl;
+    auto result = ddprof::ProfileDictionary::create();
+    if (!result->ok()) {
+        std::cerr << "could not initialise CXX profiles dictionary: " << std::string(result->message()) << std::endl;
         return false;
     }
+    profiles_dictionary.emplace(result->take_value());
 
     return true;
 }
 
-ddprof::ProfilesDictionary*
+ddprof::ProfileDictionary*
 ProfilerState::get_profiles_dictionary()
 {
     const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
@@ -68,11 +68,9 @@ ProfilerState::init_interned_strings()
         return false;
     }
 
-    try {
-        // Intern the empty string, which is used frequently.
-        cached_empty_string_id = dict->insert_string("");
-    } catch (const std::exception& err) {
-        std::cerr << "Error interning empty string: " << err.what() << std::endl;
+    // Intern the empty string, which is used frequently.
+    if (!dict->intern_string("", cached_empty_string_id)) {
+        std::cerr << take_error_message(*dict, "intern empty string") << std::endl;
         return false;
     }
 
@@ -83,19 +81,19 @@ void
 ProfilerState::reset_key_caches()
 {
     for (auto& entry : tag_cache) {
-        entry.store({ nullptr }, std::memory_order_relaxed);
+        entry.store({}, std::memory_order_relaxed);
     }
     for (auto& entry : label_cache) {
-        entry.store({ nullptr }, std::memory_order_relaxed);
+        entry.store({}, std::memory_order_relaxed);
     }
-    cached_empty_string_id = { nullptr };
+    cached_empty_string_id = {};
 }
 
 void
 ProfilerState::start()
 {
     // init_flag_ is a std::once_flag. We intentionally do NOT reinitialise it after fork:
-    // in the child process, postfork_child() re-creates the Profiles Dictionary directly,
+    // in the child process, postfork_child() re-creates the ProfileDictionary directly,
     // bypassing call_once. The once_flag therefore stays "already called" in the child,
     // which is correct — we don't want a second call to start() to re-run initialization.
     std::call_once(init_flag_, [this]() {
@@ -128,10 +126,10 @@ ProfilerState::start()
 void
 ProfilerState::cleanup()
 {
-    // Clear the profile, decreasing the refcount on the Profiles Dictionary
+    // Clear the profile, decreasing the refcount on the ProfileDictionary
     profile_state.cleanup();
 
-    // Decrease the refcount on the Profiles Dictionary
+    // Decrease the refcount on the ProfileDictionary
     release_profiles_dictionary();
 }
 
@@ -165,7 +163,7 @@ ProfilerState::prefork()
     }
 
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
-    // inside the CXX Profile::add_sample2 path when the child resets profile state.
+    // inside the CXX Profile::add_dictionary_sample path when the child resets profile state.
     // postfork_parent releases it via unlock; postfork_child releases it
     // via placement-new reinit of profile_mtx (which implicitly creates a fresh
     // unlocked mutex, consistent with every other mutex's postfork path).
@@ -203,14 +201,14 @@ ProfilerState::postfork_child()
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();
 
-    // Free our copy of the Profiles Dictionary - its String IDs refer to memory
+    // Free our copy of the ProfileDictionary - its String IDs refer to memory
     // that doesn't exist in the child process
     release_profiles_dictionary();
 
-    // Reset all caches that depend on the Profiles Dictionary
+    // Reset all caches that depend on the ProfileDictionary
     reset_key_caches();
 
-    // Re-initialize the Profiles Dictionary in the child process
+    // Re-initialize the ProfileDictionary in the child process
     if (!init_profiles_dictionary()) {
         std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
                   << std::endl;
@@ -218,7 +216,7 @@ ProfilerState::postfork_child()
         return;
     }
 
-    // Initialize cached interned strings with the new Profiles Dictionary
+    // Initialize cached interned strings with the new ProfileDictionary
     if (!init_interned_strings()) {
         std::cerr << "failed to initialise interned strings in child process, profiler will be disabled" << std::endl;
         initialized_.store(false, std::memory_order_release);

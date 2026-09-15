@@ -101,7 +101,7 @@ In order to minimize overhead, strings are cached (and de-duplicated) in a cache
 A Profile wraps the collection of samples.
 A Profile is periodically flushed to the Datadog backend during an upload operation.
 The strings used in a Profiles (e.g. function and file names) are interned/stored by the Sampler in the
-`ProfilesDictionary`, which is reused across Samples and Profiles to reduce memory overhead and copies.
+`ProfileDictionary`, which is reused across Samples and Profiles to reduce memory overhead and copies.
 
 The Profile is locked during serialization and reset after encoding completes.
 The actual HTTP upload happens without holding the profile lock.

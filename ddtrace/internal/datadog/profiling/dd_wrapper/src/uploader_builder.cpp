@@ -177,18 +177,18 @@ Datadog::UploaderBuilder::build()
     }
 
     std::optional<rust::Box<ddprof::ProfileExporter>> profile_exporter;
-    try {
-        profile_exporter = ddprof::ProfileExporter::create_agent_exporter(
-          rust::Str(g_library_name.data(), g_library_name.size()),
-          rust::Str(state.profiler_version.data(), state.profiler_version.size()),
-          rust::Str(family.data(), family.size()),
-          std::move(tags),
-          rust::Str(state.url.data(), state.url.size()),
-          state.max_timeout_ms,
-          false);
-    } catch (const std::exception& err) {
-        return std::string("Error initializing CXX exporter: ") + err.what();
+    auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(
+      rust::Str(g_library_name.data(), g_library_name.size()),
+      rust::Str(state.profiler_version.data(), state.profiler_version.size()),
+      rust::Str(family.data(), family.size()),
+      std::move(tags),
+      rust::Str(state.url.data(), state.url.size()),
+      state.max_timeout_ms,
+      false);
+    if (!exporter_result->ok()) {
+        return std::string("Error initializing CXX exporter: ") + std::string(exporter_result->message());
     }
+    profile_exporter = exporter_result->take_value();
 
     // Perform profile encoding before creating the Uploader.
     // Also take the Profiler Stats and reset the one being written to.

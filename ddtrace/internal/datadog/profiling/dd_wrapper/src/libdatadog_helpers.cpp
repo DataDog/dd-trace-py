@@ -5,7 +5,7 @@
 
 namespace Datadog::internal {
 
-std::optional<ddprof::StringId2>
+std::optional<ddprof::DictionaryStringId>
 to_interned_string(ExportTagKey key)
 {
     auto& state = ProfilerState::get();
@@ -29,7 +29,7 @@ to_interned_string(ExportTagKey key)
     return string_id;
 }
 
-std::optional<ddprof::StringId2>
+std::optional<ddprof::DictionaryStringId>
 to_interned_string(ExportLabelKey key)
 {
     auto& state = ProfilerState::get();
