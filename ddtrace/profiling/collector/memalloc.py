@@ -4,6 +4,8 @@ import logging
 import os
 from types import TracebackType
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import cast
 
@@ -21,12 +23,63 @@ except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal import service
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
+from ddtrace.profiling.collector import threading as collector_threading
 
 
 LOG = logging.getLogger(__name__)
+
+_thread_name_hooks_installed: bool = False
+
+
+def _install_thread_name_hooks() -> None:
+    """Record thread names when the stack profiler hooks are not installed.
+
+    The stack hooks also record names. A second wrapper around the same Thread
+    methods would hide those hooks.
+    """
+    global _thread_name_hooks_installed
+
+    if _thread_name_hooks_installed or not ddup.is_available:
+        return
+    if collector_threading._installed_thread_hooks:
+        return
+    _thread_name_hooks_installed = True
+
+    set_native_id = cast(
+        Callable[..., None],
+        ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
+    )
+    bootstrap_inner = cast(
+        Callable[..., None],
+        ddtrace_threading.Thread._bootstrap_inner,  # type: ignore[attr-defined]
+    )
+
+    def thread_set_native_id(self: ddtrace_threading.Thread, *args: Any, **kwargs: Any) -> None:
+        set_native_id(self, *args, **kwargs)
+        # CPython calls _set_native_id before setting the started event, so an exception here
+        # would make Thread.start block forever.
+        if self.ident is None:
+            return
+        try:
+            ddup.register_thread_name(self.ident, self.name)
+        except Exception:
+            LOG.debug("[profiling] Failed to register thread name for %r", self.ident, exc_info=True)
+
+    def thread_bootstrap_inner(self: ddtrace_threading.Thread, *args: Any, **kwargs: Any) -> None:
+        bootstrap_inner(self, *args, **kwargs)
+        if self.ident is None:
+            return
+        try:
+            ddup.unregister_thread_name(self.ident)
+        except Exception:
+            LOG.debug("[profiling] Failed to unregister thread name for %r", self.ident, exc_info=True)
+
+    ddtrace_threading.Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
+    ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
 
 
 class MemoryCollector:
@@ -65,6 +118,9 @@ class MemoryCollector:
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
+
+        _install_thread_name_hooks()
+        collector_threading.init_thread_names()
 
         try:
             _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)

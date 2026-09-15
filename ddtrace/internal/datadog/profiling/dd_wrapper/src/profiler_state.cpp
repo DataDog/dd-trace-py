@@ -147,6 +147,8 @@ ProfilerState::cleanup()
 void
 ProfilerState::prefork()
 {
+    thread_name_registry.prefork();
+
     // Cancel inflight uploads to prevent state leaking to children
     auto current_cancel = upload_cancel.exchange({ .inner = nullptr });
     if (current_cancel.inner != nullptr) {
@@ -178,6 +180,7 @@ ProfilerState::postfork_parent()
 {
     profile_state.postfork_parent();
     upload_lock.unlock();
+    thread_name_registry.postfork_parent();
 }
 
 void
@@ -200,6 +203,10 @@ ProfilerState::postfork_child()
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();
+
+    // Re-init the thread name registry mutex (data is preserved so the thread
+    // that forked keeps its name in the child)
+    thread_name_registry.postfork_child();
 
     // Free our copy of the Profiles Dictionary - its String IDs refer to memory
     // that doesn't exist in the child process

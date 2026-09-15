@@ -4,6 +4,7 @@
 #include "libdatadog_helpers.hpp"
 #include "native_call_tracker.hpp"
 #include "profile.hpp"
+#include "thread_name_tracker.hpp"
 #include "types.hpp"
 
 #include <array>
@@ -90,6 +91,11 @@ class ProfilerState
     // Native call tracking state
     // ========================================================================
     NativeCallRegistry native_call_registry{};
+
+    // ========================================================================
+    // Thread name tracking state
+    // ========================================================================
+    ThreadNameRegistry thread_name_registry{};
 
     // ========================================================================
     // Upload state
