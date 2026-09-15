@@ -43,6 +43,7 @@ class ThreadInfo
     uintptr_t thread_id;
     unsigned long native_id;
     FrameStack python_stack;
+    UnwindResult python_stack_unwind_result = UnwindResult::Unknown();
     std::vector<std::unique_ptr<StackInfo>> current_tasks;
     std::vector<std::unique_ptr<StackInfo>> current_greenlets;
 
@@ -62,7 +63,7 @@ class ThreadInfo
     [[nodiscard]] Result<void> update_cpu_time();
 
     [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
-    void unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
+    [[nodiscard]] Result<void> unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
 
     // Number of frames in python_stack from the asyncio boundary frame (inclusive) up to the root,
     // that is to say the asyncio machinery plus the synchronous entry point. Returns the size of the

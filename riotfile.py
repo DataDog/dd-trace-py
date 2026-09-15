@@ -1582,7 +1582,7 @@ venv = Venv(
         ),
         Venv(
             name="pymemcache",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "pytest-randomly": latest,
                 "pymemcache": [

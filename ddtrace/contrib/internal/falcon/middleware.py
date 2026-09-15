@@ -1,15 +1,12 @@
 import sys
 
 from ddtrace import config
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
-from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
-from ddtrace.trace import tracer
 
 
 class TraceMiddleware(object):
@@ -24,75 +21,90 @@ class TraceMiddleware(object):
                 category=DDTraceDeprecationWarning,
                 removal_version="5.0.0",
             )
+
         self.service = service
+
+        # A Falcon application may contain multiple TraceMiddleware instances,
+        # so each instance must store its own execution context.
+        self._request_context_key = "ddtrace.falcon.request_context.{}".format(id(self))
+
         if distributed_tracing is not None:
             config.falcon["distributed_tracing"] = distributed_tracing
 
     def process_request(self, req, resp):
-        # Falcon uppercases all header names.
-        headers = dict((k.lower(), v) for k, v in req.headers.items())
-
-        with core.context_with_data(
-            "falcon.request",
-            span_name=schematize_url_operation("falcon.request", protocol="http", direction=SpanDirection.INBOUND),
-            span_type=SpanTypes.WEB,
-            service=self.service,
-            tags={},
-            distributed_headers=headers,
+        event = WebFrameworkRequestEvent(
+            http_operation="falcon.request",
+            component=config.falcon.integration_name,
             integration_config=config.falcon,
+            service=self.service,
+            request_method=req.method,
+            request_url=req.url,
+            # Preserve the header mapping passed to set_http_meta before this
+            # migration. Distributed propagation normalizes header names
+            # independently.
+            request_headers=req.headers,
+            query=req.query_string,
+            request_route=None,
+            allow_default_resource=True,
             activate_distributed_headers=True,
-            headers_case_sensitive=True,
-        ) as ctx:
-            req_span = span_from_context(ctx)
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request.start", (ctx, config.falcon))
+            headers_case_sensitive=False,
+        )
 
-            core.dispatch(
-                "web.request.finish",
-                (req_span, config.falcon, req.method, req.url, None, req.query_string, req.headers, None, None, False),
-            )
+        with core.context_with_event(
+            event,
+            dispatch_end_event=False,
+        ) as ctx:
+            req.env[self._request_context_key] = ctx
 
     def process_resource(self, req, resp, resource, params):
-        span = tracer.current_span()
-        if not span:
-            return  # unexpected
-        span.resource = "%s %s" % (req.method, _name(resource))
-
-    def process_response(self, req, resp, resource, req_succeeded=None):
-        # req_succeded is not a kwarg in the API, but we need that to support
-        # Falcon 1.0 that doesn't provide this argument
-        span = tracer.current_span()
-        if not span:
-            return  # unexpected
-
-        status = resp.status.partition(" ")[0]
-
-        # falcon does not map errors or unmatched routes
-        # to proper status codes, so we have to try to infer them
-        # here.
-        if resource is None:
-            status = "404"
-            span.resource = "%s 404" % req.method
-            core.dispatch("web.request.finish", (span, config.falcon, None, None, status, None, None, None, None, True))
+        ctx = req.env.get(self._request_context_key)
+        if ctx is None:
             return
 
-        err_type = sys.exc_info()[0]
-        if err_type is not None:
-            if req_succeeded is None:
-                # backward-compatibility with Falcon 1.0; any version
-                # greater than 1.0 has req_succeded in [True, False]
-                # TODO[manu]: drop the support at some point
-                status = _detect_and_set_status_error(err_type, span)
-            elif req_succeeded is False:
-                # Falcon 1.1+ provides that argument that is set to False
-                # if get an Exception (404 is still an exception)
-                status = _detect_and_set_status_error(err_type, span)
+        span = span_from_context(ctx)
+        if span is None:
+            return
 
-        route = (req.root_path or "") + (req.uri_template or "")
+        # Set the resource on the live span before handler execution.
+        span.resource = "%s %s" % (req.method, _name(resource))
 
-        core.dispatch(
-            "web.request.finish", (span, config.falcon, None, None, status, None, None, resp._headers, route, True)
-        )
+        # Prevent the subscriber from replacing a resource customized by the
+        # resource handler.
+        event: WebFrameworkRequestEvent = ctx.event
+        event.set_resource = False
+
+    def process_response(self, req, resp, resource, req_succeeded=None):
+        # req_succeeded is unavailable in Falcon 1.0.
+        # TODO[manu]: drop the support at some point
+        ctx = req.env.pop(self._request_context_key, None)
+        if ctx is None:
+            return
+
+        try:
+            span = span_from_context(ctx)
+            if span is None:
+                return
+
+            event: WebFrameworkRequestEvent = ctx.event
+            status = resp.status.partition(" ")[0]
+
+            # Falcon does not always map errors or unmatched routes to the
+            # proper status code, so retain the existing inference.
+            if resource is None:
+                status = "404"
+                span.resource = "%s 404" % req.method
+            else:
+                err_type = sys.exc_info()[0]
+                if err_type is not None:
+                    if req_succeeded is None or req_succeeded is False:
+                        status = _detect_and_set_status_error(err_type, span)
+
+                event.request_route = (req.root_path or "") + (req.uri_template or "")
+                event.response_headers = resp._headers
+
+            event.response_status_code = int(status)
+        finally:
+            ctx.dispatch_ended_event()
 
 
 def _is_404(err_type):
@@ -100,14 +112,12 @@ def _is_404(err_type):
 
 
 def _detect_and_set_status_error(err_type, span):
-    """Detect the HTTP status code from the current stacktrace and
-    set the traceback to the given Span
-    """
+    """Detect the HTTP status code and set the traceback on the span."""
     if not _is_404(err_type):
         span.set_traceback()
         return "500"
-    elif _is_404(err_type):
-        return "404"
+
+    return "404"
 
 
 def _name(r):

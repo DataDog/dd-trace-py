@@ -1,5 +1,6 @@
 import time
 
+import mock
 import pytest
 
 from ddtrace.constants import AUTO_KEEP
@@ -120,10 +121,13 @@ def test_agent_sample_rate_keep():
     # Force a flush to get the response back.
     ddtracer.flush()
 
-    # Subsequent traces should have the rate applied.
-    with ddtracer.trace("test", service="test") as span:
-        pass
-    ddtracer.flush()
+    # Subsequent traces should have the rate applied. The RateSampler's decision is based on a hash of the
+    # trace id, so it is only *overwhelmingly likely* (not guaranteed) to keep at a 0.9999 rate. Pin the
+    # decision deterministically so the test doesn't flake on the ~1-in-10000 chance of a reject.
+    with mock.patch("ddtrace._trace.sampler.RateSampler.sample", return_value=True):
+        with ddtracer.trace("test", service="test") as span:
+            pass
+        ddtracer.flush()
     assert span.get_metric("_dd.agent_psr") == pytest.approx(0.9999)
     assert span.get_metric("_sampling_priority_v1") == AUTO_KEEP
     assert span.get_tag("_dd.p.dm") == "-1"
@@ -197,10 +201,13 @@ def test_agent_sample_rate_reject():
     # Force a flush to get the response back.
     ddtracer.flush()
 
-    # Subsequent traces should have the rate applied.
-    with ddtracer.trace("test", service="test") as span:
-        pass
-    ddtracer.flush()
+    # Subsequent traces should have the rate applied. The RateSampler's decision is based on a hash of the
+    # trace id, so it is only *overwhelmingly likely* (not guaranteed) to reject at a 0.0001 rate. Pin the
+    # decision deterministically so the test doesn't flake on the ~1-in-10000 chance of a keep.
+    with mock.patch("ddtrace._trace.sampler.RateSampler.sample", return_value=False):
+        with ddtracer.trace("test", service="test") as span:
+            pass
+        ddtracer.flush()
     assert span.get_metric("_dd.agent_psr") == pytest.approx(0.0001)
     assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
     assert span.get_tag("_dd.p.dm") == "-1"
