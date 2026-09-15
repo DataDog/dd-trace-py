@@ -26,7 +26,7 @@ class ProfileBorrow
     ProfileBorrow& operator=(ProfileBorrow&& other) noexcept;
 
     // Accessors
-    ddog_prof_Profile& profile();
+    ddprof::Profile& profile();
     ProfilerStats& stats();
 };
 

@@ -50,9 +50,17 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
     message(FATAL_ERROR "pthread compatible library not found")
 endif()
 
+if(NOT EXISTS "${LIBDD_PROFILING_CXX_SOURCE}" OR NOT EXISTS "${LIBDD_PROFILING_CXXBRIDGE_LIB}")
+    message(
+        FATAL_ERROR
+            "Generated libdd-profiling CXX bridge artifacts not found: ${LIBDD_PROFILING_CXX_SOURCE}; ${LIBDD_PROFILING_CXXBRIDGE_LIB}"
+    )
+endif()
+
 # Library sources
 add_library(
     dd_wrapper SHARED
+    "${LIBDD_PROFILING_CXX_SOURCE}"
     src/code_provenance.cpp
     src/ddup_interface.cpp
     src/libdatadog_helpers.cpp
@@ -65,17 +73,19 @@ add_library(
     src/sample_manager.cpp
     src/static_sample_pool.cpp
     src/uploader.cpp
-    src/uploader_builder.cpp)
+    src/uploader_builder.cpp
+    src/upload_cancellation.cpp)
 
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-# Disable -Wold-style-cast for sample.cpp because Python C API headers use old-style casts
-set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
+# Disable -Wold-style-cast for sources that include Python/CXX generated headers with old-style casts.
+set_source_files_properties(src/sample.cpp "${LIBDD_PROFILING_CXX_SOURCE}" PROPERTIES COMPILE_FLAGS
+                                                                                      "-Wno-old-style-cast")
 
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
-target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
+target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads "${LIBDD_PROFILING_CXXBRIDGE_LIB}")
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
 check_symbol_exists(__GLIBC__ "features.h" HAVE_GLIBC)
