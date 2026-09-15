@@ -2061,7 +2061,7 @@ suites:
           python: ['3.9']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.11']
         - name: pymongo
-          dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.0']
+          dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.17.0']
         - name: pymongo
           dependencies: [mongoengine, pytest-randomly, pymongo]
         - name: pymongo
