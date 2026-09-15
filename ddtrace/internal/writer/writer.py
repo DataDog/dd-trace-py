@@ -42,6 +42,7 @@ from ddtrace.version import __version__
 from ...constants import _KEEP_SPANS_RATE_KEY
 from ...constants import _SAMPLING_PRIORITY_KEY
 from .. import compat
+from .. import forksafe
 from .. import periodic
 from .. import process_tags
 from .. import service
@@ -849,7 +850,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         # Native exporter methods require exclusive access because PyO3 rejects
         # overlapping mutable borrows.
-        self._exporter_lock: RLock = RLock()
+        self._exporter_lock = forksafe.RLock()
         self._exporter = self._create_exporter()
 
     def __del__(self) -> None:
