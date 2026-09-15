@@ -2,10 +2,12 @@
 
 The value can hide a token in the userinfo, in a path segment or in a query parameter, and a proxy
 override commonly embeds one. These tests pin the four places a transport failure surfaces it: the
-raised exception, the chained traceback, the ddtrace debug logs and the span error tags.
+raised exception, the traceback rendered from it, the ddtrace debug logs and the span error tags.
 Jira: https://datadoghq.atlassian.net/browse/APPSEC-70144
 """
 
+import builtins
+import sys
 import traceback
 from unittest.mock import patch
 
@@ -29,27 +31,74 @@ SECRET_ENDPOINT = "https://user:s3cret@proxy.example.com/t0ken/ai-guard?token=k3
 SCHEME_RELATIVE_SECRET_ENDPOINT = "//user:s3cret@proxy.example.com/t0ken/ai-guard?token=k3y"
 SECRETS = ("s3cret", "t0ken", "k3y")
 
-
-class RejectsRewrite(Exception):
-    """A cause whose args cannot be rewritten: a Python-level property shadows BaseException.args,
-    so assigning to it raises.
-    """
-
-    def __str__(self):
-        return f"error sending request for url ({SECRET_ENDPOINT})"
-
-    @property
-    def args(self):  # type: ignore[override]
-        return ()
+# What the native client quotes back at us when it cannot reach the endpoint it was handed.
+SECRET_MESSAGE = f"error sending request for url ({SECRET_ENDPOINT}/evaluate)"
 
 
-class IgnoresArgs(Exception):
-    """A cause whose args accept the rewrite but whose __str__ ignores them, so rewriting args
-    proves nothing about what gets rendered.
-    """
+class QuotesTheEndpointInStr(Exception):
+    """A failure whose message lives in a custom __str__ rather than in args."""
 
     def __str__(self):
-        return f"error sending request for url ({SECRET_ENDPOINT})"
+        return SECRET_MESSAGE
+
+
+class RaisesOnStr(Exception):
+    """A failure we cannot even render, so there is nothing safe to quote from it."""
+
+    def __str__(self):
+        raise RuntimeError(SECRET_MESSAGE)
+
+
+def _quotes_in_its_own_message() -> BaseException:
+    return ConnectionFailedError(SECRET_MESSAGE)
+
+
+def _quotes_in_a_cause() -> BaseException:
+    """The transport wraps the failure that actually quoted the URL, and a traceback walks down."""
+    exc = ConnectionFailedError("client error (Connect)")
+    exc.__cause__ = ConnectionFailedError(SECRET_MESSAGE)
+    return exc
+
+
+def _quotes_in_a_context() -> BaseException:
+    exc = ConnectionFailedError("client error (Connect)")
+    exc.__context__ = ConnectionFailedError(SECRET_MESSAGE)
+    return exc
+
+
+def _quotes_in_a_cyclic_chain() -> BaseException:
+    """A chain can point back at itself, which anything walking it has to survive."""
+    exc = ConnectionFailedError(SECRET_MESSAGE)
+    nested = ConnectionFailedError("client error (Connect)")
+    exc.__cause__ = nested
+    nested.__cause__ = exc
+    return exc
+
+
+def _quotes_in_a_note() -> BaseException:
+    """PEP 678 notes are rendered under the message and are not reachable through args."""
+    exc = ConnectionFailedError("client error (Connect)")
+    exc.add_note(SECRET_MESSAGE)
+    return exc
+
+
+def _quotes_in_a_group_member() -> BaseException:
+    """PEP 654 renders every member of a group, not just the group's own message."""
+    return builtins.ExceptionGroup("transport failed", [ConnectionFailedError(SECRET_MESSAGE)])
+
+
+# Every shape a transport failure can quote the endpoint in. Each is a reason not to chain it:
+# scrubbing the message alone leaves the rest of the exception graph rendering the credential.
+TRANSPORT_FAILURES = {
+    "own_message": _quotes_in_its_own_message,
+    "custom_str": QuotesTheEndpointInStr,
+    "cause": _quotes_in_a_cause,
+    "context": _quotes_in_a_context,
+    "cyclic_chain": _quotes_in_a_cyclic_chain,
+}
+if sys.version_info >= (3, 11):
+    TRANSPORT_FAILURES["note"] = _quotes_in_a_note
+    TRANSPORT_FAILURES["group_member"] = _quotes_in_a_group_member
 
 
 def _client(endpoint: str) -> AIGuardClient:
@@ -107,22 +156,38 @@ class TestEveryUrlShapeIsRedacted:
 
 class TestCredentialsNeverReachAFailureReport:
     """The transport quotes the URL it was handed back at us, and that message is re-rendered by
-    the failure log, by the chained traceback and by the span error tags.
+    the failure log, by a rendered traceback and by the span error tags.
     """
 
     @pytest.mark.parametrize("secret", SECRETS)
+    @pytest.mark.parametrize("failure", TRANSPORT_FAILURES.values(), ids=list(TRANSPORT_FAILURES))
     @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
-    def test_a_quoted_endpoint_is_scrubbed_everywhere_it_surfaces(
-        self, add_count_metric, secret, caplog, test_spans, ai_guard_client
+    def test_no_shape_of_transport_failure_reaches_a_report(
+        self, add_count_metric, failure, secret, caplog, test_spans, ai_guard_client
     ):
-        transport_error = ConnectionFailedError(f"error sending request for url ({SECRET_ENDPOINT}/evaluate)")
-
+        """Whichever part of the failure quotes the endpoint, only our scrubbed message is reported."""
         with caplog.at_level("DEBUG", logger="ddtrace"):
-            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=failure()):
                 with pytest.raises(AIGuardClientError) as raised:
                     ai_guard_client.evaluate(MESSAGES)
 
         _assert_clean(secret, raised, caplog, test_spans)
+        # Both would resurrect the failure: __cause__ through a rendered traceback, __context__
+        # through anything walking the chain itself.
+        assert raised.value.__cause__ is None
+        assert raised.value.__context__ is None
+
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_the_report_names_the_failure_that_was_dropped(self, add_count_metric, ai_guard_client):
+        """Nothing survives the failure but this message, so it has to say what went wrong."""
+        with patch.object(ai_guard_client, "_execute_request", side_effect=ConnectionFailedError(SECRET_MESSAGE)):
+            with pytest.raises(AIGuardClientError) as raised:
+                ai_guard_client.evaluate(MESSAGES)
+
+        assert str(raised.value) == (
+            "Unexpected error calling AI Guard service (ConnectionFailedError): "
+            "error sending request for url (<endpoint>)"
+        )
 
     @pytest.mark.parametrize("endpoint", [SECRET_ENDPOINT, SCHEME_RELATIVE_SECRET_ENDPOINT])
     @pytest.mark.parametrize("secret", SECRETS)
@@ -159,101 +224,20 @@ class TestCredentialsNeverReachAFailureReport:
         _assert_clean("t0ken", raised, caplog, test_spans)
 
     @pytest.mark.parametrize("secret", SECRETS)
-    @pytest.mark.parametrize("cause", [RejectsRewrite, IgnoresArgs], ids=["rejects_rewrite", "ignores_args"])
     @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
-    def test_a_cause_that_cannot_be_proven_clean_is_not_chained(
-        self, add_count_metric, cause, secret, caplog, test_spans, ai_guard_client
-    ):
-        """Rewriting the cause's args can fail outright or leave a custom __str__ still quoting the
-        endpoint. Either way the cause is dropped instead of chained, so nothing re-renders it.
-        """
-        with caplog.at_level("DEBUG", logger="ddtrace"):
-            with patch.object(ai_guard_client, "_execute_request", side_effect=cause()):
-                with pytest.raises(AIGuardClientError) as raised:
-                    ai_guard_client.evaluate(MESSAGES)
-
-        _assert_clean(secret, raised, caplog, test_spans)
-        assert "<endpoint>" in str(raised.value)
-        # Both would resurrect the cause: __cause__ through the rendered traceback, __context__
-        # through anything walking the chain itself.
-        assert raised.value.__cause__ is None
-        assert raised.value.__context__ is None
-
-    @pytest.mark.parametrize("secret", SECRETS)
-    @pytest.mark.parametrize("link", ["__cause__", "__context__"])
-    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
-    def test_a_nested_link_is_scrubbed_before_the_chain_is_rendered(
-        self, add_count_metric, link, secret, caplog, test_spans, ai_guard_client
-    ):
-        """A rendered traceback walks the whole chain, so a clean outer message proves nothing about
-        the link underneath it: the transport wraps the failure that actually quoted the URL.
-        """
-        nested = ConnectionFailedError(f"error sending request for url ({SECRET_ENDPOINT}/evaluate)")
-        transport_error = ConnectionFailedError("client error (Connect)")
-        setattr(transport_error, link, nested)
-
-        with caplog.at_level("DEBUG", logger="ddtrace"):
-            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
-                with pytest.raises(AIGuardClientError) as raised:
-                    ai_guard_client.evaluate(MESSAGES)
-
-        _assert_clean(secret, raised, caplog, test_spans)
-        # Scrubbing the chain is what earns the right to keep it: the cause is still reported.
-        assert raised.value.__cause__ is transport_error
-
-    @pytest.mark.parametrize("secret", SECRETS)
-    @pytest.mark.parametrize("link", ["__cause__", "__context__"])
-    @pytest.mark.parametrize("nested", [RejectsRewrite, IgnoresArgs], ids=["rejects_rewrite", "ignores_args"])
-    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
-    def test_a_nested_link_that_cannot_be_proven_clean_drops_the_whole_chain(
-        self, add_count_metric, nested, link, secret, caplog, test_spans, ai_guard_client
-    ):
-        """One unprovable link anywhere in the chain is enough: the cause is dropped whole, because
-        chaining it would render that link along with the rest.
-        """
-        transport_error = ConnectionFailedError("client error (Connect)")
-        setattr(transport_error, link, nested())
-
-        with caplog.at_level("DEBUG", logger="ddtrace"):
-            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
-                with pytest.raises(AIGuardClientError) as raised:
-                    ai_guard_client.evaluate(MESSAGES)
-
-        _assert_clean(secret, raised, caplog, test_spans)
-        assert raised.value.__cause__ is None
-        assert raised.value.__context__ is None
-
-    @pytest.mark.parametrize("secret", SECRETS)
-    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
-    def test_a_cyclic_chain_is_scrubbed_without_looping(
+    def test_a_failure_that_cannot_be_rendered_is_reported_by_type_only(
         self, add_count_metric, secret, caplog, test_spans, ai_guard_client
     ):
-        """An exception chain can point back at itself, which a naive walk would follow forever."""
-        transport_error = ConnectionFailedError(f"error sending request for url ({SECRET_ENDPOINT}/evaluate)")
-        nested = ConnectionFailedError("client error (Connect)")
-        transport_error.__cause__ = nested
-        nested.__cause__ = transport_error
-
+        """Reading the message is what raised, so the type name is all there is left to report."""
         with caplog.at_level("DEBUG", logger="ddtrace"):
-            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=RaisesOnStr()):
                 with pytest.raises(AIGuardClientError) as raised:
                     ai_guard_client.evaluate(MESSAGES)
 
         _assert_clean(secret, raised, caplog, test_spans)
-
-    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
-    def test_a_cause_that_rejects_rewriting_is_reported_without_its_message(
-        self, add_count_metric, caplog, ai_guard_client
-    ):
-        """The fallback log names the exception type only: exc_info would render the message the
-        rewrite just failed to clean.
-        """
-        with caplog.at_level("DEBUG", logger="ddtrace"):
-            with patch.object(ai_guard_client, "_execute_request", side_effect=RejectsRewrite()):
-                with pytest.raises(AIGuardClientError):
-                    ai_guard_client.evaluate(MESSAGES)
-
-        assert "Could not scrub AI Guard transport error message (RejectsRewrite)" in caplog.text
+        assert str(raised.value) == "Unexpected error calling AI Guard service (RaisesOnStr)"
+        # The fallback log names the type only: exc_info would render what we could not read.
+        assert "Could not render AI Guard transport error message (RaisesOnStr)" in caplog.text
 
 
 class TestTheTransportNeverSeesTheCredential:
