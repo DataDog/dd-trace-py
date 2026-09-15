@@ -43,15 +43,6 @@ class ProfilerStats
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
     size_t copy_memory_error_count = 0;
 
-    // Sampling cycles affected by each interpreter traversal failure mode.
-    size_t interpreter_traversal_generation_read_failure_count = 0;
-    size_t interpreter_traversal_next_read_failure_count = 0;
-    size_t interpreter_traversal_id_read_failure_count = 0;
-    size_t interpreter_traversal_thread_head_read_failure_count = 0;
-    size_t interpreter_traversal_cycle_count = 0;
-    size_t interpreter_traversal_limit_exceeded_count = 0;
-    size_t interpreter_traversal_empty_inventory_count = 0;
-
     // Number of currently tracked allocations in the heap tracker
     std::optional<size_t> heap_tracker_size;
 
@@ -101,14 +92,6 @@ class ProfilerStats
 
     void add_copy_memory_error_count(size_t count);
     size_t get_copy_memory_error_count() const;
-
-    void increment_interpreter_traversal_generation_read_failure_count();
-    void increment_interpreter_traversal_next_read_failure_count();
-    void increment_interpreter_traversal_id_read_failure_count();
-    void increment_interpreter_traversal_thread_head_read_failure_count();
-    void increment_interpreter_traversal_cycle_count();
-    void increment_interpreter_traversal_limit_exceeded_count();
-    void increment_interpreter_traversal_empty_inventory_count();
 
     void set_heap_tracker_size(size_t count);
     std::optional<size_t> get_heap_tracker_size() const;

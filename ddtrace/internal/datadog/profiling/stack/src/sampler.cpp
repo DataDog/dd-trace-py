@@ -130,32 +130,6 @@ get_thread_cpu_time_us()
 #endif
 }
 
-void
-record_interpreter_traversal_issues(ProfilerStats& stats, const InterpreterTraversalResult& result)
-{
-    if (result.has(InterpreterTraversalIssue::CodeObjectGenerationUnreadable)) {
-        stats.increment_interpreter_traversal_generation_read_failure_count();
-    }
-    if (result.has(InterpreterTraversalIssue::NextUnreadable)) {
-        stats.increment_interpreter_traversal_next_read_failure_count();
-    }
-    if (result.has(InterpreterTraversalIssue::IdUnreadable)) {
-        stats.increment_interpreter_traversal_id_read_failure_count();
-    }
-    if (result.has(InterpreterTraversalIssue::ThreadHeadUnreadable)) {
-        stats.increment_interpreter_traversal_thread_head_read_failure_count();
-    }
-    if (result.has(InterpreterTraversalIssue::CycleDetected)) {
-        stats.increment_interpreter_traversal_cycle_count();
-    }
-    if (result.has(InterpreterTraversalIssue::LimitExceeded)) {
-        stats.increment_interpreter_traversal_limit_exceeded_count();
-    }
-    if (result.has(InterpreterTraversalIssue::EmptyInventory)) {
-        stats.increment_interpreter_traversal_empty_inventory_count();
-    }
-}
-
 } // namespace
 
 void
@@ -281,20 +255,22 @@ Sampler::adapt_sampling_interval()
     sampler_thread_count = new_sampler_thread_count;
 }
 
-InterpreterTraversalResult
+void
 Sampler::capture_samples(const microsecond_t wall_time_us)
 {
     auto* const runtime = &_PyRuntime;
 
     interpreter_candidates.clear();
-    const auto interpreter_traversal =
+    const bool all_interpreter_data_captured =
       for_each_interp(runtime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
 #if PY_VERSION_HEX >= 0x030e0000
     // This lock-free snapshot can race with code destruction during the sampling cycle. In that case, the current
     // cycle may use stale frame metadata; the next cycle observes the generation change and clears the cache.
-    if (!echion->update_code_object_generations(interpreter_candidates, interpreter_traversal.complete())) {
-        return interpreter_traversal;
+    if (!echion->update_code_object_generations(interpreter_candidates, all_interpreter_data_captured)) {
+        return;
     }
+#else
+    (void)all_interpreter_data_captured;
 #endif
 
     // When max_threads_per_sample is set, we collect all threads first, then apply
@@ -391,8 +367,6 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
             }
         }
     }
-
-    return interpreter_traversal;
 }
 
 void
@@ -530,7 +504,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         echion->reset_asyncio_task_count();
 
         try {
-            const auto interpreter_traversal = capture_samples(wall_time_us);
+            capture_samples(wall_time_us);
 
             // Collect greenlet count before acquiring the profile lock to avoid
             // holding two locks simultaneously (greenlet lock then profile lock).
@@ -567,7 +541,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 update_fast_copy_stats(borrow.stats());
                 borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
                 borrow.stats().set_greenlet_count(greenlet_count);
-                record_interpreter_traversal_issues(borrow.stats(), interpreter_traversal);
 
                 if (copy_errors > 0) {
                     borrow.stats().add_copy_memory_error_count(copy_errors);
