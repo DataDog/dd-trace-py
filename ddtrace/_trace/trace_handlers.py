@@ -2026,7 +2026,6 @@ def listen():
     for context_name in (
         # web frameworks
         "cherrypy.request",
-        "falcon.request",
         "molten.request",
         "molten.trace_func",
         "pyramid.request",
