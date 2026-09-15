@@ -85,7 +85,7 @@ def test_collect_truncate() -> None:
     ddup.config(env="test", service="test", version="0.0.0", max_nframes=64, output_filename=pprof_prefix)
     ddup.start()
     with stack.StackCollector():
-        assert _stack._get_frame_limits() == (max_nframes, 1024)
+        assert _stack._get_frame_limits() == (max_nframes, 256)
         func1()
     ddup.upload()
 
@@ -111,14 +111,17 @@ def test_collect_truncate() -> None:
 
 
 @pytest.mark.subprocess
-def test_native_frame_limit() -> None:
+def test_native_frame_limit_scales_cache() -> None:
     from ddtrace.internal.datadog.profiling.stack import _stack
 
     _stack.set_max_frames(0)
-    assert _stack._get_frame_limits() == (64, 1024)
+    assert _stack._get_frame_limits() == (64, 256)
 
     _stack.set_max_frames(65)
-    assert _stack._get_frame_limits() == (65, 1024)
+    assert _stack._get_frame_limits() == (65, 260)
+
+    _stack.set_max_frames(512)
+    assert _stack._get_frame_limits() == (512, 1024)
 
     _stack.set_max_frames(10_000)
     assert _stack._get_frame_limits() == (10_000, 1024)
@@ -203,7 +206,7 @@ def test_set_max_frames_after_fork_restart() -> None:
             try:
                 stack.stop()
                 stack.set_max_frames(1)
-                assert _stack._get_frame_limits() == (1, 1024)
+                assert _stack._get_frame_limits() == (1, 256)
                 assert stack.start()
                 func1()
                 stack.stop()
@@ -273,7 +276,7 @@ def test_asyncio_discovery_ignores_plain_stack_limit() -> None:
         await inner()
 
     with stack.StackCollector(nframes=1):
-        assert _stack._get_frame_limits() == (1, 1024)
+        assert _stack._get_frame_limits() == (1, 256)
         sync_outer()
         asyncio.run(outer())
 
@@ -748,7 +751,7 @@ def test_collect_gevent_thread_task() -> None:
     threads = []
 
     with stack.StackCollector(nframes=1):
-        assert _stack._get_frame_limits() == (1, 1024)
+        assert _stack._get_frame_limits() == (1, 256)
         for i in range(5):
             t = threading.Thread(target=_do_fib, name=f"TestThread {i}")
             t.start()
