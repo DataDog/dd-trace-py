@@ -455,6 +455,31 @@ Traces
      version_added:
         v4.11.0:
 
+   DD_LLMOBS_SAMPLING_RULES:
+     type: String
+     default: ""
+
+     description: |
+         A JSON array of env-based sampling rules for LLM Observability traces, mirroring the format of
+         ``DD_TRACE_SAMPLING_RULES``. Each rule requires a ``sample_rate`` and may declare an ``env``,
+         which is glob-matched (case-insensitively, with ``*`` matching any number of characters and
+         ``?`` matching exactly one) against the env the service is running under, as set by ``DD_ENV``.
+         A rule that declares no ``env`` matches every trace, which makes it useful as a catch-all in
+         the final position.
+
+         Rules are evaluated in the order they are declared and the first match wins. Traces that match
+         no rule fall back to ``DD_LLMOBS_SAMPLE_RATE``. The decision is made once, on the root span of
+         the LLM Observability trace, and is inherited by every child span in that trace, including
+         across distributed boundaries.
+
+         For example, to keep 50% of production traces and 10% of staging traces::
+
+             DD_LLMOBS_SAMPLING_RULES='[{"env": "prod", "sample_rate": 0.5},
+                                        {"env": "staging", "sample_rate": 0.1}]'
+
+     version_added:
+        v4.15.0:
+
 Trace Context propagation
 -------------------------
 
