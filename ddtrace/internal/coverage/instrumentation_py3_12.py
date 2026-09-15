@@ -16,6 +16,7 @@ import typing as t
 from bytecode import Bytecode
 
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
@@ -23,7 +24,6 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_impor
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
@@ -64,6 +64,14 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
         "using conservative static import tracking instead",
         sys.version.split()[0],
     )
+
+# TODO(py-315): Accurate import-hook injection (_DD_COVERAGE_ACCURATE_IMPORTS) is unsupported on
+# 3.15+ because the `bytecode` library's CALL codegen segfaults on exec under CPython 3.15.0rc1,
+# which is what ddtrace.internal.bytecode_injection.INJECTION_ASSEMBLY relies on to splice hook
+# calls after import opcodes (see import_instrumentation_py3_12.inject_import_hooks). Re-enabling
+# this needs either an upstream `bytecode` fix, or reimplementing injection on sys.monitoring
+# INSTRUCTION events. Static import tracking (iter_import_events/import_names_by_line) already
+# works on 3.15+ and is used as the fallback.
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
@@ -413,7 +421,7 @@ def _extract_lines_and_imports(
     injection needs richer bytecode objects, but conservative import metadata and line extraction can be decoded from
     CPython wordcode directly with much lower overhead.
 
-    AIDEV-NOTE: This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
+    This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
     CACHE entries must not enter the argument history; 3.14+ LOAD_SMALL_INT stores the integer directly instead of
     indexing co_consts; dis.findlinestarts() owns the version-specific line table decoding; and 3.15+ PEP 810
     bit-packs IMPORT_NAME's co_names index behind lazy-import flag bits.
@@ -501,7 +509,7 @@ def _extract_lines_and_imports(
                 else:
                     import_names[line] = (current_import_package or package, (import_from_name,))
 
-            # AIDEV-NOTE: Decode argument value and shift history after opcode handling. IMPORT_NAME reads
+            # Decode argument value and shift history after opcode handling. IMPORT_NAME reads
             # prev_prev_value before this block because the import sequence is level, fromlist, IMPORT_NAME.
             if opcode == LOAD_CONST:
                 decoded = code.co_consts[current_arg]

@@ -147,11 +147,8 @@ add_tag(rust::Vec<ddprof::Tag>& tags, const ExportTagKey key, std::string_view v
 
 namespace internal {
 
-// Fork-safe cached interning for tag and label keys
-// Caches are stored in the ProfilerState singleton and reset on fork
-std::optional<ddprof::DictionaryStringId>
-to_interned_string(ExportTagKey key);
-
+// Fork-safe cached interning for label keys.
+// The cache is stored in the ProfilerState singleton and reset on fork.
 std::optional<ddprof::DictionaryStringId>
 to_interned_string(ExportLabelKey key);
 

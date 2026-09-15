@@ -1,9 +1,13 @@
-#include "sample.hpp"
-
+// TODO(py-315): Python.h must be included first, before any system or project headers.
+// CPython's pyconfig.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE to their current
+// POSIX standard values (202405L on 3.15+). If system headers (included transitively
+// via libdatadog_helpers.hpp → features.h) are pulled in first, they define older
+// values (200809L), and pyconfig.h's later redefinition triggers -Werror on GCC/Clang.
 #define PY_SSIZE_T_CLEAN
-
 #include <Python.h>
 #include <frameobject.h>
+
+#include "sample.hpp"
 
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
@@ -468,21 +472,6 @@ Datadog::Sample::reset_alloc()
     }
 }
 
-void
-Datadog::Sample::reset_heap()
-{
-    if (0U != (type_mask & SampleType::Heap)) {
-        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
-        const size_t heap_count_idx = ProfilerState::get().profile_state.val().heap_count;
-        if (heap_space_idx < values.size()) {
-            values[heap_space_idx] = 0;
-        }
-        if (heap_count_idx < values.size()) {
-            values[heap_count_idx] = 0;
-        }
-    }
-}
-
 bool
 Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 {
@@ -773,12 +762,6 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
     }
 
     return true;
-}
-
-void
-Datadog::Sample::set_timeline(bool enabled)
-{
-    ProfilerState::get().timeline_enabled = enabled;
 }
 
 bool

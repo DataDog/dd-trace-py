@@ -103,9 +103,7 @@ class ProfilerState
     // ========================================================================
     // Interned string caches
     // ========================================================================
-    static constexpr size_t kNumTagKeys = static_cast<size_t>(ExportTagKey::Length_);
     static constexpr size_t kNumLabelKeys = static_cast<size_t>(ExportLabelKey::Length_);
-    std::array<std::atomic<ddprof::DictionaryStringId>, kNumTagKeys> tag_cache{};
     std::array<std::atomic<ddprof::DictionaryStringId>, kNumLabelKeys> label_cache{};
 
     // Internal helpers

@@ -66,9 +66,6 @@ ProfilerState::release_profiles_dictionary()
 void
 ProfilerState::reset_key_caches()
 {
-    for (auto& entry : tag_cache) {
-        entry.store({}, std::memory_order_relaxed);
-    }
     for (auto& entry : label_cache) {
         entry.store({}, std::memory_order_relaxed);
     }

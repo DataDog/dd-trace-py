@@ -1,0 +1,12 @@
+_v: 1
+name: mariadb
+display_name: MariaDB
+description: Instruments MariaDB database queries, stored procedure calls, transaction commits and rollbacks, and optionally
+  result-fetch operations through traced DB-API connections.
+packages:
+- name: mariadb
+category:
+- db.client
+systems:
+- mariadb
+creation_date: '2021-07-21'
