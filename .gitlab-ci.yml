@@ -6,8 +6,6 @@ stages:
   - fuzz
   - shared-pipeline-test
   - benchmarks
-  - python-flask-realworld-parallel
-  - python-flask-realworld-parallel-slo
   - release
   - shared-pipeline-publish
 
@@ -82,19 +80,6 @@ include:
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
-  - project: 'DataDog/apm-reliability/apm-sdks-benchmarks'
-    file: '.gitlab/ci-python-flask-realworld-parallel.yml'
-    ref: 'main'
-
-# Pin the benchmarking-platform image for the python-flask-realworld-parallel jobs
-# included from DataDog/apm-reliability/apm-sdks-benchmarks above.
-linux-python-flask-realworld-parallel:
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
-  needs:
-    - job: "upload all"
-
-python-flask-realworld-parallel-check-slo-breaches:
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
 
 "pipeline variables":
   stage: .pre
@@ -256,6 +241,17 @@ macrobenchmarks:
     # Otherwise, run manually
     - when: manual
       allow_failure: true
+
+# Benchmarks from DataDog/apm-reliability/apm-sdks-benchmarks, run as a child
+# pipeline so their stages stay out of this pipeline's stage list.
+apm-sdks-benchmarks:
+  stage: benchmarks
+  needs:
+    - job: "upload all"
+  trigger:
+    include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
+    strategy: depend
+  allow_failure: true
 
 check_new_flaky_tests:
   stage: tests

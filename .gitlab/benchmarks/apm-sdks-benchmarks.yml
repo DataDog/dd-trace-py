@@ -1,0 +1,18 @@
+# The included jobs declare these stages but apm-sdks-benchmarks does not define them,
+# so the consuming pipeline has to. A child pipeline does not inherit the parent's stages.
+stages:
+  - python-flask-realworld-parallel
+  - python-flask-realworld-parallel-slo
+
+include:
+  - project: 'DataDog/apm-reliability/apm-sdks-benchmarks'
+    file: '.gitlab/ci-python-flask-realworld-parallel.yml'
+    ref: 'main'
+
+# The included jobs default to the floating benchmarking-platform-tools-ubuntu:newest
+# tag, which would let the image change under a pipeline without a code change here.
+linux-python-flask-realworld-parallel:
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
+
+python-flask-realworld-parallel-check-slo-breaches:
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
