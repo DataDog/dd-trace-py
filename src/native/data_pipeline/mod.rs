@@ -75,6 +75,13 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    /// Set the runtime id reported by the exporter. libdatadog generates a fresh UUID when it is
+    /// left unset.
+    fn set_runtime_id(mut slf: PyRefMut<'_, Self>, runtime_id: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_runtime_id(runtime_id);
+        Ok(slf.into())
+    }
+
     fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_process_tags(process_tags);
         Ok(slf.into())

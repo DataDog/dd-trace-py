@@ -179,6 +179,20 @@ def test_raise_property_bridges_to_native():
         config._raise = original
 
 
+def test_new_config_does_not_change_native_raise():
+    from ddtrace.internal.native import config as native_config
+
+    original = native_config.get_raise()
+    try:
+        native_config.set_raise(True)
+        with override_env(dict(), replace_os_env=True):
+            Config()
+
+        assert native_config.get_raise() is True
+    finally:
+        native_config.set_raise(original)
+
+
 def test_agentless_enabled_requires_an_api_key():
     with override_env(dict(DD_AGENTLESS_ENABLED="true"), replace_os_env=True):
         with pytest.raises(ValueError, match="DD_API_KEY"):
