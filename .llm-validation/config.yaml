@@ -6,8 +6,26 @@ runs: 3
 # List more than one to validate the combined instruction set (e.g. AGENTS.md + a Claude skill file).
 instruction_files:
   - AGENTS.md
+  - .agents/skills/dd-apm-sdk-review/SKILL.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/_common.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/coherence.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/correctness.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/design.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/performance.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/maintainability.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/conventions.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/cross-sdk.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/report-template.md
+  - .agents/skills/dd-apm-sdk-review/review-without-harness.md
+  - .agents/dd-apm-sdk-review-overrides/repo-context.md
+  - .agents/dd-apm-sdk-review-overrides/reviewers/performance.md
 default_level: full
 presets:
+  gate: # Existing flagship + the skill starter. CI still uses `full` by default.
+    cases:
+      - python-tracer-testing-mandate-001
+      - py-perf-hotpath-pure-python
+    runs: 3
   minimum: # the 1 flagship case. The gating default.
     cases: ["python-tracer-testing-mandate-001"]
     runs: 4 # 4 runs = 8 pairwise comparisons. runs=3 was too noisy (same inputs

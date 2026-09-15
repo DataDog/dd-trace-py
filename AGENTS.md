@@ -123,6 +123,18 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `debug-build-times`             | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow.                                                                                                                                       |
 | `apm-integrations`              | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration.                                     |
 | `llmobs-integrations`           | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
+| [`dd-apm-sdk-review`](./.agents/skills/dd-apm-sdk-review/) | On-demand multi-perspective code review. Invoke when asked. Does not replace `run-tests`, `lint`, or `review-ci`. |
+
+## Review Guidelines
+
+**Local agent with a skill harness:** Run the [dd-apm-sdk-review](./.agents/skills/dd-apm-sdk-review/) skill on demand when asked. It is not required before every push. If any
+`P0` issues are reported, you must either fix them or get explicit authorization from the human you
+are working with and record the unresolved finding in the PR description (location and class of issue only — never paste secret values, tokens, credentials, or exploit details). `P1` and `P2`
+findings can be dismissed by the human.
+
+**Reviewer without a skill harness** (for example, GitHub Codex): read and follow
+[`.agents/skills/dd-apm-sdk-review/review-without-harness.md`](./.agents/skills/dd-apm-sdk-review/review-without-harness.md).
+Do not load `SKILL.md` or `reviewers/report-template.md`.
 
 ## Domain Guides
 

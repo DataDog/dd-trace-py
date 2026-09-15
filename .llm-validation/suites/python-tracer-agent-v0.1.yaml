@@ -154,3 +154,35 @@ cases:
     bad_signals:
       - Claims Python threads run CPU-bound work fully in parallel on CPython.
       - Invents a non-existent GIL-removal flag as the standard fix.
+
+  # Starter case for the dd-apm-sdk-review skill (one pattern on purpose).
+  # only_warn until calibrated — runs=3 is too noisy for a new blocking case
+  # (see config.yaml comment on python-tracer-testing-mandate-001).
+  - id: py-perf-hotpath-pure-python
+    only_warn: true
+    files: [AGENTS.md, .agents/skills/dd-apm-sdk-review/reviewers/performance.md, .agents/skills/dd-apm-sdk-review/reviewers/_common.md, .agents/dd-apm-sdk-review-overrides/reviewers/performance.md]
+    input: |
+      Apply this repo's performance-review criteria (reviewers/performance.md, its
+      .agents/dd-apm-sdk-review-overrides/reviewers/performance.md override, _common.md,
+      and AGENTS.md) to the following change. No git checkout available — this snippet
+      is the entire change to review.
+
+      ```python
+      # Called when encoding baggage / propagation headers on every request.
+      def encode_tagset_values(values, max_size=512):
+          parts = []
+          for key, value in values.items():
+              parts.append("{}={}".format(key, value))
+          encoded = ",".join(parts)
+          if len(encoded) > max_size:
+              encoded = encoded[:max_size]
+          return encoded
+      ```
+    expected_criteria:
+      - "Flags this as a pure-Python reimplementation of work ddtrace/internal/_tagset.pyx (encode_tagset_values) already does."
+      - "Says to call the existing helper, not to add a new Cython module from the snippet alone (AGENTS.md requires a profile/benchmark before new native code)."
+      - Classifies the finding as at least P1, not a style nit.
+    bad_signals:
+      - Approves the snippet as the recommended per-request pattern.
+      - Treats this Python loop as equivalent to calling the existing Cython helper.
+      - Flags ordinary span.set_tag / HTTP tag dicts as the same finding.
