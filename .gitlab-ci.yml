@@ -205,18 +205,6 @@ microbenchmarks:
     # so downstream code must treat that literal as unset.
     BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
 
-apm-sdk-benchmarks:
-  stage: benchmarks
-  when: manual
-  allow_failure: true
-  needs:
-    - job: "upload all"
-  trigger:
-    project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
-  variables:
-    TARGET_REF: $CI_PIPELINE_ID
-
 macrobenchmarks:
   stage: benchmarks
   needs:
@@ -253,6 +241,21 @@ macrobenchmarks:
     # Otherwise, run manually
     - when: manual
       allow_failure: true
+
+apm-sdks-benchmarks:
+  stage: benchmarks
+  needs:
+    - job: "upload all"
+  variables:
+    # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
+    # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
+    # all". Inside a child pipeline that variable is the child's own ID, not
+    # this (parent) pipeline's, so it must be passed explicitly.
+    TARGET_REF: $CI_PIPELINE_ID
+  trigger:
+    include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
+    strategy: depend
+  allow_failure: true
 
 check_new_flaky_tests:
   stage: tests
