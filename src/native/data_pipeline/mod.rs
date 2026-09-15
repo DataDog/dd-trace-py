@@ -1,7 +1,7 @@
 use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::trace_exporter::{
-    agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
-    TraceExporterInputFormat, TraceExporterOutputFormat,
+    agent_response::AgentResponse, stats::CardinalityLimitConfig, TelemetryConfig, TraceExporter,
+    TraceExporterBuilder, TraceExporterInputFormat, TraceExporterOutputFormat,
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
@@ -172,6 +172,25 @@ impl TraceExporterBuilderPy {
         tag_keys: Vec<String>,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_additional_metric_tag_keys(tag_keys);
+        Ok(slf.into())
+    }
+
+    fn set_stats_cardinality_limit(
+        mut slf: PyRefMut<'_, Self>,
+        whole_key_limit: usize,
+        resource_limit: usize,
+        http_endpoint_limit: usize,
+        peer_tags_limit: usize,
+        additional_tags_limit: usize,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?
+            .set_stats_cardinality_limit(CardinalityLimitConfig {
+                whole_key_limit,
+                resource_limit,
+                http_endpoint_limit,
+                peer_tags_limit,
+                additional_tags_limit,
+            });
         Ok(slf.into())
     }
 

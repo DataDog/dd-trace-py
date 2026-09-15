@@ -685,6 +685,21 @@ class Config(object):
             [],
             lambda value: [tag.strip() for tag in value.split(",") if tag.strip()],
         )
+        # Cardinality limits for stats aggregation keys
+        self._trace_stats_cardinality_limits: dict[str, int] = {}
+        for env_name, field, limit_default in (
+            ("DD_TRACE_STATS_CARDINALITY_LIMIT", "whole_key_limit", 7000),
+            ("DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT", "resource_limit", 1024),
+            ("DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT", "http_endpoint_limit", 512),
+            ("DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT", "peer_tags_limit", 512),
+            ("DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT", "additional_tags_limit", 100),
+        ):
+            limit = _get_config(env_name, limit_default, int)
+            if limit <= 0:
+                log.warning("Invalid value %r provided for %s, only positive values allowed", limit, env_name)
+                limit = limit_default
+            self._trace_stats_cardinality_limits[field] = limit
+
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
