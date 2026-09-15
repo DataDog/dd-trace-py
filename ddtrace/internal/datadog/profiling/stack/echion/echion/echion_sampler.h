@@ -11,6 +11,8 @@
 #include <random>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include <echion/cache.h>
 #include <echion/config.h>
@@ -90,6 +92,9 @@ class EchionSampler
     // Caches
     StringTable string_table_;
     LRUCache<uintptr_t, Frame> frame_cache_;
+#if PY_VERSION_HEX >= 0x030e0000
+    std::vector<std::pair<int64_t, uint64_t>> code_object_generations_;
+#endif
 
     // Stack renderer for outputting samples
     Datadog::StackRenderer renderer_;
@@ -171,6 +176,42 @@ class EchionSampler
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
+    void invalidate_frame_identity_cache() { frame_cache_.clear(); }
+
+#if PY_VERSION_HEX >= 0x030e0000
+    bool update_code_object_generations(const std::vector<InterpreterInfo>& interpreters,
+                                        bool all_interpreter_data_captured)
+    {
+        if (!all_interpreter_data_captured || interpreters.empty()) {
+            invalidate_frame_identity_cache();
+            code_object_generations_.clear();
+            return false;
+        }
+
+        bool generations_changed = interpreters.size() != code_object_generations_.size();
+        if (!generations_changed) {
+            for (const auto& interpreter : interpreters) {
+                const std::pair<int64_t, uint64_t> generation{ interpreter.id, interpreter.code_object_generation };
+                if (!std::binary_search(code_object_generations_.begin(), code_object_generations_.end(), generation)) {
+                    generations_changed = true;
+                    break;
+                }
+            }
+        }
+
+        if (generations_changed) {
+            invalidate_frame_identity_cache();
+            code_object_generations_.clear();
+            code_object_generations_.reserve(interpreters.size());
+            for (const auto& interpreter : interpreters) {
+                code_object_generations_.emplace_back(interpreter.id, interpreter.code_object_generation);
+            }
+            std::sort(code_object_generations_.begin(), code_object_generations_.end());
+        }
+        return true;
+    }
+#endif
+
     void postfork_child()
     {
         // Re-init mutexes (placement new to avoid UB)
@@ -185,6 +226,9 @@ class EchionSampler
         // because the Sampling Thread may have been modifying the cache when fork
         // took its snapshot. Traversing a corrupted list to free nodes would crash.
         frame_cache_.postfork_child();
+#if PY_VERSION_HEX >= 0x030e0000
+        new (&code_object_generations_) std::vector<std::pair<int64_t, uint64_t>>();
+#endif
 
         // Also use placement new for all containers touched by the sampling thread.
         // Using placement new means the existing containers are abandoned and
