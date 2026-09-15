@@ -111,16 +111,36 @@ This requires "fails normally several times, then hangs" — uncommon, and bound
 that gap exactly needs persisting retry state across the process boundary, which is deferred
 (see below).
 
-Deferred follow-ups (not in this PR)
-------------------------------------
-1. Backend visibility of the crash attempt. Today the backend sees only the re-run's result
-   (the crash attempt's buffered start event is lost to os._exit and the main process does
-   not emit per-test events under xdist). A follow-up will make the main process emit a
-   backend "retry attempt (crashed)" event per crash so ATR retry counts/visibility are
-   preserved across worker restarts. This also covers preserving EFD/ATF final-status
-   semantics across worker crashes (e.g. an ATF test that crashes then passes should be
-   reported as failed, not passed).
-2. Exact global budget for the mixed path (cross-process retry-state persistence).
+Backend visibility of the crash attempt
+-----------------------------------------
+The worker's in-progress test run is lost to os._exit (no flush), so the backend would
+only see the replacement worker's re-queue result. To fix this, the main process emits
+a fail-status TestRun event for each crash (see _emit_crash_test_run), tagged as a retry
+with reason "xdist_worker_crash". The backend correlates it with the re-queue's result
+via the shared test_session_id / test_suite_id / test name (the main and workers share
+the same session id, passed via workerinput at pytest_configure_node). This gives the
+backend the full retry history: crash (fail) then re-queue (pass/fail), with correct
+retry counts.
+
+The crash TestRun is created on the Test object discovered in the main's session via
+logstart (SessionManager.discover_test works on demand, even though the main prohibits
+collection). The attempt_number is the crash count (1 for the first crash, 2 for the
+second, etc.), matching the re-queue sequence.
+
+ATF/EFD final-status semantics: the crash event's fail status is visible to the backend,
+so an ATF test that crashes then passes on the re-queue has both a fail and a pass in
+its retry history. The backend can correctly determine the final status (ATF requires
+all attempts to pass; EFD marks flaky if pass-after-fail). The replacement worker's
+fresh Test object does not see the crash, but the backend's view is complete because
+the crash event carries the fail.
+
+Deferred follow-up (not in this PR)
+-----------------------------------
+1. Exact global budget for the mixed path (cross-process retry-state persistence):
+   if a worker does in-worker ATR retries then crashes, the replacement worker starts
+   fresh and could redo a full in-worker budget. The crash event only records the
+   crash, not the in-worker retries that preceded it, so the backend's retry count may
+   under-count in the mixed path.
 """
 
 from __future__ import annotations
@@ -131,13 +151,20 @@ import typing as t
 import pytest
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
 from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
 from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
+from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
+from ddtrace.testing.internal.test_data import ModuleRef
+from ddtrace.testing.internal.test_data import SuiteRef
+from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestStatus
+from ddtrace.testing.internal.test_data import TestTag
 
 
 log = get_logger(__name__)
@@ -170,6 +197,9 @@ class XdistTestOptPlugin:
         # DynamicATRRetriesHandler's lru_cache behavior: the initial attempt's duration determines
         # the bucket for all subsequent retries of that test.
         self._cached_caps_by_nodeid: dict[str, int] = {}
+        # Per-nodeid Test objects discovered in the main's session via logstart. Used to emit
+        # backend crash-attempt events (see _emit_crash_test_run).
+        self._tests_by_nodeid: dict[str, t.Any] = {}
         # Retry handlers for this session, built from settings. The main (controller) process
         # prohibits collection (DSession.pytest_collection returns True), so
         # pytest_collection_finish never fires in the main and
@@ -211,15 +241,30 @@ class XdistTestOptPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logstart(self, nodeid: str, location: t.Any) -> None:
-        """Record the monotonic start time for each test before the worker runs it.
+        """Record the monotonic start time and discover the test in the main's session.
 
         xdist re-fires pytest_runtest_logstart in the main process (via worker_logstart) before
         the worker executes the test. For a test that crashes during the call (e.g. pytest-timeout
         method="thread" calling os._exit), this fires before the crash, so we have a reliable
-        start time to measure the crash duration from. See module docstring for why this is
-        main-process state (no reliance on worker-sent data surviving os._exit).
+        start time to measure the crash duration from. We also discover the test in the main's
+        session so we can emit a backend crash-attempt event later (see _emit_crash_test_run).
         """
         self._start_times_by_nodeid[nodeid] = time.monotonic()
+        # Discover the test in the main's session so we can make_test_run on it if the worker crashes.
+        # The main prohibits collection, but SessionManager.discover_test works on demand.
+        if nodeid not in self._tests_by_nodeid:
+            module_name, suite_name, test_name = nodeid_to_names(nodeid)
+            test_ref = TestRef(SuiteRef(ModuleRef(module_name), suite_name), test_name)
+            try:
+                _, _, test = self.main_plugin.manager.discover_test(
+                    test_ref,
+                    on_new_module=lambda m: None,
+                    on_new_suite=lambda s: None,
+                    on_new_test=lambda t: None,
+                )
+                self._tests_by_nodeid[nodeid] = test
+            except Exception:
+                log.debug("Could not discover test %s in main process for crash event", nodeid, exc_info=True)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logfinish(self, nodeid: str, location: t.Any) -> None:
@@ -265,6 +310,11 @@ class XdistTestOptPlugin:
         self._crash_retries[crashitem] = count + 1
         sched.mark_test_pending(crashitem)
 
+        # Emit a backend event for the crashed attempt so the backend sees the full retry
+        # history (crash = fail, then the re-queue's result). Without this, the backend would
+        # only see the re-queue's result with no indication the test was retried.
+        self._emit_crash_test_run(crashitem, count + 1, duration)
+
         # Relabel the crash report as a retry so pytest's terminal summary does not count it
         # as a final failure; the re-queued run will emit its own pass/fail report that
         # determines the outcome.
@@ -274,3 +324,37 @@ class XdistTestOptPlugin:
             (_CRASH_RETRY_NUMBER_KEY, count + 1),
         ]
         return None
+
+    def _emit_crash_test_run(self, nodeid: str, attempt_number: int, duration: float) -> None:
+        """Emit a backend TestRun event for a crashed test attempt.
+
+        The worker's in-progress test run is lost to os._exit (no flush), so the backend would
+        only see the replacement worker's re-queue result. This emits a fail-status TestRun
+        from the main process, tagged as a retry with reason "xdist_worker_crash", so the backend
+        sees the full retry history: crash (fail) then re-queue (pass/fail). The TestRun is
+        correlated with the re-queue via the shared test_session_id / test_suite_id / test name
+        (the main and workers share the same session id, passed via workerinput at
+        pytest_configure_node).
+        """
+        test = self._tests_by_nodeid.get(nodeid)
+        if test is None:
+            log.debug("Cannot emit crash test run for %s: test not discovered", nodeid)
+            return
+
+        test_run = test.make_test_run()
+        test_run.set_status(TestStatus.FAIL)
+        test_run.set_tags(
+            {
+                TestTag.IS_RETRY: TAG_TRUE,
+                TestTag.RETRY_REASON: _CRASH_RETRY_REASON_VALUE,
+            }
+        )
+        # Set a minimal duration so the backend has timing context. Use the measured crash
+        # duration (setup + call up to the timeout) in nanoseconds.
+        import time as _time_mod
+
+        test_run.start_ns = (
+            int((_time_mod.monotonic() - duration) * 1e9) if duration > 0 else int(_time_mod.monotonic() * 1e9)
+        )
+        test_run.finish()
+        self.main_plugin.manager.writer.put_item(test_run)
