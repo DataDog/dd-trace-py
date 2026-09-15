@@ -287,7 +287,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, aiohttp]
   aiohttp_jinja2:
-    venvs_per_job: 6
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -329,7 +329,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, aiohttp_jinja2, jinja2, 'pytest-asyncio>=1.0.0']
   aiomysql:
-    parallelism: 2
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -412,7 +412,7 @@ suites:
         - name: aiopg
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.4.0']
   algoliasearch:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -450,7 +450,7 @@ suites:
         - name: anyio
           dependencies: [pytest-randomly, anyio, trio]
   aredis:
-    parallelism: 1
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -494,7 +494,7 @@ suites:
           dependencies: ['pytest-asyncio==0.21.1', 'httpx<0.28.0', asgiref, pytest-randomly]
   asyncpg:
     retry: 2
-    parallelism: 2
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -522,7 +522,7 @@ suites:
           python: ['3.11']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.27']
   asynctest:
-    parallelism: 1
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -539,7 +539,7 @@ suites:
         - name: asynctest
           dependencies: ['pytest>=6.0,<7.0', pytest-randomly, 'asynctest==0.13.0']
   avro:
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -554,7 +554,7 @@ suites:
         - name: avro
           dependencies: [avro, pytest-randomly]
   aws_lambda:
-    parallelism: 2
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -621,7 +621,7 @@ suites:
         - name: azure_cosmos
           dependencies: [azure.cosmos, 'pytest-asyncio==0.23.7', aiohttp, six]
   azure_eventhubs:
-    parallelism: 4
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -685,7 +685,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure-functions-durable]
   azure_functions:
-    parallelism: 4
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -743,7 +743,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
-    parallelism: 4
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -770,7 +770,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [azure.functions, azure.eventhub, azure.storage.blob]
   azure_functions:servicebus:
-    parallelism: 4
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -798,7 +798,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [azure.functions, azure.servicebus]
   azure_servicebus:
-    parallelism: 4
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -827,7 +827,7 @@ suites:
           dependencies: [azure.servicebus, pytest-asyncio]
   botocore:
     retry: 2
-    parallelism: 11
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -851,7 +851,7 @@ suites:
         - name: botocore
           dependencies: ['moto[all]<5.0', pytest-randomly, 'vcrpy==7.0.0', 'botocore==1.38.26', 'boto3==1.38.26']
   bottle:
-    parallelism: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -932,7 +932,7 @@ suites:
         - name: cherrypy
           dependencies: [pytest-randomly, cherrypy, 'more_itertools<8.11.0']
   consul:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -951,7 +951,7 @@ suites:
         - name: consul
           dependencies: [python-consul, pytest-randomly]
   datastreams:
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -966,7 +966,7 @@ suites:
         - name: datastreams-latest
           dependencies: [msgpack, pytest-randomly]
   ddtrace_api:
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -980,7 +980,7 @@ suites:
         - name: ddtrace_api
           dependencies: ['ddtrace-api==0.0.1', requests]
   django:
-    parallelism: 6
+    venvs_per_job: 2
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
@@ -1067,7 +1067,7 @@ suites:
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, sqlalchemy, django]
           command: pytest {cmdargs} tests/contrib/django_celery
   django_hosts:
-    parallelism: 2
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -1093,7 +1093,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, django_hosts, 'django~=4.0']
   django:djangorestframework:
-    parallelism: 2
+    venvs_per_job: 7
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -1157,7 +1157,7 @@ suites:
   dramatiq:
     env:
       TEST_REDIS_HOST: redis
-    parallelism: 1
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -1475,7 +1475,7 @@ suites:
           python: ['3.12']
           dependencies: [falcon, 'setuptools<82', 'google-cloud-pubsub==2.14.0']
   graphql:graphene:
-    parallelism: 1
+    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -1498,7 +1498,7 @@ suites:
           python: ['3.14']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -1577,7 +1577,7 @@ suites:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
           command: python -m pytest {cmdargs} tests/contrib/grpc_aio
   gunicorn:
-    parallelism: 6
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1614,7 +1614,7 @@ suites:
         - name: httplib
           dependencies: [pytest-randomly]
   httpx:
-    parallelism: 3
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1648,7 +1648,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, httpx, legacy-cgi]
   httpx2:
-    parallelism: 2
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -1678,7 +1678,7 @@ suites:
       - '@integration_registry'
       - tests/contrib/integration_registry/*
     snapshot: false
-    parallelism: 1
+    venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/contrib/integration_registry
       python: ['3.13']
@@ -1687,7 +1687,7 @@ suites:
           dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema]
           riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', 'riot==0.22.0', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema]
   jinja2:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -1711,7 +1711,7 @@ suites:
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
-    parallelism: 4
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1738,7 +1738,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
-    parallelism: 1
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -1765,7 +1765,7 @@ suites:
           python: ['3.10', '3.11']
           dependencies: [pytest-randomly, 'kombu>=5.2,<5.3']
   logbook:
-    parallelism: 1
+    venvs_per_job: 4
     paths:
       - '@core'
       - '@contrib'
@@ -1783,7 +1783,7 @@ suites:
         - name: logbook
           dependencies: [logbook, pytest-randomly]
   loguru:
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@core'
       - '@contrib'
@@ -1801,7 +1801,7 @@ suites:
         - name: loguru
           dependencies: [loguru, pytest-randomly]
   mako:
-    parallelism: 1
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -1866,7 +1866,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
-    parallelism: 2
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -1916,7 +1916,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    venvs_per_job: 4
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1967,7 +1967,7 @@ suites:
             SDK_EXPORTER_INSTALLED: '1'
   protobuf:
     retry: 2
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2020,7 +2020,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio>=1.0']
   pylibmc:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -2040,7 +2040,7 @@ suites:
         - name: pylibmc
           dependencies: [pytest-randomly, pylibmc]
   pymemcache:
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -2097,7 +2097,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.12.3']
   pymysql:
-    parallelism: 1
+    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -2123,7 +2123,7 @@ suites:
         - name: pymysql
           dependencies: [pytest-randomly, pymysql]
   pynamodb:
-    parallelism: 2
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -2204,7 +2204,7 @@ suites:
           python: ['3.12']
           dependencies: [torch]
   pyodbc:
-    parallelism: 1
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -2223,7 +2223,7 @@ suites:
         - name: pyodbc
           dependencies: [pytest-randomly, pyodbc]
   pyramid:
-    parallelism: 1
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -2249,7 +2249,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid, legacy-cgi]
   ray:
-    parallelism: 3
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -2275,7 +2275,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['ray[default]~=2.54.1']
   ray_serve:
-    parallelism: 6
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -2302,7 +2302,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [fastapi, 'protobuf==4.25.8', 'ray[serve]~=2.54.1']
   redis:
-    parallelism: 5
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -2335,7 +2335,7 @@ suites:
           python: ['3.14']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -2358,7 +2358,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -2384,7 +2384,7 @@ suites:
           python: ['3.11']
           dependencies: [pytest-randomly, 'urllib3~=1.0', 'requests-mock>=1.4', 'requests~=2.28.0']
   rq:
-    parallelism: 1
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -2487,7 +2487,7 @@ suites:
           dependencies: ['responses~=0.16.0', 'cryptography<39', pytest-randomly, 'snowflake-connector-python~=2.7.2']
   sourcecode:
     retry: 2
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2502,7 +2502,7 @@ suites:
         - name: sourcecode
           dependencies: [setuptools, pytest-randomly]
   sqlalchemy:
-    parallelism: 1
+    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -2575,7 +2575,7 @@ suites:
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, anyio, starlette, httpx2]
   stdlib:
     retry: 2
-    parallelism: 2
+    venvs_per_job: 5
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -2637,7 +2637,7 @@ suites:
           dependencies: [pytest-randomly, uvloop, 'pytest-asyncio>=1.0.0']
           command: pytest {cmdargs} tests/contrib/asyncio
   structlog:
-    parallelism: 1
+    venvs_per_job: 4
     paths:
       - '@core'
       - '@contrib'
@@ -2653,7 +2653,7 @@ suites:
         - name: structlog
           dependencies: [structlog, pytest-randomly]
   subprocess:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -2668,7 +2668,7 @@ suites:
         - name: subprocess
           dependencies: [pytest-randomly]
   logging:
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2712,7 +2712,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'tornado==6.4.1']
   urllib3:
-    parallelism: 2
+    venvs_per_job: 6
     env:
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
@@ -2745,7 +2745,7 @@ suites:
           python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
   vertica:
-    parallelism: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -2764,7 +2764,7 @@ suites:
           python: ['3.9']
           dependencies: ['vertica-python>=0.7.0,<0.8.0', pytest-randomly]
   wsgi:
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2786,7 +2786,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [WebTest, pytest-randomly, legacy-cgi]
   yaaredis:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@core'
       - '@bootstrap'
@@ -2809,7 +2809,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', yaaredis]
   valkey:
-    parallelism: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
