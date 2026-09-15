@@ -35,7 +35,7 @@ PY = sys.version_info[:2]
 GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY: Optional[Assembly] = None
 
-if is_at_least_py(3, 15, version=PY):
+if is_at_least_py(3, 15):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""

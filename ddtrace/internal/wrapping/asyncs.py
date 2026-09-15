@@ -57,7 +57,7 @@ COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY: Optional[Assembly] = None
 
-if is_at_least_py(3, 15, version=PY):
+if is_at_least_py(3, 15):
     _ensure_common_constant_none()
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(
