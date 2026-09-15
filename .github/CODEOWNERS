@@ -131,8 +131,6 @@ tests/submod/                       @DataDog/python-guild
 # docs and scripts
 docs/                               @DataDog/python-guild
 
-# Core / Language Platform
-tests/internal                      @DataDog/apm-core-python
 
 # Test Visibility and related
 # ddtrace files
