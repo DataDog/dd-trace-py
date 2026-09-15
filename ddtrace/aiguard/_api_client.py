@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 import json
+import re
 from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
@@ -104,6 +105,24 @@ class AIGuardAbortError(DDBlockException):
         # Do not include the messages attribute as it can have
         # sensitive data and be large
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
+
+
+# What replaces an endpoint anywhere it would otherwise be reported.
+_REDACTED = "<endpoint>"
+
+# A URL in any shape an endpoint override reaches the transport as: absolute, scheme-relative, or
+# the bare authority left when the scheme is missing. The last character cannot be punctuation, so
+# a URL ending a sentence does not swallow what closes it.
+_URL_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//[^\s'\"]*[^\s'\"(),.;]")
+
+
+def _scrub_urls(text: str) -> str:
+    """Replace every URL in text with a placeholder.
+
+    A credential can sit in the userinfo, in a path segment or in a query parameter, so no part of
+    the endpoint is kept.
+    """
+    return _URL_RE.sub(_REDACTED, text)
 
 
 class AIGuardClient:
@@ -299,7 +318,12 @@ class AIGuardClient:
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except Exception as e:
-                    raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
+                    # The transport quotes the endpoint back at us, credentials included, and the
+                    # chained traceback renders it again, so scrub the cause and our own message.
+                    self._scrub_exception(e)
+                    raise AIGuardClientError(
+                        message=f"Unexpected error calling AI Guard service: {self._scrub(str(e))}"
+                    ) from e
 
                 try:
                     result = response.get_json() or {}  # type: ignore[no-untyped-call]
@@ -437,9 +461,28 @@ class AIGuardClient:
                 logger.debug("AI Guard evaluation failed for %d messages", len(messages), exc_info=True)
                 raise
 
+    def _scrub(self, text: str) -> str:
+        """Remove the configured endpoint from text this client is about to report."""
+        # The literal value goes first: an endpoint too malformed to match a URL still reaches the
+        # transport, which quotes it back in its own messages.
+        if self._endpoint:
+            text = text.replace(self._endpoint, _REDACTED)
+        return _scrub_urls(text)
+
+    def _scrub_exception(self, exc: BaseException) -> None:
+        """Rewrite a transport failure's message in place, dropping the endpoint it quoted."""
+        # Scrubbing only our own message is not enough: exc_info logging and the span error tags
+        # both render the chained cause a second time.
+        try:
+            exc.args = tuple(self._scrub(arg) if isinstance(arg, str) else arg for arg in exc.args)
+        except Exception:  # a custom exception may reject the assignment; the wrapper is still scrubbed
+            logger.debug("Could not scrub AI Guard transport error message", exc_info=True)
+
     def _execute_request(self, url: str, payload: Any) -> Response:
         parsed = urlparse(url)
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        # Userinfo is dropped rather than forwarded: AI Guard authenticates with the DD-API-KEY and
+        # DD-APPLICATION-KEY headers, and the transport logs and quotes the base URL it is given.
+        base_url = f"{parsed.scheme}://{parsed.netloc.rpartition('@')[2]}"
         conn = HTTPConnection(base_url, timeout=self._timeout)
         try:
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
