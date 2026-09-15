@@ -30,6 +30,28 @@ SCHEME_RELATIVE_SECRET_ENDPOINT = "//user:s3cret@proxy.example.com/t0ken/ai-guar
 SECRETS = ("s3cret", "t0ken", "k3y")
 
 
+class RejectsRewrite(Exception):
+    """A cause whose args cannot be rewritten: a Python-level property shadows BaseException.args,
+    so assigning to it raises.
+    """
+
+    def __str__(self):
+        return f"error sending request for url ({SECRET_ENDPOINT})"
+
+    @property
+    def args(self):  # type: ignore[override]
+        return ()
+
+
+class IgnoresArgs(Exception):
+    """A cause whose args accept the rewrite but whose __str__ ignores them, so rewriting args
+    proves nothing about what gets rendered.
+    """
+
+    def __str__(self):
+        return f"error sending request for url ({SECRET_ENDPOINT})"
+
+
 def _client(endpoint: str) -> AIGuardClient:
     return AIGuardClient(endpoint=endpoint, api_key="test-api-key", app_key="test-app-key")
 
@@ -136,31 +158,40 @@ class TestCredentialsNeverReachAFailureReport:
 
         _assert_clean("t0ken", raised, caplog, test_spans)
 
+    @pytest.mark.parametrize("secret", SECRETS)
+    @pytest.mark.parametrize("cause", [RejectsRewrite, IgnoresArgs], ids=["rejects_rewrite", "ignores_args"])
     @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
-    def test_a_cause_that_rejects_rewriting_still_leaves_our_own_message_clean(
-        self, add_count_metric, caplog, ai_guard_client
+    def test_a_cause_that_cannot_be_proven_clean_is_not_chained(
+        self, add_count_metric, cause, secret, caplog, test_spans, ai_guard_client
     ):
-        """An exception can refuse the args assignment, which must not crash us or defeat the
-        scrubbing of the message we raise ourselves.
+        """Rewriting the cause's args can fail outright or leave a custom __str__ still quoting the
+        endpoint. Either way the cause is dropped instead of chained, so nothing re-renders it.
         """
-
-        class Stubborn(Exception):
-            def __str__(self):
-                return f"error sending request for url ({SECRET_ENDPOINT})"
-
-            # A Python-level property shadows BaseException.args, so assigning to it raises.
-            @property
-            def args(self):  # type: ignore[override]
-                return ()
-
         with caplog.at_level("DEBUG", logger="ddtrace"):
-            with patch.object(ai_guard_client, "_execute_request", side_effect=Stubborn()):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=cause()):
                 with pytest.raises(AIGuardClientError) as raised:
                     ai_guard_client.evaluate(MESSAGES)
 
-        assert "Could not scrub AI Guard transport error message" in caplog.text
-        assert "s3cret" not in str(raised.value)
+        _assert_clean(secret, raised, caplog, test_spans)
         assert "<endpoint>" in str(raised.value)
+        # Both would resurrect the cause: __cause__ through the rendered traceback, __context__
+        # through anything walking the chain itself.
+        assert raised.value.__cause__ is None
+        assert raised.value.__context__ is None
+
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_a_cause_that_rejects_rewriting_is_reported_without_its_message(
+        self, add_count_metric, caplog, ai_guard_client
+    ):
+        """The fallback log names the exception type only: exc_info would render the message the
+        rewrite just failed to clean.
+        """
+        with caplog.at_level("DEBUG", logger="ddtrace"):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=RejectsRewrite()):
+                with pytest.raises(AIGuardClientError):
+                    ai_guard_client.evaluate(MESSAGES)
+
+        assert "Could not scrub AI Guard transport error message (RejectsRewrite)" in caplog.text
 
 
 class TestTheTransportNeverSeesTheCredential:

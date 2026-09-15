@@ -351,16 +351,21 @@ class AIGuardClient:
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
 
+                unprovable_error = None
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except Exception as e:
                     error_type = _classify_transport_error(e)
                     # The transport quotes the endpoint back at us, credentials included, and the
                     # chained traceback renders it again, so scrub the cause and our own message.
-                    self._scrub_exception(e)
-                    raise AIGuardClientError(
-                        message=f"Unexpected error calling AI Guard service: {self._scrub(str(e))}"
-                    ) from e
+                    message = f"Unexpected error calling AI Guard service: {self._scrub(str(e))}"
+                    if self._scrub_exception(e):
+                        raise AIGuardClientError(message=message) from e
+                    unprovable_error = AIGuardClientError(message=message)
+                if unprovable_error is not None:
+                    # A cause we cannot prove clean is not attached at all: raising it here, outside
+                    # the handler, leaves __cause__ and __context__ empty so nothing re-renders it.
+                    raise unprovable_error
 
                 try:
                     result = response.get_json() or {}  # type: ignore[no-untyped-call]
@@ -519,14 +524,22 @@ class AIGuardClient:
             text = text.replace(self._endpoint, _REDACTED)
         return _scrub_urls(text)
 
-    def _scrub_exception(self, exc: BaseException) -> None:
-        """Rewrite a transport failure's message in place, dropping the endpoint it quoted."""
-        # Scrubbing only our own message is not enough: exc_info logging and the span error tags
-        # both render the chained cause a second time.
+    def _scrub_exception(self, exc: BaseException) -> bool:
+        """Rewrite a transport failure's message in place, dropping the endpoint it quoted.
+
+        Returns whether the result is provably clean, which is what makes the exception safe to
+        chain: exc_info logging and the span error tags both render a chained cause again.
+        """
         try:
             exc.args = tuple(self._scrub(arg) if isinstance(arg, str) else arg for arg in exc.args)
-        except Exception:  # a custom exception may reject the assignment; the wrapper is still scrubbed
-            logger.debug("Could not scrub AI Guard transport error message", exc_info=True)
+            # A custom __str__ can ignore args, so only re-rendering proves the rewrite took.
+            rendered = str(exc)
+            return rendered == self._scrub(rendered)
+        except Exception:
+            # No exc_info: this failure's context chain would render the very message we could not
+            # clean. The type name is all that is safe to report about it.
+            logger.debug("Could not scrub AI Guard transport error message (%s)", type(exc).__name__)
+            return False
 
     def _execute_request(self, url: str, payload: Any) -> Response:
         parsed = urlparse(url)
