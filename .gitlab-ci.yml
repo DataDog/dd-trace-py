@@ -242,16 +242,11 @@ macrobenchmarks:
     - when: manual
       allow_failure: true
 
-# Benchmarks from DataDog/apm-reliability/apm-sdks-benchmarks, run as a child
-# pipeline so their stages stay out of this pipeline's stage list.
 apm-sdks-benchmarks:
   stage: benchmarks
   needs:
     - job: "upload all"
   variables:
-    # fetch-tracing-libs.sh falls back to $CI_PIPELINE_ID to locate the wheels
-    # uploaded by "upload all". Inside a child pipeline that variable is the
-    # child's own ID, not this (parent) pipeline's, so it must be passed explicitly.
     TARGET_REF: $CI_PIPELINE_ID
   trigger:
     include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
