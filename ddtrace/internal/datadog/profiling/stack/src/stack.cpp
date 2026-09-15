@@ -1113,6 +1113,19 @@ stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(
     return Py_BuildValue("(ss)", error->type_name.c_str(), error->message.c_str());
 }
 
+static PyObject*
+stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    std::optional<ForeignSegvHandler> handler;
+    Py_BEGIN_ALLOW_THREADS;
+    handler = Sampler::get().take_foreign_segv_handler();
+    Py_END_ALLOW_THREADS;
+    if (!handler.has_value()) {
+        Py_RETURN_NONE;
+    }
+    return Py_BuildValue("(Os)", handler->already_owned ? Py_True : Py_False, handler->owner.c_str());
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
@@ -1209,6 +1222,10 @@ static PyMethodDef stack_methods[] = {
       stack_take_sampling_thread_error,
       METH_NOARGS,
       "Return and clear the (error_type, message) that terminated the sampling thread, or None" },
+    { "take_foreign_segv_handler",
+      stack_take_foreign_segv_handler,
+      METH_NOARGS,
+      "Return and clear (already_owned, owner) describing the foreign owner of SIGSEGV/SIGBUS, or None" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,

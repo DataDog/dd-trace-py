@@ -32,6 +32,16 @@ struct SamplingThreadError
     std::string message;
 };
 
+// A component other than us owning SIGSEGV/SIGBUS, which forces the sampler onto the slower
+// syscall-based memory copy. `already_owned` distinguishes a handler that was already foreign
+// when the warmup window ended from one taken over after we had upgraded to safe_memcpy: the
+// latter means some component installed its handler lazily, mid-process.
+struct ForeignSegvHandler
+{
+    bool already_owned;
+    std::string owner;
+};
+
 enum class PauseResult : std::uint8_t
 {
     Paused,     // sampler was running and is now paused
@@ -82,6 +92,13 @@ class Sampler
     std::mutex sampling_thread_error_mutex_;
     std::optional<SamplingThreadError> sampling_thread_error_;
     void record_sampling_thread_error(const std::exception& e);
+
+    // Set when another component takes over SIGSEGV/SIGBUS and the sampler drops back to the
+    // syscall copy. Like the error above, the sampling thread has no GIL, so the description
+    // of the new owner is stashed here for the Python side to drain and report.
+    std::mutex foreign_segv_handler_mutex_;
+    std::optional<ForeignSegvHandler> foreign_segv_handler_;
+    void record_foreign_segv_handler(bool already_owned, std::string owner);
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -182,6 +199,9 @@ class Sampler
     // Returns the error that terminated the sampling thread, clearing it so it is
     // reported at most once.
     std::optional<SamplingThreadError> take_sampling_thread_error();
+
+    // Returns the foreign owner of SIGSEGV/SIGBUS, clearing it so it is reported at most once.
+    std::optional<ForeignSegvHandler> take_foreign_segv_handler();
 
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
