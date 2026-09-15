@@ -1,14 +1,11 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
-from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
@@ -16,7 +13,6 @@ from ddtrace.internal.schema import schematize_url_operation
 
 class WebFrameworkEvents(str, Enum):
     WEB_REQUEST = "web.request"
-    ROUTE = "web.request.route"
 
 
 @dataclass
@@ -49,13 +45,3 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND
         )
-
-
-@dataclass
-class WebFrameworkRouteEvent(Event):
-    event_name = WebFrameworkEvents.ROUTE.value
-
-    request_context: core.ExecutionContext[WebFrameworkRequestEvent] = event_field()
-    resource: str = event_field()
-    request_route: str = event_field()
-    span_tags: Mapping[str, str] = event_field(default_factory=dict)
