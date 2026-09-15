@@ -9,7 +9,9 @@ import gevent.hub
 from greenlet import greenlet
 from greenlet import settrace
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.profiling import _span_links
 
 
 # Original objects
@@ -23,8 +25,45 @@ _tracked_greenlets: set[int] = set()
 _original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
 _greenlet_parent_map: dict[int, int] = {}
 _parent_greenlet_count: dict[int, int] = {}
+_is_patched = False
 
 FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
+
+
+def _reset_gevent_state_after_fork() -> None:
+    _tracked_greenlets.clear()
+    _greenlet_parent_map.clear()
+    _parent_greenlet_count.clear()
+    if not _is_patched:
+        return
+
+    # Restore the surviving execution target before StackCollector's later fork hook republishes its active span.
+    try:
+        track_gevent_greenlet(gevent.getcurrent(), _from_tracer=True, _seed_context=False)
+    except GreenletTrackingError:
+        pass
+
+
+forksafe.register(_reset_gevent_state_after_fork)
+
+
+def _restart_gevent_tracking() -> None:
+    """Invalidate surviving tracking so each greenlet is re-seeded after profiler restart."""
+    if not _is_patched:
+        return
+    for greenlet_id in tuple(_tracked_greenlets):
+        _untrack_greenlet_by_id(greenlet_id)
+    try:
+        track_gevent_greenlet(gevent.getcurrent(), _from_tracer=True)
+    except GreenletTrackingError:
+        pass
+
+
+def _current_greenlet_span_target() -> t.Optional[_span_links.LogicalSpanTarget]:
+    greenlet_id = t.cast(int, thread.get_ident(gevent.getcurrent()))
+    if not stack.is_greenlet_tracked(greenlet_id):
+        return None
+    return _span_links.LogicalSpanTarget(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
 
 
 class GreenletTrackingError(Exception):
@@ -33,9 +72,13 @@ class GreenletTrackingError(Exception):
     pass
 
 
-def track_gevent_greenlet(gl: _Greenlet, _from_tracer: bool = False) -> _Greenlet:
+def track_gevent_greenlet(
+    gl: _Greenlet,
+    _from_tracer: bool = False,
+    _seed_context: bool = True,
+) -> _Greenlet:
     greenlet_id: int = thread.get_ident(gl)
-    frame: t.Union[FrameType, bool, None] = FRAME_NOT_SET
+    frame: t.Union[FrameType, bool, None] = None if gl is gevent.getcurrent() else FRAME_NOT_SET
 
     try:
         stack.track_greenlet(greenlet_id, gl.name or type(gl).__qualname__, frame)
@@ -63,6 +106,16 @@ def track_gevent_greenlet(gl: _Greenlet, _from_tracer: bool = False) -> _Greenle
 
     _tracked_greenlets.add(greenlet_id)
 
+    try:
+        if _seed_context:
+            # Read only the tracer configured on the profiler, not the gevent integration's process-global tracer.
+            _span_links.link_current_logical_span(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
+        elif _from_tracer:
+            # A lazily discovered origin may have activated a newer span since its construction Context was captured.
+            _span_links.link_logical_span_context(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
+    except Exception:  # nosec B110
+        pass
+
     return gl
 
 
@@ -89,7 +142,9 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
 
         if (origin_id := thread.get_ident(origin)) not in _tracked_greenlets:
             try:
-                track_gevent_greenlet(origin, _from_tracer=True)
+                # The origin may already have published a newer activation before lazy discovery. Do not replace it
+                # with the tracing Context captured when the greenlet was constructed.
+                track_gevent_greenlet(origin, _from_tracer=True, _seed_context=False)
             except GreenletTrackingError:
                 # Not something that we can track
                 pass
@@ -162,6 +217,7 @@ def _untrack_greenlet_by_id(greenlet_id: int) -> None:
     if greenlet_id not in _tracked_greenlets:
         return
     stack.untrack_greenlet(greenlet_id)
+    _span_links.clear_logical_span(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
     _tracked_greenlets.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
@@ -271,7 +327,7 @@ def get_current_greenlet_task() -> tuple[t.Optional[int], t.Optional[str], t.Opt
 
 
 def patch() -> None:
-    global _original_greenlet_tracer
+    global _is_patched, _original_greenlet_tracer
 
     # Patch the spawn method to track greenlets.
     gevent.Greenlet = gevent.greenlet.Greenlet = Greenlet
@@ -284,9 +340,19 @@ def patch() -> None:
     gevent.hub.spawn_raw = wrap_spawn(_gevent_hub_spawn_raw)
 
     _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
+    _span_links.register_logical_span_provider(_current_greenlet_span_target, priority=10)
+    _is_patched = True
 
 
 def unpatch() -> None:
+    global _is_patched
+
+    _is_patched = False
+    # Stop routing activation events before restoring the original greenlet hooks.
+    _span_links.unregister_logical_span_provider(_current_greenlet_span_target)
+    for greenlet_id in tuple(_tracked_greenlets):
+        _untrack_greenlet_by_id(greenlet_id)
+
     # Unpatch the spawn method to stop tracking greenlets.
     gevent.Greenlet = gevent.greenlet.Greenlet = _Greenlet
     gevent.spawn = _Greenlet.spawn
