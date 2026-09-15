@@ -4,9 +4,9 @@ the ``temporalio`` library.
 
 The integration traces workflow starts and signals as producer operations,
 workflow queries as client operations, and activity execution as consumer
-operations. Trace context is propagated through Temporal headers from client
-operations to activities. Workflow execution itself is not traced because
-Temporal may replay workflow code.
+operations. Trace context is propagated through Temporal headers from workflow
+starts to activities. Workflow execution itself is not traced because Temporal
+may replay workflow code.
 
 
 Enabling
@@ -25,6 +25,15 @@ integration::
 
 Configuration
 ~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.temporalio["service"]
+
+   The service name reported for Temporal spans.
+
+   This option can also be set with the ``DD_TEMPORALIO_SERVICE`` environment
+   variable.
+
+   Default: ``"temporalio"``
 
 .. py:data:: ddtrace.config.temporalio["distributed_tracing"]
 

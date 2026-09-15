@@ -64,7 +64,7 @@ def _service() -> Optional[str]:
 
 
 def _enabled() -> bool:
-    return config.temporalio.get("enabled") is not False
+    return getattr(temporalio, "_datadog_patch", False) and config.temporalio.get("enabled") is not False
 
 
 def _inject_context(input_data: Any, span: Span) -> None:
@@ -225,7 +225,7 @@ class _DatadogWorkflowInboundInterceptor(temporalio.worker.WorkflowInboundInterc
     def inject_headers(
         self, headers: Mapping[str, temporalio.api.common.v1.Payload]
     ) -> Mapping[str, temporalio.api.common.v1.Payload]:
-        if not config.temporalio.distributed_tracing or self._context_payload is None:
+        if not _enabled() or not config.temporalio.distributed_tracing or self._context_payload is None:
             return headers
         return {**headers, _CONTEXT_HEADER: self._context_payload}
 

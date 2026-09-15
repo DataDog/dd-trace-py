@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 from types import SimpleNamespace
 from typing import Any
@@ -273,6 +274,56 @@ async def test_activity_error_preserves_exception(
 
 
 @pytest.mark.asyncio
+async def test_client_error_preserves_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    tracer: Any,
+    test_spans: Any,
+) -> None:
+    expected_error = RuntimeError("workflow start failed")
+    recorder = _RecordingClientInterceptor()
+
+    async def failing_start_workflow(input_data: Any) -> None:
+        raise expected_error
+
+    with override_global_tracer(tracer):
+        client = _new_client(recorder)
+        assert recorder.outbound is not None
+        monkeypatch.setattr(recorder.outbound, "start_workflow", failing_start_workflow)
+        with pytest.raises(RuntimeError) as caught:
+            await client._impl.start_workflow(_input_for("start_workflow"))
+
+    assert caught.value is expected_error
+    span = _operation_span(test_spans.pop(), "temporal.start_workflow")
+    assert span.error == 1
+    assert span.get_tag("error.type").endswith("RuntimeError")
+    assert span.get_tag("error.message") == "workflow start failed"
+
+
+@pytest.mark.asyncio
+async def test_activity_cancellation_preserves_exception_and_finishes_span(
+    monkeypatch: pytest.MonkeyPatch,
+    tracer: Any,
+    test_spans: Any,
+) -> None:
+    cancelled = asyncio.CancelledError()
+
+    async def cancelled_activity() -> None:
+        raise cancelled
+
+    with override_global_tracer(tracer):
+        client = _new_client(_RecordingClientInterceptor())
+        monkeypatch.setattr(temporalio.activity, "info", _activity_info)
+        activity_interceptor = _datadog_interceptor(client).intercept_activity(_ExecutingActivityInbound())
+        activity_input = SimpleNamespace(fn=cancelled_activity, args=[], executor=None, headers={})
+        with pytest.raises(asyncio.CancelledError) as caught:
+            await activity_interceptor.execute_activity(activity_input)
+
+    assert caught.value is cancelled
+    span = _operation_span(test_spans.pop(), "temporal.run_activity")
+    assert span.finished
+
+
+@pytest.mark.asyncio
 async def test_disabled_configuration_does_not_trace_or_propagate(tracer: Any, test_spans: Any) -> None:
     recorder = _RecordingClientInterceptor()
     input_data = _input_for("start_workflow")
@@ -325,5 +376,19 @@ async def test_unpatch_does_not_trace_or_change_user_interceptors(tracer: Any, t
         assert await client._impl.start_workflow(input_data) == "workflow-started"
 
     assert client.config()["interceptors"] == [recorder]
+    assert input_data.headers == {}
+    assert test_spans.pop() == []
+
+
+@pytest.mark.asyncio
+async def test_unpatch_disables_existing_client_interceptor(tracer: Any, test_spans: Any) -> None:
+    recorder = _RecordingClientInterceptor()
+    client = _new_client(recorder)
+    input_data = _input_for("start_workflow")
+
+    unpatch()
+    with override_global_tracer(tracer):
+        assert await client._impl.start_workflow(input_data) == "workflow-started"
+
     assert input_data.headers == {}
     assert test_spans.pop() == []
