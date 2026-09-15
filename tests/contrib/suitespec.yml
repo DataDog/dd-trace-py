@@ -210,6 +210,8 @@ components:
     - ddtrace/contrib/internal/structlog/*
   subprocess:
     - ddtrace/contrib/internal/subprocess/*
+  temporalio:
+    - ddtrace/contrib/internal/temporalio/*
   tornado:
     - ddtrace/contrib/internal/tornado/*
   urllib3:

@@ -3798,6 +3798,16 @@
         "default": "[]"
       }
     ],
+    "DD_TEMPORALIO_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_TEMPORALIO_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_THIRD_PARTY_DETECTION_INCLUDES": [
       {
         "implementation": "A",
@@ -5114,6 +5124,13 @@
       }
     ],
     "DD_TRACE_SUBPROCESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_TEMPORALIO_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",

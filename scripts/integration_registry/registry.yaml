@@ -1011,6 +1011,12 @@ integrations:
   is_external_package: false
   is_tested: true
 
+- integration_name: temporalio
+  is_external_package: true
+  is_tested: false
+  dependency_names:
+  - temporalio
+
 - integration_name: tornado
   is_external_package: true
   is_tested: true
