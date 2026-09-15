@@ -1952,7 +1952,22 @@ class TestXdistCrashRequeue:
 
     def test_logfinish_cleans_up_start_time(self) -> None:
         """pytest_runtest_logfinish removes per-nodeid state so dicts don't grow unbounded."""
+        from ddtrace.testing.internal.test_data import TestSession
+
         plugin = self._build_plugin(atr=True)
+        real_session = TestSession(name="test-session")
+        plugin.main_plugin.manager.session = real_session
+        plugin.main_plugin.manager.discover_test = Mock(
+            side_effect=lambda test_ref, **kw: (
+                real_session.get_or_create_child(test_ref.suite.module.name)[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0].get_or_create_child(
+                    test_ref.suite.name
+                )[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0]
+                .get_or_create_child(test_ref.suite.name)[0]
+                .get_or_create_child(test_ref.name)[0],
+            )
+        )
         nodeid = "test_foo.py::test_a"
         plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
         assert nodeid in plugin._start_times_by_nodeid
