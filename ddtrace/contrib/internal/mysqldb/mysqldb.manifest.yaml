@@ -1,0 +1,12 @@
+_v: 1
+name: mysqldb
+display_name: mysqlclient
+description: Instruments mysqlclient SQL query execution, batches, stored procedures, transactions, and optionally connection
+  establishment and result fetching.
+packages:
+- name: mysqlclient
+category:
+- db.client
+systems:
+- mysql
+creation_date: '2017-11-08'
