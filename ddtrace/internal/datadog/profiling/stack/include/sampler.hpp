@@ -155,11 +155,13 @@ class Sampler
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
+    bool is_asyncio_loop_registered(uintptr_t thread_id);
     void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
     void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
+    bool is_greenlet_tracked(uintptr_t greenlet_id);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void record_greenlet_switch(uintptr_t origin_id,

@@ -17,6 +17,8 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <exception>
+#include <new>
 #include <string_view>
 #include <utility>
 
@@ -81,10 +83,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear SpanLinks. The memory should be cleared up
-    // when the program exits as SpanLinks is a static singleton instance.
-    // However, this was necessary to make sure that the state is not shared
-    // across tests, as the tests are run in the same process.
+    // Explicitly clear SpanLinks so tests running in the same process do not share state.
     SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
@@ -246,6 +245,82 @@ stack_clear_span(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+static bool
+parse_logical_span_domain(unsigned int value, SpanLinkDomain& domain)
+{
+    switch (value) {
+        case static_cast<unsigned int>(SpanLinkDomain::AsyncioTask):
+            domain = SpanLinkDomain::AsyncioTask;
+            return true;
+        case static_cast<unsigned int>(SpanLinkDomain::GeventGreenlet):
+            domain = SpanLinkDomain::GeventGreenlet;
+            return true;
+        default:
+            PyErr_SetString(PyExc_ValueError, "invalid logical span domain");
+            return false;
+    }
+}
+
+static PyObject*
+stack_link_logical_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    unsigned int domain_value;
+    uint64_t logical_id;
+    uint64_t span_id;
+    uint64_t local_root_span_id;
+    const char* span_type = nullptr;
+
+    static const char* const_kwlist[] = {
+        "domain", "logical_id", "span_id", "local_root_span_id", "span_type", nullptr
+    };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "IKKKz", kwlist, &domain_value, &logical_id, &span_id, &local_root_span_id, &span_type)) {
+        return nullptr;
+    }
+
+    SpanLinkDomain domain = SpanLinkDomain::AsyncioTask;
+    if (!parse_logical_span_domain(domain_value, domain)) {
+        return nullptr;
+    }
+
+    try {
+        SpanLinks::get_instance().link_logical_span(
+          domain, logical_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
+    } catch (const std::bad_alloc&) {
+        return PyErr_NoMemory();
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_link_logical_span = cast_to_pycfunction(stack_link_logical_span_impl);
+
+static PyObject*
+stack_clear_logical_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    unsigned int domain_value;
+    uint64_t logical_id;
+
+    if (!PyArg_ParseTuple(args, "IK", &domain_value, &logical_id)) {
+        return nullptr;
+    }
+
+    SpanLinkDomain domain = SpanLinkDomain::AsyncioTask;
+    if (!parse_logical_span_domain(domain_value, domain)) {
+        return nullptr;
+    }
+    SpanLinks::get_instance().unlink_logical_span(domain, logical_id);
+
+    Py_RETURN_NONE;
+}
+
 static PyObject*
 stack_unlink_finished_span(PyObject* self, PyObject* args)
 {
@@ -263,6 +338,15 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         Py_END_ALLOW_THREADS;
     }
 
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_reset_span_links(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+    SpanLinks::get_instance().reset();
     Py_RETURN_NONE;
 }
 
@@ -327,18 +411,31 @@ static PyObject*
 stack_track_asyncio_loop(PyObject* self, PyObject* args)
 {
     (void)self;
-    uintptr_t thread_id; // map key
+    uint64_t thread_id;
     PyObject* loop;
 
-    if (!PyArg_ParseTuple(args, "lO", &thread_id, &loop)) {
+    if (!PyArg_ParseTuple(args, "KO", &thread_id, &loop)) {
         return nullptr;
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().track_asyncio_loop(thread_id, loop);
+    Sampler::get().track_asyncio_loop(static_cast<uintptr_t>(thread_id), loop);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_is_asyncio_loop_registered(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t thread_id;
+
+    if (!PyArg_ParseTuple(args, "K", &thread_id)) {
+        return nullptr;
+    }
+
+    return PyBool_FromLong(Sampler::get().is_asyncio_loop_registered(static_cast<uintptr_t>(thread_id)));
 }
 
 static PyObject*
@@ -587,6 +684,19 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+is_greenlet_tracked(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uint64_t greenlet_id;
+    if (!PyArg_ParseTuple(args, "K", &greenlet_id))
+        return nullptr;
+
+    if (Sampler::get().is_greenlet_tracked(static_cast<uintptr_t>(greenlet_id))) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
 }
 
 static PyObject*
@@ -1132,10 +1242,16 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Clear the span linked to the current thread if its ID matches the expected span ID" },
     { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "link_logical_span",
+      reinterpret_cast<PyCFunction>(stack_link_logical_span),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link a span to an asyncio task or greenlet" },
+    { "clear_logical_span", stack_clear_logical_span, METH_VARARGS, "Clear a logical span" },
     { "unlink_finished_span",
       stack_unlink_finished_span,
       METH_VARARGS,
-      "Clear every physical-thread link derived from a finished span" },
+      "Clear every current target derived from a finished span" },
+    { "reset_span_links", stack_reset_span_links, METH_NOARGS, "Clear all span links" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
@@ -1145,12 +1261,17 @@ static PyMethodDef stack_methods[] = {
       METH_NOARGS,
       "Clear the originating asyncio task for the current (executor worker) thread" },
     // asyncio task support
-    { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
+    { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Track an asyncio loop for a registered thread" },
+    { "is_asyncio_loop_registered",
+      stack_is_asyncio_loop_registered,
+      METH_VARARGS,
+      "Return whether a thread has a tracked running asyncio loop" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
+    { "is_greenlet_tracked", is_greenlet_tracked, METH_VARARGS, "Return whether a greenlet is tracked" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
     { "record_greenlet_switch", record_greenlet_switch, METH_VARARGS, "Record a greenlet context switch" },
@@ -1251,6 +1372,15 @@ PyInit__stack(void) // NOLINT(bugprone-reserved-identifier)
     m = PyModule_Create(&moduledef);
     if (!m)
         return nullptr;
+
+    if (PyModule_AddIntConstant(m, "SPAN_LINK_DOMAIN_THREAD", static_cast<int>(SpanLinkDomain::Thread)) < 0 ||
+        PyModule_AddIntConstant(m, "SPAN_LINK_DOMAIN_ASYNCIO_TASK", static_cast<int>(SpanLinkDomain::AsyncioTask)) <
+          0 ||
+        PyModule_AddIntConstant(
+          m, "SPAN_LINK_DOMAIN_GEVENT_GREENLET", static_cast<int>(SpanLinkDomain::GeventGreenlet)) < 0) {
+        Py_DECREF(m);
+        return nullptr;
+    }
 
     return m;
 }
