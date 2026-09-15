@@ -1,5 +1,53 @@
 [
     {
+        "dependencyName": "aio-pika",
+        "integrationName": "aio_pika",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=9.0.0",
+                "tested": [
+                    "9.0.0",
+                    "9.5.6"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=9.0.0",
+                "tested": [
+                    "9.0.0",
+                    "9.6.2"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=9.0.0",
+                "tested": [
+                    "9.0.0",
+                    "9.6.2",
+                    "10.0.1"
+                ]
+            }
+        ],
+        "pinned": true
+    },
+    {
         "dependencyName": "aiobotocore",
         "integrationName": "aiobotocore",
         "autoInstrumented": false,

@@ -35,6 +35,12 @@ asgi
 ^^^^
 .. automodule:: ddtrace.contrib.asgi
 
+.. _aio_pika:
+
+aio-pika
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aio_pika
+
 .. _aiohttp:
 
 aiohttp

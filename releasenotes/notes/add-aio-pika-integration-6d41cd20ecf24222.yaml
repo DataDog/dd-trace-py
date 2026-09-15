@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    aio-pika: Adds automatic tracing for RabbitMQ publishing, message processing,
+    pull receives, and message settlement in aio-pika 9.x and 10.x. Distributed
+    tracing is disabled by default and can be enabled with
+    ``DD_AIO_PIKA_DISTRIBUTED_TRACING=true``.
