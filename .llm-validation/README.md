@@ -21,8 +21,9 @@ Overrides are owned by this repo. The shared core is not — never edit `.agents
 2. Add the new override path to `instruction_files` in [`config.yaml`](./config.yaml) so CI
    watches it.
 3. Add a case in [`suites/python-tracer-agent-v0.1.yaml`](./suites/python-tracer-agent-v0.1.yaml).
-   Copy the starter case `py-perf-hotpath-pure-python`.
-   A good case is a 10-line snippet plus 2–3 `expected_criteria` that would fail if the rule disappeared.
+   Copy the starter case `py-perf-hotpath-pure-python` (`only_warn: true` until
+   the case is calibrated). A good case is a 10-line snippet plus 2–3
+   `expected_criteria` that would fail if the rule disappeared.
 4. List the new case id under `presets.gate.cases` in [`config.yaml`](./config.yaml). CI
    `default_level` is still `full` (every case), so a new suite entry also runs automatically.
 5. Open a PR. That is it.
