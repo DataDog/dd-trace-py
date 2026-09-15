@@ -460,8 +460,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         handler_fallback_done = true;
                         mark_fast_copy_syscall_fallback();
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
-                                     "handler; keeping the syscall-based memory copy to avoid crashing."
-                                  << std::endl;
+                                     "handler ("
+                                  << describe_segv_handler_owners()
+                                  << "); keeping the syscall-based memory copy to avoid crashing." << std::endl;
                     }
                 }
             } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
@@ -473,8 +474,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 handler_fallback_done = true;
                 mark_fast_copy_syscall_fallback();
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing."
-                          << std::endl;
+                             "component ("
+                          << describe_segv_handler_owners()
+                          << "); falling back to syscall-based memory copy to avoid crashing." << std::endl;
                 if (!set_fast_copy_enabled(false)) {
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would

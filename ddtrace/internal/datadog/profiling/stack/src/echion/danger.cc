@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <csetjmp>
 #include <cstdio>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
@@ -160,6 +161,63 @@ segv_handler_installed()
         }
     }
     return true;
+}
+
+static std::string
+describe_signal_owner(int signo)
+{
+    struct sigaction current;
+    if (sigaction(signo, nullptr, &current) != 0) {
+        return "unknown";
+    }
+
+    // sa_sigaction and sa_handler alias the same storage; SA_SIGINFO says which is live.
+    if ((current.sa_flags & SA_SIGINFO) != 0) {
+        if (current.sa_sigaction == segv_handler) {
+            return "ddtrace";
+        }
+    } else {
+        if (current.sa_handler == SIG_DFL) {
+            return "SIG_DFL";
+        }
+        if (current.sa_handler == SIG_IGN) {
+            return "SIG_IGN";
+        }
+    }
+
+    void* addr = (current.sa_flags & SA_SIGINFO) != 0 ? reinterpret_cast<void*>(current.sa_sigaction)
+                                                      : reinterpret_cast<void*>(current.sa_handler);
+    if (addr == nullptr) {
+        return "none";
+    }
+
+    Dl_info info{};
+    if (dladdr(addr, &info) == 0 || info.dli_fname == nullptr) {
+        // Not in any mapped object we can name (JIT-generated, or stripped mapping).
+        char buf[32];
+        snprintf(buf, sizeof(buf), "unresolved@%p", addr);
+        return buf;
+    }
+
+    std::string out(info.dli_fname);
+    if (info.dli_fbase != nullptr) {
+        const auto offset = reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(info.dli_fbase);
+        char off[32];
+        snprintf(off, sizeof(off), "+0x%lx", static_cast<unsigned long>(offset));
+        out += off;
+    }
+    if (info.dli_sname != nullptr) {
+        out += " (";
+        out += info.dli_sname;
+        out += ")";
+    }
+    return out;
+}
+
+std::string
+describe_segv_handler_owners()
+{
+    return "SIGSEGV=" + describe_signal_owner(SIGSEGV) + ", SIGBUS=" + describe_signal_owner(SIGBUS);
 }
 
 void
