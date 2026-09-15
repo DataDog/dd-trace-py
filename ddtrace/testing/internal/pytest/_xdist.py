@@ -53,18 +53,18 @@ exactly, with no cross-process state needed.
 
 The cap is ``max(handler.max_retries_for_timeout(duration) for handler in self._retry_handlers)``
 where ``duration`` is the wall-clock time the test ran before crashing (measured in the main process;
-see below). For ATR - the customer's feature - ``max_retries`` is ``max_retries_per_test`` (default 5),
-so the budget is honored exactly. For dynamic ATR, the budget is derived from the duration via the
-EFD retry buckets (``retries_for_duration``), so a 5-minute-timeout test gets 2 retries (not the
-flat 5). The ``max`` across handlers is used because the main process cannot determine which handler
-would have applied to the crashed test (that depends on per-test properties like ``is_new()`` /
-``is_attempt_to_fix()`` that the main does not have without running the test). xdist's own
+see below). For ATR - the customer's feature - the budget is a flat ``max_retries_per_test`` (default 5),
+so the duration is ignored and the budget is honored exactly. For dynamic ATR, the budget is derived
+from the duration via the EFD retry buckets (``retries_for_duration``), so a 5-minute-timeout test gets
+2 retries (not the flat 5). The ``max`` across handlers is used because the main process cannot
+determine which handler would have applied to the crashed test (that depends on per-test properties like
+``is_new()`` / ``is_attempt_to_fix()`` that the main does not have without running the test). xdist's own
 ``max_worker_restart`` remains the global backstop across all tests.
 
 The handlers are built in ``__init__`` from ``manager.settings`` (not ``manager.retry_handlers``)
 because the main (controller) process prohibits collection, so ``SessionManager.setup_retry_handlers``
 never runs there and ``manager.retry_handlers`` stays empty in the main. We only ever query
-``max_retries`` / ``max_retries_for_timeout`` (session-level constants), never
+``max_retries_for_timeout`` (a session-level constant per handler), never
 ``should_apply``/``should_retry`` (which need per-test state the main does not have).
 
 How the crash duration is measured (wall-clock from logstart)
@@ -146,7 +146,8 @@ class XdistTestOptPlugin:
         # collection (DSession.pytest_collection returns True), so pytest_collection_finish never fires in
         # the main and SessionManager.setup_retry_handlers() never runs there — manager.retry_handlers stays
         # empty in the main. Since pytest_handlecrashitem runs in the main, we cannot rely on that list.
-        # Instead we build the handler instances here from settings, purely to query max_retries for the cap.
+        # Instead we build the handler instances here from settings, purely to query max_retries_for_timeout
+        # for the cap.
         # We never call should_apply/should_retry (those need per-test state the main doesn't have); we only
         # need the retry budget, which is a session-level constant per handler.
         s = main_plugin.manager.settings
@@ -204,13 +205,12 @@ class XdistTestOptPlugin:
 
         # Measure how long the test ran before crashing (setup + call up to the timeout). This drives the
         # duration-aware re-queue cap for dynamic ATR/EFD. If we have no start time (e.g. the test crashed
-        # before logstart, which shouldn't happen), fall back to the static max_retries.
+        # before logstart, which shouldn't happen), duration defaults to 0 — for flat-budget handlers (ATR,
+        # ATF) this is irrelevant (they return a constant); for dynamic handlers it maps to the largest bucket
+        # (retries_for_duration(0) = <=5s bucket), which is a safe conservative ceiling.
         start_time = self._start_times_by_nodeid.pop(crashitem, None)
-        if start_time is not None:
-            duration = time.time() - start_time
-            max_requeue = max(handler.max_retries_for_timeout(duration) for handler in retry_handlers)
-        else:
-            max_requeue = max(handler.max_retries for handler in retry_handlers)
+        duration = (time.time() - start_time) if start_time is not None else 0.0
+        max_requeue = max(handler.max_retries_for_timeout(duration) for handler in retry_handlers)
 
         count = self._crash_retries.get(crashitem, 0)
         if count >= max_requeue:

@@ -62,25 +62,14 @@ class RetryHandler(ABC):
         Return a human-readable name of the retry handler.
         """
 
-    @property
     @abstractmethod
-    def max_retries(self) -> int:
-        """The maximum number of retries this handler will perform for a single test.
-
-        Used by callers that need an upper bound without a live ``Test`` object (e.g. the xdist main process
-        deciding how many times to re-queue a crashed worker's test). For handlers whose budget is dynamic
-        (e.g. EFD, which scales with test duration), return the largest budget the handler would ever grant.
-        """
-
     def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         """The retry budget for a test whose initial attempt lasts ~``timeout_seconds``.
 
-        Non-dynamic handlers ignore the duration and return their flat ``max_retries``. Dynamic handlers
-        (e.g. DynamicATRRetriesHandler) override this to compute the budget from the duration, mirroring
-        their per-test logic but without a live ``Test`` object. Used by the xdist main process to compute
-        the crash re-queue cap from the pytest-timeout value.
+        Used by the xdist main process to compute the crash re-queue cap from the measured crash duration
+        (wall-clock from logstart to handlecrashitem). For handlers with a flat budget (ATR, ATF) this is a
+        constant; for dynamic handlers (DynamicATRRetriesHandler) it is derived from the EFD retry buckets.
         """
-        return self.max_retries
 
 
 class AutoTestRetriesHandler(RetryHandler):
@@ -92,8 +81,7 @@ class AutoTestRetriesHandler(RetryHandler):
     def get_pretty_name(self) -> str:
         return "Auto Test Retries"
 
-    @property
-    def max_retries(self) -> int:
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         return self.max_retries_per_test
 
     def should_apply(self, test: Test) -> bool:
@@ -129,8 +117,7 @@ class EarlyFlakeDetectionHandler(RetryHandler):
     def get_pretty_name(self) -> str:
         return "Early Flake Detection"
 
-    @property
-    def max_retries(self) -> int:
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         # EFD's budget is dynamic (scales with test duration). Return the largest bucket so callers get a safe
         # upper bound without a live Test object.
         return self.settings.early_flake_detection.slow_test_retries_5s
@@ -190,8 +177,7 @@ class AttemptToFixHandler(RetryHandler):
     def get_pretty_name(self) -> str:
         return "Attempt to Fix"
 
-    @property
-    def max_retries(self) -> int:
+    def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         return self.settings.test_management.attempt_to_fix_retries
 
     def should_apply(self, test: Test) -> bool:

@@ -1890,7 +1890,8 @@ class TestXdistCrashRequeue:
     def test_cap_reached_stops_requeuing(self) -> None:
         """A test that crashes repeatedly is only re-queued up to the handler's retry budget, then it stops.
 
-        Asserts the cap is derived from the active handler's max_retries (not a hardcoded constant): we set the
+        Asserts the cap is derived from the active handler's max_retries_for_timeout (not a
+        hardcoded constant): we set the
         ATR handler's max_retries_per_test to 2 after construction and expect exactly 2 re-queues.
         """
         plugin = self._build_plugin(atr=True)
@@ -1903,7 +1904,7 @@ class TestXdistCrashRequeue:
         crashitem = "test_foo.py::test_a"
 
         # Simulate logstart before each crash so the duration is measured.
-        # First two crashes: re-queued (max_retries == 2).
+        # First two crashes: re-queued (max_retries_per_test == 2).
         for expected_number in (1, 2):
             plugin.pytest_runtest_logstart(nodeid=crashitem, location=None)
             report = self._make_report()
