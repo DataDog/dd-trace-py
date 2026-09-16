@@ -42,7 +42,11 @@ def post_preload():
 def post_start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    remoteconfig_poller.start_deferred()
+    try:
+        remoteconfig_poller.start_deferred()
+    except Exception:
+        remoteconfig_poller.disable()
+        raise
 
 
 def enabled():
