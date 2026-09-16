@@ -382,6 +382,7 @@ class Tracer(object):
                 compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
+                apm_tracing_disabled,
             ]
         ):
             self._recreate(

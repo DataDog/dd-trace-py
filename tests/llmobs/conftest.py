@@ -290,7 +290,12 @@ def llmobs(
         dne_client._agentless = True
         dne_client._endpoint = dne_client.ENDPOINT
         dne_client._intake = llmobs_api_proxy_url
-        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(llmobs_span_writer, tracer, keep_meta_struct=True)
+        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+            llmobs_span_writer,
+            tracer,
+            keep_meta_struct=True,
+            sampling_resolver=llmobs_service._instance._sampling_resolver,
+        )
         try:
             yield llmobs_service
         finally:
@@ -345,3 +350,13 @@ def no_agent_info():
 def no_agent():
     with mock.patch("ddtrace.internal.agent.info", side_effect=Exception):
         yield
+
+
+@pytest.fixture
+def patched_futures():
+    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+    from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+
+    patch_futures()
+    yield
+    unpatch_futures()
