@@ -25,9 +25,6 @@ MAX_EXCEPTION_MESSAGE_LEN = 128
 #   3 = used by error tracking (handled exceptions) and the 3.15+ multiplexer
 #   4 = **used here**
 #   5 = OPTIMIZER_ID
-#
-# If the ddtrace multiplexer already claimed this ID (name "ddtrace"), attach
-# RAISE to that shared tool instead of failing. Do not free a shared tool ID.
 _MONITORING_TOOL_ID = 4
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 
@@ -174,17 +171,21 @@ class ExceptionCollector(collector.Collector):
 
         if HAS_MONITORING:
             try:
-                # Claim or share the tool ID *before* writing _state so that a
-                # ValueError leaves the existing _state untouched.
-                existing = sys.monitoring.get_tool(_MONITORING_TOOL_ID)
-                if existing is None:
+                # Claim or share the tool ID before writing _state so that a
+                # ValueError leaves the existing _state untouched. use_tool_id
+                # is the atomic claim; get_tool is only consulted on conflict.
+                # If the ddtrace multiplexer already claimed this ID (name
+                # "ddtrace"), attach RAISE to that shared tool instead of
+                # failing. Do not free a shared tool ID.
+                try:
                     sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
                     self._owns_tool_id = True
-                elif existing != _MULTIPLEXER_TOOL_NAME:
-                    raise ValueError(
-                        "sys.monitoring tool id %s is already %r"
-                        % (_MONITORING_TOOL_ID, existing)
-                    )
+                except ValueError:
+                    existing: object = sys.monitoring.get_tool(_MONITORING_TOOL_ID)
+                    if existing != _MULTIPLEXER_TOOL_NAME:
+                        raise ValueError(
+                            f"sys.monitoring tool id {_MONITORING_TOOL_ID} is already {existing!r}"
+                        )
                 sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
                 sys.monitoring.register_callback(
                     _MONITORING_TOOL_ID,
@@ -213,7 +214,7 @@ class ExceptionCollector(collector.Collector):
 
         # Each cleanup step is independent. free_tool_id() runs only when we
         # claimed the slot; freeing a shared multiplexer ID would disable
-        # asyncio sys.monitoring for the rest of the process.
+        # that tool for the rest of the process.
         try:
             sys.monitoring.register_callback(
                 _MONITORING_TOOL_ID,

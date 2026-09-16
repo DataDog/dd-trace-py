@@ -281,6 +281,7 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
         # Hook asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+).
+        # 3.15+ prefers PY_RETURN; below that _register_return_hook returns False and we wrap().
         if sys.hexversion >= 0x030B0000:
             taskgroups_module: typing.Optional[ModuleType] = sys.modules.get("asyncio.taskgroups")
             if taskgroups_module is not None:

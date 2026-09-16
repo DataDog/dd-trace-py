@@ -236,7 +236,6 @@ def _setup() -> int:
 
 
 def get_tool_id() -> int:
-    """Return the shared ddtrace sys.monitoring tool ID, allocating it if needed."""
     return _setup()
 
 

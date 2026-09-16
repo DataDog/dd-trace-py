@@ -1,8 +1,7 @@
 """Pin wrap() vs sys.monitoring for profiling asyncio hooks.
 
-These fail if the version split in ddtrace.profiling._asyncio is reverted:
-below 3.15 hooks must go through wrap() (in-place bytecode, not a bare
-assignment); on 3.15+ task-creation must use the PY_RETURN monitoring path.
+These fail if ddtrace.profiling._asyncio does not do proper
+version splitting.
 
 The registration helper and the PY_RETURN dispatch are kept outside that
 version gate so the unit tests below can exercise them on every supported

@@ -40,7 +40,6 @@ _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
 def test_get_tool_id_returns_the_shared_setup_tool_id() -> None:
-    """get_tool_id() is the public face of _setup(): the same ID, and idempotent."""
     tool_id: int = monitoring.get_tool_id()
 
     assert tool_id in monitoring._CANDIDATE_TOOL_IDS  # type: ignore[has-type]
