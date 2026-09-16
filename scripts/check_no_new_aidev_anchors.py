@@ -45,12 +45,20 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
         text=True,
     )
     current_file: str = ""
+    in_hunk: bool = False
     hits: list[tuple[str, str]] = []
     for line in result.stdout.splitlines():
-        if line.startswith("+++ b/"):
+        if line.startswith("diff --git "):
+            current_file = ""
+            in_hunk = False
+            continue
+        if line.startswith("+++ b/") and not in_hunk:
             current_file = line[6:]
             continue
-        if not line.startswith("+"):
+        if line.startswith("@@"):
+            in_hunk = True
+            continue
+        if not in_hunk or not line.startswith("+"):
             continue
         content: str = line[1:]
         if ANCHOR_RE.search(content) or _is_anchor_line(line):

@@ -147,6 +147,69 @@ def test_added_lines_flags_new_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
     assert violations == [("example.py", "# AIDEV-NOTE: new anchor")]
 
 
+def test_added_lines_flags_plus_plus_b_aidev_evasion(monkeypatch: pytest.MonkeyPatch) -> None:
+    diff: str = "\n".join(
+        [
+            "diff --git a/example.py b/example.py",
+            "--- a/example.py",
+            "+++ b/example.py",
+            "@@ -1 +1,2 @@",
+            "+++ b/AIDEV-NOTE: evasion",
+            "+unchanged",
+        ]
+    )
+
+    def fake_merge_base(base_ref: str) -> str:
+        return "base"
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+    ) -> types.SimpleNamespace:
+        return types.SimpleNamespace(stdout=diff)
+
+    monkeypatch.setattr(_MODULE, "_merge_base", fake_merge_base)
+    monkeypatch.setattr(_MODULE.subprocess, "run", fake_run)
+
+    violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
+
+    assert violations == [("example.py", "++ b/AIDEV-NOTE: evasion")]
+
+
+def test_added_lines_sets_current_file_from_real_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    diff: str = "\n".join(
+        [
+            "diff --git a/src/nested/example.py b/src/nested/example.py",
+            "--- a/src/nested/example.py",
+            "+++ b/src/nested/example.py",
+            "@@ -1 +1 @@",
+            "+# AIDEV-NOTE: nested path",
+        ]
+    )
+
+    def fake_merge_base(base_ref: str) -> str:
+        return "base"
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+    ) -> types.SimpleNamespace:
+        return types.SimpleNamespace(stdout=diff)
+
+    monkeypatch.setattr(_MODULE, "_merge_base", fake_merge_base)
+    monkeypatch.setattr(_MODULE.subprocess, "run", fake_run)
+
+    violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
+
+    assert violations == [("src/nested/example.py", "# AIDEV-NOTE: nested path")]
+
+
 def test_added_lines_flags_content_starting_with_plus_plus(monkeypatch: pytest.MonkeyPatch) -> None:
     diff: str = "\n".join(
         [
