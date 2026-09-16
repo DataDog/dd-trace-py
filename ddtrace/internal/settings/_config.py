@@ -427,6 +427,10 @@ class Config(object):
     available and can be updated by users.
     """
 
+    service: Optional[str]
+    _data_streams_enabled: bool
+    _model_lab_enabled: bool
+
     class _HTTPServerConfig(object):
         _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
