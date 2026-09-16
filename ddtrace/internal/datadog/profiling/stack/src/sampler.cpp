@@ -502,18 +502,21 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // degrade sample quality (e.g. on asyncio workloads). We still prefer
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
+                // Name the owner before attempting the fallback. If no safe copy is
+                // available we stop sampling; Python still needs the takeover so it
+                // can log who forced that.
+                const std::string owners = describe_segv_handler_owners_noexcept();
+                record_foreign_segv_handler(false, owners);
                 if (!set_fast_copy_enabled(false)) {
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would
                     // crash - stop sampling instead.
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing."
-                              << std::endl;
+                                 "stopping stack sampling to avoid crashing. "
+                              << "Handler owners: " << owners << std::endl;
                     break;
                 }
                 mark_fast_copy_syscall_fallback();
-                const std::string owners = describe_segv_handler_owners_noexcept();
-                record_foreign_segv_handler(false, owners);
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing. "
                           << "Handler owners: " << owners << std::endl;

@@ -67,8 +67,8 @@ def test_capture_sampler_pure_python_fallback() -> None:
         if saved_module is not None:
             sys.modules[mod_name] = saved_module
         # Put the original module object back rather than re-importing. A fresh import
-        # binds a new ``ddtrace.profiling.collector`` to ``ddtrace.profiling`` without the
-        # submodule attributes (``stack``, ``threading``, ...) that earlier imports set,
-        # which breaks later ``mock.patch("ddtrace.profiling.collector.<sub>....")`` calls.
+        # binds a new ddtrace.profiling.collector to ddtrace.profiling without the submodule
+        # attributes (stack, threading, ...) that earlier imports set, which breaks later
+        # mock.patch("ddtrace.profiling.collector.<sub>....") calls.
         sys.modules[collector_mod] = saved_collector
         setattr(profiling, "collector", saved_collector)
