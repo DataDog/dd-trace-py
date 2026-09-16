@@ -40,9 +40,7 @@ class TraceMiddleware:
             service=self.service,
             request_method=req.method,
             request_url=req.url,
-            # Preserve the header mapping passed to set_http_meta before this
-            # migration. Distributed propagation normalizes header names
-            # independently.
+            # Falcon uppercases all header names.
             request_headers=req.headers,
             query=req.query_string,
             request_route=None,
