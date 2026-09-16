@@ -541,6 +541,7 @@ check_no_new_aidev_anchors:
       fi
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
+    - unset GH_TOKEN DDOCTOSTS_ID_TOKEN
     - python3 scripts/check_no_new_aidev_anchors.py --base-ref FETCH_HEAD
 
 

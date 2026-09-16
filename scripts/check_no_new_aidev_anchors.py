@@ -50,7 +50,7 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
         if line.startswith("+++ b/"):
             current_file = line[6:]
             continue
-        if not line.startswith("+") or line.startswith("+++"):
+        if not line.startswith("+"):
             continue
         if _is_anchor_line(line):
             hits.append((current_file, line[1:].rstrip()))

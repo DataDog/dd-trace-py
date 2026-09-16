@@ -113,3 +113,67 @@ def test_added_lines_ignores_deleted_anchors(monkeypatch: pytest.MonkeyPatch) ->
     violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
 
     assert violations == []
+
+
+def test_added_lines_flags_new_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
+    diff: str = "\n".join(
+        [
+            "diff --git a/example.py b/example.py",
+            "--- a/example.py",
+            "+++ b/example.py",
+            "@@ -1 +1,2 @@",
+            "+# AIDEV-NOTE: new anchor",
+            "+unchanged",
+        ]
+    )
+
+    def fake_merge_base(base_ref: str) -> str:
+        return "base"
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+    ) -> types.SimpleNamespace:
+        return types.SimpleNamespace(stdout=diff)
+
+    monkeypatch.setattr(_MODULE, "_merge_base", fake_merge_base)
+    monkeypatch.setattr(_MODULE.subprocess, "run", fake_run)
+
+    violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
+
+    assert violations == [("example.py", "# AIDEV-NOTE: new anchor")]
+
+
+def test_added_lines_flags_content_starting_with_plus_plus(monkeypatch: pytest.MonkeyPatch) -> None:
+    diff: str = "\n".join(
+        [
+            "diff --git a/example.py b/example.py",
+            "--- a/example.py",
+            "+++ b/example.py",
+            "@@ -1 +1,2 @@",
+            "+++ AIDEV-NOTE: content starts with plus signs",
+            "+unchanged",
+        ]
+    )
+
+    def fake_merge_base(base_ref: str) -> str:
+        return "base"
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+    ) -> types.SimpleNamespace:
+        return types.SimpleNamespace(stdout=diff)
+
+    monkeypatch.setattr(_MODULE, "_merge_base", fake_merge_base)
+    monkeypatch.setattr(_MODULE.subprocess, "run", fake_run)
+
+    violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
+
+    assert violations == [("example.py", "++ AIDEV-NOTE: content starts with plus signs")]
