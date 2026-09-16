@@ -723,7 +723,7 @@ stack_postfork_cleanup()
     // Update PID in Echion
     _set_pid(getpid());
 
-    // Reset SpanLinks state (reset locks, clear span-thread mappings)
+    // Reset SpanLinks state (reset locks, clear span mappings)
     SpanLinks::postfork_child();
 
     // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)

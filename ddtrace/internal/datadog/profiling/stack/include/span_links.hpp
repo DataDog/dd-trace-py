@@ -1,15 +1,21 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <mutex>
 #include <optional>
-#include <stdint.h>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 
 namespace Datadog {
+
+enum class SpanLinkDomain : uint8_t
+{
+    Thread = 0,
+    AsyncioTask = 1,
+};
 
 struct Span
 {
@@ -24,13 +30,14 @@ struct Span
     {
     }
 
-    // for testing
     bool operator==(const Span& other) const
     {
         return span_id == other.span_id && local_root_span_id == other.local_root_span_id &&
                span_type == other.span_type;
     }
 };
+
+using SpanAttribution = std::optional<Span>;
 
 class SpanLinks
 {
@@ -41,14 +48,19 @@ class SpanLinks
         return instance;
     }
 
-    // Delete Copy constructor and assignment operator to prevent copies
     SpanLinks(SpanLinks const&) = delete;
     SpanLinks& operator=(SpanLinks const&) = delete;
 
     void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
-    const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
+    const SpanAttribution get_active_span_from_thread_id(uint64_t thread_id);
     void unlink_span(uint64_t thread_id);
     void unlink_span(uint64_t thread_id, uint64_t expected_span_id);
+
+    void link_task_span(
+      uint64_t task_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
+    const SpanAttribution get_active_span_from_task_id(uint64_t task_id);
+    void unlink_task_span(uint64_t task_id);
+
     void unlink_finished_span(uint64_t span_id);
     void reset();
 
@@ -60,9 +72,26 @@ class SpanLinks
     static void postfork_child();
 
   private:
-    using ThreadIdSet = std::unordered_set<uint64_t>;
-    using ThreadIdToSpanMap = std::unordered_map<uint64_t, Span>;
-    using SpanToThreadMap = std::unordered_map<uint64_t, ThreadIdSet>;
+    struct Key
+    {
+        SpanLinkDomain domain;
+        uint64_t identifier;
+
+        bool operator==(const Key& other) const { return domain == other.domain && identifier == other.identifier; }
+    };
+
+    struct KeyHash
+    {
+        std::size_t operator()(const Key& key) const
+        {
+            const auto domain = static_cast<std::size_t>(key.domain);
+            return std::hash<uint64_t>{}(key.identifier) ^ (domain + 0x9e3779b9U + (domain << 6U) + (domain >> 2U));
+        }
+    };
+
+    using KeySet = std::unordered_set<Key, KeyHash>;
+    using KeyToSpan = std::unordered_map<Key, Span, KeyHash>;
+    using SpanToKeys = std::unordered_map<uint64_t, KeySet>;
 
     struct PendingSpanLink
     {
@@ -70,11 +99,15 @@ class SpanLinks
         bool finished = false;
     };
 
-    void remove_thread_locked(uint64_t thread_id);
+    void link(Key key, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
+    void unlink(Key key);
+    void unlink(Key key, uint64_t expected_span_id);
+    void remove_locked(const Key& key);
+    const SpanAttribution get_active_span(const Key& key);
 
     std::mutex mtx;
-    ThreadIdToSpanMap thread_id_to_span;
-    SpanToThreadMap span_to_threads;
+    KeyToSpan key_to_span;
+    SpanToKeys span_to_keys;
 
     // Protected by the GIL. This bridges lifecycle callback order to mutations that release it above.
     std::unordered_map<uint64_t, PendingSpanLink> pending_span_links;
@@ -84,4 +117,4 @@ class SpanLinks
     ~SpanLinks() = default;
 };
 
-}
+} // namespace Datadog
