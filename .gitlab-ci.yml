@@ -124,7 +124,11 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [tests-gen]
+ needs:
+   - tests-gen
+   # Child cross-pipeline artifact dependencies must finish before the child is created.
+   - job: "upload manylinux2014_x86_64"
+     artifacts: false
  variables:
    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
