@@ -376,11 +376,13 @@ def test_context_after_session_coverage():
 def test_sequential_contexts_with_other_monitoring_tool():
     """
     Test that coverage from one context does not spill into the next when another
-    sys.monitoring tool is active (which disables the DISABLE optimisation).
+    sys.monitoring tool is active.
 
-    This is the key regression test for the auto-detection logic: when another tool
-    (e.g. coverage.py) is registered, _event_handler returns None instead of DISABLE,
-    and restart_events() is not called.  Coverage isolation must still hold.
+    Coverage routes through the shared sys.monitoring multiplexer, whose DISABLE is
+    tool-scoped (per-(tool, code, location)), so it never affects another tool's
+    disabled-event state and never calls the global restart_events(). Per-test
+    re-arming is therefore always safe, regardless of other registered tools, and
+    coverage isolation between contexts still holds.
     """
     import os
     from pathlib import Path
@@ -458,11 +460,9 @@ def test_sequential_contexts_with_other_monitoring_tool():
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_repeated_execution_with_other_monitoring_tool():
     """
-    Test that repeatedly executed code properly isolates coverage between contexts
-    when another sys.monitoring tool is active (DISABLE optimisation disabled).
-
-    Without DISABLE, events keep firing on every line execution.  This test verifies
-    that CoverageLines.add() idempotency and context-stack isolation still work correctly.
+    Test that repeatedly executed code stays isolated between contexts when another
+    sys.monitoring tool is active. Coverage uses tool-scoped DISABLE and re-arming, so the
+    other tool must remain unaffected while each context records its own execution.
     """
     import os
     from pathlib import Path
@@ -584,16 +584,18 @@ def test_events_rearmed_when_other_tool_registers_after_early_execution():
     be captured in later per-test contexts.
 
     Scenario (mirrors pytest with coverage report upload):
-    1. ModuleCodeCollector installed (DISABLE optimisation active, _use_disable_optimization=True).
-    2. Some workspace code is called — _event_handler returns DISABLE, silencing those line events.
+    1. ModuleCodeCollector installed. Coverage uses the shared sys.monitoring multiplexer
+       and its tool-scoped DISABLE optimisation (always on).
+    2. Some workspace code is called -- the handler records it and returns DISABLE,
+       silencing those line events on the multiplexer's tool slot.
     3. Another sys.monitoring tool registers (simulating coverage.py in pytest_configure).
-    4. Per-test CollectInContext starts — update_disable_optimization() detects the other tool,
-       transitions True→False, and calls _rearm_all_events() to re-enable our disabled events
-       via a per-code-object set_local_events() toggle (tool-scoped: it cannot affect the other
-       tool's own disabled-event state, regardless of timing).
-    5. The same code is called again inside the test context — events now fire and are recorded.
+       It uses a different tool slot, so the multiplexer's DISABLE marks are untouched.
+    4. Per-test CollectInContext starts -- _rearm_disabled() re-arms the silenced events
+       via a tool-scoped monitoring.refresh() (set_local_events toggle) that cannot affect
+       the other tool's own disabled-event state, regardless of timing.
+    5. The same code is called again inside the test context -- events now fire and are recorded.
 
-    Without the _rearm_all_events() fix, step 5 would produce an empty ITR bitmap for those lines.
+    Without tool-scoped re-arm, step 5 would produce an empty ITR bitmap for those lines.
     """
     import os
     from pathlib import Path

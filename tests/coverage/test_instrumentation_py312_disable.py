@@ -1,162 +1,85 @@
-"""
-Unit test for Python 3.12+ instrumentation DISABLE optimization.
-
-Verifies that _line_event_handler returns sys.monitoring.DISABLE to prevent
-repeated callbacks for the same line within a context.
-"""
+"""Tests for Python 3.12+ coverage routed through the monitoring multiplexer."""
 
 import sys
 
 import pytest
 
 
-# Tests for the "Datadog is the only monitoring tool" branch run in-process
-# and skip when a session-level tool such as pytest-cov already owns another slot. The
-# neighboring tests explicitly register another tool to cover the opposite branch.
-
-
 @pytest.fixture(autouse=True)
-def _restore_coverage_tool_state():
-    """Snapshot and restore the coverage module's shared sys.monitoring state around each test."""
+def _restore_coverage_state():
+    """Snapshot and restore the coverage module's shared state around each test."""
     if sys.version_info < (3, 12):
         yield
         return
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    def _datadog_slot():
-        return next((s for s in range(6) if sys.monitoring.get_tool(s) == "datadog"), None)
-
-    orig_tool_id = m._DD_TOOL_ID
-    orig_use_disable = m._use_disable_optimization
-    orig_hooks = dict(m._CODE_HOOKS)
-    orig_datadog_slot = _datadog_slot()
+    orig_hooks = [(code, m._CODE_HOOKS[code]) for code in m._CODE_HOOKS]
+    orig_seen = [(code, set(m._seen_event_locations[code])) for code in m._seen_event_locations]
+    orig_warned = m._warned_tool_unavailable
 
     try:
         yield
     finally:
-        # Restore module globals. _CODE_HOOKS is restored in place because the live plugin holds a
-        # reference to this same dict object.
         m._CODE_HOOKS.clear()
-        m._CODE_HOOKS.update(orig_hooks)
-        m._use_disable_optimization = orig_use_disable
-        m._DD_TOOL_ID = orig_tool_id
-
-        # Restore the sys.monitoring "datadog" registration to exactly what it was pre-test.
-        current_datadog_slot = _datadog_slot()
-        if current_datadog_slot != orig_datadog_slot:
-            if current_datadog_slot is not None:
-                sys.monitoring.free_tool_id(current_datadog_slot)
-            if orig_datadog_slot is not None:
-                sys.monitoring.use_tool_id(orig_datadog_slot, "datadog")
-                sys.monitoring.register_callback(orig_datadog_slot, m.EVENT, m._event_handler)
-                # Re-arm local events on the restored code objects so per-test coverage still fires.
-                m._rearm_all_events()
+        for code, hook_data in orig_hooks:
+            m._CODE_HOOKS[code] = hook_data
+        with m._rearm_lock:
+            m._seen_event_locations.clear()
+            for code, locations in orig_seen:
+                m._seen_event_locations[code] = locations
+        m._warned_tool_unavailable = orig_warned
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_event_handler_returns_disable():
-    """
-    Test that _line_event_handler returns DISABLE after recording a line.
-
-    This is critical for performance - returning DISABLE prevents the monitoring
-    system from calling the handler repeatedly for the same line (e.g., in loops).
-    """
+def test_line_handler_returns_disable_and_records():
+    """The line handler returns DISABLE after recording a line (perf: fire once per context)."""
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _USE_FILE_LEVEL_COVERAGE
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
 
-    # Create a simple code object and register it
     code_obj = compile("x = 1", "<test>", "exec")
-
-    # Track calls to the hook
     calls = []
+    m._CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {}, None, None, None)
 
-    def mock_hook(line_info):
-        calls.append(line_info)
+    handler = m._CoverageLineHandler()
+    result = handler.on_py_line(code_obj, 1)
 
-    # Register the code object with our hook
-    _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {}, None, None, None)
-
-    # Pin the DISABLE optimisation on: this test is specifically about the DISABLE-returning
-    # behavior, not about how the flag gets computed. Outside this test, the real coverage
-    # collection path (CollectInContext.__enter__) may have already flipped it to False -
-    # e.g. when another sys.monitoring tool such as pytest-cov's coverage.py (which defaults
-    # to the sys.monitoring "sysmon" core on Python 3.14+) is registered for this session.
-    prev_use_disable_optimization = m._use_disable_optimization
-    m._use_disable_optimization = True
-
-    try:
-        # Call the handler
-        result = _event_handler(code_obj, 1)
-
-        # CRITICAL: Must return DISABLE to prevent repeated callbacks
-        assert result == sys.monitoring.DISABLE, f"_line_event_handler must return sys.monitoring.DISABLE, got {result}"
-
-        # Verify the hook was called
-        assert len(calls) == 1
-        expected_line = 0 if _USE_FILE_LEVEL_COVERAGE else 1
-        assert calls[0] == (expected_line, "/test/path.py", None)
-    finally:
-        m._use_disable_optimization = prev_use_disable_optimization
-        # Cleanup
-        if code_obj in _CODE_HOOKS:
-            del _CODE_HOOKS[code_obj]
+    assert result is sys.monitoring.DISABLE
+    assert calls == [(1, "/test/path.py", None)]
+    assert m._seen_event_locations.get(code_obj) == {1}
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_event_handler_returns_disable_for_missing_code():
-    """Test that handler returns DISABLE even when code object is missing (graceful error handling)."""
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
-
-    # Create a code object that's NOT registered
-    code_obj = compile("y = 2", "<test>", "exec")
-
-    # Call handler with unregistered code object
-    result = _event_handler(code_obj, 1)
-
-    # Should still return DISABLE (graceful handling)
-    assert result == sys.monitoring.DISABLE, f"Handler should return DISABLE even for missing code, got {result}"
-
-
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_event_handler_uses_specialized_file_and_import_hooks():
+def test_file_handler_returns_disable_and_records():
+    """The file handler returns DISABLE after recording file coverage via PY_START."""
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    code_obj = compile("x = 1", "<test_file_hooks>", "exec")
-    generic_calls = []
-    file_calls = []
-    import_calls = []
-    import_name = ("tests.coverage", ("included_path",))
+    code_obj = compile("x = 1", "<test_file>", "exec")
+    calls = []
+    m._CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {}, None, None, None)
 
-    old_file_level = m._USE_FILE_LEVEL_COVERAGE
-    old_disable = m._use_disable_optimization
-    m._USE_FILE_LEVEL_COVERAGE = True
-    m._use_disable_optimization = False
-    m._CODE_HOOKS[code_obj] = (
-        lambda info: generic_calls.append(info),
-        "/test/path.py",
-        {10: import_name},
-        lambda path, line: None,
-        lambda path: file_calls.append(path),
-        lambda path, name: import_calls.append((path, name)),
-    )
+    handler = m._CoverageFileHandler()
+    result = handler.on_py_start(code_obj, 0)
 
-    try:
-        assert m._event_handler(code_obj, 0) is None
-    finally:
-        m._CODE_HOOKS.pop(code_obj, None)
-        m._USE_FILE_LEVEL_COVERAGE = old_file_level
-        m._use_disable_optimization = old_disable
-
-    assert generic_calls == []
-    assert file_calls == ["/test/path.py"]
-    assert import_calls == [("/test/path.py", import_name)]
+    assert result is sys.monitoring.DISABLE
+    # File-level coverage reports line 0.
+    assert calls == [(0, "/test/path.py", None)]
+    assert m._seen_event_locations.get(code_obj) == {m._FILE_EVENT_LOCATION}
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_event_handler_uses_specialized_line_and_import_hooks():
+def test_handlers_return_disable_for_missing_code():
+    """Both handlers return DISABLE for an unregistered code object (graceful handling)."""
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    code_obj = compile("y = 2", "<test_missing>", "exec")
+
+    assert m._CoverageLineHandler().on_py_line(code_obj, 1) is sys.monitoring.DISABLE
+    assert m._CoverageFileHandler().on_py_start(code_obj, 0) is sys.monitoring.DISABLE
+    assert code_obj not in m._seen_event_locations
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_line_handler_uses_specialized_line_and_import_hooks():
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
     code_obj = compile("x = 1", "<test_line_hooks>", "exec")
@@ -166,10 +89,6 @@ def test_event_handler_uses_specialized_line_and_import_hooks():
     import_calls = []
     import_name = ("tests.coverage", ("included_path",))
 
-    old_file_level = m._USE_FILE_LEVEL_COVERAGE
-    old_disable = m._use_disable_optimization
-    m._USE_FILE_LEVEL_COVERAGE = False
-    m._use_disable_optimization = False
     m._CODE_HOOKS[code_obj] = (
         lambda info: generic_calls.append(info),
         "/test/path.py",
@@ -179,12 +98,8 @@ def test_event_handler_uses_specialized_line_and_import_hooks():
         lambda path, name: import_calls.append((path, name)),
     )
 
-    try:
-        assert m._event_handler(code_obj, 7) is None
-    finally:
-        m._CODE_HOOKS.pop(code_obj, None)
-        m._USE_FILE_LEVEL_COVERAGE = old_file_level
-        m._use_disable_optimization = old_disable
+    handler = m._CoverageLineHandler()
+    assert handler.on_py_line(code_obj, 7) is sys.monitoring.DISABLE
 
     assert generic_calls == []
     assert line_calls == [("/test/path.py", 7)]
@@ -193,260 +108,169 @@ def test_event_handler_uses_specialized_line_and_import_hooks():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_ensure_registered_claims_a_candidate_slot():
-    """Test that _ensure_registered() claims a slot from _DD_CANDIDATE_SLOTS (4, 3, 1)."""
-    import sys
-
+def test_file_handler_uses_specialized_file_and_import_hooks():
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    # Free any slot we previously acquired
-    if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-        sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-    m._DD_TOOL_ID = None
+    code_obj = compile("x = 1", "<test_file_hooks>", "exec")
+    generic_calls = []
+    file_calls = []
+    import_calls = []
+    import_name = ("tests.coverage", ("included_path",))
 
-    result = m._ensure_registered()
+    m._CODE_HOOKS[code_obj] = (
+        lambda info: generic_calls.append(info),
+        "/test/path.py",
+        {10: import_name},
+        lambda path, line: None,
+        lambda path: file_calls.append(path),
+        lambda path, name: import_calls.append((path, name)),
+    )
 
-    try:
-        assert result is True, "_ensure_registered() must return True on success"
-        assert m._DD_TOOL_ID is not None, "_ensure_registered() must set _DD_TOOL_ID"
-        assert m._DD_TOOL_ID in m._DD_CANDIDATE_SLOTS, (
-            f"Acquired slot {m._DD_TOOL_ID} is not in candidate slots {m._DD_CANDIDATE_SLOTS}"
-        )
-        assert sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog", (
-            f"Expected 'datadog' at slot {m._DD_TOOL_ID}, got {sys.monitoring.get_tool(m._DD_TOOL_ID)}"
-        )
-    finally:
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-        m._DD_TOOL_ID = None
+    handler = m._CoverageFileHandler()
+    assert handler.on_py_start(code_obj, 0) is sys.monitoring.DISABLE
+
+    assert generic_calls == []
+    assert file_calls == ["/test/path.py"]
+    assert import_calls == [("/test/path.py", import_name)]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_has_other_monitoring_tools_false_when_alone():
-    """has_other_monitoring_tools() returns False when only datadog is registered."""
-    import sys
-
+@pytest.mark.parametrize("handler_name", ["_CoverageLineHandler", "_CoverageFileHandler"])
+def test_handlers_isolate_structurally_equal_code_objects(handler_name, monkeypatch):
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
-        m._DD_TOOL_ID = None
-        m._ensure_registered()
+    code_a = compile("x = 1", "<same>", "exec")
+    code_b = compile("x = 1", "<same>", "exec")
+    assert code_a is not code_b
+    assert code_a == code_b
 
-    try:
-        if m.has_other_monitoring_tools():
-            pytest.skip("requires Datadog to be the only active sys.monitoring tool")
-        assert m.has_other_monitoring_tools() is False
-    finally:
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-        m._DD_TOOL_ID = None
+    calls_a = []
+    calls_b = []
+    m._CODE_HOOKS[code_a] = (lambda info: calls_a.append(info), "/a.py", {}, None, None, None)
+    m._CODE_HOOKS[code_b] = (lambda info: calls_b.append(info), "/b.py", {}, None, None, None)
+
+    handler = getattr(m, handler_name)()
+    if handler_name == "_CoverageLineHandler":
+        handler.on_py_line(code_a, 1)
+        handler.on_py_line(code_b, 1)
+        expected_a = [(1, "/a.py", None)]
+        expected_b = [(1, "/b.py", None)]
+    else:
+        handler.on_py_start(code_a, 0)
+        handler.on_py_start(code_b, 0)
+        expected_a = [(0, "/a.py", None)]
+        expected_b = [(0, "/b.py", None)]
+
+    assert calls_a == expected_a
+    assert calls_b == expected_b
+    assert sorted(id(code) for code in m._seen_event_locations) == sorted((id(code_a), id(code_b)))
+
+    refreshed = []
+    monkeypatch.setattr(m._monitoring, "refresh", lambda code, events: refreshed.append((code, events)))
+    m._rearm_disabled()
+    assert sorted(id(code) for code, _events in refreshed) == sorted((id(code_a), id(code_b)))
+    assert all(events == m._EVENT for _code, events in refreshed)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_has_other_monitoring_tools_true_when_other_tool_present():
-    """has_other_monitoring_tools() returns True when another tool occupies a slot."""
-    import sys
-
+def test_line_handler_deduplicates_when_another_handler_keeps_event_enabled():
+    from ddtrace.internal import monitoring
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
-        m._DD_TOOL_ID = None
-        m._ensure_registered()
+    class PassiveHandler(monitoring.MonitoringEventHandler):
+        def __init__(self):
+            self.calls = 0
 
-    # Pick a slot that is NOT ours
-    other_slot = next(s for s in range(6) if s != m._DD_TOOL_ID and not sys.monitoring.get_tool(s))
-    sys.monitoring.use_tool_id(other_slot, "other_tool")
+        def on_py_line(self, code, line_number):
+            self.calls += 1
+            return None
 
+    code_obj = compile("x = 1", "<overlap>", "exec")
+    coverage_calls = []
+    m._CODE_HOOKS[code_obj] = (lambda info: coverage_calls.append(info), "/test.py", {}, None, None, None)
+    coverage_handler = m._CoverageLineHandler()
+    passive_handler = PassiveHandler()
+    monitoring.register(code_obj, coverage_handler)
+    monitoring.register(code_obj, passive_handler)
     try:
-        assert m.has_other_monitoring_tools() is True
+        assert monitoring._on_py_line(code_obj, 1) is not sys.monitoring.DISABLE
+        assert monitoring._on_py_line(code_obj, 1) is not sys.monitoring.DISABLE
     finally:
-        sys.monitoring.free_tool_id(other_slot)
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-        m._DD_TOOL_ID = None
+        monitoring.unregister(code_obj, passive_handler)
+        monitoring.unregister(code_obj, coverage_handler)
+
+    assert coverage_calls == [(1, "/test.py", None)]
+    assert passive_handler.calls == 2
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_update_disable_optimization_disables_when_other_tool_present():
-    """update_disable_optimization() sets the flag to False when another tool is active."""
-    import sys
-
+def test_rearm_disabled_refreshes_each_touched_code_object(monkeypatch):
+    """_rearm_disabled() calls monitoring.refresh() for every DISABLE'd code object and clears the set."""
+    from ddtrace.internal import monitoring
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
-        m._DD_TOOL_ID = None
-        m._ensure_registered()
+    refreshed = []
+    monkeypatch.setattr(monitoring, "refresh", lambda code, events: refreshed.append((code, events)))
 
-    # Pick a free slot and register another tool
-    other_slot = next(s for s in range(6) if s != m._DD_TOOL_ID and not sys.monitoring.get_tool(s))
-    sys.monitoring.use_tool_id(other_slot, "other_tool")
+    code_a = compile("a = 1", "<a>", "exec")
+    code_b = compile("b = 2", "<b>", "exec")
+    assert m._claim_event(code_a, 1)
+    assert m._claim_event(code_b, 2)
 
-    try:
-        result = m.update_disable_optimization()
-        assert result is False, "Should disable optimization when another tool is present"
-        assert m._use_disable_optimization is False
-    finally:
-        sys.monitoring.free_tool_id(other_slot)
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-        m._DD_TOOL_ID = None
-        m._use_disable_optimization = True
+    m._rearm_disabled()
+
+    assert sorted(id(code) for code, _events in refreshed) == sorted((id(code_a), id(code_b)))
+    assert all(events == m._EVENT for _code, events in refreshed)
+    assert len(m._seen_event_locations) == 0
+    # A second call with nothing disabled is a no-op.
+    refreshed.clear()
+    m._rearm_disabled()
+    assert refreshed == []
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_update_disable_optimization_enables_when_alone():
-    """update_disable_optimization() sets the flag to True when only datadog is registered."""
-    import sys
-
+def test_rearm_disabled_is_noop_when_empty(monkeypatch):
+    from ddtrace.internal import monitoring
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
-        m._DD_TOOL_ID = None
-        m._ensure_registered()
+    called = []
+    monkeypatch.setattr(monitoring, "refresh", lambda code, events: called.append((code, events)))
 
-    try:
-        if m.has_other_monitoring_tools():
-            pytest.skip("requires Datadog to be the only active sys.monitoring tool")
-        # Force to False first, then verify it gets set back to True
-        m._use_disable_optimization = False
-        result = m.update_disable_optimization()
-        assert result is True, "Should enable optimization when no other tool is present"
-        assert m._use_disable_optimization is True
-    finally:
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-        m._DD_TOOL_ID = None
-        m._use_disable_optimization = True
+    m._rearm_disabled()
+    assert called == []
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_update_disable_optimization_rearmed_on_transition():
-    """On True→False transition, update_disable_optimization() calls _rearm_all_events()
-    which re-enables events for our tool via a per-code-object set_local_events() toggle
-    (tool-scoped, does not touch any other registered tool's disabled-event state).
-    """
-    import sys
-
+def test_instrument_all_lines_retries_after_multiplexer_unavailable(monkeypatch):
+    """A transient slot clash skips one module without permanently disabling coverage."""
+    from ddtrace.internal import monitoring
+    from ddtrace.internal.coverage.coverage_lines import CoverageLines
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
 
-    # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
-        m._DD_TOOL_ID = None
-        m._ensure_registered()
+    attempts = 0
 
-    # Set up a real code object and register it in _CODE_HOOKS
-    code_obj = compile("x = 1", "<test_rearm>", "exec")
-    calls: list[object] = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/rearm.py", {}, None, None, None)
-    sys.monitoring.set_local_events(m._DD_TOOL_ID, code_obj, m.EVENT)
+    def ensure_tool():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise monitoring.MonitoringToolUnavailable
+        return 4
 
-    # Start in DISABLE mode (default)
-    m._use_disable_optimization = True
+    instrumented_lines = CoverageLines()
+    instrumented_lines.add(1)
+    monkeypatch.setattr(m._monitoring, "ensure_tool", ensure_tool)
+    monkeypatch.setattr(
+        m,
+        "_instrument_with_monitoring",
+        lambda code, hook, path, package: (code, instrumented_lines),
+    )
 
-    # Simulate: _event_handler returned DISABLE for this code object, silencing events.
-    # Confirm events fire, return DISABLE, and then stop firing (event silenced).
-    result = m._event_handler(code_obj, 1)
-    assert result == sys.monitoring.DISABLE
+    code_obj = compile("x = 1", "<test_degrade>", "exec")
+    first_code, first_lines = m.instrument_all_lines(code_obj, lambda info: None, "/test/path.py", "pkg")
+    second_code, second_lines = m.instrument_all_lines(code_obj, lambda info: None, "/test/path.py", "pkg")
 
-    # Now another tool registers (simulating coverage.py)
-    other_slot = next(s for s in range(6) if s != m._DD_TOOL_ID and not sys.monitoring.get_tool(s))
-    sys.monitoring.use_tool_id(other_slot, "other_tool")
-
-    try:
-        # Transition: True→False should call _rearm_all_events() internally
-        new_val = m.update_disable_optimization()
-        assert new_val is False
-
-        # After re-arming, _event_handler should fire again for our code object
-        calls.clear()
-        result2 = m._event_handler(code_obj, 1)
-        assert result2 is None, "After re-arm, handler must return None (not DISABLE)"
-        assert len(calls) == 1, "Handler must fire after re-arming"
-    finally:
-        sys.monitoring.free_tool_id(other_slot)
-        if code_obj in _CODE_HOOKS:
-            del _CODE_HOOKS[code_obj]
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-        m._DD_TOOL_ID = None
-        m._use_disable_optimization = True
-
-
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_update_disable_optimization_does_not_crash_without_registered_tool():
-    """A True to False transition must not crash when no tool slot is currently owned."""
-    import sys
-
-    import ddtrace.internal.coverage.instrumentation_py3_12 as m
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
-
-    # Force the inconsistent state: no owned tool slot (_DD_TOOL_ID is None) but a populated hook
-    # registry. We only null the module global; we deliberately do not touch the real "datadog"
-    # tool registration so the surrounding session state is restored exactly afterwards.
-    prev_tool_id = m._DD_TOOL_ID
-    prev_use_disable_optimization = m._use_disable_optimization
-    m._DD_TOOL_ID = None
-    m._use_disable_optimization = True
-
-    code_obj = compile("x = 1", "<test_no_tool>", "exec")
-    _CODE_HOOKS[code_obj] = (lambda info: None, "/test/no_tool.py", {}, None, None, None)
-
-    # Register another tool in a free slot so update_disable_optimization() takes the True→False
-    # transition, which is what triggers _rearm_all_events().
-    other_slot = next(s for s in range(6) if not sys.monitoring.get_tool(s))
-    sys.monitoring.use_tool_id(other_slot, "other_tool")
-
-    try:
-        # Must not raise even though _DD_TOOL_ID is None.
-        result = m.update_disable_optimization()
-        assert result is False, "Another tool is present, so the optimisation must be disabled"
-    finally:
-        sys.monitoring.free_tool_id(other_slot)
-        _CODE_HOOKS.pop(code_obj, None)
-        m._DD_TOOL_ID = prev_tool_id
-        m._use_disable_optimization = prev_use_disable_optimization
-
-
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_event_handler_returns_none_when_other_tool_present():
-    """When another sys.monitoring tool is active, _event_handler returns None instead of DISABLE."""
-    import sys
-
-    import ddtrace.internal.coverage.instrumentation_py3_12 as m
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
-
-    # Ensure we have a registered slot
-    if m._DD_TOOL_ID is None or sys.monitoring.get_tool(m._DD_TOOL_ID) != "datadog":
-        m._DD_TOOL_ID = None
-        m._ensure_registered()
-
-    # Register another tool
-    other_slot = next(s for s in range(6) if s != m._DD_TOOL_ID and not sys.monitoring.get_tool(s))
-    sys.monitoring.use_tool_id(other_slot, "other_tool")
-
-    # Set up a code hook
-    code_obj = compile("x = 1", "<test>", "exec")
-    calls = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {}, None, None, None)
-
-    try:
-        # Update the flag based on detected tools
-        m.update_disable_optimization()
-
-        result = _event_handler(code_obj, 1)
-        assert result is None, f"Should return None when another tool is present, got {result}"
-        assert len(calls) == 1
-    finally:
-        sys.monitoring.free_tool_id(other_slot)
-        if code_obj in _CODE_HOOKS:
-            del _CODE_HOOKS[code_obj]
-        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
-        m._DD_TOOL_ID = None
-        m._use_disable_optimization = True
+    assert first_code is code_obj
+    assert len(first_lines) == 0
+    assert second_code is code_obj
+    assert second_lines is instrumented_lines
+    assert attempts == 2
