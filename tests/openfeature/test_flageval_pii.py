@@ -30,6 +30,7 @@ from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.openfeature._provider import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.config_helpers import create_string_flag
 from tests.utils import override_global_config
 
 
@@ -191,6 +192,56 @@ class TestProviderConsentMetadata:
 
         assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is False
 
+    def test_inactive_provider_stamps_evaluated_consent(self) -> None:
+        _set_ffe_config(_FfeSnapshot(config=MagicMock(name="ffe.Configuration"), observe_full_evaluation_data=True))
+        provider = self.provider()
+        provider._active = False
+
+        details = provider.resolve_boolean_details("test-flag", False)
+
+        assert details.reason == Reason.DISABLED
+        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+
+    @pytest.mark.parametrize(
+        ("config", "flag_key", "expected_reason", "expected_error"),
+        [
+            (
+                create_config(create_boolean_flag("other-flag")),
+                "missing-flag",
+                Reason.ERROR,
+                ErrorCode.FLAG_NOT_FOUND,
+            ),
+            (
+                create_config(create_string_flag("string-flag", "value")),
+                "string-flag",
+                Reason.ERROR,
+                ErrorCode.TYPE_MISMATCH,
+            ),
+            (
+                create_config(create_boolean_flag("disabled-flag", enabled=False)),
+                "disabled-flag",
+                Reason.DISABLED,
+                None,
+            ),
+        ],
+        ids=["flag-not-found", "native-error", "runtime-default"],
+    )
+    def test_native_terminal_paths_stamp_evaluated_consent(
+        self,
+        config: dict,
+        flag_key: str,
+        expected_reason: Reason,
+        expected_error: typing.Optional[ErrorCode],
+    ) -> None:
+        config["observeFullEvaluationData"] = True
+        assert process_ffe_configuration(config) is True
+
+        details = self.provider().resolve_boolean_details(flag_key, False)
+
+        assert details.reason == expected_reason
+        assert details.error_code == expected_error
+        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+
     def test_consent_stays_bound_to_evaluated_snapshot(self, monkeypatch) -> None:
         evaluated_config = MagicMock(name="evaluated_config")
         replacement_config = MagicMock(name="replacement_config")
@@ -205,6 +256,24 @@ class TestProviderConsentMetadata:
 
         details = self.provider().resolve_boolean_details("test-flag", False)
 
+        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+
+    def test_exception_after_configuration_swap_keeps_evaluated_consent(self, monkeypatch) -> None:
+        evaluated_config = MagicMock(name="evaluated_config")
+        replacement_config = MagicMock(name="replacement_config")
+        _set_ffe_config(_FfeSnapshot(config=evaluated_config, observe_full_evaluation_data=True))
+
+        def replace_live_snapshot_and_raise(configuration, *args, **kwargs):
+            assert configuration is evaluated_config
+            _set_ffe_config(_FfeSnapshot(config=replacement_config, observe_full_evaluation_data=False))
+            raise RuntimeError("evaluation failed")
+
+        monkeypatch.setattr(provider_module, "resolve_flag", replace_live_snapshot_and_raise)
+
+        details = self.provider().resolve_boolean_details("test-flag", False)
+
+        assert details.reason == Reason.ERROR
+        assert details.error_code == ErrorCode.GENERAL
         assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
 
 
@@ -321,14 +390,20 @@ class TestWriterPrivacyBoundary:
         )
 
     @staticmethod
-    def flush(events: typing.Iterable[_EvalEvent]) -> list[dict]:
+    def flush_raw(events: typing.Iterable[_EvalEvent]) -> bytes:
         writer = FlagEvaluationWriter(interval=10.0)
         for event in events:
             writer.enqueue(event)
         with mock.patch.object(writer, "_send_payload") as send:
             writer.periodic()
         assert send.called
-        return json.loads(send.call_args.args[0])["flagEvaluations"]
+        payload = send.call_args.args[0]
+        assert isinstance(payload, bytes)
+        return payload
+
+    @staticmethod
+    def flush(events: typing.Iterable[_EvalEvent]) -> list[dict]:
+        return json.loads(TestWriterPrivacyBoundary.flush_raw(events))["flagEvaluations"]
 
     def test_protected_payload_hashes_key_and_omits_context(self) -> None:
         rows = self.flush(
@@ -343,6 +418,23 @@ class TestWriterPrivacyBoundary:
         assert rows[0]["targeting_key"] == CANONICAL_HASHED_TARGETING_KEY
         assert "context" not in rows[0]
         assert CANONICAL_TARGETING_KEY not in json.dumps(rows)
+
+    def test_protected_raw_payload_contains_no_pii_canary(self) -> None:
+        raw_payload = self.flush_raw(
+            [
+                self.event(
+                    attrs={"email": CANONICAL_TARGETING_KEY, "nested": {"secret": "secret@example.com"}},
+                    observe=False,
+                    error_message='For input string: "secret@example.com"',
+                    error_code=ErrorCode.TYPE_MISMATCH.value,
+                )
+            ]
+        )
+
+        assert CANONICAL_HASHED_TARGETING_KEY.encode() in raw_payload
+        assert CANONICAL_TARGETING_KEY.encode() not in raw_payload
+        assert b"secret@example.com" not in raw_payload
+        assert b'"evaluation"' not in raw_payload
 
     @pytest.mark.parametrize("invalid_consent", ["false", 1, object()])
     def test_non_boolean_consent_fails_closed(self, invalid_consent: typing.Any) -> None:
@@ -395,7 +487,7 @@ class TestWriterPrivacyBoundary:
         assert all(row["evaluation_count"] == 1 for row in rows)
 
     @pytest.mark.parametrize("observations", [(True, False), (False, True)])
-    def test_degraded_bucket_preserves_consent_identity(self, observations: tuple[bool, bool]) -> None:
+    def test_degraded_bucket_merges_consent_and_fails_closed(self, observations: tuple[bool, bool]) -> None:
         writer = FlagEvaluationWriter(interval=10.0)
         writer._per_flag_count["pii-flag"] = writer_module.PER_FLAG_CAP
 
@@ -408,8 +500,10 @@ class TestWriterPrivacyBoundary:
                 )
             )
 
-        assert len(writer._degraded) == 2
-        assert {entry.observe_full_evaluation_data for entry in writer._degraded.values()} == {False, True}
+        assert len(writer._degraded) == 1
+        entry = next(iter(writer._degraded.values()))
+        assert entry.count == 2
+        assert entry.observe_full_evaluation_data is False
 
     def test_protected_buckets_do_not_key_on_context(self) -> None:
         rows = self.flush(

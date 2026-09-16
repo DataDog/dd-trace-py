@@ -1263,7 +1263,6 @@ class FlagEvaluationWriter(PeriodicService):
             event.allocation_key,
             event.runtime_default,
             error_message,
-            event.observe_full_evaluation_data is True,
         )
         if deg_key in self._degraded:
             self._degraded[deg_key].observe(
