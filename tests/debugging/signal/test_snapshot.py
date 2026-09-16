@@ -2,12 +2,18 @@
 
 import inspect
 import threading
+import time
 from unittest import mock
 
+from ddtrace.debugging._probe.model import ExpressionTemplateSegment
+from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
+from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import compile_template
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.debugging.utils import slow_timed_expr
 
 
 def _make_snapshot(probe):
@@ -113,3 +119,36 @@ def test_template_eval_timeout_records_error():
 
     timeout_errors = [e for e in snap.errors if "exceeded budget" in e.message]
     assert timeout_errors, "Expected a timeout EvaluationError for template evaluation"
+
+
+# ---------------------------------------------------------------------------
+# Template-segment evaluation timeout
+# ---------------------------------------------------------------------------
+
+
+def test_slow_segment_times_out():
+    """A template segment iterating a huge collection is stopped around
+    evaluation_timeout_ms, and the rest of the template still renders.
+    """
+    probe = create_log_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        template="before {slow} after",
+        segments=[
+            LiteralTemplateSegment("before "),
+            ExpressionTemplateSegment(slow_timed_expr()),
+            LiteralTemplateSegment(" after"),
+        ],
+    )
+    snap = _make_snapshot(probe)
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        start = time.monotonic()
+        snap.line(SLOW_SCOPE)
+        elapsed = time.monotonic() - start
+
+    assert snap._message == "before ERROR after"
+    # Reported once, not again by the post-hoc overrun check.
+    assert [e.message for e in snap.errors] == ["Segment evaluation timed out after 20ms"]
+    assert elapsed < 1.0

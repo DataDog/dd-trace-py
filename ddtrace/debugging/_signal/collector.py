@@ -59,6 +59,11 @@ class SignalCollector(object):
                 "dynamic_instrumentation.guardrails.events.skipped",
                 tags={"reason": "evaluationErrorThrottled", "probe_type": type(signal.probe).__name__},
             )
+        elif signal.state is SignalState.COND_TIMEOUT:
+            meter.increment(
+                "dynamic_instrumentation.guardrails.events.skipped",
+                tags={"reason": "evaluationTimeout", "probe_type": type(signal.probe).__name__},
+            )
         elif signal.state is SignalState.COND_ERROR:
             meter.increment(
                 "dynamic_instrumentation.guardrails.evaluation.errors",
@@ -108,7 +113,7 @@ class SignalCollector(object):
 
         if (
             isinstance(signal, LogSignal)
-            and signal.state in {SignalState.DONE, SignalState.COND_ERROR}
+            and signal.state in {SignalState.DONE, SignalState.COND_ERROR, SignalState.COND_TIMEOUT}
             and signal.has_message()
         ):
             log.debug("Enqueueing signal %s", signal)

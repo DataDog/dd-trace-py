@@ -5,9 +5,11 @@ import pytest
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._expressions import _is_one_shot_iterator
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._expressions import instanceof
+from ddtrace.debugging._expressions import isdefined
 from ddtrace.internal.safety import SafeObjectProxy
 
 
@@ -433,3 +435,14 @@ def test_filter_preserves_builtin_collection_type(coll_type):
     coll = coll_type([1, 2, 3])
     result = dd_compile({"filter": [{"ref": "c"}, True]})({"c": coll})
     assert type(result) is coll_type
+
+
+def test_isdefined_does_not_swallow_evaluation_timeout():
+    # A preemption timeout landing inside isDefined() must propagate: the
+    # deadline does not fire again, so swallowing it would let the rest of
+    # the expression run unbounded.
+    def predicate(_locals):
+        raise EvaluationTimeoutError()
+
+    with pytest.raises(EvaluationTimeoutError):
+        isdefined(predicate, {})

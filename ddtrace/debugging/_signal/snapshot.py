@@ -12,9 +12,11 @@ from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import CaptureExpression
 from ddtrace.debugging._probe.model import CaptureLimits
+from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
@@ -132,6 +134,7 @@ class Snapshot(LogSignal):
     duration: Optional[int] = field(default=None)  # nanoseconds
     _capture_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
     _template_eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
+    _segment_timed_out: bool = field(default=False, init=False, repr=False)
 
     def _eval_segment(self, segment: TemplateSegment, _locals: Mapping[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
@@ -146,6 +149,15 @@ class Snapshot(LogSignal):
                 maxlen=capture.max_len,
                 maxfields=capture.max_fields,
             )
+        except EvaluationTimeoutError:
+            self._segment_timed_out = True
+            dsl = segment.expr.dsl if isinstance(segment, ExpressionTemplateSegment) else ""
+            self.errors.append(
+                EvaluationError(
+                    expr=dsl, message=f"Segment evaluation timed out after {di_config.evaluation_timeout_ms}ms"
+                )
+            )
+            return "ERROR"
         except DDExpressionEvaluationError as e:
             self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
             return REDACTED_PLACEHOLDER if isinstance(e.__cause__, DDRedactedExpressionError) else "ERROR"
@@ -153,8 +165,15 @@ class Snapshot(LogSignal):
     def _eval_message(self, _locals: Mapping[str, Any]) -> None:
         probe = cast(LogProbeMixin, self.probe)
         t_start = Time.monotonic()
+        self._segment_timed_out = False
         self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
         self._template_eval_duration_ms = (Time.monotonic() - t_start) * 1000
+
+        if self._segment_timed_out:
+            # Already reported by _eval_segment; don't report the same
+            # overrun twice through the post-hoc check below.
+            return
+
         # RFC: treat overruns as guardrail input — record as evaluation error
         eval_timeout_ms = di_config.evaluation_timeout_ms
         if self._template_eval_duration_ms > eval_timeout_ms:

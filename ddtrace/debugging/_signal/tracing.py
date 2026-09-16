@@ -7,6 +7,7 @@ import typing as t
 import ddtrace
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
@@ -22,6 +23,7 @@ from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.trace import Span
 
 
@@ -103,6 +105,14 @@ class SpanDecoration(LogSignal):
                 try:
                     if not (d.when is None or d.when(scope)):
                         continue
+                except EvaluationTimeoutError:
+                    self.errors.append(
+                        EvaluationError(
+                            expr=d.when.dsl if d.when is not None else "",
+                            message="Condition evaluation timed out after %sms" % di_config.evaluation_timeout_ms,
+                        )
+                    )
+                    continue
                 except DDExpressionEvaluationError as e:
                     self.errors.append(
                         EvaluationError(expr=e.dsl, message="Failed to evaluate condition: %s" % e.error)
@@ -111,6 +121,11 @@ class SpanDecoration(LogSignal):
                 for tag in d.tags:
                     try:
                         tag_value = tag.value.render(scope, serialize)
+                    except EvaluationTimeoutError:
+                        span._set_attribute(
+                            "_dd.di.%s.evaluation_error" % tag.name,
+                            "Evaluation timed out after %sms" % di_config.evaluation_timeout_ms,
+                        )
                     except DDExpressionEvaluationError as e:
                         span._set_attribute(
                             "_dd.di.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])

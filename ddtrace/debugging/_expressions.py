@@ -27,12 +27,17 @@ Full grammar:
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import chain
+from itertools import islice
 import re
 import sys
+import threading
+from time import perf_counter_ns
 from types import FunctionType
 from typing import Any
 from typing import Callable
 from typing import Collection
+from typing import Iterable
+from typing import Iterator
 from typing import Mapping
 from typing import Optional
 from typing import TypeVar
@@ -60,6 +65,109 @@ log = get_logger(__name__)
 # filter reconstruction. Custom subclasses are excluded to avoid triggering
 # arbitrary __init__ side effects.
 _SAFE_RECONSTRUCTIBLE_TYPES: frozenset[type] = frozenset({list, tuple, set, frozenset})
+
+
+class EvaluationTimeoutError(TimeoutError):
+    """Raised when an expression evaluation exceeds its deadline."""
+
+
+# Deadline (in perf_counter_ns) of the expression evaluation running on this
+# thread, or None.
+class _EvalDeadline(threading.local):
+    # Class-level default: a missing per-thread attribute would otherwise
+    # make every first read on a thread go through AttributeError.
+    ns: Optional[int] = None
+
+
+_eval_deadline = _EvalDeadline()
+
+
+def get_eval_deadline() -> Optional[int]:
+    return _eval_deadline.ns
+
+
+def set_eval_deadline(deadline_ns: Optional[int]) -> None:
+    _eval_deadline.ns = deadline_ns
+
+
+# Chunks are sized at runtime so that the deadline is checked about every
+# _DEADLINE_CHECK_INTERVAL_NS. With a cheap predicate the chunk grows to
+# _MAX_CHUNK_SIZE and the clock is read rarely; with an expensive one it shrinks
+# to a single element, so the deadline is overshot by at most about one
+# predicate evaluation. If the cost rises partway through a collection, the
+# chunk already being consumed is the overshoot, so _MAX_CHUNK_SIZE bounds the
+# worst case: a larger cap reads the clock less often but can overshoot by up to
+# that many slow predicate evaluations. Growth is limited to _MAX_CHUNK_GROWTH
+# per step so one fast measurement can't make the next chunk overshoot. Before
+# the first check nothing is known about the predicate, so the first chunk is
+# kept small.
+_DEADLINE_CHECK_INTERVAL_NS = 100_000
+_INITIAL_CHUNK_SIZE = 4
+_MAX_CHUNK_SIZE = 64
+_MAX_CHUNK_GROWTH = 8
+
+# Built-in types whose iteration can't run user code, so pulling a chunk of
+# elements ahead of the predicate has no observable effect. Exact types only:
+# a subclass may override __iter__. Anything else is iterated one element at a
+# time, so we never produce an element the predicate would not have asked for.
+_PREFETCH_SAFE_TYPES = frozenset({list, tuple, range, set, frozenset, str, bytes, bytearray, type({}.items())})
+
+
+def _bounded_chunks(it: Iterable[Any], deadline_ns: int) -> Iterator[list[Any]]:
+    _it = iter(it)
+    size = _INITIAL_CHUNK_SIZE
+    last = perf_counter_ns()
+    while chunk := list(islice(_it, size)):
+        yield chunk
+        # Resumed only once the consumer is done with the chunk, so the elapsed
+        # time includes evaluating the predicate on it.
+        now = perf_counter_ns()
+        if now > deadline_ns:
+            raise EvaluationTimeoutError()
+        # Plain comparisons: min()/max() calls are measurable at this rate
+        grown = size * _MAX_CHUNK_GROWTH
+        size = size * _DEADLINE_CHECK_INTERVAL_NS // (now - last or 1)
+        if size > grown:
+            size = grown
+        if size > _MAX_CHUNK_SIZE:
+            size = _MAX_CHUNK_SIZE
+        elif size < 1:
+            size = 1
+        last = now
+
+
+def _bounded_each(it: Iterable[Any], deadline_ns: int) -> Iterator[Any]:
+    for e in it:
+        if perf_counter_ns() > deadline_ns:
+            raise EvaluationTimeoutError()
+        yield e
+
+
+def _bounded(it: Iterable[Any]) -> Iterable[Any]:
+    """Iterate it, raising EvaluationTimeoutError once the deadline passes."""
+    deadline_ns = get_eval_deadline()
+    if deadline_ns is None:
+        return it
+    if type(it) in _PREFETCH_SAFE_TYPES:
+        return chain.from_iterable(_bounded_chunks(it, deadline_ns))
+    return _bounded_each(it, deadline_ns)
+
+
+# Operators whose helpers iterate through _bounded(). Keep in sync with the
+# compiler: an iterating operator missing from here is never timed.
+ITERATING_OPERATORS = frozenset({"any", "all", "filter"})
+
+
+def iterates(ast: DDASTType) -> bool:
+    """Whether the expression AST uses an iterating operator. Operator names
+    only ever appear as dict keys, so literal strings can't match.
+    """
+    if isinstance(ast, dict):
+        return any(k in ITERATING_OPERATORS or iterates(v) for k, v in ast.items())
+    if isinstance(ast, list):
+        return any(iterates(e) for e in ast)
+    return False
+
 
 # Direct handles on type's own C-level getset_descriptors.
 # _type_dict_descriptor: calling .__get__(cls) returns the class namespace
@@ -158,6 +266,11 @@ def instanceof(value: Any, type_qname: str) -> bool:
 def isdefined(predicate: Callable[[Mapping[str, Any]], Any], _locals: Mapping[str, Any]) -> bool:
     try:
         predicate(_locals)
+    except EvaluationTimeoutError:
+        # A timeout says nothing about whether the value is defined, and
+        # swallowing it would let the rest of the expression carry on past
+        # the deadline.
+        raise
     except BaseException:
         return False
     return True
@@ -293,8 +406,8 @@ class DDCompiler:
                     raise TypeError("Cannot iterate over a one-shot iterator in a debugger expression")
                 if _isinstance(it, dict):
                     # Use the unbound dict.items() to bypass any subclass override.
-                    return f(cond(k, k, v, _locals) for k, v in dict.items(it))  # type: ignore[arg-type, var-annotated]
-                return f(cond(e, None, None, _locals) for e in it)
+                    return f(cond(k, k, v, _locals) for k, v in _bounded(dict.items(it)))  # type: ignore[arg-type]
+                return f(cond(e, None, None, _locals) for e in _bounded(it))
 
             return self._call_function(coll_iter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
 
@@ -405,9 +518,9 @@ class DDCompiler:
                 if _isinstance(it, dict):
                     # Use unbound dict.items() to bypass any subclass override, and
                     # return a plain dict to avoid calling a custom subclass constructor.
-                    return {k: v for k, v in dict.items(it) if cond(k, k, v, _locals)}
+                    return {k: v for k, v in _bounded(dict.items(it)) if cond(k, k, v, _locals)}
                 it_type = type(it)
-                filtered = (e for e in it if cond(e, None, None, _locals))
+                filtered = (e for e in _bounded(it) if cond(e, None, None, _locals))
                 # Only reconstruct using the original type for known-safe builtins.
                 # For custom subclasses, fall back to list to avoid __init__ side effects.
                 return it_type(filtered) if it_type in _SAFE_RECONSTRUCTIBLE_TYPES else list(filtered)

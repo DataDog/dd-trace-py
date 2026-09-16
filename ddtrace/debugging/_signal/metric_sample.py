@@ -6,6 +6,8 @@ from typing import Mapping
 from typing import Optional
 from typing import cast
 
+from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._metrics import probe_metrics
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
@@ -13,9 +15,11 @@ from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.log import LogSignal
+from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 
 
 @dataclass
@@ -43,7 +47,22 @@ class MetricSample(LogSignal):
 
         assert probe.kind is not None and probe.name is not None  # nosec
 
-        value = float(probe.value(scope)) if probe.value is not None else 1
+        if probe.value is not None:
+            try:
+                value = float(probe.value(scope))
+            except EvaluationTimeoutError:
+                self.errors.append(
+                    EvaluationError(
+                        expr=probe.value.dsl,
+                        message=f"Metric value evaluation timed out after {di_config.evaluation_timeout_ms}ms",
+                    )
+                )
+                return
+            except DDExpressionEvaluationError as e:
+                self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
+                return
+        else:
+            value = 1
 
         # TODO[perf]: We know the tags in advance so we can avoid the
         # list comprehension.

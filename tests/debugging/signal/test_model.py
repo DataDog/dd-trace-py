@@ -9,8 +9,11 @@ from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
+from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.debugging.utils import slow_timed_expr
 
 
 class MockSignal(Signal):
@@ -166,6 +169,47 @@ def test_probe_entry_skip_not_triggered_when_throttle_expired():
 
     assert result is True
     assert signal.state is SignalState.NONE
+
+
+# ---------------------------------------------------------------------------
+# Condition-evaluation timeout
+# ---------------------------------------------------------------------------
+
+
+def test_slow_condition_times_out():
+    """A condition iterating a huge collection is stopped around
+    evaluation_timeout_ms rather than running to completion.
+    """
+    probe = create_snapshot_line_probe(probe_id="test", source_file="test.py", line=1, condition=slow_timed_expr())
+    signal = _make_signal(probe)
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        start = monotonic()
+        result = signal._eval_condition(SLOW_SCOPE)
+        elapsed = monotonic() - start
+
+    assert result is False
+    assert signal.state is SignalState.COND_TIMEOUT
+    assert [e.message for e in signal.errors] == ["Condition evaluation timed out after 20ms"]
+    assert elapsed < 1.0
+
+
+def test_repeated_condition_timeouts_set_throttle():
+    """Repeated timeouts trip condition_error_limiter the same way repeated
+    DDExpressionEvaluationErrors do.
+    """
+    probe = create_snapshot_line_probe(probe_id="test", source_file="test.py", line=1, condition=slow_timed_expr())
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        s1 = _make_signal(probe)
+        s1._eval_condition(SLOW_SCOPE)
+        assert s1.state is SignalState.COND_TIMEOUT
+        assert probe._error_throttled_until == 0.0
+
+        s2 = _make_signal(probe)
+        s2._eval_condition(SLOW_SCOPE)
+        assert s2.state is SignalState.SKIP_COND_ERROR
+        assert probe._error_throttled_until > monotonic()
 
 
 def test_repeated_eval_errors_set_throttle():

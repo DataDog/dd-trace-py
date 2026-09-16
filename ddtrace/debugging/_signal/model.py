@@ -17,6 +17,7 @@ from typing import cast
 from uuid import uuid4
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
@@ -48,6 +49,7 @@ class SignalState(str, Enum):
     SKIP_RATE_PROBE = "SKIP_RATE_PROBE"
     SKIP_BUDGET = "SKIP_BUDGET"
     COND_ERROR = "COND_ERROR"
+    COND_TIMEOUT = "COND_TIMEOUT"
     DONE = "DONE"
 
 
@@ -116,21 +118,32 @@ class Signal(abc.ABC):
             return False
 
         t_start = Time.monotonic()
+        eval_timeout_ms = di_config.evaluation_timeout_ms
+        error: Optional[EvaluationError] = None
+        error_state = SignalState.COND_ERROR
         try:
             result = bool(condition.eval(scope))
+        except EvaluationTimeoutError:
+            error = EvaluationError(
+                expr=condition.dsl, message=f"Condition evaluation timed out after {eval_timeout_ms}ms"
+            )
+            error_state = SignalState.COND_TIMEOUT
         except DDExpressionEvaluationError as e:
-            self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
+            error = EvaluationError(expr=e.dsl, message=e.error)
+        finally:
+            self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
+
+        if error is not None:
+            self.errors.append(error)
+            # Timeouts feed the same throttle as evaluation errors
             if probe.condition_error_limiter.limit() is RateLimitExceeded:
                 probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
                 self.state = SignalState.SKIP_COND_ERROR
             else:
-                self.state = SignalState.COND_ERROR
+                self.state = error_state
             return False
-        finally:
-            self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
 
         # RFC: treat evaluation overruns as guardrail input — feed into the error throttle
-        eval_timeout_ms = di_config.evaluation_timeout_ms
         if self._eval_duration_ms > eval_timeout_ms:
             self.errors.append(
                 EvaluationError(

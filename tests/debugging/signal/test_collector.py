@@ -7,6 +7,7 @@ from uuid import uuid4
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.log import LogSignal
+from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.snapshot import Snapshot
@@ -169,6 +170,28 @@ def test_push_skip_cond_error_emits_evaluation_error_throttled():
         "dynamic_instrumentation.guardrails.events.skipped",
         tags={"reason": "evaluationErrorThrottled", "probe_type": "LogLineProbe"},
     )
+
+
+def test_push_cond_timeout_emits_evaluation_timeout_and_uploads():
+    """A timed-out condition is a skipped event, not an evaluation error, but
+    its error message still reaches the user.
+    """
+    collector, encoder = _make_collector()
+    signal = _snapshot(state=SignalState.COND_TIMEOUT)
+    signal.errors.append(EvaluationError(expr="slow", message="Condition evaluation timed out after 20ms"))
+
+    with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
+        collector.push(signal)
+
+    m.increment.assert_any_call(
+        "dynamic_instrumentation.guardrails.events.skipped",
+        tags={"reason": "evaluationTimeout", "probe_type": "LogLineProbe"},
+    )
+    assert not any(
+        c.args and c.args[0] == "dynamic_instrumentation.guardrails.evaluation.errors"
+        for c in m.increment.call_args_list
+    )
+    encoder.put.assert_called_once_with(signal)
 
 
 def test_push_skip_rate_global_emits_rate_limit_global():

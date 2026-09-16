@@ -1,5 +1,7 @@
 # -*- encoding: utf-8 -*-
 import sys
+import time
+from unittest import mock
 
 import ddtrace
 from ddtrace.debugging._probe.model import ProbeEvalTiming
@@ -7,12 +9,15 @@ from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationTag
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.utils import inspection
 from tests.debugging.mocking import debugger
+from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import create_span_decoration_function_probe
 from tests.debugging.utils import create_span_decoration_line_probe
 from tests.debugging.utils import ddexpr
 from tests.debugging.utils import ddstrtempl
+from tests.debugging.utils import slow_timed_expr
 from tests.utils import TracerTestCase
 
 
@@ -233,3 +238,44 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             assert child.name == "traceme"
             assert child.get_tag("test.tag") is None
             assert child.get_tag("_dd.di.test.tag.probe_id") is None
+
+    def test_debugger_span_decoration_condition_timed_out(self):
+        # Picked up from the instrumented function's globals by the probe scope
+        self.traced_stuff.big = SLOW_SCOPE["big"]
+
+        with mock.patch.object(di_config, "evaluation_timeout_ms", 20), debugger() as d:
+            d.add_probes(
+                create_span_decoration_function_probe(
+                    probe_id="span-decoration",
+                    module="tests.submod.traced_stuff",
+                    func_qname="inner",
+                    evaluate_at=ProbeEvalTiming.EXIT,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=slow_timed_expr("slow"),
+                            tags=[SpanDecorationTag(name="test.slow", value=ddstrtempl([{"ref": "@return"}]))],
+                        ),
+                        SpanDecoration(
+                            when=ddexpr(True),
+                            tags=[SpanDecorationTag(name="test.tag", value=ddstrtempl([{"ref": "@return"}]))],
+                        ),
+                    ],
+                )
+            )
+
+            start = time.monotonic()
+            assert self.traced_stuff.traceme() == 42 << 1
+            assert time.monotonic() - start < 2.0
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            # The timed-out decoration is skipped, the next one still applies
+            assert span.get_tag("test.slow") is None
+            assert span.get_tag("test.tag") == "42"
+
+            (signal,) = d.test_queue
+            assert signal.errors == [
+                EvaluationError(expr="slow", message="Condition evaluation timed out after 20ms"),
+            ]

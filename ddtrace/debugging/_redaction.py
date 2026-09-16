@@ -1,7 +1,13 @@
+from time import perf_counter_ns
 import typing as t
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
+from ddtrace.debugging._expressions import get_eval_deadline
+from ddtrace.debugging._expressions import iterates
+from ddtrace.debugging._expressions import set_eval_deadline
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.dynamic_instrumentation import config
 from ddtrace.internal.settings.dynamic_instrumentation import normalize_ident
@@ -169,3 +175,51 @@ class DDRedactedExpression(DDExpression):
             log.error("Cannot compile expression that references potential PII: %s", dsl, exc_info=True)
             return _redacted_expr(exc)
         return super().on_compiler_error(dsl, exc)
+
+
+class DDTimedRedactedExpression(DDRedactedExpression):
+    """A DDRedactedExpression whose evaluation is bounded by
+    di_config.evaluation_timeout_ms -- used for anything that budget is meant
+    to cover (probe conditions, log-message templates, metric-probe value
+    expressions), as opposed to snapshot capture expressions, which have
+    their own, separate cooperative HourGlass-based timing under
+    capture_timeout_ms.
+
+    The bound is cooperative: the expression helpers that iterate check the
+    deadline as they go (see _expressions._bounded), so the timeout is
+    raised synchronously from our own code, never into user code. On timeout
+    this always raises a bare EvaluationTimeoutError, never one wrapped in a
+    DDExpressionEvaluationError, so callers need a single except clause.
+    """
+
+    # Only expressions that iterate can overrun in a way we can stop, so the
+    # deadline is not even set up for the rest (most conditions). True unless
+    # compile() finds out otherwise.
+    iterates: bool = True
+
+    @classmethod
+    def compile(cls, expr: t.Mapping[str, t.Any]) -> "DDTimedRedactedExpression":
+        compiled = super().compile(expr)
+        compiled.iterates = iterates(expr["json"])
+        return compiled
+
+    def eval(self, scope: t.Mapping[str, t.Any]) -> t.Any:
+        eval_timeout_ms = config.evaluation_timeout_ms
+        if not self.iterates or eval_timeout_ms <= 0:
+            return super().eval(scope)
+
+        outer = get_eval_deadline()
+        deadline = perf_counter_ns() + int(eval_timeout_ms * 1_000_000)
+        if outer is not None and outer < deadline:
+            # Nested evaluation (e.g. a probe hit from code the outer
+            # expression calls into): the outer budget still applies.
+            deadline = outer
+        set_eval_deadline(deadline)
+        try:
+            return super().eval(scope)
+        except DDExpressionEvaluationError as e:
+            if isinstance(e.__cause__, EvaluationTimeoutError):
+                raise e.__cause__ from None
+            raise
+        finally:
+            set_eval_deadline(outer)
