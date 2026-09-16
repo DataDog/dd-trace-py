@@ -111,8 +111,18 @@ configure_stack_internal_test(test_sampling_cycle_state)
 dd_wrapper_add_test(test_asyncio_debug test_asyncio_debug.cpp)
 configure_stack_internal_test(test_asyncio_debug)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Link the reader into the test executable so --wrap can inject pread failures without changing the extension.
+    target_sources(test_asyncio_debug PRIVATE ../src/echion/asyncio_debug.cc)
     # Exercise /proc/self/exe identity validation when the executable has no GNU build ID.
-    target_link_options(test_asyncio_debug PRIVATE -Wl,--build-id=none -Wl,--undefined=process_asyncio_debug_offsets)
+    target_link_options(
+        test_asyncio_debug
+        PRIVATE
+        -Wl,--wrap=pread
+        -Wl,--wrap=pread64
+        -Wl,--wrap=__pread_chk
+        -Wl,--wrap=__pread64_chk
+        -Wl,--build-id=none
+        -Wl,--undefined=process_asyncio_debug_offsets)
     if(DO_VALGRIND)
         target_compile_definitions(test_asyncio_debug PRIVATE TEST_RUNNING_ON_VALGRIND)
     endif()

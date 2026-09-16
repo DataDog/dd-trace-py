@@ -4,14 +4,112 @@
 
 #include <array>
 #include <bit>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include <ostream>
+#include <string>
 
 #if defined(__linux__)
 #include <fcntl.h>
 #include <link.h>
 #include <unistd.h>
+
+namespace {
+
+enum class ReadFault
+{
+    None,
+    Interrupted,
+    IoError,
+    TruncateToEof,
+    TruncateToShortRead,
+};
+
+// Only the fixture descriptor and selected offset are affected. All other reads use the real syscall.
+struct ReadInjection
+{
+    int fd = -1;
+    off_t offset = 0;
+    ReadFault fault = ReadFault::None;
+    unsigned int remaining = 0;
+    unsigned int calls = 0;
+    unsigned int injected = 0;
+    ssize_t truncated_read_result = -1;
+    size_t requested_size = 0;
+};
+
+thread_local ReadInjection read_injection;
+
+template<typename Read>
+ssize_t
+inject_read(int fd, size_t size, off_t offset, Read real_read)
+{
+    auto& injection = read_injection;
+    if (injection.fault == ReadFault::None || fd != injection.fd || offset != injection.offset) {
+        return real_read();
+    }
+    ++injection.calls;
+    if (injection.remaining == 0) {
+        return real_read();
+    }
+    --injection.remaining;
+    ++injection.injected;
+    if (injection.fault == ReadFault::Interrupted || injection.fault == ReadFault::IoError) {
+        errno = injection.fault == ReadFault::Interrupted ? EINTR : EIO;
+        return -1;
+    }
+
+    // The reader has already captured the original size with fstat. Truncate immediately before the chosen pread
+    // so the test exercises a real short read without racing another thread.
+    injection.requested_size = size;
+    const off_t available = injection.fault == ReadFault::TruncateToEof ? 0 : static_cast<off_t>(size - 1);
+    if (ftruncate(fd, offset + available) != 0) {
+        return -1;
+    }
+    injection.truncated_read_result = real_read();
+    return injection.truncated_read_result;
+}
+
+} // namespace
+
+extern "C" ssize_t
+__real_pread(int fd, void* buffer, size_t size, off_t offset);
+
+extern "C" ssize_t
+__wrap_pread(int fd, void* buffer, size_t size, off_t offset)
+{
+    return inject_read(fd, size, offset, [&] { return __real_pread(fd, buffer, size, offset); });
+}
+
+#if defined(__GLIBC__)
+// glibc may redirect pread through large-file or fortified entry points depending on the build flags.
+extern "C" ssize_t
+__real_pread64(int fd, void* buffer, size_t size, off64_t offset);
+extern "C" ssize_t
+__real___pread_chk(int fd, void* buffer, size_t size, off_t offset, size_t buffer_size);
+extern "C" ssize_t
+__real___pread64_chk(int fd, void* buffer, size_t size, off64_t offset, size_t buffer_size);
+
+extern "C" ssize_t
+__wrap_pread64(int fd, void* buffer, size_t size, off64_t offset)
+{
+    return inject_read(fd, size, offset, [&] { return __real_pread64(fd, buffer, size, offset); });
+}
+
+extern "C" ssize_t
+__wrap___pread_chk(int fd, void* buffer, size_t size, off_t offset, size_t buffer_size)
+{
+    return inject_read(fd, size, offset, [&] { return __real___pread_chk(fd, buffer, size, offset, buffer_size); });
+}
+
+extern "C" ssize_t
+__wrap___pread64_chk(int fd, void* buffer, size_t size, off64_t offset, size_t buffer_size)
+{
+    return inject_read(fd, size, offset, [&] { return __real___pread64_chk(fd, buffer, size, offset, buffer_size); });
+}
+#endif
 
 extern "C"
 {
@@ -54,20 +152,61 @@ TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
     echion.set_asyncio_offsets(*offsets);
     EXPECT_EQ(echion.asyncio_interpreter_tasks_head_offset(), 128);
     EXPECT_EQ(echion.asyncio_thread_tasks_head_offset(), 256);
+}
 
+TEST(AsyncioDebugOffsets, RejectsTaskNodeOutsideTask)
+{
+    auto table = valid_table();
     table.task.task_node = table.task.size;
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
-    table = valid_table();
+}
+
+TEST(AsyncioDebugOffsets, RejectsThreadHeadOutsideThread)
+{
+    auto table = valid_table();
     table.thread.asyncio_tasks_head = table.thread.size;
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
-    table = valid_table();
+}
+
+TEST(AsyncioDebugOffsets, RejectsZeroInterpreterHead)
+{
+    auto table = valid_table();
     table.interpreter.asyncio_tasks_head = 0;
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
-    table = valid_table();
+}
+
+TEST(AsyncioDebugOffsets, RejectsZeroThreadHead)
+{
+    auto table = valid_table();
     table.thread.asyncio_tasks_head = 0;
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
-    table = valid_table();
+}
+
+TEST(AsyncioDebugOffsets, RejectsMisalignedTaskCoroutine)
+{
+    auto table = valid_table();
     ++table.task.task_coro;
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
+}
+
+TEST(AsyncioDebugOffsets, RejectsInterpreterTooSmallForListHead)
+{
+    auto table = valid_table();
+    table.interpreter.size = sizeof(uintptr_t);
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
+}
+
+TEST(AsyncioDebugOffsets, RejectsMisalignedInterpreterHead)
+{
+    auto table = valid_table();
+    ++table.interpreter.asyncio_tasks_head;
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
+}
+
+TEST(AsyncioDebugOffsets, RejectsMisalignedThreadHead)
+{
+    auto table = valid_table();
+    ++table.thread.asyncio_tasks_head;
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
 }
 
@@ -112,6 +251,7 @@ class AsyncioElfTest : public ::testing::Test
 
     void SetUp() override
     {
+        read_injection = {};
         auto& header = loaded.header;
         std::memcpy(header.e_ident, ELFMAG, SELFMAG);
         header.e_ident[EI_CLASS] = sizeof(void*) == 8 ? ELFCLASS64 : ELFCLASS32;
@@ -146,10 +286,12 @@ class AsyncioElfTest : public ::testing::Test
         on_disk = loaded;
         file = std::tmpfile();
         ASSERT_NE(file, nullptr);
+        read_injection.fd = fileno(file);
     }
 
     void TearDown() override
     {
+        read_injection = {};
         if (file != nullptr) {
             std::fclose(file);
         }
@@ -211,7 +353,7 @@ TEST(AsyncioElfDiscovery, ReadsBuildIdFreeProcessExecutableAndNamedMapping)
     }
 }
 
-TEST_F(AsyncioElfTest, ReadsLoadedTableAndSupportsExtendedSectionNumbering)
+TEST_F(AsyncioElfTest, ReadsOffsetsFromMemoryNotFile)
 {
     // Offset values must come from memory, not the file contents.
     on_disk.table = {};
@@ -219,6 +361,10 @@ TEST_F(AsyncioElfTest, ReadsLoadedTableAndSupportsExtendedSectionNumbering)
     ASSERT_TRUE(offsets);
     EXPECT_EQ(offsets->thread_tasks_head, loaded.table.thread.asyncio_tasks_head);
     EXPECT_EQ(offsets->interpreter_tasks_head, loaded.table.interpreter.asyncio_tasks_head);
+}
+
+TEST_F(AsyncioElfTest, SupportsExtendedSectionNumbering)
+{
     on_disk.header.e_shnum = 0;
     on_disk.header.e_shstrndx = SHN_XINDEX;
     on_disk.sections[0].sh_size = loaded.sections.size();
@@ -233,71 +379,356 @@ TEST_F(AsyncioElfTest, SkipsInvalidDuplicateSection)
     EXPECT_TRUE(discover());
 }
 
-TEST_F(AsyncioElfTest, RejectsUnavailableOrTruncatedFilesAndRetries)
+TEST_F(AsyncioElfTest, RejectsInvalidFileDescriptor)
 {
     EXPECT_FALSE(read_asyncio_debug_offsets_from_elf(-1, binary));
-    for (size_t size : { size_t{ 0 }, sizeof(ElfW(Ehdr)) - 1, offsetof(Binary, note), sizeof(Binary) - 1 }) {
-        EXPECT_FALSE(discover(size));
-    }
-    EXPECT_TRUE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsNonRegularFile)
+{
     const int fd = open("/dev/null", O_RDONLY);
     ASSERT_GE(fd, 0);
     EXPECT_FALSE(read_asyncio_debug_offsets_from_elf(fd, binary));
     close(fd);
 }
 
-TEST_F(AsyncioElfTest, RejectsReplacedBinaryAndMissingBuildId)
+TEST_F(AsyncioElfTest, RejectsWriteOnlyFileDescriptor)
+{
+    ASSERT_TRUE(discover());
+    const auto path = "/proc/self/fd/" + std::to_string(fileno(file));
+    const int fd = open(path.c_str(), O_WRONLY);
+    ASSERT_GE(fd, 0);
+    EXPECT_FALSE(read_asyncio_debug_offsets_from_elf(fd, binary));
+    close(fd);
+}
+
+TEST_F(AsyncioElfTest, RejectsEmptyFile)
+{
+    EXPECT_FALSE(discover(0));
+}
+
+TEST_F(AsyncioElfTest, RejectsTruncatedElfHeader)
+{
+    EXPECT_FALSE(discover(sizeof(ElfW(Ehdr)) - 1));
+}
+
+TEST_F(AsyncioElfTest, RejectsTruncatedNote)
+{
+    EXPECT_FALSE(discover(offsetof(Binary, note)));
+}
+
+TEST_F(AsyncioElfTest, RejectsTruncatedSectionTable)
+{
+    EXPECT_FALSE(discover(sizeof(Binary) - 1));
+}
+
+TEST_F(AsyncioElfTest, RetriesAfterFileIsRestored)
+{
+    EXPECT_FALSE(discover(0));
+    EXPECT_TRUE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsMismatchedBuildId)
 {
     ++on_disk.note.id[0];
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsMismatchedProgramHeaders)
+{
     ++on_disk.segments[0].p_memsz;
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsMissingBuildIdWithoutMatchingFileIdentity)
+{
     loaded.note.header.n_type = on_disk.note.header.n_type = NT_GNU_ABI_TAG;
     EXPECT_FALSE(discover());
 }
 
-TEST_F(AsyncioElfTest, BoundsNoteParsing)
+TEST_F(AsyncioElfTest, RejectsOversizedNoteName)
 {
     loaded.note.header.n_namesz = on_disk.note.header.n_namesz = std::numeric_limits<uint32_t>::max();
     EXPECT_FALSE(discover());
-    loaded.note.header.n_namesz = on_disk.note.header.n_namesz = 4;
+}
+
+TEST_F(AsyncioElfTest, RejectsOversizedNoteDescriptor)
+{
     loaded.note.header.n_descsz = on_disk.note.header.n_descsz = std::numeric_limits<uint32_t>::max();
     EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsOversizedNoteSegment)
+{
     loaded.segments[1].p_filesz = on_disk.segments[1].p_filesz = 4097;
     EXPECT_FALSE(discover());
 }
 
-TEST_F(AsyncioElfTest, RejectsMalformedMetadata)
+TEST_F(AsyncioElfTest, RejectsInvalidElfMagic)
+{
+    on_disk.header.e_ident[EI_MAG0] = 0;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsWrongElfClass)
+{
+    on_disk.header.e_ident[EI_CLASS] = sizeof(void*) == 8 ? ELFCLASS32 : ELFCLASS64;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsInvalidByteOrder)
 {
     on_disk.header.e_ident[EI_DATA] = ELFDATANONE;
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsInvalidIdentVersion)
+{
+    on_disk.header.e_ident[EI_VERSION] = EV_NONE;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsInvalidHeaderVersion)
+{
+    on_disk.header.e_version = EV_NONE;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsRelocatableElf)
+{
+    on_disk.header.e_type = ET_REL;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsWrongElfHeaderSize)
+{
+    --on_disk.header.e_ehsize;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsWrongProgramHeaderSize)
+{
+    --on_disk.header.e_phentsize;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsMissingProgramHeaders)
+{
+    on_disk.header.e_phnum = 0;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsTooManyProgramHeaders)
+{
+    on_disk.header.e_phnum = 257;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsOverflowingProgramHeaderOffset)
+{
+    on_disk.header.e_phoff = std::numeric_limits<ElfW(Off)>::max();
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsWrongSectionHeaderSize)
+{
+    --on_disk.header.e_shentsize;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsOverflowingSectionHeaderOffset)
+{
     on_disk.header.e_shoff = std::numeric_limits<ElfW(Off)>::max();
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsExcessiveExtendedSectionCount)
+{
     on_disk.header.e_shnum = 0;
     on_disk.sections[0].sh_size = std::numeric_limits<ElfW(Xword)>::max();
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsZeroExtendedSectionCount)
+{
+    on_disk.header.e_shnum = 0;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsNamesIndexOutsideSectionTable)
+{
+    on_disk.header.e_shstrndx = loaded.sections.size();
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsExtendedNamesIndexOutsideSectionTable)
+{
+    on_disk.header.e_shstrndx = SHN_XINDEX;
+    on_disk.sections[0].sh_link = loaded.sections.size();
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsWrongStringTableType)
+{
+    on_disk.sections[1].sh_type = SHT_PROGBITS;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsOverflowingStringTableOffset)
+{
     on_disk.sections[1].sh_offset = std::numeric_limits<ElfW(Off)>::max();
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsSectionNameOutsideStringTable)
+{
     on_disk.sections[3].sh_name = sizeof(loaded.names);
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsUnterminatedSectionName)
+{
     on_disk.names[sizeof(loaded.names) - 1] = 'x';
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsOverflowingSectionAddress)
+{
     on_disk.sections[3].sh_addr = std::numeric_limits<ElfW(Addr)>::max();
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsNonAllocatedSection)
+{
     on_disk.sections[3].sh_flags = 0;
     EXPECT_FALSE(discover());
-    on_disk = loaded;
+}
+
+TEST_F(AsyncioElfTest, RejectsWrongDebugSectionType)
+{
+    on_disk.sections[3].sh_type = SHT_NOBITS;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsUndersizedDebugSection)
+{
+    on_disk.sections[3].sh_size = sizeof(PyAsyncioDebugOffsets) - 1;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsDebugSectionOutsideLoadedSegment)
+{
+    on_disk.sections[3].sh_addr = sizeof(Binary);
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsDebugSectionCrossingLoadedSegmentEnd)
+{
+    loaded.segments[0].p_memsz = on_disk.segments[0].p_memsz = offsetof(Binary, table) + sizeof(loaded.table) - 1;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsUnreadableLoadedSegment)
+{
+    loaded.segments[0].p_flags = on_disk.segments[0].p_flags = PF_W;
+    EXPECT_FALSE(discover());
+}
+
+TEST_F(AsyncioElfTest, RejectsInvalidLoadedTable)
+{
     loaded.table.thread.asyncio_tasks_head = 0;
     EXPECT_FALSE(discover());
 }
+
+struct ReadStage
+{
+    const char* name;
+    off_t offset;
+
+    friend void PrintTo(const ReadStage& stage, std::ostream* output) { *output << stage.name; }
+};
+
+class AsyncioElfReadTest
+  : public AsyncioElfTest
+  , public ::testing::WithParamInterface<ReadStage>
+{
+  public:
+    static auto stages()
+    {
+        return ::testing::Values(ReadStage{ "ElfHeader", 0 },
+                                 ReadStage{ "LoadSegment", offsetof(Binary, segments) },
+                                 ReadStage{ "NoteSegment", offsetof(Binary, segments) + sizeof(ElfW(Phdr)) },
+                                 ReadStage{ "BuildId", offsetof(Binary, note) },
+                                 ReadStage{ "FirstSection", offsetof(Binary, sections) },
+                                 ReadStage{ "StringTableSection", offsetof(Binary, sections) + sizeof(ElfW(Shdr)) },
+                                 ReadStage{ "DebugSection", offsetof(Binary, sections) + 3 * sizeof(ElfW(Shdr)) },
+                                 ReadStage{ "SectionName", offsetof(Binary, names) });
+    }
+
+  protected:
+    void inject(ReadFault fault, unsigned int count = 1)
+    {
+        read_injection.offset = GetParam().offset;
+        read_injection.fault = fault;
+        read_injection.remaining = count;
+    }
+};
+
+TEST_P(AsyncioElfReadTest, RetriesInterruptedReads)
+{
+    inject(ReadFault::Interrupted, 2);
+    EXPECT_TRUE(discover());
+    EXPECT_EQ(read_injection.injected, 2);
+    EXPECT_GE(read_injection.calls, 3);
+}
+
+TEST_P(AsyncioElfReadTest, BoundsInterruptedReadRetries)
+{
+    inject(ReadFault::Interrupted, 4);
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(read_injection.injected, 3);
+    EXPECT_EQ(read_injection.calls, 3);
+}
+
+TEST_P(AsyncioElfReadTest, RejectsIoErrorWithoutRetry)
+{
+    inject(ReadFault::IoError);
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(read_injection.injected, 1);
+    EXPECT_EQ(read_injection.calls, 1);
+}
+
+TEST_P(AsyncioElfReadTest, RejectsEofAfterFileSizeWasChecked)
+{
+    inject(ReadFault::TruncateToEof);
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(read_injection.injected, 1);
+    EXPECT_EQ(read_injection.calls, 1);
+    EXPECT_EQ(read_injection.truncated_read_result, 0);
+}
+
+TEST_P(AsyncioElfReadTest, RejectsShortReadAfterFileSizeWasChecked)
+{
+    inject(ReadFault::TruncateToShortRead);
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(read_injection.injected, 1);
+    EXPECT_EQ(read_injection.calls, 1);
+    ASSERT_GT(read_injection.requested_size, 1);
+    EXPECT_EQ(read_injection.truncated_read_result, static_cast<ssize_t>(read_injection.requested_size - 1));
+}
+
+TEST_P(AsyncioElfReadTest, RetriesDiscoveryAfterReadError)
+{
+    inject(ReadFault::IoError);
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(read_injection.injected, 1);
+    read_injection.fault = ReadFault::None;
+    EXPECT_TRUE(discover());
+}
+
+INSTANTIATE_TEST_SUITE_P(FileReads,
+                         AsyncioElfReadTest,
+                         AsyncioElfReadTest::stages(),
+                         [](const ::testing::TestParamInfo<ReadStage>& parameter) { return parameter.param.name; });
 
 #endif
