@@ -1,3 +1,4 @@
+import copy
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -2422,20 +2423,16 @@ class LLMObs(Service):
             # trace-scoped and shared by every span in the trace. The task and thread hooks store
             # this context when work is submitted and activate it once that work runs, so writing
             # into the shared dict would let a later span's values - or a later clear - reach work
-            # that was queued under this one. Snapshot the context and stamp the copy instead, so
-            # the caller gets the attribution that was current at submit time.
-            shared = active.context
-            context = Context(
-                trace_id=shared.trace_id,
-                span_id=shared.span_id,
-                dd_origin=shared.dd_origin,
-                sampling_priority=shared.sampling_priority,
-                meta=dict(shared._meta),
-                metrics=dict(shared._metrics),
-                span_links=list(shared._span_links),
-                baggage=shared.get_all_baggage_items(),
-                is_remote=shared._is_remote,
-            )
+            # that was queued under this one. Copy the context and give it its own _meta, so the
+            # caller reads the attribution that was current at submit time.
+            #
+            # copy.copy goes through Context.__getstate__, so it carries every field the class
+            # declares rather than a list enumerated here that would silently drop new ones. The
+            # state it returns shares the mutable members, and _meta is the only one stamped
+            # below, so that is the only one replaced. Baggage and metrics stay shared, which is
+            # what trace-scoped values should do.
+            context = copy.copy(active.context)
+            context._meta = dict(context._meta)
             # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
