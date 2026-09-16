@@ -136,6 +136,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
     required_modules = ["ddtrace.internal.native"]
 
     _NS_TO_SEC = 1e-9
+    _forksafe_registered = False
 
     def _on_modules_load(self):
         # `_reset_state` doubles as the smoke test: if it raises, `_load_modules`'s caller
@@ -148,6 +149,14 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
             return
 
         forksafe.register(self._reset_state)
+        self._forksafe_registered = True
+
+    def stop(self) -> None:
+        # Guarded because the smoke test above may have bailed out before registering,
+        # and so that a second stop() is a no-op rather than an unregister warning.
+        if self._forksafe_registered:
+            self._forksafe_registered = False
+            forksafe.unregister(self._reset_state)
 
     def _reset_state(self):
         # Seed the baselines from a fresh reading instead of zero, both here and on fork:

@@ -33,11 +33,8 @@ class SymbolDatabaseCallback(RCCallback):
             payloads: Sequence of configuration payloads to process
         """
         with shared_pid_file.lock_exclusive() as f:
-            if (pid := str(os.getpid())) not in (pids := set(shared_pid_file.peekall_unlocked(f))):
-                # Store the PID of the current process so that we know which processes
-                # have Symbol DB enabled.
-                shared_pid_file.put_unlocked(f, pid)
-
+            pid = str(os.getpid())
+            pids = set(shared_pid_file.peekall_unlocked(f))
             if (
                 get_generation() > 1
                 or (get_ancestor_runtime_id() is not None and has_forked())
@@ -55,6 +52,9 @@ class SymbolDatabaseCallback(RCCallback):
                     SymbolDatabaseUploader.uninstall()
 
                 return
+
+            if pid not in pids:
+                shared_pid_file.put_unlocked(f, pid)
 
         for payload in payloads:
             config = payload.content
