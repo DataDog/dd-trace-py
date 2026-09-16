@@ -59,11 +59,11 @@ def _restart_gevent_tracking() -> None:
         pass
 
 
-def _current_greenlet_span_target() -> t.Optional[_span_links.LogicalSpanTarget]:
+def _current_greenlet_span_id() -> t.Optional[int]:
     greenlet_id = t.cast(int, thread.get_ident(gevent.getcurrent()))
     if not stack.is_greenlet_tracked(greenlet_id):
         return None
-    return _span_links.LogicalSpanTarget(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
+    return greenlet_id
 
 
 class GreenletTrackingError(Exception):
@@ -109,10 +109,10 @@ def track_gevent_greenlet(
     try:
         if _seed_context:
             # Read only the tracer configured on the profiler, not the gevent integration's process-global tracer.
-            _span_links.link_current_logical_span(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
+            _span_links.link_current_greenlet_span(greenlet_id)
         elif _from_tracer:
             # A lazily discovered origin may have activated a newer span since its construction Context was captured.
-            _span_links.link_logical_span_context(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
+            _span_links.link_greenlet_span_context(greenlet_id)
     except Exception:  # nosec B110
         pass
 
@@ -217,7 +217,7 @@ def _untrack_greenlet_by_id(greenlet_id: int) -> None:
     if greenlet_id not in _tracked_greenlets:
         return
     stack.untrack_greenlet(greenlet_id)
-    _span_links.clear_logical_span(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
+    _span_links.clear_greenlet_span(greenlet_id)
     _tracked_greenlets.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
@@ -340,7 +340,7 @@ def patch() -> None:
     gevent.hub.spawn_raw = wrap_spawn(_gevent_hub_spawn_raw)
 
     _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
-    _span_links.register_logical_span_provider(_current_greenlet_span_target, priority=10)
+    _span_links.register_greenlet_span_provider(_current_greenlet_span_id)
     _is_patched = True
 
 
@@ -349,7 +349,7 @@ def unpatch() -> None:
 
     _is_patched = False
     # Stop routing activation events before restoring the original greenlet hooks.
-    _span_links.unregister_logical_span_provider(_current_greenlet_span_target)
+    _span_links.unregister_greenlet_span_provider(_current_greenlet_span_id)
     for greenlet_id in tuple(_tracked_greenlets):
         _untrack_greenlet_by_id(greenlet_id)
 

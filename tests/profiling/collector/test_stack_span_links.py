@@ -27,10 +27,12 @@ def restore_span_linking_state():
     active_span_link = _span_links._active_span_link.get()
     current_span_provider = _span_links._current_span_provider
     task_span_provider = _span_links._task_span_provider
+    greenlet_span_provider = _span_links._greenlet_span_provider
     _span_links._span_linking_active = False
     _span_links._set_active_span_link(None)
     _span_links._current_span_provider = None
     _span_links._task_span_provider = None
+    _span_links._greenlet_span_provider = None
     _span_links.stack.reset_span_links()
     try:
         yield
@@ -41,6 +43,7 @@ def restore_span_linking_state():
         _span_links._set_active_span_link(active_span_link)
         _span_links._current_span_provider = current_span_provider
         _span_links._task_span_provider = task_span_provider
+        _span_links._greenlet_span_provider = greenlet_span_provider
 
 
 def _info(span_id: int, local_root_span_id: typing.Optional[int] = None) -> _span_links._SpanInfo:
@@ -79,6 +82,48 @@ def test_span_activation_uses_task_provider(monkeypatch: pytest.MonkeyPatch) -> 
     assert linked == [(22, 101, 101, None)]
 
 
+def test_span_activation_uses_greenlet_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_greenlet_span", lambda *args: linked.append(args))
+    monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: pytest.fail("unexpected thread fallback"))
+
+    _span_links.register_greenlet_span_provider(lambda: 31)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(201), None)
+
+    assert linked == [(31, 201, 201, None)]
+
+
+def test_task_provider_takes_precedence_over_greenlet(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_task_span", lambda *args: linked.append(args))
+    monkeypatch.setattr(
+        _span_links.stack, "link_greenlet_span", lambda *args: pytest.fail("unexpected greenlet fallback")
+    )
+
+    _span_links.register_task_span_provider(lambda: 22)
+    _span_links.register_greenlet_span_provider(lambda: 31)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(101), None)
+
+    assert linked == [(22, 101, 101, None)]
+
+
+def test_task_provider_failure_uses_greenlet(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_greenlet_span", lambda *args: linked.append(args))
+
+    def broken_provider():
+        raise RuntimeError("provider failed")
+
+    _span_links.register_task_span_provider(broken_provider)
+    _span_links.register_greenlet_span_provider(lambda: 31)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(202), None)
+
+    assert linked == [(31, 202, 202, None)]
+
+
 def test_task_provider_failure_uses_thread(monkeypatch: pytest.MonkeyPatch) -> None:
     linked = []
     monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: linked.append(args))
@@ -103,6 +148,18 @@ def test_task_detachment_does_not_clear_thread_link(monkeypatch: pytest.MonkeyPa
     _span_links.link_span(None, None)
 
     assert cleared == [33]
+
+
+def test_greenlet_detachment_does_not_clear_thread_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    cleared = []
+    monkeypatch.setattr(_span_links.stack, "clear_greenlet_span", lambda greenlet_id: cleared.append(greenlet_id))
+    monkeypatch.setattr(_span_links.stack, "clear_span", lambda: pytest.fail("unexpected thread clear"))
+
+    _span_links.register_greenlet_span_provider(lambda: 44)
+    _span_links.start_span_linking()
+    _span_links.link_span(None, None)
+
+    assert cleared == [44]
 
 
 def test_inherited_context_seeds_task_span_for_current_generation(monkeypatch: pytest.MonkeyPatch) -> None:

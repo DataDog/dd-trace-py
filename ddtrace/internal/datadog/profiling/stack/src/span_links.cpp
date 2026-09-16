@@ -125,6 +125,27 @@ SpanLinks::unlink_task_span(uint64_t task_id, uint64_t expected_span_id)
 }
 
 void
+SpanLinks::link_greenlet_span(uint64_t greenlet_id,
+                              uint64_t span_id,
+                              uint64_t local_root_span_id,
+                              std::string span_type)
+{
+    link({ SpanLinkDomain::GeventGreenlet, greenlet_id }, span_id, local_root_span_id, std::move(span_type));
+}
+
+const SpanAttribution
+SpanLinks::get_active_span_from_greenlet_id(uint64_t greenlet_id)
+{
+    return get_active_span({ SpanLinkDomain::GeventGreenlet, greenlet_id });
+}
+
+void
+SpanLinks::unlink_greenlet_span(uint64_t greenlet_id)
+{
+    unlink({ SpanLinkDomain::GeventGreenlet, greenlet_id });
+}
+
+void
 SpanLinks::unlink_finished_span(uint64_t span_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
