@@ -1,4 +1,4 @@
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -17,7 +17,7 @@ get()
         for (int j = 0; j < i; j++) {
             span_type.append("a");
         }
-        Datadog::ThreadSpanLinks::get_instance().link_span(42, 1, 2, span_type);
+        Datadog::SpanLinks::get_instance().link_span(42, 1, 2, span_type);
     }
 }
 
@@ -26,7 +26,7 @@ set()
 {
     std::string s;
     for (int i = 0; i < 100; i++) {
-        auto thing = Datadog::ThreadSpanLinks::get_instance().get_active_span_from_thread_id(42);
+        auto thing = Datadog::SpanLinks::get_instance().get_active_span_from_thread_id(42);
         if (!thing) {
             continue;
         }
@@ -35,7 +35,7 @@ set()
     return s;
 }
 
-TEST(ThreadSpanLinksConcurrency, GetSetRace)
+TEST(SpanLinksConcurrency, GetSetRace)
 {
     std::thread t1(get);
     std::thread t2(set);
@@ -43,9 +43,9 @@ TEST(ThreadSpanLinksConcurrency, GetSetRace)
     t2.join();
 }
 
-TEST(ThreadSpanLinks, UnlinkOnlyMatchingSpan)
+TEST(SpanLinks, UnlinkOnlyMatchingSpan)
 {
-    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    auto& links = Datadog::SpanLinks::get_instance();
     constexpr uint64_t thread_id = 43;
     constexpr uint64_t span_id = 100;
 
@@ -58,7 +58,7 @@ TEST(ThreadSpanLinks, UnlinkOnlyMatchingSpan)
     EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
 }
 
-TEST(ThreadSpanLinks, ClearFinished)
+TEST(SpanLinks, ClearFinished)
 {
     unsigned int num_thread_ids = 100;
     std::unordered_set<uint64_t> thread_ids;
@@ -74,7 +74,7 @@ TEST(ThreadSpanLinks, ClearFinished)
 
     // Call link_span with the thread ids
     for (auto thread_id : thread_ids) {
-        Datadog::ThreadSpanLinks::get_instance().link_span(thread_id, thread_id, thread_id, "test");
+        Datadog::SpanLinks::get_instance().link_span(thread_id, thread_id, thread_id, "test");
     }
 
     std::unordered_set<uint64_t> finished_threads;
@@ -83,14 +83,14 @@ TEST(ThreadSpanLinks, ClearFinished)
     for (auto thread_id : thread_ids) {
         if (real_dis(gen) < 0.5) {
             finished_threads.insert(thread_id);
-            Datadog::ThreadSpanLinks::get_instance().unlink_span(thread_id);
+            Datadog::SpanLinks::get_instance().unlink_span(thread_id);
         }
     }
 
     // Check that the unseen ids are removed
     for (auto thread_id : thread_ids) {
         std::optional<Datadog::Span> span_opt =
-          Datadog::ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+          Datadog::SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
         if (finished_threads.find(thread_id) == finished_threads.end()) {
             EXPECT_EQ(span_opt, Datadog::Span(thread_id, thread_id, "test"));
 
@@ -100,9 +100,9 @@ TEST(ThreadSpanLinks, ClearFinished)
     }
 }
 
-TEST(ThreadSpanLinks, UnlinkFinishedSpanAcrossThreads)
+TEST(SpanLinks, UnlinkFinishedSpanAcrossThreads)
 {
-    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    auto& links = Datadog::SpanLinks::get_instance();
     links.reset();
 
     links.link_span(100, 1000, 1000, "web");
@@ -122,9 +122,9 @@ TEST(ThreadSpanLinks, UnlinkFinishedSpanAcrossThreads)
     EXPECT_EQ(links.get_active_span_from_thread_id(103), Datadog::Span(2001, 2000, "worker"));
 }
 
-TEST(ThreadSpanLinks, RelinkUpdatesFinishedSpanIndex)
+TEST(SpanLinks, RelinkUpdatesFinishedSpanIndex)
 {
-    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    auto& links = Datadog::SpanLinks::get_instance();
     links.reset();
 
     links.link_span(201, 3001, 3000, "old");
@@ -136,9 +136,9 @@ TEST(ThreadSpanLinks, RelinkUpdatesFinishedSpanIndex)
     EXPECT_EQ(links.get_active_span_from_thread_id(201), std::nullopt);
 }
 
-TEST(ThreadSpanLinks, FinishingWhileLinkingDefersCleanup)
+TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
 {
-    auto& links = Datadog::ThreadSpanLinks::get_instance();
+    auto& links = Datadog::SpanLinks::get_instance();
     constexpr uint64_t thread_id = 301;
     constexpr uint64_t span_id = 3001;
     links.reset();
