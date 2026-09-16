@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    Add automatic tracing for the Temporal Python SDK (``temporalio``). Enable
+    with ``patch(temporal=True)`` or ``ddtrace-run``; a default tracing
+    interceptor is injected into every ``temporalio.client.Client``. Workflow,
+    activity, signal, query, update, child-workflow, Nexus, and ContinueAsNew
+    operations are traced, with deterministic span IDs that keep traces
+    coherent across worker restarts. To customize the service name or tags,
+    construct ``DatadogTracingInterceptor`` explicitly and pass it to
+    ``Client.connect(..., interceptors=[...])``.
