@@ -301,7 +301,7 @@ experiments:
           # msgpackencoderscenario
           - name: msgpackencoderscenario-simple_one_span
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.005 ms
           - name: msgpackencoderscenario-flask_trace
             thresholds:
-              - execution_time < 0.08 ms
+              - execution_time < 0.055 ms
