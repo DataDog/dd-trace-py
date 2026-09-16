@@ -17,7 +17,7 @@ use pyo3::marker::Ungil;
 use pyo3::{ffi, Python};
 use std::os::raw::c_ulong;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
+
 
 // CPython < 3.13 has no public Py_IsFinalizing(); use the private symbol, which
 // returns nonzero once finalization has started. It is removed on 3.13+.
@@ -29,6 +29,7 @@ extern "C" {
 extern "C" {
     // Public, stable, and callable without the GIL: the calling OS thread's Python
     // identifier. Not exposed by pyo3-ffi, so we declare it ourselves.
+    // TODO: remove once pyo3-ffi exposes PyThread_get_thread_ident
     fn PyThread_get_thread_ident() -> c_ulong;
 }
 
@@ -92,7 +93,7 @@ where
         // Do not re-acquire the GIL: take_gil would exit this thread via pthread_exit
         // and abort. Park until the process exits (matches CPython 3.14 gh-87135).
         loop {
-            std::thread::sleep(Duration::from_secs(3600));
+            std::thread::park();
         }
     }
 
