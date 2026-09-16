@@ -303,8 +303,8 @@ def trace_cmd(cmd, socket_instance, address):
 @contextlib.contextmanager
 def traced_get_socket(func, args, kwargs):
     instance = get_argument_value(args, kwargs, 0, "self")
-    # AIDEV-NOTE: PyMongo 4.18+ monitor pools call Pool.checkout directly. The
-    # is_sdam boundary is also what PyMongo uses to suppress application CMAP events.
+
+    # If the tracer is disabled or the instance is an SDAM monitor pool, we don't trace the checkout.
     if not tracer.enabled or getattr(instance, "is_sdam", False):
         with func(*args, **kwargs) as sock_info:
             yield sock_info

@@ -54,9 +54,6 @@ async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, 
         return process_server_operation_result(span, operation, result)
 
 
-# AIDEV-NOTE: AsyncServer.checkout is awaitable through PyMongo 4.17. AsyncPool.checkout
-# in 4.18+ is synchronous, returns an async context manager, and is also used by SDAM
-# monitor pools. Keep separate wrappers and do not trace monitor pool checkouts.
 async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Wrapper for AsyncServer.checkout to trace socket checkout.
 
@@ -73,9 +70,14 @@ async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...],
 def trace_async_pool_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Wrapper for AsyncPool.checkout to trace socket checkout."""
     instance = get_argument_value(args, kwargs, 0, "self")
+
+    # Call the original function which returns an async context manager
     cm = func(*args, **kwargs)
+
+    # If the instance is an SDAM monitor pool, we do not trace the checkout context manager.
     if getattr(instance, "is_sdam", False):
         return cm
+
     return _trace_async_checkout_context_manager(cm, instance)
 
 

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import pymongo
 from pymongo.monitoring import CommandListener
@@ -28,8 +29,8 @@ else:
 
 
 class AsyncCommandCapture(CommandListener):
-    def __init__(self):
-        self.started_commands = []
+    def __init__(self) -> None:
+        self.started_commands: list[tuple[str, dict[str, Any]]] = []
 
     def started(self, event):
         self.started_commands.append((event.command_name, event.command))
