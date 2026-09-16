@@ -73,7 +73,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"azure.durable_functions": ">=1.2.1"}
+    return {"azure.durable_functions": ">=1.2.1,<2.0.0"}
 
 
 def patch():
