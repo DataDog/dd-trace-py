@@ -135,7 +135,7 @@ def test_emission_failure_does_not_break_llmobs_event(llmobs, test_spans, mock_l
     ],
 )
 def test_set_gen_ai_apm_tags_model_defaults(tracer, span_kind, expected_model, expected_provider):
-    """The LLMObs-disabled path goes through this helper directly, with no meta_struct."""
+    """Model field defaults, exercised through the helper with no meta_struct."""
     with tracer.trace("test") as span:
         set_gen_ai_apm_tags(span, span_kind=span_kind, metrics=ALL_TOKEN_METRICS)
 
