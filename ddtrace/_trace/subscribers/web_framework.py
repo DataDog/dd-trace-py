@@ -69,6 +69,8 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         except Exception:
             log.debug("%s: error adding request tags", event.integration_config.integration_name, exc_info=True)
 
+        # aiohttp supports per-app trace_query_string overrides that may differ from
+        # integration_config.trace_query_string.
         if event.trace_query_string and event.query is not None:
             span._set_attribute(http.QUERY_STRING, event.query)
 
