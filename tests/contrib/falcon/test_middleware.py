@@ -47,11 +47,9 @@ class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
         (None, None, ""),
     ],
 )
-def test_process_response_route_includes_root_path(root_path, uri_template, want_route):
+def test_process_resource_route_includes_root_path(root_path, uri_template, want_route):
     middleware = TraceMiddleware()
-    span = mock.MagicMock()
     ctx = mock.MagicMock()
-    ctx.event = mock.MagicMock()
 
     req = mock.MagicMock()
     req.root_path = root_path
@@ -61,14 +59,10 @@ def test_process_response_route_includes_root_path(root_path, uri_template, want
         middleware._request_context_key: ctx,
     }
 
-    resp = mock.MagicMock()
-    resp.status = "200 OK"
-    resp._headers = {}
+    with mock.patch("ddtrace.contrib.internal.falcon.middleware.core.dispatch_event") as mock_dispatch_event:
+        middleware.process_resource(req, mock.MagicMock(), mock.MagicMock(), {})
 
-    with mock.patch("ddtrace.contrib.internal.falcon.middleware.span_from_context", return_value=span):
-        middleware.process_response(req, resp, mock.MagicMock(), req_succeeded=True)
-
-    assert ctx.event.request_route == want_route
-    assert ctx.event.response_status_code == 200
-    assert ctx.event.response_headers == {}
-    ctx.dispatch_ended_event.assert_called_once_with()
+    mock_dispatch_event.assert_called_once()
+    (event,), _ = mock_dispatch_event.call_args
+    assert event.request_context is ctx
+    assert event.request_route == want_route
