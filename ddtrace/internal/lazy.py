@@ -3,7 +3,8 @@ from types import FrameType
 from types import FunctionType
 import typing as t
 
-from ddtrace.internal.compat import is_wrap_supported
+from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -45,14 +46,13 @@ def lazy(f: t.Callable[[], None]) -> None:
     _globals = sys._getframe(1).f_globals
     _initialized = False
 
-    # WrappingContext.wrap() (sys.monitoring) is live through NEXT_MAX_PY;
-    # fallback from NEXT_MAX_PY + 1 minor.
-    if is_wrap_supported():
+    # WrappingContext.wrap() (sys.monitoring) is live through NEXT_MAX_PY inclusive.
+    if is_at_most_py(*NEXT_MAX_PY):
         _LazyModuleLoadingContext(t.cast(FunctionType, f)).wrap()
 
     def __getattr__(name: str) -> t.Any:
         nonlocal _initialized
-        if not is_wrap_supported():
+        if not is_at_most_py(*NEXT_MAX_PY):
             if not _initialized:
                 _exec_lazy_init(t.cast(FunctionType, f), _globals)
                 _initialized = True

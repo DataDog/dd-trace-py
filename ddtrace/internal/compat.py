@@ -15,11 +15,8 @@ __all__ = [
     "NEXT_MAX_PY",
     "NEXT_PY_UNSUPPORTED_MSG",
     "PYTHON_VERSION_INFO",
-    "is_at_least_next_max_py",
     "is_at_least_py",
     "is_at_most_py",
-    "is_py_version_within_bounds",
-    "is_wrap_supported",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
@@ -28,8 +25,8 @@ PYTHON_VERSION_INFO = sys.version_info
 # TODO(py-315): bump MAX_PY to (3, 15) after 3.15 GAs
 MAX_PY: tuple[int, int] = (3, 14)
 
-# Next CPython: packaging exclusive ceiling and wrap-live floor.
-# wrap() is supported through NEXT_MAX_PY; is_wrap_supported is False from +1 minor.
+# Next CPython: packaging exclusive ceiling and wrap-live inclusive ceiling.
+# wrap() is live through NEXT_MAX_PY (`is_at_most_py(*NEXT_MAX_PY)`); 3.16 dies.
 # TODO(py-315): bump NEXT_MAX_PY to (3, 16) after 3.15 GAs
 NEXT_MAX_PY: tuple[int, int] = (3, 15)
 
@@ -39,20 +36,12 @@ NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Py
 )
 
 
-def is_py_version_within_bounds(version: Optional[tuple[int, ...]] = None) -> bool:
-    """True if version is at or below last officially supported CPython (MAX_PY)."""
-    version = version or PYTHON_VERSION_INFO[:2]
-    return version[:2] <= MAX_PY
-
-
-def is_at_least_next_max_py(version: Optional[tuple[int, ...]] = None) -> bool:
-    """True if version is at or past NEXT_MAX_PY."""
-    version = version or PYTHON_VERSION_INFO[:2]
-    return version[:2] >= NEXT_MAX_PY
-
-
 def is_at_least_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
-    """True if version is at or past (major, minor). Call sites pass the floor, not NEXT_MAX_PY."""
+    """True if version is at or past (major, minor).
+
+    Feature gates pass literals (`is_at_least_py(3, 15)`), not NEXT_MAX_PY.
+    The rolling next-max floor is `is_at_least_py(*NEXT_MAX_PY)`.
+    """
     version = version or PYTHON_VERSION_INFO[:2]
     return version[:2] >= (major, minor)
 
@@ -61,17 +50,12 @@ def is_at_most_py(major: int, minor: int, version: Optional[tuple[int, ...]] = N
     """True if version is at or below (major, minor) inclusive.
 
     Exclusive `< (3, 13)` is `is_at_most_py(3, 12)`, not `is_at_most_py(3, 13)`.
-    Call sites pass the ceiling, not MAX_PY or NEXT_MAX_PY.
+    Official support is `is_at_most_py(*MAX_PY)`. Wrap is live through
+    `is_at_most_py(*NEXT_MAX_PY)`. Feature gates stay `is_at_least_py(3, 15)`
+    literals, not these constants.
     """
     version = version or PYTHON_VERSION_INFO[:2]
     return version[:2] <= (major, minor)
-
-
-def is_wrap_supported(version: Optional[tuple[int, ...]] = None) -> bool:
-    """True through NEXT_MAX_PY (wrap/lazy/context live). False from +1 minor."""
-    version = version or PYTHON_VERSION_INFO[:2]
-    fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
-    return version[:2] < fail_close
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:

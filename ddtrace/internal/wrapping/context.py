@@ -16,8 +16,9 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.compat import is_wrap_supported
+from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -224,7 +225,7 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if not is_wrap_supported():
+if not is_at_most_py(*NEXT_MAX_PY):
     raise NotImplementedError("This version of Python is not supported yet")
 elif is_at_least_py(3, 15):
     # We rely on sys.monitoring for wrapping, so no bytecode manipulation is

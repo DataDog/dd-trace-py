@@ -18,15 +18,12 @@ import pytest
 from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
-from ddtrace.internal.compat import is_py_version_within_bounds
-from ddtrace.internal.compat import is_wrap_supported
 
 
-# wrap() is live on 3.15+ while is_wrap_supported().
-_WRAP_ON_315: bool = is_at_least_py(3, 15) and is_wrap_supported()
+# wrap() is live on 3.15+ while wrap is supported through NEXT_MAX_PY.
+_WRAP_ON_315: bool = is_at_least_py(3, 15) and is_at_most_py(*NEXT_MAX_PY)
 
 _FEATURE_GATE_MODULES: tuple[str, ...] = (
     "ddtrace/internal/wrapping/context.py",
@@ -80,16 +77,18 @@ def test_max_py_matches_requires_python_upper_bound() -> None:
 
 
 def test_version_bound_helpers() -> None:
-    assert is_py_version_within_bounds(MAX_PY)
-    assert not is_py_version_within_bounds(NEXT_MAX_PY)
-    assert not is_at_least_next_max_py(MAX_PY)
-    assert is_at_least_next_max_py(NEXT_MAX_PY)
-    assert is_wrap_supported(NEXT_MAX_PY)
+    assert is_at_most_py(*MAX_PY, version=MAX_PY)
+    assert not is_at_most_py(*MAX_PY, version=NEXT_MAX_PY)
+    assert not is_at_least_py(*NEXT_MAX_PY, version=MAX_PY)
+    assert is_at_least_py(*NEXT_MAX_PY, version=NEXT_MAX_PY)
+    assert is_at_most_py(*NEXT_MAX_PY, version=NEXT_MAX_PY)
+    assert is_at_most_py(*NEXT_MAX_PY, version=(3, 15))
+    assert not is_at_most_py(*NEXT_MAX_PY, version=(3, 16))
     fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
-    assert is_at_least_next_max_py(fail_close)
-    assert not is_wrap_supported(fail_close)
+    assert is_at_least_py(*NEXT_MAX_PY, version=fail_close)
+    assert not is_at_most_py(*NEXT_MAX_PY, version=fail_close)
     running: tuple[int, ...] = PYTHON_VERSION_INFO[:2]
-    assert is_at_least_next_max_py() is is_at_least_next_max_py(running)
+    assert is_at_least_py(*NEXT_MAX_PY) is is_at_least_py(*NEXT_MAX_PY, version=running)
     assert not is_at_least_py(3, 15, version=(3, 14))
     assert is_at_least_py(3, 15, version=(3, 15))
     assert is_at_least_py(3, 15, version=(3, 16))
@@ -119,6 +118,24 @@ def _is_literal_major_minor_call(node: ast.Call) -> bool:
     )
 
 
+def _is_starred_name_call(node: ast.Call, func_name: str, const_name: str) -> bool:
+    func: ast.expr = node.func
+    if not isinstance(func, ast.Name) or func.id != func_name:
+        return False
+    for arg in node.args:
+        if isinstance(arg, ast.Starred) and isinstance(arg.value, ast.Name) and arg.value.id == const_name:
+            return True
+    return False
+
+
+def _starred_name_ids(node: ast.Call, const_name: str) -> set[int]:
+    ids: set[int] = set()
+    for arg in node.args:
+        if isinstance(arg, ast.Starred) and isinstance(arg.value, ast.Name) and arg.value.id == const_name:
+            ids.add(id(arg.value))
+    return ids
+
+
 def _is_at_least_py_315_call(node: ast.Call) -> bool:
     func: ast.expr = node.func
     if not isinstance(func, ast.Name) or func.id != "is_at_least_py":
@@ -134,21 +151,33 @@ def _is_at_least_py_315_call(node: ast.Call) -> bool:
 
 def test_py315_feature_gate_does_not_follow_next_max() -> None:
     """Wrap/coverage/monitoring 3.15 gates pass (3, 15), not NEXT_MAX_PY."""
+    deleted_wrappers: set[str] = {
+        "is_at_least_next_max_py",
+        "is_py_version_within_bounds",
+        "is_wrap_supported",
+    }
     for relpath in _FEATURE_GATE_MODULES:
         source: str = (_REPO_ROOT / relpath).read_text()
         tree: ast.Module = ast.parse(source)
-        banned: set[str] = {"NEXT_MAX_PY", "is_at_least_next_max_py"}
+        allowed_next_max: set[int] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and _is_starred_name_call(node, "is_at_most_py", "NEXT_MAX_PY"):
+                allowed_next_max.update(_starred_name_ids(node, "NEXT_MAX_PY"))
         found_315_gate: bool = False
         for node in ast.walk(tree):
-            if isinstance(node, ast.Name) and node.id in banned:
-                pytest.fail(f"{relpath} references {node.id}; 3.15 feature gates must not follow NEXT_MAX_PY")
-            if isinstance(node, ast.alias) and node.name in banned:
-                pytest.fail(f"{relpath} imports {node.name}; 3.15 feature gates must not follow NEXT_MAX_PY")
+            if isinstance(node, ast.Name) and node.id in deleted_wrappers:
+                pytest.fail(f"{relpath} still names deleted wrapper {node.id}")
+            if isinstance(node, ast.alias) and node.name in deleted_wrappers:
+                pytest.fail(f"{relpath} still imports deleted wrapper {node.name}")
+            if isinstance(node, ast.Name) and node.id == "NEXT_MAX_PY" and id(node) not in allowed_next_max:
+                pytest.fail(f"{relpath} references NEXT_MAX_PY outside is_at_most_py(*NEXT_MAX_PY)")
             if (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Name)
                 and node.func.id in ("is_at_least_py", "is_at_most_py")
             ):
+                if _is_starred_name_call(node, "is_at_most_py", "NEXT_MAX_PY"):
+                    continue
                 if not _is_literal_major_minor_call(node):
                     pytest.fail(f"{relpath} calls {node.func.id} without literal major, minor")
                 if _is_at_least_py_315_call(node):
@@ -157,15 +186,15 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
 
 
 def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
-    """is_at_least_next_max_py and is_wrap_supported read NEXT_MAX_PY."""
+    """is_at_least_py(*NEXT_MAX_PY) and is_at_most_py(*NEXT_MAX_PY) read NEXT_MAX_PY."""
     import ddtrace.internal.compat as compat
 
     monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 16))
-    assert not compat.is_at_least_next_max_py((3, 15))
-    assert compat.is_at_least_next_max_py((3, 16))
-    assert compat.is_wrap_supported((3, 15))
-    assert compat.is_wrap_supported((3, 16))
-    assert not compat.is_wrap_supported((3, 17))
+    assert not compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 15))
+    assert compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 16))
+    assert compat.is_at_most_py(*compat.NEXT_MAX_PY, version=(3, 15))
+    assert compat.is_at_most_py(*compat.NEXT_MAX_PY, version=(3, 16))
+    assert not compat.is_at_most_py(*compat.NEXT_MAX_PY, version=(3, 17))
 
 
 def test_wrapping_modules_import() -> None:
@@ -175,7 +204,7 @@ def test_wrapping_modules_import() -> None:
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
     # wrapping.context fail-closes at import when wrap is unsupported (3.16+).
-    if is_wrap_supported():
+    if is_at_most_py(*NEXT_MAX_PY):
         import ddtrace.internal.wrapping.context  # noqa: F401
     else:
         with pytest.raises(NotImplementedError, match="not supported yet"):
