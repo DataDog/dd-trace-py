@@ -439,60 +439,70 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030e0000
 Result<void>
-ThreadInfo::get_tasks_from_thread_linked_list(EchionSampler& echion, std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::for_each_task_address_from_thread_list(size_t tasks_head_offset, const TaskAddressCallback& callback)
 {
-    if (this->tstate_addr == 0 || this->asyncio_loop == 0) {
-        return ErrorKind::TaskInfoError;
+    if (this->tstate_addr == 0 || this->asyncio_loop == 0 || tasks_head_offset == 0 ||
+        tasks_head_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
+        return Result<void>::ok();
     }
 
-    const size_t asyncio_tasks_head_offset = echion.asyncio_thread_tasks_head_offset();
-    if (asyncio_tasks_head_offset == 0 ||
-        asyncio_tasks_head_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
-        return ErrorKind::TaskInfoError;
+    const uintptr_t head_addr = this->tstate_addr + tasks_head_offset;
+    auto maybe_task_addresses = get_task_addresses_from_linked_list(head_addr);
+    if (!maybe_task_addresses) {
+        // Lock-free list snapshots are best effort. Treat an inconsistent source as empty so other sources remain
+        // available, and reserve this function's error result for callback failures.
+        return Result<void>::ok();
     }
-    uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
 
-    return get_tasks_from_linked_list(echion, head_addr, tasks);
+    for (TaskObj* task_addr : *maybe_task_addresses) {
+        auto result = callback(task_addr);
+        if (!result) {
+            return result.error();
+        }
+    }
+    return Result<void>::ok();
 }
 
 Result<void>
-ThreadInfo::get_tasks_from_interpreter_linked_list(EchionSampler& echion,
-                                                   PyThreadState* tstate,
-                                                   std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::for_each_task_address_from_interpreter_list(PyThreadState* tstate,
+                                                        size_t tasks_head_offset,
+                                                        const TaskAddressCallback& callback)
 {
-    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0) {
-        return ErrorKind::TaskInfoError;
+    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0 || tasks_head_offset == 0) {
+        return Result<void>::ok();
     }
 
-    const size_t asyncio_tasks_head_offset = echion.asyncio_interpreter_tasks_head_offset();
     const uintptr_t interpreter_addr = reinterpret_cast<uintptr_t>(tstate->interp);
-    if (asyncio_tasks_head_offset == 0 ||
-        asyncio_tasks_head_offset > std::numeric_limits<uintptr_t>::max() - interpreter_addr) {
-        return ErrorKind::TaskInfoError;
+    if (tasks_head_offset > std::numeric_limits<uintptr_t>::max() - interpreter_addr) {
+        return Result<void>::ok();
     }
-    uintptr_t head_addr = interpreter_addr + asyncio_tasks_head_offset;
+    const uintptr_t head_addr = interpreter_addr + tasks_head_offset;
+    auto maybe_task_addresses = get_task_addresses_from_linked_list(head_addr);
+    if (!maybe_task_addresses) {
+        // Lock-free list snapshots are best effort. Treat an inconsistent source as empty so other sources remain
+        // available, and reserve this function's error result for callback failures.
+        return Result<void>::ok();
+    }
 
-    return get_tasks_from_linked_list(echion, head_addr, tasks);
+    for (TaskObj* task_addr : *maybe_task_addresses) {
+        auto result = callback(task_addr);
+        if (!result) {
+            return result.error();
+        }
+    }
+    return Result<void>::ok();
 }
 
-Result<void>
-ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks)
+Result<std::vector<TaskObj*>>
+ThreadInfo::get_task_addresses_from_linked_list(uintptr_t head_addr)
 {
-    if (head_addr == 0 || this->asyncio_loop == 0) {
+    if (head_addr == 0) {
         return ErrorKind::TaskInfoError;
     }
-
-    const size_t tasks_start_size = tasks.size();
-    // This traversal only appends to tasks. On structural failure, remove its partial results while preserving entries
-    // from earlier sources.
-    auto fail = [&tasks, tasks_start_size]() -> Result<void> {
-        tasks.resize(tasks_start_size);
-        return ErrorKind::TaskInfoError;
-    };
 
     struct llist_node head_node;
     if (copy_type(reinterpret_cast<void*>(head_addr), head_node)) {
-        return fail();
+        return ErrorKind::TaskInfoError;
     }
     llist_node current_node = head_node;
 
@@ -500,48 +510,45 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
     size_t iteration_count = 0;
     uintptr_t current_node_addr = head_addr;
     std::unordered_set<uintptr_t> visited;
+    std::vector<TaskObj*> task_addresses;
 
     // A valid circular list must return to the expected head within the hard bound without null, repeated, unreadable,
-    // or backward-inconsistent nodes. Any violation rolls back this source.
+    // or backward-inconsistent nodes. Do not return any addresses until the whole source has been validated.
     while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr) {
         if (++iteration_count > max_iterations || current_node.next == nullptr) {
-            return fail();
+            return ErrorKind::TaskInfoError;
         }
 
         const uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
         if (!visited.insert(next_node_addr).second) {
-            return fail();
+            return ErrorKind::TaskInfoError;
         }
 
         struct llist_node next_node;
         if (copy_type(reinterpret_cast<void*>(next_node_addr), next_node) ||
             reinterpret_cast<uintptr_t>(next_node.prev) != current_node_addr) {
-            return fail();
+            return ErrorKind::TaskInfoError;
         }
 
         const uintptr_t task_addr = next_node_addr - offsetof(TaskObj, task_node);
-        auto maybe_task = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-        if (maybe_task && (*maybe_task)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-            tasks.push_back(std::move(*maybe_task));
-        }
+        task_addresses.push_back(reinterpret_cast<TaskObj*>(task_addr));
 
         current_node_addr = next_node_addr;
         current_node = next_node;
     }
 
     if (reinterpret_cast<uintptr_t>(head_node.prev) != current_node_addr) {
-        return fail();
+        return ErrorKind::TaskInfoError;
     }
 
-    return Result<void>::ok();
+    return task_addresses;
 }
 
-Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
+Result<void>
+ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, const TaskAddressCallback& callback)
 {
-    std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
-        return tasks;
+        return Result<void>::ok();
 
     // Python 3.14+ task discovery combines four sources:
     // - per-thread linked lists for active native Tasks;
@@ -549,11 +556,18 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     // - _scheduled_tasks for third-party Task implementations;
     // - _eager_tasks for Tasks executing their first eager step.
     // The stack sampler reads Python threads without acquiring the GIL or stopping them. It can therefore observe a
-    // Task moving between sources, so deduplicate tasks by address below.
-    // Continue after one source fails to preserve results from the other sources.
+    // Task moving between sources. get_all_tasks deduplicates the resulting snapshots by address. Invalid linked-list
+    // snapshots are treated as empty sources, while callback failures stop traversal and propagate to the caller.
     if (tstate != nullptr && this->tstate_addr != 0) {
-        (void)get_tasks_from_thread_linked_list(echion, tasks);
-        (void)get_tasks_from_interpreter_linked_list(echion, tstate, tasks);
+        auto result = for_each_task_address_from_thread_list(echion.asyncio_thread_tasks_head_offset(), callback);
+        if (!result) {
+            return result.error();
+        }
+        result =
+          for_each_task_address_from_interpreter_list(tstate, echion.asyncio_interpreter_tasks_head_offset(), callback);
+        if (!result) {
+            return result.error();
+        }
     }
 
     auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
@@ -563,11 +577,10 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
             if (auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set()) {
                 auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
                 for (auto task_addr : scheduled_tasks) {
-                    // In WeakSet.data (set), elements are the Task objects themselves
-                    auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-                    if (maybe_task_info &&
-                        (*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-                        tasks.push_back(std::move(*maybe_task_info));
+                    // WeakSet.data contains the Task objects themselves on Python 3.14.
+                    auto result = callback(reinterpret_cast<TaskObj*>(task_addr));
+                    if (!result) {
+                        return result.error();
                     }
                 }
             }
@@ -582,7 +595,6 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
         }
 
         auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
-
         auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
         if (!maybe_eager_tasks) {
             return ErrorKind::TaskInfoError;
@@ -590,29 +602,22 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
-            auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-            if (maybe_task_info) {
-                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-                    tasks.push_back(std::move(*maybe_task_info));
-                }
+            auto result = callback(reinterpret_cast<TaskObj*>(task_addr));
+            if (!result) {
+                return result.error();
             }
         }
     }
 
-    // A Task may appear in multiple sources. Keep the earliest snapshot because it is closest to the thread stack
-    // captured for this sample.
-    std::unordered_set<PyObject*> seen;
-    std::erase_if(tasks, [&seen](const TaskInfo::Ptr& task) { return !seen.insert(task->origin).second; });
-    return tasks;
+    return Result<void>::ok();
 }
 #else
-// Pre-Python 3.14: get_all_tasks uses WeakSet approach
-Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
+// Before Python 3.14, asyncio tracks tasks through Python weak sets.
+Result<void>
+ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState*, const TaskAddressCallback& callback)
 {
-    std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
-        return tasks;
+        return Result<void>::ok();
 
     auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
@@ -632,11 +637,9 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
         if (copy_type(task_wr_addr, task_wr))
             continue;
 
-        auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_wr.wr_object));
-        if (maybe_task_info) {
-            if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
-                tasks.push_back(std::move(*maybe_task_info));
-            }
+        auto result = callback(reinterpret_cast<TaskObj*>(task_wr.wr_object));
+        if (!result) {
+            return result.error();
         }
     }
 
@@ -648,7 +651,6 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
         }
 
         auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
-
         auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
         if (!maybe_eager_tasks) {
             return ErrorKind::TaskInfoError;
@@ -656,18 +658,41 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
-            auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-            if (maybe_task_info) {
-                if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
-                    tasks.push_back(std::move(*maybe_task_info));
-                }
+            auto result = callback(reinterpret_cast<TaskObj*>(task_addr));
+            if (!result) {
+                return result.error();
             }
         }
     }
 
-    return tasks;
+    return Result<void>::ok();
 }
 #endif // PY_VERSION_HEX >= 0x030e0000
+
+Result<std::vector<TaskInfo::Ptr>>
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
+{
+    std::vector<TaskInfo::Ptr> tasks;
+    auto result = for_each_task_address(echion, tstate, [&](TaskObj* task_addr) -> Result<void> {
+        auto maybe_task_info = TaskInfo::create(echion, task_addr);
+        if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
+            tasks.push_back(std::move(*maybe_task_info));
+        }
+        // Individual unreadable Tasks are expected in a lock-free snapshot and remain best effort.
+        return Result<void>::ok();
+    });
+    if (!result) {
+        return result.error();
+    }
+
+#if PY_VERSION_HEX >= 0x030e0000
+    // A Task may appear in multiple sources. Keep the earliest snapshot because it is closest to the thread stack
+    // captured for this sample.
+    std::unordered_set<PyObject*> seen;
+    std::erase_if(tasks, [&seen](const TaskInfo::Ptr& task) { return !seen.insert(task->origin).second; });
+#endif
+    return tasks;
+}
 
 // ----------------------------------------------------------------------------
 void
