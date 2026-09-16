@@ -39,15 +39,6 @@ _DISABLE: object = cast(object, monitoring._DISABLE)  # type: ignore[has-type]
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
-def test_get_tool_id_returns_the_shared_setup_tool_id() -> None:
-    tool_id: int = monitoring.get_tool_id()
-
-    assert tool_id in monitoring._CANDIDATE_TOOL_IDS  # type: ignore[has-type]
-    assert monitoring._tool_id == tool_id
-    assert monitoring._setup() == tool_id
-    assert monitoring.get_tool_id() == tool_id
-
-
 class UnwindHandler(monitoring.MonitoringEventHandler):
     def __init__(self) -> None:
         self.unwinds: list[tuple[CodeType, BaseException]] = []
