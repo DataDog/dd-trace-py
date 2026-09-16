@@ -2,7 +2,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TypedDict  # noqa:F401
 
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 
 
 class CoverageFilePayload(TypedDict):
