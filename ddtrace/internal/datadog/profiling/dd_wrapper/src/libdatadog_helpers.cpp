@@ -5,15 +5,15 @@
 std::optional<Datadog::string_id>
 Datadog::intern_string(std::string_view s)
 {
-    auto* dict = ProfilerState::get().get_profiles_dictionary();
-    if (dict == nullptr) {
+    auto dict = ProfilerState::get().borrow_dictionary();
+    if (!dict.has_value()) {
         return std::nullopt;
     }
 
     // R&D caveat: the C FFI path used CONVERT_LOSSY. The CXX API takes rust::Str,
     // so production parity may require a CXX lossy insertion variant.
     ddprof::DictionaryStringId id{};
-    if (!dict->intern_string(to_rust_str(s), id)) {
+    if (!dict->value.intern_string(to_rust_str(s), id)) {
         return std::nullopt;
     }
     return id;
@@ -22,13 +22,13 @@ Datadog::intern_string(std::string_view s)
 std::optional<Datadog::function_id>
 Datadog::intern_function(string_id name, string_id filename)
 {
-    auto* dict = ProfilerState::get().get_profiles_dictionary();
-    if (dict == nullptr) {
+    auto dict = ProfilerState::get().borrow_dictionary();
+    if (!dict.has_value()) {
         return std::nullopt;
     }
 
     ddprof::DictionaryFunctionId id{};
-    if (!dict->intern_function(
+    if (!dict->value.intern_function(
           ddprof::DictionaryFunction{
             name,
             {}, // No support for system_name in Python; default string id means empty string.

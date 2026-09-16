@@ -16,8 +16,8 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const
 {
     // Private helper function for creating a CXX Profile from arguments
 
-    auto* dict = Datadog::ProfilerState::get().get_profiles_dictionary();
-    if (dict == nullptr) {
+    auto dict = Datadog::ProfilerState::get().borrow_dictionary();
+    if (!dict.has_value()) {
         return Datadog::ErrorMessage{ "CXX ProfileDictionary is not initialized" };
     }
 
@@ -25,7 +25,7 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const
     for (const auto sample_type : sample_types) {
         cxx_sample_types.push_back(sample_type);
     }
-    auto result = Datadog::ddprof::Profile::create_with_dictionary(std::move(cxx_sample_types), period, *dict);
+    auto result = Datadog::ddprof::Profile::create_with_dictionary(std::move(cxx_sample_types), period, dict->value);
     if (!result->ok()) {
         return Datadog::ErrorMessage{ std::string(result->message()) };
     }

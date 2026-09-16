@@ -43,17 +43,14 @@ ProfilerState::init_profiles_dictionary()
     return true;
 }
 
-ddprof::ProfileDictionary*
-ProfilerState::get_profiles_dictionary()
+std::optional<Borrow<ddprof::ProfileDictionary>>
+ProfilerState::borrow_dictionary()
 {
-    const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
+    std::unique_lock<std::mutex> lk(profiles_dictionary_mtx);
     if (!profiles_dictionary.has_value()) {
-        return nullptr;
+        return std::nullopt;
     }
-    // TODO: Avoid returning a raw pointer after releasing profiles_dictionary_mtx.
-    // A follow-up should make dictionary access safe against concurrent cleanup
-    // or fork-child dictionary replacement.
-    return &profiles_dictionary.value().operator*();
+    return Borrow<ddprof::ProfileDictionary>{ std::move(lk), *profiles_dictionary.value() };
 }
 
 void
@@ -134,6 +131,11 @@ ProfilerState::prefork()
 
     upload_cancellation.prefork();
 
+    // Lock the dictionary mutex so no thread is mid-intern when the child
+    // reinitializes the dictionary. Acquired before profile_mtx to match
+    // the temporal order of the sampling path (intern → collect).
+    profiles_dictionary_mtx.lock();
+
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
     // inside the CXX Profile::add_dictionary_sample path when the child resets profile state.
     // postfork_parent releases it via unlock; postfork_child releases it
@@ -146,6 +148,7 @@ void
 ProfilerState::postfork_parent()
 {
     profile_state.postfork_parent();
+    profiles_dictionary_mtx.unlock();
     upload_cancellation.postfork_parent();
     upload_lock.unlock();
 }
@@ -175,6 +178,7 @@ ProfilerState::postfork_child()
 
     // Re-init the mutexes (placement-new to avoid UB with mutexes in undefined state after fork)
     new (&upload_lock) std::mutex();
+    new (&profiles_dictionary_mtx) std::mutex();
     upload_cancellation.postfork_child();
 
     // Re-init the native call registry mutex (data is preserved so forked

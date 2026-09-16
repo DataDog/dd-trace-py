@@ -1,5 +1,6 @@
 #pragma once
 
+#include "borrow.hpp"
 #include "constants.hpp"
 #include "libdatadog_helpers.hpp"
 #include "native_call_tracker.hpp"
@@ -46,8 +47,10 @@ class ProfilerState
     // ========================================================================
     // ProfileDictionary state
     // ========================================================================
-    ddprof::ProfileDictionary* get_profiles_dictionary();
-    void release_profiles_dictionary();
+
+    // Returns nullopt if the dictionary is not initialized.
+    // The lock is held for the lifetime of the returned Borrow.
+    std::optional<Borrow<ddprof::ProfileDictionary>> borrow_dictionary();
 
     // ========================================================================
     // Uploader configuration
@@ -108,6 +111,7 @@ class ProfilerState
 
     // Internal helpers
     bool init_profiles_dictionary();
+    void release_profiles_dictionary();
     void reset_key_caches();
 
   private:
