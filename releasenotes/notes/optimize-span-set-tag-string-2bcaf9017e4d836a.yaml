@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Reduces the overhead of setting ordinary string-valued span tags.
