@@ -450,7 +450,6 @@ suites:
         - name: anyio
           dependencies: [pytest-randomly, anyio, trio]
   aredis:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -522,7 +521,6 @@ suites:
           python: ['3.11']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.27']
   asynctest:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -539,7 +537,6 @@ suites:
         - name: asynctest
           dependencies: ['pytest>=6.0,<7.0', pytest-randomly, 'asynctest==0.13.0']
   avro:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -851,7 +848,6 @@ suites:
         - name: botocore
           dependencies: ['moto[all]<5.0', pytest-randomly, 'vcrpy==7.0.0', 'botocore==1.38.26', 'boto3==1.38.26']
   bottle:
-    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -951,7 +947,6 @@ suites:
         - name: consul
           dependencies: [python-consul, pytest-randomly]
   datastreams:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -966,7 +961,6 @@ suites:
         - name: datastreams-latest
           dependencies: [msgpack, pytest-randomly]
   ddtrace_api:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -1157,7 +1151,6 @@ suites:
   dramatiq:
     env:
       TEST_REDIS_HOST: redis
-    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -1475,7 +1468,6 @@ suites:
           python: ['3.12']
           dependencies: [falcon, 'setuptools<82', 'google-cloud-pubsub==2.14.0']
   graphql:graphene:
-    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -1678,7 +1670,6 @@ suites:
       - '@integration_registry'
       - tests/contrib/integration_registry/*
     snapshot: false
-    venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/contrib/integration_registry
       python: ['3.13']
@@ -1967,7 +1958,6 @@ suites:
             SDK_EXPORTER_INSTALLED: '1'
   protobuf:
     retry: 2
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2094,7 +2084,6 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.12.3']
   pymysql:
-    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -2201,7 +2190,6 @@ suites:
           python: ['3.12']
           dependencies: [torch]
   pyodbc:
-    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -2220,7 +2208,6 @@ suites:
         - name: pyodbc
           dependencies: [pytest-randomly, pyodbc]
   pyramid:
-    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -2484,7 +2471,6 @@ suites:
           dependencies: ['responses~=0.16.0', 'cryptography<39', pytest-randomly, 'snowflake-connector-python~=2.7.2']
   sourcecode:
     retry: 2
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2499,7 +2485,6 @@ suites:
         - name: sourcecode
           dependencies: [setuptools, pytest-randomly]
   sqlalchemy:
-    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -2665,7 +2650,6 @@ suites:
         - name: subprocess
           dependencies: [pytest-randomly]
   logging:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2742,7 +2726,6 @@ suites:
           python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
   vertica:
-    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -2761,7 +2744,6 @@ suites:
           python: ['3.9']
           dependencies: ['vertica-python>=0.7.0,<0.8.0', pytest-randomly]
   wsgi:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2783,7 +2765,6 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [WebTest, pytest-randomly, legacy-cgi]
   yaaredis:
-    venvs_per_job: 3
     paths:
       - '@core'
       - '@bootstrap'

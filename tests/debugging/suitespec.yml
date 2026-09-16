@@ -6,7 +6,6 @@ components:
     - ddtrace/internal/settings/exception_replay.py
 suites:
   debugger:
-    venvs_per_job: 6
     paths:
       - '@debugging'
       - '@bootstrap'

@@ -279,7 +279,6 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   selenium:
-    venvs_per_job: 2
     env:
       SELENIUM_GRID_URL: http://selenium-chrome:4444
     paths:

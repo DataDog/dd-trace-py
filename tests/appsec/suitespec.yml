@@ -68,7 +68,6 @@ suites:
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -558,7 +557,6 @@ suites:
           python: ['3.12', '3.14']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_rc:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -683,7 +681,6 @@ suites:
           python: ['3.10', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_rc:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -811,7 +808,6 @@ suites:
           python: ['3.11', '3.13']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_rc:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -928,7 +924,6 @@ suites:
           python: ['3.10', '3.14']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_rc:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
