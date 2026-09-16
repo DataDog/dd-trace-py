@@ -266,6 +266,15 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_reset_span_links(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+    SpanLinks::get_instance().reset();
+    Py_RETURN_NONE;
+}
+
 // Records the asyncio task that offloaded work to the current (worker) thread.
 // The thread id is derived from the calling thread's state (this runs on the
 // worker thread), matching how stack_link_span_impl resolves it.
@@ -1136,6 +1145,7 @@ static PyMethodDef stack_methods[] = {
       stack_unlink_finished_span,
       METH_VARARGS,
       "Clear every physical-thread link derived from a finished span" },
+    { "reset_span_links", stack_reset_span_links, METH_NOARGS, "Clear all span links" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
