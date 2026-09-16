@@ -177,3 +177,47 @@ def test_added_lines_flags_content_starting_with_plus_plus(monkeypatch: pytest.M
     violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
 
     assert violations == [("example.py", "++ AIDEV-NOTE: content starts with plus signs")]
+
+
+@pytest.mark.parametrize(
+    "added_line,expected_content",
+    [
+        ('+return """AIDEV-NOTE: bypass via return string"""', 'return """AIDEV-NOTE: bypass via return string"""'),
+        ('+def f(): "AIDEV-NOTE: inline docstring"', 'def f(): "AIDEV-NOTE: inline docstring"'),
+        ("+# It's an AIDEV-NOTE: user's token", "# It's an AIDEV-NOTE: user's token"),
+    ],
+)
+def test_added_lines_flags_anchor_inside_string(
+    monkeypatch: pytest.MonkeyPatch,
+    added_line: str,
+    expected_content: str,
+) -> None:
+    diff: str = "\n".join(
+        [
+            "diff --git a/example.py b/example.py",
+            "--- a/example.py",
+            "+++ b/example.py",
+            "@@ -1 +1,2 @@",
+            added_line,
+            "+unchanged",
+        ]
+    )
+
+    def fake_merge_base(base_ref: str) -> str:
+        return "base"
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+    ) -> types.SimpleNamespace:
+        return types.SimpleNamespace(stdout=diff)
+
+    monkeypatch.setattr(_MODULE, "_merge_base", fake_merge_base)
+    monkeypatch.setattr(_MODULE.subprocess, "run", fake_run)
+
+    violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
+
+    assert violations == [("example.py", expected_content)]

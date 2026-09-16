@@ -52,8 +52,9 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
             continue
         if not line.startswith("+"):
             continue
-        if _is_anchor_line(line):
-            hits.append((current_file, line[1:].rstrip()))
+        content: str = line[1:]
+        if ANCHOR_RE.search(content) or _is_anchor_line(line):
+            hits.append((current_file, content.rstrip()))
     return hits
 
 
