@@ -130,7 +130,7 @@ class _TracedIterable:
             self._self_parent_span.finish()
             self._self_span_finished = True
 
-    @property
+    @property  # type: ignore[misc]
     def __class__(self):
         return self.__wrapped__.__class__
 
