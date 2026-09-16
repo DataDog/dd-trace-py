@@ -25,6 +25,23 @@ ANCHOR_RE: re.Pattern[str] = re.compile(r"AIDE" r"V")
 STRING_RE: re.Pattern[str] = re.compile(r"""(["'`])(?:\\.|(?!\1).)*\1""")
 TRIPLE_STRING_RE: re.Pattern[str] = re.compile(r'^\s*[rRuUbBfF]{0,2}(?:\'\'\'|""").*AIDE' r"V")
 
+# Paths allowed to mention deprecated anchors in added lines: policy docs and the
+# checker's own tests (fixtures intentionally contain anchor strings).
+EXCLUDED_PATHS: frozenset[str] = frozenset(
+    {
+        "AGENTS.md",
+        "scripts/check_no_new_aidev_anchors.py",
+        "tests/internal/test_check_no_new_aidev_anchors.py",
+    }
+)
+EXCLUDED_PREFIXES: tuple[str, ...] = (".cursor/rules/",)
+
+
+def _is_excluded_path(path: str) -> bool:
+    if path in EXCLUDED_PATHS:
+        return True
+    return any(path.startswith(prefix) for prefix in EXCLUDED_PREFIXES)
+
 
 def _merge_base(base_ref: str) -> str:
     result: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603, B607
@@ -59,6 +76,8 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
             in_hunk = True
             continue
         if not in_hunk or not line.startswith("+"):
+            continue
+        if _is_excluded_path(current_file):
             continue
         content: str = line[1:]
         if ANCHOR_RE.search(content) or _is_anchor_line(line):
