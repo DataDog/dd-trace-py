@@ -33,6 +33,7 @@ hook-enqueue-bounded-adversarial:
   <<: *defaults
   mode: hook_enqueue_adversarial
   num_context_fields: 257
+  observe_full_evaluation_data: true
 
 # Background worker hot path: canonical key + two-tier aggregation.
 aggregate-typical:
