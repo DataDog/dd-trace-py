@@ -210,6 +210,48 @@ def test_module_code_collector_keeps_entry_until_every_subscriber_releases():
 
 
 @pytest.mark.subprocess
+def test_module_code_collector_is_obfuscated_raises_without_registration():
+    import pytest
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    with pytest.raises(KeyError):
+        ModuleCodeCollector.is_obfuscated(custom_decorated_stuff)
+
+
+@pytest.mark.subprocess
+def test_module_code_collector_is_obfuscated_false_for_normal_module():
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("test")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    assert ModuleCodeCollector.is_obfuscated(custom_decorated_stuff) is False
+
+
+@pytest.mark.subprocess
+def test_module_code_collector_is_obfuscated_checks_lazily():
+    # is_obfuscated_code() must not be called at compile time for every
+    # module: only when a subscriber actually asks about a given module.
+    from unittest import mock
+
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    with mock.patch("ddtrace.internal.utils.inspection.is_obfuscated_code") as mock_is_obfuscated_code:
+        ModuleCodeCollector.register("test")
+
+        import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+        mock_is_obfuscated_code.assert_not_called()
+
+        mock_is_obfuscated_code.return_value = True
+        assert ModuleCodeCollector.is_obfuscated(custom_decorated_stuff) is True
+        mock_is_obfuscated_code.assert_called_once()
+
+
+@pytest.mark.subprocess
 def test_module_code_collector_late_subscriber_is_not_pending():
     # A subscriber that registers after a module was compiled was not part of
     # that module's pending snapshot. It can still read the module's data, but
