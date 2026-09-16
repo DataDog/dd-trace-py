@@ -2523,17 +2523,7 @@
                 "testedRuntimes": {
                     "python": [
                         "3.12",
-                        "3.13"
-                    ]
-                },
-                "supportedRange": ">=2.11.4",
-                "tested": [
-                    "3.16.0"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.13",
                         "3.14"
                     ]
                 },
@@ -2553,17 +2543,7 @@
                 "testedRuntimes": {
                     "python": [
                         "3.12",
-                        "3.13"
-                    ]
-                },
-                "supportedRange": ">=2.11.4",
-                "tested": [
-                    "3.16.0"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.13",
                         "3.14"
                     ]
                 },
@@ -2583,17 +2563,7 @@
                 "testedRuntimes": {
                     "python": [
                         "3.12",
-                        "3.13"
-                    ]
-                },
-                "supportedRange": ">=2.11.4",
-                "tested": [
-                    "3.16.0"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.13",
                         "3.14"
                     ]
                 },

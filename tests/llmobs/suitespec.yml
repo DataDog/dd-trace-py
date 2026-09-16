@@ -165,6 +165,10 @@ suites:
         - name: llama_index
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
+        # PR #20079: Python 3.14 is covered by the latest dependency row only.
+        - name: llama_index
+          python: ['3.14']
+          dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
     retry: 2
     venvs_per_job: 2
@@ -215,6 +219,10 @@ suites:
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.65.4', 'openai==1.68.2']
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+        # PR #20079: Python 3.14 is covered by the latest compatible dependency row only.
+        - name: litellm
+          python: ['3.14']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
   llmobs:
     paths:
@@ -422,7 +430,8 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, pytest-asyncio, openai, 'openai-agents~=0.14.0']
         - name: openai_agents
-          python: ['3.10', '3.11', '3.12', '3.13']
+          # PR #20079: Python 3.14 is covered by the latest dependency row only.
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
   pydantic_ai:
     paths:
@@ -471,9 +480,14 @@ suites:
       command: pytest {cmdargs} tests/contrib/vllm
       env:
         DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
-      python: ['3.10', '3.11', '3.12', '3.13']
       variants:
         - name: vllm
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2']
         - name: vllm
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
+        # PR #20079: Python 3.14 is covered by the latest dependency row only.
+        - name: vllm
+          python: ['3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
