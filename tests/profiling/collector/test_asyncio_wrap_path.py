@@ -217,3 +217,12 @@ def test_on_py_return_ignores_unregistered_code(asyncio_module: Any) -> None:
     dispatch.on_py_return(unrelated.__code__, 0, "return value")
 
     assert asyncio_module._py_return_handlers == {}
+"""Pin wrap() vs sys.monitoring for profiling asyncio hooks.
+
+These fail if ddtrace.profiling._asyncio does not do proper
+version splitting.
+
+The registration helper and the PY_RETURN dispatch are kept outside that
+version gate so the unit tests below can exercise them on every supported
+interpreter with a stubbed monitoring module.
+"""
