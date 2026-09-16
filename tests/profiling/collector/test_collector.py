@@ -4,6 +4,7 @@ import types
 
 import pytest
 
+from ddtrace import profiling
 from ddtrace.profiling import collector
 
 
@@ -50,7 +51,7 @@ def test_capture_sampler_pure_python_fallback() -> None:
     collector_mod: str = "ddtrace.profiling.collector"
 
     saved_module: types.ModuleType | None = sys.modules.pop(mod_name, None)
-    sys.modules.pop(collector_mod, None)
+    saved_collector: types.ModuleType = sys.modules.pop(collector_mod)
 
     sys.modules[mod_name] = None  # type: ignore[assignment]  # block the import
     try:
@@ -65,5 +66,9 @@ def test_capture_sampler_pure_python_fallback() -> None:
         del sys.modules[mod_name]
         if saved_module is not None:
             sys.modules[mod_name] = saved_module
-        sys.modules.pop(collector_mod, None)
-        importlib.import_module(collector_mod)
+        # Put the original module object back rather than re-importing. A fresh import
+        # binds a new ``ddtrace.profiling.collector`` to ``ddtrace.profiling`` without the
+        # submodule attributes (``stack``, ``threading``, ...) that earlier imports set,
+        # which breaks later ``mock.patch("ddtrace.profiling.collector.<sub>....")`` calls.
+        sys.modules[collector_mod] = saved_collector
+        setattr(profiling, "collector", saved_collector)

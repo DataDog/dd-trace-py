@@ -27,6 +27,19 @@
 
 using namespace Datadog;
 
+// describe_segv_handler_owners() allocates, so it can throw. The owner string is only
+// diagnostic, and the caller is already committed to the syscall fallback, so a failure
+// here must not abort the sampling loop.
+static std::string
+describe_segv_handler_owners_noexcept() noexcept
+{
+    try {
+        return describe_segv_handler_owners();
+    } catch (...) {
+        return "unknown";
+    }
+}
+
 static void
 update_fast_copy_stats(ProfilerStats& stats)
 {
@@ -475,11 +488,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // the process.
                         handler_fallback_done = true;
                         mark_fast_copy_syscall_fallback();
-                        std::string owners = "unknown";
-                        try {
-                            owners = describe_segv_handler_owners();
-                        } catch (...) {
-                        }
+                        const std::string owners = describe_segv_handler_owners_noexcept();
                         record_foreign_segv_handler(true, owners);
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
                                      "handler; keeping the syscall-based memory copy to avoid crashing. "
@@ -503,11 +512,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     break;
                 }
                 mark_fast_copy_syscall_fallback();
-                std::string owners = "unknown";
-                try {
-                    owners = describe_segv_handler_owners();
-                } catch (...) {
-                }
+                const std::string owners = describe_segv_handler_owners_noexcept();
                 record_foreign_segv_handler(false, owners);
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing. "
