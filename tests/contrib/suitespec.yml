@@ -470,7 +470,7 @@ suites:
         - name: aredis
           dependencies: ['pytest-asyncio==0.21.1', aredis, pytest-randomly]
   asgi:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'

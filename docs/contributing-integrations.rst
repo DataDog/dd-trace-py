@@ -227,9 +227,9 @@ are not yet any expected spans stored for it, so we need to create some.
         - postgres
 
 ``venvs_per_job`` is the target number of dependency environments assigned to each generated CI job.
-Lower values create more jobs; omit it to run the suite as one job. The generator limits each suite to 25
-jobs. Do not set ``parallelism`` directly. Suites using ``ddtest: true`` use ``ddtest_nodes`` instead and
-must not set ``venvs_per_job``.
+Lower values create more jobs. By default, it is the suite's total environment count, so omitting it runs
+the suite as one job. The generator limits each suite to 25 jobs. Do not set ``parallelism`` directly.
+Suites using ``ddtest: true`` use ``ddtest_nodes`` instead and must not set ``venvs_per_job``.
 
 If in the process of writing tests for your integration you create a sample application,
 consider adding it to the `trace examples repository <https://github.com/Datadog/trace-examples>`_ along

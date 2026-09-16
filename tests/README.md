@@ -74,8 +74,8 @@ suite specification and resolve the components after that.
 For standard test suites, `venvs_per_job` is the target number of dependency
 environments per generated job. The job count is the environment count divided by
 this value and rounded up, with a limit of 25 jobs per suite. Lower values increase
-parallelism; omit the option to run the suite as one job. Do not set `parallelism`
-directly.
+parallelism. By default, `venvs_per_job` is the suite's total environment count, so
+omitting it runs the suite as one job. Do not set `parallelism` directly.
 
 Suites using `ddtest: true` shard each dependency environment with `ddtest_nodes`
 instead. They must not set `venvs_per_job`.

@@ -311,12 +311,16 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     return result
 
 
-def calculate_parallelism_from_venvs(venv_count: int, venvs_per_job: int, max_parallelism: int = 25) -> int:
+def calculate_parallelism_from_venvs(
+    venv_count: int, venvs_per_job: t.Optional[int] = None, max_parallelism: int = 25
+) -> int:
     """Calculate parallelism given a venv count and venvs_per_job packing density."""
     import math
 
     # AIDEV-NOTE: Suitespec owns shard density. Avoid a global minimum job count,
     # which makes small CI runs allocate runners unrelated to their suite timings.
+    if venvs_per_job is None:
+        venvs_per_job = venv_count
     return min(math.ceil(venv_count / venvs_per_job), max_parallelism)
 
 
@@ -530,7 +534,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     for suite in non_skipped:
         config = suites[suite]
         venvs_per_job = config.get("venvs_per_job")
-        if venvs_per_job is not None and suite in suite_venv_info:
+        if suite in suite_venv_info:
             final_jobs[suite] = calculate_parallelism_from_venvs(suite_venv_info[suite].venv_count, venvs_per_job)
         else:
             final_jobs[suite] = 1

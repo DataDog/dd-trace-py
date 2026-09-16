@@ -85,6 +85,10 @@ def test_gen_tests_rejects_unsupported_sharding_controls(gen_gitlab_config_mod, 
         gen_gitlab_config_mod._gen_tests({"suite": {"type": "test", **config}}, ["suite"])
 
 
+def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):
+    assert gen_gitlab_config_mod.calculate_parallelism_from_venvs(12) == 1
+
+
 def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
     info = gen_gitlab_config_mod.SuiteVenvInfo(
         venv_count=2,
