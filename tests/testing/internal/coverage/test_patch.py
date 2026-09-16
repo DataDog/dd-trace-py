@@ -5,8 +5,6 @@ import tempfile
 from unittest.mock import Mock
 from unittest.mock import patch
 
-import pytest
-
 from ddtrace.contrib.internal.coverage import patch as coverage_patch
 
 
@@ -224,27 +222,19 @@ class TestCoverageErrorHandling:
         coverage_patch.stop_coverage()
         assert not coverage_patch.is_coverage_running()
 
-    def test_generate_report_with_invalid_path(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_generate_report_with_invalid_path(self) -> None:
         """Test generating report with invalid path."""
         _start_coverage_with_data()
         coverage_patch.stop_coverage()
 
-        # Try to generate report in non-existent directory
-        invalid_path = "/nonexistent/directory/coverage.lcov"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            invalid_parent = Path(tmpdir) / "file"
+            invalid_parent.touch()
+            with patch.object(coverage_patch.log, "warning") as warning:
+                result = coverage_patch.generate_lcov_report(outfile=str(invalid_parent / "coverage.lcov"))
 
-        # Should handle error gracefully and return None
-        result = coverage_patch.generate_lcov_report(outfile=invalid_path)
         assert result is None
-
-        # The result could be None or a valid percentage depending on implementation
-        # The key is that it doesn't crash
-
-        # Check if error was logged (may or may not happen depending on coverage.py behavior)
-        error_logged = any(
-            "An exception occurred when running a coverage report" in record.message for record in caplog.records
-        )
-        assert error_logged
-        # We don't assert this as it depends on how coverage.py handles the invalid path
+        warning.assert_called_once()
 
         coverage_patch.erase_coverage()
 
