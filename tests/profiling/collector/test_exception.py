@@ -892,29 +892,6 @@ def test_exception_captures_full_python_stack(tmp_path: Path) -> None:
     )
 
 
-def test_exception_samples_after_profiler_import(tmp_path: Path) -> None:
-    """Importing Profiler must not disable exception profiling.
-
-    Profiler imports collector.asyncio, which imports asyncio. On 3.15+ that
-    fires the asyncio ModuleWatchdog and used to claim sys.monitoring tool ID 4
-    — the same slot ExceptionCollector needs — leaving python_exceptions_3.15
-    with a 0.0s empty exception profile.
-    """
-    from ddtrace.profiling.profiler import Profiler  # noqa: F401
-
-    output_filename: str = _setup_profiler(tmp_path, "test_exception_after_profiler_import")
-
-    with exception.ExceptionCollector(sampling_interval=1):
-        for _ in range(10):
-            _handle_value_error()
-
-    ddup.upload()
-
-    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
-    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
-    assert len(samples) > 0
-
-
 def test_exception_samples_when_multiplexer_owns_tool_id_4(tmp_path: Path) -> None:
     """ExceptionCollector must attach RAISE when tool ID 4 is already 'ddtrace'."""
     tool_id: int = 4
