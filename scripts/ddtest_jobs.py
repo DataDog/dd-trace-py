@@ -164,9 +164,9 @@ def emit_ddtest_jobs(
             for key, value in extra.items():
                 print(f"    {key}: {value}", file=f)
 
-    def emit_needs_build_base_test_artifacts() -> None:
+    def emit_needs_test_artifacts() -> None:
         print('    - pipeline: "$PARENT_PIPELINE_ID"', file=f)
-        print("      job: build_base_test_artifacts", file=f)
+        print("      job: tests-gen", file=f)
         print("      artifacts: true", file=f)
 
     # ---- plan job: single job per suite (groups hashes by Python version) ----
@@ -178,7 +178,7 @@ def emit_ddtest_jobs(
     print(f"  stage: {stage}", file=f)
     print("  needs:", file=f)
     print("    - prechecks", file=f)
-    emit_needs_build_base_test_artifacts()
+    emit_needs_test_artifacts()
     emit_services(plan=True)
     emit_before_script(plan=True)
     hash_python = " ".join(f"{h}:{py}:{metadata[h][0]}:{metadata[h][1]}" for h, py in environments)
@@ -213,7 +213,7 @@ def emit_ddtest_jobs(
         print(f"  stage: {stage}", file=f)
         print("  needs:", file=f)
         print("    - prechecks", file=f)
-        emit_needs_build_base_test_artifacts()
+        emit_needs_test_artifacts()
         # Each run downloads the single plan artifact (which contains all
         # hashes' plans, partitioned by hash) and restores its own hash's plan.
         print("    - job: " + plan_name, file=f)

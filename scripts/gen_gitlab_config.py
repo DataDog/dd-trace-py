@@ -103,7 +103,7 @@ class JobSpec:
         lines.append("  needs:")
         lines.append("    - prechecks")
         lines.append('    - pipeline: "$PARENT_PIPELINE_ID"')
-        lines.append("      job: build_base_test_artifacts")
+        lines.append("      job: tests-gen")
         lines.append("      artifacts: true")
 
         # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
@@ -124,8 +124,7 @@ class JobSpec:
         if self.snapshot:
             wait_for.append("testagent")
 
-        # Bake NIGHTLY_BUILD into script (same approach as build_base_test_artifacts template)
-        # so the value is set when tests-gen runs and is present in the child job.
+        # Bake NIGHTLY_BUILD into generated jobs while tests-gen has the parent value.
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
@@ -620,7 +619,7 @@ def gen_build_docs() -> None:
             print("  needs:", file=f)
             print("    - prechecks", file=f)
             print('    - pipeline: "$PARENT_PIPELINE_ID"', file=f)
-            print("      job: build_base_test_artifacts", file=f)
+            print("      job: tests-gen", file=f)
             print("      artifacts: true", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
