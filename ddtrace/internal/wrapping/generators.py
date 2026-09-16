@@ -1,14 +1,11 @@
-import sys
 from types import CodeType
 from typing import Optional
 
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import is_at_least_py
-
-
-PY = sys.version_info[:2]
 
 
 # -----------------------------------------------------------------------------
@@ -113,7 +110,7 @@ if is_at_least_py(3, 15):
         """
     )
 
-elif PY >= (3, 14):
+elif is_at_least_py(3, 14):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""
@@ -191,7 +188,7 @@ elif PY >= (3, 14):
         """
     )
 
-elif PY >= (3, 13):
+elif is_at_least_py(3, 13):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""
@@ -268,7 +265,7 @@ elif PY >= (3, 13):
         """
     )
 
-elif PY >= (3, 12):
+elif is_at_least_py(3, 12):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""
@@ -345,7 +342,7 @@ elif PY >= (3, 12):
         """
     )
 
-elif PY >= (3, 11):
+elif is_at_least_py(3, 11):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""
@@ -426,7 +423,7 @@ elif PY >= (3, 11):
         """
     )
 
-elif PY >= (3, 10):
+elif is_at_least_py(3, 10):
     GENERATOR_ASSEMBLY.parse(
         r"""
         setup_finally                   @stopiter
@@ -491,7 +488,7 @@ elif PY >= (3, 10):
         """
     )
 
-elif PY >= (3, 9):
+elif is_at_least_py(3, 9):
     GENERATOR_ASSEMBLY.parse(
         r"""
         setup_finally                   @stopiter
@@ -557,7 +554,7 @@ elif PY >= (3, 9):
     )
 
 else:
-    msg = "No generator wrapping support for Python %d.%d" % (PY[0], PY[1])
+    msg: str = "No generator wrapping support for Python %d.%d" % PYTHON_VERSION_INFO[:2]
     raise RuntimeError(msg)
 
 

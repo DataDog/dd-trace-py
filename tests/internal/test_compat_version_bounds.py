@@ -20,6 +20,7 @@ from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.compat import is_py_version_within_bounds
 from ddtrace.internal.compat import is_wrap_supported
 
@@ -95,15 +96,34 @@ def test_version_bound_helpers() -> None:
     assert is_at_least_py(3, 15) is is_at_least_py(3, 15, version=running)
     assert is_at_least_py(3, 10, version=(3, 10))
     assert not is_at_least_py(3, 10, version=(3, 9))
+    assert is_at_most_py(3, 12, version=(3, 12))
+    assert is_at_most_py(3, 12, version=(3, 11))
+    assert not is_at_most_py(3, 12, version=(3, 13))
+    assert is_at_most_py(3, 12) is is_at_most_py(3, 12, version=running)
+    assert is_at_least_py(3, 11, version=(3, 12)) and is_at_most_py(3, 12, version=(3, 12))
+    assert not (is_at_least_py(3, 11, version=(3, 13)) and is_at_most_py(3, 12, version=(3, 13)))
+
+
+def _is_literal_major_minor_call(node: ast.Call) -> bool:
+    if any(isinstance(arg, ast.Starred) for arg in node.args):
+        return False
+    if len(node.args) < 2:
+        return False
+    major: ast.expr = node.args[0]
+    minor: ast.expr = node.args[1]
+    return (
+        isinstance(major, ast.Constant)
+        and isinstance(major.value, int)
+        and isinstance(minor, ast.Constant)
+        and isinstance(minor.value, int)
+    )
 
 
 def _is_at_least_py_315_call(node: ast.Call) -> bool:
     func: ast.expr = node.func
     if not isinstance(func, ast.Name) or func.id != "is_at_least_py":
         return False
-    if any(isinstance(arg, ast.Starred) for arg in node.args):
-        return False
-    if len(node.args) < 2:
+    if not _is_literal_major_minor_call(node):
         return False
     major: ast.expr = node.args[0]
     minor: ast.expr = node.args[1]
@@ -124,10 +144,15 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
                 pytest.fail(f"{relpath} references {node.id}; 3.15 feature gates must not follow NEXT_MAX_PY")
             if isinstance(node, ast.alias) and node.name in banned:
                 pytest.fail(f"{relpath} imports {node.name}; 3.15 feature gates must not follow NEXT_MAX_PY")
-            if isinstance(node, ast.Call) and _is_at_least_py_315_call(node):
-                found_315_gate = True
-            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "is_at_least_py":
-                pytest.fail(f"{relpath} calls is_at_least_py without literal (3, 15)")
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in ("is_at_least_py", "is_at_most_py")
+            ):
+                if not _is_literal_major_minor_call(node):
+                    pytest.fail(f"{relpath} calls {node.func.id} without literal major, minor")
+                if _is_at_least_py_315_call(node):
+                    found_315_gate = True
         assert found_315_gate, f"{relpath} must call is_at_least_py(3, 15)"
 
 

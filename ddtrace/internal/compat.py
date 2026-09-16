@@ -17,6 +17,7 @@ __all__ = [
     "PYTHON_VERSION_INFO",
     "is_at_least_next_max_py",
     "is_at_least_py",
+    "is_at_most_py",
     "is_py_version_within_bounds",
     "is_wrap_supported",
 ]
@@ -54,6 +55,16 @@ def is_at_least_py(major: int, minor: int, version: Optional[tuple[int, ...]] = 
     """True if version is at or past (major, minor). Call sites pass the floor, not NEXT_MAX_PY."""
     version = version or PYTHON_VERSION_INFO[:2]
     return version[:2] >= (major, minor)
+
+
+def is_at_most_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
+    """True if version is at or below (major, minor) inclusive.
+
+    Exclusive `< (3, 13)` is `is_at_most_py(3, 12)`, not `is_at_most_py(3, 13)`.
+    Call sites pass the ceiling, not MAX_PY or NEXT_MAX_PY.
+    """
+    version = version or PYTHON_VERSION_INFO[:2]
+    return version[:2] <= (major, minor)
 
 
 def is_wrap_supported(version: Optional[tuple[int, ...]] = None) -> bool:

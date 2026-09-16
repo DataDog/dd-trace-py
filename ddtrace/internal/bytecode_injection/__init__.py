@@ -8,8 +8,8 @@ from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
@@ -184,7 +184,7 @@ else:
     # the stack to the state prior to the call.
 
     INJECTION_ASSEMBLY = Assembly()
-    if PY >= (3, 13):
+    if is_at_least_py(3, 13):
         INJECTION_ASSEMBLY.parse(
             r"""
             load_const      {hook}
@@ -194,7 +194,7 @@ else:
             pop_top
             """
         )
-    elif PY >= (3, 12):
+    elif is_at_least_py(3, 12):
         INJECTION_ASSEMBLY.parse(
             r"""
             push_null
@@ -204,7 +204,7 @@ else:
             pop_top
             """
         )
-    elif PY >= (3, 11):
+    elif is_at_least_py(3, 11):
         INJECTION_ASSEMBLY.parse(
             r"""
             push_null
@@ -277,8 +277,8 @@ else:
                 continue
             code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
-    _INJECT_HOOK_OPCODE_POS = 1 if (3, 11) <= PY < (3, 13) else 0
-    _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
+    _INJECT_HOOK_OPCODE_POS = 1 if is_at_least_py(3, 11) and is_at_most_py(3, 12) else 0
+    _INJECT_ARG_OPCODE_POS = 1 if is_at_most_py(3, 10) else 2
 
     def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
         """Eject a hook from the abstract code object at the given line number.
