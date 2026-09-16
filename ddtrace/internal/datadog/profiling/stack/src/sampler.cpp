@@ -475,7 +475,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // the process.
                         handler_fallback_done = true;
                         mark_fast_copy_syscall_fallback();
-                        const auto owners = describe_segv_handler_owners();
+                        std::string owners = "unknown";
+                        try {
+                            owners = describe_segv_handler_owners();
+                        } catch (...) {
+                        }
                         record_foreign_segv_handler(true, owners);
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
                                      "handler; keeping the syscall-based memory copy to avoid crashing. "
@@ -489,12 +493,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // degrade sample quality (e.g. on asyncio workloads). We still prefer
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
-                mark_fast_copy_syscall_fallback();
-                const auto owners = describe_segv_handler_owners();
-                record_foreign_segv_handler(false, owners);
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing. "
-                          << "Handler owners: " << owners << std::endl;
                 if (!set_fast_copy_enabled(false)) {
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would
@@ -504,6 +502,16 @@ Sampler::sampling_thread(const uint64_t seq_num)
                               << std::endl;
                     break;
                 }
+                mark_fast_copy_syscall_fallback();
+                std::string owners = "unknown";
+                try {
+                    owners = describe_segv_handler_owners();
+                } catch (...) {
+                }
+                record_foreign_segv_handler(false, owners);
+                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
+                             "component; falling back to syscall-based memory copy to avoid crashing. "
+                          << "Handler owners: " << owners << std::endl;
             }
         }
 
