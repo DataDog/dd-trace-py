@@ -42,7 +42,6 @@ suites:
         - name: ci_visibility
           dependencies: [msgpack, pytest-randomly, pytest-xdist, gevent]
   ci_visibility:snapshot:
-    venvs_per_job: 2
     paths:
       - '@ci_visibility'
       - '@ci'
@@ -160,7 +159,6 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest_benchmark:
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -211,7 +209,6 @@ suites:
         - name: pytest_bdd
           dependencies: ['pytest==7.4.4', msgpack, 'more_itertools<8.11.0', pytest-randomly, 'pytest-bdd>=6.0,<6.1']
   pytest_flaky:
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'

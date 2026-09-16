@@ -1061,7 +1061,6 @@ suites:
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, sqlalchemy, django]
           command: pytest {cmdargs} tests/contrib/django_celery
   django_hosts:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2635,7 +2634,6 @@ suites:
         - name: structlog
           dependencies: [structlog, pytest-randomly]
   subprocess:
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'

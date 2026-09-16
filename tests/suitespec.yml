@@ -354,7 +354,6 @@ suites:
           command: pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, pyarmor]
   wrapping:
-    venvs_per_job: 6
     paths:
       - '@core'
       - '@tracing'

@@ -16,7 +16,6 @@ suites:
       - tests/aiguard/utils.py
       - tests/aiguard/suitespec.yml
     retry: 2
-    venvs_per_job: 3
     matrix:
       command: pytest {cmdargs} tests/aiguard/api/
       env:
