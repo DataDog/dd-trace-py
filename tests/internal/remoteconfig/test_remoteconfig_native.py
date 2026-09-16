@@ -258,6 +258,39 @@ def test_remoteconfig_product_start_failure_cleans_up_deferred_state(monkeypatch
     assert starts == [1]
 
 
+def test_remoteconfig_product_post_start_failure_cleans_up_deferred_state(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_module
+    from ddtrace.internal.remoteconfig.products import client as product
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+    from tests.utils import override_global_config
+
+    poller = RemoteConfigPoller()
+    fork_events = []
+    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
+    monkeypatch.setattr(worker_module.forksafe, "register_before_fork", lambda hook: fork_events.append("register"))
+    monkeypatch.setattr(worker_module.forksafe, "unregister_before_fork", lambda hook: fork_events.append("unregister"))
+
+    def fail_start():
+        raise RuntimeError("poller start failed")
+
+    monkeypatch.setattr(poller, "start", fail_start)
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        poller.defer_start()
+        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
+        poller.enable_product(RemoteConfigProduct.AgentConfig)
+
+        with pytest.raises(RuntimeError, match="poller start failed"):
+            product.post_start()
+
+    assert poller._client._product_callbacks == {}
+    assert poller._client._enabled_products == set()
+    assert poller._start_deferred is False
+    assert poller._before_fork_registered is False
+    assert fork_events == ["register", "unregister"]
+
+
 def test_capabilities_reported_to_agent():
     # Capabilities are passed as native RemoteConfigCapabilities enum values (no
     # Python-side bit mask) and encoded natively into the request.
