@@ -17,8 +17,6 @@ if TYPE_CHECKING:  # pragma: no cover
 from urllib.parse import quote
 from urllib.parse import unquote_to_bytes
 
-import wrapt
-
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -101,7 +99,7 @@ class _DDWSGIMiddlewareBase(object):
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
+    def __call__(self, environ: Iterable, start_response: Callable) -> Iterable:
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
