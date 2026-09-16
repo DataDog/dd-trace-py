@@ -326,10 +326,10 @@ def test_libdd_failure_telemetry_logging_with_auto():
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
         import ddtrace.profiling.auto  # noqa: F401
 
-        mock_add_log.assert_called_once()
-        call_args = mock_add_log.call_args
-        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-        message = call_args[0][1]
+        # Starting the profiler emits unrelated logs at other levels, so match on the error.
+        error_calls = [c for c in mock_add_log.call_args_list if c[0][0] == TELEMETRY_LOG_LEVEL.ERROR]
+        assert len(error_calls) == 1
+        message = error_calls[0][0][1]
         assert "Failed to load ddup module" in message
         assert "mock failure message" in message
 
@@ -383,10 +383,10 @@ def test_stack_failure_telemetry_logging_with_auto():
         from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
         import ddtrace.profiling.auto  # noqa: F401
 
-        mock_add_log.assert_called_once()
-        call_args = mock_add_log.call_args
-        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-        message = call_args[0][1]
+        # Starting the profiler emits unrelated logs at other levels, so match on the error.
+        error_calls = [c for c in mock_add_log.call_args_list if c[0][0] == TELEMETRY_LOG_LEVEL.ERROR]
+        assert len(error_calls) == 1
+        message = error_calls[0][0][1]
         assert "Failed to load stack module" in message
         assert "mock failure message" in message
 
