@@ -12,13 +12,11 @@
 
 namespace Datadog {
 
-class ProfileBorrow;
+struct ProfileBorrow;
 
 // Serves to collect individual samples, as well as lengthen the scope of string data
 class Profile
 {
-    friend class ProfileBorrow;
-
   private:
     // Serialization for static state
     // - string table
@@ -58,10 +56,9 @@ class Profile
     // Getters
     size_t get_sample_type_length();
 
-    // Safety: call only while ProfilerState is initialized. ProfilerState sets
-    // initialized_ only after cur_profile is populated, and clears it if
-    // postfork_child cannot recreate the profile.
-    ProfileBorrow borrow();
+    // Returns nullopt if the profile is not available (not initialized or cleaned up).
+    // The check is performed under profile_mtx, synchronized with cleanup().
+    std::optional<ProfileBorrow> borrow();
 
     // constref getters
     const ValueIndex& val();

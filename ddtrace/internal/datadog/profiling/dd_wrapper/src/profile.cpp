@@ -40,8 +40,7 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const
 void
 Datadog::Profile::cleanup()
 {
-    // TODO: Coordinate cleanup with in-flight sampling. Resetting cur_profile
-    // without profile_mtx can race with collect() using the active profile.
+    const std::lock_guard<std::mutex> lock(profile_mtx);
     cur_profile.reset();
 }
 
@@ -115,10 +114,14 @@ Datadog::Profile::get_sample_type_length()
     return samplers.size();
 }
 
-Datadog::ProfileBorrow
+std::optional<Datadog::ProfileBorrow>
 Datadog::Profile::borrow()
 {
-    return ProfileBorrow(*this);
+    std::unique_lock<std::mutex> lk(profile_mtx);
+    if (!cur_profile.has_value()) {
+        return std::nullopt;
+    }
+    return ProfileBorrow{ std::move(lk), *cur_profile.value(), cur_profiler_stats };
 }
 
 bool

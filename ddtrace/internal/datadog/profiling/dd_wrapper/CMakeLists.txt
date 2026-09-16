@@ -66,7 +66,6 @@ add_library(
     src/libdatadog_helpers.cpp
     src/native_call_tracker.cpp
     src/profile.cpp
-    src/profile_borrow.cpp
     src/profiler_state.cpp
     src/profiler_stats.cpp
     src/sample.cpp

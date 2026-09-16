@@ -195,14 +195,18 @@ Datadog::UploaderBuilder::build()
     Datadog::ProfilerStats stats;
     {
         // Only keep the lock for the duration of the encoding operation.
-        auto borrowed = state.profile_state.borrow();
+        auto maybe_borrowed = state.profile_state.borrow();
+        if (!maybe_borrowed.has_value()) {
+            return Datadog::ErrorMessage{ "Profile is not available (not initialized or cleaned up)" };
+        }
+        auto& borrowed = *maybe_borrowed;
 
         // Swap the ProfilerStats (which replaces the one being written to with an empty state).
         // We do this first as we still want to reset ProfilerStats if the serialization fails.
-        std::swap(stats, borrowed.stats());
-        borrowed.stats().copy_fast_copy_metadata_from(stats);
+        std::swap(stats, borrowed.stats);
+        borrowed.stats.copy_fast_copy_metadata_from(stats);
 
-        auto encoded_result = borrowed.profile().serialize();
+        auto encoded_result = borrowed.profile.serialize();
         if (!encoded_result->ok()) {
             return Datadog::ErrorMessage{ "Error serializing CXX profile: " + std::string(encoded_result->message()) };
         }

@@ -160,7 +160,7 @@ class Sample
     // This is useful when the Sample object is embedded and will be destroyed later
     bool export_sample();
 
-    static ProfileBorrow profile_borrow();
+    static std::optional<ProfileBorrow> profile_borrow();
     static void postfork_child();
     static void cleanup();
     Sample(SampleType _type_mask, unsigned int _max_nframes);

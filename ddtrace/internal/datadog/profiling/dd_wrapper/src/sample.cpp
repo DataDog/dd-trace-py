@@ -770,7 +770,7 @@ Datadog::Sample::is_timeline_enabled()
     return ProfilerState::get().timeline_enabled;
 }
 
-Datadog::ProfileBorrow
+std::optional<Datadog::ProfileBorrow>
 Datadog::Sample::profile_borrow()
 {
     return ProfilerState::get().profile_state.borrow();
