@@ -1,3 +1,4 @@
+from importlib import metadata
 import os
 import platform
 import shutil
@@ -78,15 +79,20 @@ def ddtrace_injection_artifact():
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
 
-        host_site_packages = os.path.dirname(host_ddtrace_path)
-        metadata_dirs = [
-            entry.path
-            for entry in os.scandir(host_site_packages)
-            if entry.is_dir() and entry.name.startswith("ddtrace-") and entry.name.endswith(".dist-info")
-        ]
-        if len(metadata_dirs) != 1:
-            pytest.fail(f"Expected one installed ddtrace metadata directory, found {metadata_dirs}")
-        shutil.copytree(metadata_dirs[0], os.path.join(target_site_packages_path, os.path.basename(metadata_dirs[0])))
+        distribution = metadata.distribution("ddtrace")
+        metadata_file = next(
+            (
+                path
+                for path in distribution.files or ()
+                if (path.name == "METADATA" and path.parent.name.endswith(".dist-info"))
+                or (path.name == "PKG-INFO" and path.parent.name.endswith(".egg-info"))
+            ),
+            None,
+        )
+        if metadata_file is None:
+            pytest.fail("Could not locate the installed ddtrace distribution metadata")
+        metadata_dir = distribution.locate_file(metadata_file).parent
+        shutil.copytree(metadata_dir, os.path.join(target_site_packages_path, metadata_dir.name))
 
         # 4. Write the ddtrace version file
         version_file_path = os.path.join(sources_dir_in_session_tmp, "version")
