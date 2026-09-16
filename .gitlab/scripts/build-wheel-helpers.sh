@@ -272,7 +272,6 @@ finalize() {
 
 
 # Test wheel
-# AIDEV-NOTE: One-pipeline operator controls must stay CI-prefixed so wheel tests do not treat them as OTel SDK config.
 test_wheel() {
   section_start "test_wheel" "Testing wheel"
   export UV_LINK_MODE=copy

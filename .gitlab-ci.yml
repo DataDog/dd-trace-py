@@ -14,7 +14,7 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
-  # AIDEV-NOTE: Keep these build-only controls CI-prefixed so ddtrace does not validate them as OTel SDK config.
+  # Build OpenTelemetry Operator-compatible Python images through one-pipeline.
   CI_OTEL_OPERATOR_IMAGES_ENABLED: "true"
   CI_OTEL_OPERATOR_LANGUAGE: python
   # VPA Template configuration
