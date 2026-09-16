@@ -2,8 +2,7 @@
 """Fail CI when a branch adds deprecated anchor comment labels.
 
 The guild deprecated named anchor labels in favor of plain inline comments
-(see AGENTS.md). Existing anchors are grandfathered; this check only
-inspects added diff lines.
+(see AGENTS.md). This check only inspects added diff lines.
 
 Usage:
 

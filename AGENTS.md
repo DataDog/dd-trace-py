@@ -132,14 +132,13 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
 
-## AIDE&#x56; Anchor Comments
+## AIDEV Anchor Comments
 
 The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
+Existing anchors were removed from the repository (#20143).
 
-- Existing `AIDEV-*` anchors are protected by default. Do not remove or rewrite
-  an existing anchored comment merely because nearby code is being edited.
-- An explicit instruction or a dedicated anchor-migration task may replace an
-  old label with plain comment syntax; never delete the protected comment, and
-  preserve its substantive text.
-- New `AIDEV-*` anchor comments are forbidden. CI blocks new anchors on
-  changed lines.
+- Do not add new `AIDEV-*` anchor comments. Use plain inline comments when
+  context is needed (see Docstrings and Comments above).
+- CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
+  lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
+  its tests are excluded because they document or exercise the deprecation.
