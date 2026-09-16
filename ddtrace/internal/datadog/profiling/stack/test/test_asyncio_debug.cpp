@@ -47,7 +47,7 @@ valid_table()
 TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
 {
     auto table = valid_table();
-    auto offsets = parse_asyncio_debug_offsets(&table);
+    auto offsets = parse_asyncio_debug_offsets(table);
     ASSERT_TRUE(offsets);
 
     EchionSampler echion;
@@ -55,21 +55,20 @@ TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
     EXPECT_EQ(echion.asyncio_interpreter_tasks_head_offset(), 128);
     EXPECT_EQ(echion.asyncio_thread_tasks_head_offset(), 256);
 
-    EXPECT_FALSE(parse_asyncio_debug_offsets(nullptr));
     table.task.task_node = table.task.size;
-    EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
     table = valid_table();
     table.thread.asyncio_tasks_head = table.thread.size;
-    EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
     table = valid_table();
     table.interpreter.asyncio_tasks_head = 0;
-    EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
     table = valid_table();
     table.thread.asyncio_tasks_head = 0;
-    EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
     table = valid_table();
     ++table.task.task_coro;
-    EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
+    EXPECT_FALSE(parse_asyncio_debug_offsets(table));
 }
 
 #if PY_VERSION_HEX >= 0x030e0000

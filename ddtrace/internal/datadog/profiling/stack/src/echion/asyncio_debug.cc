@@ -29,12 +29,8 @@
 #endif
 
 std::optional<AsyncioOffsets>
-parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets)
+parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
 {
-    if (offsets == nullptr) {
-        return std::nullopt;
-    }
-
     constexpr uint64_t node_size = 2 * sizeof(uintptr_t);
     constexpr uint64_t max_size = std::numeric_limits<size_t>::max();
     const auto valid_field = [](uint64_t size, uint64_t field, uint64_t width, uint64_t alignment) {
@@ -42,25 +38,22 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets)
     };
 
     // AsyncioDebug has no cookie, so validate the complete schema to reject false-positive section matches.
-    if (offsets->interpreter.asyncio_tasks_head == 0 || offsets->thread.asyncio_tasks_head == 0 ||
-        !valid_field(offsets->task.size, offsets->task.task_name, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->task.size, offsets->task.task_awaited_by, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->task.size, offsets->task.task_is_task, sizeof(char), alignof(char)) ||
-        !valid_field(offsets->task.size, offsets->task.task_awaited_by_is_set, sizeof(char), alignof(char)) ||
-        !valid_field(offsets->task.size, offsets->task.task_coro, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->task.size, offsets->task.task_node, node_size, alignof(uintptr_t)) ||
-        !valid_field(
-          offsets->interpreter.size, offsets->interpreter.asyncio_tasks_head, node_size, alignof(uintptr_t)) ||
-        !valid_field(
-          offsets->thread.size, offsets->thread.asyncio_running_loop, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(
-          offsets->thread.size, offsets->thread.asyncio_running_task, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->thread.size, offsets->thread.asyncio_tasks_head, node_size, alignof(uintptr_t))) {
+    if (offsets.interpreter.asyncio_tasks_head == 0 || offsets.thread.asyncio_tasks_head == 0 ||
+        !valid_field(offsets.task.size, offsets.task.task_name, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets.task.size, offsets.task.task_awaited_by, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets.task.size, offsets.task.task_is_task, sizeof(char), alignof(char)) ||
+        !valid_field(offsets.task.size, offsets.task.task_awaited_by_is_set, sizeof(char), alignof(char)) ||
+        !valid_field(offsets.task.size, offsets.task.task_coro, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets.task.size, offsets.task.task_node, node_size, alignof(uintptr_t)) ||
+        !valid_field(offsets.interpreter.size, offsets.interpreter.asyncio_tasks_head, node_size, alignof(uintptr_t)) ||
+        !valid_field(offsets.thread.size, offsets.thread.asyncio_running_loop, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets.thread.size, offsets.thread.asyncio_running_task, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets.thread.size, offsets.thread.asyncio_tasks_head, node_size, alignof(uintptr_t))) {
         return std::nullopt;
     }
 
-    return AsyncioOffsets{ static_cast<size_t>(offsets->interpreter.asyncio_tasks_head),
-                           static_cast<size_t>(offsets->thread.asyncio_tasks_head) };
+    return AsyncioOffsets{ static_cast<size_t>(offsets.interpreter.asyncio_tasks_head),
+                           static_cast<size_t>(offsets.thread.asyncio_tasks_head) };
 }
 
 namespace {
@@ -73,7 +66,7 @@ read_asyncio_debug_table(const PyAsyncioDebugOffsets* debug_offsets)
     }
 
     PyAsyncioDebugOffsets table;
-    return copy_type(debug_offsets, table) == 0 ? parse_asyncio_debug_offsets(&table) : std::nullopt;
+    return copy_type(debug_offsets, table) == 0 ? parse_asyncio_debug_offsets(table) : std::nullopt;
 }
 
 bool

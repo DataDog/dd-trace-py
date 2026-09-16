@@ -43,7 +43,7 @@ static_assert(sizeof(PyAsyncioDebugOffsets) == 13 * sizeof(uint64_t));
 // Section discovery avoids depending on _asyncio's private module-state layout. Parsing still assumes that CPython
 // preserves this debug table's layout within a minor version, matching CPython's remote-unwinding protocol.
 std::optional<AsyncioOffsets>
-parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets);
+parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets);
 
 #if defined(__linux__)
 struct dl_phdr_info;
