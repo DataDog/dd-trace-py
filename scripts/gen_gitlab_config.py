@@ -320,7 +320,7 @@ def calculate_parallelism_from_venvs(
     # AIDEV-NOTE: Suitespec owns shard density. Avoid a global minimum job count,
     # which makes small CI runs allocate runners unrelated to their suite timings.
     if venvs_per_job is None:
-        venvs_per_job = venv_count
+        return 1
     return min(math.ceil(venv_count / venvs_per_job), max_parallelism)
 
 
