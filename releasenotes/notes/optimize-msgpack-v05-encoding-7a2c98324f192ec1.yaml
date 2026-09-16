@@ -1,4 +1,4 @@
 ---
-fixes:
+other:
   - |
     tracing: Reduces v0.5 trace encoding overhead, especially for traces with many span tags.
