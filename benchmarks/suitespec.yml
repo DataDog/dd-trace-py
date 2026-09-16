@@ -131,6 +131,13 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  wsgi_traced_iterable:
+    paths:
+      - ddtrace/_trace/trace_handlers.py
+      - benchmarks/wsgi_traced_iterable/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   # events_api:
   #   paths:
   #     - '@bootstrap'

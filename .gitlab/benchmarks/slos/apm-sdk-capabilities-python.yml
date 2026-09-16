@@ -298,3 +298,10 @@ experiments:
           - name: tracer-small
             thresholds:
               - execution_time < 0.42 ms
+          # wsgitracediterablescenario
+          - name: wsgitracediterablescenario-single_chunk
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: wsgitracediterablescenario-streaming_1000_chunks
+            thresholds:
+              - execution_time < 0.30 ms

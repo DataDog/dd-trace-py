@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Reduces WSGI response iteration overhead, especially for streaming responses with many chunks.
