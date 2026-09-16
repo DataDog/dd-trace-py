@@ -1,4 +1,7 @@
+from collections.abc import Iterator
 import os
+from types import TracebackType
+from typing import Optional
 
 import pytest
 from webtest import TestApp
@@ -340,34 +343,39 @@ def test_distributed_tracing_nested():
 
 
 class _TestSpan:
-    def __init__(self):
+    def __init__(self) -> None:
         self.finish_count = 0
-        self.exc_info = None
+        self.exc_info: Optional[tuple[type[BaseException], BaseException, Optional[TracebackType]]] = None
 
-    def finish(self):
+    def finish(self) -> None:
         self.finish_count += 1
 
-    def set_exc_info(self, *exc_info):
-        self.exc_info = exc_info
+    def set_exc_info(
+        self,
+        exc_type: type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.exc_info = (exc_type, exc_val, exc_tb)
 
 
 class _ClosableIterable:
-    def __init__(self, values):
+    def __init__(self, values: list[bytes]) -> None:
         self.values = values
         self.closed = False
         self.custom_attribute = "forwarded"
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[bytes]:
         return iter(self.values)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.values)
 
-    def close(self):
+    def close(self) -> None:
         self.closed = True
 
 
-def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes():
+def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes() -> None:
     wrapped = _ClosableIterable([b"one", b"two"])
     span = _TestSpan()
     parent_span = _TestSpan()
@@ -392,10 +400,10 @@ def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes():
     assert parent_span.finish_count == 1
 
 
-def test_wsgi_traced_iterable_finishes_spans_on_error():
+def test_wsgi_traced_iterable_finishes_spans_on_error() -> None:
     error = RuntimeError("test error")
 
-    def raising_iterable():
+    def raising_iterable() -> Iterator[bytes]:
         yield b"one"
         raise error
 
@@ -407,6 +415,7 @@ def test_wsgi_traced_iterable_finishes_spans_on_error():
     with pytest.raises(RuntimeError, match="test error"):
         next(iterable)
 
+    assert span.exc_info is not None
     assert span.exc_info[:2] == (RuntimeError, error)
     assert span.exc_info[2] is not None
     assert span.finish_count == 1
