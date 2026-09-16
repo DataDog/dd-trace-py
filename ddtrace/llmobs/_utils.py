@@ -487,7 +487,7 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
 
-    Both keys describe the span being injected, but ``meta`` is trace-scoped and shared by every
+    Both keys describe the span being injected, but meta is trace-scoped and shared by every
     span in the trace, so a value written by an earlier span outlives it. Whatever does not apply
     to this span is cleared, or it would be propagated as if it did.
     """
