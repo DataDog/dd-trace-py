@@ -18,6 +18,7 @@ from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
@@ -169,6 +170,7 @@ class TestFlagEvalLoggingExitPathsCovered:
     def test_targeting_key_and_context_captured_on_success(self, provider_and_client):
         provider, client = provider_and_client
         config = create_config(create_boolean_flag("ctx-flag", enabled=True, default_value=True))
+        config["observeFullEvaluationData"] = True
         process_ffe_configuration(config)
 
         ctx = EvaluationContext(targeting_key="user-77", attributes={"tier": "gold"})
@@ -178,6 +180,19 @@ class TestFlagEvalLoggingExitPathsCovered:
         row = next(r for r in rows if r["flag"]["key"] == "ctx-flag")
         assert row.get("targeting_key") == "user-77"
         assert row["context"]["evaluation"]["tier"] == "gold"
+
+    def test_targeting_key_is_hashed_and_context_omitted_by_default(self, provider_and_client):
+        provider, client = provider_and_client
+        config = create_config(create_boolean_flag("protected-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+
+        ctx = EvaluationContext(targeting_key="user-77", attributes={"tier": "gold"})
+        client.get_boolean_value("protected-flag", False, ctx)
+
+        rows = _drain(provider)
+        row = next(r for r in rows if r["flag"]["key"] == "protected-flag")
+        assert row["targeting_key"] == hash_targeting_key("user-77")
+        assert "context" not in row
 
 
 class TestOTelNonRegressionAlongsideFlagEvalEVP:

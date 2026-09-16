@@ -2,11 +2,17 @@ defaults: &defaults
   num_flags: 100
   num_users: 50
   num_context_fields: 10
+  observe_full_evaluation_data: false
 
 # Eval hot path the caller pays: bounded immutable snapshot + non-blocking enqueue.
 hook-enqueue-typical:
   <<: *defaults
   mode: hook_enqueue
+
+hook-enqueue-full-typical:
+  <<: *defaults
+  mode: hook_enqueue
+  observe_full_evaluation_data: true
 
 hook-enqueue-stress:
   <<: *defaults
@@ -32,6 +38,11 @@ hook-enqueue-bounded-adversarial:
 aggregate-typical:
   <<: *defaults
   mode: aggregate
+
+aggregate-full-typical:
+  <<: *defaults
+  mode: aggregate
+  observe_full_evaluation_data: true
 
 aggregate-stress:
   <<: *defaults
