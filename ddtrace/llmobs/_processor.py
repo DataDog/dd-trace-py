@@ -32,7 +32,7 @@ class _LLMObsSpanProtocol(Protocol):
     """Structural span interface the LLMObs trace processor needs.
 
     Lets this module type-annotate spans without a runtime dependency on the concrete
-    ``ddtrace._trace.span.Span`` class.
+    ddtrace._trace.span.Span class.
     """
 
     span_type: Optional[str]

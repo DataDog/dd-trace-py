@@ -35,7 +35,7 @@ class _BedrockAgentSpanProtocol(Protocol):
     """Structural span interface the Bedrock Agents trace translation needs.
 
     Lets this module type-annotate spans without a runtime dependency on the concrete
-    ``ddtrace._trace.span.Span`` class.
+    ddtrace._trace.span.Span class.
     """
 
     span_id: int
