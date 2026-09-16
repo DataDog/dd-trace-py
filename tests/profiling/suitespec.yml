@@ -51,7 +51,7 @@ suites:
   profile-uwsgi:
     env:
       DD_TRACE_AGENT_URL: ''
-    venvs_per_job: 1
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -79,7 +79,7 @@ suites:
   profile-memalloc:
     env:
       DD_TRACE_AGENT_URL: ''
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'

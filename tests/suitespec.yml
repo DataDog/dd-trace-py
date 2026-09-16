@@ -218,7 +218,7 @@ suites:
         - name: ddtracerun
           dependencies: [redis, gevent, pytest-randomly]
   detect_global_locks:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - 'ddtrace/*'
       - 'setup.py'
@@ -494,7 +494,7 @@ suites:
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:
-    venvs_per_job: 1
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'

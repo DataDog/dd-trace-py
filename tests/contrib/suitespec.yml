@@ -710,7 +710,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -743,7 +743,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1607,7 +1607,7 @@ suites:
     services:
       - httpbin
     snapshot: true
-    venvs_per_job: 1
+    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/httplib
       variants:
@@ -2272,7 +2272,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['ray[default]~=2.54.1']
   ray_serve:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
