@@ -23,6 +23,8 @@ APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
 
+SHUTDOWN_TIMEOUT = 10.0
+
 
 @pytest.fixture
 def flask_port() -> str:
@@ -36,7 +38,10 @@ def flask_wsgi_application() -> str:
 
 @pytest.fixture
 def flask_command(flask_wsgi_application: str, flask_port: str) -> list[str]:
-    cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
+    # --without-threads serializes requests, so /shutdown cannot start before the preceding
+    # response iterable closed and enqueued its spans. Threaded, tracer.shutdown() can win that
+    # race and the trace is lost for good.
+    cmd = "ddtrace-run flask run --without-threads -h 0.0.0.0 -p %s" % (flask_port,)
     return cmd.split()
 
 
@@ -84,12 +89,8 @@ def flask_client(
                 "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
             )
         yield client
-        try:
-            client.get_ignored("/shutdown")
-        except Exception:
-            pass
-        # The test agent may not have finished processing the traces yet. Each test declares
-        # wait_for_num_traces so the snapshot polls for them rather than racing a fixed sleep.
+        # Its response means the flush finished, so the SIGKILL below cannot preempt it.
+        assert client.get_ignored("/shutdown", timeout=SHUTDOWN_TIMEOUT).status_code == 200
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
         stdout, stderr = proc.communicate()

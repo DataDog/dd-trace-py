@@ -15,8 +15,13 @@ if the import path doesn't match the actual module structure.
 `patch()` needs a corresponding `unwrap()` in `unpatch()`. Missing unwraps
 produce orphaned spans after `unpatch()`.
 
-**Patching before import completes** -- Deferred/lazy-loaded classes may not
-exist at `patch()` time. The wrap succeeds but wraps a stale reference.
+**Patching only already-imported lazy modules** -- Deferred/lazy-loaded classes
+may not exist at `patch()` time. Register a `ModuleWatchdog` module hook so the
+wrapper is installed after the target module imports. Make hook registration
+idempotent, make the hook avoid wrapping a target twice, and have `unpatch()`
+both unregister every hook and unwrap every target the hook already patched.
+Keep the exact module-name/hook pairs so registration and cleanup are
+symmetric.
 
 ## Configuration
 

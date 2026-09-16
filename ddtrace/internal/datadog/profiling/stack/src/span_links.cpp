@@ -1,4 +1,4 @@
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include <mutex>
 #include <optional>
@@ -9,7 +9,7 @@
 namespace Datadog {
 
 void
-ThreadSpanLinks::remove_thread_locked(uint64_t thread_id)
+SpanLinks::remove_thread_locked(uint64_t thread_id)
 {
     auto thread_it = thread_id_to_span.find(thread_id);
     if (thread_it == thread_id_to_span.end()) {
@@ -28,7 +28,7 @@ ThreadSpanLinks::remove_thread_locked(uint64_t thread_id)
 }
 
 void
-ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
+SpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
@@ -41,7 +41,7 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
 }
 
 const std::optional<Span>
-ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
+SpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
@@ -53,14 +53,14 @@ ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 }
 
 void
-ThreadSpanLinks::unlink_span(uint64_t thread_id)
+SpanLinks::unlink_span(uint64_t thread_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
     remove_thread_locked(thread_id);
 }
 
 void
-ThreadSpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
+SpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
@@ -71,7 +71,7 @@ ThreadSpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
 }
 
 void
-ThreadSpanLinks::unlink_finished_span(uint64_t span_id)
+SpanLinks::unlink_finished_span(uint64_t span_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
@@ -87,7 +87,7 @@ ThreadSpanLinks::unlink_finished_span(uint64_t span_id)
 }
 
 void
-ThreadSpanLinks::reset()
+SpanLinks::reset()
 {
     std::lock_guard<std::mutex> lock(mtx);
     thread_id_to_span.clear();
@@ -95,13 +95,13 @@ ThreadSpanLinks::reset()
 }
 
 void
-ThreadSpanLinks::on_link_start(uint64_t span_id)
+SpanLinks::on_link_start(uint64_t span_id)
 {
     ++pending_span_links[span_id].count;
 }
 
 bool
-ThreadSpanLinks::on_link_end(uint64_t span_id)
+SpanLinks::on_link_end(uint64_t span_id)
 {
     auto pending_span = pending_span_links.find(span_id);
     if (--pending_span->second.count != 0) {
@@ -114,7 +114,7 @@ ThreadSpanLinks::on_link_end(uint64_t span_id)
 }
 
 bool
-ThreadSpanLinks::on_span_finish(uint64_t span_id)
+SpanLinks::on_span_finish(uint64_t span_id)
 {
     auto pending_span = pending_span_links.find(span_id);
     if (pending_span == pending_span_links.end()) {
@@ -126,7 +126,7 @@ ThreadSpanLinks::on_span_finish(uint64_t span_id)
 }
 
 void
-ThreadSpanLinks::postfork_child()
+SpanLinks::postfork_child()
 {
     auto& instance = get_instance();
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
