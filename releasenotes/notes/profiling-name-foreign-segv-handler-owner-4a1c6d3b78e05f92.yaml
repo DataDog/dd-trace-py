@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    profiling: when another component takes over the SIGSEGV/SIGBUS handler and the stack
+    profiler falls back to its slower memory copy, this is now reported once through the
+    standard logger at warning level instead of being written directly to stderr, and it
+    names the component that owns each signal so it can be identified from logs.

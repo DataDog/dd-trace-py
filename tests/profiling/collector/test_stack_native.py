@@ -83,9 +83,9 @@ def test_native_call_registry_is_bounded_for_dynamic_code() -> None:
                 namespace,
                 namespace,
             )
-            namespace["f"]('{"value": "abcxdef"}')
+            namespace["f"]('{"value": "abcxdef"}')  # type: ignore[operator]
 
-        assert _stack._native_call_registry_size() == 4096
+        assert _stack._native_call_registry_size() == 4096  # type: ignore[attr-defined]
     finally:
         native_call_monitor.stop()
 
@@ -1513,3 +1513,84 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
             ),
             print_samples_on_failure=True,
         )
+
+
+@pytest.mark.parametrize(
+    "already_owned,expected_phrase",
+    [
+        (False, "taken over after the profiler had upgraded to the faster copy"),
+        (True, "already foreign when the profiler finished warming up"),
+    ],
+)
+def test_snapshot_names_foreign_segv_handler_owner(
+    caplog: pytest.LogCaptureFixture, already_owned: bool, expected_phrase: str
+) -> None:
+    """snapshot() reports a handler takeover at warning level, naming the foreign owner."""
+    import logging
+
+    owner: str = "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace"
+    with mock.patch(
+        "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
+        return_value=(already_owned, owner),
+    ):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with caplog.at_level(logging.WARNING, logger="ddtrace.profiling.collector.stack"):
+                stack.StackCollector.snapshot()
+
+    assert [r.levelname for r in caplog.records] == ["WARNING"]
+    assert owner in caplog.text
+    assert expected_phrase in caplog.text
+
+
+def test_snapshot_silent_without_foreign_segv_handler(caplog: pytest.LogCaptureFixture) -> None:
+    """snapshot() says nothing while the profiler still owns SIGSEGV/SIGBUS."""
+    import logging
+
+    with mock.patch("ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler", return_value=None):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with caplog.at_level(logging.WARNING, logger="ddtrace.profiling.collector.stack"):
+                stack.StackCollector.snapshot()
+
+    assert caplog.records == []
+
+
+@pytest.mark.parametrize(
+    "already_owned,expected_already_owned",
+    [
+        (False, "false"),
+        (True, "true"),
+    ],
+)
+def test_snapshot_emits_foreign_segv_handler_telemetry(already_owned: bool, expected_already_owned: str) -> None:
+    """snapshot() reports a foreign handler owner to telemetry with a normalized basename tag."""
+    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
+    owner: str = "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace"
+    with mock.patch(
+        "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
+        return_value=(already_owned, owner),
+    ):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
+                stack.StackCollector.snapshot()
+
+    mock_add_log.assert_called_once()
+    call_args = mock_add_log.call_args
+    assert call_args[0][0] == TELEMETRY_LOG_LEVEL.WARNING
+    assert call_args[0][1] == "Another component owns the SIGSEGV/SIGBUS handler"
+    tags: dict[str, str] = call_args[1]["tags"]
+    assert tags == {
+        "error_type": "foreign_segv_handler",
+        "handler_owner": "libtorch_cpu.so",
+        "already_owned": expected_already_owned,
+    }
+
+
+def test_snapshot_foreign_segv_handler_telemetry_not_emitted_without_takeover() -> None:
+    """snapshot() does not emit foreign-handler telemetry when the handler is still ours."""
+    with mock.patch("ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler", return_value=None):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
+                stack.StackCollector.snapshot()
+
+    mock_add_log.assert_not_called()

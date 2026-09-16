@@ -1,6 +1,7 @@
 """Simple wrapper around stack native extension module."""
 
 import logging
+import os
 import sys
 from types import ModuleType
 import typing
@@ -21,6 +22,35 @@ from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
+
+_FOREIGN_HANDLER_OWNER_SYMBOLS: frozenset[str] = frozenset({"ddtrace", "SIG_DFL", "SIG_IGN", "unknown", "none"})
+
+
+def _normalize_foreign_handler_owner_component(component: str) -> str:
+    """Return a low-cardinality owner token for one SIGSEGV/SIGBUS descriptor."""
+    if component in _FOREIGN_HANDLER_OWNER_SYMBOLS:
+        return component
+    if component.startswith("unresolved@"):
+        return "unresolved"
+    path: str = component.split("+", 1)[0].split(" (", 1)[0]
+    basename: str = os.path.basename(path)
+    return basename or component
+
+
+def _normalize_foreign_handler_owner(owner: str) -> str:
+    """Normalize a foreign handler owner string to a basename-only tag value."""
+    sigsegv_owner: typing.Optional[str] = None
+    sigbus_owner: typing.Optional[str] = None
+    for part in owner.split(", "):
+        if part.startswith("SIGSEGV="):
+            sigsegv_owner = _normalize_foreign_handler_owner_component(part[len("SIGSEGV=") :])
+        elif part.startswith("SIGBUS="):
+            sigbus_owner = _normalize_foreign_handler_owner_component(part[len("SIGBUS=") :])
+    if sigsegv_owner is not None:
+        return sigsegv_owner
+    if sigbus_owner is not None:
+        return sigbus_owner
+    return _normalize_foreign_handler_owner_component(owner)
 
 
 def _unlink_finished_span(span: Span) -> None:
@@ -140,8 +170,35 @@ class StackCollector(collector.Collector):
 
     @staticmethod
     def snapshot() -> None:
-        # The sampling thread cannot touch Python, so it stashes the exception that killed
-        # it and we drain it here, on the scheduler thread, before every upload.
+        # The sampling thread cannot touch Python, so it stashes what it needs reported and
+        # we drain it here, on the scheduler thread, before every upload.
+        foreign_handler: typing.Optional[tuple[bool, str]] = stack.take_foreign_segv_handler()
+        if foreign_handler is not None:
+            already_owned, owner = foreign_handler
+            # Not a failure: profiling continues, just on the slower copy. The owner is named so
+            # the component responsible can be identified without having to reproduce this.
+            LOG.warning(
+                "Another component owns the SIGSEGV/SIGBUS handler, so the stack profiler is using the slower "
+                "syscall-based memory copy for the rest of this process; sample quality may be reduced. "
+                "Handler owners: %s (%s).",
+                owner,
+                "already foreign when the profiler finished warming up"
+                if already_owned
+                else "taken over after the profiler had upgraded to the faster copy",
+                extra={"send_to_telemetry": False},
+            )
+            normalized_owner: str = _normalize_foreign_handler_owner(owner)
+            telemetry_writer.add_log(
+                TELEMETRY_LOG_LEVEL.WARNING,
+                "Another component owns the SIGSEGV/SIGBUS handler",
+                tags={
+                    "error_type": "foreign_segv_handler",
+                    "handler_owner": normalized_owner,
+                    "already_owned": str(already_owned).lower(),
+                },
+            )
+
+        # The sampling thread also stashes the exception that killed it, if any.
         error = stack.take_sampling_thread_error()
         if error is None:
             return
