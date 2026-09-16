@@ -1297,6 +1297,71 @@ class TestXdistAtrCrashRequeue:
         ]
         assert {event["content"]["meta"]["test.status"] for event in events} == {"pass"}
 
+    def test_crash_retry_consumes_worker_atr_budget(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
+
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        attempt_file = test_project / "attempts.txt"
+        other_attempt_file = test_project / "other_attempts.txt"
+        (test_project / "test_crash_then_fail.py").write_text(
+            textwrap.dedent("""\
+                from pathlib import Path
+                import time
+                import pytest
+
+                _ATTEMPT_FILE = Path(__file__).with_name("attempts.txt")
+
+                @pytest.mark.timeout(1, method="thread", func_only=True)
+                def test_crash_then_fail():
+                    try:
+                        attempt = int(_ATTEMPT_FILE.read_text())
+                    except FileNotFoundError:
+                        attempt = 0
+                    _ATTEMPT_FILE.write_text(str(attempt + 1))
+                    if attempt == 0:
+                        time.sleep(10)
+                    assert False
+
+                def test_session_budget_is_consumed():
+                    attempt_file = Path(__file__).with_name("other_attempts.txt")
+                    try:
+                        attempt = int(attempt_file.read_text())
+                    except FileNotFoundError:
+                        attempt = 0
+                    attempt_file.write_text(str(attempt + 1))
+                    assert False
+            """)
+        )
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "1",
+            "--max-worker-restart=5",
+            "-p",
+            "no:randomly",
+            env=_make_env(
+                mock_server.url,
+                extra={
+                    "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "1",
+                    "DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "1",
+                },
+            ),
+            timeout=90,
+        )
+
+        assert result.returncode != 0
+        assert attempt_file.read_text() == "2"
+        assert other_attempt_file.read_text() == "1"
+        assert "xdist_worker_crash" in result.stdout
+
     def test_crash_after_in_worker_retry_is_not_requeued(
         self, mock_server: MockCIVisibilityServer, test_project: Path
     ) -> None:

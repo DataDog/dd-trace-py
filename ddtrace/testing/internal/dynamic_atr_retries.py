@@ -70,8 +70,14 @@ class DynamicATRRetriesHandler(AutoTestRetriesHandler):
         if test.has_passed():
             return False
 
-        retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
-        return test.last_test_run.get_status() == TestStatus.FAIL and retries_so_far < self._max_retries_for(test)
+        return test.last_test_run.get_status() == TestStatus.FAIL and self._retries_so_far(
+            test
+        ) < self._retry_limit_for(test)
+
+    def _retry_limit_for(self, test: Test) -> int:
+        if test in self._external_retry_budgets:
+            return super()._retry_limit_for(test)
+        return self._max_retries_for(test)
 
 
 def dynamic_retries_for_duration(

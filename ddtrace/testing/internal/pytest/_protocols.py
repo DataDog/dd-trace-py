@@ -4,6 +4,7 @@ These protocols allow modules to depend on the interface rather than the
 concrete implementation, avoiding circular imports between pytest plugin modules.
 """
 
+from pathlib import Path
 import typing as t
 
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -15,3 +16,4 @@ class TestOptPluginProtocol(t.Protocol):
 
     manager: SessionManager
     session: TestSession
+    xdist_atr_crash_state_path: t.Optional[Path]

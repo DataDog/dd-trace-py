@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+import tempfile
 import time
 import typing as t
 
@@ -12,10 +16,36 @@ from ddtrace.testing.internal.dynamic_atr_retries import dynamic_retries_for_dur
 from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
 from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest.xdist import is_xdist_worker_process
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 
 
 _CRASH_RETRY_REASON = "xdist_worker_crash"
+_CRASH_RETRY_STATE_WORKER_INPUT = "dd_atr_crash_retry_state"
+
+
+class CrashRetryBudget(t.NamedTuple):
+    retries: int
+    retry_limit: int
+
+
+def read_atr_crash_retry_state(path: Path) -> dict[str, CrashRetryBudget]:
+    """Read the controller's crash-only ATR budget ledger."""
+    raw_state = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw_state, dict):
+        raise ValueError("ATR crash retry state must be a mapping")
+
+    state: dict[str, CrashRetryBudget] = {}
+    for nodeid, raw_budget in raw_state.items():
+        if (
+            not isinstance(nodeid, str)
+            or not isinstance(raw_budget, list)
+            or len(raw_budget) != 2
+            or not all(isinstance(value, int) and value >= 0 for value in raw_budget)
+        ):
+            raise ValueError("Invalid ATR crash retry state entry")
+        state[nodeid] = CrashRetryBudget(*raw_budget)
+    return state
 
 
 class XdistTestOptPlugin:
@@ -30,6 +60,9 @@ class XdistTestOptPlugin:
         self._crash_retry_limits: dict[str, int] = {}
         self._session_counted_nodeids: set[str] = set()
         self._worker_retried_nodeids: set[str] = set()
+        self._published_crash_retry_budgets: dict[str, CrashRetryBudget] = {}
+        self._crash_retry_state_dir: t.Optional[tempfile.TemporaryDirectory[str]] = None
+        self._crash_retry_state_path: t.Optional[Path] = None
 
         manager = main_plugin.manager
         settings = manager.settings
@@ -45,10 +78,26 @@ class XdistTestOptPlugin:
         self._dynamic_retries = is_dynamic_retries_enabled()
         self._dynamic_retry_buckets = get_retries_buckets() if self._dynamic_retries else None
 
+        if self._enabled and not is_xdist_worker_process():
+            try:
+                self._crash_retry_state_dir = tempfile.TemporaryDirectory(prefix="ddtrace_atr_xdist_")
+                self._crash_retry_state_path = Path(self._crash_retry_state_dir.name, "crash_retries.json")
+                self._write_crash_retry_state({})
+            except OSError:
+                self._enabled = False
+                self._cleanup_crash_retry_state()
+
     @pytest.hookimpl
     def pytest_configure_node(self, node: t.Any) -> None:
-        """Pass the test session ID from the controller to a worker."""
+        """Pass controller-owned session coordination data to a worker."""
         node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
+        if self._crash_retry_state_path is not None:
+            node.workerinput[_CRASH_RETRY_STATE_WORKER_INPUT] = str(self._crash_retry_state_path)
+
+    @pytest.hookimpl
+    def pytest_sessionfinish(self) -> None:
+        """Remove the controller-owned crash retry ledger after all workers finish."""
+        self._cleanup_crash_retry_state()
 
     @pytest.hookimpl
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
@@ -85,7 +134,8 @@ class XdistTestOptPlugin:
         """Let ATR retry a test whose worker exited before reporting its result."""
         # AIDEV-NOTE: EFD and ATF depend on worker-owned applicability and final-status state. Enabling this hook when
         # either feature is active can select a different policy after the crash. ATR-only sessions are safe because
-        # ATR applies uniformly and its last result is authoritative.
+        # ATR applies uniformly and its last result is authoritative. Only consumed ATR counts and limits cross the
+        # process boundary through the crash retry ledger; test identity and event lifecycle remain worker-owned.
         if not self._enabled:
             return
 
@@ -118,11 +168,21 @@ class XdistTestOptPlugin:
             self._clear_test_state(crashitem)
             return
 
+        retry_count += 1
+        next_state = dict(self._published_crash_retry_budgets)
+        next_state[crashitem] = CrashRetryBudget(retry_count, retry_limit)
+        try:
+            self._write_crash_retry_state(next_state)
+        except OSError:
+            # The replacement worker cannot safely continue ATR without this handoff. Leave the crash final instead.
+            self._enabled = False
+            self._clear_test_state(crashitem)
+            return
+
+        self._published_crash_retry_budgets = next_state
         if crashitem not in self._session_counted_nodeids:
             self._session_counted_nodeids.add(crashitem)
             self._remaining_session_retries -= 1
-
-        retry_count += 1
         self._crash_retry_counts[crashitem] = retry_count
         sched.mark_test_pending(crashitem)
 
@@ -140,3 +200,23 @@ class XdistTestOptPlugin:
         self._crash_retry_counts.pop(nodeid, None)
         self._crash_retry_limits.pop(nodeid, None)
         self._worker_retried_nodeids.discard(nodeid)
+
+    def _write_crash_retry_state(self, state: dict[str, CrashRetryBudget]) -> None:
+        """Atomically publish retry budgets before xdist schedules the replacement attempt."""
+        if self._crash_retry_state_path is None:
+            raise OSError("ATR crash retry state is unavailable")
+
+        temporary_path = self._crash_retry_state_path.with_suffix(".tmp")
+        serialized = {nodeid: list(budget) for nodeid, budget in state.items()}
+        try:
+            temporary_path.write_text(json.dumps(serialized), encoding="utf-8")
+            os.replace(temporary_path, self._crash_retry_state_path)
+        except OSError:
+            temporary_path.unlink(missing_ok=True)
+            raise
+
+    def _cleanup_crash_retry_state(self) -> None:
+        if self._crash_retry_state_dir is not None:
+            self._crash_retry_state_dir.cleanup()
+            self._crash_retry_state_dir = None
+        self._crash_retry_state_path = None

@@ -14,7 +14,9 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.pytest._xdist import CrashRetryBudget
 from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
@@ -1844,7 +1846,8 @@ class TestXdistCrashRequeue:
             test_management=TestManagementSettings(enabled=test_management),
         )
         manager = builder.build_mock()
-        plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=manager))
+        with patch("ddtrace.testing.internal.pytest._xdist.is_xdist_worker_process", return_value=False):
+            plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=manager))
         plugin._dynamic_retries = dynamic
         return plugin
 
@@ -1874,6 +1877,22 @@ class TestXdistCrashRequeue:
             "dd_retry_number": 1,
         }
         plugin.main_plugin.manager.writer.put_item.assert_not_called()
+        assert plugin._crash_retry_state_path is not None
+        assert read_atr_crash_retry_state(plugin._crash_retry_state_path) == {
+            report.nodeid: CrashRetryBudget(retries=1, retry_limit=plugin._flat_retry_limit)
+        }
+
+    def test_does_not_requeue_when_budget_handoff_fails(self) -> None:
+        plugin = self._build_plugin(atr=True)
+        report = self._make_report()
+        sched = Mock()
+
+        with patch.object(plugin, "_write_crash_retry_state", side_effect=OSError):
+            plugin.pytest_handlecrashitem(report.nodeid, report, sched)
+
+        sched.mark_test_pending.assert_not_called()
+        assert report.outcome == "failed"
+        assert plugin._remaining_session_retries == 1000
 
     @pytest.mark.parametrize("feature", ["efd", "test_management"])
     def test_does_not_requeue_when_worker_policy_is_ambiguous(self, feature: str) -> None:
@@ -1914,6 +1933,8 @@ class TestXdistCrashRequeue:
             plugin.pytest_handlecrashitem(nodeid, self._make_report(nodeid), Mock())
 
         assert plugin._crash_retry_limits[nodeid] == 5
+        assert plugin._crash_retry_state_path is not None
+        assert read_atr_crash_retry_state(plugin._crash_retry_state_path)[nodeid] == CrashRetryBudget(1, 5)
 
     def test_honors_atr_session_limit(self) -> None:
         with patch.dict(os.environ, {"DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "1"}):
