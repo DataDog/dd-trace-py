@@ -406,3 +406,11 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
 
     assert raiser.called
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
+
+
+def test_multiplexer_does_not_claim_exception_profiler_tool_id() -> None:
+    """Tool ID 4 is reserved for ExceptionCollector; the multiplexer must not take it."""
+    candidates: tuple[int, ...] = cast(tuple[int, ...], monitoring._CANDIDATE_TOOL_IDS)  # type: ignore[has-type]
+    assert 4 not in candidates
+    tool_id: int = monitoring.get_tool_id()
+    assert tool_id != 4

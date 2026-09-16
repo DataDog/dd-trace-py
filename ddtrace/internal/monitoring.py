@@ -39,10 +39,11 @@ _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
-# for debugger/coverage/profiler/optimizer; 3 and 4 are the only undefined
-# slots for custom tools (see CPython docs). Prefer 4 first, consistent with
-# coverage's _DD_CANDIDATE_SLOTS, and fall back to 3 if another tool claimed it.
-_CANDIDATE_TOOL_IDS = (4, 3)
+# for debugger/coverage/profiler/optimizer. ID 4 is reserved for
+# ExceptionCollector (see ddtrace.profiling.collector._exception). ID 3 is the
+# remaining custom slot; error tracking also uses it when enabled, in which
+# case _setup() fails and asyncio falls back to wrap().
+_CANDIDATE_TOOL_IDS = (3,)
 
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
