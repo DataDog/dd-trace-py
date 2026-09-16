@@ -1,11 +1,9 @@
-import sys
-
 import pytest
 
 from ddtrace.internal.compat import is_at_least_py
 
 
-pytestmark = pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ bytecode")
+pytestmark = pytest.mark.skipif(not is_at_least_py(3, 12), reason="Test specific to Python 3.12+ bytecode")
 
 
 def _exec_with_import_hooks(source: str):

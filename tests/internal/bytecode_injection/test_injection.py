@@ -1,6 +1,5 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
-import sys
 from types import FunctionType
 from typing import Any
 from typing import Optional
@@ -229,7 +228,7 @@ def test_inject_in_loop():
     assert hook.call_count == n
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
+@pytest.mark.skipif(is_at_least_py(3, 12), reason="Fails on 3.13")
 def test_inject_in_generator():
     lo = next(iter(linenos(generator_target)))
     hook = mock.Mock()

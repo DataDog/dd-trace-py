@@ -14,7 +14,6 @@ cannot run Python logic), not an edit here.
 
 import os
 import re
-import sys
 from typing import Any
 
 import _pytest.config
@@ -31,7 +30,7 @@ _VERSION_SUFFIX = re.compile(r"_py(\d)(\d+)\.py$")
 collect_ignore = []
 for _name in os.listdir(_HERE):
     _match = _VERSION_SUFFIX.search(_name)
-    if _match and sys.version_info < (int(_match.group(1)), int(_match.group(2))):
+    if _match and not is_at_least_py(int(_match.group(1)), int(_match.group(2))):
         collect_ignore.append(_name)
 
 
