@@ -248,7 +248,8 @@ mapping_contains_segment(uint64_t start,
         return false;
     }
     const uint64_t bytes_before_segment = segment_address - start;
-    return segment.p_offset >= bytes_before_segment && file_offset == segment.p_offset - bytes_before_segment;
+    return contains_span(segment.p_offset, file_offset, bytes_before_segment) &&
+           file_offset + bytes_before_segment == segment.p_offset;
 }
 
 bool
