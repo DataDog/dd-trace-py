@@ -1,4 +1,3 @@
-import copy
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -2426,12 +2425,11 @@ class LLMObs(Service):
             # that was queued under this one. Copy the context and give it its own _meta, so the
             # caller reads the attribution that was current at submit time.
             #
-            # copy.copy goes through Context.__getstate__, so it carries every field the class
-            # declares rather than a list enumerated here that would silently drop new ones. The
-            # state it returns shares the mutable members, and _meta is the only one stamped
-            # below, so that is the only one replaced. Baggage and metrics stay shared, which is
-            # what trace-scoped values should do.
-            context = copy.copy(active.context)
+            # Context.copy is the same call Span.context makes to derive a child, so it keeps the
+            # lock together with the members it guards: _metrics stays shared under the shared
+            # lock. Only _meta is replaced, because it is the only one stamped below. Baggage and
+            # metrics stay shared, which is what trace-scoped values should do.
+            context = active.context.copy(active.trace_id, active.span_id)
             context._meta = dict(context._meta)
             # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
