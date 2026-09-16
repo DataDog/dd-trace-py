@@ -151,8 +151,7 @@ def test_jobs_use_declared_environments(gen_gitlab_config_mod):
     )
 
     assert "  extends: .test_base" in config
-    assert '    - pipeline: "$PARENT_PIPELINE_ID"' in config
-    assert "      job: build_base_test_artifacts" in config
+    assert "    - job: build_base_test_artifacts" in config
     assert "    TEST_SUITE: tracer" in config
     configured_hashes = {
         environment_hash

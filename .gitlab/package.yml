@@ -205,6 +205,9 @@ variables:
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
 
 # Rewrites each wheel's version to major.minor.patch[rc].dev<pipeline_id>+<local>.<commit_sha>,
 # then uploads it to the private prerelease index.

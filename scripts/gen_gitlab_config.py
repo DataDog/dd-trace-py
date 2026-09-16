@@ -102,8 +102,7 @@ class JobSpec:
 
         lines.append("  needs:")
         lines.append("    - prechecks")
-        lines.append('    - pipeline: "$PARENT_PIPELINE_ID"')
-        lines.append("      job: build_base_test_artifacts")
+        lines.append("    - job: build_base_test_artifacts")
         lines.append("      artifacts: true")
 
         # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
@@ -619,8 +618,7 @@ def gen_build_docs() -> None:
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print('    - pipeline: "$PARENT_PIPELINE_ID"', file=f)
-            print("      job: build_base_test_artifacts", file=f)
+            print("    - job: build_base_test_artifacts", file=f)
             print("      artifacts: true", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
