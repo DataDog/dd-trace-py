@@ -21,7 +21,7 @@ class TracerProtocol(Protocol):
 
 
 class _LocalRootProtocol(Protocol):
-    """Structural interface for the ``_local_root`` a thread-context span sync needs."""
+    """Structural interface for the _local_root a thread-context span sync needs."""
 
     @property
     def context(self) -> Context: ...

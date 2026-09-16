@@ -43,7 +43,7 @@ class _DDSpanProtocol(Protocol):
     """Structural span interface the OpenTelemetry span shim needs.
 
     Lets this module type-annotate the wrapped Datadog span without a runtime dependency on the
-    concrete ``ddtrace._trace.span.Span`` class.
+    concrete ddtrace._trace.span.Span class.
     """
 
     name: str
