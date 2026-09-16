@@ -6,7 +6,6 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.profiling import _asyncio as profiling_asyncio
-from ddtrace.profiling import _span_links
 
 
 pytestmark = pytest.mark.skipif(not stack.is_available, reason="stack profiler not available")
@@ -20,12 +19,10 @@ def test_current_task_provider_requires_native_loop_registration(monkeypatch: py
     monkeypatch.setattr(profiling_asyncio, "_ensure_task_span_finalizer", lambda candidate: candidate is task)
     monkeypatch.setattr(profiling_asyncio.stack, "is_asyncio_loop_registered", lambda thread_id: False)
 
-    assert profiling_asyncio._current_task_span_target() is None
+    assert profiling_asyncio._current_task_span_id() is None
 
     monkeypatch.setattr(profiling_asyncio.stack, "is_asyncio_loop_registered", lambda thread_id: True)
-    assert profiling_asyncio._current_task_span_target() == _span_links.LogicalSpanTarget(
-        _span_links.SpanLinkDomain.ASYNCIO_TASK, id(task)
-    )
+    assert profiling_asyncio._current_task_span_id() == id(task)
 
 
 def test_completed_task_clears_mapping_before_object_finalization(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -62,9 +59,7 @@ def test_nested_creation_wrappers_publish_task_only_once() -> None:
     async def main():
         task = aio.current_task()
         assert task is not None
-        with mock.patch.object(
-            profiling_asyncio._span_links, "link_logical_span_context", return_value=True
-        ) as publish:
+        with mock.patch.object(profiling_asyncio._span_links, "link_task_span_context", return_value=True) as publish:
             profiling_asyncio._publish_task_span(task, None, False)
             profiling_asyncio._publish_task_span(task, None, False)
         publish.assert_called_once()

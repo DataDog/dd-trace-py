@@ -26,9 +26,11 @@ def restore_span_linking_state():
     generation = _span_links._span_link_generation
     active_span_link = _span_links._active_span_link.get()
     current_span_provider = _span_links._current_span_provider
+    task_span_provider = _span_links._task_span_provider
     _span_links._span_linking_active = False
     _span_links._set_active_span_link(None)
     _span_links._current_span_provider = None
+    _span_links._task_span_provider = None
     _span_links.stack.reset_span_links()
     try:
         yield
@@ -38,6 +40,7 @@ def restore_span_linking_state():
         _span_links._span_link_generation = generation
         _span_links._set_active_span_link(active_span_link)
         _span_links._current_span_provider = current_span_provider
+        _span_links._task_span_provider = task_span_provider
 
 
 def _info(span_id: int, local_root_span_id: typing.Optional[int] = None) -> _span_links._SpanInfo:
@@ -62,6 +65,64 @@ def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.Monk
     _span_links.link_span(None, None)
 
     assert cleared == [True]
+
+
+def test_span_activation_uses_task_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_task_span", lambda *args: linked.append(args))
+    monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: pytest.fail("unexpected thread fallback"))
+
+    _span_links.register_task_span_provider(lambda: 22)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(101), None)
+
+    assert linked == [(22, 101, 101, None)]
+
+
+def test_task_provider_failure_uses_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: linked.append(args))
+
+    def broken_provider():
+        raise RuntimeError("provider failed")
+
+    _span_links.register_task_span_provider(broken_provider)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(102), None)
+
+    assert linked == [(102, 102, None)]
+
+
+def test_task_detachment_does_not_clear_thread_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    cleared = []
+    monkeypatch.setattr(_span_links.stack, "clear_task_span", lambda task_id: cleared.append(task_id))
+    monkeypatch.setattr(_span_links.stack, "clear_span", lambda: pytest.fail("unexpected thread clear"))
+
+    _span_links.register_task_span_provider(lambda: 33)
+    _span_links.start_span_linking()
+    _span_links.link_span(None, None)
+
+    assert cleared == [33]
+
+
+def test_inherited_context_seeds_task_span_for_current_generation(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    cleared = []
+    monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: None)
+    monkeypatch.setattr(_span_links.stack, "link_task_span", lambda *args: linked.append(args))
+    monkeypatch.setattr(_span_links.stack, "clear_task_span", lambda task_id: cleared.append(task_id))
+
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(701), None)
+    inherited_context = contextvars.copy_context()
+    assert _span_links.link_task_span_context(71, inherited_context)
+
+    _span_links.stop_span_linking()
+    _span_links.start_span_linking()
+    assert not _span_links.link_task_span_context(72, inherited_context)
+
+    assert linked == [(71, 701, 701, None)]
+    assert cleared == [72]
 
 
 def test_inherited_context_seeds_thread_span_for_current_generation(monkeypatch: pytest.MonkeyPatch) -> None:

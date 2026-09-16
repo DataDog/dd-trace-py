@@ -95,8 +95,7 @@ SpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
 }
 
 void
-SpanLinks::link_task_span(
-  uint64_t task_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
+SpanLinks::link_task_span(uint64_t task_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
 {
     link({ SpanLinkDomain::AsyncioTask, task_id }, span_id, local_root_span_id, std::move(span_type));
 }

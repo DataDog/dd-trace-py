@@ -38,7 +38,7 @@ _task_span_finalizers: dict[int, weakref.finalize[..., typing.Any]] = {}
 
 
 def _clear_native_task_span(task_id: int) -> None:
-    _span_links.clear_logical_span(_span_links.SpanLinkDomain.ASYNCIO_TASK, task_id)
+    _span_links.clear_task_span(task_id)
 
 
 def _finalize_task_span(task_id: int) -> None:
@@ -86,8 +86,8 @@ def _track_asyncio_loop(thread_id: int, loop: typing.Optional[asyncio.AbstractEv
         return
 
 
-def _current_task_span_target() -> typing.Optional[_span_links.LogicalSpanTarget]:
-    """Return the current task only when the native sampler can render its logical stack."""
+def _current_task_span_id() -> typing.Optional[int]:
+    """Return the current task ID only when the native sampler can render its stack."""
     if get_running_loop() is None:
         return None
     thread_id = ddtrace_threading.current_thread().ident
@@ -99,7 +99,7 @@ def _current_task_span_target() -> typing.Optional[_span_links.LogicalSpanTarget
         return None
     if task is None or not _ensure_task_span_finalizer(task):
         return None
-    return _span_links.LogicalSpanTarget(_span_links.SpanLinkDomain.ASYNCIO_TASK, id(task))
+    return id(task)
 
 
 def _has_custom_task_factory(loop: asyncio.AbstractEventLoop) -> bool:
@@ -136,9 +136,7 @@ def _publish_task_span(
         return
 
     try:
-        published = _span_links.link_logical_span_context(
-            _span_links.SpanLinkDomain.ASYNCIO_TASK, task_id, task_context
-        )
+        published = _span_links.link_task_span_context(task_id, task_context)
         if published and not _ensure_task_span_finalizer(task):
             _clear_native_task_span(task_id)
     except Exception:
@@ -257,8 +255,7 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
     if init_stack:
-        # Asyncio tasks take precedence over gevent when both schedulers run on one physical thread.
-        _span_links.register_logical_span_provider(_current_task_span_target, priority=20)
+        _span_links.register_task_span_provider(_current_task_span_id)
 
         # ponytail: Direct asyncio.Task(...) construction bypasses loop APIs; add a native construction hook if this
         # discouraged path needs attribution without adding overhead to every event-loop callback.
