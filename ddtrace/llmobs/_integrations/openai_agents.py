@@ -293,7 +293,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
 
-    # AIDEV-NOTE: MLOB-7584 — the agent's position varies by wheel (0.0.x-0.17.x): ``agent=`` kwarg
+    # MLOB-7584 — the agent's position varies by wheel (0.0.x-0.17.x): ``agent=`` kwarg
     # (0.8-0.13), ``bindings=`` kwarg (>=0.14), or positional arg[1] when streamed (arg[0] is the
     # RunResultStreaming — no Agent attrs, so it's skipped). One scanner covers every shape.
     def _extract_agent_from_call(self, args: list[Any], kwargs: dict[str, Any]) -> Optional[Any]:
@@ -305,7 +305,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                 candidates.append(value)
         candidates.extend(arg for arg in args if arg is not None)
         for candidate in candidates:
-            # AgentBindings shape (>= 0.14.0). AIDEV-NOTE: MLOB-7584 — the manifest is the user's DECLARED
+            # AgentBindings shape (>= 0.14.0). MLOB-7584 — the manifest is the user's DECLARED
             # config, so prefer ``public_agent`` over ``execution_agent`` (a possible sandbox-rewritten clone).
             bound_agent = getattr(candidate, "public_agent", None) or getattr(candidate, "execution_agent", None)
             if bound_agent is not None:

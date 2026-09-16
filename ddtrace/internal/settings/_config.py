@@ -417,6 +417,11 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_SAMPLE_RATE"],
             modifier=float,
         ),
+        "_llmobs_sampling_rules": _ConfigItem(
+            default=lambda: "",
+            envs=["DD_LLMOBS_SAMPLING_RULES"],
+            modifier=str,
+        ),
     }
 
 
@@ -531,7 +536,7 @@ class Config(object):
 
         self._inferred_base_service = detect_service(sys.argv)
 
-        # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
+        # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
@@ -667,9 +672,6 @@ class Config(object):
             x_datadog_tags_max_length = 0
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
-
-        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
         self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool)
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
@@ -943,3 +945,5 @@ def _get_global_config() -> Config:
 
 
 config = Config()
+# Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
+config._raise = _get_config("DD_TESTING_RAISE", False, asbool)

@@ -1,0 +1,268 @@
+# Microbenchmark SLO thresholds owned by @DataDog/apm-core-python.
+#
+# This file is one of several per-team SLO sources that gen_gitlab_config.py
+# merges into the single generated
+# .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml consumed by
+# the check-slo-breaches gate. Ownership is enforced by .github/CODEOWNERS via
+# this file's path, so editing a threshold here routes review to @DataDog/apm-core-python -- no
+# inline owner comment is needed.
+#
+# Scenario names are `<lowercased benchmark class>-<config>` (see
+# benchmarks/suitespec.yml and .gitlab/benchmarks/microbenchmarks.md). When
+# adding a benchmark, add its SLO to the file owned by your team (or create a
+# new per-team file + CODEOWNERS rule) and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py.
+
+experiments:
+  - name: SLO Check
+    steps:
+      - name: SLO Check
+        run: fail_on_breach
+        scenarios:
+
+          # coreapiscenario
+          - name: coreapiscenario-has_listeners_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-has_listeners_with_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_1_listener
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_50_listeners
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: coreapiscenario-core_dispatch_no_args_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_no_args_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_exception_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_exception_listeners
+            thresholds:
+              - execution_time < 0.03 ms
+          - name: coreapiscenario-core_dispatch_with_results_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_with_results_1_listener
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-core_dispatch_with_results_listeners
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: coreapiscenario-core_dispatch_with_results_50_listeners
+            thresholds:
+              - execution_time < 0.25 ms
+          - name: coreapiscenario-context_with_data_listeners
+            thresholds:
+              - execution_time < 0.02 ms
+          - name: coreapiscenario-context_with_data_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-get_item_exists
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-get_item_missing
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: coreapiscenario-set_item
+            thresholds:
+              - execution_time < 0.03 ms
+          - name: djangosimple-exception-replay-enabled
+            thresholds:
+              - execution_time < 1.45 ms
+          # errortrackingdjangosimple
+          - name: errortrackingdjangosimple-baseline
+            thresholds:
+              - execution_time < 10000 ms
+          - name: errortrackingdjangosimple-errortracking-enabled-all
+            thresholds:
+              - execution_time < 19.85 ms
+          - name: errortrackingdjangosimple-errortracking-enabled-user
+            thresholds:
+              - execution_time < 19.40 ms
+          - name: errortrackingdjangosimple-tracer-enabled
+            thresholds:
+              - execution_time < 19.45 ms
+          # errortrackingflasksqli
+          - name: errortrackingflasksqli-baseline
+            thresholds:
+              - execution_time < 10000 ms
+          - name: errortrackingflasksqli-errortracking-enabled-all
+            thresholds:
+              - execution_time < 2.34 ms
+          - name: errortrackingflasksqli-errortracking-enabled-user
+            thresholds:
+              - execution_time < 2.85 ms
+          - name: errortrackingflasksqli-tracer-enabled
+            thresholds:
+              - execution_time < 2.33 ms
+          # packagespackageforrootmodulemapping
+          - name: packagespackageforrootmodulemapping-cache_off
+            thresholds:
+              - execution_time < 372.30 ms
+          - name: packagespackageforrootmodulemapping-cache_on
+            thresholds:
+              - execution_time < 0.01 ms
+          # packagesupdateimporteddependencies
+          - name: packagesupdateimporteddependencies-import_many
+            thresholds:
+              - execution_time < 0.18 ms
+          - name: packagesupdateimporteddependencies-import_many_cached
+            thresholds:
+              - execution_time < 0.18 ms
+          - name: packagesupdateimporteddependencies-import_many_stdlib
+            thresholds:
+              - execution_time < 1.75 ms
+          - name: packagesupdateimporteddependencies-import_many_stdlib_cached
+            thresholds:
+              - execution_time < 1.10 ms
+          - name: packagesupdateimporteddependencies-import_many_unknown
+            thresholds:
+              - execution_time < 0.96 ms
+          - name: packagesupdateimporteddependencies-import_many_unknown_cached
+            thresholds:
+              - execution_time < 0.87 ms
+          - name: packagesupdateimporteddependencies-import_one
+            thresholds:
+              - execution_time < 0.03 ms
+          - name: packagesupdateimporteddependencies-import_one_cache
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: packagesupdateimporteddependencies-import_one_stdlib
+            thresholds:
+              - execution_time < 0.03 ms
+          - name: packagesupdateimporteddependencies-import_one_stdlib_cache
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: packagesupdateimporteddependencies-import_one_unknown
+            thresholds:
+              - execution_time < 0.051 ms
+          - name: packagesupdateimporteddependencies-import_one_unknown_cache
+            thresholds:
+              - execution_time < 0.01 ms
+          # sethttpmeta
+          - name: sethttpmeta-all-disabled
+            thresholds:
+              - execution_time < 0.02 ms
+          - name: sethttpmeta-all-enabled
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-collectipvariant_exists
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-no-collectipvariant
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-no-useragentvariant
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-obfuscation-disabled
+            thresholds:
+              - execution_time < 10000 ms
+          - name: sethttpmeta-obfuscation-no-query
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-obfuscation-regular-case-explicit-query
+            thresholds:
+              - execution_time < 0.09 ms
+          - name: sethttpmeta-obfuscation-regular-case-implicit-query
+            thresholds:
+              - execution_time < 0.09 ms
+          - name: sethttpmeta-obfuscation-send-querystring-disabled
+            thresholds:
+              - execution_time < 0.17 ms
+          - name: sethttpmeta-obfuscation-worst-case-explicit-query
+            thresholds:
+              - execution_time < 0.16 ms
+          - name: sethttpmeta-obfuscation-worst-case-implicit-query
+            thresholds:
+              - execution_time < 0.17 ms
+          - name: sethttpmeta-useragentvariant_exists_1
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-useragentvariant_exists_2
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-useragentvariant_exists_3
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-useragentvariant_not_exists_1
+            thresholds:
+              - execution_time < 0.05 ms
+          - name: sethttpmeta-useragentvariant_not_exists_2
+            thresholds:
+              - execution_time < 0.05 ms
+          # forktime
+          - name: forktime-baseline
+            thresholds:
+              - execution_time < 3.00 ms
+          - name: forktime-configured
+            thresholds:
+              - execution_time < 26 ms
+          # rand
+          - name: rand-rand64bits
+            thresholds:
+              - execution_time < 0.015 ms
+          - name: rand-rand128bits
+            thresholds:
+              - execution_time < 0.021 ms
+
+          # startup (class Startup) — import/startup overhead, loose gate.
+          - name: startup-baseline
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-baseline_flask
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-baseline_django
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_flask
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_django
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_auto
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_auto_flask
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_auto_django
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_appsec
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_profiling
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_telemetry_enabled
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_telemetry_disabled
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_send_span
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_runtime_metrics
+            thresholds:
+              - execution_time < 10000 ms
