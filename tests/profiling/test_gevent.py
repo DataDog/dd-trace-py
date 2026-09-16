@@ -251,23 +251,20 @@ def test_wait_wrapper_links_to_calling_greenlet_not_hub() -> None:
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess()
-def test_logical_provider_requires_native_greenlet_tracking() -> None:
+def test_greenlet_provider_requires_native_tracking() -> None:
     from unittest.mock import patch
 
     import gevent
     from gevent import thread
 
     from ddtrace.profiling import _gevent as _gevent_module
-    from ddtrace.profiling import _span_links
 
     current_id = thread.get_ident(gevent.getcurrent())
     with patch.object(_gevent_module.stack, "is_greenlet_tracked", return_value=False):
-        assert _gevent_module._current_greenlet_span_target() is None
+        assert _gevent_module._current_greenlet_span_id() is None
 
     with patch.object(_gevent_module.stack, "is_greenlet_tracked", return_value=True):
-        assert _gevent_module._current_greenlet_span_target() == _span_links.LogicalSpanTarget(
-            _span_links.SpanLinkDomain.GEVENT_GREENLET, current_id
-        )
+        assert _gevent_module._current_greenlet_span_id() == current_id
 
 
 @pytest.mark.skipif(
@@ -286,15 +283,14 @@ def test_new_greenlet_seeds_from_configured_tracer_not_gevent_trace_context() ->
     candidate = gevent.Greenlet(lambda: None)
     candidate.trace_context = object()
     candidate_id = thread.get_ident(candidate)
-    domain = _gevent_module._span_links.SpanLinkDomain.GEVENT_GREENLET
     with (
         patch.object(_gevent_module.stack, "track_greenlet"),
-        patch.object(_gevent_module._span_links, "link_current_logical_span") as link_current,
-        patch.object(_gevent_module._span_links, "link_logical_span_context") as link_inherited,
+        patch.object(_gevent_module._span_links, "link_current_greenlet_span") as link_current,
+        patch.object(_gevent_module._span_links, "link_greenlet_span_context") as link_inherited,
     ):
         _gevent_module.track_gevent_greenlet(candidate)
 
-    link_current.assert_called_once_with(domain, candidate_id)
+    link_current.assert_called_once_with(candidate_id)
     link_inherited.assert_not_called()
 
 
@@ -314,11 +310,10 @@ def test_late_origin_discovery_seeds_active_context_not_construction_context() -
     candidate = gevent.Greenlet(lambda: None)
     candidate.trace_context = object()
     candidate_id = thread.get_ident(candidate)
-    domain = _gevent_module._span_links.SpanLinkDomain.GEVENT_GREENLET
     with (
         patch.object(_gevent_module.stack, "track_greenlet") as track,
-        patch.object(_gevent_module._span_links, "link_current_logical_span") as link_current,
-        patch.object(_gevent_module._span_links, "link_logical_span_context") as link_active,
+        patch.object(_gevent_module._span_links, "link_current_greenlet_span") as link_current,
+        patch.object(_gevent_module._span_links, "link_greenlet_span_context") as link_active,
     ):
         _gevent_module.track_gevent_greenlet(
             candidate,
@@ -328,7 +323,7 @@ def test_late_origin_discovery_seeds_active_context_not_construction_context() -
 
     track.assert_called_once()
     link_current.assert_not_called()
-    link_active.assert_called_once_with(domain, candidate_id)
+    link_active.assert_called_once_with(candidate_id)
 
 
 @pytest.mark.skipif(
@@ -353,7 +348,7 @@ def test_fork_reset_drops_python_greenlet_tracking_state() -> None:
         with (
             patch.object(_gevent_module.gevent, "getcurrent", return_value=current),
             patch.object(_gevent_module.stack, "track_greenlet") as track,
-            patch.object(_gevent_module._span_links, "link_logical_span_context"),
+            patch.object(_gevent_module._span_links, "link_greenlet_span_context"),
         ):
             _gevent_module._reset_gevent_state_after_fork()
     finally:
@@ -379,7 +374,7 @@ def test_unpatch_untracks_native_greenlets() -> None:
     _gevent_module._tracked_greenlets.update({101, 102})
     with (
         patch.object(_gevent_module.stack, "untrack_greenlet") as untrack,
-        patch.object(_gevent_module._span_links, "clear_logical_span"),
+        patch.object(_gevent_module._span_links, "clear_greenlet_span"),
     ):
         _gevent_module.unpatch()
 

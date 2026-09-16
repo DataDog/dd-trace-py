@@ -79,21 +79,40 @@ TEST(SpanLinks, TaskSpanLifecycle)
     EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
 }
 
-TEST(SpanLinks, ThreadAndTaskIdentifiersAreIndependent)
+TEST(SpanLinks, GreenletSpanLifecycle)
 {
     auto& links = Datadog::SpanLinks::get_instance();
-    constexpr uint64_t shared_id = 45;
+    constexpr uint64_t greenlet_id = 45;
 
-    links.link_span(shared_id, 201, 200, "thread");
-    links.link_task_span(shared_id, 301, 300, "asyncio");
+    links.link_greenlet_span(greenlet_id, 201, 200, "web");
+    EXPECT_EQ(links.get_active_span_from_greenlet_id(greenlet_id), Datadog::Span(201, 200, "web"));
 
-    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(201, 200, "thread"));
-    EXPECT_EQ(links.get_active_span_from_task_id(shared_id), Datadog::Span(301, 300, "asyncio"));
+    links.link_greenlet_span(greenlet_id, 202, 200, "web");
+    EXPECT_EQ(links.get_active_span_from_greenlet_id(greenlet_id), Datadog::Span(202, 200, "web"));
+
+    links.unlink_greenlet_span(greenlet_id);
+    EXPECT_EQ(links.get_active_span_from_greenlet_id(greenlet_id), std::nullopt);
+}
+
+TEST(SpanLinks, RuntimeIdentifiersAreIndependent)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    constexpr uint64_t shared_id = 46;
+
+    links.link_span(shared_id, 301, 300, "thread");
+    links.link_task_span(shared_id, 401, 400, "asyncio");
+    links.link_greenlet_span(shared_id, 501, 500, "gevent");
+
+    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(301, 300, "thread"));
+    EXPECT_EQ(links.get_active_span_from_task_id(shared_id), Datadog::Span(401, 400, "asyncio"));
+    EXPECT_EQ(links.get_active_span_from_greenlet_id(shared_id), Datadog::Span(501, 500, "gevent"));
+
+    links.unlink_greenlet_span(shared_id);
+    EXPECT_EQ(links.get_active_span_from_greenlet_id(shared_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_task_id(shared_id), Datadog::Span(401, 400, "asyncio"));
+    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(301, 300, "thread"));
 
     links.unlink_task_span(shared_id);
-    EXPECT_EQ(links.get_active_span_from_task_id(shared_id), std::nullopt);
-    EXPECT_EQ(links.get_active_span_from_thread_id(shared_id), Datadog::Span(201, 200, "thread"));
-
     links.unlink_span(shared_id);
 }
 
