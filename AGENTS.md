@@ -62,14 +62,13 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## AIDEV Anchor Comments
+## Existing AIDEV Anchor Comments
 
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
+Do not add new `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments. Use regular comments when context is needed.
 
 - Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
 - **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
+- **Never remove** existing `AIDEV-*` anchors without explicit human instruction.
 
 ## PR Guidelines
 
