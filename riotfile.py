@@ -2848,12 +2848,17 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlite3",
             pkgs={
                 "pytest-randomly": latest,
-                "pysqlite3-binary": [latest],
             },
-            # sqlite3 is tied to the Python version and is not installable via pip
-            # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
-            # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
-            pys=select_pys(min_version="3.9", max_version="3.12"),
+            # Keep the existing backport coverage while newer runtimes use stdlib sqlite3.
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={"pysqlite3-binary": [latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13", max_version="3.15"),
+                ),
+            ],
         ),
         Venv(
             name="dbapi",

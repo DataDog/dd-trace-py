@@ -2617,6 +2617,11 @@ suites:
           integration: sqlite3
           dependencies: [pytest-randomly, pysqlite3-binary]
           command: pytest {cmdargs} tests/contrib/sqlite3
+        - name: sqlite3
+          python: ['3.13', '3.14', '3.15']
+          integration: sqlite3
+          dependencies: [pytest-randomly]
+          command: pytest {cmdargs} tests/contrib/sqlite3
         - name: dbapi
           dependencies: [pytest-randomly]
           env:
