@@ -589,7 +589,7 @@ def get_llmobs_parent_id(span: Span) -> Optional[str]:
     return parent_id
 
 
-def get_llmobs_trace_id(span: Span) -> Optional[str]:
+def get_llmobs_trace_id(span: _LLMObsAnnotatableSpan) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id

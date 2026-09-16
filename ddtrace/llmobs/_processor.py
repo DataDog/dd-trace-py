@@ -38,6 +38,9 @@ class _LLMObsSpanProtocol(Protocol):
     """
 
     span_type: Optional[str]
+    error: int
+    span_id: int
+    trace_id: int
 
     @property
     def context(self) -> Context: ...
@@ -49,9 +52,13 @@ class _LLMObsSpanProtocol(Protocol):
 
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
 
+    def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
+
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
 
     def _get_ctx_item(self, key: str) -> Optional[Any]: ...
+
+    def _set_ctx_item(self, key: str, val: Any) -> None: ...
 
 
 class LLMObsProcessor(TraceProcessor):
@@ -99,7 +106,7 @@ class LLMObsProcessor(TraceProcessor):
             return None
         return trace
 
-    def _stamp_sampling_decisions(self, trace: list[Span]) -> None:
+    def _stamp_sampling_decisions(self, trace: list[_LLMObsSpanProtocol]) -> None:
         """Resolve each LLMObs trace in this chunk and write its decision onto every span.
 
         This is the last point at which the decision can still be influenced by the root's tags.
@@ -112,7 +119,7 @@ class LLMObsProcessor(TraceProcessor):
         if self._sampling_resolver is None or not self._sampling_resolver.resolves_late:
             return
 
-        groups: dict[str, list[Span]] = {}
+        groups: dict[str, list[_LLMObsSpanProtocol]] = {}
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue
@@ -133,7 +140,7 @@ class LLMObsProcessor(TraceProcessor):
                     self._write_sampling_decision(span, sample_rate, sampling_decision)
 
     @staticmethod
-    def _write_sampling_decision(span: Span, sample_rate: str, sampling_decision: str) -> None:
+    def _write_sampling_decision(span: _LLMObsSpanProtocol, sample_rate: str, sampling_decision: str) -> None:
         """Write the decision into both places a span can be exported from.
 
         ``_llmobs_span_event`` shallow-copies the meta_struct ``_dd`` block into the event, so the
