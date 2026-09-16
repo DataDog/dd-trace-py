@@ -1,5 +1,5 @@
 """
-Tests for pytest-xdist compatibility with the new test optimization plugin.
+Tests for pytest-xdist compatibility with the test optimization pytest plugins.
 
 These tests run pytest in a **subprocess** with xdist enabled, using a local
 mock HTTP server to capture the citestcycle payloads.  This ensures full
@@ -682,6 +682,29 @@ class TestXdistEventDelivery:
 
         env = _make_env(mock_server.url)
         result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+        all_events = mock_server.get_all_events()
+        session_ids = {e["content"].get("test_session_id") for e in all_events}
+
+        assert len(session_ids) == 1, (
+            f"Expected all events to share one test_session_id, got {len(session_ids)}: {session_ids}"
+        )
+
+
+class TestLegacyXdistEventDelivery:
+    def test_session_id_consistent_across_periodic_flushes(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        tests_code = "import time\n\n" + "\n".join(
+            f"def test_{i}():\n    time.sleep(0.2)\n    assert True\n" for i in range(40)
+        )
+        (test_project / "test_many.py").write_text(tests_code)
+        _git_commit(test_project)
+
+        env = _make_env(mock_server.url, extra={"DD_PYTEST_USE_NEW_PLUGIN": "false"})
+        result = _run_pytest_subprocess(test_project, "-n", "2", "--dist=worksteal", env=env)
 
         assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
