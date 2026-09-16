@@ -98,6 +98,7 @@ def _make_event(
     runtime_default: bool = False,
     error_message: str = "",
     eval_time_ms: int = None,
+    observe_full_evaluation_data: bool = True,
 ) -> _EvalEvent:
     if eval_time_ms is None:
         eval_time_ms = int(time.time() * 1000)
@@ -110,6 +111,7 @@ def _make_event(
         runtime_default=runtime_default,
         error_message=error_message,
         eval_time_ms=eval_time_ms,
+        observe_full_evaluation_data=observe_full_evaluation_data,
     )
 
 

@@ -154,7 +154,7 @@ class TestFlagEvalEVPHook:
     def test_finally_after_borrows_attrs_for_synchronous_writer_snapshot(self, hook, writer):
         attrs = {"tier": "premium", "region": "us-west"}
         hc = _make_hook_context(attrs=attrs)
-        details = _make_details()
+        details = _make_details(flag_metadata={"__dd_observe_full_evaluation_data": True})
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
@@ -166,7 +166,9 @@ class TestFlagEvalEVPHook:
 
         attrs = FalseMapping(tier="premium")
         hc = _make_hook_context(attrs=attrs)
-        hook.finally_after(hc, _make_details(), {})
+        details = _make_details(flag_metadata={"__dd_observe_full_evaluation_data": True})
+
+        hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
 
@@ -205,6 +207,19 @@ class TestFlagEvalEVPHook:
         details = _make_details()
         # Must not raise.
         hook.finally_after(hc, details, {})
+
+    def test_finally_after_does_not_log_exception_message_or_traceback(self, hook, writer):
+        writer.enqueue.side_effect = RuntimeError("secret@example.com")
+        hc = _make_hook_context()
+        details = _make_details()
+
+        with mock.patch("ddtrace.internal.openfeature._flag_eval_evp_hook.logger.debug") as debug:
+            hook.finally_after(hc, details, {})
+
+        debug.assert_called_once_with(
+            "FlagEvalEVPHook.finally_after: failed to enqueue eval snapshot (%s)",
+            "RuntimeError",
+        )
 
 
 class TestAsyncBoundary:
