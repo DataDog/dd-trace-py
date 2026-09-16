@@ -118,7 +118,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             if not self._before_fork_registered:
-                # AIDEV-NOTE: Initialize and register the fork hook before honoring
+                # NOTE: Initialize and register the fork hook before honoring
                 # the startup barrier. Polling can wait for product registration,
                 # but fork safety must be established as early as possible.
                 self._client.ensure_native()

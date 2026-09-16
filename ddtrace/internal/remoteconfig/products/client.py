@@ -56,7 +56,7 @@ def enabled():
 def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    # AIDEV-NOTE: Keep the poller behind this barrier until post_start. Product
+    # NOTE: Keep the poller behind this barrier until post_start. Product
     # dependencies start after remote-configuration and must advertise their RC
     # products before the no-wait polling thread sends its first request. Keep
     # the failure cleanup too: a stale barrier would prevent later registration

@@ -181,7 +181,7 @@ class ProductManager:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
 
-        # AIDEV-NOTE: Keep post_start hooks after the full start loop. RC uses
+        # NOTE: Keep post_start hooks after the full start loop. RC uses
         # this barrier to collect dependent products before its first poll, and
         # start_products() may run only after a uWSGI fork.
         for name, product in started:
