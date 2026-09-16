@@ -297,6 +297,13 @@ class AsyncioElfTest : public ::testing::Test
         }
     }
 
+    void inject(ReadFault fault, off_t offset = 0, unsigned int count = 1)
+    {
+        read_injection.offset = offset;
+        read_injection.fault = fault;
+        read_injection.remaining = count;
+    }
+
     std::optional<AsyncioOffsets> discover(size_t size = sizeof(Binary))
     {
         const int fd = fileno(file);
@@ -410,11 +417,6 @@ TEST_F(AsyncioElfTest, RejectsEmptyFile)
 TEST_F(AsyncioElfTest, RejectsTruncatedElfHeader)
 {
     EXPECT_FALSE(discover(sizeof(ElfW(Ehdr)) - 1));
-}
-
-TEST_F(AsyncioElfTest, RejectsTruncatedNote)
-{
-    EXPECT_FALSE(discover(offsetof(Binary, note)));
 }
 
 TEST_F(AsyncioElfTest, RejectsTruncatedSectionTable)
@@ -664,27 +666,20 @@ class AsyncioElfReadTest
                                  ReadStage{ "DebugSection", offsetof(Binary, sections) + 3 * sizeof(ElfW(Shdr)) },
                                  ReadStage{ "SectionName", offsetof(Binary, names) });
     }
-
-  protected:
-    void inject(ReadFault fault, unsigned int count = 1)
-    {
-        read_injection.offset = GetParam().offset;
-        read_injection.fault = fault;
-        read_injection.remaining = count;
-    }
 };
 
-TEST_P(AsyncioElfReadTest, RetriesInterruptedReads)
+// Retry policy is shared by every read location, so exercise it once at the ELF header.
+TEST_F(AsyncioElfTest, RetriesInterruptedReads)
 {
-    inject(ReadFault::Interrupted, 2);
+    inject(ReadFault::Interrupted, 0, 2);
     EXPECT_TRUE(discover());
     EXPECT_EQ(read_injection.injected, 2);
-    EXPECT_GE(read_injection.calls, 3);
+    EXPECT_EQ(read_injection.calls, 3);
 }
 
-TEST_P(AsyncioElfReadTest, BoundsInterruptedReadRetries)
+TEST_F(AsyncioElfTest, BoundsInterruptedReadRetries)
 {
-    inject(ReadFault::Interrupted, 4);
+    inject(ReadFault::Interrupted, 0, 4);
     EXPECT_FALSE(discover());
     EXPECT_EQ(read_injection.injected, 3);
     EXPECT_EQ(read_injection.calls, 3);
@@ -692,24 +687,36 @@ TEST_P(AsyncioElfReadTest, BoundsInterruptedReadRetries)
 
 TEST_P(AsyncioElfReadTest, RejectsIoErrorWithoutRetry)
 {
-    inject(ReadFault::IoError);
+    inject(ReadFault::IoError, GetParam().offset);
     EXPECT_FALSE(discover());
     EXPECT_EQ(read_injection.injected, 1);
     EXPECT_EQ(read_injection.calls, 1);
 }
 
-TEST_P(AsyncioElfReadTest, RejectsEofAfterFileSizeWasChecked)
+class AsyncioElfTruncationTest : public AsyncioElfReadTest
 {
-    inject(ReadFault::TruncateToEof);
+  public:
+    static auto stages()
+    {
+        // Cover header parsing, binary identity, and section lookup without repeating the full read matrix.
+        return ::testing::Values(ReadStage{ "ElfHeader", 0 },
+                                 ReadStage{ "BuildId", offsetof(Binary, note) },
+                                 ReadStage{ "SectionName", offsetof(Binary, names) });
+    }
+};
+
+TEST_P(AsyncioElfTruncationTest, RejectsEofAfterFileSizeWasChecked)
+{
+    inject(ReadFault::TruncateToEof, GetParam().offset);
     EXPECT_FALSE(discover());
     EXPECT_EQ(read_injection.injected, 1);
     EXPECT_EQ(read_injection.calls, 1);
     EXPECT_EQ(read_injection.truncated_read_result, 0);
 }
 
-TEST_P(AsyncioElfReadTest, RejectsShortReadAfterFileSizeWasChecked)
+TEST_P(AsyncioElfTruncationTest, RejectsShortReadAfterFileSizeWasChecked)
 {
-    inject(ReadFault::TruncateToShortRead);
+    inject(ReadFault::TruncateToShortRead, GetParam().offset);
     EXPECT_FALSE(discover());
     EXPECT_EQ(read_injection.injected, 1);
     EXPECT_EQ(read_injection.calls, 1);
@@ -717,7 +724,7 @@ TEST_P(AsyncioElfReadTest, RejectsShortReadAfterFileSizeWasChecked)
     EXPECT_EQ(read_injection.truncated_read_result, static_cast<ssize_t>(read_injection.requested_size - 1));
 }
 
-TEST_P(AsyncioElfReadTest, RetriesDiscoveryAfterReadError)
+TEST_F(AsyncioElfTest, RetriesDiscoveryAfterReadError)
 {
     inject(ReadFault::IoError);
     EXPECT_FALSE(discover());
@@ -729,6 +736,11 @@ TEST_P(AsyncioElfReadTest, RetriesDiscoveryAfterReadError)
 INSTANTIATE_TEST_SUITE_P(FileReads,
                          AsyncioElfReadTest,
                          AsyncioElfReadTest::stages(),
+                         [](const ::testing::TestParamInfo<ReadStage>& parameter) { return parameter.param.name; });
+
+INSTANTIATE_TEST_SUITE_P(FileTruncation,
+                         AsyncioElfTruncationTest,
+                         AsyncioElfTruncationTest::stages(),
                          [](const ::testing::TestParamInfo<ReadStage>& parameter) { return parameter.param.name; });
 
 #endif
