@@ -931,6 +931,14 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
     }
 }
 
+bool
+Sampler::is_asyncio_loop_registered(uintptr_t thread_id)
+{
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    auto it = echion->thread_info_map().find(thread_id);
+    return it != echion->thread_info_map().end() && it->second->asyncio_loop != 0;
+}
+
 void
 Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks)
 {
