@@ -44,3 +44,5 @@ ingress from provider-transformed outgoing settings. Never dump logging kwargs,
 infer a billing account from opaque credentials, or equate execution region with
 billed geography. Explicit modality counters stay diagnostic when their overlap
 with caching is unknown. Cache-control TTLs are not per-TTL token quantities.
+The constructor keeps both legacy and current LiteLLM message-logging flags off;
+the ordinary SDK matrix also imports/tests the callback against older LiteLLM.

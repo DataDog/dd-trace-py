@@ -114,7 +114,9 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         capture_email: bool = False,
         auth_metadata_keys: Iterable[str] = (),
     ) -> None:
-        super().__init__(turn_off_message_logging=True)
+        # Older SDKs accept only message_logging; newer proxies consult the inverted flag.
+        super().__init__(message_logging=False)
+        self.turn_off_message_logging = True
         if not isinstance(capture_email, bool) or isinstance(auth_metadata_keys, str):
             raise ValueError("Invalid gateway attribution privacy configuration")
         metadata_keys = tuple(auth_metadata_keys)

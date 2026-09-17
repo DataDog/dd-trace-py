@@ -695,3 +695,32 @@ def test_non_token_modality_units_do_not_imply_text_only_usage(field, value):
     assert result.quantities == {}
     assert result.diagnostics[f"input_{field}"] == value
     assert result.issues == {"multimodal_partition_unsupported"}
+
+
+def test_callback_disables_both_legacy_and_current_message_logging():
+    callback = make_callback()
+    assert callback.message_logging is False
+    assert callback.turn_off_message_logging is True
+
+
+@pytest.mark.parametrize("host", ["aiplatform.googleapis.com", "us-central1-aiplatform.googleapis.com"])
+def test_vertex_billing_provider_requires_a_complete_official_hostname(host):
+    assert (
+        route_tags({"custom_llm_provider": "vertex_ai", "api_base": f"https://{host}/v1"})["ai.billing.provider"]
+        == "gcp"
+    )
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "aiplatform.googleapis.com.evil.test",
+        "evil.test-aiplatform.googleapis.com",
+        "evil.aiplatform.googleapis.com",
+        "aiplatformgoogleapis.com",
+    ],
+)
+def test_vertex_lookalike_host_does_not_identify_billing_provider(host):
+    assert "ai.billing.provider" not in route_tags(
+        {"custom_llm_provider": "vertex_ai", "api_base": f"https://{host}/v1"}
+    )

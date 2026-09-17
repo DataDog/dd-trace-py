@@ -3279,6 +3279,20 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="litellm:gateway",
+            command="pytest {cmdargs} tests/contrib/litellm/test_gateway.py tests/contrib/litellm/gateway",
+            pys=["3.12"],
+            env={"LITELLM_LOCAL_MODEL_COST_MAP": "True"},
+            pkgs={
+                "pytest-asyncio": latest,
+                "litellm[proxy]": "==1.101.0",
+                "msgpack": latest,
+                "pyyaml": latest,
+                "httpx": latest,
+                "vcrpy": latest,
+            },
+        ),
+        Venv(
             name="llama_index",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",

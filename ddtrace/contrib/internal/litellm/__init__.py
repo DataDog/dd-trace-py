@@ -78,7 +78,7 @@ not trusted sources of identity.
 
    Optional path to an operator-controlled JSON file, read once when the callback
    is loaded. Without it, the callback still collects authenticated user IDs and
-   response usage, selected-route dimensions, and allowlisted pricing settings.
+   response usage, selected-route dimensions, and selected pricing settings.
    Billing dimensions that cannot be established from the route remain unknown.
    An invalid file disables operator mappings and optional identity enrichment
    without blocking gateway requests.
@@ -114,7 +114,7 @@ onto a provider billing model; the raw response model is always retained separat
 
 ``capture_email`` defaults to false. ``auth_metadata_keys`` defaults to an empty
 list and copies only explicitly named attributes from the authenticated principal.
-Do not allowlist secrets or sensitive attributes you do not intend to export.
+Do not select secrets or sensitive attributes you do not intend to export.
 Only non-empty string identifiers up to 256 characters are copied; containers,
 control characters, and common secret prefixes are rejected. Authenticated IDs
 themselves can contain personal information, including email.
@@ -141,7 +141,7 @@ Collected dimensions
      - Authenticated gateway principal, team, and organization where available.
        The gateway organization is **not** a provider billing account.
    * - ``usr.email``, ``ai.enrichment.<key>``
-     - Optional authenticated email and allowlisted authenticated metadata.
+     - Optional authenticated email and explicitly selected authenticated metadata.
    * - ``ai.billing.provider``, ``ai.billing.account_id``, ``ai.billing.product``
      - Provider and product inferred for recognized OpenAI, Anthropic, Azure,
        Bedrock, Vertex AI, and Gemini routes using known endpoints or adapter
@@ -165,23 +165,23 @@ Collected dimensions
        Vertex project/location, AWS region/Bedrock project, region name and API
        version, where exposed. Location is not assumed to be billed geography.
    * - ``ai.request.*``, ``ai.effective.*`` pricing settings
-     - Allowlisted service tier, speed, reasoning effort, image quality/size,
+     - Selected service tier, speed, reasoning effort, image quality/size,
        inference geography, prompt-cache retention, number of outputs, embedding
        dimensions, thinking budgets, search context size, Bedrock performance
        latency and output limits. Ingress settings and outgoing provider-payload
        settings are separate; neither implies a returned quantity or billed mode.
    * - ``ai.request.prompt_cache_ttls``, ``ai.effective.prompt_cache_ttls``
-     - Cache-control TTLs found at ingress and in the outgoing provider payload,
+     - Cache lifetimes found at ingress and in the outgoing provider payload,
        including the five-minute default for an explicit cache-control block.
-       This is provider prompt caching, not the gateway response-cache TTL.
-       Mixed TTLs do not establish per-TTL token quantities. Structural scans are
+       This is provider prompt caching, not the gateway response-cache lifetime.
+       Mixed lifetimes do not establish token quantities for each lifetime. Structural scans are
        bounded and set ``prompt_cache_scan:incomplete`` if truncated.
    * - ``ai.gateway.deployment_id``, ``ai.request.id``, ``ai.response.id``
      - Selected deployment, generated logical request ID, and response ID when
        provided. IDs do not imply that billing exports support request-level joins.
    * - ``ai.usage.*_tokens``
-     - Disjoint uncached input, cache-read input, cache-write input by 5-minute,
-       1-hour, or unknown TTL, and output. Missing usage is not replaced by zero.
+     - Disjoint input not served from cache, cache-read input, cache-write input by
+       5-minute, 1-hour, or unknown lifetime, and output. Missing usage is not replaced by zero.
    * - ``ai.usage.web_search_requests``, ``ai.usage.tool_search_requests``,
        ``ai.usage.browser_open_requests``, ``ai.usage.google_maps_grounding_requests``
      - Tool counts from response usage, without adding duplicate native and
@@ -192,10 +192,10 @@ Collected dimensions
        These diagnostics must not be added to the disjoint usage quantities.
    * - ``ai.observed.input_*``, ``ai.observed.output_*`` and tool counters
      - Explicit text/audio/image/video tokens, cached and cache-write tokens,
-       per-TTL writes, reasoning/prediction/tool tokens, character/image counts,
+       writes for each cache lifetime, reasoning/prediction/tool tokens, character/image counts,
        and audio/video duration in seconds when present in usage. Fractional
        seconds are preserved. These may overlap each other and ``ai.usage.*``;
-       they remain available even when multimodal allocation is ambiguous.
+       they remain available even when mixed-media allocation is ambiguous.
    * - ``ai.attribution.status``, ``ai.attribution.issues``, ``ai.usage.source``
      - Collection completeness, missing/ambiguous dimensions, and usage provenance.
        ``observed`` means dimensions were collected, not invoice-exact billing.
@@ -210,11 +210,11 @@ Coverage and limitations
   LiteLLM can reconstruct streaming usage; streaming spans are additionally marked
   with unverified provenance rather than claiming every count came from the provider.
 * Retries/fallbacks retain the final deployment's scope and flag potentially
-  missing earlier-attempt usage. Failed, cancelled, or missing callbacks do not
+  missing earlier-attempt usage. Failed, canceled, or missing callbacks do not
   imply zero billable usage. Gateway cache hits emit no new provider quantities.
 * Client-supplied credentials or endpoint overrides suppress configured billing
-  scope. Multimodal usage is diagnostic-only when disjoint categories cannot be
-  established. Unknown cache-write TTL is never assumed to be five minutes.
+  scope. Mixed-media usage is diagnostic-only when disjoint categories cannot be
+  established. Unknown cache-write lifetime is never assumed to be five minutes.
 * Opaque credentials do not reveal billing-account or non-secret provider-key IDs.
   Use operator mappings for these and for billing geography, custom endpoints,
   deployment classes, or products not established by the selected route. Outgoing

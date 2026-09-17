@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from itertools import islice
+import re
 from typing import Any
 from typing import Optional
 from urllib.parse import urlsplit
@@ -18,6 +19,7 @@ _PROVIDERS = {
     "vertex_ai": ("gcp", "vertex-ai"),
     "gemini": ("gcp", "gemini-api"),
 }
+_VERTEX_HOST = re.compile(r"(?:[a-z0-9-]+-)?aiplatform\.googleapis\.com")
 _ENUMS = {
     "service_tier": {"auto", "default", "standard", "priority", "flex", "scale"},
     "speed": {"standard", "fast"},
@@ -146,10 +148,7 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None) -> dict[str
             or (provider == "anthropic" and host == "api.anthropic.com")
             or (provider == "azure" and host.endswith((".openai.azure.com", ".services.ai.azure.com")))
             or (provider == "bedrock" and host.startswith("bedrock-runtime.") and host.endswith(".amazonaws.com"))
-            or (
-                provider == "vertex_ai"
-                and (host == "aiplatform.googleapis.com" or host.endswith("-aiplatform.googleapis.com"))
-            )
+            or (provider == "vertex_ai" and _VERTEX_HOST.fullmatch(host) is not None)
             or (provider == "gemini" and host == "generativelanguage.googleapis.com")
         )
     )
