@@ -17,13 +17,14 @@ It answers: *did an edit to a review rule make the agent better or worse?*
 Overrides are owned by this repo. The shared core is not — never edit `.agents/skills/dd-apm-sdk-review/`.
 
 1. Create or extend a file under [`.agents/dd-apm-sdk-review-overrides/reviewers/`](../.agents/dd-apm-sdk-review-overrides/reviewers/).
-   Copy the shape of `performance.md`: one pattern, why it matters, the fix.
+   Prefer a pointer at an existing contributor doc (see `design.md`) over a
+   new agent-only rule.
 2. Add the new override path to `instruction_files` in [`config.yaml`](./config.yaml) so CI
    watches it.
 3. Add a case in [`suites/python-tracer-agent-v0.1.yaml`](./suites/python-tracer-agent-v0.1.yaml).
-   Copy the starter case `py-perf-hotpath-pure-python` (`only_warn: true` until
+   Copy the starter case `py-design-contrib-product-coupling` (`only_warn: true` until
    the case is calibrated). A good case is a 10-line snippet plus 2–3
-   `expected_criteria` that would fail if the rule disappeared.
+   `expected_criteria` that would fail if the pointer disappeared.
 4. List the new case id under `presets.gate.cases` in [`config.yaml`](./config.yaml). CI
    `default_level` is still `full` (every case), so a new suite entry also runs automatically.
 5. Open a PR. That is it.
@@ -60,7 +61,7 @@ docker run --rm -e LLMVAL_AUTH_HEADER -v "$PWD:/repo" "$LLMVAL_IMAGE" \
 
 # One named case
 docker run --rm -e LLMVAL_AUTH_HEADER -v "$PWD:/repo" "$LLMVAL_IMAGE" \
-  --repo /repo --base-sha main --case py-perf-hotpath-pure-python --runs 1
+  --repo /repo --base-sha main --case py-design-contrib-product-coupling --runs 1
 ```
 
 `--level` picks **which cases** run (`minimum` = the existing flagship AGENTS.md case,
