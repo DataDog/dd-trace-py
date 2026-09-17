@@ -79,6 +79,22 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     assert "$DD_API_KEY" not in config
 
 
+@pytest.mark.parametrize(
+    "config, message",
+    [
+        ({"parallelism": 2}, "must use venvs_per_job"),
+        ({"ddtest": True, "venvs_per_job": 2}, "shard with ddtest_nodes"),
+    ],
+)
+def test_gen_tests_rejects_unsupported_sharding_controls(gen_gitlab_config_mod, config, message):
+    with pytest.raises(ValueError, match=message):
+        gen_gitlab_config_mod._gen_tests({"suite": {"type": "test", **config}}, ["suite"])
+
+
+def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):
+    assert gen_gitlab_config_mod.calculate_parallelism_from_venvs(12) == 1
+
+
 def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
     info = gen_gitlab_config_mod.SuiteVenvInfo(
         environment_hashes=("hash-with-path", "hash-without-path"),

@@ -32,18 +32,18 @@ struct Span
     }
 };
 
-class ThreadSpanLinks
+class SpanLinks
 {
   public:
-    static ThreadSpanLinks& get_instance()
+    static SpanLinks& get_instance()
     {
-        static ThreadSpanLinks instance;
+        static SpanLinks instance;
         return instance;
     }
 
     // Delete Copy constructor and assignment operator to prevent copies
-    ThreadSpanLinks(ThreadSpanLinks const&) = delete;
-    ThreadSpanLinks& operator=(ThreadSpanLinks const&) = delete;
+    SpanLinks(SpanLinks const&) = delete;
+    SpanLinks& operator=(SpanLinks const&) = delete;
 
     void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
@@ -80,8 +80,8 @@ class ThreadSpanLinks
     std::unordered_map<uint64_t, PendingSpanLink> pending_span_links;
 
     // Private Constructor/Destructor
-    ThreadSpanLinks() = default;
-    ~ThreadSpanLinks() = default;
+    SpanLinks() = default;
+    ~SpanLinks() = default;
 };
 
 }
