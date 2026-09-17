@@ -9,6 +9,8 @@ stages:
   - release
   - shared-pipeline-publish
 
+# force a trigger
+
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
