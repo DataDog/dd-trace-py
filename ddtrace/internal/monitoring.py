@@ -40,7 +40,7 @@ _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
 # for debugger/coverage/profiler/optimizer. ID 4 is reserved for
-# ExceptionCollector (see ddtrace.profiling.collector._exception). ID 3 is the
+# ExceptionCollector. ID 3 is the
 # remaining custom slot; error tracking also uses it when enabled, in which
 # case _setup() fails and asyncio falls back to wrap().
 _CANDIDATE_TOOL_IDS = (3,)

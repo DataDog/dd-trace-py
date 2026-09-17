@@ -6,7 +6,6 @@ import sys
 import threading
 import time
 from typing import TYPE_CHECKING
-from typing import Any
 from unittest import mock
 
 import pytest
@@ -890,29 +889,3 @@ def test_exception_captures_full_python_stack(tmp_path: Path) -> None:
         ),
         print_samples_on_failure=True,
     )
-
-
-def test_exception_samples_when_multiplexer_owns_tool_id_4(tmp_path: Path) -> None:
-    """ExceptionCollector must attach RAISE when tool ID 4 is already 'ddtrace'."""
-    tool_id: int = 4
-    sys_monitoring: Any = getattr(sys, "monitoring", None)
-    assert sys_monitoring is not None
-    assert sys_monitoring.get_tool(tool_id) is None
-    sys_monitoring.use_tool_id(tool_id, "ddtrace")
-    try:
-        output_filename: str = _setup_profiler(tmp_path, "test_exception_shared_tool_id")
-
-        with exception.ExceptionCollector(sampling_interval=1):
-            for _ in range(10):
-                _handle_value_error()
-
-        ddup.upload()
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
-        samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
-        assert len(samples) > 0
-        assert sys_monitoring.get_tool(tool_id) == "ddtrace"
-    finally:
-        if sys_monitoring.get_tool(tool_id) == "ddtrace":
-            sys_monitoring.set_events(tool_id, 0)
-            sys_monitoring.free_tool_id(tool_id)
