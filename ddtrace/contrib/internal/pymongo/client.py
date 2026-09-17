@@ -224,6 +224,7 @@ def parse_write_command_msg(socket_instance: Any, msg: bytes) -> Optional[tuple[
     except Exception:
         log.exception("error parsing msg")
 
+    # if we couldn't parse it, don't try to trace it.
     if not cmd or not tracer.enabled:
         return None
 
@@ -264,7 +265,8 @@ def _trace_socket_write_command(func, args, kwargs):
 
 
 def _trace_bulk_write_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    # Connection.write_command did not handle unacknowledged writes before PyMongo 4.18.
+    """Trace acknowledged bulk writes through PyMongo's shared command runner."""
+    # If the write is unacknowledged, we skip tracing and return the result of the original function.
     if kwargs.get("unacknowledged", False):
         return func(*args, **kwargs)
 
@@ -308,6 +310,7 @@ def trace_cmd(cmd, socket_instance, address):
 
 @contextlib.contextmanager
 def traced_get_socket(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Generator[Any, None, None]:
+    """Trace synchronous connection checkout outside SDAM monitor pools."""
     instance = get_argument_value(args, kwargs, 0, "self")
 
     # If the tracer is disabled or the instance is an SDAM monitor pool, we don't trace the checkout.
