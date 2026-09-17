@@ -41,7 +41,7 @@ class _EncodableSpanProtocol(Protocol):
     """Structural span interface CI Visibility encoding needs.
 
     Lets this module type-annotate spans without a runtime dependency on the concrete
-    ``ddtrace._trace.span.Span`` class.
+    ddtrace._trace.span.Span class.
     """
 
     span_id: int
