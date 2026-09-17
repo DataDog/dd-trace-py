@@ -260,6 +260,7 @@ ddtrace/contrib/internal/langgraph                            @DataDog/ml-observ
 ddtrace/contrib/internal/crewai                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai_agents                        @DataDog/ml-observability
 ddtrace/contrib/internal/litellm                              @DataDog/ml-observability
+ddtrace/contrib/litellm.py                                    @DataDog/ml-observability
 ddtrace/contrib/internal/mlflow                               @DataDog/ml-observability
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/internal/ray                                  @DataDog/ml-observability

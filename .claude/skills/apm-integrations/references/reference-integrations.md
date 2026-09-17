@@ -28,3 +28,13 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+### Gateway callback attribution
+
+LiteLLM's optional `gateway.py` is not SDK auto-instrumentation. It binds verified
+proxy authentication to terminal callbacks using opaque process-local tokens and
+emits content-free APM usage spans. Do not turn these into LLMObs request spans
+with prompt/response extraction, trust client metadata as identity, or infer a
+billing account from the model provider. The public opt-in entry point is
+`ddtrace.contrib.litellm.gateway_attribution`; its proxy tests live under
+`tests/contrib/litellm/gateway/`.
