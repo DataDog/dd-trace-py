@@ -100,6 +100,38 @@ def _default_handle_exception_span(exc, span):
     span._set_attribute(http.STATUS_CODE, "500")
 
 
+def _finish_unfinished_llm_spans(request_span: Span) -> None:
+    # AIDEV-NOTE: Streaming LLM spans (LLMObs.llm() around an SSE generator,
+    # OpenAI/Anthropic TracedStream, etc.) are often finished only from a
+    # generator finally block. If the client disconnects or the generator is
+    # abandoned, those spans stay in the SpanAggregator and later requests on
+    # the same worker nest under them. Finish leftover LLM spans when the WEB
+    # request span ends. Do not finish other unfinished children: fire-and-forget
+    # / background work is a supported pattern. Happy-path streaming order is
+    # safe: the generator finally annotates and finishes the LLM span before
+    # the last response chunk, which finishes this request span.
+    try:
+        aggregator = tracer._span_aggregator
+        traces = aggregator._traces
+        lock = aggregator._lock
+        trace_id = request_span.trace_id
+        with lock:
+            if trace_id not in traces:
+                return
+            leftover = [
+                span
+                for span in traces[trace_id].spans
+                if span is not request_span and span.duration_ns is None and span.span_type == SpanTypes.LLM
+            ]
+        for span in leftover:
+            try:
+                span.finish()
+            except Exception:
+                log.debug("Failed to finish leftover LLM span on ASGI request teardown", exc_info=True)
+    except Exception:
+        log.debug("Failed to sweep leftover LLM spans on ASGI request teardown", exc_info=True)
+
+
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
     return scope.get("datadog", {}).get("request_spans", [None])[0]
 
@@ -252,6 +284,8 @@ class TraceMiddleware:
             ) as ctx,
             span_from_context(ctx) as span,
         ):
+            if scope["type"] == "http":
+                span._on_finish_callbacks.append(_finish_unfinished_llm_spans)
             if self.span_modifier:
                 self.span_modifier(span, scope)
 

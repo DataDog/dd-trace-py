@@ -116,6 +116,25 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 
 ---
 
+## `orphan_llm_spans` -- Unfinished LLM Spans Leak After Request Ends
+
+**Symptoms:**
+- Long-running web worker RSS grows linearly with traffic
+- One gunicorn/uvicorn worker is much larger than siblings
+- Later requests nest under an old LLM span (one worker's traces all share a parent)
+
+**Causes:**
+1. `LLMObs.llm()` or an integration stream span is finished only from a generator `finally` that never runs on client disconnect or an abandoned pump task
+2. `TracedStream.__next__` / `TracedAsyncStream.__anext__` only finalize on StopIteration, so `next(stream)` then drop leaves the span open
+3. Unfinished LLM spans keep the whole trace in the SpanAggregator until every span in the trace has finished
+
+**Fix:**
+- ASGI `TraceMiddleware` finishes leftover `SpanTypes.LLM` spans when the WEB request span finishes (`_finish_unfinished_llm_spans`). Do not finish non-LLM children — fire-and-forget spans are intentional
+- `TracedStream` / `TracedAsyncStream` `__del__` calls `close_stream()` so dropped partial iteration still finalizes; `close_stream()` is idempotent with `__iter__`/`__next__`
+- Happy path should still annotate and finish the LLM span from the generator `finally` before the framework sends the last response chunk, so teardown is a no-op
+
+---
+
 ## `async_not_working` -- Async Calls Not Traced
 
 **Symptoms:**
