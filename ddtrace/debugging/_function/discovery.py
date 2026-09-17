@@ -257,7 +257,6 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         if PYTHON_VERSION_INFO < (3, 11):
             self._name_index: dict[str, list[_FunctionCodePair]] = defaultdict(list)
         self._cached: dict[int, list[FullyNamedFunction]] = {}
-        self._function_header_index: list[tuple[int, int, _FunctionCodePair]] = []
 
         # Create the line to function mapping
         if hasattr(module, "__dd_code__"):
@@ -300,11 +299,14 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         for lineno in executable_lines:
             self[lineno].append(pair)
 
-        # A function's first line is its declaration, or its first decorator.
-        # AIDEV-NOTE: Keep this as an interval rather than indexing every line so
-        # multiline signatures cannot cause memory usage to grow with source size.
+        # The lines from the first decorator (or the def line itself, if there
+        # are no decorators) up to the first executable line have no bytecode
+        # instructions of their own, so they are not included in linenos().
+        # Index them too, so probes placed anywhere on the declaration can still
+        # find the function.
         first_executable_line = min(executable_lines, default=code.co_firstlineno)
-        self._function_header_index.append((code.co_firstlineno, first_executable_line, pair))
+        for lineno in range(code.co_firstlineno, first_executable_line):
+            self[lineno].append(pair)
 
     def at_line(self, line: int) -> list[FullyNamedFunction]:
         """Get the functions at the given line.
@@ -317,23 +319,16 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         if line in self._cached:
             return self._cached[line]
 
-        pairs = list(self[line]) if line in self else []
-        pairs.extend(
-            pair
-            for start, first_executable_line, pair in self._function_header_index
-            if start <= line < first_executable_line or start == first_executable_line == line
-        )
-        if pairs:
+        if line in self:
             functions = []
-            for fcp in pairs:
+            for fcp in self[line]:
                 try:
                     functions.append(fcp.resolve())
                 except ValueError:
                     pass
 
             if not functions:
-                if line in self:
-                    del self[line]
+                del self[line]
             else:
                 self._cached[line] = functions
 
