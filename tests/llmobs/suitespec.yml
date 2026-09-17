@@ -36,7 +36,7 @@ components:
     - ddtrace/contrib/internal/vllm/*
 suites:
   anthropic:
-    parallelism: 2
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -57,7 +57,7 @@ suites:
         - name: anthropic
           dependencies: [pytest-asyncio, vcrpy, anthropic, 'httpx<0.28.0']
   claude_agent_sdk:
-    parallelism: 3
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -104,7 +104,7 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    parallelism: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -123,7 +123,7 @@ suites:
         - name: google_genai
           dependencies: [pytest-asyncio, google-genai]
   vertexai:
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -153,7 +153,7 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
-    parallelism: 4
+    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       env:
@@ -167,7 +167,7 @@ suites:
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
     retry: 2
-    parallelism: 6
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -232,7 +232,7 @@ suites:
       - tests/cassettes/vertexai/*
       - tests/cassettes/tests.llmobs.*
     snapshot: true
-    venvs_per_job: 1
+    venvs_per_job: 2
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
       env:
@@ -270,7 +270,6 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, mcp]
   mistralai:
-    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -369,7 +368,7 @@ suites:
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
     retry: 2
-    parallelism: 3
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'

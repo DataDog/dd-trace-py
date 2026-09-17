@@ -319,7 +319,7 @@ integrations:
   tested_versions_by_dependency:
     django:
       min: 2.2.28
-      max: 5.2.17
+      max: 6.1.1
 
 - integration_name: dogpile_cache
   is_external_package: true
@@ -367,7 +367,7 @@ integrations:
       max: 9.4.2
     elasticsearch:
       min: 7.13.4
-      max: 9.4.1
+      max: 9.5.0
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0
