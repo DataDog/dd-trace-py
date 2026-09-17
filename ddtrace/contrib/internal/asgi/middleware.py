@@ -101,7 +101,7 @@ def _default_handle_exception_span(exc, span):
 
 
 def _finish_unfinished_llm_spans(request_span: Span) -> None:
-    # AIDEV-NOTE: Streaming LLM spans (LLMObs.llm() around an SSE generator,
+    # NOTE: Streaming LLM spans (LLMObs.llm() around an SSE generator,
     # OpenAI/Anthropic TracedStream, etc.) are often finished only from a
     # generator finally block. If the client disconnects or the generator is
     # abandoned, those spans stay in the SpanAggregator and later requests on
