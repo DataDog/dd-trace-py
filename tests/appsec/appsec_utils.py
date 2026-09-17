@@ -512,12 +512,15 @@ def appsec_application_server(
             print("Server started in %.3fs" % (time.monotonic() - startup_started))
         except Exception as exc:
             # Elapsed time separates a slow contended start from a server that died on import.
+            diagnostics = _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+            # Still running means it stalled rather than died, and its stacks are the only record
+            # of where. A server that died has none, and signalling it would only add noise.
+            if _process_exit_code(server_process) is None:
+                diagnostics += "\n" + _dump_server_stacks(server_process)
             raise AssertionError(
                 "Server failed to start within %.3fs (of a %.1fs budget, override with "
                 "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
-                "above.\n"
-                % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT)
-                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+                "above.\n" % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT) + diagnostics
             ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
