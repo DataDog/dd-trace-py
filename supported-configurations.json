@@ -2519,6 +2519,13 @@
         "default": "1.0"
       }
     ],
+    "DD_LLMOBS_SAMPLING_RULES": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_LOGBOOK_SERVICE": [
       {
         "implementation": "A",
@@ -2996,13 +3003,6 @@
       }
     ],
     "DD_PROFILING_NATIVE_HEAP_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
-    "DD_PROFILING_NATIVE_TESTS": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -3890,6 +3890,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_ANYIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOHTTP_CLIENT_ENABLED": [

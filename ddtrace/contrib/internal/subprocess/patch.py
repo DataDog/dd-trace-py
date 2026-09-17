@@ -9,10 +9,10 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -69,13 +69,12 @@ def patch() -> list[str]:
     should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
     should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
     if should_patch_Popen_init or should_patch_Popen_wait:
-        Pin().onto(subprocess)
         # We store the parameters on __init__ in the context and set the tags on wait
         # (where all the Popen objects eventually arrive, unless killed before it)
         if should_patch_Popen_init:
-            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
+            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init)
         if should_patch_Popen_wait:
-            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
+            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait)
         patched.append("subprocess")
 
     if not asm_config._load_modules:
@@ -89,14 +88,13 @@ def patch() -> list[str]:
     should_patch_spawnvef = spawnvef is not None and not trace_utils.iswrapped(spawnvef)
 
     if should_patch_system or should_patch_fork or should_patch_spawnvef:
-        Pin().onto(os)
         if should_patch_system:
-            trace_utils.wrap(os, "system", _traced_ossystem(os))
+            trace_utils.wrap(os, "system", _traced_ossystem)
         if should_patch_fork:
-            trace_utils.wrap(os, "fork", _traced_fork(os))
+            trace_utils.wrap(os, "fork", _traced_fork)
         if should_patch_spawnvef:
             # all os.spawn* variants eventually use this one:
-            trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
+            trace_utils.wrap(os, "_spawnvef", _traced_osspawn)
         patched.append("os")
 
     return patched
@@ -425,10 +423,6 @@ def unpatch() -> None:
     import os  # nosec
     import subprocess  # nosec
 
-    # Remove Pin objects
-    Pin().remove_from(os)
-    Pin().remove_from(subprocess)
-
     # Unwrap all patched functions
     for obj, attr in [
         (os, "system"),
@@ -445,15 +439,14 @@ def unpatch() -> None:
     SubprocessCmdLine._clear_cache()
 
 
-@trace_utils.with_traced_module
-def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
+def _traced_ossystem(wrapped, instance, args, kwargs):
     """Traced wrapper for os.system function.
 
     Note:
         Only instruments when AAP is enabled and WAF bypass is not active.
         Creates spans with shell command details, exit codes, and component tags.
     """
-    if should_trace_subprocess():
+    if should_trace_subprocess() and is_tracing_enabled():
         try:
             if isinstance(args[0], (str, bytes)):
                 core.dispatch_event(SubprocessCommandEvent(command=args[0], shell=True))  # nosec B604
@@ -474,8 +467,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def _traced_fork(module, pin, wrapped, instance, args, kwargs):
+def _traced_fork(wrapped, instance, args, kwargs):
     """Traced wrapper for os.fork function.
 
     Note:
@@ -483,7 +475,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
         Creates spans with fork operation details.
     """
 
-    if not asm_config._asm_enabled:
+    if not asm_config._asm_enabled or not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     with tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
@@ -492,15 +484,14 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
+def _traced_osspawn(wrapped, instance, args, kwargs):
     """Traced wrapper for os._spawnvef function (used by all os.spawn* variants).
 
     Note:
         Only instruments when AAP is enabled.
         Creates spans with spawn operation details and exit codes for P_WAIT mode.
     """
-    if not asm_config._asm_enabled:
+    if not asm_config._asm_enabled or not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     try:
@@ -524,8 +515,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
         return ret
 
 
-@trace_utils.with_traced_module
-def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
+def _traced_subprocess_init(wrapped, instance, args, kwargs):
     """Wrapper for ``subprocess.Popen.__init__``.
 
     When instrumentation telemetry is on, merges runtime propagation env vars into the
@@ -535,6 +525,9 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     When ASM subprocess tracing is active, records the command for ``Popen.wait`` and
     emits a subprocess span around the real ``__init__``.
     """
+    if not is_tracing_enabled():
+        return wrapped(*args, **kwargs)
+
     if telemetry_config.TELEMETRY_ENABLED:
         # Process tracking is only used in instrumentation telemetry. Skip if telemetry is disabled.
         # ``subprocess.Popen.__init__`` exposes ``env`` as the 11th argument (index 10) for
@@ -580,8 +573,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
+def _traced_subprocess_wait(wrapped, instance, args, kwargs):
     """Traced wrapper for subprocess.Popen.wait method.
 
     Note:
@@ -589,7 +581,7 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
         Retrieves command details stored by _traced_subprocess_init and completes
         the span with execution results and exit code.
     """
-    if should_trace_subprocess():
+    if should_trace_subprocess() and is_tracing_enabled():
         binary = core.find_item("subprocess_popen_binary")
 
         with tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:

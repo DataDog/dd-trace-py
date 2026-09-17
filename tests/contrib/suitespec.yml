@@ -11,6 +11,8 @@ components:
     - ddtrace/ext/kafka.py
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
+  anyio:
+    - ddtrace/contrib/internal/anyio/*
   asgi:
     - ddtrace/contrib/asgi.py
     - ddtrace/contrib/internal/asgi/*
@@ -27,6 +29,8 @@ components:
     - ddtrace/contrib/internal/azure_cosmos/*
   azure_durable_functions:
     - ddtrace/contrib/internal/azure_durable_functions/*
+    - ddtrace/contrib/internal/azure_functions/_worker.py
+    - ddtrace/contrib/internal/azure_functions/shared.py
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
     - ddtrace/ext/azure_eventhubs.py
@@ -424,6 +428,29 @@ suites:
       variants:
         - name: algoliasearch
           dependencies: ['urllib3~=1.26.15', pytest-randomly, 'algoliasearch~=2.6']
+  anyio:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@anyio'
+      - tests/contrib/anyio/*
+    services:
+      - testagent
+    snapshot: false
+    venvs_per_job: 3
+    matrix:
+      command: pytest {cmdargs} tests/contrib/anyio
+      variants:
+        - name: anyio
+          python: ['3.9']
+          dependencies: [pytest-randomly, 'anyio==3.4.0', 'trio<0.22']
+        - name: anyio
+          python: ['3.10']
+          dependencies: [pytest-randomly, 'anyio<4.0', 'trio<0.22']
+        - name: anyio
+          dependencies: [pytest-randomly, anyio, trio]
   aredis:
     parallelism: 1
     paths:
@@ -641,7 +668,6 @@ suites:
       - '@tracing'
       - '@azure_durable_functions'
       - tests/contrib/azure_durable_functions/*
-      - tests/snapshots/tests.contrib.azure_durable_functions.*
     snapshot: true
     services:
       - azurite
@@ -1033,6 +1059,17 @@ suites:
             pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
             -k 'not test_user_name_included and not test_user_name_excluded and not
             test_cached_view' tests/contrib/django
+        - name: django
+          python: ['3.12', '3.13', '3.14', '3.15']
+          dependencies: ['django-redis>=4.5,<4.6', 'django-pylibmc>=0.6,<0.7', daphne, requests, 'redis>=2.10,<2.11', 'psycopg2-binary>=2.8.6', 'pytest-django[testing]==3.10.0', pytest-asyncio, 'setuptools<80', pylibmc, python-memcached, pytest-randomly, spyne, zeep, 'bcrypt==4.2.1', 'django~=6.1', psycopg, channels, django-q2]
+          env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
+            DD_IAST_REQUEST_SAMPLING: '100'
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+          command: >-
+            pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
+            -k 'not test_user_name_included and not test_user_name_excluded and not
+            test_cached_view' tests/contrib/django
         - name: django:celery
           python: ['3.9']
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, 'sqlalchemy~=1.2.18', 'django~=2.2.0']
@@ -1267,6 +1304,7 @@ suites:
       - '@core'
       - '@contrib'
       - '@tracing'
+      - '@anyio'
       - '@starlette'
       - '@fastapi'
       - '@asgi'
@@ -1890,7 +1928,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    parallelism: 6
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -2031,10 +2069,13 @@ suites:
         - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/
       variants:
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'pymemcache~=3.4.2']
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'pymemcache~=3.5']
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pymemcache]
   pymongo:
     paths:
@@ -2654,7 +2695,7 @@ suites:
         - name: logging
           dependencies: [pytest-randomly, pytest-xdist]
   tornado:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'

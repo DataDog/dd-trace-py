@@ -666,7 +666,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
             cls._instance.is_known_tests_enabled(),
         )
 
-    # AIDEV-NOTE: _suspend()/_resume() allow a nested pytest session (e.g. inline_run())
+    # _suspend()/_resume() allow a nested pytest session (e.g. inline_run())
     # or a test fixture to get a clean-slate view of CIVisibility without stopping the
     # outer session's instance.  Unlike calling disable(), _suspend() never calls stop()
     # on the instance, so the outer tracer and telemetry keep running.  Pair them in a
