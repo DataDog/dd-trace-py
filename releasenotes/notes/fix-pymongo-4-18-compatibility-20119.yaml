@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    pymongo: Makes the tracer compatible with PyMongo 4.18.
+    pymongo: Makes the PyMongo instrumentation compatible with PyMongo 4.18.

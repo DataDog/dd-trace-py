@@ -2,6 +2,8 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
+from typing import Any
+
 from ddtrace.contrib.internal.pymongo.patch import get_version
 from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.internal.pymongo.patch import pymongo
@@ -71,24 +73,24 @@ class TestPymongoPatch(PatchTestCase.Base):
     def _assert_async_wrapped(self, assert_method):
         """Assert async methods are wrapped/unwrapped (pymongo >= 4.12 only)."""
         if _VERSION >= (4, 18):
-            assert_method(_AsyncCursorBase._run_with_conn)  # type: ignore[name-defined]
-            assert_method(AsyncPool.checkout)  # type: ignore[name-defined]
-            assert_method(AsyncConnection.command)  # type: ignore[name-defined]
-            assert_method(async_run_bulk_write_command)  # type: ignore[name-defined]
+            assert_method(_AsyncCursorBase._run_with_conn)
+            assert_method(AsyncPool.checkout)
+            assert_method(AsyncConnection.command)
+            assert_method(async_run_bulk_write_command)
         elif _VERSION >= (4, 12):
-            assert_method(AsyncServer.run_operation)  # type: ignore[name-defined]
-            assert_method(AsyncServer.checkout)  # type: ignore[name-defined]
-            assert_method(AsyncConnection.command)  # type: ignore[name-defined]
-            assert_method(AsyncConnection.write_command)  # type: ignore[name-defined]
+            assert_method(AsyncServer.run_operation)
+            assert_method(AsyncServer.checkout)
+            assert_method(AsyncConnection.command)
+            assert_method(AsyncConnection.write_command)
 
-    def assert_module_patched(self, pymongo):
+    def assert_module_patched(self, pymongo: Any) -> None:
         self._assert_sync_wrapped(self.assert_wrapped, pymongo)
         self._assert_async_wrapped(self.assert_wrapped)
 
-    def assert_not_module_patched(self, pymongo):
+    def assert_not_module_patched(self, pymongo: Any) -> None:
         self._assert_sync_wrapped(self.assert_not_wrapped, pymongo)
         self._assert_async_wrapped(self.assert_not_wrapped)
 
-    def assert_not_module_double_patched(self, pymongo):
+    def assert_not_module_double_patched(self, pymongo: Any) -> None:
         self._assert_sync_wrapped(self.assert_not_double_wrapped, pymongo)
         self._assert_async_wrapped(self.assert_not_double_wrapped)

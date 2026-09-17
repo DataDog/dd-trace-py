@@ -1,8 +1,12 @@
 import asyncio
 from typing import Any
+from typing import Mapping
 
 import pymongo
+from pymongo.monitoring import CommandFailedEvent
 from pymongo.monitoring import CommandListener
+from pymongo.monitoring import CommandStartedEvent
+from pymongo.monitoring import CommandSucceededEvent
 import pytest
 
 from ddtrace.contrib.internal.pymongo.patch import patch
@@ -30,15 +34,15 @@ else:
 
 class AsyncCommandCapture(CommandListener):
     def __init__(self) -> None:
-        self.started_commands: list[tuple[str, dict[str, Any]]] = []
+        self.started_commands: list[tuple[str, Mapping[str, Any]]] = []
 
-    def started(self, event):
+    def started(self, event: CommandStartedEvent) -> None:
         self.started_commands.append((event.command_name, event.command))
 
-    def succeeded(self, event):
+    def succeeded(self, event: CommandSucceededEvent) -> None:
         pass
 
-    def failed(self, event):
+    def failed(self, event: CommandFailedEvent) -> None:
         pass
 
 
@@ -52,7 +56,7 @@ class TestAsyncPymongo(AsyncioTestCase):
         unpatch()
 
     @mark_asyncio
-    async def test_async_insert_find(self):
+    async def test_async_insert_find(self) -> None:
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
             db = client["testdb"]
@@ -114,7 +118,7 @@ class TestAsyncPymongo(AsyncioTestCase):
             DD_SERVICE="test_service",
         )
     )
-    async def test_async_dbm_propagation_full_mode(self):
+    async def test_async_dbm_propagation_full_mode(self) -> None:
         command_capture = AsyncCommandCapture()
         client = AsyncMongoClient(port=MONGO_CONFIG["port"], event_listeners=[command_capture])
         try:

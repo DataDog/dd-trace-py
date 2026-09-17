@@ -1,5 +1,10 @@
 # stdlib
 import contextlib
+from types import FunctionType
+from typing import Any
+from typing import Generator
+from typing import Optional
+from typing import cast
 
 # 3p
 import pymongo
@@ -24,6 +29,7 @@ from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.trace import tracer
 
+from .parse import Command
 from .parse import parse_msg
 from .parse import parse_query
 from .parse import parse_spec
@@ -210,7 +216,7 @@ def _trace_socket_command(func, args, kwargs):
         return func(*args, **kwargs)
 
 
-def parse_write_command_msg(socket_instance, msg):
+def parse_write_command_msg(socket_instance: Any, msg: bytes) -> Optional[tuple[Any, Command]]:
     """Parse a raw write command message for tracing."""
     cmd = None
     try:
@@ -224,7 +230,7 @@ def parse_write_command_msg(socket_instance, msg):
     return (socket_instance, cmd)
 
 
-def parse_socket_write_command_msg(args, kwargs):
+def parse_socket_write_command_msg(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[tuple[Any, Command]]:
     """
     Parse socket write command msg.
 
@@ -233,14 +239,14 @@ def parse_socket_write_command_msg(args, kwargs):
         None: if parsing fails or tracing should be skipped
     """
     socket_instance = get_argument_value(args, kwargs, 0, "self")
-    msg = get_argument_value(args, kwargs, 2, "msg")
+    msg = cast(bytes, get_argument_value(args, kwargs, 2, "msg"))
     return parse_write_command_msg(socket_instance, msg)
 
 
-def parse_bulk_write_command(args, kwargs):
+def parse_bulk_write_command(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[tuple[Any, Command]]:
     """Parse a PyMongo 4.18+ bulk write command for tracing."""
     bulk_write_context = get_argument_value(args, kwargs, 0, "bwc")
-    msg = get_argument_value(args, kwargs, 3, "msg")
+    msg = cast(bytes, get_argument_value(args, kwargs, 3, "msg"))
     return parse_write_command_msg(bulk_write_context.conn, msg)
 
 
@@ -257,7 +263,7 @@ def _trace_socket_write_command(func, args, kwargs):
         return result
 
 
-def _trace_bulk_write_command(func, args, kwargs):
+def _trace_bulk_write_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     # Connection.write_command did not handle unacknowledged writes before PyMongo 4.18.
     if kwargs.get("unacknowledged", False):
         return func(*args, **kwargs)
@@ -301,7 +307,7 @@ def trace_cmd(cmd, socket_instance, address):
 
 
 @contextlib.contextmanager
-def traced_get_socket(func, args, kwargs):
+def traced_get_socket(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Generator[Any, None, None]:
     instance = get_argument_value(args, kwargs, 0, "self")
 
     # If the tracer is disabled or the instance is an SDAM monitor pool, we don't trace the checkout.

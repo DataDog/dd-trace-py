@@ -2,6 +2,8 @@
 import contextlib
 from types import FunctionType
 from typing import Any
+from typing import AsyncContextManager
+from typing import AsyncGenerator
 
 import pymongo
 
@@ -54,7 +56,9 @@ async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, 
         return process_server_operation_result(span, operation, result)
 
 
-async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+async def trace_async_server_checkout(
+    func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> AsyncContextManager[Any]:
     """Wrapper for AsyncServer.checkout to trace socket checkout.
 
     AsyncServer.checkout() returns an async context manager. We wrap it to add tracing.
@@ -62,17 +66,19 @@ async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...],
     instance = get_argument_value(args, kwargs, 0, "self")
 
     # Call the original async function which returns an async context manager
-    cm = await func(*args, **kwargs)
+    cm: AsyncContextManager[Any] = await func(*args, **kwargs)
 
     return _trace_async_checkout_context_manager(cm, instance)
 
 
-def trace_async_pool_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+def trace_async_pool_checkout(
+    func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> AsyncContextManager[Any]:
     """Wrapper for AsyncPool.checkout to trace socket checkout."""
     instance = get_argument_value(args, kwargs, 0, "self")
 
     # Call the original function which returns an async context manager
-    cm = func(*args, **kwargs)
+    cm: AsyncContextManager[Any] = func(*args, **kwargs)
 
     # If the instance is an SDAM monitor pool, we do not trace the checkout context manager.
     if getattr(instance, "is_sdam", False):
@@ -81,14 +87,14 @@ def trace_async_pool_checkout(func: FunctionType, args: tuple[Any, ...], kwargs:
     return _trace_async_checkout_context_manager(cm, instance)
 
 
-def _trace_async_checkout_context_manager(cm: Any, instance: Any) -> Any:
+def _trace_async_checkout_context_manager(cm: AsyncContextManager[Any], instance: Any) -> AsyncContextManager[Any]:
     """Wrap an async checkout context manager with tracing."""
     if not tracer.enabled:
         # Return the original context manager unchanged
         return cm
 
     @contextlib.asynccontextmanager
-    async def traced_cm():
+    async def traced_cm() -> AsyncGenerator[Any, None]:
         with create_checkout_span() as span:
             async with cm as sock_info:
                 setup_checkout_span_tags(span, sock_info, instance)
