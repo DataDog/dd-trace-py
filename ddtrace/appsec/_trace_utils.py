@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import TypeVar
@@ -22,9 +23,11 @@ from ddtrace.internal import span_bus
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
+
+if TYPE_CHECKING:
+    from ddtrace._trace.span import Span
 
 log = get_logger(__name__)
 
@@ -59,7 +62,7 @@ def _asm_manual_keep(span: SpanProtocol) -> None:
     span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
 
     # set trace source propagation tag (_dd.p.ts) with the ASM bit
-    add_trace_source(span, TraceSource.ASM)
+    add_trace_source(cast("Span", span), TraceSource.ASM)
 
 
 def _handle_metadata(entry_span: SpanProtocol, prefix: str, metadata: Mapping[str, object]) -> None:
@@ -190,7 +193,7 @@ def track_user_login_success_event(
         role,
         session_id,
         propagate,
-        cast(SpanData, span),
+        cast("Span", span),
         may_block=False,
     )
     if in_asm_context():

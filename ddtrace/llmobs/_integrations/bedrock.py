@@ -12,7 +12,6 @@ from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import DEFAULT_SPAN_DURATION_NS
-from ddtrace.llmobs._integrations.bedrock_agents import _BedrockAgentSpanProtocol
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
 from ddtrace.llmobs._integrations.bedrock_agents import _get_or_create_bedrock_trace_step_span
@@ -193,11 +192,11 @@ class BedrockIntegration(BaseLLMIntegration):
         """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
-        step_spans_by_step_id: dict[str, _BedrockAgentSpanProtocol] = {}
+        step_spans_by_step_id: dict[str, Span] = {}
         # Holds a span whose output event hasn't arrived yet (e.g. modelInvocationInput waiting
         # for its matching modelInvocationOutput).
-        pending_span_by_step_id: dict[str, _BedrockAgentSpanProtocol] = {}
-        child_spans_by_step_id: dict[str, list[_BedrockAgentSpanProtocol]] = {}
+        pending_span_by_step_id: dict[str, Span] = {}
+        child_spans_by_step_id: dict[str, list[Span]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
             if trace_step_id is None:

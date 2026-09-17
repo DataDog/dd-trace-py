@@ -1,16 +1,14 @@
 import contextvars
-from typing import Any
 from typing import Optional
 from typing import Union
-from typing import cast
 
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.native._native import Context
-from ddtrace.internal.native._native import SpanData
 
 
-ContextTypeValue = Optional[Union[Context, SpanData]]
+ContextTypeValue = Optional[Union[Context, Span]]
 
 
 _DD_LLMOBS_CONTEXTVAR: contextvars.ContextVar[ContextTypeValue] = contextvars.ContextVar(
@@ -34,13 +32,13 @@ class LLMObsContextProvider(DefaultContextProvider):
         ctx = _DD_LLMOBS_CONTEXTVAR.get()
         return ctx is not None
 
-    def _update_active(self, span: SpanData) -> Optional[Any]:
+    def _update_active(self, span: Span) -> Optional[Span]:
         """Updates the active LLMObs span.
         The active span is updated to be the span's closest unfinished LLMObs ancestor span.
         """
         if not span.finished:
             return span
-        new_active: Optional[SpanData] = span._parent
+        new_active: Optional[Span] = span._parent
         while new_active:
             if not new_active.finished and new_active.span_type == SpanTypes.LLM:
                 self.activate(new_active)
@@ -52,11 +50,11 @@ class LLMObsContextProvider(DefaultContextProvider):
     def activate(self, ctx: ContextTypeValue) -> None:
         """Makes the given context active in the current execution."""
         _DD_LLMOBS_CONTEXTVAR.set(ctx)
-        super(DefaultContextProvider, self).activate(cast(Any, ctx))
+        super(DefaultContextProvider, self).activate(ctx)
 
-    def active(self) -> Optional[Any]:
+    def active(self) -> ContextTypeValue:
         """Returns the active span or context for the current execution."""
         item = _DD_LLMOBS_CONTEXTVAR.get()
-        if isinstance(item, SpanData):
+        if isinstance(item, Span):
             return self._update_active(item)
         return item
