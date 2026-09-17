@@ -2037,6 +2037,17 @@
                 "tested": [
                     "2.15.1"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.9.2",
+                "tested": [
+                    "2.15.1"
+                ]
             }
         ]
     },
