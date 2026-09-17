@@ -83,8 +83,6 @@ class TraceTool(cherrypy.Tool):
             request_method=cherrypy.request.method,
             request_url=url,
             request_headers=cherrypy.request.headers,
-            # Preserve existing behavior: CherryPy did not trace its query
-            # string.
             query="",
             request_route=None,
             activate_distributed_headers=True,
