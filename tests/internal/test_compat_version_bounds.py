@@ -9,9 +9,13 @@ monitoring-based on 3.15+.
 from __future__ import annotations
 
 import ast
+import importlib
 from pathlib import Path
 import re
 from types import CoroutineType
+from types import FunctionType
+from types import ModuleType
+from typing import cast
 
 import pytest
 
@@ -187,7 +191,7 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
 
 def test_next_max_py_shift_updates_wrap_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
     """is_at_least_py(*NEXT_MAX_PY) and is_at_most_py(*NEXT_MAX_PY) read NEXT_MAX_PY."""
-    import ddtrace.internal.compat as compat
+    compat: ModuleType = importlib.import_module("ddtrace.internal.compat")
 
     monkeypatch.setattr(compat, "NEXT_MAX_PY", (3, 16))
     assert not compat.is_at_least_py(*compat.NEXT_MAX_PY, version=(3, 15))
@@ -212,7 +216,7 @@ def test_wrapping_modules_import() -> None:
 
 
 @pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() trampoline on 3.15")
-def test_wrap_runs_on_315():
+def test_wrap_runs_on_315() -> None:
     from ddtrace.internal.wrapping import wrap
 
     seen: list[object] = []
@@ -224,7 +228,7 @@ def test_wrap_runs_on_315():
     def f() -> int:
         return 7
 
-    wrap(f, wrapper)
+    wrap(cast(FunctionType, f), wrapper)
     assert f() == 7
     assert seen == ["sync"]
 
@@ -237,24 +241,24 @@ def test_wrap_runs_on_315():
         yield 1
         yield 2
 
-    wrap(g, gen_wrapper)
+    wrap(cast(FunctionType, g), gen_wrapper)
     assert list(g()) == [1, 2]
     assert seen == ["sync", "gen"]
 
 
 @pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() coroutine on 3.15")
 @pytest.mark.asyncio
-async def test_wrap_coroutine_on_315():
+async def test_wrap_coroutine_on_315() -> None:
     from ddtrace.internal.wrapping import wrap
 
     seen: list[object] = []
 
     def wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
-        result = wrapped(*args, **kwargs)
+        result: object = wrapped(*args, **kwargs)
         if isinstance(result, CoroutineType):
 
             async def _await(coro):  # noqa: ANN001, ANN202
-                value = await coro
+                value: object = await coro
                 seen.append(value)
                 return value
 
@@ -265,14 +269,14 @@ async def test_wrap_coroutine_on_315():
     async def c() -> int:
         return 42
 
-    wrap(c, wrapper)
+    wrap(cast(FunctionType, c), wrapper)
     assert await c() == 42
     assert seen == [42]
 
 
-def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
+def test_wrap_raises_not_implemented_on_future_py(monkeypatch: pytest.MonkeyPatch) -> None:
     """wrap() must fail closed from 3.16 on."""
-    import ddtrace.internal.wrapping as wrapping
+    wrapping: ModuleType = importlib.import_module("ddtrace.internal.wrapping")
 
     fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
     monkeypatch.setattr(wrapping, "PY", fail_close)
@@ -290,27 +294,27 @@ def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
 
 
 @pytest.mark.skipif(not _WRAP_ON_315, reason="lazy module wrap on 3.15")
-def test_lazy_module_decorator_without_bytecode_wrap():
-    import tests.internal.lazy as lazy_module
+def test_lazy_module_decorator_without_bytecode_wrap() -> None:
+    lazy_module: ModuleType = importlib.import_module("tests.internal.lazy")
 
     assert lazy_module.new_value == 42
 
 
-def test_exec_lazy_init_without_source():
+def test_exec_lazy_init_without_source() -> None:
     from ddtrace.internal.lazy import _exec_lazy_init
 
     ns: dict[str, object] = {}
     exec(compile("def init():\n    exported = 123\n", "<test>", "exec"), ns)
     module_globals: dict[str, object] = {"__name__": "test_lazy_init"}
-    _exec_lazy_init(ns["init"], module_globals)
+    _exec_lazy_init(cast(FunctionType, ns["init"]), module_globals)
     assert module_globals["exported"] == 123
 
 
 @pytest.mark.skipif(not _WRAP_ON_315, reason="debugging products load on 3.15")
-def test_debugging_products_load_without_failure():
+def test_debugging_products_load_without_failure() -> None:
     from ddtrace.internal.products import ProductManager
 
-    product_manager = ProductManager()
+    product_manager: ProductManager = ProductManager()
     product_manager._load_products()
     for product_name in (
         "code-origin-for-spans",
@@ -322,7 +326,7 @@ def test_debugging_products_load_without_failure():
 
 
 @pytest.mark.skipif(not _WRAP_ON_315, reason="inject_hook on 3.15")
-def test_inject_hook_does_not_raise_on_315():
+def test_inject_hook_does_not_raise_on_315() -> None:
     from ddtrace.internal.bytecode_injection import inject_hook
     from ddtrace.internal.utils.inspection import linenos
 
@@ -332,4 +336,4 @@ def test_inject_hook_does_not_raise_on_315():
     def hook(_arg: object) -> None:
         return None
 
-    inject_hook(f, hook, min(linenos(f)), None)
+    inject_hook(cast(FunctionType, f), hook, min(linenos(f)), None)

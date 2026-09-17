@@ -277,8 +277,8 @@ else:
                 continue
             code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
-    _INJECT_HOOK_OPCODE_POS = 1 if is_at_least_py(3, 11) and is_at_most_py(3, 12) else 0
-    _INJECT_ARG_OPCODE_POS = 1 if is_at_most_py(3, 10) else 2
+    _INJECT_HOOK_OPCODE_POS: int = 1 if is_at_least_py(3, 11) and is_at_most_py(3, 12) else 0
+    _INJECT_ARG_OPCODE_POS: int = 1 if is_at_most_py(3, 10) else 2
 
     def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
         """Eject a hook from the abstract code object at the given line number.

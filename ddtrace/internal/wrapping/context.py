@@ -444,7 +444,7 @@ elif sys.version_info >= (3, 9):
 # (3.15+) the stack is:
 #   monitored function → monitoring._on_py_start → uwc.on_py_start → __enter__
 # so the monitored frame is three levels up.
-_ENTER_FRAME_DEPTH = 3 if is_at_least_py(3, 15) else 1
+_ENTER_FRAME_DEPTH: int = 3 if is_at_least_py(3, 15) else 1
 
 if is_at_least_py(3, 15):
     from ddtrace.internal import monitoring as _monitoring
