@@ -176,11 +176,11 @@ Datadog::UploaderBuilder::build()
                                       join(reasons, ", ") };
     }
 
-    auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(to_rust_str(g_library_name),
-                                                                          to_rust_str(state.profiler_version),
-                                                                          to_rust_str(family),
+    auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(strings::bytes(g_library_name),
+                                                                          strings::bytes(state.profiler_version),
+                                                                          strings::bytes(family),
                                                                           std::move(tags),
-                                                                          to_rust_str(state.url),
+                                                                          strings::bytes(state.url),
                                                                           state.max_timeout_ms,
                                                                           false);
     if (!exporter_result->ok()) {

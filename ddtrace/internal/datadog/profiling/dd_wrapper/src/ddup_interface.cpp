@@ -107,7 +107,7 @@ ddup_profile_set_endpoints(
     }
     auto& profile = maybe_borrowed->profile;
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
-        profile.add_endpoint(static_cast<std::uint64_t>(span_id), Datadog::to_rust_str(trace_endpoint));
+        profile.add_endpoint(static_cast<std::uint64_t>(span_id), Datadog::strings::bytes(trace_endpoint));
     }
 }
 
@@ -128,6 +128,6 @@ ddup_profile_add_endpoint_counts(
     }
     auto& profile = maybe_borrowed->profile;
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
-        profile.add_endpoint_count(Datadog::to_rust_str(trace_endpoint), count);
+        profile.add_endpoint_count(Datadog::strings::bytes(trace_endpoint), count);
     }
 }

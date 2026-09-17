@@ -103,7 +103,7 @@ Datadog::Uploader::upload_unlocked()
     if (!code_provenance_json.empty()) {
         files_to_compress.reserve(1);
         files_to_compress.push_back(ddprof::AttachmentFile{
-          rust::Str("code-provenance.json"),
+          strings::bytes("code-provenance.json"),
           { reinterpret_cast<const std::uint8_t*>(code_provenance_json.data()), code_provenance_json.size() },
         });
     }
@@ -125,9 +125,9 @@ Datadog::Uploader::upload_unlocked()
                               ->send_encoded_profile_with_cancellation(std::move(encoded),
                                                                        std::move(files_to_compress),
                                                                        std::move(additional_tags),
-                                                                       to_rust_str(process_tags),
-                                                                       to_rust_str(internal_metadata_json),
-                                                                       to_rust_str(info_json),
+                                                                       strings::bytes(process_tags),
+                                                                       strings::bytes(internal_metadata_json),
+                                                                       strings::bytes(info_json),
                                                                        *cancel_for_request);
         if (!status.check_and_print()) {
             profile_exporter.reset();
