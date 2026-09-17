@@ -3532,7 +3532,7 @@ venv = Venv(
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
+                            pys=select_pys(min_version="3.11", max_version="3.14"),
                             pkgs={"confluent-kafka": latest},
                         ),
                     ],
