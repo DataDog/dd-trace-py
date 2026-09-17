@@ -45,7 +45,7 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
     if "__code__" not in dir(code_to_instr):
         return
 
-    original_code = code_to_instr.__code__  # type: CodeType
+    original_code: CodeType = code_to_instr.__code__
 
     if is_obfuscated_code(original_code):
         log.warning(
