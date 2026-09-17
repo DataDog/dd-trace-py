@@ -1,5 +1,3 @@
-import sys
-
 import flask
 import opentelemetry
 
@@ -28,5 +26,7 @@ def otel():
 
 @app.route("/shutdown")
 def shutdown():
+    # See the note in tests/contrib/flask/app.py: sys.exit would only end the worker thread, and
+    # the shared flask_client fixture requires this response.
     ddtrace.tracer.shutdown()
-    sys.exit(0)
+    return "shutdown"
