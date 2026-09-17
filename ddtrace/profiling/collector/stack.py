@@ -177,7 +177,8 @@ class StackCollector(collector.Collector):
         # we drain it here, on the scheduler thread, before every upload.
         foreign_handler: typing.Optional[tuple[bool, str]] = stack.take_foreign_segv_handler()
         if foreign_handler is not None:
-            already_owned, owner = foreign_handler
+            already_owned: bool = foreign_handler[0]
+            owner: str = foreign_handler[1]
             # Not a failure: profiling continues, just on the slower copy. The owner is named so
             # the component responsible can be identified without having to reproduce this.
             LOG.warning(

@@ -1575,7 +1575,7 @@ def test_snapshot_emits_foreign_segv_handler_telemetry(already_owned: bool, expe
                 stack.StackCollector.snapshot()
 
     mock_add_log.assert_called_once()
-    call_args = mock_add_log.call_args
+    call_args: mock._Call = mock_add_log.call_args
     assert call_args[0][0] == TELEMETRY_LOG_LEVEL.WARNING
     assert call_args[0][1] == "Another component owns the SIGSEGV/SIGBUS handler"
     tags: dict[str, str] = call_args[1]["tags"]

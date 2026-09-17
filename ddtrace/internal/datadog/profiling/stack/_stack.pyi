@@ -21,7 +21,7 @@ def take_sampling_thread_error() -> Optional[tuple[str, str]]:
 def take_foreign_segv_handler() -> Optional[tuple[bool, str]]:
     """Return and clear (already_owned, owner) for a foreign SIGSEGV/SIGBUS handler.
 
-    `owner` names the current owner of each signal. `already_owned` is True when the
+    owner names the current owner of each signal. already_owned is True when the
     handler was already foreign at the end of the fast-copy warmup window, and False
     when it was taken over after the sampler had upgraded to safe_memcpy.
 
