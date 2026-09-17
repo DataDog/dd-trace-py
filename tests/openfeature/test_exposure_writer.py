@@ -202,6 +202,29 @@ class TestExposureWriter:
         assert headers["DD-EVP-ORIGIN-VERSION"]
         assert "X-Datadog-EVP-Subdomain" not in headers
 
+    @pytest.mark.parametrize("flush_method", ["periodic", "on_shutdown"])
+    @pytest.mark.parametrize("status", [202, 302, 400, 429, 503])
+    def test_direct_exposure_flush_does_not_read_response_body(self, sample_exposure_event, flush_method, status):
+        response = mock.Mock(status=status)
+        connection = mock.Mock()
+        connection.getresponse.return_value = response
+        selector = _route_selector(source=AGENTLESS, endpoints=(), api_key="secret")
+        writer = ExposureWriter(
+            route_selector=selector,
+            connection_factory=mock.Mock(return_value=connection),
+        )
+        writer.enqueue(sample_exposure_event)
+
+        getattr(writer, flush_method)()
+
+        # The response body is irrelevant to delivery. In particular, shutdown
+        # must not wait for it even after the intake has already accepted a batch.
+        response.read.assert_not_called()
+        connection.request.assert_called_once()
+        connection.close.assert_called_once()
+        assert writer._buffer == []
+        assert selector.select().direct is True
+
     def test_agentless_definitive_local_rejection_replays_direct(self, sample_exposure_event):
         mock_get_connection = mock.Mock()
         local_conn = mock.Mock()

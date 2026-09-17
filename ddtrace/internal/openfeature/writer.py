@@ -240,7 +240,10 @@ class ExposureWriter(PeriodicService):
             try:
                 conn.request("POST", endpoint, payload, headers)
                 resp = conn.getresponse()
-                response: Response = Response.from_http_response(resp)
+                # Only the status determines delivery. Draining a direct response body
+                # can block the synchronous shutdown flush: stdlib socket timeouts are
+                # not a total deadline when the response keeps making progress.
+                response = Response(status=resp.status)
                 if response.status >= 300:
                     logger.debug(
                         "failed to send %d exposure events to %s%s, got response code %d",

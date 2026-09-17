@@ -117,12 +117,13 @@ def get_evp_connection(
     timeout: float,
     connection_factory: Callable[..., Any] = get_connection,
 ) -> Any:
-    """Return a connection for ``route``, tunneling direct HTTPS through the configured proxy.
+    """Return a connection for route, tunneling direct HTTPS through the configured proxy.
 
-    The shared native connection follows redirects automatically, so direct
-    event delivery deliberately uses ``HTTPSConnection``. Its request API does
-    not follow redirects, keeping ``DD-API-KEY`` confined to the validated
-    intake origin. A non-default factory remains available for isolated tests.
+    Direct delivery uses HTTPSConnection to support DD_PROXY_HTTPS as well as
+    standard proxy settings. It does not follow redirects, keeping DD-API-KEY
+    confined to the validated intake origin. The native Hyper backend used by
+    local delivery also does not follow redirects. A non-default factory remains
+    available for isolated tests.
     """
     if not route.direct:
         return connection_factory(route.intake, timeout=timeout)
