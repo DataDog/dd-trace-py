@@ -20,6 +20,11 @@ _PROVIDERS = {
     "gemini": ("gcp", "gemini-api"),
 }
 _VERTEX_HOST = re.compile(r"(?:[a-z0-9-]+-)?aiplatform\.googleapis\.com")
+# Keep this explicit: an arbitrary subdomain does not establish the billing provider.
+# Regional endpoints: https://developers.openai.com/api/docs/guides/your-data
+_OPENAI_REGIONAL_HOSTS = {
+    f"{region}.api.openai.com": region for region in ("us", "eu", "au", "ca", "jp", "in", "sg", "kr", "gb", "ae")
+}
 _ENUMS = {
     "service_tier": {"auto", "default", "standard", "priority", "flex", "scale"},
     "speed": {"standard", "fast"},
@@ -104,7 +109,7 @@ def cache_tags(data: Any, prefix: str) -> dict[str, str]:
     return tags
 
 
-def route_tags(data: Any, previous: Optional[dict[str, str]] = None) -> dict[str, str]:
+def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers: Any = None) -> dict[str, str]:
     tags: dict[str, str] = {}
     previous = previous or {}
     model = label(get(data, "model")) or previous.get("ai.route.model")
@@ -126,25 +131,51 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None) -> dict[str
     ):
         if value := label(get(data, key)) or previous.get(f"ai.route.{key}"):
             tags[f"ai.route.{key}"] = value
+    # Only the provider pre-call hook supplies headers, never ingress request headers.
+    # Select non-secret OpenAI scope IDs without retaining authorization or other headers.
+    if provider == "openai" and "ai.route.project" in previous:
+        tags["ai.route.project"] = previous["ai.route.project"]
+    if provider == "openai" and isinstance(headers, Mapping):
+        scope: dict[str, set[Optional[str]]] = {}
+        if len(headers) <= 128:
+            for key, value in headers.items():
+                if isinstance(key, str) and key.lower() in ("openai-organization", "openai-project"):
+                    scope.setdefault(key.lower().removeprefix("openai-"), set()).add(label(value))
+        else:
+            scope = {"organization": {None}, "project": {None}}
+        for key, values in scope.items():
+            value = next(iter(values)) if len(values) == 1 else None
+            if value is not None:
+                tags[f"ai.route.{key}"] = value
+            else:
+                tags.pop(f"ai.route.{key}", None)
     endpoint = get(data, "api_base") or get(data, "base_url") or get(data, "aws_bedrock_runtime_endpoint")
     if not endpoint and previous.get("ai.route.endpoint_host"):
         endpoint = "https://" + previous["ai.route.endpoint_host"]
     host = None
-    if isinstance(endpoint, str):
+    if endpoint is not None:
         try:
-            parsed = urlsplit(endpoint)
-            if parsed.scheme in ("http", "https"):
-                host = label(parsed.hostname)
+            if isinstance(endpoint, str):
+                parsed = urlsplit(endpoint)
+                if parsed.scheme in ("http", "https"):
+                    host = label(parsed.hostname)
+            elif get(endpoint, "scheme") in ("http", "https"):
+                # LiteLLM's OpenAI adapter also exposes parsed httpx URL objects.
+                # Never stringify them: paths, queries and userinfo can contain secrets.
+                host = label(get(endpoint, "host"))
         except ValueError:
             pass
         if host:
+            host = host.lower()
             tags["ai.route.endpoint_host"] = host
+            if provider == "openai" and host in _OPENAI_REGIONAL_HOSTS:
+                tags["ai.route.endpoint_region"] = _OPENAI_REGIONAL_HOSTS[host]
     # A provider adapter can point at another gateway. Only known endpoints/defaults
     # identify the billing provider; never assume every OpenAI-compatible API is OpenAI.
     official = endpoint is None or (
         host is not None
         and (
-            (provider == "openai" and host == "api.openai.com")
+            (provider == "openai" and (host == "api.openai.com" or host in _OPENAI_REGIONAL_HOSTS))
             or (provider == "anthropic" and host == "api.anthropic.com")
             or (provider == "azure" and host.endswith((".openai.azure.com", ".services.ai.azure.com")))
             or (provider == "bedrock" and host.startswith("bedrock-runtime.") and host.endswith(".amazonaws.com"))
@@ -158,6 +189,8 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None) -> dict[str
         tags["ai.billing.provider_source"] = "selected_route"
         if provider == "openai" and "ai.route.organization" in tags:
             tags["ai.billing.account_id"] = tags["ai.route.organization"]
+        if provider == "openai" and "ai.route.project" in tags:
+            tags["ai.billing.project_id"] = tags["ai.route.project"]
         if provider == "vertex_ai" and "ai.route.vertex_project" in tags:
             tags["ai.billing.project_id"] = tags["ai.route.vertex_project"]
     return tags

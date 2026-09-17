@@ -145,12 +145,14 @@ Collected dimensions
    * - ``ai.billing.provider``, ``ai.billing.account_id``, ``ai.billing.product``
      - Provider and product inferred for recognized OpenAI, Anthropic, Azure,
        Bedrock, Vertex AI, and Gemini routes using known endpoints or adapter
-       defaults. Explicit OpenAI organization is also collected. Operator mappings
+       defaults, including recognized OpenAI regional endpoints. Explicit OpenAI
+       organization is also collected. Operator mappings
        override these values; ``ai.billing.provider_source`` records provenance.
        An arbitrary OpenAI-compatible endpoint does not imply OpenAI billing.
    * - ``ai.billing.project_id``, ``ai.billing.resource_id``, ``ai.billing.api_key_id``
      - Optional configured project/workspace, cloud resource, and non-secret
-       provider key ID. Explicit Vertex AI project is collected automatically;
+       provider key ID. Explicit Vertex AI project and OpenAI project from outgoing
+       ``OpenAI-Project`` headers are collected automatically;
        it is not substituted for the GCP billing account.
    * - ``ai.billing.geography``, ``ai.billing.mode``
      - Configured billing geography and processing mode. A response-resolved
@@ -161,9 +163,13 @@ Collected dimensions
        model including version/pricing suffixes. Selected route model is a
        fallback when the response omits its model.
    * - ``ai.route.*``
-     - Selected provider/model, endpoint hostname only, OpenAI organization,
+     - Selected provider/model, endpoint hostname only, OpenAI endpoint region,
+       OpenAI organization/project,
        Vertex project/location, AWS region/Bedrock project, region name and API
-       version, where exposed. Location is not assumed to be billed geography.
+       version, where exposed. Outgoing provider endpoints and non-secret OpenAI
+       scope headers take precedence over route defaults. Authorization and other
+       headers, URL paths, queries, and user information are not retained.
+       Endpoint residency and execution location are not assumed to be billed geography.
    * - ``ai.request.*``, ``ai.effective.*`` pricing settings
      - Selected service tier, speed, reasoning effort, image quality/size,
        inference geography, prompt-cache retention, number of outputs, embedding
@@ -199,6 +205,40 @@ Collected dimensions
    * - ``ai.attribution.status``, ``ai.attribution.issues``, ``ai.usage.source``
      - Collection completeness, missing/ambiguous dimensions, and usage provenance.
        ``observed`` means dimensions were collected, not invoice-exact billing.
+
+Cost-join inputs
+^^^^^^^^^^^^^^^^
+
+These fields retain inputs for provider-specific cost allocation, rather than
+performing the join inside the gateway:
+
+* ``usage_timestamp`` comes from span time, while ``billing_provider``,
+  ``billing_account_id``, and ``billing_product`` use the corresponding
+  ``ai.billing.*`` dimensions. Operator mappings are still needed when opaque
+  credentials do not reveal the account or product.
+* ``resource_scope`` uses project/workspace or resource identifiers, and
+  ``api_key_id`` uses the configured non-secret provider key ID. They are only
+  needed for billing slices scoped that way; account-wide allocation does not
+  require every optional scope field. A Bedrock profile ARN remains intact in
+  ``ai.route.model``; do not remove routing prefixes before extracting scope.
+* ``model_id`` retains raw route/response models and optional billing mappings.
+  ``usage_type`` and ``usage_amount`` are encoded together in named numeric
+  counters, with tokens, requests, counts or seconds in the metric name. Do not
+  add overlapping ``ai.observed.*`` diagnostics to ``ai.usage.*`` quantities.
+* ``processing_mode`` and ``billing_geography`` can use configured billing fields
+  together with response-resolved tier/speed/geography, outgoing settings and raw
+  route/endpoint scope. Missing settings remain unknown, not standard or global.
+* ``context_band`` can be classified downstream from each request's
+  ``ai.observed.context_tokens`` (including caches), raw model and applicable
+  provider pricing rules **before** aggregation. There is no universal threshold
+  and session size is not a substitute for request context.
+* ``billing_sku`` is a cost-side lookup, not a required gateway field. Map the
+  observed dimensions to the provider's SKU or composite billing item downstream.
+
+Usage coverage must match the billing slice, or allocation needs an authoritative
+denominator and an unattributed remainder. Never distribute an entire shared-key
+bill only among the users whose requests were observed. Credits, fees, seats and
+provisioned capacity require separate allocation rules, not token weights.
 
 Coverage and limitations
 ^^^^^^^^^^^^^^^^^^^^^^^^

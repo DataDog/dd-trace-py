@@ -4,6 +4,7 @@ from datetime import timezone
 import time
 from types import SimpleNamespace
 
+import httpx
 from litellm import ModelResponse
 from litellm import Usage
 import pytest
@@ -723,4 +724,111 @@ def test_vertex_billing_provider_requires_a_complete_official_hostname(host):
 def test_vertex_lookalike_host_does_not_identify_billing_provider(host):
     assert "ai.billing.provider" not in route_tags(
         {"custom_llm_provider": "vertex_ai", "api_base": f"https://{host}/v1"}
+    )
+
+
+@pytest.mark.parametrize("region", ["us", "eu", "au", "ca", "jp", "in", "sg", "kr", "gb", "ae"])
+def test_openai_regional_endpoint_preserves_scope_without_assuming_billing_geography(region):
+    tags = route_tags({"model": "openai/gpt-4o", "api_base": f"https://{region}.api.openai.com/v1"})
+    assert tags["ai.billing.provider"] == "openai"
+    assert tags["ai.route.endpoint_region"] == region
+    assert "ai.billing.geography" not in tags
+
+
+@pytest.mark.parametrize(
+    "host",
+    ["us.api.openai.com.evil.test", "evil.us.api.openai.com", "unknown.api.openai.com", "us.api.openai.com@evil.test"],
+)
+def test_openai_regional_lookalike_is_not_an_official_endpoint(host):
+    tags = route_tags({"model": "openai/gpt-4o", "api_base": f"https://{host}/v1"})
+    assert "ai.billing.provider" not in tags
+    assert "ai.route.endpoint_region" not in tags
+
+
+@pytest.mark.parametrize("parsed", [False, True])
+@pytest.mark.parametrize("sdk_options", [False, True])
+async def test_outgoing_endpoint_and_scope_override_route_defaults_and_reach_apm(
+    tracer, test_spans, parsed, sdk_options
+):
+    callback = make_callback(sink=DatadogSink(tracer))
+    data = await start(callback, data={"headers": {"OpenAI-Project": "spoofed"}, "project": "spoofed"})
+    await callback.async_pre_call_deployment_hook(
+        {**data, "model": "openai/gpt-4o", "organization": "org-default", "model_info": {"id": "dep-1"}}, "completion"
+    )
+    url = httpx.URL("https://PRIVATE:PRIVATE@eu.api.openai.com/PRIVATE?key=PRIVATE#PRIVATE")
+    headers = {
+        "OpenAI-Organization": "org-outgoing",
+        "oPeNaI-pRoJeCt": "proj-outgoing",
+        "Authorization": "Bearer PRIVATE",
+        "X-User-Email": "PRIVATE",
+    }
+    callback.log_pre_api_call(
+        None,
+        "PRIVATE",
+        {
+            "litellm_params": data,
+            "additional_args": {
+                "api_base": url._uri_reference if parsed else str(url),
+                "headers": {"Authorization": "Bearer PRIVATE"} if sdk_options else headers,
+                "complete_input_dict": {"extra_headers": headers} if sdk_options else {},
+            },
+        },
+    )
+    await finish(callback, data, response(Usage(prompt_tokens=200001, completion_tokens=2)))
+    span = test_spans.pop()[0]
+    assert span.get_tag("ai.route.endpoint_host") == "eu.api.openai.com"
+    assert span.get_tag("ai.route.endpoint_region") == "eu"
+    assert span.get_tag("ai.billing.provider") == "openai"
+    assert span.get_tag("ai.billing.account_id") == "org-outgoing"
+    assert span.get_tag("ai.billing.project_id") == "proj-outgoing"
+    assert span.get_metric("ai.observed.context_tokens") == 200001
+    assert "PRIVATE" not in repr(span)
+    assert "spoofed" not in repr(span)
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"OpenAI-Project": "sk-secret", "OpenAI-Organization": "Bearer secret"},
+        {"OpenAI-Project": ["secret"], "OpenAI-Organization": "org-\nsecret"},
+        {
+            "OpenAI-Project": "proj-1",
+            "openai-project": "proj-2",
+            "OpenAI-Organization": "org-1",
+            "openai-organization": "org-2",
+        },
+        {str(i): "secret" for i in range(129)},
+    ],
+)
+def test_invalid_or_ambiguous_outgoing_scope_does_not_reuse_defaults(headers):
+    tags = route_tags(
+        {"model": "openai/gpt-4o", "organization": "org-default"},
+        {"ai.route.project": "proj-default"},
+        headers=headers,
+    )
+    assert "ai.billing.account_id" not in tags
+    assert "ai.billing.project_id" not in tags
+    assert "secret" not in repr(tags)
+
+
+def test_openai_scope_headers_are_not_billing_scope_on_custom_or_other_provider_endpoints():
+    for route in (
+        {"model": "openai/gpt-4o", "api_base": "https://gateway.example/v1"},
+        {"model": "azure/gpt-4o"},
+    ):
+        tags = route_tags(route, headers={"OpenAI-Organization": "org-1", "OpenAI-Project": "proj-1"})
+        assert "ai.billing.account_id" not in tags
+        assert "ai.billing.project_id" not in tags
+
+
+def test_arbitrary_endpoint_objects_are_not_stringified():
+    class Endpoint:
+        scheme = "https"
+        host = "us.api.openai.com"
+
+        def __str__(self):
+            raise AssertionError("Do not stringify URLs containing secrets")
+
+    assert (
+        route_tags({"model": "openai/gpt-4o", "api_base": Endpoint()})["ai.route.endpoint_host"] == "us.api.openai.com"
     )

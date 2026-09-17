@@ -272,18 +272,31 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         # allowlisted settings in the outgoing payload; never retain messages or kwargs.
         try:
             token = self._token(kwargs)
-            payload = get(kwargs.get("additional_args"), "complete_input_dict")
+            additional = kwargs.get("additional_args")
+            payload = get(additional, "complete_input_dict")
             effective = request_tags(payload, "ai.effective")
             effective.update(cache_tags(payload, "ai.effective"))
             if value := label(get(payload, "model")):
                 effective["ai.effective.model"] = value
             params = kwargs.get("litellm_params")
-            route = ChainMap(kwargs, params if isinstance(params, dict) else {})
+            route = ChainMap(
+                additional if isinstance(additional, dict) else {},
+                kwargs,
+                params if isinstance(params, dict) else {},
+            )
+            # OpenAI's async adapter puts per-request scope headers in SDK options,
+            # while its synchronous adapter also exposes them in additional_args.
+            extra_headers = get(payload, "extra_headers")
+            headers = get(additional, "headers")
+            outgoing_headers = ChainMap(
+                extra_headers if isinstance(extra_headers, dict) else {},
+                headers if isinstance(headers, dict) else {},
+            )
             with self._lock:
                 self._ensure_process()
                 state = self._pending.get(token) if token is not None else None
                 if state:
-                    state.route = route_tags(route, state.route)
+                    state.route = route_tags(route, state.route, headers=outgoing_headers)
                     state.effective = effective
         except Exception:
             log.warning("Gateway request attribution failed; usage coverage is incomplete")

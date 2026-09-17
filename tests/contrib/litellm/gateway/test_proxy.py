@@ -61,7 +61,7 @@ def gateway(tmp_path_factory):
             if self.path == "/v0.4/traces":
                 return self.do_PUT()
             data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            provider_requests.append(data)
+            provider_requests.append({**data, "observed_project_header": self.headers.get("OpenAI-Project")})
             if self.path == "/v1/embeddings":
                 self.respond(
                     {
@@ -270,6 +270,7 @@ def gateway(tmp_path_factory):
                     "api_key": "sk-SYNTHETIC-PROVIDER-SECRET",
                     "api_base": f"{local}/v1",
                     "organization": "org-router",
+                    "extra_headers": {"OpenAI-Project": "proj-router"},
                     "timeout": 5,
                 },
                 "model_info": {"id": deployment},
@@ -471,6 +472,7 @@ async def test_real_proxy_and_wire_traces(gateway):
         assert span["meta"]["ai.route.provider"] == "openai"
         assert span["meta"]["ai.route.endpoint_host"] == "127.0.0.1"
         assert span["meta"]["ai.route.organization"] == "org-router"
+        assert span["meta"]["ai.route.project"] == "proj-router"
         assert span["meta"]["ai.request.service_tier"] == "priority"
         assert span["meta"]["ai.effective.service_tier"] == "priority"
     serialized = json.dumps(spans)
@@ -484,6 +486,7 @@ async def test_real_proxy_and_wire_traces(gateway):
         assert secret not in serialized
     assert all(s["parent_id"] != 0 for s in spans)
     assert len(upstream) == 5  # 3 successes + initial fallback failure + final error
+    assert all(request["observed_project_header"] == "proj-router" for request in upstream)
 
 
 @pytest.mark.parametrize("stream", [False, True])

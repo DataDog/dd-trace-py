@@ -42,7 +42,9 @@ billing account from the model provider. The public opt-in entry point is
 `_gateway_metadata.py` allowlists selected-route and pricing inputs, distinguishing
 ingress from provider-transformed outgoing settings. Never dump logging kwargs,
 infer a billing account from opaque credentials, or equate execution region with
-billed geography. Explicit modality counters stay diagnostic when their overlap
+billed geography. Only outgoing provider headers may supply non-secret OpenAI
+organization/project IDs; do not read ingress headers or stringify endpoint objects.
+Explicit modality counters stay diagnostic when their overlap
 with caching is unknown. Cache-control TTLs are not per-TTL token quantities.
 The constructor keeps both legacy and current LiteLLM message-logging flags off;
 the ordinary SDK matrix also imports/tests the callback against older LiteLLM.
