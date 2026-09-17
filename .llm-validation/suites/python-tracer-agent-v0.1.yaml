@@ -154,3 +154,41 @@ cases:
     bad_signals:
       - Claims Python threads run CPU-bound work fully in parallel on CPython.
       - Invents a non-existent GIL-removal flag as the standard fix.
+
+  # Starter case for the dd-apm-sdk-review skill (one pattern on purpose).
+  # only_warn until calibrated — runs=3 is too noisy for a new blocking case
+  # (see config.yaml comment on python-tracer-testing-mandate-001).
+  - id: py-design-contrib-product-coupling
+    only_warn: true
+    files:
+      - AGENTS.md
+      - .agents/skills/dd-apm-sdk-review/reviewers/design.md
+      - .agents/skills/dd-apm-sdk-review/reviewers/_common.md
+      - .agents/dd-apm-sdk-review-overrides/reviewers/design.md
+    input: |
+      Apply this repo's design-review criteria (reviewers/design.md, its
+      .agents/dd-apm-sdk-review-overrides/reviewers/design.md override, _common.md,
+      and AGENTS.md) to the following change. There is no git repository to
+      inspect — this diff is the entire change set. Open the contributor docs
+      the override names; do not invent layering rules.
+
+      ```diff
+      diff --git a/ddtrace/contrib/internal/fakedb/patch.py b/ddtrace/contrib/internal/fakedb/patch.py
+      @@ -0,0 +1,11 @@
+      +from ddtrace.trace import Span
+      +from ddtrace.appsec._processor import AppSecSpanProcessor
+      +
+      +def wrap_execute(func, args, kwargs):
+      +    span = Span(name="fakedb.query")
+      +    AppSecSpanProcessor().on_span_start(span)
+      +    span.set_tag("db.statement", args[0])
+      +    return func(*args, **kwargs)
+      ```
+    expected_criteria:
+      - "Opens or cites docs/contributing-design.rst, docs/contributing-integrations.rst, and/or .cursor/rules/isolated-responsibility.mdc — the docs the design override points at — rather than inventing a layering rule."
+      - "Flags that a contrib patch must not create or tag a Span, and must not import an AppSec type — that is product logic inside an integration."
+      - "Recommends the core event bus (contrib emits via core.dispatch; the security product listens) instead of the AppSec import."
+    bad_signals:
+      - "Approves the AppSec import if it is optional, behind a try/except, or gated on a flag."
+      - "Treats the Span construction or AppSec import as a style or naming nit."
+      - "Asks for a Cython rewrite or a benchmark of this snippet."
