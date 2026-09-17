@@ -456,8 +456,8 @@ def appsec_application_server(
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
     env["PYTHONFAULTHANDLER"] = "1"
-    env["MALLOC_PERTURB_"] = "glibc.malloc.tcache_max=0"
-    env["GLIBC_TUNABLES"] = "255"
+    env["MALLOC_PERTURB_"] = "255"
+    env["GLIBC_TUNABLES"] = "glibc.malloc.tcache_max=0"
     env["MALLOC_CHECK_"] = "3"
 
     subprocess_kwargs = {
