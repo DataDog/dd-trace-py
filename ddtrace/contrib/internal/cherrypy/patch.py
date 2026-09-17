@@ -160,10 +160,7 @@ class TraceTool(cherrypy.Tool):
                 # For now, default resource is method and path:
                 #   GET /
                 #   POST /save
-                span.resource = "{} {}".format(
-                    cherrypy.request.method,
-                    cherrypy.request.path_info,
-                )
+                span.resource = f"{cherrypy.request.method} {cherrypy.request.path_info}"
 
             status_code, _, _ = valid_status(cherrypy.response.status)
             event.response_status_code = status_code
@@ -186,8 +183,4 @@ class TraceMiddleware:
                 removal_version="5.0.0",
             )
 
-        self.app.tools.tracer = TraceTool(
-            app,
-            service,
-            distributed_tracing,
-        )
+        self.app.tools.tracer = TraceTool(app, service, distributed_tracing)
