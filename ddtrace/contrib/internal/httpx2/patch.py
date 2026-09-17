@@ -19,6 +19,7 @@ config._add(  # type: ignore[no-untyped-call]
     },
 )
 
+# Reuse the common patcher so sync and async httpx2 clients stay instrumented consistently.
 _patcher = HttpxPatcher(httpx2, config.httpx2)
 
 
