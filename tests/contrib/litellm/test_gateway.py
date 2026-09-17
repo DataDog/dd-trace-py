@@ -8,6 +8,9 @@ from litellm import ModelResponse
 from litellm import Usage
 import pytest
 
+from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
+from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
+from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
 from ddtrace.contrib.internal.litellm._gateway_usage import BillingScope
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
 from ddtrace.contrib.internal.litellm._gateway_usage import UsageRecord
@@ -367,14 +370,14 @@ def test_invalid_file_configuration_fails_closed(tmp_path, monkeypatch, config):
     with patch("ddtrace.contrib.internal.litellm.gateway.log.warning") as warning:
         callback = configured_callback()
     warning.assert_called_once_with(
-        "Invalid gateway attribution configuration; billing and optional identity enrichment disabled"
+        "Invalid gateway attribution configuration; billing mappings and optional identity enrichment disabled"
     )
     assert not callback._routes
     assert not callback._capture_email
     assert not callback._auth_metadata_keys
 
 
-def test_missing_configuration_keeps_identity_only(monkeypatch):
+def test_missing_configuration_disables_operator_mappings(monkeypatch):
     monkeypatch.delenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", raising=False)
     assert not configured_callback()._routes
     monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", "/nonexistent/attribution-config.json")
@@ -441,3 +444,254 @@ async def test_response_property_errors_are_not_exported():
     assert records[0].tags["ai.attribution.issues"] == "unsupported_callback_shape"
     assert "PRIVATE PROMPT" not in repr(records)
     assert "sk-secret" not in repr(records)
+
+
+@pytest.mark.parametrize(
+    "data,provider,product",
+    [
+        ({"model": "anthropic/claude-sonnet-4-20250514"}, "anthropic", "platform-api"),
+        ({"model": "openai/gpt-4o", "organization": "org-real"}, "openai", "api"),
+        ({"model": "bedrock/us.anthropic.claude", "aws_region_name": "us-east-1"}, "aws", "bedrock"),
+        ({"custom_llm_provider": "vertex_ai", "vertex_project": "project-real"}, "gcp", "vertex-ai"),
+        ({"custom_llm_provider": "azure", "api_base": "https://my-resource.openai.azure.com/"}, "azure", "foundry"),
+        ({"custom_llm_provider": "gemini"}, "gcp", "gemini-api"),
+    ],
+)
+def test_automatic_route_dimensions(data, provider, product):
+    tags = route_tags({**data, "api_key": "sk-PRIVATE", "vertex_credentials": "PRIVATE credentials"})
+    assert tags["ai.billing.provider"] == provider
+    assert tags["ai.billing.product"] == product
+    assert tags["ai.billing.provider_source"] == "selected_route"
+    assert "ai.billing.geography" not in tags  # Routing region may differ from billed geography.
+    assert "PRIVATE" not in repr(tags)
+    if "organization" in data:
+        assert tags["ai.billing.account_id"] == "org-real"
+    if "vertex_project" in data:
+        assert tags["ai.billing.project_id"] == "project-real"
+        assert "ai.billing.account_id" not in tags  # Project is not the GCP billing account.
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["https://gateway.example/v1", "https://api.openai.com.evil.test/v1", "not-a-url", "https://["]
+)
+def test_compatible_or_invalid_endpoint_does_not_imply_billing_provider(endpoint):
+    tags = route_tags({"model": "openai/gpt-4o", "api_base": endpoint})
+    assert tags["ai.route.provider"] == "openai"
+    assert "ai.billing.provider" not in tags
+
+
+def test_endpoint_exports_host_only_and_effective_endpoint_replaces_default():
+    tags = route_tags(
+        {"model": "openai/gpt-4o", "api_base": "https://user:PRIVATE@api.openai.com/PRIVATE?key=PRIVATE#PRIVATE"}
+    )
+    assert tags["ai.route.endpoint_host"] == "api.openai.com"
+    assert "PRIVATE" not in repr(tags)
+    tags = route_tags({"api_base": "https://gateway.example/v1"}, tags)
+    assert "ai.billing.provider" not in tags
+    assert tags["ai.route.provider"] == "openai"
+
+
+def test_pricing_allowlist_and_bounded_cache_scan():
+    data = {
+        "service_tier": "auto",
+        "speed": "fast",
+        "reasoning": {"effort": "high"},
+        "dimensions": 256,
+        "n": True,
+        "quality": "PRIVATE",
+        "messages": [
+            {"content": [{"text": "PRIVATE", "cache_control": {"type": "ephemeral", "ttl": "1h"}}]},
+        ],
+        "system": [{"cache_control": {"type": "ephemeral"}, "text": "PRIVATE"}],
+        "api_key": "sk-PRIVATE",
+        "metadata": {"cache_control": {"type": "ephemeral", "ttl": "PRIVATE"}},
+    }
+    tags = request_tags(data, "ai.request")
+    tags.update(cache_tags(data, "ai.request"))
+    assert tags == {
+        "ai.request.service_tier": "auto",
+        "ai.request.speed": "fast",
+        "ai.request.reasoning_effort": "high",
+        "ai.request.dimensions": "256",
+        "ai.request.prompt_cache_ttls": "1h,5m",
+    }
+    assert cache_tags({"content": [{"cachePoint": {"type": "default", "ttl": "1h"}}]}, "x") == {
+        "x.prompt_cache_ttls": "1h"
+    }
+    data["messages"] = [data] * 1000
+    assert cache_tags(data, "x")["x.prompt_cache_scan"] == "incomplete"
+
+
+async def test_effective_settings_do_not_reuse_ingress_or_previous_route_settings():
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback, data={"service_tier": "priority", "cache_control": {"type": "ephemeral", "ttl": "1h"}})
+    await callback.async_pre_call_deployment_hook(
+        {**data, "model": "anthropic/claude", "model_info": {"id": "first"}}, "completion"
+    )
+    callback.log_pre_api_call(
+        None,
+        "PRIVATE",
+        {
+            "litellm_params": data,
+            "additional_args": {
+                "complete_input_dict": {"service_tier": "flex", "cache_control": {"type": "ephemeral"}}
+            },
+        },
+    )
+    await callback.async_pre_call_deployment_hook(
+        {**data, "model": "openai/gpt-4o", "model_info": {"id": "dep-1"}}, "completion"
+    )
+    callback.log_pre_api_call(
+        None,
+        "PRIVATE",
+        {
+            "litellm_params": data,
+            "additional_args": {"complete_input_dict": {"service_tier": "auto", "reasoning_effort": "high"}},
+        },
+    )
+    await finish(callback, data, response(Usage(prompt_tokens=10, completion_tokens=2)))
+    tags = records[0].tags
+    assert tags["ai.billing.provider"] == "openai"
+    assert tags["ai.request.prompt_cache_ttls"] == "1h"
+    assert "ai.effective.prompt_cache_ttls" not in tags
+    assert tags["ai.effective.service_tier"] == "auto"
+    assert tags["ai.effective.reasoning_effort"] == "high"
+    assert "ai.billing.mode" not in tags
+    assert "PRIVATE" not in repr(records)
+
+
+def test_multimodal_counters_survive_ambiguous_partition():
+    result = normalize_usage(
+        {
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "prompt_tokens_details": {
+                "text_tokens": 70,
+                "audio_tokens": 20,
+                "image_tokens": 10,
+                "cached_tokens": 5,
+                "cache_write_tokens": 10,
+                "cache_creation_token_details": {"ephemeral_1h_input_tokens": 10},
+                "audio_length_seconds": 2.5,
+                "video_length_seconds": 1.25,
+                "image_count": 2,
+                "character_count": 500,
+                "tool_use_tokens": 12,
+                "google_maps_grounding_requests": 1,
+            },
+            "completion_tokens_details": {"audio_tokens": 20, "reasoning_tokens": 5},
+            "server_tool_use": {"web_search_requests": 2, "browser_open_requests": 3},
+        }
+    )
+    assert result.quantities == {}
+    assert result.issues == {"multimodal_partition_unsupported"}
+    for key, expected in {
+        "input_text_tokens": 70,
+        "input_audio_tokens": 20,
+        "input_image_tokens": 10,
+        "input_cache_read_tokens": 5,
+        "input_cache_write_tokens": 10,
+        "input_cache_write_1h_tokens": 10,
+        "input_audio_length_seconds": 2.5,
+        "input_video_length_seconds": 1.25,
+        "input_image_count": 2,
+        "input_character_count": 500,
+        "input_tool_use_tokens": 12,
+        "output_audio_tokens": 20,
+        "output_reasoning_tokens": 5,
+        "web_search_requests": 2,
+        "browser_open_requests": 3,
+        "google_maps_grounding_requests": 1,
+    }.items():
+        assert result.diagnostics[key] == expected
+
+
+@pytest.mark.parametrize("duration", [float("nan"), float("inf"), -1, True, "2.5"])
+def test_invalid_modality_duration_is_not_exported(duration):
+    result = normalize_usage(
+        {"prompt_tokens": 1, "completion_tokens": 1, "prompt_tokens_details": {"audio_length_seconds": duration}}
+    )
+    assert result.issues == {"invalid_usage"}
+    assert "input_audio_length_seconds" not in result.diagnostics
+
+
+def test_prompt_only_embeddings_and_tool_counts_without_double_counting():
+    result = normalize_usage({"prompt_tokens": 123}, "aembedding")
+    assert result.quantities["input_uncached_tokens"] == 123
+    assert "output_tokens" not in result.quantities
+    assert not result.issues
+    result = normalize_usage(
+        {
+            "prompt_tokens": 10,
+            "completion_tokens": 1,
+            "server_tool_use": {"web_search_requests": 2},
+            "prompt_tokens_details": {"web_search_requests": 2},
+        }
+    )
+    assert result.quantities["web_search_requests"] == 2
+    assert result.diagnostics["web_search_requests"] == 2
+    result = normalize_usage(
+        {
+            "prompt_tokens": 10,
+            "completion_tokens": 1,
+            "server_tool_use": {"web_search_requests": 2},
+            "prompt_tokens_details": {"web_search_requests": 3},
+        }
+    )
+    assert "conflicting_tool_usage" in result.issues
+    assert "web_search_requests" not in result.quantities
+
+
+def test_native_provider_pricing_settings_are_not_lost_in_translation():
+    tags = request_tags(
+        {
+            "serviceTier": {"type": "flex"},
+            "performanceConfig": {"latency": "optimized"},
+            "generationConfig": {"thinkingConfig": {"thinkingBudget": 1024}, "maxOutputTokens": 2048},
+            "web_search_options": {"search_context_size": "high", "user_location": "PRIVATE"},
+        },
+        "ai.effective",
+    )
+    assert tags == {
+        "ai.effective.service_tier": "flex",
+        "ai.effective.performance_latency": "optimized",
+        "ai.effective.thinking_budget_tokens": "1024",
+        "ai.effective.max_output_tokens": "2048",
+        "ai.effective.web_search_context_size": "high",
+    }
+
+
+async def test_response_route_mismatch_drops_stale_automatic_dimensions():
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await callback.async_pre_call_deployment_hook(
+        {**data, "model": "openai/gpt-4o", "organization": "org-stale", "model_info": {"id": "first"}}, "completion"
+    )
+    await finish(callback, data, response(Usage(prompt_tokens=1, completion_tokens=1), deployment="different"))
+    assert "ai.billing.account_id" not in records[0].tags
+    assert "ai.route.model" not in records[0].tags
+    assert "selected_route_metadata_mismatch" in records[0].tags["ai.attribution.issues"]
+
+
+async def test_new_metadata_hooks_never_fail_the_request(monkeypatch, caplog):
+    def fail(*args):
+        raise RuntimeError("PRIVATE")
+
+    callback = make_callback()
+    data = await start(callback)
+    monkeypatch.setattr("ddtrace.contrib.internal.litellm.gateway.route_tags", fail)
+    await callback.async_pre_call_deployment_hook(data, "completion")
+    callback.log_pre_api_call(None, None, data)
+    assert "PRIVATE" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "field,value", [("image_count", 2), ("audio_length_seconds", 2.5), ("video_length_seconds", 1.25)]
+)
+def test_non_token_modality_units_do_not_imply_text_only_usage(field, value):
+    result = normalize_usage({"prompt_tokens": 10, "prompt_tokens_details": {field: value}}, "aembedding")
+    assert result.quantities == {}
+    assert result.diagnostics[f"input_{field}"] == value
+    assert result.issues == {"multimodal_partition_unsupported"}

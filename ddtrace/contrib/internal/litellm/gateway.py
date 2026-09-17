@@ -1,8 +1,10 @@
 """LiteLLM proxy adapter. No identity or billing scope is trusted from client metadata."""
 
+from collections import ChainMap
 from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import datetime
 import json
 import os
@@ -17,6 +19,9 @@ import uuid
 from litellm.integrations.custom_logger import CustomLogger
 
 from ddtrace import tracer
+from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
+from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
+from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
 from ddtrace.contrib.internal.litellm._gateway_usage import BillingScope
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
 from ddtrace.contrib.internal.litellm._gateway_usage import Usage
@@ -41,6 +46,8 @@ SUPPORTED_CALLS = {
     "anthropic_messages",
     "responses",
     "aresponses",
+    "embedding",
+    "aembedding",
 }
 
 
@@ -54,6 +61,8 @@ class Pending:
     multimodal: bool = False
     deployment: Optional[str] = None
     attempts: int = 0
+    route: dict[str, str] = field(default_factory=dict)
+    effective: dict[str, str] = field(default_factory=dict)
 
 
 def _has_nontext_input(data: dict[str, Any]) -> bool:
@@ -167,6 +176,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             "ai.operation": call_type,
             "ai.timezone": "UTC",
         }
+        tags.update(request_tags(data, "ai.request"))
+        tags.update(cache_tags(data, "ai.request"))
         for source, target in (
             ("user_id", "usr.id"),
             ("team_id", "team.id"),
@@ -240,13 +251,40 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
     async def async_pre_call_deployment_hook(self, kwargs: dict[str, Any], call_type: str) -> None:
         # AIDEV-NOTE: LiteLLM calls this AFTER routing overwrites model_info with the selected
         # deployment, not at the untrusted ingress metadata boundary.
-        token = self._token(kwargs)
-        with self._lock:
-            self._ensure_process()
-            state = self._pending.get(token) if token is not None else None
-            if state:
-                state.deployment = label(get(kwargs.get("model_info"), "id"))
-                state.attempts += 1
+        try:
+            token = self._token(kwargs)
+            route = route_tags(kwargs)
+            with self._lock:
+                self._ensure_process()
+                state = self._pending.get(token) if token is not None else None
+                if state:
+                    state.deployment = label(get(kwargs.get("model_info"), "id"))
+                    state.attempts += 1
+                    state.route = route
+                    state.effective = {}  # Do not reuse an earlier failed deployment's settings.
+        except Exception:
+            log.warning("Gateway route attribution failed; usage coverage is incomplete")
+
+    def log_pre_api_call(self, model: Any, messages: Any, kwargs: dict[str, Any]) -> None:
+        # LiteLLM has now applied defaults and provider transformations. Inspect only
+        # allowlisted settings in the outgoing payload; never retain messages or kwargs.
+        try:
+            token = self._token(kwargs)
+            payload = get(kwargs.get("additional_args"), "complete_input_dict")
+            effective = request_tags(payload, "ai.effective")
+            effective.update(cache_tags(payload, "ai.effective"))
+            if value := label(get(payload, "model")):
+                effective["ai.effective.model"] = value
+            params = kwargs.get("litellm_params")
+            route = ChainMap(kwargs, params if isinstance(params, dict) else {})
+            with self._lock:
+                self._ensure_process()
+                state = self._pending.get(token) if token is not None else None
+                if state:
+                    state.route = route_tags(route, state.route)
+                    state.effective = effective
+        except Exception:
+            log.warning("Gateway request attribution failed; usage coverage is incomplete")
 
     def _take(self, data: Any) -> Optional[Pending]:
         with self._lock:
@@ -272,6 +310,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                 "ai.request.outcome": "unknown",
             },
         )
+        tags.update(state.route)
+        tags.update(state.effective)
         self._emit(UsageRecord(state.start, time.time(), tags, Usage(), state.parent))
 
     async def async_log_success_event(
@@ -295,6 +335,11 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             usage.issues.add("multimodal_partition_unsupported")
         issues = set(usage.issues)
         tags = dict(state.tags)
+        if not deployment or not state.deployment or deployment == state.deployment:
+            tags.update(state.route)
+            tags.update(state.effective)
+        else:
+            issues.add("selected_route_metadata_mismatch")
         tags["ai.request.outcome"] = "success"
         tags["ai.usage.source"] = "litellm_normalized"
         usage.diagnostics["attempts"] = state.attempts
@@ -306,8 +351,11 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         if deployment:
             tags["ai.gateway.deployment_id"] = deployment
         if scope:
+            if tags.get("ai.billing.provider") != scope.provider:
+                tags = {key: value for key, value in tags.items() if not key.startswith("ai.billing.")}
             tags.update(scope.tags())
-        else:
+            tags["ai.billing.provider_source"] = "operator_mapping"
+        if not all(f"ai.billing.{key}" in tags for key in ("provider", "account_id", "product")):
             issues.add("billing_scope_unknown")
         if state.dynamic_credentials:
             issues.add("client_credentials_or_endpoint")
@@ -317,10 +365,13 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         model = label(get(response, "model"))
         if model:
             tags["ai.response.model"] = model
-        billed_model = scope.model if scope and scope.model else model
+        route_model = tags.get("ai.route.model")
+        billed_model = scope.model if scope and scope.model else model or route_model
         if billed_model:
             tags["ai.model"] = billed_model
-            tags["ai.model.source"] = "operator_mapping" if scope and scope.model else "response"
+            tags["ai.model.source"] = (
+                "operator_mapping" if scope and scope.model else "response" if model else "selected_route"
+            )
         else:
             issues.add("model_unknown")
         # Only a response-resolved tier is evidence. A requested 'auto' tier is not.
@@ -374,6 +425,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                     "ai.usage.source": "unavailable",
                 },
             )
+            tags.update(state.route)
+            tags.update(state.effective)
             self._emit(UsageRecord(state.start, time.time(), tags, Usage(), state.parent, error=True))
 
     def close(self) -> None:
@@ -402,5 +455,7 @@ def configured_callback() -> GatewayAttribution:
             raise ValueError("Invalid gateway attribution configuration")
         return GatewayAttribution(**config)
     except (OSError, TypeError, ValueError):
-        log.warning("Invalid gateway attribution configuration; billing and optional identity enrichment disabled")
+        log.warning(
+            "Invalid gateway attribution configuration; billing mappings and optional identity enrichment disabled"
+        )
         return GatewayAttribution()

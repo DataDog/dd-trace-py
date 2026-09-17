@@ -36,7 +36,7 @@ Gateway usage attribution
 
 For a customer-operated LiteLLM proxy, the optional gateway callback records
 content-free ``ai_gateway.usage`` APM spans. It combines authenticated gateway
-identity with response usage and operator-supplied billing dimensions. It runs
+identity with response usage, selected-route metadata and optional billing mappings. It runs
 inside the gateway process: installing an Agent alongside the gateway alone
 cannot recover authenticated identity from encrypted upstream traffic.
 
@@ -78,8 +78,10 @@ not trusted sources of identity.
 
    Optional path to an operator-controlled JSON file, read once when the callback
    is loaded. Without it, the callback still collects authenticated user IDs and
-   response usage, but billing scope remains unknown. An invalid file disables
-   billing and optional identity enrichment without blocking gateway requests.
+   response usage, selected-route dimensions, and allowlisted pricing settings.
+   Billing dimensions that cannot be established from the route remain unknown.
+   An invalid file disables operator mappings and optional identity enrichment
+   without blocking gateway requests.
 
    Example:
 
@@ -141,29 +143,59 @@ Collected dimensions
    * - ``usr.email``, ``ai.enrichment.<key>``
      - Optional authenticated email and allowlisted authenticated metadata.
    * - ``ai.billing.provider``, ``ai.billing.account_id``, ``ai.billing.product``
-     - Operator-maintained billing source, account, and product for the selected
-       deployment. The billing provider need not be the model manufacturer.
+     - Provider and product inferred for recognized OpenAI, Anthropic, Azure,
+       Bedrock, Vertex AI, and Gemini routes using known endpoints or adapter
+       defaults. Explicit OpenAI organization is also collected. Operator mappings
+       override these values; ``ai.billing.provider_source`` records provenance.
+       An arbitrary OpenAI-compatible endpoint does not imply OpenAI billing.
    * - ``ai.billing.project_id``, ``ai.billing.resource_id``, ``ai.billing.api_key_id``
-     - Optional project/workspace, cloud resource, and non-secret provider key ID.
+     - Optional configured project/workspace, cloud resource, and non-secret
+       provider key ID. Explicit Vertex AI project is collected automatically;
+       it is not substituted for the GCP billing account.
    * - ``ai.billing.geography``, ``ai.billing.mode``
      - Configured billing geography and processing mode. A response-resolved
        ``service_tier`` overrides configured mode; requested tiers, execution
        location, and an ``auto`` tier are not inferred billing evidence.
    * - ``ai.model``, ``ai.model.source``, ``ai.response.model``
      - Billing-model mapping or raw response model, provenance, and raw response
-       model including version/pricing suffixes.
+       model including version/pricing suffixes. Selected route model is a
+       fallback when the response omits its model.
+   * - ``ai.route.*``
+     - Selected provider/model, endpoint hostname only, OpenAI organization,
+       Vertex project/location, AWS region/Bedrock project, region name and API
+       version, where exposed. Location is not assumed to be billed geography.
+   * - ``ai.request.*``, ``ai.effective.*`` pricing settings
+     - Allowlisted service tier, speed, reasoning effort, image quality/size,
+       inference geography, prompt-cache retention, number of outputs, embedding
+       dimensions, thinking budgets, search context size, Bedrock performance
+       latency and output limits. Ingress settings and outgoing provider-payload
+       settings are separate; neither implies a returned quantity or billed mode.
+   * - ``ai.request.prompt_cache_ttls``, ``ai.effective.prompt_cache_ttls``
+     - Cache-control TTLs found at ingress and in the outgoing provider payload,
+       including the five-minute default for an explicit cache-control block.
+       This is provider prompt caching, not the gateway response-cache TTL.
+       Mixed TTLs do not establish per-TTL token quantities. Structural scans are
+       bounded and set ``prompt_cache_scan:incomplete`` if truncated.
    * - ``ai.gateway.deployment_id``, ``ai.request.id``, ``ai.response.id``
      - Selected deployment, generated logical request ID, and response ID when
        provided. IDs do not imply that billing exports support request-level joins.
    * - ``ai.usage.*_tokens``
      - Disjoint uncached input, cache-read input, cache-write input by 5-minute,
        1-hour, or unknown TTL, and output. Missing usage is not replaced by zero.
-   * - ``ai.usage.web_search_requests``, ``ai.usage.tool_search_requests``
-     - Tool request counts, only when present in response usage. Units are requests,
+   * - ``ai.usage.web_search_requests``, ``ai.usage.tool_search_requests``,
+       ``ai.usage.browser_open_requests``, ``ai.usage.google_maps_grounding_requests``
+     - Tool counts from response usage, without adding duplicate native and
+       normalized counts. Conflicting values are flagged. Units are requests,
        not tokens; not every gateway/provider response exposes them.
    * - ``ai.observed.context_tokens``, ``ai.observed.reasoning_output_tokens``
      - Per-request input including caches, and reasoning as a subset of output.
        These diagnostics must not be added to the disjoint usage quantities.
+   * - ``ai.observed.input_*``, ``ai.observed.output_*`` and tool counters
+     - Explicit text/audio/image/video tokens, cached and cache-write tokens,
+       per-TTL writes, reasoning/prediction/tool tokens, character/image counts,
+       and audio/video duration in seconds when present in usage. Fractional
+       seconds are preserved. These may overlap each other and ``ai.usage.*``;
+       they remain available even when multimodal allocation is ambiguous.
    * - ``ai.attribution.status``, ``ai.attribution.issues``, ``ai.usage.source``
      - Collection completeness, missing/ambiguous dimensions, and usage provenance.
        ``observed`` means dimensions were collected, not invoice-exact billing.
@@ -171,7 +203,7 @@ Collected dimensions
 Coverage and limitations
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Chat/text completions, native Anthropic Messages, and OpenAI Responses are
+* Chat/text completions, native Anthropic Messages, OpenAI Responses, and embeddings are
   observed at the logical gateway request boundary. Streaming uses the completed
   callback only; the callback neither consumes nor buffers the stream.
 * Usage is LiteLLM-normalized, not a preserved raw provider billing record.
@@ -183,6 +215,14 @@ Coverage and limitations
 * Client-supplied credentials or endpoint overrides suppress configured billing
   scope. Multimodal usage is diagnostic-only when disjoint categories cannot be
   established. Unknown cache-write TTL is never assumed to be five minutes.
+* Opaque credentials do not reveal billing-account or non-secret provider-key IDs.
+  Use operator mappings for these and for billing geography, custom endpoints,
+  deployment classes, or products not established by the selected route. Outgoing
+  settings depend on LiteLLM exposing its provider payload; absent fields are not
+  copied from the ingress request and mislabeled as effective settings.
+* Standalone image generation, speech/transcription, video, batch jobs, and
+  asynchronous job lifecycle APIs are not covered by this callback. Modality
+  counters on supported chat, Responses and embedding requests are collected.
 * The callback retains bounded, process-local state: at most 10,000 requests, with
   a one-hour expiry checked on new requests. Eviction and graceful shutdown emit
   incomplete records. Forked workers discard inherited requests. Abrupt process

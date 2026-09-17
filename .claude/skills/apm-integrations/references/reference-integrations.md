@@ -38,3 +38,9 @@ with prompt/response extraction, trust client metadata as identity, or infer a
 billing account from the model provider. The public opt-in entry point is
 `ddtrace.contrib.litellm.gateway_attribution`; its proxy tests live under
 `tests/contrib/litellm/gateway/`.
+
+`_gateway_metadata.py` allowlists selected-route and pricing inputs, distinguishing
+ingress from provider-transformed outgoing settings. Never dump logging kwargs,
+infer a billing account from opaque credentials, or equate execution region with
+billed geography. Explicit modality counters stay diagnostic when their overlap
+with caching is unknown. Cache-control TTLs are not per-TTL token quantities.

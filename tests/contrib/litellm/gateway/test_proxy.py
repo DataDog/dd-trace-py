@@ -62,6 +62,16 @@ def gateway(tmp_path_factory):
                 return self.do_PUT()
             data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             provider_requests.append(data)
+            if self.path == "/v1/embeddings":
+                self.respond(
+                    {
+                        "object": "list",
+                        "model": "text-embedding-3-small",
+                        "data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2]}],
+                        "usage": {"prompt_tokens": 12, "total_tokens": 12},
+                    }
+                )
+                return
             if self.path == "/v1/messages":
                 message = {
                     "id": "msg_local",
@@ -190,6 +200,8 @@ def gateway(tmp_path_factory):
                 "prompt_tokens_details": {"cached_tokens": 40},
                 "completion_tokens_details": {"reasoning_tokens": 5},
             }
+            if data["model"] == "gpt-4o-modal":
+                usage["prompt_tokens_details"] = {"text_tokens": 70, "image_tokens": 30, "cached_tokens": 5}
             base = {
                 "id": "chatcmpl-local-test",
                 "model": "gpt-4o-2024-08-06",
@@ -247,6 +259,8 @@ def gateway(tmp_path_factory):
         ("fail-model", "gpt-4o-failing", "failed-deployment"),
         ("fallback-model", "gpt-4o", "fallback-deployment"),
         ("error-model", "gpt-4o-failing", "error-deployment"),
+        ("embedding-model", "text-embedding-3-small", "embedding-deployment"),
+        ("multimodal-model", "gpt-4o-modal", "multimodal-deployment"),
     ]:
         models.append(
             {
@@ -255,6 +269,7 @@ def gateway(tmp_path_factory):
                     "model": f"openai/{model}",
                     "api_key": "sk-SYNTHETIC-PROVIDER-SECRET",
                     "api_base": f"{local}/v1",
+                    "organization": "org-router",
                     "timeout": 5,
                 },
                 "model_info": {"id": deployment},
@@ -402,6 +417,7 @@ async def test_real_proxy_and_wire_traces(gateway):
             "model": model,
             "messages": [{"role": "user", "content": "PRIVATE PROMPT"}],
             "stream": stream,
+            "service_tier": "priority",
             "user": "SPOOFED USER",
             "metadata": {
                 "user_api_key_user_id": "SPOOFED USER",
@@ -452,6 +468,11 @@ async def test_real_proxy_and_wire_traces(gateway):
         assert span["metrics"]["ai.usage.input_cache_read_tokens"] == 40
         assert span["metrics"]["ai.usage.output_tokens"] == 25
         assert span["metrics"]["ai.observed.context_tokens"] == 100
+        assert span["meta"]["ai.route.provider"] == "openai"
+        assert span["meta"]["ai.route.endpoint_host"] == "127.0.0.1"
+        assert span["meta"]["ai.route.organization"] == "org-router"
+        assert span["meta"]["ai.request.service_tier"] == "priority"
+        assert span["meta"]["ai.effective.service_tier"] == "priority"
     serialized = json.dumps(spans)
     for secret in (
         "PRIVATE PROMPT",
@@ -477,7 +498,18 @@ async def test_native_coding_agent_endpoints(gateway, stream):
                 "model": "test-claude",
                 "max_tokens": 100,
                 "stream": stream,
-                "messages": [{"role": "user", "content": "PRIVATE PROMPT"}],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "PRIVATE PROMPT",
+                                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                            }
+                        ],
+                    }
+                ],
             },
         )
         assert claude.status_code == 200, claude.text
@@ -510,3 +542,54 @@ async def test_native_coding_agent_endpoints(gateway, stream):
         assert s["metrics"]["ai.usage.input_cache_read_tokens"] == 40
         assert s["metrics"]["ai.usage.output_tokens"] == 25
         assert s["meta"]["usr.id"] == ("alice" if s["meta"]["ai.operation"] == "anthropic_messages" else "bob")
+        if s["meta"]["ai.operation"] == "anthropic_messages":
+            assert s["meta"]["ai.request.prompt_cache_ttls"] == "1h"
+            assert s["meta"]["ai.effective.prompt_cache_ttls"] == "1h"
+            assert s["meta"]["ai.effective.max_tokens"] == "100"
+
+
+async def test_embeddings_and_multimodal_wire_counters(gateway):
+    url, traces, _ = gateway
+    before = {s["span_id"] for t in traces for s in t}
+    async with httpx.AsyncClient(timeout=20) as client:
+        embedding = await client.post(
+            f"{url}/v1/embeddings",
+            headers={"Authorization": "Bearer test-alice"},
+            json={"model": "embedding-model", "input": "PRIVATE EMBEDDING INPUT", "dimensions": 2},
+        )
+        assert embedding.status_code == 200, embedding.text
+        modal = await client.post(
+            f"{url}/v1/chat/completions",
+            headers={"Authorization": "Bearer test-bob"},
+            json={
+                "model": "multimodal-model",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [{"type": "image_url", "image_url": {"url": "https://example.test/PRIVATE_IMAGE"}}],
+                    }
+                ],
+            },
+        )
+        assert modal.status_code == 200, modal.text
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [
+            s for t in list(traces) for s in t if s.get("name") == "ai_gateway.usage" and s["span_id"] not in before
+        ]
+        if len(spans) >= 2:
+            break
+        await asyncio.sleep(0.2)
+    assert len(spans) == 2, spans
+    embedding = next(s for s in spans if s["meta"]["usr.id"] == "alice")
+    assert embedding["meta"]["ai.operation"] in ("embedding", "aembedding")
+    assert embedding["meta"]["ai.effective.dimensions"] == "2"
+    assert embedding["metrics"]["ai.usage.input_uncached_tokens"] == 12
+    modal = next(s for s in spans if s["meta"]["usr.id"] == "bob")
+    assert modal["metrics"]["ai.observed.input_image_tokens"] == 30
+    assert modal["metrics"]["ai.observed.input_text_tokens"] == 70
+    assert modal["metrics"]["ai.observed.input_cache_read_tokens"] == 5
+    assert "ai.usage.input_uncached_tokens" not in modal["metrics"]
+    assert "ai.billing.provider" not in modal["meta"]  # Custom endpoint with no mapping.
+    assert "PRIVATE" not in json.dumps(spans)
