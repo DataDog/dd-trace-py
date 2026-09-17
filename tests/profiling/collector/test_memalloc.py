@@ -77,7 +77,7 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
 def _assert_valid_memory_samples(
     profile: "pprof_pb2.Profile", heap_space_idx: int, alloc_space_idx: int, alloc_count_idx: int
 ) -> None:
-    # AIDEV-NOTE: ddup profiles combine process-wide sample types, so a valid non-memory sample can have zero for
+    # NOTE: ddup profiles combine process-wide sample types, so a valid non-memory sample can have zero for
     # every memory value. Only apply memory invariants to samples that carry a heap or allocation value.
     memory_samples = [
         sample for sample in profile.sample if sample.value[heap_space_idx] != 0 or sample.value[alloc_space_idx] != 0
