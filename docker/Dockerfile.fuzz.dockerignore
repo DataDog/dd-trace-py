@@ -7,6 +7,7 @@ __pycache__/
 .hatch/
 .mypy_cache/
 .pytest_cache/
+.riot/
 .ruff_cache/
 .tox/
 *.egg-info/

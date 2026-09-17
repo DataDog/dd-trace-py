@@ -25,6 +25,8 @@ from packaging.version import Version
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(PROJECT_ROOT))
 
+from mappings import DEPENDENCY_TO_INTEGRATION_MAPPING  # noqa: E402
+from mappings import EXCLUDED_FROM_TESTING  # noqa: E402
 from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: E402
 
 from tests.suitespec import TestEnvironment  # noqa: E402
@@ -203,24 +205,48 @@ def is_concrete_python_version(python_version: str) -> bool:
     return PYTHON_VERSION_RE.match(python_version) is not None
 
 
+def get_environment_integration_names(
+    environment: TestEnvironment,
+    environment_integration_names: set[str],
+    known_integration_names: set[str],
+) -> set[str]:
+    """Return integrations exercised by an environment's direct dependencies."""
+    integration_names = {environment.integration_name}
+    for dependency in environment.direct_dependencies:
+        try:
+            requirement = Requirement(dependency)
+        except InvalidRequirement:
+            continue
+        integration_name = DEPENDENCY_TO_INTEGRATION_MAPPING.get(requirement.name.lower())
+        if (
+            integration_name
+            and integration_name not in environment_integration_names
+            and integration_name in known_integration_names
+            and integration_name not in EXCLUDED_FROM_TESTING
+        ):
+            integration_names.add(integration_name)
+    return integration_names
+
+
 def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
     """Collect tested dependency versions by integration and Python version."""
     tested_versions: dict[str, dict[str, set[TestedVersion]]] = defaultdict(lambda: defaultdict(set))
-    environments = (
+    environments = tuple(
         environment
         for suite_environments in get_test_environments(nightly=False).values()
         for environment in suite_environments
     )
+    environment_integration_names = {environment.integration_name for environment in environments}
+    known_integration_names = set(get_integration_names())
     for environment in environments:
         if not is_concrete_python_version(environment.python):
             continue
-        integration_name = environment.integration_name
-
-        dependency_names = get_dependency_names(integration_name)
-        found_dependency_version = False
-
-        if dependency_names:
-            locked_versions = parse_locked_versions(PROJECT_ROOT / environment.lockfile)
+        locked_versions = parse_locked_versions(PROJECT_ROOT / environment.lockfile)
+        for integration_name in get_environment_integration_names(
+            environment, environment_integration_names, known_integration_names
+        ):
+            dependency_names = get_dependency_names(integration_name)
+            found_dependency_version = False
             for dependency in dependency_names:
                 version = locked_versions.get(dependency.lower())
                 if version:
@@ -232,14 +258,13 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
                         )
                     )
 
-        if is_stdlib_package(integration_name) and not found_dependency_version:
-            tested_versions[integration_name][f"stdlib.{integration_name}"].add(
-                TestedVersion(
-                    version="",
-                    python_version=environment.python,
+            if is_stdlib_package(integration_name) and not found_dependency_version:
+                tested_versions[integration_name][f"stdlib.{integration_name}"].add(
+                    TestedVersion(
+                        version="",
+                        python_version=environment.python,
+                    )
                 )
-            )
-            continue
 
     return tested_versions
 
