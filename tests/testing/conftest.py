@@ -10,10 +10,16 @@ import pytest
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.offline_mode import reset_offline_mode
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from tests.testing._itr_env import clear_itr_rollout_env  # noqa: F401
 
 
 # Enable pytester plugin for testing pytest plugins
 pytest_plugins = ["pytester"]
+
+
+@pytest.fixture(autouse=True)
+def clear_ci_itr_rollout_env() -> None:
+    clear_itr_rollout_env()
 
 
 @pytest.fixture(scope="session", autouse=True)

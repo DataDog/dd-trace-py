@@ -1,0 +1,29 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI integration now captures inline base64 images from message content
+    as ``image_parts`` on LLM span messages, for both Chat Completions and the Responses API, so
+    image inputs render in LLM Observability. This also applies to the OpenAI Agents SDK and to the
+    LiteLLM integration, which share the same message extraction. Images referenced by a remote URL
+    or ``file_id`` are not fetched and keep their existing text reference. A single inline image
+    whose base64 payload exceeds 4 MiB is left as an ``[image omitted: too large]`` marker instead.
+    Note that this budget is per image, not per request: several inline images (or an image
+    alongside inline audio) can still take a span event past the 5 MB per-event limit, at which
+    point the event's input and output are replaced with a placeholder. To stop image bytes from
+    being recorded, register a span processor with ``LLMObs.register_processor`` and remove the
+    ``image_parts`` key from the messages on ``span.input``.
+fixes:
+  - |
+    LLM Observability: Fixes an issue where an inline base64 image sent in message content to the
+    OpenAI Responses API (including through the OpenAI Agents SDK) was recorded as the entire base64
+    data URL inside the message text, producing unreadable multi-megabyte span content.
+  - |
+    LLM Observability: Fixes an issue where an inline base64 image passed as a reusable-prompt
+    variable to the OpenAI Responses API was recorded as the entire base64 data URL on the span.
+    Such a variable is now recorded as ``[image]``; remote URL and ``file_id`` references are
+    unchanged.
+  - |
+    LLM Observability: Fixes an issue where OpenAI Responses API image-generation results and
+    computer-use screenshots were recorded as a stringified dump of the whole response item, which
+    embedded the image's base64 payload in the output message. They are now recorded as an
+    ``[image]`` marker, or as the screenshot's URL when it is a remote reference.

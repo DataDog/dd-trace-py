@@ -25,7 +25,6 @@ from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
-from ddtrace.internal.encoding import AgentlessTraceJSONEncoder
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
@@ -225,55 +224,6 @@ class TestEncoders(TestCase):
                 assert "client.testing" == items[i][j]["name"]
                 assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
-
-    def test_encode_traces_json_agentless(self):
-        span = Span(
-            name="span1", trace_id=0x12341234567890ABCDEF, span_id=0x1234567890ABCDEF, service="svc", resource="/r"
-        )
-        span.set_tag("tag1", "value1")
-        span.set_tag("manual.keep")
-        span._set_attribute("munir.metric", 1.0)
-        span.set_link(trace_id=3, span_id=4)
-        span.error = 1
-        span.start_ns = 1771941568700091000
-        span.duration_ns = 1000000000
-
-        span.span_type = SpanTypes.WEB
-        span._set_struct_tag("payload", {"key": "value"})
-        encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
-        encoder.put([span])
-        encoded_traces = encoder.encode()
-        assert encoded_traces, "Expected encoded traces but got empty list"
-        [(payload_bytes, n_traces)] = encoded_traces
-        data = json.loads(payload_bytes.decode("utf-8"))
-
-        assert n_traces == 1
-        assert data == {
-            "traces": [
-                {
-                    "spans": [
-                        {
-                            "trace_id": "1234567890abcdef",
-                            "parent_id": "0000000000000000",
-                            "span_id": "1234567890abcdef",
-                            "service": "svc",
-                            "resource": "/r",
-                            "name": "span1",
-                            "error": 1,
-                            "start": 1771941568700091000,
-                            "duration": 1000000000,
-                            "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
-                            "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
-                            "type": "web",
-                            "span_links": [
-                                {"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}
-                            ],
-                            "meta_struct": {"payload": {"key": "value"}},
-                        }
-                    ]
-                }
-            ]
-        }
 
 
 def test_encode_meta_struct():
@@ -884,7 +834,7 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     assert encoder.size == len(encoder.encode()[0][0])
 
 
-@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05])
 def test_encoder_buffer_size_limit(encoder_cls):
     buffer_size = 1 << 10
     encoder = encoder_cls(buffer_size, buffer_size)
@@ -906,7 +856,7 @@ def test_encoder_buffer_size_limit(encoder_cls):
         encoder.put(trace)
 
 
-@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05])
 def test_encoder_buffer_item_size_limit(encoder_cls):
     max_item_size = 1 << 10
     encoder = encoder_cls(max_item_size << 1, max_item_size)
@@ -916,6 +866,31 @@ def test_encoder_buffer_item_size_limit(encoder_cls):
     with pytest.raises(BufferItemTooLarge):
         span.set_tag("test", "a" * (max_item_size + 1))
         encoder.put([span])
+
+
+def test_v05_encoding_string_table_between_65536_and_131072_entries():
+    # A string table with 65536 to 131071 entries needs a 5-byte array32 header, not a
+    # 3-byte array16 header. A narrower header overwrites the start of the table and
+    # corrupts the payload.
+    encoder = MsgpackEncoderV05(128 << 20, 128 << 20)
+
+    span = Span("s1", service="svc", resource="res")
+    for i in range(35000):
+        span.set_tag("k%d" % i, "v%d" % i)
+    span.finish()
+
+    encoder.put([span])
+    [(payload, num_traces)] = encoder.encode()
+    assert num_traces == 1
+
+    string_table = msgpack.unpackb(payload, raw=True, strict_map_key=False)[0]
+    assert 65536 <= len(string_table) < 131072
+
+    decoded_trace = decode(payload)
+    assert len(decoded_trace) == 1
+    decoded_tags = decoded_trace[0][0][9]
+    for i in range(35000):
+        assert decoded_tags[("k%d" % i).encode()] == ("v%d" % i).encode()
 
 
 def test_custom_msgpack_encode_v05():

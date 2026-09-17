@@ -71,7 +71,7 @@ _GRPC_AIO_ERROR_HANDLED = "_dd.grpc_aio.error_handled"
 
 def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
     def func(call: aio.Call) -> None:
-        # AIDEV-NOTE: gRPC can mark the call done and invoke this callback while
+        # gRPC can mark the call done and invoke this callback while
         # the stream iterator's `_raise_for_status()` is still building the
         # `AioRpcError` — i.e. before control reaches our `except aio.AioRpcError`
         # handler and `_handle_stream_rpc_error` has had a chance to set the ctx
@@ -148,7 +148,7 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
 
 
 async def _handle_stream_rpc_error(span: Span, call: aio.Call, rpc_error: aio.AioRpcError) -> None:
-    # AIDEV-NOTE: rpc_error.details() can return the transport placeholder
+    # rpc_error.details() can return the transport placeholder
     # "Internal error from Core" if trailers haven't been processed yet; awaiting
     # call.code()/details() blocks until the call is fully terminated and returns
     # the authoritative final state. Set the ctx flag synchronously before

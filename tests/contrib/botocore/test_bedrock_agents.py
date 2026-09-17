@@ -47,6 +47,9 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
         "meta._dd.p.llmobs_parent_id",
         "meta._dd.p.llmobs_sd",
         "meta._dd.p.llmobs_sr",
+        "meta._dd.p.llmobs_pagent_name",
+        "meta._dd.p.llmobs_pagent_span_id",
+        "meta._dd.p.llmobs_trace_id",
         "meta_struct",
     ]
 )
@@ -75,6 +78,9 @@ def test_agent_invoke_with_step_spans(bedrock_agent_client, request_vcr, bedrock
         "meta._dd.p.llmobs_parent_id",
         "meta._dd.p.llmobs_sd",
         "meta._dd.p.llmobs_sr",
+        "meta._dd.p.llmobs_pagent_name",
+        "meta._dd.p.llmobs_pagent_span_id",
+        "meta._dd.p.llmobs_trace_id",
         "meta_struct",
     ],
 )

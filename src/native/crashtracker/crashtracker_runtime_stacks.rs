@@ -19,9 +19,22 @@ extern "C" {
 /// This is signal-safe: it's just a thread-local read + comparison.
 /// Returns false if the GIL is not held (e.g. during a ctypes foreign function call),
 /// in which case it's unsafe to call any Python C API functions.
-#[cfg(unix)]
+///
+/// `PyGILState_Check` is not limited-API: it lives in CPython's
+/// `Include/cpython/pystate.h` and is absent from `Misc/stable_abi.toml`
+/// (3.15 lists Ensure / Release / GetThisThreadState only). pyo3-ffi therefore
+/// omits it under `Py_LIMITED_API` (3.15 via `PYO3_USE_ABI3_FORWARD_COMPATIBILITY`).
+/// This runs in a crash signal handler, so `PyGILState_Ensure` is not a
+/// substitute (not async-signal-safe). On limited-API builds we cannot probe,
+/// so skip Python C API use rather than acquire or guess.
+#[cfg(all(unix, not(Py_LIMITED_API)))]
 unsafe fn gil_is_held() -> bool {
     pyo3_ffi::PyGILState_Check() != 0
+}
+
+#[cfg(all(unix, Py_LIMITED_API))]
+unsafe fn gil_is_held() -> bool {
+    false
 }
 
 /************************************************************

@@ -247,6 +247,17 @@ def get_app_with_subapps():
 
                         r = requests.get(urlname, timeout=0.5)
                         res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx2_async"):
+                        import httpx2
+
+                        async with httpx2.AsyncClient() as client:
+                            r = await client.get(urlname, timeout=0.5)
+                            res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx2"):
+                        import httpx2
+
+                        r = httpx2.get(urlname, timeout=0.5)
+                        res.append(f"Url: {r.text}")
                     elif param.startswith("url_httpx_async"):
                         import httpx
 
@@ -391,11 +402,14 @@ def get_app_with_subapps():
 
     @redirect_httpx_app.get("/{route:str}/{port:int}", response_class=JSONResponse)
     async def redirect_httpx_get(route: str, port: int, request: Request):
-        import httpx
+        if request.url.path.startswith("/redirect_httpx2/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            with httpx.Client() as client:
+            with httpx_client.Client() as client:
                 response = client.get(
                     full_url, timeout=DOWNSTREAM_HTTP_TIMEOUT, headers={"TagRoute": route}, follow_redirects=True
                 )
@@ -406,11 +420,14 @@ def get_app_with_subapps():
 
     @redirect_httpx_app.post("/{route:str}/{port:int}", response_class=JSONResponse)
     async def redirect_httpx_post(route: str, port: int, request: Request):
-        import httpx
+        if request.url.path.startswith("/redirect_httpx2/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            with httpx.Client() as client:
+            with httpx_client.Client() as client:
                 response = client.post(
                     full_url,
                     content=(await request.body()),
@@ -424,6 +441,7 @@ def get_app_with_subapps():
         return payload
 
     app.mount("/redirect_httpx", redirect_httpx_app)
+    app.mount("/redirect_httpx2", redirect_httpx_app)
 
     # --- /redirect_httpx_async sub-application ---
 
@@ -431,11 +449,14 @@ def get_app_with_subapps():
 
     @redirect_httpx_async_app.get("/{route:str}/{port:int}", response_class=JSONResponse)
     async def redirect_httpx_async_get(route: str, port: int, request: Request):
-        import httpx
+        if request.url.path.startswith("/redirect_httpx2_async/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx_client.AsyncClient() as client:
                 response = await client.get(
                     full_url, timeout=DOWNSTREAM_HTTP_TIMEOUT, headers={"TagRoute": route}, follow_redirects=True
                 )
@@ -446,11 +467,14 @@ def get_app_with_subapps():
 
     @redirect_httpx_async_app.post("/{route:str}/{port:int}", response_class=JSONResponse)
     async def redirect_httpx_async_post(route: str, port: int, request: Request):
-        import httpx
+        if request.url.path.startswith("/redirect_httpx2_async/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx_client.AsyncClient() as client:
                 response = await client.post(
                     full_url,
                     content=(await request.body()),
@@ -464,6 +488,7 @@ def get_app_with_subapps():
         return payload
 
     app.mount("/redirect_httpx_async", redirect_httpx_async_app)
+    app.mount("/redirect_httpx2_async", redirect_httpx_async_app)
 
     # --- /login sub-application ---
 

@@ -75,8 +75,23 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    /// Set the runtime id reported by the exporter. libdatadog generates a fresh UUID when it is
+    /// left unset.
+    fn set_runtime_id(mut slf: PyRefMut<'_, Self>, runtime_id: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_runtime_id(runtime_id);
+        Ok(slf.into())
+    }
+
     fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_process_tags(process_tags);
+        Ok(slf.into())
+    }
+
+    fn set_tracer_tags(
+        mut slf: PyRefMut<'_, Self>,
+        tracer_tags: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_tracer_tags(tracer_tags);
         Ok(slf.into())
     }
 
@@ -152,6 +167,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_additional_metric_tag_keys(
+        mut slf: PyRefMut<'_, Self>,
+        tag_keys: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_additional_metric_tag_keys(tag_keys);
+        Ok(slf.into())
+    }
+
     fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_client_side_stats_obfuscation();
         Ok(slf.into())
@@ -173,6 +196,29 @@ impl TraceExporterBuilderPy {
 
     fn enable_health_metrics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_health_metrics();
+        Ok(slf.into())
+    }
+
+    fn set_agentless_endpoint(
+        mut slf: PyRefMut<'_, Self>,
+        url: &'_ str, // full intake url
+        api_key: &'_ str,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_agentless_endpoint(url, api_key);
+        Ok(slf.into())
+    }
+
+    fn set_agentless_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?
+            .set_agentless_timeout(Duration::from_millis(timeout_ms));
+        Ok(slf.into())
+    }
+
+    fn set_agentless_stats_endpoint(
+        mut slf: PyRefMut<'_, Self>,
+        url: &'_ str, // full stats intake url
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_agentless_stats_endpoint(url);
         Ok(slf.into())
     }
 
@@ -223,6 +269,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_restart_after_fork(
+        mut slf: PyRefMut<'_, Self>,
+        restart_after_fork: bool,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_restart_after_fork(restart_after_fork);
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
     /// The builder shouldn't be reused.
@@ -230,7 +284,7 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
-        let shared_runtime = shared_runtime.as_arc().clone();
+        let shared_runtime = shared_runtime.as_arc()?;
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
@@ -278,6 +332,20 @@ impl TraceExporterPy {
                 Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
         })
+    }
+
+    /// Report `trace_api.*` health metrics through an externally-owned telemetry worker.
+    #[pyo3(signature = (worker=None))]
+    fn set_telemetry_handle(
+        &self,
+        worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
+    ) -> PyResult<()> {
+        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
+            "TraceExporter has already been consumed",
+        ))?;
+        let telemetry_handle = worker.map(|worker| worker.clone_handle()).transpose()?;
+        exporter.set_telemetry_handle(telemetry_handle);
+        Ok(())
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {

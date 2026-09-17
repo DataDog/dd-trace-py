@@ -99,8 +99,44 @@ build_wheel() {
 repair_wheel() {
   # Extract debug symbols
   section_start "extract_debug_symbols" "Extracting debug symbols"
-  uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" --output-dir "${DEBUG_WHEEL_DIR}"
+  uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" \
+    --output-dir "${DEBUG_WHEEL_DIR}" \
+    --ignore-patterns "libddwaf*,libdd_heap_gotter*"
   section_end "extract_debug_symbols"
+
+  # Heap-gotter cdylib debug symbols are extracted in setup.py (build_heap_gotter);
+  # merge any staged .debug sidecars into the debug-symbols package.
+  section_start "merge_heap_gotter_debug_symbols" "Merging heap-gotter debug symbols"
+  uv run --no-project python - <<'PY'
+import glob
+import os
+import zipfile
+from pathlib import Path
+
+project_dir = os.environ["PROJECT_DIR"]
+debug_dir = os.environ["DEBUG_WHEEL_DIR"]
+sidecars = sorted(Path(project_dir, "build").rglob("libdd_heap_gotter*.debug"))
+if not sidecars:
+    print("No heap-gotter debug sidecars found")
+    raise SystemExit(0)
+packages = glob.glob(os.path.join(debug_dir, "*-debug-symbols.zip"))
+if not packages:
+    print("WARNING: no debug-symbols package to merge heap-gotter sidecars into")
+    raise SystemExit(0)
+pkg = packages[0]
+with zipfile.ZipFile(pkg, "a", zipfile.ZIP_DEFLATED) as zf:
+    existing = set(zf.namelist())
+    for sidecar in sidecars:
+        parts = sidecar.parts
+        try:
+            arc = str(Path(*parts[parts.index("ddtrace") :]))
+        except ValueError:
+            arc = sidecar.name
+        if arc not in existing:
+            zf.write(sidecar, arc)
+            print(f"Added heap-gotter debug symbols: {arc}")
+PY
+  section_end "merge_heap_gotter_debug_symbols"
 
   # Strip wheel
   section_start "strip_wheel" "Stripping unneeded files"
@@ -115,7 +151,101 @@ repair_wheel() {
   # Repair wheel (ONLY PLATFORM-SPECIFIC CODE)
   section_start "repair_wheel" "Repairing wheel"
   if [[ "$(uname -s)" == "Linux" ]]; then
+    # Heap-gotter's ELF versioning trips auditwheel iter_versions; --exclude
+    # only skips SONAME grafting, so stash .so (+ .so.debug) out of the wheel,
+    # repair, then reinsert the runtime .so. Python zipfile: Info-ZIP globs are
+    # unreliable on archive paths.
+    GOTTER_STASH_DIR="${WORK_DIR}/heap_gotter_stash"
+    mkdir -p "${GOTTER_STASH_DIR}"
+    BUILT_WHEEL_FILE="${BUILT_WHEEL_FILE}" GOTTER_STASH_DIR="${GOTTER_STASH_DIR}" \
+      uv run --no-project python - <<'PY'
+import os
+import zipfile
+from pathlib import Path
+
+import subprocess
+import sys
+
+wheel = Path(os.environ["BUILT_WHEEL_FILE"])
+stash = Path(os.environ["GOTTER_STASH_DIR"])
+marker = "libdd_heap_gotter"
+with zipfile.ZipFile(wheel, "r") as zf:
+    gotter = [
+        n
+        for n in zf.namelist()
+        if marker in Path(n).name and (n.endswith(".so") or n.endswith(".so.debug"))
+    ]
+    for name in gotter:
+        dest = stash / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(zf.read(name))
+        print(f"Stashed heap-gotter artifact: {name}")
+if gotter:
+    # zip_filter keeps RECORD consistent.
+    patterns = [f"*{marker}*.so", f"*{marker}*.so.debug", f"*/{marker}*"]
+    subprocess.check_call([sys.executable, "scripts/zip_filter.py", str(wheel), *patterns])
+with zipfile.ZipFile(wheel, "r") as zf:
+    leftover = [n for n in zf.namelist() if marker in Path(n).name]
+if leftover:
+    raise SystemExit(f"heap-gotter still in wheel before auditwheel: {leftover}")
+print(f"heap-gotter stash count before auditwheel: {len(gotter)}")
+PY
+
     auditwheel repair -w "${TMP_WHEEL_DIR}" "${BUILT_WHEEL_FILE}"
+
+    if find "${GOTTER_STASH_DIR}" \( -name 'libdd_heap_gotter*.so' -o -name 'libdd_heap_gotter*.so.debug' \) 2>/dev/null | grep -q .; then
+      REPAIRED_WHEEL_FILE=$(ls "${TMP_WHEEL_DIR}"/*.whl | head -n 1)
+      GOTTER_STASH_DIR="${GOTTER_STASH_DIR}" REPAIRED_WHEEL_FILE="${REPAIRED_WHEEL_FILE}" \
+        uv run --no-project python - <<'PY'
+import base64
+import csv
+import hashlib
+import io
+import os
+import zipfile
+from pathlib import Path
+
+wheel = Path(os.environ["REPAIRED_WHEEL_FILE"])
+stash = Path(os.environ["GOTTER_STASH_DIR"])
+
+# Runtime .so only; .so.debug stays in debugwheelhouse.
+additions = {
+    str(p.relative_to(stash)): p
+    for p in sorted(stash.rglob("*"))
+    if p.is_file() and p.name.endswith(".so")
+}
+if not additions:
+    print("No stashed heap-gotter cdylib to reinsert")
+    raise SystemExit(0)
+
+tmp_wheel = Path(f"{wheel}.tmp")
+with (
+    zipfile.ZipFile(wheel, "r") as source_zip,
+    zipfile.ZipFile(tmp_wheel, "w", zipfile.ZIP_DEFLATED) as temp_zip,
+):
+    record = next((f for f in source_zip.infolist() if f.filename.endswith(".dist-info/RECORD")), None)
+    if record is None:
+        raise SystemExit(f"no RECORD found in {wheel}")
+    # DEV: Use ZipInfo objects to ensure original file attributes are preserved
+    for file in source_zip.infolist():
+        if file.filename == record.filename or file.filename in additions:
+            continue
+        temp_zip.writestr(file, source_zip.read(file.filename))
+    rows = [r for r in csv.reader(io.StringIO(source_zip.read(record.filename).decode("utf-8"))) if r]
+    rows = [r for r in rows if r[0] != record.filename and r[0] not in additions]
+    for arcname, path in additions.items():
+        data = path.read_bytes()
+        temp_zip.writestr(arcname, data)
+        digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
+        rows.append([arcname, f"sha256={digest}", str(len(data))])
+        print(f"Reinserted heap-gotter cdylib: {arcname}")
+    rows.append([record.filename, "", ""])
+    output = io.StringIO()
+    csv.writer(output, lineterminator="\n").writerows(rows)
+    temp_zip.writestr(record, output.getvalue())
+os.replace(tmp_wheel, wheel)
+PY
+    fi
   else
     # macOS
     MACOSX_DEPLOYMENT_TARGET=14.7 uvx --from="delocate" delocate-wheel \

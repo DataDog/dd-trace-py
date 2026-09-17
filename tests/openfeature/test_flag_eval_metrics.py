@@ -368,8 +368,8 @@ class TestProviderHooksIntegration:
         assert hooks[0] is provider._flag_eval_metrics_hook
 
     def test_provider_disabled_has_no_hooks(self):
-        """Provider should not have hooks when disabled."""
-        with override_global_config({"experimental_flagging_provider_enabled": False}):
+        """Provider should not have hooks when disabled by the stable kill switch."""
+        with override_global_config({"feature_flags_enabled": False}):
             provider = DataDogProvider()
 
         assert provider._flag_eval_metrics_hook is None

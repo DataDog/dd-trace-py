@@ -15,7 +15,6 @@ def test_setting_origin_environment(test_agent_session, run_python_code_in_subpr
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
             "DD_TRACE_ENABLED": "true",
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
@@ -36,7 +35,7 @@ with tracer.trace("test") as span:
         "origin": "env_var",
     } in configurations
 
-    assert {"name": "DD_LOGS_INJECTION", "value": True, "origin": "env_var"} in configurations
+    assert {"name": "DD_LOGS_INJECTION", "value": "true", "origin": "env_var"} in configurations
 
     assert {
         "name": "DD_TRACE_HEADER_TAGS",
@@ -46,7 +45,7 @@ with tracer.trace("test") as span:
 
     assert {"name": "DD_TAGS", "value": "team:apm,component:web", "origin": "env_var"} in configurations
 
-    assert {"name": "DD_TRACE_ENABLED", "value": True, "origin": "env_var"} in configurations
+    assert {"name": "DD_TRACE_ENABLED", "value": "true", "origin": "env_var"} in configurations
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -59,7 +58,6 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
             "DD_TAGS": "team:apm,component:web",
             "DD_TRACE_ENABLED": "true",
             "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false",
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
     out, err, status, _ = run_python_code_in_subprocess(
@@ -79,7 +77,7 @@ config._tracing_enabled = False
 
     assert {
         "name": "DD_LOGS_INJECTION",
-        "value": False,
+        "value": "false",
         "origin": "code",
     } in configurations
 
@@ -97,7 +95,7 @@ config._tracing_enabled = False
 
     assert {
         "name": "DD_TRACE_ENABLED",
-        "value": False,
+        "value": "false",
         "origin": "code",
     } in configurations
 
@@ -105,11 +103,6 @@ config._tracing_enabled = False
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_sampling_rate_default(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
-    env.update(
-        {
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
-        }
-    )
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -153,11 +146,6 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
-    env.update(
-        {
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
-        }
-    )
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
@@ -205,11 +193,6 @@ assert span.get_metric("_dd.rule_psr") == 0.5, span._meta
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_remoteconfig_header_tags_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
-    env.update(
-        {
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
-        }
-    )
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer

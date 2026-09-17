@@ -3,7 +3,7 @@ import sys
 import pytest
 
 
-# AIDEV-NOTE: This plugin installs mocks at import time so they are active before the
+# This plugin installs mocks at import time so they are active before the
 # child process initializes the Datadog pytest plugin. Keep this test out of inline_run:
 # nested in-process pytest-cov sessions can corrupt the outer session's coverage state.
 _INFRA_PLUGIN = """\

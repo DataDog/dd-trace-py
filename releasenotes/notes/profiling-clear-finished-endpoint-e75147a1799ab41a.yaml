@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes an issue where untraced work is attributed to the endpoint of a previously
+    finished trace on the same thread.

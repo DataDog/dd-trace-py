@@ -4,7 +4,7 @@ import urllib3
 
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from tests.contrib.config import HTTPBIN_CONFIG
 from tests.contrib.urllib3.test_urllib3 import BaseUrllib3TestCase
 
@@ -25,7 +25,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         self.tracer.enabled = False
         # Ensure the ASM SpanProcessor is set
         self.tracer.configure(apm_tracing_disabled=True, appsec_enabled=True)
-        assert asm_config._apm_opt_out
+        assert standalone_config.apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:
@@ -75,7 +75,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         # Ensure the ASM SpanProcessor is set.
         self.tracer.configure(apm_tracing_disabled=False, appsec_enabled=True)
         self.tracer.enabled = False
-        assert not asm_config._apm_opt_out
+        assert not standalone_config.apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:

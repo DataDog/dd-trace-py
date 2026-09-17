@@ -1,0 +1,98 @@
+# Podman-specific overrides for environments where port mappings cannot modify
+# route_localnet (for example, Bits Code). Use this file after
+# docker-compose.base.yml.
+services:
+    elasticsearch:
+        network_mode: host
+    opensearch:
+        environment:
+            - http.port=9201
+        network_mode: host
+    cassandra:
+        network_mode: host
+    consul:
+        network_mode: host
+    postgres:
+        network_mode: host
+    mariadb:
+        network_mode: host
+    mysql:
+        network_mode: host
+    redis:
+        network_mode: host
+    kafka:
+        environment:
+            # Host networking exposes every listener, including Kafka's internal
+            # broker and controller ports. Keep them away from Bits' agent ports.
+            - KAFKA_LISTENERS=PLAINTEXT://:19092,CONTROLLER://:19093,EXTERNAL://:29092
+            - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:19092,EXTERNAL://localhost:29092
+            - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:19093
+        network_mode: host
+    rediscluster:
+        environment:
+            # The image sets an unavailable en_US.UTF-8 locale; Redis 7.2.5
+            # exits unless it is overridden with a locale it can configure.
+            - LC_ALL=C
+            - LANG=C
+        network_mode: host
+    mongo:
+        network_mode: host
+    memcached:
+        network_mode: host
+    moto:
+        network_mode: host
+    rabbitmq:
+        network_mode: host
+    ddagent:
+        network_mode: host
+    testagent:
+        # Host networking does not translate ports. Preserve the normal public
+        # test-agent endpoint so existing tests that use localhost:9126 work.
+        command: ["ddapm-test-agent", "--port=9126"]
+        network_mode: host
+    vertica:
+        network_mode: host
+    azurecosmosemulator:
+        environment:
+            BLOB_SERVER: 127.0.0.1
+            METADATA_SERVER: 127.0.0.1
+        network_mode: host
+    azureeventhubsemulator:
+        environment:
+            BLOB_SERVER: 127.0.0.1
+            METADATA_SERVER: 127.0.0.1
+        network_mode: host
+    azureservicebusemulator:
+        environment:
+            SQL_SERVER: 127.0.0.1
+        network_mode: host
+    azuresqledge:
+        network_mode: host
+    azurite:
+        network_mode: host
+    selenium-chrome:
+        image: selenium/standalone-chrome:latest
+        network_mode: host
+    testrunner:
+        environment:
+          # sccache intermittently loses temporary compiler files in the Bits Podman environment.
+          # TODO(dubloom): Re-enable it after upgrading sccache in the testrunner image and validating the fix.
+          DD_USE_SCCACHE: "${DD_USE_SCCACHE:-0}"
+        network_mode: host
+    localstack:
+        network_mode: host
+    httpbin:
+      # Match the normal Compose endpoint (127.0.0.1:8001 -> container:80).
+      command: ["gunicorn", "-b", "127.0.0.1:8001", "httpbin:app", "-k", "gevent"]
+      network_mode: host
+    valkey:
+        network_mode: host
+    pubsub:
+        network_mode: host
+    valkeycluster:
+        environment:
+            # The image sets an unavailable en_US.UTF-8 locale; Redis 7.2.5
+            # exits unless it is overridden with a locale it can configure.
+            - LC_ALL=C
+            - LANG=C
+        network_mode: host

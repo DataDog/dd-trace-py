@@ -57,14 +57,15 @@ def test_supported_sampling_mechanism():
         assert sampling_decision_validation != decoding_error_result, f"{mechanism} returned {decoding_error_result}"
 
 
-def test_unsupported_sampling_mechanism():
+@pytest.mark.parametrize("dm_value", ["-999999999999", "-256", "-", "--1", "-1.0", "934086a6-4"])
+def test_malformed_sampling_mechanism(dm_value):
     """
-    Unsupported sampling mechanisms actually return a decoding error in validate_sampling_decision
+    Malformed sampling mechanisms actually return a decoding error in validate_sampling_decision
     """
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import validate_sampling_decision
 
-    meta = {SAMPLING_DECISION_TRACE_TAG_KEY: "-999999999999"}
+    meta = {SAMPLING_DECISION_TRACE_TAG_KEY: dm_value}
     sampling_decision_validation = validate_sampling_decision(meta)
     decoding_error_result = {"_dd.propagation_error": "decoding_error"}
     assert sampling_decision_validation == decoding_error_result, (

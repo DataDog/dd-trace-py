@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import dis
 from enum import Enum
+from functools import cached_property
 import gzip
 import hashlib
 from inspect import CO_VARARGS
@@ -32,17 +33,21 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
+from ddtrace.internal.native import SymDBSender
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
 from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.http import FormData
-from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
@@ -54,6 +59,30 @@ log = get_logger(__name__)
 SOF = 0
 EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
+UPLOAD_TIMEOUT = 5.0  # seconds
+
+
+def build_symdb_sender() -> SymDBSender:
+    """Build a sender for symbol uploads."""
+    timeout_ms = int(UPLOAD_TIMEOUT * 1000)
+
+    if config._agentless_enabled:
+        return SymDBSender(
+            get_native_runtime(),
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            tags=di_config.tags,
+            timeout_ms=timeout_ms,
+            test_session_token=get_test_session_token(),
+        )
+
+    return SymDBSender(
+        get_native_runtime(),
+        url=agent_config.trace_agent_url,
+        tags=di_config.tags,
+        timeout_ms=timeout_ms,
+        test_session_token=get_test_session_token(),
+    )
 
 
 def _line_ranges(lines: set[int]) -> list[dict[str, int]]:
@@ -221,8 +250,6 @@ class Scope:
                 continue
 
             try:
-                if _isinstance(child, FunctionType):
-                    child = undecorated(child, alias, module_origin)
                 scope = Scope._get_from(child, data)
                 if scope is not None:
                     scopes.append(scope)
@@ -236,6 +263,22 @@ class Scope:
                     )
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
+
+        # We use the result of the module code collector to get all the code
+        # objects declared in the module. This way we don't have to worry about
+        # decorated functions.
+        code_objects = ModuleCodeCollector.get_code_objects(module)
+        if code_objects is not None:
+            for code in code_objects:
+                try:
+                    scope = Scope._get_from(code, data)
+                except Exception:
+                    log.debug(
+                        "Cannot get child scope for code object %r of module %s", code, module.__name__, exc_info=True
+                    )
+                    continue
+                if scope is not None:
+                    scopes.append(scope)
 
         # usedforsecurity=False: this sha1 computes a git-blob identity hash of the
         # module source, not a security digest. It also prevents IAST from flagging
@@ -498,7 +541,11 @@ class Scope:
         if module_origin is None:
             raise ValueError(f"Cannot get scope of module with no origin '{module.__name__}'")
 
-        return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
+        try:
+            return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
+        finally:
+            # We no longer need to keep this collection around.
+            ModuleCodeCollector.release(module, "symdb")
 
 
 class ScopeContext:
@@ -533,6 +580,11 @@ class ScopeContext:
         }
 
         forksafe.register(self._reset_on_fork)
+
+    @cached_property
+    def _sender(self) -> SymDBSender:
+        # Built on the first upload to reduce startup cost.
+        return build_symdb_sender()
 
     def _reset_on_fork(self) -> None:
         # Runs after fork in the child. The runtime module's own forksafe
@@ -636,16 +688,19 @@ class ScopeContext:
         # replace it with the compressed JSON.
         body = body.replace(b"[symbols_placeholder]", compressed)
 
-        with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
-            log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
-            conn.request("POST", "/symdb/v1/input", body, headers)
-
-            try:
-                log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
-                if (result := conn.getresponse()).status // 100 != 2:
-                    log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
-            except Exception:
-                log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
+        log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
+        try:
+            response = self._sender.send(body, headers["Content-Type"])
+        except Exception:
+            log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
+        else:
+            if not response.accepted:
+                log.error(
+                    "[PID %d] SymDB: Bad response while uploading symbols: [%d] %r",
+                    os.getpid(),
+                    response.status,
+                    response.body,
+                )
 
     def __bool__(self) -> bool:
         with self._scopes_lock:

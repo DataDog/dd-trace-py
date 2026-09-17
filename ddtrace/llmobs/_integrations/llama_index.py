@@ -35,6 +35,10 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         if provider is not None:
             span._set_attribute(PROVIDER, provider)
 
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # Event-based: on_started calls this with operation=event.operation (no trace() path).
+        return "agent" if kwargs.get("operation") == "agent" else None
+
     def _llmobs_set_tags(
         self,
         span: Span,

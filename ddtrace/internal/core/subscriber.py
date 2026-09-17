@@ -58,6 +58,7 @@ class Subscriber:
     """
 
     event_names: Sequence[str]
+    auto_register: ClassVar[bool] = True
     _event_handlers: tuple = ()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -79,12 +80,20 @@ class Subscriber:
             log.debug("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
             return
 
+        if cls.auto_register:
+            cls.register()
+
+    @classmethod
+    def register(cls) -> None:
+        """Register this subscriber for its declared events."""
         for event_name in cls.event_names:
-            core.on(
-                event_name,
-                cls._on_event,
-                name=f"{cls.__name__}",
-            )
+            core.on(event_name, cls._on_event, name=cls.__name__)
+
+    @classmethod
+    def unregister(cls) -> None:
+        """Unregister this subscriber from its declared events."""
+        for event_name in cls.event_names:
+            core.reset_listeners(event_name, cls._on_event)
 
     @classmethod
     def on_event(cls, event_instance):
@@ -134,6 +143,7 @@ class ContextSubscriber(Generic[EventType]):
     """
 
     event_names: ClassVar[Sequence[str]]
+    auto_register: ClassVar[bool] = True
     _started_handlers: tuple = ()
     _ended_handlers: tuple = ()
 
@@ -166,6 +176,12 @@ class ContextSubscriber(Generic[EventType]):
             log.debug("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
             return
 
+        if cls.auto_register:
+            cls.register()
+
+    @classmethod
+    def register(cls) -> None:
+        """Register this subscriber for its declared context events."""
         for event_name in cls.event_names:
             core.on(
                 f"context.started.{event_name}",
@@ -177,6 +193,13 @@ class ContextSubscriber(Generic[EventType]):
                 cls._on_context_ended,
                 name=f"{cls.__name__}.ended",
             )
+
+    @classmethod
+    def unregister(cls) -> None:
+        """Unregister this subscriber from its declared context events."""
+        for event_name in cls.event_names:
+            core.reset_listeners(f"context.started.{event_name}", cls._on_context_started)
+            core.reset_listeners(f"context.ended.{event_name}", cls._on_context_ended)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[EventType]):

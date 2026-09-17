@@ -71,11 +71,43 @@ Extract and annotate all LLMObs fields on the span:
 | `model_provider` | Provider name (e.g., `"anthropic"`, `"openai"`) |
 | `input_messages` | List of `Message` objects from request |
 | `output_messages` | List of `Message` objects from response |
-| `metadata` | Dict of sanitized request parameters (temperature, top_p, etc.) |
+| `metadata` | Dict of sanitized request parameters (temperature, top_p, etc.), plus response-derived scalars such as `finish_reason` (see Response Metadata below) |
 | `metrics` | Token usage dict with `INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY` |
 | `tool_definitions` | List of `ToolDefinition` objects if tools are passed |
 
 Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set_ctx_items(...)`.
+
+### Response Metadata
+
+`metadata` is not request-only. Scalars the provider reports on the *response* belong there too, so
+long as they are not already covered by `metrics` (token counts) or `output_messages`.
+
+The stop reason is the established case. Record it under the key `finish_reason` for every provider,
+so one facet answers "why did generation stop" regardless of integration, and keep each provider's
+own vocabulary as the value (`stop`/`length`/`content_filter`/`tool_calls` for the OpenAI family,
+`end_turn`/`max_tokens`/`refusal`/`tool_use` for Anthropic). Read it from:
+
+| Provider | Source |
+|---|---|
+| openai/litellm chat + legacy completions | `choice.finish_reason` (per choice) |
+| openai responses API | `incomplete_details.reason` |
+| anthropic | `response.stop_reason`, falling back to `response.finish_reason` for the streamed dict the aggregator rebuilds |
+
+Rules:
+
+- **Merge, do not replace.** Build the request metadata first, then update it with the
+  response-derived keys (`parameters.update(...)`), so response data never clobbers request params.
+- **Omit the key when absent.** If the provider reports no reason, leave `finish_reason` out
+  entirely rather than writing `None` or `""`.
+- **Keep the value a single string.** When a request returns multiple choices (`n > 1`), comma-join
+  the per-choice reasons in choice order (`"stop,length"`) instead of emitting a list, so the key
+  never changes type. `_openai_finish_reason_metadata()` in `_integrations/utils.py` does this.
+- **Guard on the response, not `span.error`.** A response can exist on an errored span (see the AI
+  Guard case in `_integrations/anthropic.py`); gate on `response is not None`.
+
+Note two already-shipped integrations predate this key: bedrock and the claude-agent-sdk both write
+`metadata["stop_reason"]`. Renaming those is a breaking change and has not been done — follow
+`finish_reason` for new work.
 
 ## Key Constraints
 
@@ -89,7 +121,7 @@ Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set
 ## Message Types
 
 ```python
-from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolResult, ToolDefinition
+from ddtrace.llmobs.types import AudioPart, ImagePart, Message, ToolCall, ToolResult, ToolDefinition
 
 # Input/output messages
 Message(content="text", role="user")
@@ -98,6 +130,10 @@ Message(content="response", role="assistant", tool_calls=[...])
 # Audio attachments in multimodal messages
 AudioPart(mime_type="audio/wav", content="<base64-audio>")
 Message(content="", role="user", audio_parts=[...])
+
+# Image attachments in multimodal messages
+ImagePart(mime_type="image/png", content="<base64-image>")
+Message(content="", role="user", image_parts=[...])
 
 # Tool calls (in output messages)
 ToolCall(name="get_weather", arguments={"city": "NYC"}, tool_id="toolu_123", type="tool")

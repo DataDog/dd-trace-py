@@ -5,8 +5,18 @@ import pytest
 
 from ddtrace.contrib.internal.mistralai.patch import patch
 from ddtrace.contrib.internal.mistralai.patch import unpatch
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import LLMObs
 from tests.utils import override_global_config
+
+
+@pytest.fixture(autouse=True)
+def reset_standalone_config():
+    # Re-read DD_APM_TRACING_ENABLED per test so a leaked runtime override cannot
+    # change how LLMObs routes these spans.
+    standalone_config.reset()
+    yield
+    standalone_config.reset()
 
 
 @pytest.fixture

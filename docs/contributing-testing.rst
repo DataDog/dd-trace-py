@@ -56,19 +56,11 @@ The ``scripts/run-tests`` script handles this automatically:
 **Manual approach with ddtest**
 
 This repo includes a Docker container definition that provides a pre-built test environment.
-You can access it by running
+You can access it and run repository tools with commands such as:
 
 .. code-block:: bash
 
     $ scripts/ddtest
-
-Some of our test suites are managed with Riot.
-
-You can run riot commands and lint checks in the test runner container with commands like these:
-
-.. code-block:: bash
-
-    $ scripts/ddtest riot run -p 3.10
     $ scripts/ddtest scripts/lint style
 
 
@@ -77,53 +69,30 @@ How do I run only the tests I care about?
 
 **Easy way: Use scripts/run-tests**
 
-The ``scripts/run-tests`` script handles this automatically:
+Pass test-command arguments after ``--``:
 
 .. code-block:: bash
 
-    # Add riot arguments to avoid unnecessary compilation
-    $ scripts/run-tests tests/contrib/django/ -- -s
-
-    # Add pytest arguments for test selection
-    $ scripts/run-tests tests/contrib/django/ -- -- -k test_specific_function
-
-    # Add both riot (first) and pytest (second) arguments
-    $ scripts/run-tests ddtrace/contrib/django/patch.py -- -s -- -vvv -s --tb=short
-
-    # Run specific test functions
+    $ scripts/run-tests tests/contrib/django/ -- -k test_specific_function
     $ scripts/run-tests tests/contrib/flask/ -- -k "test_request or test_response"
 
-**Manual way: Direct riot commands**
-
-If you prefer manual control:
-
-1. Note the names of the tests you care about - these are the "test names".
-2. Find the ``Venv`` in the `riotfile <https://github.com/DataDog/dd-trace-py/blob/32b88eadc00e05cd0bc2aec587f565cc89f71229/riotfile.py#L426>`_
-   whose ``command`` contains the tests you're interested in. Note the ``Venv``'s ``name`` - this is the
-   "suite name".
-3. Find the suite in the file `./tests/contrib/suitespec.yml <https://github.com/DataDog/dd-trace-py/blob/2a46a7ddfc3d8e0d27ff59ec03bae69f0ef40db1/tests/contrib/suitespec.yml#L2>`_
-   whose ``pattern`` is equal to the suite name. Note the ``docker_services`` section of the directive, if present -
-   these are the "suite services".
-4. Start the suite services, if applicable, with ``$ docker compose up -d service1 service2``.
-5. Start the test-runner Docker container with ``$ scripts/ddtest``.
-6. In the test-runner shell, run the tests with ``$ riot -v run --pass-env -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'``.
-
-Anatomy of a Riot Command
--------------------------
+List the matching environments before selecting one by hash. The runner starts any services declared by the suite:
 
 .. code-block:: bash
 
-    $ riot -v run --pass-env -s -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'
+    $ scripts/run-tests --list tests/contrib/django/
+    $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-* ``-v``: Print verbose output
-* ``--pass-env``: Pass all environment variables in the current shell to the pytest invocation
-* ``-s``: Skips base install. Ensure you have already generated the base virtual environment(s) before using this flag.
-* ``-p 3.10``: Run the tests using Python 3.10. You can change the version string if you want.
-* ``<suite_name>``: A regex matching the names of the Riot ``Venv`` instances to run
-* ``--``: Everything after this gets treated as a ``pytest`` argument
-* ``-s``: Make potential uses of ``pdb`` work properly
-* ``-vv``: Be loud about which tests are being run
-* ``-k 'test1 or test2'``: Test selection by `keyword expression <https://docs.pytest.org/en/7.1.x/how-to/usage.html#specifying-which-tests-to-run>`_
+After a successful first run, pass ``-s`` before ``--`` to reuse the selected environment's existing ddtrace
+installation while refreshing its suite dependencies. Omit it after changing native code or project metadata, or
+after updating from main.
+
+.. code-block:: bash
+
+    $ scripts/run-tests -s --venv <environment-hash> -- -k test_specific_function
+
+An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
+remains supported for existing workflows.
 
 Why are my tests failing with 404 errors?
 -----------------------------------------
@@ -133,11 +102,7 @@ To fix this:
 
 .. code-block:: bash
 
-    # outside of the testrunner shell
-    $ docker compose up -d testagent
-
-    # inside the testrunner shell, started with scripts/ddtest
-    $ DD_AGENT_PORT=9126 riot -v run --pass-env ...
+    $ scripts/run-tests <test-path>
 
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
@@ -170,8 +135,8 @@ After setting this up, run your tests normally:
 
 The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
 
-Build issues when running tests with Riot
------------------------------------------
+Build issues when running tests
+-------------------------------
 
 If you encounter build failures, CMake errors, or stale native extension issues when running tests:
 
@@ -179,27 +144,34 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run Riot **without** the ``-s`` flag so that ddtrace is rebuilt from source. The ``-s`` flag skips the base install; omitting it forces a fresh build:
+Then run the environment without ``-s`` so that the ddtrace installation is refreshed:
 
 .. code-block:: bash
 
-    $ riot -v run --pass-env -p 3.10 <suite_name> -- -vv -k 'test_name'
+    $ scripts/run-tests --venv <environment-hash> -- -vv -k test_name
 
 Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
 
-``.riot/requirements`` contains requirements files generated with ``pip-compile`` for every environment specified
-by ``riotfile.py``. Riot uses these files to build its environments, and they do not get rebuilt automatically
-when the riotfile changes. Thus, if you make changes to the riotfile, you need to rebuild them.
+Test environments use committed dependency locks. After changing an environment's dependency definition, regenerate
+the locks and commit both changes:
 
 .. code-block:: bash
 
-  $ scripts/ddtest scripts/compile-and-prune-test-requirements
+  $ scripts/test-requirements lock <environment-name>
 
-You can commit and pull request the resulting changes to files in ``.riot/requirements`` alongside the
-changes you made to ``riotfile.py``.
+Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+
+Use ``scripts/test-requirements`` to inspect and maintain locks:
+
+* ``check`` reports missing or obsolete lock files across all environments.
+* ``lock [environment-name ...]`` generates missing locks for exact environment names.
+* ``lock --upgrade [environment-name ...]`` upgrades existing locks for exact environment names.
+
+Without an environment name, ``lock`` operates on all environments.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -238,68 +210,18 @@ The library includes automated SLO checks that monitor performance thresholds fo
 How do I add a new test suite?
 ------------------------------
 
-We use `riot <https://ddriot.readthedocs.io/en/latest/>`_, a Python virtual environment constructor, to run the test suites.
-It is necessary to create a new ``Venv`` instance in ``riotfile.py`` if it does not exist already. It can look like this:
+Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
+locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
 
-.. code-block:: python
+Until the test-runner migration is complete, mirror environment changes in ``riotfile.py``. The
+`test_uv_suitespec_matches_riot <https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py>`_
+regression test verifies that the suitespec and Riot definitions remain equivalent.
 
-    Venv(
-        name="yaaredis",
-        command="pytest {cmdargs} tests/contrib/yaaredis",
-        pkgs={
-            "pytest-asyncio": "==0.21.1",
-            "pytest-randomly": latest,
-        },
-        venvs=[
-            Venv(
-                pys=select_pys(min_version="3.8", max_version="3.9"),
-                pkgs={"yaaredis": ["~=2.0.0", latest]},
-            ),
-        ],
-    ),
+How do I update a test environment to use the latest version of a package?
+----------------------------------------------------------------------------
 
-Once a ``Venv`` instance has been created, you will be able to run it as explained in the section below.
-Next, we will need to add a new CI job to run the newly added test suite. This change can be made in the
-``tests/contrib/suitespec.yml`` file:
-
-.. code-block:: yaml
-
-    yaaredis:
-      parallelism: 1
-      paths:
-        - '@core'
-        - '@bootstrap'
-        - '@contrib'
-        - '@tracing'
-        - '@redis'
-        - tests/contrib/yaaredis/*
-        - tests/snapshots/tests.contrib.yaaredis.*
-      pattern: yaaredis$
-      services:
-        - redis
-      snapshot: true
-
-See ``tests/README.md`` for more detail on adding new CI jobs.
-
-How do I update a Riot environment to use the latest version of a package?
---------------------------------------------------------------------------
-
-Reading through the above example and others in ``riotfile.py``, you may notice that some package versions are specified
-as the variable ``latest``. When the Riotfile is compiled into the ``.txt`` files in the ``.riot`` directory, ``latest`` tells
-the compiler to pin the newest version of the package available on PyPI according to semantic versioning.
-
-Because this version resolution happens during Riotfile compilation, ``latest`` doesn't always mean "latest" once the compiled
-requirements files are checked into source control. In order to stay current, these requirements files need to be recompiled
-periodically.
-
-Assume you have a ``Venv`` instance in the Riotfile that uses the ``latest`` variable. Note the ``name`` field of this
-environment object.
-
-1. Run ``scripts/ddtest`` to enter a shell in the testrunner container
-2. ``export VENV_NAME=<name_you_noted_above>``
-3. Delete all of the requirements lockfiles for the chosen environment, then regenerate them:
-   ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
-4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
+Update the dependency constraint in the suite's ``suitespec.yml`` matrix, run
+``scripts/test-requirements lock --upgrade <environment-name>``, and commit the definition and resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------

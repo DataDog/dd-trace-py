@@ -113,12 +113,12 @@ class PytestTestCaseBase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
-        # AIDEV-NOTE: Anchor the pytester monkeypatch CWD *before* any test body
+        # Anchor the pytester monkeypatch CWD *before* any test body
         # runs. Tests that call os.chdir() directly before testdir.chdir() would
         # otherwise corrupt the saved CWD used during fixture teardown, leaking
         # wrong working directories to subsequent tests in the same xdist worker.
         testdir.chdir()
-        # AIDEV-NOTE: Clear outer xdist worker env vars for the duration of each
+        # Clear outer xdist worker env vars for the duration of each
         # test. Tests create CIVisibilityEncoderV01 instances and inline_run sessions
         # that read PYTEST_XDIST_WORKER at init/import time. If the outer test suite
         # runs with -n auto, the worker env var leaks and causes the encoder to filter
@@ -150,7 +150,7 @@ class PytestTestCaseBase(TracerTestCase):
         session starts and resumed after it completes, so that running this test suite with --ddtrace in the outer
         pytest does not disrupt the outer session.  The inner session creates its own instance on a clean stack.
         """
-        # AIDEV-NOTE: Suspend the outer CIVisibility instance (without stopping it) so that
+        # Suspend the outer CIVisibility instance (without stopping it) so that
         # the inner session starts with a clean stack.  The inner CIVisibilityPlugin does a
         # disable()/enable() cycle that would otherwise pop the outer instance off the stack.
         # _suspend() removes the outer instance without calling stop(); _resume() pushes it
@@ -200,6 +200,30 @@ class PytestTestCaseBase(TracerTestCase):
             if CIVisibility.enabled:
                 CIVisibility.disable()
             CIVisibility._resume(_suspended)
+
+    def make_xdist_worker_sitecustomize(self):
+        """Load sitecustomize.py in nested xdist workers without relying on PYTHONPATH."""
+        self.testdir.makeconftest(
+            """
+import os
+import runpy
+
+import pytest
+
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+
+_IS_XDIST_WORKER = bool(os.environ.get("PYTEST_XDIST_WORKER"))
+if _IS_XDIST_WORKER:
+    runpy.run_path(os.path.join(os.path.dirname(__file__), "sitecustomize.py"))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    if _IS_XDIST_WORKER and CIVisibility.enabled:
+        CIVisibility.disable()
+"""
+        )
 
     def subprocess_run(self, *args, env: t.Optional[dict[str, t.Optional[str]]] = None):
         """Execute test script with test tracer."""

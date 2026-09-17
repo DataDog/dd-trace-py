@@ -41,9 +41,10 @@ To read the results:
 cat cycles.json   # raw JSON array of cycles
 ```
 
-Each entry is an array of module names forming the cycle, e.g.:
+Each entry has the full set of modules in the tangled component (`nodes`) and one
+concrete simple cycle through it (`cycle`), e.g.:
 ```json
-["ddtrace", "ddtrace.internal.datastreams", "ddtrace"]
+{"nodes": ["ddtrace", "ddtrace.internal.datastreams"], "cycle": ["ddtrace", "ddtrace.internal.datastreams", "ddtrace"]}
 ```
 
 Clean up afterwards:

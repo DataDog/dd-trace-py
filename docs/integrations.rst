@@ -67,6 +67,13 @@ anthropic
 .. automodule:: ddtrace.contrib.internal.anthropic
 
 
+.. _anyio:
+
+AnyIO
+^^^^^
+.. automodule:: ddtrace.contrib.internal.anyio
+
+
 .. _asyncio:
 
 asyncio
@@ -310,6 +317,12 @@ httplib
 httpx
 ^^^^^
 .. automodule:: ddtrace.contrib.internal.httpx
+
+.. _httpx2:
+
+httpx2
+^^^^^^
+.. automodule:: ddtrace.contrib.internal.httpx2
 
 
 .. _jinja2:

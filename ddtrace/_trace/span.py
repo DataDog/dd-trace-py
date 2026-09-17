@@ -64,8 +64,6 @@ class Span(SpanData):
         "_context",
         "_store",
         # Internal attributes
-        "_local_root_value",
-        "_service_entry_span_value",
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
@@ -127,8 +125,6 @@ class Span(SpanData):
 
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
-        self._local_root_value: Optional["Span"] = None  # None means this is the root span.
-        self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
 
     @property
@@ -136,7 +132,7 @@ class Span(SpanData):
         """The trace context for this span.
 
         For a child span this is a copy of the parent context that shares the
-        trace-level ``_meta``/``_metrics``/``_baggage``/lock while carrying this
+        trace-level ``_meta``/``_metrics``/``_baggage`` while carrying this
         span's own ``trace_id``/``span_id``; for a root span it is fresh
         trace-level state. Child contexts are built lazily on first read; root
         contexts are forced eagerly in ``__init__`` (before the span is published)
@@ -162,7 +158,7 @@ class Span(SpanData):
         """Return the context a child span should inherit trace-level state from.
 
         Reuses a context that already holds this trace's shared
-        ``_meta``/``_metrics``/``_baggage``/lock — this span's own context if it
+        ``_meta``/``_metrics``/``_baggage`` — this span's own context if it
         was built, otherwise its (local) parent-context — so a deep local trace
         materializes a single Context instead of one per span. A remote
         parent-context is never handed down: a local child's parent-context must
@@ -180,8 +176,9 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         ctx = self.context
         with ctx:
-            self._set_default_attributes(ctx._meta)
-            self._set_default_attributes(ctx._metrics)
+            # traceparent and tracestate are propagation state, not DD-native
+            # span metadata. Copy both context dictionaries while filtering them.
+            self._set_default_context_attributes(ctx._meta, ctx._metrics)
 
     def _ignore_exception(self, exc: type[BaseException]) -> None:
         if self._ignored_exceptions is None:
@@ -226,8 +223,8 @@ class Span(SpanData):
             cb(self)
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
-        self.context.sampling_priority = decision
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
+        self.context._publish_sampling_decision(decision, 0.0, False)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 self._local_root._remove_attribute(key)
@@ -518,30 +515,6 @@ class Span(SpanData):
 
         return False
 
-    @property
-    def _local_root(self) -> "Span":
-        return self._local_root_value or self
-
-    @_local_root.setter
-    def _local_root(self, value: "Span") -> None:
-        self._local_root_value = value if value is not self else None
-
-    @_local_root.deleter
-    def _local_root(self) -> None:
-        del self._local_root_value
-
-    @property
-    def _service_entry_span(self) -> "Span":
-        return self._service_entry_span_value or self
-
-    @_service_entry_span.setter
-    def _service_entry_span(self, span: "Span") -> None:
-        self._service_entry_span_value = None if span is self else span
-
-    @_service_entry_span.deleter
-    def _service_entry_span(self) -> None:
-        del self._service_entry_span_value
-
     def link_span(self, context: Context, attributes: Optional[Mapping[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
@@ -656,15 +629,4 @@ class Span(SpanData):
             self.trace_id,
             self.parent_id,
             self.name,
-        )
-
-    @property
-    def _is_top_level(self) -> bool:
-        """Return whether the span is a "top level" span.
-
-        Top level meaning the root of the trace or a child span
-        whose service is different from its parent.
-        """
-        return (self._local_root is self) or (
-            self._parent is not None and self._parent.service != self.service and self.service is not None
         )

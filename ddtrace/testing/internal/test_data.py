@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import typing as t
 
+from ddtrace.testing.internal._protocols import TestRunProtocol
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -148,7 +149,7 @@ def _itr_test_skipping_enabled_tag_value(session: "TestSession") -> str:
     return TAG_TRUE if session.itr_skipping_enabled else "false"
 
 
-class TestRun(TestItem["Test", t.NoReturn]):
+class TestRun(TestItem["Test", t.NoReturn], TestRunProtocol):
     __test__ = False
 
     def __init__(self, name: str, parent: Test) -> None:

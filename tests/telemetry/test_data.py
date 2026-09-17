@@ -93,6 +93,7 @@ def test_get_host_info():
         "os": platform.system(),
         "hostname": get_hostname(),
         "os_version": _get_os_version(),
+        "architecture": platform.machine(),
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),

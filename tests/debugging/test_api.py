@@ -20,16 +20,16 @@ def test_debugger_enabled_programmatically():
     from ddtrace.internal.native import RemoteConfigProduct
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    assert RemoteConfigProduct.LiveDebugger not in remoteconfig_poller._client._product_callbacks
+    assert RemoteConfigProduct.LiveDebugging not in remoteconfig_poller._client._product_callbacks
     from ddtrace.debugging import DynamicInstrumentation
 
     DynamicInstrumentation.enable()
     assert DynamicInstrumentation._instance is not None
-    assert RemoteConfigProduct.LiveDebugger in remoteconfig_poller._client._product_callbacks
+    assert RemoteConfigProduct.LiveDebugging in remoteconfig_poller._client._product_callbacks
 
     DynamicInstrumentation.disable()
     assert DynamicInstrumentation._instance is None
-    assert RemoteConfigProduct.LiveDebugger not in remoteconfig_poller._client._product_callbacks
+    assert RemoteConfigProduct.LiveDebugging not in remoteconfig_poller._client._product_callbacks
 
 
 @pytest.mark.subprocess(err=None)

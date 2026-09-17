@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
 import ctypes.util
+from enum import Enum
 from enum import IntEnum
 from platform import system
 from typing import Any
@@ -11,16 +12,29 @@ from typing import Union
 
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
+from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-DDWafRulesType = Union[None, int, float, str, list[Any], dict[str, Any]]
+DDWafInputType = Union[None, int, float, str, Sequence["DDWafInputType"], Mapping[str, "DDWafInputType"]]
+
+DDWafOutputType = Union[None, int, float, str, list["DDWafOutputType"], dict[str, "DDWafOutputType"]]
+
+
+class DDWafSqlTokenizer(str, Enum):
+    GENERIC = "generic"
+    MYSQL = "mysql"
+    ORACLE = "oracle"
+    POSTGRESQL = "postgresql"
+    SQLITE = "sqlite"
+
 
 log = get_logger(__name__)
 
 #
-# Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
+# Dynamic loading of libddwaf: either the library bundled in the package, or, when the build
+# bundled none, the names the dynamic linker may resolve (see ddtrace.internal._libddwaf_platform).
 #
 
 if system() == "Linux":
@@ -30,8 +44,25 @@ if system() == "Linux":
     except Exception:  # nosec
         pass
 
-with unpatching_popen():
-    ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
+
+def _load_libddwaf() -> ctypes.CDLL:
+    candidates = _libddwaf_platform.load_candidates(asm_config._asm_libddwaf, system())
+    failures = []
+    for candidate in candidates:
+        try:
+            with unpatching_popen():
+                library = ctypes.CDLL(candidate)
+        except OSError as e:
+            if len(candidates) == 1:
+                raise
+            failures.append("%s: %s" % (candidate, e))
+            continue
+        asm_config._asm_libddwaf = candidate
+        return library
+    raise OSError("could not load libddwaf (%s)" % ", ".join(failures) or "no candidate")
+
+
+ddwaf = _load_libddwaf()
 #
 # Constants
 #
@@ -121,7 +152,7 @@ class ddwaf_object(ctypes.Union):
 
     def __init__(
         self,
-        struct: Optional[DDWafRulesType] = None,
+        struct: Optional[DDWafInputType] = None,
         observator: Optional[_observator] = None,
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
@@ -133,7 +164,7 @@ class ddwaf_object(ctypes.Union):
         _build_ddwaf_object(ctypes.pointer(self), struct, observator, max_objects, max_depth, max_string_length)
 
     @classmethod
-    def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
+    def create_without_limits(cls, struct: DDWafInputType) -> "ddwaf_object":
         return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
 
     @classmethod
@@ -148,7 +179,7 @@ class ddwaf_object(ctypes.Union):
         return obj
 
     @property
-    def struct(self) -> DDWafRulesType:
+    def struct(self) -> DDWafOutputType:
         """Generate a python structure from ddwaf_object"""
         t = self.type
         if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_SMALL_STRING:
@@ -725,6 +756,14 @@ ddwaf_get_version: Callable[[], bytes] = ctypes.CFUNCTYPE(ctypes.c_char_p)(
 )
 
 asm_config._ddwaf_version = ddwaf_get_version().decode()
+
+# A system libddwaf is whatever the linker resolved, and libddwaf sets no SOVERSION upstream,
+# so the major version is only known here.
+if not asm_config._ddwaf_version.startswith("%d." % _libddwaf_platform.ABI_MAJOR):
+    raise RuntimeError(
+        "libddwaf %s loaded from %s is not supported, ddtrace requires %d.x"
+        % (asm_config._ddwaf_version, asm_config._asm_libddwaf, _libddwaf_platform.ABI_MAJOR)
+    )
 
 
 ddwaf_set_log_cb: Callable[[Any, int], bool] = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(

@@ -21,7 +21,7 @@ EXCEPTIONS = {
     "ddtrace/debugging/_probe/registry.py:135",
     "ddtrace/debugging/_probe/registry.py:144",
     # we added a constant check for the wrapping method of add_error_log
-    "ddtrace/appsec/_iast/_metrics.py:52",
+    "ddtrace/appsec/_iast/_metrics.py:54",
     # _report_converter_error wraps add_error_log; callers pass constant messages
     "ddtrace/aiguard/integrations/_anthropic.py:59",
     # we added a constant check for the wrapping method of iast_error

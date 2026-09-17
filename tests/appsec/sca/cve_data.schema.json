@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SCA CVE instrumentation targets",
+  "type": "object",
+  "required": ["targets"],
+  "additionalProperties": false,
+  "properties": {
+    "targets": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/target"}
+    }
+  },
+  "definitions": {
+    "target": {
+      "type": "object",
+      "required": ["id", "targets", "lang", "dependency_name", "package_versions", "vulnerability"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[^:]+:.+$"}
+        },
+        "lang": {"const": "python"},
+        "dependency_name": {"type": "string", "minLength": 1},
+        "package_versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "vulnerability": {"$ref": "#/definitions/vulnerability"}
+      }
+    },
+    "vulnerability": {
+      "type": "object",
+      "required": ["id", "severity", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+        "description": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

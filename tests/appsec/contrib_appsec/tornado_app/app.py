@@ -272,6 +272,17 @@ class RaspHandler(BaseHandler):
 
                             r = requests.get(urlname, timeout=0.5)
                             res.append(f"Url: {r.text}")
+                        elif param.startswith("url_httpx2_async"):
+                            import httpx2
+
+                            async with httpx2.AsyncClient() as client:
+                                r = await client.get(urlname, timeout=0.5)
+                                res.append(f"Url: {r.text}")
+                        elif param.startswith("url_httpx2"):
+                            import httpx2
+
+                            r = httpx2.get(urlname, timeout=0.5)
+                            res.append(f"Url: {r.text}")
                         elif param.startswith("url_httpx_async"):
                             import httpx
 
@@ -421,11 +432,14 @@ class RedirectRequestsHandler(BaseHandler):
 
 class RedirectHttpxHandler(BaseHandler):
     async def get(self, route: str, port: str) -> None:
-        import httpx
+        if self.request.path.startswith("/redirect_httpx2/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            with httpx.Client() as client:
+            with httpx_client.Client() as client:
                 response = client.get(
                     full_url,
                     timeout=DOWNSTREAM_HTTP_TIMEOUT,
@@ -438,11 +452,14 @@ class RedirectHttpxHandler(BaseHandler):
         self._write_json(payload)
 
     async def post(self, route: str, port: str) -> None:
-        import httpx
+        if self.request.path.startswith("/redirect_httpx2/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            with httpx.Client() as client:
+            with httpx_client.Client() as client:
                 response = client.post(
                     full_url,
                     content=self.request.body,
@@ -458,11 +475,14 @@ class RedirectHttpxHandler(BaseHandler):
 
 class RedirectHttpxAsyncHandler(BaseHandler):
     async def get(self, route: str, port: str) -> None:
-        import httpx
+        if self.request.path.startswith("/redirect_httpx2_async/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx_client.AsyncClient() as client:
                 response = await client.get(
                     full_url,
                     timeout=DOWNSTREAM_HTTP_TIMEOUT,
@@ -475,11 +495,14 @@ class RedirectHttpxAsyncHandler(BaseHandler):
         self._write_json(payload)
 
     async def post(self, route: str, port: str) -> None:
-        import httpx
+        if self.request.path.startswith("/redirect_httpx2_async/"):
+            import httpx2 as httpx_client
+        else:
+            import httpx as httpx_client
 
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx_client.AsyncClient() as client:
                 response = await client.post(
                     full_url,
                     content=self.request.body,
@@ -625,7 +648,9 @@ def get_app() -> tornado.web.Application:
             (r"/redirect/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHandler),
             (r"/redirect_requests/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectRequestsHandler),
             (r"/redirect_httpx/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxHandler),
+            (r"/redirect_httpx2/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxHandler),
             (r"/redirect_httpx_async/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxAsyncHandler),
+            (r"/redirect_httpx2_async/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxAsyncHandler),
             (r"/exception-group-block", ExceptionGroupBlockHandler),
             (r"/login/?", LoginHandler),
             (r"/login_sdk/?", LoginSdkHandler),

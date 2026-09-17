@@ -1,6 +1,7 @@
 import dataclasses
 from time import monotonic
-from typing import Any
+from typing import Callable
+from typing import Optional
 from typing import Sequence
 
 
@@ -10,8 +11,12 @@ class HttpEndPoint:
     path: str
     resource_name: str = dataclasses.field(default="")
     operation_name: str = dataclasses.field(default="http.request")
-    response_body_type: Sequence[str] = dataclasses.field(default_factory=tuple)
-    response_code: Sequence[int] = dataclasses.field(default_factory=tuple)
+    # compare=False so equality matches __hash__ (method, path): a frozen dataclass otherwise
+    # compares every field, and the same route registered with different reported metadata would
+    # be a distinct set member - stored twice and forwarded to the worker twice, leaving the
+    # dedupe this set exists for to native code.
+    response_body_type: Sequence[str] = dataclasses.field(default_factory=tuple, compare=False)
+    response_code: Sequence[int] = dataclasses.field(default_factory=tuple, compare=False)
     _hash: int = dataclasses.field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -23,10 +28,6 @@ class HttpEndPoint:
 
     def __hash__(self) -> int:
         return self._hash
-
-
-def _dict_factory(lst: list[tuple[str, Any]]) -> dict[str, Any]:
-    return {k: v for k, v in lst if v not in ((), [], None)}
 
 
 class Singleton(type):
@@ -42,22 +43,32 @@ class Singleton(type):
 
 @dataclasses.dataclass()
 class HttpEndPointsCollection(metaclass=Singleton):
-    """A collection of HTTP endpoints that can be modified and flushed to a telemetry payload.
+    """Tracks the HTTP endpoints registered for ASM API-security telemetry.
 
-    The collection collects HTTP endpoints at startup and can be flushed to a telemetry payload.
-    It maintains a maximum size and drops endpoints after a certain time period in case of a hot reload of the server.
+    Endpoints are forwarded to the native telemetry worker as they are registered; the worker
+    owns their deduplication, buffering, and emission of the ``app-endpoints`` payload. This
+    set is kept only to:
+
+    - deduplicate, so each endpoint is forwarded to the worker at most once,
+    - bound how many endpoints are tracked (``max_size_length``),
+    - drop a stale route table after a long idle gap (e.g. a dev-server hot reload), and
+    - replay endpoints registered before the worker existed (see
+      ``TelemetryWriter._report_endpoints``, called from ``enable()``).
     """
 
     endpoints: set[HttpEndPoint] = dataclasses.field(default_factory=set, init=False)
-    is_first: bool = dataclasses.field(default=True, init=False)
     drop_time_seconds: float = dataclasses.field(default=90.0, init=False)
     last_modification_time: float = dataclasses.field(default_factory=monotonic, init=False)
     max_size_length: int = dataclasses.field(default=900, init=False)
+    # Notified of each newly-registered endpoint. The telemetry writer installs itself here in
+    # ``enable()``; nothing else subscribes. The dependency points that way round so that this
+    # module, which every web framework integration imports, needs no import of the telemetry
+    # package -- importing it here would close a cycle back through ``telemetry.writer``.
+    on_endpoint_registered: Optional[Callable[[HttpEndPoint], None]] = dataclasses.field(default=None, init=False)
 
     def reset(self) -> None:
         """Reset the collection to its initial state."""
         self.endpoints.clear()
-        self.is_first = True
         self.last_modification_time = monotonic()
 
     def add_endpoint(
@@ -69,46 +80,33 @@ class HttpEndPointsCollection(metaclass=Singleton):
         response_body_type: Sequence[str] = (),
         response_code: Sequence[int] = (),
     ) -> None:
-        """
-        Add an endpoint to the collection.
-        """
+        """Register an endpoint and forward it (once) to the native telemetry worker."""
         current_time = monotonic()
+        # Drop the accumulated set after a long idle gap (e.g. a hot reload of the server) so a
+        # fresh route table can be re-registered and re-reported.
         if current_time - self.last_modification_time > self.drop_time_seconds:
             self.reset()
-            self.endpoints.add(
-                HttpEndPoint(
-                    method=method,
-                    path=path,
-                    resource_name=resource_name,
-                    operation_name=operation_name,
-                    response_body_type=response_body_type,
-                    response_code=response_code,
-                )
-            )
-        elif len(self.endpoints) < self.max_size_length:
-            self.last_modification_time = current_time
-            self.endpoints.add(
-                HttpEndPoint(
-                    method=method,
-                    path=path,
-                    resource_name=resource_name,
-                    operation_name=operation_name,
-                    response_body_type=response_body_type,
-                    response_code=response_code,
-                )
-            )
-            self.last_modification_time = current_time
+        if len(self.endpoints) >= self.max_size_length:
+            return
 
-    def flush(self, max_length: int) -> dict:
-        """
-        Flush the endpoints to a payload, returning the first `max` endpoints.
-        """
-        endpoints_res: list[dict] = []
-        while self.endpoints and len(endpoints_res) < max_length:
-            endpoints_res.append(dataclasses.asdict(self.endpoints.pop(), dict_factory=_dict_factory))
-        res = {"is_first": self.is_first, "endpoints": endpoints_res}
-        self.is_first = False
-        return res
+        endpoint = HttpEndPoint(
+            method=method,
+            path=path,
+            resource_name=resource_name,
+            operation_name=operation_name,
+            response_body_type=response_body_type,
+            response_code=response_code,
+        )
+        if endpoint in self.endpoints:
+            # Already registered (and already forwarded): dedupe without re-forwarding.
+            return
+        self.endpoints.add(endpoint)
+        self.last_modification_time = current_time
+
+        # Forward just this newly-registered endpoint, so the subscriber never re-walks the whole
+        # collection. Nobody is subscribed until telemetry is enabled, which replays the set.
+        if self.on_endpoint_registered is not None:
+            self.on_endpoint_registered(endpoint)
 
 
 endpoint_collection = HttpEndPointsCollection()

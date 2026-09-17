@@ -5,14 +5,16 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._deduplications import deduplication
-from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.telemetry.metrics import MetricRecorder
+from ddtrace.internal.telemetry.metrics import get_metric_recorder
 
 
 log = get_logger(__name__)
@@ -73,20 +75,32 @@ def _set_metric_iast_instrumented_sink(vulnerability_type, counter=1):
     )
 
 
+# Recorded on every aspect execution, use MetricRecorder for extra-fast dispatch.
+_EXECUTED_SINK_RECORDERS: dict[str, MetricRecorder] = {}
+_EXECUTED_SOURCE_RECORDERS: dict[str, MetricRecorder] = {}
+
+
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_executed_source(source_type):
     from ._taint_tracking import origin_to_str
 
-    telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.IAST, "executed.source", 1, (("source_type", origin_to_str(source_type)),)
-    )
+    source_name = origin_to_str(source_type)
+    recorder = _EXECUTED_SOURCE_RECORDERS.get(source_name)
+    if recorder is None:
+        recorder = _EXECUTED_SOURCE_RECORDERS[source_name] = get_metric_recorder(
+            TELEMETRY_NAMESPACE.IAST, "executed.source", tags=(("source_type", source_name),)
+        )
+    recorder.add()
 
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_executed_sink(vulnerability_type):
-    telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.IAST, "executed.sink", 1, (("vulnerability_type", vulnerability_type),)
-    )
+    recorder = _EXECUTED_SINK_RECORDERS.get(vulnerability_type)
+    if recorder is None:
+        recorder = _EXECUTED_SINK_RECORDERS[vulnerability_type] = get_metric_recorder(
+            TELEMETRY_NAMESPACE.IAST, "executed.sink", tags=(("vulnerability_type", vulnerability_type),)
+        )
+    recorder.add()
 
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)

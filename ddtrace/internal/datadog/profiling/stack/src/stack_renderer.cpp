@@ -2,14 +2,13 @@
 
 #include "origin_task_links.hpp"
 #include "sampler.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "dd_wrapper/include/clock.hpp"
 #include "dd_wrapper/include/sample_manager.hpp"
 
 #include "echion/echion_sampler.h"
 #include "echion/strings.h"
-#include <ddup_interface.hpp>
 #include <unordered_map>
 
 using namespace Datadog;
@@ -60,7 +59,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     sample->push_walltime(thread_state.wall_time_ns, 1);
 
-    const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    const std::optional<Span> active_span = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
     if (active_span) {
         sample->push_span_id(active_span->span_id);
         sample->push_local_root_span_id(active_span->local_root_span_id);
@@ -78,7 +77,10 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64_t task_id)
+StackRenderer::render_task_begin(std::string_view task_name,
+                                 bool on_cpu,
+                                 uint64_t task_id,
+                                 std::optional<int64_t> walltime_ns_override)
 {
     static bool failed = false;
     if (failed) {
@@ -99,7 +101,8 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
         // Add thread context into the sample
         sample->push_threadinfo(
           static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
-        sample->push_walltime(thread_state.wall_time_ns, 1);
+        const int64_t walltime = walltime_ns_override.value_or(thread_state.wall_time_ns);
+        sample->push_walltime(walltime, 1);
 
         if (on_cpu) {
             // initialized to 0, so possibly a no-op
@@ -110,7 +113,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
 
         // We also want to make sure the tid -> span_id mapping is present in the sample for the task
         const std::optional<Span> active_span =
-          ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
+          SpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
         if (active_span) {
             sample->push_span_id(active_span->span_id);
             sample->push_local_root_span_id(active_span->local_root_span_id);
@@ -204,6 +207,25 @@ StackRenderer::render_frame(Frame& frame)
     }
 
     sample->push_frame(function_id, 0, line);
+}
+
+void
+StackRenderer::mark_truncated()
+{
+    if (sample != nullptr) {
+        sample->incr_dropped_frames();
+    }
+}
+
+void
+StackRenderer::render_gc_frame()
+{
+    if (sample == nullptr) {
+        std::cerr << "Received a GC frame without sample storage. Some profiling data has been lost." << std::endl;
+        return;
+    }
+
+    sample->push_frame("Garbage collection", "<runtime>", 0, 0);
 }
 
 void
