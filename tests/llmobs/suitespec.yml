@@ -487,7 +487,3 @@ suites:
         - name: vllm
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
-        # PR #20079: Python 3.14 is covered by the latest dependency row only.
-        - name: vllm
-          python: ['3.14']
-          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]

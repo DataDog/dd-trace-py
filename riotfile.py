@@ -3603,10 +3603,22 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/aws_lambda",
-            pys=select_pys(min_version="3.9", max_version="3.14"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=6.105.0", latest],
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="aws_lambda",
+            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
+            command="pytest {cmdargs} tests/contrib/aws_lambda",
+            pys="3.14",
+            pkgs={
+                "boto3": latest,
+                "datadog-lambda": latest,
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
@@ -3906,18 +3918,6 @@ venv = Venv(
                 "vllm": ["~=0.10.2", latest],
             },
             pys=select_pys(min_version="3.10", max_version="3.13"),
-        ),
-        Venv(
-            name="vllm",
-            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
-            command="pytest {cmdargs} tests/contrib/vllm",
-            pkgs={
-                "pytest-asyncio": "==0.21.1",
-                "pytest-randomly": latest,
-                "torch": latest,
-                "vllm": latest,
-            },
-            pys="3.14",
         ),
         Venv(
             name="valkey",

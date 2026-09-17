@@ -574,6 +574,9 @@ suites:
         - name: aws_lambda
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
+        - name: aws_lambda
+          python: ['3.14']
+          dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
   aws_durable_execution_sdk_python:
     venvs_per_job: 2
     paths:
