@@ -62,12 +62,16 @@ def test_tracer_api(monkeypatch):
         pytest.fail("Unable to find stack collector")
 
 
-@pytest.mark.subprocess()
-def test_default_memory():
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED=None))
+def test_default_memory() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
 
-    assert any(isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
+    mem_collectors: list[memalloc.MemoryCollector] = [
+        col for col in profiler.Profiler()._profiler._collectors if isinstance(col, memalloc.MemoryCollector)
+    ]
+    assert mem_collectors, "MemoryCollector should be enabled by default"
+    assert mem_collectors[0].mem_domain_enabled is True
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="true"))

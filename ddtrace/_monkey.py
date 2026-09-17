@@ -27,6 +27,7 @@ log = get_logger(__name__)
 PATCH_MODULES = {
     "aiokafka": True,
     "aiomysql": True,
+    "anyio": True,
     "aredis": True,
     "asyncio": True,
     "avro": True,

@@ -455,6 +455,35 @@ Traces
      version_added:
         v4.11.0:
 
+   DD_LLMOBS_SAMPLING_RULES:
+     type: JSON array
+
+     description: |
+         A JSON array of tag-based sampling rules for LLM Observability traces, mirroring the format of
+         ``DD_TRACE_SAMPLING_RULES``. Each rule requires a ``sample_rate`` and may declare a ``tags``
+         object mapping tag names to glob patterns, matched case-insensitively against the root span of
+         the trace (``*`` matches any number of characters, ``?`` exactly one). Every declared tag must
+         match, so a rule with no ``tags`` matches every trace.
+
+         Rules are evaluated in order and the first match wins, with its rate replacing
+         ``DD_LLMOBS_SAMPLE_RATE``. Traces matching no rule fall back to that global rate. One decision
+         applies to the whole trace and is propagated across distributed boundaries.
+
+         **Note** that the decision is made as late as possible and then frozen, so that every span of a
+         trace carries the same one. Because rules match against the root span's tags as they stand at
+         that moment, a tag set after the freeze does not affect sampling. The freeze happens at
+         whichever of these comes first:
+
+         * the first outbound request from an instrumented integration, which propagates the decision;
+         * handing the trace off to another thread or to an ``asyncio`` task;
+         * a partial flush (see ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS``, 300 spans by default);
+         * the root span finishing.
+
+         **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
+
+     version_added:
+        v4.15.0:
+
 Trace Context propagation
 -------------------------
 
@@ -846,6 +875,32 @@ Test Visibility
 
      version_added:
         v1.13.0:
+
+   DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables dynamic, duration-based Auto Test Retries budgets. When enabled, the number of retries
+        allowed for a test is determined by the duration of its initial attempt, using the same duration
+        buckets as Early Flake Detection, instead of the flat per-test retry limit. Requires Auto Test
+        Retries to be enabled by the backend.
+
+     version_added:
+        v4.15.0:
+
+   DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS:
+     type: String
+     default: ""
+
+     description: |
+        Comma-separated list of five positive integers in ``[1, 20]`` overriding the five duration-based
+        Auto Test Retries budgets (for the 5s, 10s, 30s, 5m, and >5m buckets respectively). When unset or
+        empty, the Early Flake Detection retry settings from the backend are used. Only takes effect when
+        ``DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED`` is enabled.
+
+     version_added:
+        v4.15.0:
 
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean

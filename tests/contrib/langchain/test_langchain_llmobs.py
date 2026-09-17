@@ -454,38 +454,48 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
 
     complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
-    # Use the APM trace (parent-first ordering) directly; the legacy test indexed by
-    # ``trace[i]`` here, and that maps 1:1 to the LLMObs spans on the same Spans.
     trace = test_spans.pop_traces()[0]
     spans = [s for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 5
 
+    # RunnableParallel completion order is nondeterministic, so identify spans by
+    # hierarchy and LLMObs data instead of relying on their flush order.
+    root_span = next(span for span in spans if span.parent_id is None)
+    workflow_span = next(span for span in spans if span is not root_span and get_llmobs_span_kind(span) == "workflow")
+    task_span = next(span for span in spans if get_llmobs_span_kind(span) == "task")
+    llm_spans_by_prompt = {
+        get_llmobs_input_prompt(span)["id"]: span for span in spans if get_llmobs_span_kind(span) == "llm"
+    }
+    first_llm_span = llm_spans_by_prompt["langchain.unknown_prompt_template"]
+    second_llm_span = llm_spans_by_prompt["test_langchain_llmobs.prompt2"]
+
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[0]),
+        _get_llmobs_data_metastruct(root_span),
         span_kind="workflow",
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
         tags=COMMON_TAGS,
     )
-    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
+    assert _get_llmobs_data_metastruct(root_span).get("span_links")
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[1]),
+        _get_llmobs_data_metastruct(workflow_span),
         span_kind="workflow",
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
         tags=COMMON_TAGS,
     )
-    assert _get_llmobs_data_metastruct(spans[1]).get("span_links")
+    assert _get_llmobs_data_metastruct(workflow_span).get("span_links")
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[2]),
+        _get_llmobs_data_metastruct(task_span),
         span_kind="task",
         input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}, sort_keys=True),
         output_value="Spanish",
         tags=COMMON_TAGS,
     )
-    assert _get_llmobs_data_metastruct(spans[2]).get("span_links")
+    assert _get_llmobs_data_metastruct(task_span).get("span_links")
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[3]), **_expected_llm_span_data(spans[3], mock_token_metrics=True)
+        _get_llmobs_data_metastruct(first_llm_span),
+        **_expected_llm_span_data(first_llm_span, mock_token_metrics=True),
     )
-    assert _get_llmobs_data_metastruct(spans[3]).get("span_links")
+    assert _get_llmobs_data_metastruct(first_llm_span).get("span_links")
     expected_prompt_3 = {
         "id": "langchain.unknown_prompt_template",
         "ml_app": "langchain_test",
@@ -494,12 +504,13 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
         "_dd_context_variable_keys": ["context"],
         "_dd_query_variable_keys": ["question"],
     }
-    assert get_llmobs_input_prompt(spans[3]) == expected_prompt_3
+    assert get_llmobs_input_prompt(first_llm_span) == expected_prompt_3
 
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[4]), **_expected_llm_span_data(spans[4], mock_token_metrics=True)
+        _get_llmobs_data_metastruct(second_llm_span),
+        **_expected_llm_span_data(second_llm_span, mock_token_metrics=True),
     )
-    assert _get_llmobs_data_metastruct(spans[4]).get("span_links")
+    assert _get_llmobs_data_metastruct(second_llm_span).get("span_links")
     expected_prompt_4 = {
         "id": "test_langchain_llmobs.prompt2",
         "ml_app": "langchain_test",
@@ -508,7 +519,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
         "_dd_context_variable_keys": ["context"],
         "_dd_query_variable_keys": ["question"],
     }
-    assert get_llmobs_input_prompt(spans[4]) == expected_prompt_4
+    assert get_llmobs_input_prompt(second_llm_span) == expected_prompt_4
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")

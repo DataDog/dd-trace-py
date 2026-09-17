@@ -14,6 +14,7 @@ TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
 SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 LOCK_ROOT = Path(".riot/requirements")
+LOCK_PLATFORM = "linux"
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
 
@@ -62,6 +63,9 @@ def _collect_suitespecs() -> dict:
         with YAML() as yaml:
             data = yaml.load(s)
             suites = data.get("suites", {})
+            source = s.relative_to(TESTS.parent).as_posix()
+            for spec in suites.values():
+                spec["paths"].append(source)
             if namespace is not None:
                 for name, spec in list(suites.items()):
                     if "pattern" not in spec:
@@ -82,6 +86,8 @@ UV_TEST_SUITES = tuple(suite for suite, config in SUITESPEC["suites"].items() if
 def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
+    >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest")
+    True
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
     >>> SUITESPEC["suites"] = {"debugger": {"paths": ["@core", "@debugging", "tests/d/*"]}}
     >>> sorted(get_patterns("debugger"))  # doctest: +NORMALIZE_WHITESPACE
@@ -220,10 +226,10 @@ def _variant_settings(
 ) -> tuple[tuple[str, ...], tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
-    if "env" in matrix:
-        environment.update(matrix["env"])
     if nightly:
         environment.update(NIGHTLY_ENVIRONMENT)
+    if "env" in matrix:
+        environment.update(matrix["env"])
     if "env" in variant:
         environment.update(variant["env"])
 

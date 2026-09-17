@@ -429,7 +429,10 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            command=(
+                "pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py "
+                "--ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/"
+            ),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -447,7 +450,7 @@ venv = Venv(
             env={
                 "DDTEST_SUITE_PATH": "tests/tracer",
                 "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
-                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_shutdown.py",
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_*.py",
                 "_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.tracer",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
@@ -481,7 +484,9 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer-uwsgi",
-                    command="pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py",
+                    command=(
+                        "pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py"
+                    ),
                     pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
                     pkgs={"uwsgi": latest},
                 ),
@@ -659,6 +664,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "UV_NO_CACHE": "1",
             },
             command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
@@ -1050,6 +1056,8 @@ venv = Venv(
         # 6.0     3.12, 3.13
         # 6.1     3.12, 3.13, 3.14
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
+        # 3.15 isn't in Django's support matrix yet (no CPython 3.15 GA); the 6.x block below
+        # opts in early via select_pys(max_version="3.15") to track dd-trace-py's own py-315 work.
         Venv(
             name="django",
             command="pytest {cmdargs} tests/contrib/django",
@@ -1118,6 +1126,27 @@ venv = Venv(
                     ),
                     pkgs={
                         "django": ["~=5.1"],
+                        "psycopg": latest,
+                        "channels": latest,
+                        "django-q2": latest,
+                    },
+                ),
+                Venv(
+                    # django 6.x (#py-315 coverage). Same skip list as the 5.x block above;
+                    # 6.0 dropped Postgres 12 too and the suite's docker-compose still runs it.
+                    # max_version="3.15" is a forward test only: Django hasn't declared 3.15
+                    # support yet since CPython 3.15 isn't GA (see comment above the table).
+                    pys=select_pys(min_version="3.12", max_version="3.15"),
+                    command=(
+                        "pytest {cmdargs} "
+                        "--ignore=tests/contrib/django/test_django_dbm.py "
+                        "--ignore=tests/contrib/django/test_django_snapshots.py "
+                        "-k 'not test_user_name_included and not test_user_name_excluded "
+                        "and not test_cached_view' "
+                        "tests/contrib/django"
+                    ),
+                    pkgs={
+                        "django": "~=6.1",
                         "psycopg": latest,
                         "channels": latest,
                         "django-q2": latest,
@@ -1230,7 +1259,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.14"),
+                    pys=select_pys(max_version="3.15"),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -1576,7 +1605,7 @@ venv = Venv(
         ),
         Venv(
             name="pymemcache",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "pytest-randomly": latest,
                 "pymemcache": [
@@ -1962,6 +1991,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.14"),
                     pkgs={"fastapi": latest, "hypothesis": latest},
                 ),
+            ],
+        ),
+        Venv(
+            name="anyio",
+            command="pytest {cmdargs} tests/contrib/anyio",
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                Venv(pys="3.9", pkgs={"anyio": "==3.4.0", "trio": "<0.22"}),
+                Venv(pys="3.10", pkgs={"anyio": "<4.0", "trio": "<0.22"}),
+                Venv(pys=select_pys(), pkgs={"anyio": latest, "trio": latest}),
             ],
         ),
         Venv(
@@ -2359,6 +2398,7 @@ venv = Venv(
                             "~=1.8.1",
                             "~=1.10.0",
                             "~=2.0.0",  # first major version; removed Job.get_id() in favour of job.id property
+                            "~=2.7.0",  # split rq/worker.py into a package; SimpleWorker no longer subclasses Worker
                             latest,
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
@@ -2367,7 +2407,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -3838,7 +3878,6 @@ venv = Venv(
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
-                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -4656,6 +4695,16 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            # Cross-product tests: a security/AI product in standalone mode alongside another
+            # product. Owned by no single product team, see tests/standalone/.
+            name="standalone",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
+            command="pytest {cmdargs} tests/standalone/",
+            pys=select_pys(),
+        ),
+        Venv(
             name="ai_guard_langchain",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -4737,7 +4786,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
-                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # ``pyyaml`` lets the cassette smoke test parse the
                 # anthropic contrib VCR fixtures. Pinned to a single version
                 # because the suite only uses ``yaml.safe_load``.
                 "pyyaml": latest,

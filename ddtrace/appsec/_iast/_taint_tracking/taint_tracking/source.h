@@ -1,7 +1,7 @@
 #pragma once
-#include <sstream>
-
 #include <pybind11/pybind11.h>
+
+#include <sstream>
 
 #include "../constants.h"
 

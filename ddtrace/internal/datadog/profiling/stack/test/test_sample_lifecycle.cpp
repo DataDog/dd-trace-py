@@ -3,6 +3,7 @@
 #include "dd_wrapper/include/ddup_interface.hpp"
 #include "dd_wrapper/include/sample_manager.hpp"
 #include "dd_wrapper/include/static_sample_pool.hpp"
+#include "dd_wrapper/include/uploader_builder.hpp"
 
 #include <gtest/gtest.h>
 
@@ -50,11 +51,11 @@ class StackRendererSampleLifecycle : public ::testing::Test
   protected:
     static void SetUpTestSuite()
     {
-        ddup_config_service("test_service");
-        ddup_config_env("test_env");
-        ddup_config_version("0.0.1");
-        ddup_config_url("http://localhost:8126");
-        ddup_config_max_nframes(64);
+        UploaderBuilder::set_service("test_service");
+        UploaderBuilder::set_env("test_env");
+        UploaderBuilder::set_version("0.0.1");
+        UploaderBuilder::set_url("http://localhost:8126");
+        SampleManager::set_max_nframes(64);
         ddup_start();
     }
 

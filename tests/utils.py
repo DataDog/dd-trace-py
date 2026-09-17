@@ -83,6 +83,17 @@ _LLMOBS_SHADOW_IGNORES = [
     "metrics._dd.llmobs.total_tokens",
     "metrics._dd.llmobs.cache_read_input_tokens",
     "metrics._dd.llmobs.cache_write_input_tokens",
+    "meta.gen_ai.operation.name",
+    "meta.gen_ai.request.model",
+    "meta.gen_ai.provider.name",
+    "meta.gen_ai.application.name",
+    "meta.gen_ai.conversation.id",
+    "metrics.gen_ai.usage.input_tokens",
+    "metrics.gen_ai.usage.output_tokens",
+    "metrics.gen_ai.usage.total_tokens",
+    "metrics.gen_ai.usage.cache_read_input_tokens",
+    "metrics.gen_ai.usage.cache_write_input_tokens",
+    "metrics.gen_ai.usage.reasoning_output_tokens",
 ]
 
 
@@ -208,6 +219,7 @@ def override_global_config(values: dict[str, Any]):
         "_dd_app_key",
         "_llmobs_enabled",
         "_llmobs_sample_rate",
+        "_llmobs_sampling_rules",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
         "_llmobs_instrumented_proxy_urls",
