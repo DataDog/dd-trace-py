@@ -1003,6 +1003,18 @@
                 "tested": [
                     "6.1.1"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.2.8",
+                "tested": [
+                    "5.2.17"
+                ]
             }
         ]
     },

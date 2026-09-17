@@ -34,6 +34,37 @@ Use this skill when you have:
 4. **Use `--list` first** - see matching environments before executing
 5. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
 
+### Runtime and version-upgrade validation
+
+For a runtime or package-version compatibility task:
+
+- Read this skill before editing or testing.
+- Try the direct version bump first, then run only the requested target version and package. CI owns the full cross-version matrix.
+- Treat a test as verified only after the command exits. A started, still-building, collecting, or interrupted process is not a test result; poll it to completion.
+
+### Native build recovery
+
+When a host-mounted `scripts/ddtest` or `scripts/run-tests` environment fails while installing
+ddtrace, especially with `target3.*`, missing Rust `.rlib` files, or `sccache` in the compiler
+command:
+
+1. Run `scripts/clean` in the host checkout. This removes native shared libraries, Rust targets,
+   and other build artifacts.
+2. For a direct `scripts/ddtest riot run` invocation, add `--recreate-venvs`; otherwise Riot may
+   reuse a cached editable venv whose native `.so` files were removed by the clean.
+3. Retry so ddtrace is rebuilt and reinstalled.
+4. If the failure repeats with sccache, retry the same focused command with the cache disabled and
+   lower native-build parallelism:
+
+```bash
+DD_USE_SCCACHE=0 CARGO_BUILD_JOBS=4 CMAKE_BUILD_PARALLEL_LEVEL=4 \
+  scripts/ddtest riot run --recreate-venvs --pass-env --python <version> <integration>
+```
+
+The Compose test-runner defaults are overridable for this purpose. If the command still fails
+before dependency resolution, collection, or test execution, report it as a native test-environment
+blocker rather than as an integration compatibility result.
+
 ## How This Skill Works
 
 ### Step 1: Identify Changed Files

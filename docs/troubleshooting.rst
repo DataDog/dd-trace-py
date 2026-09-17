@@ -109,6 +109,17 @@ CMake errors, or stale native extension issues. Build requires Rust, cmake, Cyth
 
     $ scripts/clean
 
+If the native build still reports missing ``target3.*`` Rust artifacts and the compiler command
+uses ``sccache``, retry the same focused test with the cache disabled and lower native-build
+parallelism. When using ``scripts/ddtest riot run`` after ``scripts/clean``, include
+``--recreate-venvs`` so Riot does not reuse an editable venv whose native extensions were removed.
+The Compose defaults are overridable for this purpose:
+
+.. code-block:: bash
+
+    $ DD_USE_SCCACHE=0 CARGO_BUILD_JOBS=4 CMAKE_BUILD_PARALLEL_LEVEL=4 \
+        scripts/ddtest riot run --recreate-venvs --pass-env --python <version> <integration>
+
 **Alternative:** The best use case for ``python setup.py clean --all`` is when ddtrace is installed from
 source into a sample app for local dev testing. If your build environment is already installed:
 
