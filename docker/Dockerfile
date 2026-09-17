@@ -6,6 +6,7 @@ FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13
 
 ARG TARGETARCH
 ARG UV_VERSION=0.11.14
+ARG LIBRDKAFKA_VERSION=2.15.1
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -38,9 +39,11 @@ RUN apt-get update \
       git \
       jq \
       libbz2-dev \
+      libcurl4-openssl-dev \
       libenchant-2-dev \
       libffi-dev \
       libjemalloc2 \
+      liblz4-dev \
       liblzma-dev \
       libmariadb-dev \
       libmariadb-dev-compat \
@@ -55,6 +58,8 @@ RUN apt-get update \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
+      libssl-dev \
+      libzstd-dev \
       python3.13-dev \
       nodejs \
       npm \
@@ -94,6 +99,16 @@ RUN apt-get update \
     fi \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
+
+# confluent-kafka does not publish cp315 wheels yet, so its source build needs
+# the matching librdkafka headers in the testrunner image.
+RUN git clone --depth 1 --branch "v${LIBRDKAFKA_VERSION}" https://github.com/confluentinc/librdkafka /tmp/librdkafka \
+    && cd /tmp/librdkafka \
+    && ./configure --prefix=/usr \
+    && make -j2 \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/librdkafka
 
 # Install ddtest before switching to the unprivileged user because /usr/local/bin is root-owned.
 ARG DDTEST_VERSION=1.7.0
