@@ -1,6 +1,6 @@
 //! Sender for Dynamic Instrumentation logs, snapshots and probe diagnostics.
 //!
-//! A thin PyO3 wrapper around `datadog_live_debugger::sender`.
+//! A thin PyO3 wrapper around `libdd_live_debugger::sender`.
 //!
 //! Each send runs `runtime.block_on(...)` inside `py.detach`, releasing the GIL
 //! for the duration of the I/O. The uploader already runs on its own periodic thread,
@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use datadog_live_debugger::sender::{
+use libdd_live_debugger::sender::{
     self, debugger_intake_endpoint, Config as SenderConfig, DebuggerType, PayloadRejected,
 };
 use libdd_common::{parse_uri, Endpoint};
