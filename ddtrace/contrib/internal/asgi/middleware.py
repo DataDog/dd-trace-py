@@ -100,16 +100,25 @@ def _default_handle_exception_span(exc, span):
     span._set_attribute(http.STATUS_CODE, "500")
 
 
+def _span_is_descendant_of(span: Span, ancestor: Span) -> bool:
+    parent = span._parent
+    while parent is not None:
+        if parent is ancestor:
+            return True
+        parent = parent._parent
+    return False
+
+
 def _finish_unfinished_llm_spans(request_span: Span) -> None:
     # NOTE: Streaming LLM spans (LLMObs.llm() around an SSE generator,
     # OpenAI/Anthropic TracedStream, etc.) are often finished only from a
     # generator finally block. If the client disconnects or the generator is
-    # abandoned, those spans stay in the SpanAggregator and later requests on
-    # the same worker nest under them. Finish leftover LLM spans when the WEB
-    # request span ends. Do not finish other unfinished children: fire-and-forget
-    # / background work is a supported pattern. Happy-path streaming order is
-    # safe: the generator finally annotates and finishes the LLM span before
-    # the last response chunk, which finishes this request span.
+    # abandoned, those child spans stay in the SpanAggregator. Sweep them
+    # after await self.app() returns — not when the request span finishes on
+    # the last http.response.body, because the app may still be annotating.
+    # Only descendants of this request: an enclosing LLMObs.llm() around an
+    # in-process ASGI call is a legitimate ancestor and must stay open.
+    # Do not finish non-LLM children (fire-and-forget / background work).
     try:
         aggregator = tracer._span_aggregator
         traces = aggregator._traces
@@ -119,13 +128,16 @@ def _finish_unfinished_llm_spans(request_span: Span) -> None:
             if trace_id not in traces:
                 return
             leftover = [
-                span
-                for span in traces[trace_id].spans
-                if span is not request_span and span.duration_ns is None and span.span_type == SpanTypes.LLM
+                child
+                for child in traces[trace_id].spans
+                if child is not request_span
+                and child.duration_ns is None
+                and child.span_type == SpanTypes.LLM
+                and _span_is_descendant_of(child, request_span)
             ]
-        for span in leftover:
+        for child in leftover:
             try:
-                span.finish()
+                child.finish()
             except Exception:
                 log.debug("Failed to finish leftover LLM span on ASGI request teardown", exc_info=True)
     except Exception:
@@ -284,8 +296,6 @@ class TraceMiddleware:
             ) as ctx,
             span_from_context(ctx) as span,
         ):
-            if scope["type"] == "http":
-                span._on_finish_callbacks.append(_finish_unfinished_llm_spans)
             if self.span_modifier:
                 self.span_modifier(span, scope)
 
@@ -566,6 +576,9 @@ class TraceMiddleware:
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:
                     _cleanup_previous_receive(scope)
+
+                if scope["type"] == "http":
+                    _finish_unfinished_llm_spans(span)
 
     def _handle_websocket_send_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")

@@ -896,15 +896,9 @@ async def test_unfinished_llm_child_finished_when_request_errors(test_spans):
 
 
 @pytest.mark.asyncio
-async def test_unfinished_llm_parent_finished_when_nested_request_completes(test_spans):
-    """A leftover current LLM span from a previous abandoned request must be
-    finished when a later request on the same worker completes. Otherwise every
-    subsequent request nests under it and that worker's RSS grows faster than
-    its siblings.
-
-    The leftover span is opened inside the ASGI app so it shares the request's
-    execution context; pytest-asyncio does not copy the test's current span
-    into ApplicationCommunicator's task.
+async def test_enclosing_llm_span_not_finished_by_nested_asgi_request(test_spans):
+    """An in-process ASGI call under LLMObs.llm() must not finish the enclosing
+    agent span. Only LLM descendants of the request span are swept.
     """
     leftover = None
 
@@ -919,11 +913,36 @@ async def test_unfinished_llm_parent_finished_when_nested_request_completes(test
     await instance.receive_output(1)
 
     assert leftover is not None
-    assert leftover.duration_ns is not None
+    assert leftover.duration_ns is None
+    assert test_spans.pop_traces() == []
+    leftover.finish()
+
+
+@pytest.mark.asyncio
+async def test_llm_span_can_be_annotated_after_last_response_chunk(test_spans):
+    """The request span finishes on the last http.response.body, but the app
+    may still be running. Sweeping LLM spans at that moment would drop
+    output/token tags set after the last chunk.
+    """
+    llm_span = None
+
+    async def app(scope, receive, send):
+        nonlocal llm_span
+        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
+        await _send_complete_http_response(receive, send)
+        llm_span.set_tag("output", "done")
+        llm_span.finish()
+
+    instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
+    await instance.send_input({"type": "http.request", "body": b""})
+    await instance.receive_output(1)
+    await instance.receive_output(1)
+
+    assert llm_span is not None
     traces = test_spans.pop_traces()
     assert len(traces) == 1
-    names = {span.name for span in traces[0]}
-    assert names == {"asgi.request", "openai.request"}
+    flushed = next(span for span in traces[0] if span.name == "openai.request")
+    assert flushed.get_tag("output") == "done"
 
 
 @pytest.mark.asyncio

@@ -217,7 +217,7 @@ class TracedStream(wrapt.ObjectProxy):
         # this worker would nest under it. Finalize here as a last resort.
         try:
             self._self_handler.close_stream()
-        except Exception:
+        except Exception:  # nosec B110 - destructors must not raise
             pass
 
     def __enter__(self):
@@ -312,7 +312,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         # dropped __anext__ iteration.
         try:
             self._self_handler.close_stream()
-        except Exception:
+        except Exception:  # nosec B110 - destructors must not raise
             pass
 
     async def __aenter__(self):
