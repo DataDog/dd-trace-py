@@ -231,7 +231,7 @@ elif is_at_least_py(3, 15):
     # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
     # needed.
     pass
-elif sys.version_info >= (3, 13):
+elif is_at_least_py(3, 13):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context_enter}
@@ -277,7 +277,7 @@ elif sys.version_info >= (3, 13):
         """
     )
 
-elif sys.version_info >= (3, 12):
+elif is_at_least_py(3, 12):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -325,7 +325,7 @@ elif sys.version_info >= (3, 12):
     )
 
 
-elif sys.version_info >= (3, 11):
+elif is_at_least_py(3, 11):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -376,7 +376,7 @@ elif sys.version_info >= (3, 11):
         """
     )
 
-elif sys.version_info >= (3, 10):
+elif is_at_least_py(3, 10):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -407,7 +407,7 @@ elif sys.version_info >= (3, 10):
         """
     )
 
-elif sys.version_info >= (3, 9):
+elif is_at_least_py(3, 9):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -715,7 +715,7 @@ else:
 # Below 3.11 the wrapped function enters through a real `with` statement, and Python does not call
 # __exit__ when __enter__ raises, so a propagating __enter__ is the only place left to clean up.
 # From 3.11 the injected exception handler reaches _exit() instead, which does it.
-_ENTER_MUST_RELEASE_ON_RAISE = sys.version_info < (3, 11)
+_ENTER_MUST_RELEASE_ON_RAISE: bool = is_at_most_py(3, 10)
 
 
 def _held_storage(contexts: "list[WrappingContext]") -> dict[int, t.Any]:

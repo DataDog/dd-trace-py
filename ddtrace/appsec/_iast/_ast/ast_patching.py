@@ -1,6 +1,5 @@
 import ast
 import os
-import sys
 import textwrap
 from types import ModuleType
 from typing import Optional
@@ -11,6 +10,7 @@ from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._logs import iast_ast_debug_log
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.settings import env
@@ -65,7 +65,7 @@ def initialize_iast_lists():
     """
     # Import and set the packages_distributions function for the C extension
     try:
-        if sys.version_info < (3, 10):
+        if not is_at_least_py(3, 10):
             import importlib_metadata as metadata
         else:
             import importlib.metadata as metadata
