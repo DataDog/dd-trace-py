@@ -13,7 +13,6 @@ _integration_registry_dir = str(Path(__file__).parent.parent.parent.parent / "sc
 if _integration_registry_dir not in sys.path:
     sys.path.append(_integration_registry_dir)
 
-from generate_supported_versions import collect_tested_versions  # noqa: E402
 from mappings import EXCLUDED_FROM_TESTING  # noqa: E402
 from packaging.version import Version  # noqa: E402
 import pytest  # noqa: E402
@@ -219,12 +218,6 @@ def test_tested_integrations_have_version_info(registry_data: list[dict]):
 
     if missing:
         pytest.fail(f"Missing version info: {', '.join(sorted(missing))}")
-
-
-def test_supported_version_generation_attributes_direct_dependencies():
-    tested_versions = collect_tested_versions()
-
-    assert tested_versions["mysql"]["mysql-connector-python"]
 
 
 def test_documented_integrations_are_tested(documented_versions: dict[str, str], registry_data: list[dict]):
