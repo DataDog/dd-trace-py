@@ -20,6 +20,12 @@ SAFE_MAPPING_TYPES = frozenset({dict, MappingProxyType})
 # Direct handle on type's own __qualname__ getset_descriptor.
 _type_qualname_descriptor: Any = type.__dict__["__qualname__"]  # type: ignore[index]
 
+# Direct handle on type's own __dict__ getset_descriptor, so reading a class's
+# __dict__ never goes through attribute lookup on the class (which a
+# metaclass could intercept with its own __dict__ override) and no user code
+# ever runs.
+_type_dict_descriptor: Any = type.__dict__["__dict__"]  # type: ignore[index]
+
 
 def safe_qualname(cls: type) -> str:
     return _type_qualname_descriptor.__get__(cls)  # type: ignore[no-any-return]
@@ -90,7 +96,13 @@ def safe_get_type_attr(cls: type, name: str, default: Optional[Any] = None) -> O
         return default
 
     for base in mro:
-        base_dict = safe_getattr(base, "__dict__", None)
+        # __mro__ should only ever contain real classes, but this helper must
+        # stay safe even if handed an mro entry that merely impersonates one:
+        # the type __dict__ descriptor rejects non-type instances outright,
+        # so fall back to plain attribute lookup for those.
+        base_dict = (
+            _type_dict_descriptor.__get__(base) if isinstance(base, type) else safe_getattr(base, "__dict__", None)
+        )
         if type(base_dict) in SAFE_MAPPING_TYPES:
             try:
                 return base_dict[name]  # type: ignore[index]

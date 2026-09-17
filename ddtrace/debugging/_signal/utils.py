@@ -38,7 +38,8 @@ from ddtrace.debugging._safety import safe_qualname
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
+from ddtrace.internal.utils.cache import miss
 
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
@@ -112,7 +113,14 @@ def _(numpy: ModuleType) -> None:
     ARRAY_TYPES = frozenset((list, deque)) | ndarray_set
 
 
-@cached(maxsize=1024)
+# Identity-keyed: an lru_cache would hash cls to build its key, and hashing
+# a class invokes its metaclass's __hash__. A custom metaclass __hash__
+# would then run arbitrary code on every lookup, and __hash__ = None would
+# raise -- either way undoing the point of resolving fields without running
+# user code.
+_namedtuple_fields_cache: IdentityWeakKeyDictionary[type, Optional[tuple[str, ...]]] = IdentityWeakKeyDictionary()
+
+
 def _namedtuple_fields_of_type(cls: type) -> Optional[tuple[str, ...]]:
     """Namedtuple field names of cls, or None if cls is not namedtuple-like.
 
@@ -120,6 +128,16 @@ def _namedtuple_fields_of_type(cls: type) -> Optional[tuple[str, ...]]:
     cannot observe a _fields that disagrees with the one the check validated.
     Memoized per type because this runs on every captured value.
     """
+    cached = _namedtuple_fields_cache.get(cls, miss)
+    if cached is not miss:
+        return cached  # type: ignore[no-any-return]
+
+    fields = _resolve_namedtuple_fields(cls)
+    _namedtuple_fields_cache[cls] = fields
+    return fields
+
+
+def _resolve_namedtuple_fields(cls: type) -> Optional[tuple[str, ...]]:
     mro = safe_getattr(cls, "__mro__", None)
     if type(mro) is not tuple or len(mro) < 3:
         return None
