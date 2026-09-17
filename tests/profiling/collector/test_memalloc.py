@@ -74,6 +74,26 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
     return output_filename
 
 
+def _assert_valid_memory_samples(
+    profile: "pprof_pb2.Profile", heap_space_idx: int, alloc_space_idx: int, alloc_count_idx: int
+) -> None:
+    # AIDEV-NOTE: ddup profiles combine process-wide sample types, so a valid non-memory sample can have zero for
+    # every memory value. Only apply memory invariants to samples that carry a heap or allocation value.
+    memory_samples = [
+        sample for sample in profile.sample if sample.value[heap_space_idx] != 0 or sample.value[alloc_space_idx] != 0
+    ]
+    for sample in memory_samples:
+        assert sample.value[heap_space_idx] >= 0, (
+            f"heap-space should be non-negative, got {sample.value[heap_space_idx]}"
+        )
+        assert sample.value[alloc_space_idx] >= 0, (
+            f"alloc-space should be non-negative, got {sample.value[alloc_space_idx]}"
+        )
+        assert sample.value[alloc_count_idx] >= 0, (
+            f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+        )
+
+
 # This test is marked as subprocess as it changes default heap sample size
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1024", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_samples_collected")
@@ -574,14 +594,7 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
 
         assert len(live_samples) > 0, "Should have some live samples"
 
-        # Validate all samples have valid values
-        for sample in profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+        _assert_valid_memory_samples(profile, heap_space_idx, alloc_space_idx, alloc_count_idx)
 
         one_freed_samples = [sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)]
 
@@ -653,15 +666,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        # Validate all samples have valid values
-        for sample in final_profile.sample:
-            # Check that at least one value type is non-zero
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+        _assert_valid_memory_samples(final_profile, heap_space_idx, alloc_space_idx, alloc_count_idx)
 
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
@@ -753,14 +758,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             f"Got final={len(final_heap_samples)}, after_first={len(after_first_heap_samples)}"
         )
 
-        # Validate all samples in final profile have valid values
-        for sample in final_profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+        _assert_valid_memory_samples(final_profile, heap_space_idx, alloc_space_idx, alloc_count_idx)
 
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
