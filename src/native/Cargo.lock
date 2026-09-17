@@ -1620,7 +1620,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=86db854721def61cc6cb9964e9bd3a97f7404083#86db854721def61cc6cb9964e9bd3a97f7404083"
+source = "git+https://github.com/DataDog/libdatadog?rev=70c319be7197b74388db3ca0fa26838632a775e7#70c319be7197b74388db3ca0fa26838632a775e7"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1657,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "5.2.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=86db854721def61cc6cb9964e9bd3a97f7404083#86db854721def61cc6cb9964e9bd3a97f7404083"
+source = "git+https://github.com/DataDog/libdatadog?rev=70c319be7197b74388db3ca0fa26838632a775e7#70c319be7197b74388db3ca0fa26838632a775e7"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1969,7 +1969,7 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=86db854721def61cc6cb9964e9bd3a97f7404083#86db854721def61cc6cb9964e9bd3a97f7404083"
+source = "git+https://github.com/DataDog/libdatadog?rev=70c319be7197b74388db3ca0fa26838632a775e7#70c319be7197b74388db3ca0fa26838632a775e7"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1988,7 +1988,7 @@ dependencies = [
  "httparse",
  "indexmap 2.14.0",
  "libdd-alloc",
- "libdd-common 5.2.0 (git+https://github.com/DataDog/libdatadog?rev=86db854721def61cc6cb9964e9bd3a97f7404083)",
+ "libdd-common 5.2.0 (git+https://github.com/DataDog/libdatadog?rev=70c319be7197b74388db3ca0fa26838632a775e7)",
  "libdd-profiling-protobuf",
  "mime",
  "parking_lot",
@@ -2011,7 +2011,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=86db854721def61cc6cb9964e9bd3a97f7404083#86db854721def61cc6cb9964e9bd3a97f7404083"
+source = "git+https://github.com/DataDog/libdatadog?rev=70c319be7197b74388db3ca0fa26838632a775e7#70c319be7197b74388db3ca0fa26838632a775e7"
 dependencies = [
  "prost",
 ]

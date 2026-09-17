@@ -81,6 +81,7 @@ dd_wrapper_add_test(test_api test_api.cpp)
 dd_wrapper_add_test(test_threading test_threading.cpp)
 dd_wrapper_add_test(test_forking test_forking.cpp)
 dd_wrapper_add_test(test_cleanup_race test_cleanup_race.cpp)
+dd_wrapper_add_test(test_utf8_lossy test_utf8_lossy.cpp)
 
 if(EXISTS "${LIBDD_PROFILING_CXX_SOURCE}" AND EXISTS "${LIBDD_PROFILING_CXXBRIDGE_LIB}")
     set_source_files_properties(test_cxx_bridge.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")

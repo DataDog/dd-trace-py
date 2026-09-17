@@ -21,6 +21,8 @@ to_rust_str(std::string_view value)
     return rust::Str(value.data(), value.size());
 }
 
+namespace strings = ddprof::strings;
+
 // Intern a string into libdatadog, returning a string ID
 // (or nullopt if interning failed).
 // Passing the same string twice will deduplicate the string and return

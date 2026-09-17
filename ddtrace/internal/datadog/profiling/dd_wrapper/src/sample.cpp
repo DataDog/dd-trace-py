@@ -246,17 +246,17 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     std::string_view val_str = string_storage.insert(val);
-    const static std::string unit_str = "";
 
     // Otherwise, persist the val string and add the label
     labels.push_back({
       .key = *maybe_key_id,
-      // Do not intern this because it could be a memory leak if values are high-cardinality.
-      // For example, asyncio Task names are dynamic and only persist for the duration of the Task.
-      .str = to_rust_str(val_str),
+      // Label values come from user-supplied data that may contain invalid
+      // UTF-8. Pass as raw bytes; the Rust side applies lossy conversion.
+      // Not interned because values may be high-cardinality (e.g. asyncio
+      // Task names that only persist for the duration of the Task).
+      .str_bytes = strings::bytes(val_str),
       .num = 0,
-      // Do not intern this because it could be a memory leak if values are high-cardinality.
-      .num_unit = to_rust_str(unit_str),
+      .num_unit = {},
     });
     return true;
 }
@@ -274,9 +274,9 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 
     labels.push_back({
       .key = *maybe_key_id,
-      .str = rust::Str("", 0),
+      .str_bytes = {},
       .num = val,
-      .num_unit = rust::Str("", 0),
+      .num_unit = {},
     });
     return true;
 }

@@ -10,10 +10,9 @@ Datadog::intern_string(std::string_view s)
         return std::nullopt;
     }
 
-    // R&D caveat: the C FFI path used CONVERT_LOSSY. The CXX API takes rust::Str,
-    // so production parity may require a CXX lossy insertion variant.
+    // Rust side handles lossy UTF-8 replacement, matching the previous C FFI CONVERT_LOSSY behavior.
     ddprof::DictionaryStringId id{};
-    if (!dict->value.intern_string(to_rust_str(s), id)) {
+    if (!dict->value.intern_string_lossy(strings::bytes(s), id)) {
         return std::nullopt;
     }
     return id;
