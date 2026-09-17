@@ -1,16 +1,16 @@
 """Multiplexed sys.monitoring interface for ddtrace internal use.
 
 A single sys.monitoring tool ID is shared across all ddtrace sub-systems.
-Sub-systems implement :class:`MonitoringEventHandler` and register instances
-via :func:`register`; the multiplexer dispatches each monitoring event to all
-handlers registered for that code object.
+Sub-systems implement :class:`MonitoringEventHandler`. Local handlers register
+via :func:`register` and receive events for a code object; global handlers
+register via :func:`register_global` and receive process-wide events.
 
 Only the events corresponding to overridden handler methods are enabled,
 so a handler that only overrides ``on_py_start`` pays no cost for the other
 events.
 
 The handler instance itself serves as the registration key: pass the same
-object to :func:`unregister` to remove it.
+object to the corresponding unregister function to remove it.
 """
 
 from abc import ABC
@@ -42,6 +42,7 @@ if sys.version_info >= (3, 15):
 else:
     _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE
     _SUPPORTS_LOCAL_PY_UNWIND = False
+_GLOBAL_EVENTS = _E.EXCEPTION_HANDLED
 
 
 class MonitoringToolUnavailable(RuntimeError):
@@ -49,10 +50,10 @@ class MonitoringToolUnavailable(RuntimeError):
 
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
-# sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
-# for debugger/coverage/profiler/optimizer; 3 and 4 are the only undefined
-# slots for custom tools (see CPython docs). Prefer 4 first, consistent with
-# coverage's _DD_CANDIDATE_SLOTS, and fall back to 3 if another tool claimed it.
+# Every ddtrace sys.monitoring consumer must register here rather than owning
+# one of these slots directly. CPython defines conventional debugger/coverage/profiler/
+# optimizer IDs at 0/1/2/5, leaving 3 and 4 for custom tools. Prefer 4 first, consistent
+# with coverage's candidate order, and fall back to 3. Never use coverage.py's slot 1.
 _CANDIDATE_TOOL_IDS = (4, 3)
 
 _tool_id: Optional[int] = None
@@ -146,8 +147,9 @@ class MonitoringEventHandler(ABC):
     only those events, so un-overridden methods incur no monitoring overhead.
 
     .. warning::
-        Do not call :func:`register` or :func:`unregister` from inside an
-        event handler method.  Doing so mutates the handler list while it is
+        Do not call :func:`register`, :func:`unregister`,
+        :func:`register_global`, or :func:`unregister_global` from inside an
+        event handler method. Doing so mutates the handler list while it is
         being iterated, which produces undefined behavior.
 
     .. warning::
@@ -156,8 +158,8 @@ class MonitoringEventHandler(ABC):
         later handler for the same event, exactly as sys.monitoring itself
         would deliver a callback failure. Catch your own exceptions if a
         handler must not affect the monitored function's behavior.
-        ``on_py_line`` is caught and logged instead, since independent
-        handlers commonly share one code object's LINE registration.
+        ``on_py_line`` and ``on_exception_handled`` are caught and logged
+        instead so one sub-system cannot disrupt another.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -183,6 +185,9 @@ class MonitoringEventHandler(ABC):
         """
         return None
 
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        pass
+
 
 def _events_for_handler(handler: MonitoringEventHandler) -> int:
     """Return the OR of events corresponding to overridden handler methods."""
@@ -197,6 +202,8 @@ def _events_for_handler(handler: MonitoringEventHandler) -> int:
         events |= _E.PY_UNWIND
     if cls.on_py_line is not base.on_py_line:
         events |= _E.LINE
+    if cls.on_exception_handled is not base.on_exception_handled:
+        events |= _E.EXCEPTION_HANDLED
     return events
 
 
@@ -237,6 +244,9 @@ def _events_for(handlers: _CodeHandlers) -> int:
     return events
 
 
+_global_handlers = _CodeHandlers()
+
+
 def _setup() -> int:
     """Claim a free tool ID and install the global callbacks (idempotent)."""
     global _tool_id
@@ -267,6 +277,7 @@ def _setup() -> int:
         if _SUPPORTS_LOCAL_PY_UNWIND:
             sys.monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
         sys.monitoring.register_callback(_tool_id, _E.LINE, _on_py_line)
+        sys.monitoring.register_callback(_tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
 
     return _tool_id
 
@@ -334,6 +345,15 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
         handlers.disabled_events |= _E.LINE
         return _DISABLE
     return None
+
+
+def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+    for e in _global_handlers.snapshot:
+        if e.events & _E.EXCEPTION_HANDLED:
+            try:
+                e.handler.on_exception_handled(code, instruction_offset, exception)
+            except Exception:
+                log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +426,26 @@ def refresh(code: CodeType, events: int) -> None:
             rearm_events = events & local_events & handlers.disabled_events
             if rearm_events:
                 _rearm_local_events(_tool_id, code, local_events, rearm_events)
+
+
+def register_global(handler: MonitoringEventHandler) -> None:
+    """Register handler for the global events it overrides."""
+    handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
+    if not handler_events:
+        raise ValueError("Handler overrides no global MonitoringEventHandler methods")
+
+    tool_id = _setup()
+    with _registry_lock:
+        _global_handlers.set_handler(id(handler), _Entry(handler, handler_events))
+        sys.monitoring.set_events(tool_id, _events_for(_global_handlers) & _GLOBAL_EVENTS)
+
+
+def unregister_global(handler: MonitoringEventHandler) -> None:
+    """Remove handler from the global monitoring registry."""
+    with _registry_lock:
+        _global_handlers.pop_handler(id(handler))
+        if _tool_id is not None:
+            sys.monitoring.set_events(_tool_id, _events_for(_global_handlers) & _GLOBAL_EVENTS)
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:

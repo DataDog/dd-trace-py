@@ -344,7 +344,7 @@ machinery in a well-defined order.
 
 `sys.monitoring` (PEP 669, Python 3.12+) grants a limited number of tool IDs.
 `ddtrace.internal.monitoring` claims one ID on behalf of ddtrace subsystems and
-fans local events out per code object.
+fans local events out per code object and global events out process-wide.
 
 
 ### The `MonitoringEventHandler` Interface
@@ -377,15 +377,29 @@ monitoring.register(code, handler)
 monitoring.unregister(code, handler)
 ```
 
+Global handlers use the same interface without a code object:
+
+```python
+class ExceptionHandler(monitoring.MonitoringEventHandler):
+    def on_exception_handled(self, code, instruction_offset, exception): ...
+
+
+handler = ExceptionHandler()
+monitoring.register_global(handler)
+...
+monitoring.unregister_global(handler)
+```
+
 > [!WARNING]
 > Do not call `register()` or `unregister()` from inside a handler method —
 > doing so mutates the handler list while it is being iterated.
 
-### Local Events
+### Local vs. Global Events
 
 PY_START, PY_RETURN, LINE, and Python 3.15+'s PY_UNWIND are enabled locally
-per code object. On Python 3.12–3.14, PY_UNWIND is not available as a local
-event, so the multiplexer rejects handlers that request it.
+per code object. EXCEPTION_HANDLED is enabled globally only while at least one
+global handler is registered. On Python 3.12–3.14, PY_UNWIND is not available
+as a local event, so the multiplexer rejects handlers that request it.
 
 ### `DISABLE` and `refresh()`
 
@@ -405,7 +419,7 @@ interested in those event bits again.
 
 ### Error Isolation
 
-LINE handler failures are logged and isolated so one subsystem cannot disrupt
-another. PY_START, PY_RETURN, and PY_UNWIND handler failures propagate to the
-monitored frame; handlers for those lifecycle events must handle their own
-failures when isolation is required.
+LINE and global handler failures are logged and isolated so one subsystem
+cannot disrupt another. PY_START, PY_RETURN, and PY_UNWIND handler failures
+propagate to the monitored frame; handlers for those lifecycle events must
+handle their own failures when isolation is required.
