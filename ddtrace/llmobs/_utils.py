@@ -23,6 +23,7 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import ARTIFICIAL_GEN_AI_TAGS_TAG_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -1127,3 +1128,4 @@ def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: O
             value = metrics.get(llmobs_key)
             if value is not None:
                 span._set_attribute(gen_ai_key, value)
+    span.set_tag(ARTIFICIAL_GEN_AI_TAGS_TAG_KEY, True)

@@ -111,6 +111,8 @@ GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_read_input
 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_write_input_tokens"
 GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.reasoning_output_tokens"
 
+ARTIFICIAL_GEN_AI_TAGS_TAG_KEY = "_dd.llmobs.artificial_gen_ai_tags"
+
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
 TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
