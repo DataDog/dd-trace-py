@@ -183,6 +183,11 @@ class ExceptionCollector(collector.Collector):
                 )
             except ValueError:
                 LOG.exception("Failed to set up exception monitoring")
+                if self._owns_tool_id:
+                    try:
+                        sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
+                    except Exception:
+                        LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
                 self._owns_tool_id = False
                 return
 
