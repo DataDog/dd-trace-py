@@ -7,6 +7,9 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.native import HttpIoError
+from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature.writer import ExposureEvent
@@ -49,6 +52,22 @@ def sample_exposure_event() -> ExposureEvent:
         "variant": {"key": "variant-a"},
         "subject": {"id": "user-123", "type": "user", "attributes": {"tier": "premium"}},
     }
+
+
+@pytest.fixture
+def remote_config_transport():
+    info_provider = mock.Mock()
+    connection_factory = mock.Mock()
+    selector = FeatureFlagEVPRouteSelector(
+        configuration_source=REMOTE_CONFIG,
+        agent_url="http://agent:8126/datadog/",
+        api_key="must-not-be-used",
+        site="datadoghq.com",
+        info_provider=info_provider,
+    )
+    writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=connection_factory)
+    with mock.patch("ddtrace.internal.utils.retry.sleep") as sleep:
+        yield writer, connection_factory, info_provider, sleep
 
 
 class TestExposureWriter:
@@ -174,6 +193,146 @@ class TestExposureWriter:
 
         mock_get_connection.assert_called_once_with("http://agent:8126", timeout=2.0)
         mock_conn.request.assert_called_once()
+
+    @pytest.mark.parametrize("failure", [ConnectionRefusedError, ConnectionFailedError])
+    @pytest.mark.parametrize("flush_method", ["periodic", "on_shutdown"])
+    @pytest.mark.parametrize("failure_stage", ["request", "getresponse"])
+    def test_remote_config_retries_refusal_then_success(
+        self, remote_config_transport, sample_exposure_event, failure, flush_method, failure_stage
+    ):
+        writer, connection_factory, info_provider, sleep = remote_config_transport
+        refused = mock.Mock()
+        getattr(refused, failure_stage).side_effect = failure("connection refused")
+        accepted = mock.Mock()
+        accepted.getresponse.return_value.status = 202
+        connection_factory.side_effect = [refused, accepted]
+        writer.enqueue(sample_exposure_event)
+
+        getattr(writer, flush_method)()
+
+        assert connection_factory.call_args_list == [mock.call("http://agent:8126/datadog/", timeout=2.0)] * 2
+        refused.request.assert_called_once()
+        accepted.request.assert_called_once()
+        assert refused.request.call_args == accepted.request.call_args
+        method, endpoint, payload, headers = accepted.request.call_args.args
+        assert method == "POST"
+        assert endpoint == "/datadog/evp_proxy/v2/api/v2/exposures"
+        assert payload is refused.request.call_args.args[2]
+        assert json.loads(payload)["exposures"] == [sample_exposure_event]
+        assert headers == {
+            "Content-Type": "application/json",
+            "X-Datadog-EVP-Subdomain": "event-platform-intake",
+            **EVP_ORIGIN_HEADERS,
+        }
+        assert refused.getresponse.call_count == int(failure_stage == "getresponse")
+        accepted.getresponse.assert_called_once()
+        refused.close.assert_called_once()
+        accepted.close.assert_called_once()
+        info_provider.assert_not_called()
+        assert writer._buffer == []
+        assert writer._buffer_size == 0
+        assert sleep.call_count == 2  # Initial zero wait, then one bounded backoff.
+        assert 0 <= sum(call.args[0] for call in sleep.call_args_list) <= writer._interval
+        writer.periodic()
+        assert connection_factory.call_count == 2
+
+    def test_remote_config_stops_after_three_refusals(self, remote_config_transport, sample_exposure_event):
+        writer, connection_factory, info_provider, sleep = remote_config_transport
+        connections = [mock.Mock() for _ in range(3)]
+        for connection in connections:
+            connection.getresponse.side_effect = ConnectionFailedError("connection refused")
+        connection_factory.side_effect = connections
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        assert connection_factory.call_args_list == [mock.call("http://agent:8126/datadog/", timeout=2.0)] * 3
+        for connection in connections:
+            connection.request.assert_called_once()
+            assert connection.request.call_args == connections[0].request.call_args
+            connection.getresponse.assert_called_once()
+            connection.close.assert_called_once()
+        assert sleep.call_count == 3  # No sleep after the final attempt.
+        assert 0 <= sum(call.args[0] for call in sleep.call_args_list) <= writer._interval
+        info_provider.assert_not_called()
+        assert writer._buffer == []
+
+    @pytest.mark.parametrize(
+        "failure", [TimeoutError, ConnectionResetError, BrokenPipeError, TimedOutError, HttpIoError, RuntimeError]
+    )
+    @pytest.mark.parametrize("refusal_first", [False, True])
+    def test_remote_config_never_retries_ambiguous_or_unknown_failure(
+        self, remote_config_transport, sample_exposure_event, failure, refusal_first
+    ):
+        writer, connection_factory, info_provider, sleep = remote_config_transport
+        refused = mock.Mock()
+        refused.request.side_effect = ConnectionFailedError("connection refused")
+        ambiguous = mock.Mock()
+        ambiguous.getresponse.side_effect = failure("delivery outcome unknown")
+        connections = [refused, ambiguous] if refusal_first else [ambiguous]
+        connection_factory.side_effect = connections
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        assert connection_factory.call_count == len(connections)
+        for connection in connections:
+            connection.request.assert_called_once()
+            connection.close.assert_called_once()
+        assert sleep.call_count == len(connections)
+        info_provider.assert_not_called()
+        assert writer._buffer == []
+
+    @pytest.mark.parametrize("status", [302, 403, 404, 405, 429, 500, 503])
+    @pytest.mark.parametrize("refusal_first", [False, True])
+    def test_remote_config_never_retries_http_response(
+        self, remote_config_transport, sample_exposure_event, status, refusal_first
+    ):
+        writer, connection_factory, info_provider, sleep = remote_config_transport
+        refused = mock.Mock()
+        refused.request.side_effect = ConnectionFailedError("connection refused")
+        responded = mock.Mock()
+        responded.getresponse.return_value.status = status
+        connections = [refused, responded] if refusal_first else [responded]
+        connection_factory.side_effect = connections
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        assert connection_factory.call_count == len(connections)
+        for connection in connections:
+            connection.request.assert_called_once()
+            connection.close.assert_called_once()
+            assert "DD-API-KEY" not in connection.request.call_args.args[3]
+        assert sleep.call_count == len(connections)
+        info_provider.assert_not_called()
+        assert writer._route_selector.select().direct is False
+
+    @pytest.mark.parametrize(
+        ("endpoints", "api_key", "expected_attempts"),
+        [((), "secret", 1), (("/evp_proxy/v2/",), None, 1), (("/evp_proxy/v2/",), "secret", 2)],
+    )
+    def test_agentless_refusals_do_not_gain_remote_config_retries(
+        self, sample_exposure_event, endpoints, api_key, expected_attempts
+    ):
+        connections = [mock.Mock() for _ in range(expected_attempts)]
+        for connection in connections:
+            connection.request.side_effect = ConnectionFailedError("connection refused")
+        connection_factory = mock.Mock(side_effect=connections)
+        writer = ExposureWriter(
+            route_selector=_route_selector(source=AGENTLESS, endpoints=endpoints, api_key=api_key),
+            connection_factory=connection_factory,
+        )
+        writer.enqueue(sample_exposure_event)
+
+        with mock.patch("ddtrace.internal.utils.retry.sleep") as sleep:
+            writer.periodic()
+
+        assert connection_factory.call_count == expected_attempts
+        for connection in connections:
+            connection.request.assert_called_once()
+            connection.close.assert_called_once()
+        sleep.assert_not_called()
 
     def test_agentless_direct_route_has_authentication_and_no_local_header(self, sample_exposure_event):
         mock_get_connection = mock.Mock()

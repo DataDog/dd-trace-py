@@ -8,6 +8,7 @@ import json
 from typing import Any
 from typing import Optional
 from typing import TypedDict
+from typing import Union
 
 from ddtrace import config
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
@@ -17,14 +18,17 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._evp_transport import EVPRoute
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
+from ddtrace.internal.openfeature._evp_transport import _is_definitive_pre_send_failure
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
 from ddtrace.internal.openfeature._evp_transport import get_feature_flag_evp_route_selector
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 logger = get_logger(__name__)
@@ -93,6 +97,8 @@ class ExposureWriter(PeriodicService):
     Sends exposure events to the Datadog Agent's EVP proxy endpoint at
     /evp_proxy/v2/api/v2/exposures
     """
+
+    RETRY_ATTEMPTS = 3
 
     def __init__(
         self,
@@ -197,9 +203,27 @@ class ExposureWriter(PeriodicService):
             route = self._route_selector.select()
             if route is None:
                 return
-            self._send_payload(payload, len(events), route)
+            self._send_payload_with_retry(payload, len(events), route)
         except Exception:
             logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
+
+    def _send_payload_with_retry(self, payload: bytes, num_events: int, route: EVPRoute) -> Response:
+        if self._route_selector.configuration_source != REMOTE_CONFIG:
+            return self._send_payload(payload, num_events, route)
+
+        # AIDEV-NOTE: Keep Remote Config's bounded retries only when no bytes were
+        # sent. A later ambiguous failure must stop retries even after a refusal;
+        # Agentless batches retain the selector's separate fallback policy.
+        send = fibonacci_backoff_with_jitter(
+            attempts=self.RETRY_ATTEMPTS,
+            initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
+            until=lambda result: not (isinstance(result, Exception) and _is_definitive_pre_send_failure(result)),
+        )(self._send_payload)
+        response: Union[Response, Exception] = send(payload, num_events, route)
+        # The retry helper returns terminal exceptions accepted by until.
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     def _encode(self, events: list[ExposureEvent]) -> bytes:
         """

@@ -213,6 +213,10 @@ class FeatureFlagEVPRouteSelector:
         self._unavailable_warning_logged = False
         self._invalid_site_warning_logged = False
 
+    @property
+    def configuration_source(self) -> str:
+        return self._configuration_source
+
     def select(self) -> Optional[EVPRoute]:
         """Return the active route, serializing discovery across event writers."""
         with self._lock:
