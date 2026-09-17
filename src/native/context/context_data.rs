@@ -594,6 +594,23 @@ impl Context {
             .collect())
     }
 
+    /// Eagerly resolve every Python helper that build_tracestate uses.
+    ///
+    /// Should be called once after ddtrace is fully initialised so that
+    /// the OnceLock caches are warm before any restricted environment
+    /// (Temporal sandbox, etc.) invokes _tracestate.
+    /// Without this, the first _tracestate call triggers py.import()
+    /// which may be blocked by the environment.
+    #[staticmethod]
+    fn _init_tracestate_helpers(py: Python<'_>) -> PyResult<()> {
+        w3c_get_dd_list_member_fn(py)?;
+        w3c_build_tracestate_members_fn(py)?;
+        normalize_otel_tracestate_fn(py)?;
+        materialize_otel_sampling_decision_fn(py)?;
+        dd_trace_tracestate_max_bytes(py)?;
+        Ok(())
+    }
+
     fn _publish_sampling_decision(
         slf: &Bound<'_, Self>,
         sampling_priority: Option<&Bound<'_, PyAny>>,
