@@ -47,8 +47,8 @@ class LLMObsProcessor(TraceProcessor):
         self._keep_meta_struct = keep_meta_struct
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
-        # Two decisions, deliberately separate. No APM trace can carry an LLMObs event once APM
-        # tracing is off, including in standalone, where it survives but is rate limited to 1/min.
+        # AIDEV-NOTE: routing and the trace-drop stay two decisions. Gating both on one flag moves
+        # the event onto the trace in the enable order where _export_mode is stale at APM_*.
         no_apm_carrier = not self._apm_tracing_enabled or not self._tracer.enabled
         for span in trace:
             if span.span_type != SpanTypes.LLM:
