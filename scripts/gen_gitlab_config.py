@@ -450,12 +450,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
         )
 
-    # Compute baseline parallelism. Track scalable suites (those with venv info, eligible
-    # for scaling up) and the vpj map for dynamic suites.
-    baseline_jobs: dict[str, int] = {}
-    scalable_suites: list[str] = []  # all suites with venv info (both static and dynamic)
-    venvs_per_job_map: dict[str, int] = {}  # only for venvs_per_job suites
-
     final_jobs: dict[str, int] = {}
     for suite in non_skipped:
         config = suites[suite]
