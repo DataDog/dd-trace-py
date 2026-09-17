@@ -29,8 +29,7 @@ if _USE_STACK_CONTEXT:
         https://github.com/tornadoweb/tornado/issues/1063
         """
 
-        def __init__(self):
-            # type: (...) -> None
+        def __init__(self) -> None:
             # HACK(jd): this should be using super(), but calling DefaultContextProvider.__init__
             # sets the context to `None` which breaks this code.
             # We therefore skip DefaultContextProvider.__init__ and call only BaseContextProvider.__init__.
