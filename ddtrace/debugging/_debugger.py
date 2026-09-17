@@ -287,7 +287,7 @@ class Debugger(Service):
         log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
         self._global_rate_limiter = RateLimiter(
             limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
-            on_exceed=lambda: log_limiter.limit(log.warning, "Global rate limit exceeded"),
+            on_exceed=lambda: log_limiter.limit(log.debug, "Global rate limit exceeded"),
             call_once=True,
             raise_on_exceed=False,
         )
