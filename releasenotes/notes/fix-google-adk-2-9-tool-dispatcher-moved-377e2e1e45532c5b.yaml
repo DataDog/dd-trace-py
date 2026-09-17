@@ -1,0 +1,11 @@
+---
+upgrade:
+  - |
+    google-adk: On ``google-adk>=2.9.0`` the APM tool call span resource is ``FunctionTool._call_tool_async``
+    (one leading underscore) instead of ``FunctionTool.__call_tool_async``, because google-adk renamed the
+    function that runs tools. Update any monitor or dashboard that filters on the old resource name.
+fixes:
+  - |
+    google-adk: Fixes an issue where applications using ``google-adk>=2.9.0`` fail to start with
+    a ``PathResolutionError`` when LLM Observability is enabled, or silently stop producing tool
+    call and code execution spans when ``google.adk`` is imported after ``ddtrace``.
