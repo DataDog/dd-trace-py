@@ -32,7 +32,7 @@ if not is_at_least_py(3, 15):
 log = get_logger(__name__)
 
 _sys_monitoring: Any = sys.monitoring  # type: ignore[attr-defined]
-_E = _sys_monitoring.events
+_E: Any = _sys_monitoring.events
 _DISABLE: object = _sys_monitoring.DISABLE
 
 # On Python 3.15+, PY_UNWIND is a per-code "other" event and can be enabled via

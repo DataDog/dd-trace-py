@@ -39,8 +39,8 @@ def is_at_least_py(major: int, minor: int, version: Optional[tuple[int, ...]] = 
     Feature gates pass literals (`is_at_least_py(3, 15)`), not NEXT_MAX_PY.
     The rolling next-max floor is `is_at_least_py(*NEXT_MAX_PY)`.
     """
-    version = version or PYTHON_VERSION_INFO[:2]
-    return version[:2] >= (major, minor)
+    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
+    return resolved[:2] >= (major, minor)
 
 
 def is_at_most_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
@@ -51,8 +51,8 @@ def is_at_most_py(major: int, minor: int, version: Optional[tuple[int, ...]] = N
     `is_at_most_py(*NEXT_MAX_PY)`. Feature gates stay `is_at_least_py(3, 15)`
     literals, not these constants.
     """
-    version = version or PYTHON_VERSION_INFO[:2]
-    return version[:2] <= (major, minor)
+    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
+    return resolved[:2] <= (major, minor)
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
