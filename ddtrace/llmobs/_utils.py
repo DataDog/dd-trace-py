@@ -1093,20 +1093,20 @@ _TOKEN_METRIC_KEYS = (
 )
 
 
-def set_gen_ai_apm_tags(
-    span: Span,
-    span_kind: Optional[str],
-    model_name: Optional[str] = None,
-    model_provider: Optional[str] = None,
-    metrics: Optional[dict[str, Any]] = None,
-    ml_app: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> None:
-    """Write the scalar gen_ai.* attributes onto the APM span.
+def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
+    """Write the scalar gen_ai.* attributes onto the APM span from its LLMObs meta_struct.
 
-    Normalization happens here, not in the caller, so the LLMObs-disabled and finish-time paths
-    agree on a facet value instead of splitting it.
+    Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every
+    kind other than llm/embedding. span_kind is passed in because normalization is also what
+    writes meta.span.kind.
     """
+    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
+    model_name = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME)
+    model_provider = llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER)
+    metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS)
+    ml_app = llmobs_data.get(LLMOBS_STRUCT.ML_APP)
+    session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID)
+
     if span_kind:
         span.set_tag(GEN_AI_OPERATION_NAME_TAG_KEY, span_kind)
     if span_kind in _TOKEN_METRIC_SPAN_KINDS:
@@ -1127,22 +1127,3 @@ def set_gen_ai_apm_tags(
             value = metrics.get(llmobs_key)
             if value is not None:
                 span._set_attribute(gen_ai_key, value)
-
-
-def set_gen_ai_apm_tags_from_llmobs_data(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
-    """Write gen_ai.* attributes from a span's LLMObs meta_struct.
-
-    Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every
-    kind other than llm/embedding. span_kind is passed in because normalization is also what
-    writes meta.span.kind.
-    """
-    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
-    set_gen_ai_apm_tags(
-        span,
-        span_kind=span_kind,
-        model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME),
-        model_provider=llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER),
-        metrics=llmobs_data.get(LLMOBS_STRUCT.METRICS),
-        ml_app=llmobs_data.get(LLMOBS_STRUCT.ML_APP),
-        session_id=llmobs_data.get(LLMOBS_STRUCT.SESSION_ID),
-    )

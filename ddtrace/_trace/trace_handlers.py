@@ -2026,7 +2026,6 @@ def listen():
     for context_name in (
         # web frameworks
         "cherrypy.request",
-        "falcon.request",
         "molten.request",
         "molten.trace_func",
         "pyramid.request",
@@ -2072,6 +2071,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.durable_functions.patched_orchestration",
         "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
@@ -2110,6 +2110,7 @@ def listen():
         "redis.command",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.durable_functions.patched_orchestration",
         "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",

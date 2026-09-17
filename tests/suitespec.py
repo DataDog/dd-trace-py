@@ -62,7 +62,7 @@ def _collect_suitespecs() -> dict:
         namespace = "::".join(path_parts) if path_parts else ns_prefix or None
         with YAML(typ="safe") as yaml:
             data = yaml.load(s)
-        suitespec["components"].update(data["components"])
+        suitespec["components"].update(data.get("components", {}))
 
         source = s.relative_to(TESTS.parent).as_posix()
         for name, value in data["suites"].items():

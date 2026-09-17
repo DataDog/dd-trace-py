@@ -18,8 +18,8 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
