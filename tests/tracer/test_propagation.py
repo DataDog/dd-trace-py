@@ -2755,38 +2755,42 @@ EXTRACT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_extract,headers,expected_context", EXTRACT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess
+    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
     code = """
 import json
+import os
 
 from ddtrace.propagation.http import HTTPPropagator
 
 
 context = HTTPPropagator.extract({!r})
-if context is None:
-    print("null")
-else:
-    print(json.dumps({{
-      "trace_id": context.trace_id,
-      "span_id": context.span_id,
-      "sampling_priority": context.sampling_priority,
-      "dd_origin": context.dd_origin,
-    }}))
+result = None if context is None else {{
+  "trace_id": context.trace_id,
+  "span_id": context.span_id,
+  "sampling_priority": context.sampling_priority,
+  "dd_origin": context.dd_origin,
+}}
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(result, f)
     """.format(headers)
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_extract is not None:
         env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles_extract)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # The result travels by file, so the subprocess is expected to say nothing at all. Anything
+    # here is a foreign write, which used to corrupt the result when it shared stdout.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_context
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_context
 
 
 FULL_CONTEXT_EXTRACT_FIXTURES = [
@@ -3470,10 +3474,11 @@ INJECT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,context,expected_headers", INJECT_FIXTURES)
-def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess):
+def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess, tmp_path):
     # Execute the test code in isolation to ensure env variables work as expected
     code = """
 import json
+import os
 
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
@@ -3482,18 +3487,23 @@ context = Context(**{!r})
 headers = {{}}
 HTTPPropagator.inject(context, headers)
 
-print(json.dumps(headers))
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(headers, f)
     """.format(context)
 
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
+
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_headers
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_headers
 
     # Setting via ddtrace.config works as expected too
     # DEV: This also helps us get code coverage reporting
@@ -3534,11 +3544,12 @@ INJECT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_inject,context,expected_headers", INJECT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess
+    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
     code = """
 import json
+import os
 
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
@@ -3547,7 +3558,8 @@ context = Context(**{!r})
 headers = {{}}
 HTTPPropagator.inject(context, headers)
 
-print(json.dumps(headers))
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(headers, f)
     """.format(context)
 
     env = os.environ.copy()
@@ -3555,12 +3567,16 @@ print(json.dumps(headers))
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_inject is not None:
         env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = ",".join(styles_inject)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
+
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_headers
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_headers
 
 
 @pytest.mark.parametrize(

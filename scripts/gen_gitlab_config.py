@@ -209,9 +209,6 @@ class SuiteVenvInfo:
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
 _global_python_versions: set[str] = set()
 
-# Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
-TARGET_JOBS = 200
-
 # All supported Python versions (fallback when no venv info is available)
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
@@ -314,86 +311,17 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     return result
 
 
-def calculate_parallelism_from_venvs(venv_count: int, venvs_per_job: int, max_parallelism: int = 25) -> int:
+def calculate_parallelism_from_venvs(
+    venv_count: int, venvs_per_job: t.Optional[int] = None, max_parallelism: int = 25
+) -> int:
     """Calculate parallelism given a venv count and venvs_per_job packing density."""
     import math
 
+    # AIDEV-NOTE: Suitespec owns shard density. Avoid a global minimum job count,
+    # which makes small CI runs allocate runners unrelated to their suite timings.
+    if venvs_per_job is None:
+        return 1
     return min(math.ceil(venv_count / venvs_per_job), max_parallelism)
-
-
-def _scale_suites(
-    suite_venv_info: dict[str, SuiteVenvInfo],
-    final_jobs: dict[str, int],
-    scalable_suites: list[str],
-    venvs_per_job_map: dict[str, int],
-    target: int,
-) -> dict[str, int]:
-    """Scale up parallelism for scalable suites to approach the target total job count.
-
-    Works for both venvs_per_job suites (reduces vpj by 1 per step) and static
-    parallelism suites (increments parallelism by 1 per step). Each iteration picks
-    the suite that yields the largest gain until the target is reached.
-
-    Args:
-        suite_venv_info: venv info per suite (from collect_all_suite_venv_info)
-        final_jobs: current parallelism per suite (a copy is returned)
-        scalable_suites: all suites eligible for scaling (with venv info)
-        venvs_per_job_map: current venvs_per_job value for dynamic suites (others absent)
-        target: desired minimum total job count
-
-    Returns:
-        Updated parallelism mapping
-    """
-    import math
-
-    final_jobs = dict(final_jobs)
-    current_vpj = dict(venvs_per_job_map)
-
-    while sum(final_jobs.values()) < target:
-        best_gain = 0
-        best_suite = None
-
-        for suite in scalable_suites:
-            venv_count = suite_venv_info[suite].venv_count
-            current = final_jobs[suite]
-            # Allow up to 1 job per venv when scaling (no parallelism cap during scale-up).
-            # The cap in calculate_parallelism_from_venvs only applies to baseline.
-            if current >= venv_count:
-                continue
-
-            if suite in current_vpj:
-                # Dynamic (venvs_per_job) suite: compute gain from reducing vpj by 1
-                vpj = current_vpj[suite]
-                if vpj <= 1:
-                    continue
-                new_parallelism = math.ceil(venv_count / (vpj - 1))
-            else:
-                # Static parallelism suite: gain is always 1
-                new_parallelism = current + 1
-
-            gain = new_parallelism - current
-            if gain > best_gain:
-                best_gain = gain
-                best_suite = suite
-
-        if best_suite is None or best_gain == 0:
-            break
-
-        venv_count = suite_venv_info[best_suite].venv_count
-        if best_suite in current_vpj:
-            current_vpj[best_suite] -= 1
-            final_jobs[best_suite] = math.ceil(venv_count / current_vpj[best_suite])
-        else:
-            final_jobs[best_suite] += 1
-
-        LOGGER.debug(
-            "Scaled suite %s: parallelism %d -> %d",
-            best_suite,
-            final_jobs[best_suite] - best_gain,
-            final_jobs[best_suite],
-        )
-
-    return final_jobs
 
 
 def gen_required_suites() -> None:
@@ -536,9 +464,23 @@ def gen_validate_slos() -> None:
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
 
+    suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
+    explicit_parallelism = sorted(name for name, config in suites.items() if "parallelism" in config)
+    if explicit_parallelism:
+        raise ValueError(
+            "test suites must use venvs_per_job instead of parallelism: " + ", ".join(explicit_parallelism)
+        )
+
+    ignored_ddtest_packing = sorted(
+        name for name, config in suites.items() if config.get("ddtest") and "venvs_per_job" in config
+    )
+    if ignored_ddtest_packing:
+        raise ValueError(
+            "ddtest suites shard with ddtest_nodes and cannot use venvs_per_job: " + ", ".join(ignored_ddtest_packing)
+        )
+
     from tests.suitespec import UV_TEST_SUITES
 
-    suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
     # Copy the template file
@@ -588,42 +530,14 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     for info in suite_venv_info.values():
         _global_python_versions.update(info.python_versions)
 
-    # Compute baseline parallelism. Track scalable suites (those with venv info, eligible
-    # for scaling up) and the vpj map for dynamic suites.
-    baseline_jobs: dict[str, int] = {}
-    scalable_suites: list[str] = []  # all suites with venv info (both static and dynamic)
-    venvs_per_job_map: dict[str, int] = {}  # only for venvs_per_job suites
-
+    final_jobs: dict[str, int] = {}
     for suite in non_skipped:
         config = suites[suite]
-        static_parallelism = config.get("parallelism")
         venvs_per_job = config.get("venvs_per_job")
-
-        if static_parallelism is not None:
-            baseline_jobs[suite] = static_parallelism
-            if suite in suite_venv_info:
-                scalable_suites.append(suite)
-        elif venvs_per_job is not None and suite in suite_venv_info:
-            parallelism = calculate_parallelism_from_venvs(suite_venv_info[suite].venv_count, venvs_per_job)
-            baseline_jobs[suite] = parallelism
-            scalable_suites.append(suite)
-            venvs_per_job_map[suite] = venvs_per_job
+        if suite in suite_venv_info:
+            final_jobs[suite] = calculate_parallelism_from_venvs(suite_venv_info[suite].venv_count, venvs_per_job)
         else:
-            baseline_jobs[suite] = 1
-
-    # Scale up suites if total job count is below the target
-    total_baseline = sum(baseline_jobs.values())
-    if total_baseline < TARGET_JOBS and scalable_suites:
-        LOGGER.info(
-            "Total baseline jobs (%d) below target (%d), scaling up %d suite(s)",
-            total_baseline,
-            TARGET_JOBS,
-            len(scalable_suites),
-        )
-        final_jobs = _scale_suites(suite_venv_info, baseline_jobs, scalable_suites, venvs_per_job_map, TARGET_JOBS)
-        LOGGER.info("Scaled total jobs: %d", sum(final_jobs.values()))
-    else:
-        final_jobs = baseline_jobs
+            final_jobs[suite] = 1
 
     # === PASS 2: Emit YAML ===
     with TESTS_GEN.open("a") as f:
