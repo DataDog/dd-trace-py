@@ -88,6 +88,28 @@ counter starts at 1 (reserved for RunWorkflow) and increments for each
 subsequent handler span (HandleSignal, HandleUpdate) to give each a stable,
 unique ID across worker restarts.
 
+### Flushing spans for long-running workflows
+
+`RunWorkflow` stays open for the entire workflow execution (matching Go), so
+all of its child spans (activities, signals, child workflows, etc.) share its
+trace ID. ddtrace's `SpanAggregator` retains finished spans until the whole
+trace completes, partial-flushing only after `DD_TRACE_PARTIAL_FLUSH_MIN_SPANS`
+finished spans (default 300). A long-running workflow that produces fewer than
+that many child spans therefore emits none of its worker-side spans until the
+workflow completes — potentially days or months later — and keeps them in
+worker memory in the meantime.
+
+For long-running workflows, lower the partial-flush threshold so child spans
+flush to the agent in small batches while the workflow is still running:
+
+```bash
+export DD_TRACE_PARTIAL_FLUSH_ENABLED=true
+export DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=10
+```
+
+This is a process-global tracer setting (it affects every integration in the
+process), not a per-workflow or per-integration knob.
+
 ## Replay safety
 
 Temporal replays workflow history on every new worker to rebuild execution

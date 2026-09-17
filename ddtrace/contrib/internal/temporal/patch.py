@@ -36,7 +36,11 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"temporalio": ">=1.0.0"}
+    # The integration uses interceptor APIs introduced in temporalio 1.21.0
+    # (NexusOperationInboundInterceptor, workflow-side StartNexusOperationInput).
+    # Earlier 1.x releases lack those symbols, so importing the patch module
+    # fails and patch_all() silently leaves Temporal uninstrumented.
+    return {"temporalio": ">=1.21.0"}
 
 
 def _traced_client_init(
@@ -44,8 +48,9 @@ def _traced_client_init(
 ) -> Any:
     interceptors = list(kwargs.get("interceptors") or [])
     if not any(isinstance(i, DatadogTracingInterceptor) for i in interceptors):
-        # service_name=None falls back to the global tracer service name.
-        interceptors.append(DatadogTracingInterceptor(service_name=None))
+        # Honour DD_TEMPORAL_SERVICE / DD_TEMPORAL_SERVICE_NAME when set; None
+        # falls back to the global tracer service name (DD_SERVICE).
+        interceptors.append(DatadogTracingInterceptor(service_name=config.temporal.service))
         kwargs["interceptors"] = interceptors
     return wrapped(*args, **kwargs)
 

@@ -1,12 +1,16 @@
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 import temporalio.activity
 import temporalio.workflow
 
 from .constants import TEMPORAL_TAG_PREFIX
+
+
+log = logging.getLogger(__name__)
 
 
 # ddtrace is intentionally not imported at module level. WrappedTracer
@@ -42,31 +46,26 @@ class FinishResult:
 
 
 class WrappedTracer:
-    tracer: Any
-
     def __init__(
         self,
         *,
         service_name: str | None,
-        tracer: Any,
         on_span_finish: Callable[[FinishContext], FinishResult | None] | None = None,
         annotator: Any,
         propagator: Any,
     ) -> None:
-        if tracer is None:
-            import ddtrace
+        # Resolve the tracer and Context here in the host process so sandbox
+        # extern calls never import ddtrace lazily.  Deferred imports inside
+        # externs go through the sandbox's restricted importer and fail with
+        # RestrictedWorkflowAccessError.  The integration always uses the
+        # global ddtrace tracer.
+        import ddtrace
+        from ddtrace._trace.context import Context
 
-            tracer = ddtrace.tracer
-
-            # Cache Context here so start_span never imports it as an extern call.
-            # Deferred imports inside externs go through the sandbox's restricted
-            # importer and fail with RestrictedWorkflowAccessError.
-            from ddtrace._trace.context import Context
-
-            self.ctx_cls: Any = Context
-        else:
-            self.ctx_cls = None
-        self.tracer = tracer
+        self.tracer = ddtrace.tracer
+        # Cache Context so start_span can build the synthetic parent for
+        # deterministic RunWorkflow trace IDs without importing it as an extern.
+        self.ctx_cls: Any = Context
         self.service_name = service_name
         self.on_span_finish = on_span_finish
         self.annotator = annotator
@@ -118,7 +117,14 @@ class WrappedTracer:
         try:
             result: FinishResult | None = None
             if self.on_span_finish is not None:
-                result = self.on_span_finish(FinishContext(operation=operation_name, exception=exc))
+                try:
+                    result = self.on_span_finish(FinishContext(operation=operation_name, exception=exc))
+                except Exception:
+                    log.error(
+                        "temporal on_span_finish callback for %r raised; ignoring",
+                        operation_name,
+                        exc_info=True,
+                    )
 
             if exc and not self._should_skip_error(exc):
                 span.set_exc_info(type(exc), exc, exc.__traceback__)

@@ -30,16 +30,15 @@ from .wrapped_tracer import WrappedTracer
 class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker.Interceptor):  # type: ignore[misc]
     def __init__(
         self,
-        tracer: Any | None = None,
         *,
         service_name: str | None = None,
         header_key: str = DEFAULT_HEADER_KEY,
         extra_tags: Mapping[str, str] | None = None,
         on_span_finish: Callable[[FinishContext], FinishResult | None] | None = None,
-        workflow_tracing_config: WorkflowTracingConfig = WorkflowTracingConfig.default_config(),
+        workflow_tracing_config: WorkflowTracingConfig | None = None,
         allow_invalid_parent_spans: bool = False,
     ) -> None:
-        self.workflow_tracing_config = workflow_tracing_config
+        self.workflow_tracing_config = workflow_tracing_config or WorkflowTracingConfig.default_config()
 
         _register_sandbox_passthrough()
 
@@ -52,7 +51,6 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
 
         self.tracer = WrappedTracer(
             service_name=service_name,
-            tracer=tracer,
             on_span_finish=on_span_finish,
             annotator=_SpanAnnotator(service_name=service_name, extra_tags=extra_tags),
             propagator=self.propagator,

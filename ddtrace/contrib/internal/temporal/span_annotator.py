@@ -5,6 +5,8 @@ from typing import Any
 
 from .constants import _MANUAL_KEEP_OPS
 from .constants import _MANUAL_KEEP_TAG
+from .constants import COMPONENT
+from .constants import COMPONENT_NAME
 from .constants import TEMPORAL_TAG_PREFIX
 from .constants import OperationNames
 
@@ -66,6 +68,11 @@ class _SpanAnnotator:
         # User-defined global custom tags
         for key, value in self.extra_tags.items():
             span.set_tag(key, value)
+
+        # Mark every span as coming from the temporal integration so the tracer
+        # attributes integration telemetry (spans_created/finished, etc.) to
+        # temporal instead of the generic datadog span API.
+        span.set_tag(COMPONENT, COMPONENT_NAME)
 
         # Attributes from the operation
         if attributes:

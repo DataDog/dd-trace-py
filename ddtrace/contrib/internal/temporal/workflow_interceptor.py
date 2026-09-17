@@ -167,6 +167,7 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
             SpanAttributes.WORKFLOW_ID: info.workflow_id,
             SpanAttributes.RUN_ID: info.run_id,
             SpanAttributes.WORKFLOW_TYPE: info.workflow_type,
+            SpanAttributes.NAMESPACE: info.namespace,
         }
         for field, span_key in COMMON_ATTRIBUTE_MAP:
             if val := getattr(input, field, None):

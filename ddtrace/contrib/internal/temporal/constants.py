@@ -16,6 +16,13 @@ DEFAULT_HEADER_KEY = "dd_trace_span"
 TEMPORAL_TAG_PREFIX = "temporal."
 _MANUAL_KEEP_TAG = "manual.keep"
 
+# Standard integration component tag.  The tracer's SpanAggregator keys
+# integration telemetry on this attribute, so every Temporal span must carry
+# it to be attributed to the temporal integration rather than the generic
+# datadog span API.
+COMPONENT = "component"
+COMPONENT_NAME = "temporal"
+
 
 class SpanAttributes:
     ACTIVITY_ID = "ActivityID"

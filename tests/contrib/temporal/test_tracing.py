@@ -907,6 +907,64 @@ async def test_disable_update_tracing_still_propagates_into_new_workflow(
 
 
 @pytest.mark.asyncio
+async def test_update_with_start_span_uses_update_name_and_id(
+    client: Client,
+    env: WorkflowEnvironment,
+    span_collector: _SpanCollector,
+) -> None:
+    """UpdateWithStartWorkflow span is built from the update input, not just the
+    workflow-start input.
+
+    Before the fix the span used the workflow type as the resource and derived
+    attributes only from start_workflow_input, so it omitted UpdateName and
+    UpdateID and could not be grouped with the update the client requested.
+    """
+    if env.supports_time_skipping:
+        pytest.skip("time-skipping server not supported")
+
+    interceptor = _make_interceptor()
+    tc = _traced_client(client, interceptor)
+    tq = _task_queue()
+    update_id = f"upd-{uuid.uuid4()}"
+
+    async with Worker(tc, task_queue=tq, workflows=[UpdateTestWorkflow]):
+        start_op = temporalio.client.WithStartWorkflowOperation(
+            UpdateTestWorkflow.run,
+            id=f"wf-{uuid.uuid4()}",
+            task_queue=tq,
+            id_conflict_policy=temporalio.common.WorkflowIDConflictPolicy.FAIL,
+        )
+        await tc.execute_update_with_start_workflow(
+            UpdateTestWorkflow.do_update,
+            "hello",
+            start_workflow_operation=start_op,
+            id=update_id,
+        )
+        await (await start_op.workflow_handle()).result()
+
+    upd = span_collector.one("UpdateWithStartWorkflow")
+
+    # The span's resource is the update name (matching plain UpdateWorkflow),
+    # not the workflow type.
+    assert upd.resource == "do_update", (
+        f"UpdateWithStartWorkflow resource={upd.resource!r}, expected 'do_update' (the update name)"
+    )
+
+    # The span carries the update name and id requested by the client.
+    assert span_collector.tag(upd, "UpdateName") == "do_update", (
+        "UpdateWithStartWorkflow span is missing the UpdateName tag"
+    )
+    assert span_collector.tag(upd, "UpdateID") == update_id, "UpdateWithStartWorkflow span is missing the UpdateID tag"
+
+    # The span must still propagate context into both the started workflow and
+    # the update, so RunWorkflow is a child of it.
+    run = span_collector.one("RunWorkflow")
+    assert run.parent_id == upd.span_id, (
+        f"RunWorkflow.parent_id={run.parent_id} does not match UpdateWithStartWorkflow.span_id={upd.span_id}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_span_kind_tags(
     client: Client,
     env: WorkflowEnvironment,

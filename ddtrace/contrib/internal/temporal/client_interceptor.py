@@ -96,10 +96,14 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
             return await super().start_update_with_start_workflow(input)
 
         operation_name = OperationNames.UPDATE_WITH_START_WORKFLOW
+        attributes = self._get_workflow_attributes(input.start_workflow_input)
+        attributes[SpanAttributes.UPDATE_NAME] = input.update_workflow_input.update
+        if input.update_workflow_input.update_id:
+            attributes[SpanAttributes.UPDATE_ID] = input.update_workflow_input.update_id
         span = self._get_span(
             operation_name,
-            input.start_workflow_input.workflow,
-            self._get_workflow_attributes(input.start_workflow_input),
+            input.update_workflow_input.update,
+            attributes,
         )
 
         input.start_workflow_input.headers = self.root.propagator.inject_headers(
