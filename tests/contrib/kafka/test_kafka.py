@@ -10,7 +10,6 @@ from confluent_kafka import TopicPartition
 import pytest
 
 from ddtrace._trace.context import Context
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import _instrument_message
@@ -699,12 +698,9 @@ def test_consume_restores_active_span_after_foreign_distributed_context(kafka_tr
         _dd_cluster_id="test-cluster",
         _auto_commit=False,
     )
-    pin = Pin()
-    pin.onto(instance)
-
     with override_config("kafka", dict(distributed_tracing_enabled=True, propagation_as_span_links=False)):
         with kafka_tracer.trace("local") as parent:
-            _instrument_message([Message()], pin, time.time_ns(), instance, None)
+            _instrument_message([Message()], time.time_ns(), instance, None)
             assert kafka_tracer.current_span() is parent
 
 
