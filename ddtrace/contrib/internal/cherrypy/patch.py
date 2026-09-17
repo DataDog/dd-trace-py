@@ -186,8 +186,4 @@ class TraceMiddleware(object):
                 removal_version="5.0.0",
             )
 
-        self.app.tools.tracer = TraceTool(
-            app,
-            service,
-            distributed_tracing,
-        )
+        self.app.tools.tracer = TraceTool(app, service, distributed_tracing)
