@@ -7,7 +7,6 @@ packages:
 - name: openai
 category:
 - gen_ai
-- websocket.client
 systems:
 - azure.ai.openai
 - openai

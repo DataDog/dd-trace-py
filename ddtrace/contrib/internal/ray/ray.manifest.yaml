@@ -7,8 +7,6 @@ packages:
 - name: ray
 category:
 - http.server
-- rpc.server
 - task.execution
-systems:
-- grpc
+systems: []
 creation_date: '2025-10-02'

@@ -6,5 +6,7 @@ packages:
 - name: google-adk
 category:
 - gen_ai
-systems: []
+systems:
+- gcp.gemini
+- gcp.vertex_ai
 creation_date: '2025-09-24'

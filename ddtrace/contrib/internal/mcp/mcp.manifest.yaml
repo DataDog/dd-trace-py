@@ -9,8 +9,5 @@ category:
 - gen_ai
 - mcp.client
 - mcp.server
-- rpc.client
-- rpc.server
-systems:
-- jsonrpc
+systems: []
 creation_date: '2025-07-15'
