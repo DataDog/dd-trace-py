@@ -146,10 +146,20 @@ class TraceTool(cherrypy.Tool):
 
             event = cast(WebFrameworkRequestEvent, ctx.event)
 
-            # Let users customize the resource during request handling.
-            # Comparing against event.operation_name also works under schema
-            # v1.
+            # Let users specify their own resource in middleware if they so desire.
+            # See case https://github.com/DataDog/dd-trace-py/issues/353
+            # Comparing against event.operation_name also works under schema v1.
             if span.resource == event.operation_name:
+                # In the future, mask virtual path components in a
+                # URL e.g. /dispatch/abc123 becomes /dispatch/{{test_value}}/
+                # Following investigation, this should be possible using
+                # [find_handler](https://docs.cherrypy.org/en/latest/_modules/cherrypy/_cpdispatch.html#Dispatcher.find_handler)
+                # but this may not be as easy as `cherrypy.request.dispatch.find_handler(cherrypy.request.path_info)` as
+                # this function only ever seems to return an empty list for the virtual path components.
+
+                # For now, default resource is method and path:
+                #   GET /
+                #   POST /save
                 span.resource = "{} {}".format(
                     cherrypy.request.method,
                     cherrypy.request.path_info,
