@@ -1,4 +1,6 @@
 ---
-fixes:
+other:
   - |
-    tracing: Reduces WSGI response iteration overhead, especially for streaming responses with many chunks.
+    tracing: Reduces WSGI response iteration overhead. In microbenchmarks the traced
+    response wrapper is about 4.5x faster for single-chunk responses and about 14x
+    faster for 1,000-chunk streaming responses.
