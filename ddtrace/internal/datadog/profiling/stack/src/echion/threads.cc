@@ -37,6 +37,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     python_stack_unwind_result = *frame_unwind_result;
 
     if (asyncio_loop) {
+        echion.increment_asyncio_loop_count();
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
         (void)unwind_tasks(echion, tstate, wall_time_us);
