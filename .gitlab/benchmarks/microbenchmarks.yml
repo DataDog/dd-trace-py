@@ -40,6 +40,18 @@ variables:
     (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
+    # Install Python 3.12 via pyenv if not already available.
+    # The CI image only ships Python 3.9; we need 3.12 for the cp312 wheels.
+    # Update pyenv first so the latest 3.12.x definitions are available.
+    if ! pyenv versions | grep -q '3\.12\.'; then
+      (cd /pyenv && git pull --ff-only)
+      PYTHON312=$(pyenv install --list | grep -E '^\s+3\.12\.[0-9]+$' | tail -1 | tr -d ' ')
+      pyenv install "$PYTHON312"
+      pyenv global "$PYTHON312"
+    else
+      pyenv global $(pyenv versions | grep -oE '3\.12\.[0-9]+' | head -1)
+    fi
+
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
       export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
@@ -152,7 +164,7 @@ baseline:build:
 
     echo "BASELINE_WHL=$(ls baseline-wheel/*.whl | head -n 1)" | tee -a baseline.env
   cache:
-    - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+    - key: v1-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
         - "baseline-wheel/*.whl"
   artifacts:
@@ -167,11 +179,11 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "build linux: [amd64, cp39-cp39, v133965508-8f84bce-manylinux2014_x86_64]"
+      job: "build linux: [amd64, cp312-cp312, v133965508-8f84bce-manylinux2014_x86_64]"
       artifacts: true
   script: |
     mkdir -p candidate-wheel
-    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl candidate-wheel/
+    cp pywheels/*-cp312-cp312-manylinux*_x86_64*.whl candidate-wheel/
     echo "CANDIDATE_WHL=$(ls candidate-wheel/*.whl | head -n 1)" | tee candidate.env
     echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env
