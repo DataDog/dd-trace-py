@@ -4,7 +4,7 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
+from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
 from ddtrace.internal.native._native import is_sequence  # noqa: F401
 from ddtrace.internal.settings import env
