@@ -94,10 +94,6 @@ def track_user(
     span = _asm_request_context.get_entry_span()
     if span is None:
         return
-    if user_id:
-        span._set_attribute(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
-    if login:
-        span._set_attribute(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
     meta = metadata or {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
@@ -148,8 +144,6 @@ def track_user_id(
     span = _asm_request_context.get_entry_span()
     if span is None:
         return
-    if user_id:
-        span._set_attribute(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     meta = metadata or {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
