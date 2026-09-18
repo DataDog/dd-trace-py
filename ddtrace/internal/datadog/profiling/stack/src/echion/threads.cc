@@ -49,85 +49,86 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
 }
 
 // ----------------------------------------------------------------------------
-bool
-ThreadInfo::is_asyncio_boundary_frame(EchionSampler& echion, const Frame& frame) const
-{
-    // For regular asyncio, the boundary is Handle._run from asyncio/events.py.
-    // For uvloop, it is Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner internally).
-    // Memoize the interned name and filename once identified to avoid repeated string comparisons.
-    // Asyncio and uvloop are memoized separately in case a process switches between them.
-    auto& asyncio_boundary_frame = echion.asyncio_boundary_frame();
-    auto& uvloop_boundary_frame = echion.uvloop_boundary_frame();
-    auto& boundary_frame = using_uvloop ? uvloop_boundary_frame : asyncio_boundary_frame;
-
-    if (boundary_frame) {
-        return frame.name == boundary_frame->name && frame.filename == boundary_frame->filename;
-    }
-
-    auto maybe_frame_name = echion.string_table().lookup(frame.name);
-    if (!maybe_frame_name) {
-        return false;
-    }
-    const auto& frame_name = maybe_frame_name->get();
-
-    bool is_boundary_frame = false;
-    if (using_uvloop) {
-        // For uvloop, the boundary frame depends on the Python version:
-        // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
-        // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
-#if PY_VERSION_HEX >= 0x030b0000
-        constexpr std::string_view runner_run = "Runner.run";
-        is_boundary_frame = frame_name == runner_run;
-#else
-        constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
-        constexpr std::string_view run = "run";
-        auto maybe_filename = echion.string_table().lookup(frame.filename);
-        if (!maybe_filename) {
-            return false;
-        }
-        const auto& filename = maybe_filename->get();
-        auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
-        is_boundary_frame = is_uvloop && (frame_name == run);
-#endif
-    } else {
-        // For regular asyncio, the boundary frame is Handle._run from asyncio/events.py
-#if PY_VERSION_HEX >= 0x030b0000
-        // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
-        // can use the qualified name to identify the "_run" Frame.
-        constexpr std::string_view _run = "Handle._run";
-        is_boundary_frame = frame_name == _run;
-#else
-        // Before Python 3.11, function names in Frames are not qualified, so we
-        // can use the filename to identify the "_run" Frame.
-        constexpr std::string_view asyncio_events_py = "asyncio/events.py";
-        constexpr std::string_view _run = "_run";
-        auto maybe_filename = echion.string_table().lookup(frame.filename);
-        if (!maybe_filename) {
-            return false;
-        }
-        const auto& filename = maybe_filename->get();
-        auto is_asyncio = filename.size() >= asyncio_events_py.size() &&
-                          filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
-        is_boundary_frame =
-          is_asyncio && (frame_name.size() >= _run.size() && frame_name.rfind(_run) == frame_name.size() - _run.size());
-#endif
-    }
-
-    if (is_boundary_frame) {
-        boundary_frame = BoundaryFrame{ frame.name, frame.filename };
-    }
-    return is_boundary_frame;
-}
-
-// ----------------------------------------------------------------------------
 size_t
 ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 {
-    // Defaults to the full Python stack size (and updated if we find the boundary frame).
+    // Defaults to the full Python stack size (and updated if we find the boundary frame)
     size_t upper_python_stack_size = python_stack.size();
 
+    // Check if the Python stack contains the asyncio boundary frame.
+    // For regular asyncio, this is "Handle._run" from asyncio/events.py.
+    // For uvloop, this is "Runner.run" from asyncio/runners.py (uvloop uses asyncio.Runner internally).
+    // To avoid having to do string comparisons every time we unwind Tasks, we memoize the interned
+    // name and filename of the boundary Frame the first time we identify it.
+    // Note: We memoize asyncio and uvloop separately because switching between them
+    // (though unlikely at runtime) would cause incorrect boundary detection otherwise.
+    auto& asyncio_boundary_frame = echion.asyncio_boundary_frame();
+    auto& uvloop_boundary_frame = echion.uvloop_boundary_frame();
+
+    auto& boundary_frame = using_uvloop ? uvloop_boundary_frame : asyncio_boundary_frame;
+
     for (size_t i = 0; i < python_stack.size(); i++) {
-        if (is_asyncio_boundary_frame(echion, python_stack[i])) {
+        const auto& frame = python_stack[i];
+
+        bool is_boundary_frame = false;
+
+        if (boundary_frame) {
+            is_boundary_frame = frame.name == boundary_frame->name && frame.filename == boundary_frame->filename;
+        } else {
+            auto maybe_frame_name = echion.string_table().lookup(frame.name);
+            if (!maybe_frame_name) {
+                continue;
+            }
+            const auto& frame_name = maybe_frame_name->get();
+
+            if (using_uvloop) {
+                // For uvloop, the boundary frame depends on the Python version:
+                // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
+                // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
+#if PY_VERSION_HEX >= 0x030b0000
+                constexpr std::string_view runner_run = "Runner.run";
+                is_boundary_frame = frame_name == runner_run;
+#else
+                constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
+                constexpr std::string_view run = "run";
+                auto maybe_filename = echion.string_table().lookup(frame.filename);
+                if (!maybe_filename) {
+                    continue;
+                }
+                const auto& filename = maybe_filename->get();
+                auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+                is_boundary_frame = is_uvloop && (frame_name == run);
+#endif
+            } else {
+                // For regular asyncio, the boundary frame is Handle._run from asyncio/events.py
+#if PY_VERSION_HEX >= 0x030b0000
+                // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
+                // can use the qualified name to identify the "_run" Frame.
+                constexpr std::string_view _run = "Handle._run";
+                is_boundary_frame = frame_name == _run;
+#else
+                // Before Python 3.11, function names in Frames are not qualified, so we
+                // can use the filename to identify the "_run" Frame.
+                constexpr std::string_view asyncio_events_py = "asyncio/events.py";
+                constexpr std::string_view _run = "_run";
+                auto maybe_filename = echion.string_table().lookup(frame.filename);
+                if (!maybe_filename) {
+                    continue;
+                }
+                const auto& filename = maybe_filename->get();
+                auto is_asyncio = filename.size() >= asyncio_events_py.size() &&
+                                  filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
+                is_boundary_frame = is_asyncio && (frame_name.size() >= _run.size() &&
+                                                   frame_name.rfind(_run) == frame_name.size() - _run.size());
+#endif
+            }
+
+            if (is_boundary_frame) {
+                boundary_frame = BoundaryFrame{ frame.name, frame.filename };
+            }
+        }
+
+        if (is_boundary_frame) {
             upper_python_stack_size = python_stack.size() - i;
             break;
         }
