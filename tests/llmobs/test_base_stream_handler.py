@@ -3,6 +3,7 @@ and ``TracedStream`` / ``TracedAsyncStream``. The hook is consumed by every
 LLM contrib, so a regression here surfaces as silent breakage downstream.
 """
 
+import asyncio
 import gc
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -246,44 +247,9 @@ class _AsyncExitRaises(_AsyncCtxStream):
         raise RuntimeError("close failed")
 
 
-class _StreamManager:
-    """Context manager whose __enter__ returns a distinct stream object."""
-
-    def __init__(self, n):
-        self._n = n
-        self.exits = 0
-
-    def __enter__(self):
-        return _CtxStream(self._n)
-
-    def __exit__(self, *exc):
-        self.exits += 1
-        return False
-
-
-class _AsyncStreamManager:
-    """Async context manager whose __aenter__ returns a distinct stream object."""
-
-    def __init__(self, n):
-        self._n = n
-        self.exits = 0
-
-    async def __aenter__(self):
-        return _AsyncCtxStream(self._n)
-
+class _AsyncExitCancelled(_AsyncCtxStream):
     async def __aexit__(self, *exc):
-        self.exits += 1
-        return False
-
-
-class _ExitRaises(_CtxStream):
-    def __exit__(self, *exc):
-        raise RuntimeError("close failed")
-
-
-class _AsyncExitRaises(_AsyncCtxStream):
-    async def __aexit__(self, *exc):
-        raise RuntimeError("close failed")
+        raise asyncio.CancelledError()
 
 
 def test_traced_stream_finalizes_on_context_manager_exit_when_not_exhausted():
@@ -477,6 +443,50 @@ async def test_traced_async_stream_records_exception_from_wrapped_exit():
     assert handler.finalize_stream_calls == 1
     assert len(handler.handle_exception_calls) == 1
     assert isinstance(handler.handle_exception_calls[0], RuntimeError)
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_finalizes_when_wrapped_aexit_cancelled():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_AsyncExitCancelled(3), handler)
+    with pytest.raises(asyncio.CancelledError):
+        async with traced as stream:
+            assert await stream.__anext__() == 0
+    assert handler.finalize_stream_calls == 1
+    assert len(handler.handle_exception_calls) == 1
+    assert isinstance(handler.handle_exception_calls[0], asyncio.CancelledError)
+    assert isinstance(handler.finalize_exceptions[0], asyncio.CancelledError)
+
+
+def test_traced_stream_finalizes_when_on_stream_created_raises():
+    handler = _SyncRecordingHandler()
+
+    def boom(_stream):
+        raise RuntimeError("callback failed")
+
+    traced = make_traced_stream(_StreamManager(3), handler, on_stream_created=boom)
+    with pytest.raises(RuntimeError, match="callback failed"):
+        with traced:
+            pass
+    assert handler.finalize_stream_calls == 1
+    assert isinstance(handler.finalize_exceptions[0], RuntimeError)
+    assert traced._self_entered_stream is None
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_finalizes_when_on_stream_created_raises():
+    handler = _AsyncRecordingHandler()
+
+    def boom(_stream):
+        raise RuntimeError("callback failed")
+
+    traced = make_traced_stream(_AsyncStreamManager(3), handler, on_stream_created=boom)
+    with pytest.raises(RuntimeError, match="callback failed"):
+        async with traced:
+            pass
+    assert handler.finalize_stream_calls == 1
+    assert isinstance(handler.finalize_exceptions[0], RuntimeError)
+    assert traced._self_entered_stream is None
 
 
 def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
