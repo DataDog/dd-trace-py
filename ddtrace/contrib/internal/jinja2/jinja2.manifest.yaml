@@ -1,0 +1,11 @@
+_v: 1
+name: jinja2
+display_name: Jinja2
+description: Instruments Jinja2 template loading, compilation, and rendering, including streamed template generation, with
+  template identity metadata.
+packages:
+- name: jinja2
+category:
+- template.render
+systems: []
+creation_date: '2018-10-19'
