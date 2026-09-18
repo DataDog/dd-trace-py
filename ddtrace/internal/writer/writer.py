@@ -1474,7 +1474,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         elif reason.startswith("TimedOut"):
             _safelog(log.warning, "native trace buffer timed out waiting for the export: %s", reason)
         else:
-            _safelog(log.warning, "failed to flush the native trace buffer: %s", reason)
+            _safelog(log.error, "failed to flush the native trace buffer: %s", reason)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         # The shutdown blocks on an export already in flight, so a caller that passes no timeout still
