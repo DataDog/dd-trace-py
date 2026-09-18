@@ -313,7 +313,10 @@ def gateway(tmp_path_factory):
             "request_timeout": 10,
             "num_retries": 0,
         },
-        "general_settings": {"custom_auth": "tests.contrib.litellm.gateway.proxy_auth.authenticate"},
+        "general_settings": {
+            "custom_auth": "tests.contrib.litellm.gateway.proxy_auth.authenticate",
+            "user_header_mappings": [{"header_name": "x-app-user", "litellm_user_role": "customer"}],
+        },
         "router_settings": {
             "num_retries": 0,
             "fallbacks": [{"fail-model": ["fallback-model"]}],
@@ -482,7 +485,7 @@ async def test_real_proxy_and_wire_traces(gateway):
             "messages": [{"role": "user", "content": "PRIVATE PROMPT"}],
             "stream": stream,
             "service_tier": "priority",
-            "user": "SPOOFED USER",
+            "user": "claimed-user",
             "metadata": {
                 "user_api_key_user_id": "SPOOFED USER",
                 "usr.email": "spoofed@example.test",
@@ -546,6 +549,11 @@ async def test_real_proxy_and_wire_traces(gateway):
         assert span["meta"]["ai.request.service_tier"] == "priority"
         assert span["meta"]["ai.effective.service_tier"] == "priority"
     serialized = json.dumps(spans)
+    for span in spans:
+        assert span["meta"]["usr.id"] in ("alice", "bob")
+        assert span["meta"]["ai.identity.source"] == "gateway_auth"
+        assert span["meta"]["ai.end_user.id"] == "claimed-user"
+        assert span["meta"]["ai.end_user.trust"] == "unverified"
     for secret in (
         "PRIVATE PROMPT",
         "PRIVATE OUTPUT",
@@ -753,3 +761,59 @@ async def test_azure_claude_route_and_long_resource_id_reach_wire(gateway, strea
     assert any(request["observed_path"] == "/anthropic/v1/messages" for request in upstream)
     assert "PRIVATE" not in json.dumps(spans)
     assert "SYNTHETIC-AZURE-SECRET" not in json.dumps(spans)
+
+
+@pytest.mark.parametrize(
+    "endpoint,fields,headers,expected",
+    [
+        ("chat/completions", {"user": "body-user"}, {}, "body-user"),
+        ("chat/completions", {}, {"x-litellm-end-user-id": "header-user"}, "header-user"),
+        (
+            "chat/completions",
+            {"user": "ignored-body-user"},
+            {"x-litellm-customer-id": "customer-user", "x-litellm-end-user-id": "ignored-header-user"},
+            "customer-user",
+        ),
+        ("chat/completions", {}, {"x-app-user": "mapped-user"}, "mapped-user"),
+        ("messages", {"litellm_metadata": {"user": "metadata-user"}}, {}, "metadata-user"),
+        ("messages", {"metadata": {"user_id": "anthropic-user"}}, {}, "anthropic-user"),
+        ("responses", {"safety_identifier": "response-user"}, {}, "response-user"),
+        ("chat/completions", {}, {}, None),
+    ],
+)
+async def test_end_user_fallback_through_real_proxy(gateway, endpoint, fields, headers, expected):
+    url, traces, _ = gateway
+    before = {s["span_id"] for t in traces for s in t}
+    data = {"model": "test-model", "messages": [{"role": "user", "content": "PRIVATE PROMPT"}]}
+    if endpoint == "messages":
+        data.update(model="test-claude", max_tokens=100)
+    elif endpoint == "responses":
+        data.pop("messages")
+        data["input"] = "PRIVATE PROMPT"
+    data.update(fields)
+    async with httpx.AsyncClient(timeout=20) as client:
+        result = await client.post(
+            f"{url}/v1/{endpoint}",
+            json=data,
+            headers={"Authorization": "Bearer test-unassigned", "anthropic-version": "2023-06-01", **headers},
+        )
+    assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [
+            s for t in list(traces) for s in t if s.get("name") == "ai_gateway.usage" and s["span_id"] not in before
+        ]
+        if spans:
+            break
+        await asyncio.sleep(0.2)
+    assert len(spans) == 1, spans
+    tags = spans[0]["meta"]
+    assert tags.get("usr.id") == expected
+    assert tags.get("ai.end_user.id") == expected
+    assert tags["ai.identity.source"] == ("litellm_end_user" if expected else "unknown")
+    assert tags.get("ai.end_user.trust") == ("unverified" if expected else None)
+    assert tags["ai.attribution.status"] == "incomplete"
+    assert "authenticated_user_unknown" in tags["ai.attribution.issues"]
+    assert spans[0]["metrics"]["ai.usage.output_tokens"] == 25
+    assert not any(value in json.dumps(spans) for value in ("PRIVATE", "SYNTHETIC", "ignored-", "test-unassigned"))

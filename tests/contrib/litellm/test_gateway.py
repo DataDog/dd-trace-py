@@ -175,6 +175,89 @@ async def test_identity_is_authenticated_no_secrets_and_opt_in_email():
     assert records[-1].tags["usr.email"] == "real@example.test"
 
 
+@pytest.mark.parametrize("user", [None, "shared-service"])
+async def test_end_user_fallback_preserves_authenticated_identity(user):
+    records = []
+    callback = make_callback({"dep-1": SCOPE}, sink=records.append)
+    data = await start(callback, user=user, end_user_id="claimed-user", data={"user": "ignored-raw-user"})
+    await finish(
+        callback,
+        data,
+        response(
+            Usage(prompt_tokens=20, completion_tokens=5, cache_read_input_tokens=0, cache_creation_input_tokens=0)
+        ),
+    )
+    tags = records[0].tags
+    assert tags["usr.id"] == (user or "claimed-user")
+    assert tags["ai.identity.source"] == ("gateway_auth" if user else "litellm_end_user")
+    assert tags["ai.end_user.id"] == "claimed-user"
+    assert tags["ai.end_user.trust"] == "unverified"
+    assert tags["ai.attribution.status"] == ("observed" if user else "incomplete")
+    assert ("authenticated_user_unknown" in tags.get("ai.attribution.issues", "")) == (user is None)
+    assert "ignored-raw-user" not in repr(records)
+
+
+@pytest.mark.parametrize(
+    "end_user",
+    [
+        None,
+        "",
+        " padded ",
+        "sk-secret",
+        "Bearer secret",
+        "id\nheader",
+        "x" * 257,
+        {},
+        True,
+        '{"session_id":"private"}',
+        '["private"]',
+    ],
+)
+async def test_invalid_or_filtered_end_user_is_not_recovered_from_request(end_user):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(
+        callback,
+        user=None,
+        end_user_id=end_user,
+        data={"user": "raw-user", "metadata": {"user_id": "raw-metadata-user"}},
+    )
+    await finish(callback, data)
+    tags = records[0].tags
+    assert tags["ai.identity.source"] == "unknown"
+    assert "usr.id" not in tags
+    assert "ai.end_user.id" not in tags
+    assert "authenticated_user_unknown" in tags["ai.attribution.issues"]
+
+
+@pytest.mark.parametrize("user", [None, "authenticated-user"])
+async def test_end_user_capture_can_be_disabled(user):
+    records = []
+    callback = make_callback(sink=records.append, capture_end_user=False)
+    data = await start(callback, user=user, end_user_id="private-user")
+    await finish(callback, data)
+    assert records[0].tags.get("usr.id") == user
+    assert records[0].tags["ai.identity.source"] == ("gateway_auth" if user else "unknown")
+    assert "ai.end_user.id" not in records[0].tags
+    assert "private-user" not in repr(records)
+
+
+@pytest.mark.parametrize("outcome", ["failure", "shutdown"])
+async def test_end_user_fallback_stays_unverified_on_incomplete_requests(outcome):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback, user=None, end_user_id="claimed-user")
+    if outcome == "failure":
+        await callback.async_post_call_failure_hook(data, Exception("private failure"), None)
+    else:
+        callback.close()
+    tags = records[0].tags
+    assert tags["usr.id"] == "claimed-user"
+    assert tags["ai.identity.source"] == "litellm_end_user"
+    assert tags["ai.end_user.trust"] == "unverified"
+    assert tags["ai.attribution.status"] == "incomplete"
+
+
 async def test_unknown_scope_byok_and_response_selected_deployment():
     records = []
     alternate = BillingScope("aws", "123456789012", "bedrock", geography="us-east-1", mode="on-demand")
@@ -297,6 +380,7 @@ async def test_bounded_state_expiration_shutdown_and_broken_exporter():
         {"auth_metadata_keys": ("api_key",)},
         {"auth_metadata_keys": ("a.b",)},
         {"capture_email": "false"},
+        {"capture_end_user": "false"},
         {"auth_metadata_keys": "cost_center"},
     ],
 )
@@ -429,7 +513,15 @@ def test_billing_scope_rejects_bad_or_secret_like_ids(value):
 
 
 @pytest.mark.parametrize(
-    "config", [[], "invalid", {"billing_scopes": []}, {"capture_email": "true"}, {"unexpected": 1}]
+    "config",
+    [
+        [],
+        "invalid",
+        {"billing_scopes": []},
+        {"capture_email": "true"},
+        {"capture_end_user": "false"},
+        {"unexpected": 1},
+    ],
 )
 def test_invalid_file_configuration_fails_closed(tmp_path, monkeypatch, config):
     import json
@@ -445,14 +537,24 @@ def test_invalid_file_configuration_fails_closed(tmp_path, monkeypatch, config):
     )
     assert not callback._routes
     assert not callback._capture_email
+    assert not callback._capture_end_user
     assert not callback._auth_metadata_keys
 
 
 def test_missing_configuration_disables_operator_mappings(monkeypatch):
     monkeypatch.delenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", raising=False)
     assert not configured_callback()._routes
+    assert configured_callback()._capture_end_user
     monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", "/nonexistent/attribution-config.json")
     assert not configured_callback()._routes
+    assert not configured_callback()._capture_end_user
+
+
+def test_file_configuration_can_disable_end_user_capture(tmp_path, monkeypatch):
+    path = tmp_path / "attribution.json"
+    path.write_text('{"capture_end_user": false}')
+    monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", str(path))
+    assert not configured_callback()._capture_end_user
 
 
 async def test_forked_worker_drops_parent_requests(monkeypatch):

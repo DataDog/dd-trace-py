@@ -1,4 +1,4 @@
-"""LiteLLM proxy adapter. No identity or billing scope is trusted from client metadata."""
+"""LiteLLM proxy adapter. End-user claims stay distinct from gateway authentication."""
 
 from collections import ChainMap
 from collections import OrderedDict
@@ -105,6 +105,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         ``resource_id``, ``api_key_id``, ``geography``, ``mode``, and ``model``.
         Use provider IDs, never secret API keys. Omit unknown optional fields.
     :param capture_email: Include authenticated user email. Defaults to ``False``.
+    :param capture_end_user: Include LiteLLM's end-user ID as unverified context
+        and use it when the authenticated user ID is missing. Defaults to ``True``.
     :param auth_metadata_keys: User metadata fields to copy, such as ``cost_center``.
         Only authenticated user metadata is read, never client-supplied request fields.
     :raises ValueError: If configuration contains invalid fields or values.
@@ -115,12 +117,17 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         billing_scopes: Optional[Mapping[str, Mapping[str, str]]] = None,
         *,
         capture_email: bool = False,
+        capture_end_user: bool = True,
         auth_metadata_keys: Iterable[str] = (),
     ) -> None:
         # Older SDKs accept only message_logging; newer proxies consult the inverted flag.
         super().__init__(message_logging=False)
         self.turn_off_message_logging = True
-        if not isinstance(capture_email, bool) or isinstance(auth_metadata_keys, str):
+        if (
+            not isinstance(capture_email, bool)
+            or not isinstance(capture_end_user, bool)
+            or isinstance(auth_metadata_keys, str)
+        ):
             raise ValueError("Invalid gateway attribution privacy configuration")
         metadata_keys = tuple(auth_metadata_keys)
         for key in metadata_keys:
@@ -142,6 +149,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                 # Do not include configuration values or exception details in logs.
                 raise ValueError("Invalid non-secret gateway billing fields") from None
         self._capture_email = capture_email
+        self._capture_end_user = capture_end_user
         self._auth_metadata_keys = metadata_keys
         self._sink: Callable[[UsageRecord], None] = DatadogSink()
         self._max_pending = 10000
@@ -167,7 +175,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             return None
 
     def _start(self, user_api_key_dict: Any, data: dict[str, Any], call_type: str) -> Optional[dict[str, Any]]:
-        # Overwrite both namespaces: request metadata is not an identity channel.
+        # Never let client metadata supply our process-local correlation token.
         for key in METADATA:
             if isinstance(data.get(key), dict):
                 data[key].pop(CORRELATION_FIELD, None)
@@ -193,11 +201,20 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         if self._capture_email and (email := label(get(user_api_key_dict, "user_email"))):
             tags["usr.email"] = email
         tags["ai.identity.source"] = "gateway_auth" if "usr.id" in tags else "unknown"
+        # AIDEV-NOTE: LiteLLM resolves end_user_id from supported headers/body fields
+        # and may filter it using its own policy. Do not re-read raw fields when it
+        # is absent, or mistake an end-user claim for an authenticated principal.
+        if self._capture_end_user and (end_user := label(get(user_api_key_dict, "end_user_id"))):
+            # Some clients put JSON containing device/session metadata here, not a user ID.
+            if not end_user.startswith(("{", "[")):
+                tags["ai.end_user.id"] = end_user
+                tags["ai.end_user.trust"] = "unverified"
+                if "usr.id" not in tags:
+                    tags["usr.id"] = end_user
+                    tags["ai.identity.source"] = "litellm_end_user"
         for key in self._auth_metadata_keys:
             if value := label(get(get(user_api_key_dict, "metadata"), key)):
                 tags[f"ai.enrichment.{key}"] = value
-        # Never substitute a provider user field, email header, virtual-key hash, or
-        # client end_user_id for the authenticated principal (which may be a service).
         dynamic_credentials = any(
             key in data
             for key in (
@@ -385,7 +402,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             issues.add("billing_scope_unknown")
         if state.dynamic_credentials:
             issues.add("client_credentials_or_endpoint")
-        if "usr.id" not in tags:
+        if tags["ai.identity.source"] != "gateway_auth":
             issues.add("authenticated_user_unknown")
         # Keep the provider-returned raw model, including pricing-relevant suffixes.
         model = label(get(response, "model"))
@@ -484,4 +501,4 @@ def configured_callback() -> GatewayAttribution:
         log.warning(
             "Invalid gateway attribution configuration; billing mappings and optional identity enrichment disabled"
         )
-        return GatewayAttribution()
+        return GatewayAttribution(capture_end_user=False)

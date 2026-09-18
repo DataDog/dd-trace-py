@@ -34,10 +34,18 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 LiteLLM's optional `gateway.py` is not SDK auto-instrumentation. It binds verified
 proxy authentication to terminal callbacks using opaque process-local tokens and
 emits content-free APM usage spans. Do not turn these into LLMObs request spans
-with prompt/response extraction, trust client metadata as identity, or infer a
+with prompt/response extraction, trust client metadata as authenticated identity, or infer a
 billing account from the model provider. The public opt-in entry point is
 `ddtrace.contrib.litellm.gateway_attribution`; its proxy tests live under
 `tests/contrib/litellm/gateway/`.
+
+The callback also collects LiteLLM's normalized `end_user_id` by default as
+`ai.end_user.id` with unverified trust. Only when authenticated `user_id` is absent
+may this fill `usr.id`, with source `litellm_end_user`; keep the
+`authenticated_user_unknown` issue. Never re-read raw headers/body to recover an ID
+LiteLLM omitted, copy JSON-shaped identity payloads, or use end-user claims for
+authenticated enrichment or billing scope. `capture_end_user=false` opts out;
+invalid configuration disables end-user capture too.
 
 `_gateway_metadata.py` allowlists selected-route and pricing inputs, distinguishing
 ingress from provider-transformed outgoing settings. Never dump logging kwargs,

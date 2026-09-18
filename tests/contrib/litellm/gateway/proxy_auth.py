@@ -5,8 +5,10 @@ from litellm.proxy._types import UserAPIKeyAuth
 
 
 async def authenticate(request, api_key):
-    if api_key not in ("test-alice", "test-bob"):
+    if api_key not in ("test-alice", "test-bob", "test-unassigned"):
         raise HTTPException(401, "Invalid synthetic test credential")
+    if api_key == "test-unassigned":
+        return UserAPIKeyAuth()
     user = api_key.removeprefix("test-")
     return UserAPIKeyAuth(
         user_id=user,

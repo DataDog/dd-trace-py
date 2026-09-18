@@ -65,14 +65,46 @@ Quick setup
     export DD_TRACE_AGENT_URL=http://localhost:8126
     ddtrace-run litellm --config /etc/litellm/config.yaml
 
-4. Make sure your gateway authentication sets LiteLLM's ``user_id``. A shared
-   credential identifies its owner or service, **not each person using it**.
-   User IDs supplied in request bodies, headers, or client metadata are not
-   trusted for attribution.
+4. Check how your gateway identifies users; see below. Existing user settings
+   are reused, so there is no separate Datadog user list to configure.
 
-Without further configuration, the callback collects authenticated user IDs,
+Without further configuration, the callback collects available user IDs,
 usage, and the provider/model details LiteLLM makes available. It leaves missing
 billing details unknown rather than guessing.
+
+How users are identified
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Recommended: identify users through gateway authentication.** If you already
+give each person a LiteLLM virtual key linked to their user account, no extra
+setup is needed. When creating a key through ``/key/generate``, set
+``"user_id": "employee-123"`` to link it to that user. For custom authentication,
+validate the caller's credentials and return
+``UserAPIKeyAuth(user_id=verified_user_id)``. See LiteLLM's
+`virtual keys <https://docs.litellm.ai/docs/proxy/virtual_keys>`_ and
+`custom authentication <https://docs.litellm.ai/docs/proxy/custom_auth>`_ guides.
+Do not assume every key has a user: shared or service credentials may not identify
+the person making the request.
+
+**Fallback: use the end-user ID LiteLLM already collects.** For example, a client
+can send ``"user": "employee-123"`` in an OpenAI-compatible request, or the header
+``x-litellm-end-user-id: employee-123``. LiteLLM also supports metadata and
+configured customer-ID headers; see its
+`end-user guide <https://docs.litellm.ai/docs/proxy/customers>`_. No extra Datadog
+mapping is needed. Supported sources depend on your LiteLLM version.
+
+The callback uses the gateway's ``user_id`` as ``usr.id`` first. If it is missing,
+it uses LiteLLM's ``end_user_id`` and sets ``ai.identity.source=litellm_end_user``.
+The end-user ID is also kept as ``ai.end_user.id``, even when ``usr.id`` identifies
+a shared service. It is always marked ``ai.end_user.trust=unverified``: a caller
+may choose this value, and this callback cannot prove who supplied it. Prefer
+authenticated identity for reliable cost attribution. If neither ID is available,
+``usr.id`` is omitted.
+
+Set ``capture_end_user`` to ``false`` in the optional JSON file below to collect
+only gateway-authenticated identity. IDs LiteLLM omits are not recovered from raw
+request fields, and JSON objects containing device/session details are not used
+as user IDs.
 
 Optional: add billing details
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -148,6 +180,11 @@ Include fallback routes and update mappings when credentials or resources change
    * - ``capture_email``
      - ``false`` by default. Set to ``true`` to include email from the gateway's
        authenticated user record, when available, as ``usr.email``.
+   * - ``capture_end_user``
+     - ``true`` by default. Include LiteLLM's end-user ID as unverified context
+       and use it as a fallback when the authenticated user ID is missing.
+       Set to ``false`` to disable both behaviors. An invalid configuration file
+       also disables this collection.
    * - ``auth_metadata_keys``
      - Empty by default. Names of fields to copy from authenticated user metadata,
        such as ``cost_center``. These appear as ``ai.enrichment.cost_center``.
@@ -164,7 +201,8 @@ Check that it works
 Send a normal request through the gateway, then look in APM for your service's
 ``ai_gateway.usage`` spans. Check ``usr.id``, ``ai.gateway.deployment_id``, and
 ``ai.billing.*``. Use ``ai.attribution.issues`` to see what is missing. For example,
-``authenticated_user_unknown`` means no authenticated user ID was available;
+``authenticated_user_unknown`` means no authenticated user ID was available,
+even if an unverified fallback was collected;
 ``billing_scope_unknown`` means provider, billing account, or product is missing.
 Sampling and ingestion settings can prevent individual spans from appearing.
 
@@ -185,9 +223,14 @@ OpenAI-compatible endpoint is **not** assumed to bill through OpenAI.
      - Request start and finish times, in UTC. Keep these when grouping usage
        into a provider's billing periods.
    * - ``usr.id``, ``team.id``, ``ai.gateway.org_id``
-     - Authenticated user, team, and gateway organization. A gateway organization
-       is not a provider billing account. Optional email and extra user fields
-       use ``usr.email`` and ``ai.enrichment.*``.
+     - User ID (authenticated first, then the optional end-user fallback), plus
+       authenticated team and gateway organization. A gateway organization is
+       not a provider billing account. Optional authenticated email and extra
+       user fields use ``usr.email`` and ``ai.enrichment.*``.
+   * - ``ai.identity.source``, ``ai.end_user.id``, ``ai.end_user.trust``
+     - ``usr.id`` comes from ``gateway_auth`` or ``litellm_end_user``; otherwise
+       its source is ``unknown``. The separate end-user ID is always marked
+       ``unverified`` and never overwrites an available authenticated ID.
    * - ``ai.billing.*``
      - Provider, account, product, and optional project/resource/key IDs,
        geography, and mode. Your mappings override route defaults. Explicit
@@ -304,6 +347,9 @@ Limitations and privacy
   missing callbacks can lose data; this is not a permanent billing ledger.
 * APM sampling, delivery, and retention rules still apply. Sampled traces are
   not a complete usage total. Do not count the same usage again from SDK spans.
+* End-user IDs can contain personal information, including email, even with
+  ``capture_email=false``. Client-supplied IDs can be wrong or change per request.
+  The callback does not verify identity or change gateway access decisions.
 * This callback does not export prompts, response text, authorization headers,
   API keys, exception text, or arbitrary client metadata. Other integrations
   and LiteLLM's own logging have separate settings.
@@ -312,7 +358,7 @@ Advanced: register from Python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Use ``ddtrace.contrib.litellm.GatewayAttribution(billing_scopes=...,
-capture_email=False, auth_metadata_keys=())`` and add exactly one instance to
+capture_email=False, capture_end_user=True, auth_metadata_keys=())`` and add exactly one instance to
 LiteLLM's callbacks. Call ``close()`` before ``tracer.shutdown()`` if you manage
 shutdown yourself. The packaged ``gateway_attribution`` callback handles its own
 process-exit cleanup.
