@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    openfeature: Feature flag evaluation telemetry now hashes targeting keys and omits context by default;
-    enabling full evaluation data for the environment includes raw targeting keys and bounded context.
-    In both modes, errors contain only standard error codes and invalid targeting keys are omitted without
-    losing evaluation counts.
+    openfeature: Feature flag reports sent to Datadog now hash user identifiers and exclude
+    user attributes by default to reduce the collection of personal data, without changing
+    flag results. Enabling full evaluation data for an environment includes the original
+    identifiers and attributes; detailed error messages are never included.
