@@ -10,6 +10,7 @@ from tests.utils import snapshot
 
 
 _USE_PLUGIN_V2 = True
+_SUBPROCESS_TIMEOUT = 120
 
 pytestmark = pytest.mark.skipif(not _USE_PLUGIN_V2, reason="Tests in this module are for v2 of the pytest plugin")
 
@@ -44,6 +45,11 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
+        # AIDEV-NOTE: Anchor pytester's teardown CWD before the test body and keep nested pytest
+        # controllers from inheriting an outer xdist worker identity.
+        testdir.chdir()
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_pytest_will_include_lines_pct(self):
@@ -90,6 +96,8 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
+                check=True,
+                timeout=_SUBPROCESS_TIMEOUT,
             )
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
@@ -137,6 +145,8 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
+                check=True,
+                timeout=_SUBPROCESS_TIMEOUT,
             )
 
     @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
@@ -174,4 +184,6 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
+                check=True,
+                timeout=_SUBPROCESS_TIMEOUT,
             )
