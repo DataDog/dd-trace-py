@@ -724,6 +724,7 @@ def gen_pre_checks() -> None:
     if not checks:
         return
 
+    no_proxy_additions = ",".join(FABRIC_NO_PROXY_ADDITIONS)
     with TESTS_GEN.open("a") as f:
         f.write(
             """
@@ -734,9 +735,11 @@ prechecks:
   before_script:
     - !reference [.testrunner, before_script]
     - |
-      no_proxy_additions="{','.join(FABRIC_NO_PROXY_ADDITIONS)}"
-      export NO_PROXY="${{NO_PROXY:+${{NO_PROXY},}}${{no_proxy_additions}}"
-      export no_proxy="${{no_proxy:+${{no_proxy},}}${{no_proxy_additions}}"
+      no_proxy_additions="""
+            + no_proxy_additions
+            + """
+      export NO_PROXY="${NO_PROXY:+${NO_PROXY},}${no_proxy_additions}"
+      export no_proxy="${no_proxy:+${no_proxy},}${no_proxy_additions}"
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:
