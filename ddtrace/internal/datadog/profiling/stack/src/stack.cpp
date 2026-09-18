@@ -1123,7 +1123,20 @@ stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
     if (!handler.has_value()) {
         Py_RETURN_NONE;
     }
-    return Py_BuildValue("(Os)", handler->already_owned ? Py_True : Py_False, handler->owner.c_str());
+    // dladdr paths are filesystem bytes, not UTF-8. "s" would raise UnicodeDecodeError
+    // and abort snapshot() instead of reporting the diagnostic.
+    PyObject* owner = PyUnicode_DecodeFSDefault(handler->owner.c_str());
+    if (owner == nullptr) {
+        PyErr_Clear();
+        owner = PyUnicode_Decode(handler->owner.c_str(),
+                                 static_cast<Py_ssize_t>(handler->owner.size()),
+                                 "utf-8",
+                                 "replace");
+        if (owner == nullptr) {
+            return nullptr;
+        }
+    }
+    return Py_BuildValue("(ON)", handler->already_owned ? Py_True : Py_False, owner);
 }
 
 static PyMethodDef stack_methods[] = {

@@ -1616,11 +1616,31 @@ def test_snapshot_foreign_segv_handler_telemetry_sigbus_only_owner() -> None:
 
 
 @pytest.mark.parametrize(
+    "component,expected",
+    [
+        ("ddtrace", "ddtrace"),
+        ("SIG_DFL", "SIG_DFL"),
+        ("unresolved@0x1234", "unresolved"),
+        ("/lib/libfoo.so+0x7c4 (foo_handler)", "libfoo.so"),
+        ("/opt/libfoo+cuda.so+0x7c4 (foo_handler)", "libfoo+cuda.so"),
+        ("/opt/libfoo+cuda.so+0x7c4", "libfoo+cuda.so"),
+        ("/usr/lib/x86_64-linux-gnu/libfoo.so.1.0+dfsg+0xabc (bar)", "libfoo.so.1.0+dfsg"),
+        ("/opt/foo (bar).so+0x7c4 (handler)", "foo (bar).so"),
+        ("/opt/lib+0xdead.so", "lib+0xdead.so"),
+    ],
+)
+def test_normalize_foreign_handler_owner_component(component: str, expected: str) -> None:
+    """Native +0x / symbol suffixes are stripped from the right, not at the first +."""
+    assert stack._normalize_foreign_handler_owner_component(component) == expected
+
+
+@pytest.mark.parametrize(
     "owner,expected_handler_owner",
     [
         ("SIGSEGV=SIG_DFL, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)", "libfoo.so"),
         ("SIGSEGV=unknown, SIGBUS=unresolved@0x1234", "unresolved"),
         ("SIGSEGV=SIG_IGN, SIGBUS=none", "SIG_IGN"),
+        ("SIGSEGV=/opt/libfoo+cuda.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo+cuda.so"),
     ],
 )
 def test_snapshot_foreign_segv_handler_telemetry_prefers_concrete_owner(

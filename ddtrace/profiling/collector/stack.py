@@ -24,6 +24,7 @@ from ddtrace.trace import Tracer
 LOG = logging.getLogger(__name__)
 
 _FOREIGN_HANDLER_OWNER_SYMBOLS: frozenset[str] = frozenset({"ddtrace", "SIG_DFL", "SIG_IGN", "unknown", "none"})
+_HEX_DIGITS: str = "0123456789abcdefABCDEF"
 
 
 def _normalize_foreign_handler_owner_component(component: str) -> str:
@@ -32,7 +33,18 @@ def _normalize_foreign_handler_owner_component(component: str) -> str:
         return component
     if component.startswith("unresolved@"):
         return "unresolved"
-    path: str = component.split("+", 1)[0].split(" (", 1)[0]
+    # Native format is `<path>+0x<offset> (<symbol>)`. Strip those generated suffixes
+    # from the right so a path that itself contains `+` or ` (` stays intact.
+    path: str = component
+    if path.endswith(")"):
+        symbol_sep: int = path.rfind(" (")
+        if symbol_sep != -1:
+            path = path[:symbol_sep]
+    offset_sep: int = path.rfind("+0x")
+    if offset_sep != -1:
+        offset: str = path[offset_sep + 3 :]
+        if offset and all(ch in _HEX_DIGITS for ch in offset):
+            path = path[:offset_sep]
     basename: str = os.path.basename(path)
     return basename or component
 
