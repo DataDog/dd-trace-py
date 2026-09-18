@@ -33,6 +33,8 @@ FABRIC_NO_PROXY_ADDITIONS = (
     "doesnotexist.google.com",
     "api.stripe.com",
     "us-central1-aiplatform.googleapis.com",
+    "github.com",
+    "api.github.com",
 )
 
 
@@ -729,6 +731,12 @@ prechecks:
   extends: .testrunner
   stage: setup
   needs: []
+  before_script:
+    - !reference [.testrunner, before_script]
+    - |
+      no_proxy_additions="{','.join(FABRIC_NO_PROXY_ADDITIONS)}"
+      export NO_PROXY="${{NO_PROXY:+${{NO_PROXY},}}${{no_proxy_additions}}"
+      export no_proxy="${{no_proxy:+${{no_proxy},}}${{no_proxy_additions}}"
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:
