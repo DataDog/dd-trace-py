@@ -32,7 +32,7 @@ jobs:
     # 60m S3 poll + 60m downstream watch (matches the GitLab job timeout).
     # Job timeout must stay strictly above POLL_TIMEOUT so a late upload
     # does not consume the entire budget before downstream-python starts.
-    timeout-minutes: 120
+    timeout-minutes: 130
     steps:
       - name: Resolve commit SHA
         id: sha
