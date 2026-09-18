@@ -3,6 +3,8 @@ and ``TracedStream`` / ``TracedAsyncStream``. The hook is consumed by every
 LLM contrib, so a regression here surfaces as silent breakage downstream.
 """
 
+import gc
+
 import pytest
 
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -153,3 +155,39 @@ def test_traced_stream_start_stream_fires_before_first_chunk():
     traced = make_traced_stream(_sync_chunks(2), handler)
     list(traced)
     assert handler.events == ["start", ("chunk", 0), ("chunk", 1)]
+
+
+def test_traced_stream_finalizes_when_dropped_after_partial_next():
+    """A caller that pulls chunks with next() and then drops the stream never
+    hits StopIteration, so finalize must run from GC. Otherwise the LLM span
+    stays open and later requests on the same worker nest under it.
+    """
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks(5), handler)
+    assert next(traced) == 0
+    assert next(traced) == 1
+    assert handler.finalize_stream_calls == 0
+    del traced
+    gc.collect()
+    assert handler.finalize_stream_calls == 1
+
+
+def test_traced_stream_gc_does_not_double_finalize_after_exhaust():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks(3), handler)
+    assert list(traced) == [0, 1, 2]
+    assert handler.finalize_stream_calls == 1
+    del traced
+    gc.collect()
+    assert handler.finalize_stream_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_finalizes_when_dropped_after_partial_anext():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_async_chunks(5), handler)
+    assert await traced.__anext__() == 0
+    assert handler.finalize_stream_calls == 0
+    del traced
+    gc.collect()
+    assert handler.finalize_stream_calls == 1
