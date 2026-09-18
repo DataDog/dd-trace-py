@@ -391,3 +391,127 @@ def test_stack_omits_unverifiable_pre312_custom_factory_context():
     assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") is None for sample in samples)
     assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)
     assert all(pprof_utils.get_num_label(profile, sample, "local root span id") is None for sample in samples)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_eager_inherited_span",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    parametrize={"EMPTY_CONTEXT": ["0", "1"], "SUSPEND": ["0", "1"]},
+    err=None,
+)
+def test_stack_attributes_eager_first_step_to_inherited_span():
+    import asyncio
+    import contextvars
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import async_run
+
+    empty_context = os.environ["EMPTY_CONTEXT"] == "1"
+    suspend = os.environ["SUSPEND"] == "1"
+    child_ids = []
+
+    def eager_inherited_work():
+        deadline = time.thread_time_ns() + 400_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def child():
+        child_ids.append(id(asyncio.current_task()))
+        eager_inherited_work()
+        if suspend:
+            await asyncio.sleep(0)
+            eager_inherited_work()
+
+    async def main():
+        loop = asyncio.get_running_loop()
+        loop.set_task_factory(asyncio.eager_task_factory)
+        try:
+            with tracer.trace("eager.parent", resource="eager-endpoint", span_type=ext.SpanTypes.WEB):
+                await asyncio.create_task(
+                    child(), name="eager-child", context=contextvars.Context() if empty_context else None
+                )
+        finally:
+            loop.set_task_factory(None)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    async_run(main())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    samples = pprof_utils.get_samples_with_function(
+        profile, pprof_utils.get_samples_with_value_type(profile, "wall-time"), "eager_inherited_work"
+    )
+    samples = [sample for sample in samples if pprof_utils.get_num_label(profile, sample, "task id") == child_ids[0]]
+    assert samples
+    expected_endpoint = None if empty_context else "eager-endpoint"
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == expected_endpoint for sample in samples)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_task_publication_finish_race",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_does_not_resurrect_span_finished_during_task_publication():
+    import asyncio
+    import os
+    import threading
+    import time
+    from unittest import mock
+
+    from ddtrace.profiling import _span_links
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    def work_after_concurrent_finish():
+        deadline = time.thread_time_ns() + 400_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    async def child():
+        work_after_concurrent_finish()
+
+    async def main():
+        span = tracer.trace("concurrent.finish")
+        publish = _span_links._publish_span
+
+        def finish_before_publish(span_info, task_id=None):
+            # Force a real finish on another thread between inherited validation and native publication.
+            finisher = threading.Thread(target=span.finish)
+            finisher.start()
+            finisher.join(timeout=5)
+            assert not finisher.is_alive()
+            publish(span_info, task_id)
+
+        try:
+            with mock.patch.object(_span_links, "_publish_span", finish_before_publish):
+                task = asyncio.create_task(child())
+            await task
+        finally:
+            span.finish()
+            tracer.context_provider.activate(None)
+
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    asyncio.run(main())
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    samples = pprof_utils.get_samples_with_function(
+        profile, pprof_utils.get_samples_with_value_type(profile, "wall-time"), "work_after_concurrent_finish"
+    )
+    assert samples
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") is None for sample in samples)

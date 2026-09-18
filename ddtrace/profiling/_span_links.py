@@ -119,14 +119,19 @@ def link_span(span_info: typing.Optional[_SpanInfo], source: typing.Optional[typ
     """Publish a tracing activation to its asyncio task or physical thread."""
     if not _span_linking_active:
         return
+    generation = _span_link_generation
     task_id = _current_task_id()
+    if not _span_linking_active or generation != _span_link_generation:
+        return
     if span_info is None:
         _set_active_span_link(None)
         _clear_span(task_id)
     else:
         span_ref = weakref.ref(source) if source is not None else None
-        _set_active_span_link(_SpanLinkContext(_span_link_generation, span_info, span_ref))
-        _publish_span(span_info, task_id)
+        linked_span = _SpanLinkContext(generation, span_info, span_ref)
+        _set_active_span_link(linked_span)
+        if _span_link_is_current(linked_span):
+            _publish_span_link(linked_span, task_id)
 
 
 def link_current_span() -> bool:
@@ -141,26 +146,39 @@ def link_current_span() -> bool:
     return span_info is not None
 
 
-def _inherited_span_info(task_context: typing.Optional[contextvars.Context] = None) -> typing.Optional[_SpanInfo]:
-    linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
-    if linked_span is None or linked_span.generation != _span_link_generation:
-        return None
+def _span_link_is_current(linked_span: _SpanLinkContext) -> bool:
+    if not _span_linking_active or linked_span.generation != _span_link_generation:
+        return False
     source_span = linked_span.span_ref() if linked_span.span_ref is not None else None
-    if linked_span.span_ref is not None and (source_span is None or source_span.finished):
-        return None
-    return linked_span.span_info
+    return linked_span.span_ref is None or (source_span is not None and not source_span.finished)
+
+
+def _link_inherited_span(task_id: typing.Optional[int], task_context: typing.Optional[contextvars.Context]) -> bool:
+    if not _span_linking_active:
+        return False
+    linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
+    if linked_span is None or not _span_link_is_current(linked_span):
+        _clear_span(task_id)
+        return False
+    return _publish_span_link(linked_span, task_id)
+
+
+def _publish_span_link(linked_span: _SpanLinkContext, task_id: typing.Optional[int]) -> bool:
+    _publish_span(linked_span.span_info, task_id)
+    # Finish or reset can run after validation but before publication. Retire the stale write without clearing a
+    # different span that a reentrant activation may have published in the meantime.
+    if not _span_link_is_current(linked_span):
+        if task_id is None:
+            stack.unlink_span(linked_span.span_info.span_id)
+        else:
+            stack.unlink_task_span(task_id, linked_span.span_info.span_id)
+        return False
+    return True
 
 
 def link_thread_span_context() -> bool:
-    """Link the current physical thread from inherited profiler ContextVar state."""
-    if not _span_linking_active:
-        return False
-    span_info = _inherited_span_info()
-    if span_info is None:
-        stack.clear_span()
-        return False
-    _publish_span(span_info)
-    return True
+    """Link inherited attribution, retracting it if finish or reset raced publication."""
+    return _link_inherited_span(None, None)
 
 
 def clear_thread_span() -> None:
@@ -171,14 +189,7 @@ def clear_thread_span() -> None:
 
 def link_task_span_context(task_id: int, task_context: typing.Optional[contextvars.Context] = None) -> bool:
     """Seed an asyncio task from inherited profiler ContextVar state."""
-    if not _span_linking_active:
-        return False
-    span_info = _inherited_span_info(task_context)
-    if span_info is None:
-        stack.clear_task_span(task_id)
-        return False
-    _publish_span(span_info, task_id)
-    return True
+    return _link_inherited_span(task_id, task_context)
 
 
 def clear_task_span(task_id: int) -> None:

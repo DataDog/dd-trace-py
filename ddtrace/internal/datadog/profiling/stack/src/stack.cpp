@@ -22,6 +22,10 @@
 #include <string_view>
 #include <utility>
 
+#ifdef __GLIBC__
+#include <cxxabi.h>
+#endif
+
 using namespace Datadog;
 
 static PyObject*
@@ -293,6 +297,19 @@ stack_clear_task_span(PyObject* self, PyObject* args)
 }
 
 static PyObject*
+stack_unlink_task_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t task_id;
+    uint64_t expected_span_id;
+    if (!PyArg_ParseTuple(args, "KK", &task_id, &expected_span_id)) {
+        return nullptr;
+    }
+    SpanLinks::get_instance().unlink_task_span(task_id, expected_span_id);
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_unlink_finished_span(PyObject* self, PyObject* args)
 {
     (void)self;
@@ -406,7 +423,29 @@ stack_is_asyncio_loop_registered(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    return PyBool_FromLong(Sampler::get().is_asyncio_loop_registered(static_cast<uintptr_t>(thread_id)));
+#if PY_VERSION_HEX >= 0x030d0000
+    if (Py_IsFinalizing()) {
+#else
+    if (_Py_IsFinalizing()) {
+#endif
+        Py_RETURN_FALSE;
+    }
+
+    bool registered;
+#ifdef __GLIBC__
+    try {
+#endif
+        // Sampling holds the thread-map mutex throughout an unwind. Do not stall every Python thread while waiting.
+        Py_BEGIN_ALLOW_THREADS;
+        registered = Sampler::get().is_asyncio_loop_registered(static_cast<uintptr_t>(thread_id));
+        Py_END_ALLOW_THREADS;
+#ifdef __GLIBC__
+    } catch (const abi::__forced_unwind&) {
+        // Finalization can race the check above on Python versions whose GIL restore exits the native thread.
+        throw;
+    }
+#endif
+    return PyBool_FromLong(registered);
 }
 
 static PyObject*
@@ -1205,6 +1244,10 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to an asyncio task" },
     { "clear_task_span", stack_clear_task_span, METH_VARARGS, "Clear the span linked to an asyncio task" },
+    { "unlink_task_span",
+      stack_unlink_task_span,
+      METH_VARARGS,
+      "Clear the span linked to an asyncio task only if its ID matches the expected span ID" },
     { "unlink_finished_span",
       stack_unlink_finished_span,
       METH_VARARGS,

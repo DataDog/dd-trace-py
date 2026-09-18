@@ -69,6 +69,12 @@ TEST(SpanLinks, TaskSpanLifecycle)
     links.link_task_span(task_id, 102, 100, "web");
     EXPECT_EQ(links.get_active_span_from_task_id(task_id), Datadog::Span(102, 100, "web"));
 
+    links.unlink_task_span(task_id, 101);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), Datadog::Span(102, 100, "web"));
+    links.unlink_task_span(task_id, 102);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
+
+    links.link_task_span(task_id, 103, 100, "web");
     links.unlink_task_span(task_id);
     EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
 }

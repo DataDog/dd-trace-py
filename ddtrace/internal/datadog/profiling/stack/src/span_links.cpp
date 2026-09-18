@@ -37,7 +37,13 @@ SpanLinks::link(Key key, uint64_t span_id, uint64_t local_root_span_id, std::str
     key_to_span.try_emplace(key, std::move(span));
     // Index only the current span. A local root can finish before an active child, and finishing it must not remove the
     // child's attribution before that child finishes.
-    span_to_keys[span_id].insert(key);
+    try {
+        span_to_keys[span_id].insert(key);
+    } catch (...) {
+        // Publication must not leave a link that finish cleanup cannot find. Preserve other keys for this span.
+        remove_locked(key);
+        throw;
+    }
 }
 
 const SpanAttribution
@@ -110,6 +116,12 @@ void
 SpanLinks::unlink_task_span(uint64_t task_id)
 {
     unlink({ SpanLinkDomain::AsyncioTask, task_id });
+}
+
+void
+SpanLinks::unlink_task_span(uint64_t task_id, uint64_t expected_span_id)
+{
+    unlink({ SpanLinkDomain::AsyncioTask, task_id }, expected_span_id);
 }
 
 void

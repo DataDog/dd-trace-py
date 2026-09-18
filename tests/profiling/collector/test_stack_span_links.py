@@ -203,3 +203,44 @@ def test_active_span_link_uses_safe_contextvar_set(monkeypatch: pytest.MonkeyPat
     _span_links._set_active_span_link(value)
 
     assert calls == [(_span_links._active_span_link, value)]
+
+
+@pytest.mark.parametrize("task_id", [None, 22])
+@pytest.mark.parametrize("invalidation", ["finish", "restart", "stop"])
+def test_invalidation_during_inherited_publication(monkeypatch, task_id, invalidation):
+    source = Span("source")
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(source.span_id), source)
+    inherited = contextvars.copy_context()
+    unlinked = []
+    monkeypatch.setattr(_span_links.stack, "unlink_span", lambda span_id: unlinked.append((None, span_id)))
+    monkeypatch.setattr(_span_links.stack, "unlink_task_span", lambda task, span_id: unlinked.append((task, span_id)))
+
+    def invalidate_then_publish(info, target=None):
+        if invalidation == "finish":
+            source.finish()
+        else:
+            _span_links.stop_span_linking()
+            if invalidation == "restart":
+                _span_links.start_span_linking()
+        # The native write would now reintroduce metadata validated before the invalidation.
+
+    monkeypatch.setattr(_span_links, "_publish_span", invalidate_then_publish)
+    if task_id is None:
+        assert not inherited.run(_span_links.link_thread_span_context)
+    else:
+        assert not _span_links.link_task_span_context(task_id, inherited)
+    assert unlinked == [(task_id, source.span_id)]
+
+
+def test_activation_rejects_span_finished_during_task_lookup(monkeypatch):
+    source = Span("source")
+
+    def task_provider():
+        source.finish()
+        return 22
+
+    _span_links.start_span_linking()
+    _span_links.register_task_span_provider(task_provider)
+    monkeypatch.setattr(_span_links, "_publish_span", lambda *args: pytest.fail("published a finished span"))
+    _span_links.link_span(_info(source.span_id), source)

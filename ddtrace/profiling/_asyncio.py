@@ -1,8 +1,9 @@
 # -*- encoding: utf-8 -*-
 """Publish tracing attribution for asyncio tasks sampled independently from their event-loop thread.
 
-Task-creation hooks seed native task links from inherited profiler ContextVar state. Span activations update the
-current task through the shared provider, so mappings remain correct across scheduler switches without a switch hook.
+Task-creation hooks seed native task links from inherited profiler ContextVar state, entering eager coroutines before
+their first step to publish while construction is still pending. Span activations update the current task through the
+shared provider, so mappings remain correct across scheduler switches without a switch hook.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import wrap
 from ddtrace.profiling import _span_links
 
@@ -55,17 +57,16 @@ def _ensure_task_span_finalizer(task: asyncio.Task[typing.Any]) -> bool:
     task_id = id(task)
     if task_id in _task_span_finalizers:
         return True
+    finalizer = None
     try:
         finalizer = weakref.finalize(task, _finalize_task_span, task_id)
-    except TypeError:
-        return False
-    finalizer.atexit = False
-    _task_span_finalizers[task_id] = finalizer
-    try:
+        finalizer.atexit = False
+        _task_span_finalizers[task_id] = finalizer
         task.add_done_callback(lambda _: finalizer(), context=contextvars.Context())
     except Exception:
         _task_span_finalizers.pop(task_id, None)
-        finalizer.detach()
+        if finalizer is not None:
+            finalizer.detach()
         return False
     return True
 
@@ -124,7 +125,10 @@ def _publish_task_span(
         return
 
     task_context = requested_context
-    get_context = getattr(task, "get_context", None)
+    try:
+        get_context = getattr(task, "get_context", None)
+    except Exception:
+        return
     if get_context is not None:
         try:
             task_context = typing.cast("contextvars.Context", get_context())
@@ -137,10 +141,13 @@ def _publish_task_span(
 
     try:
         published = _span_links.link_task_span_context(task_id, task_context)
-        if published and not _ensure_task_span_finalizer(task):
-            _clear_native_task_span(task_id)
-    except Exception:
-        return
+        if not published or _ensure_task_span_finalizer(task):
+            return
+    except Exception:  # nosec B110
+        pass
+    # Publication and cleanup installation form one operation. A Python allocation failure must not strand a link
+    # any more than a native allocation failure may strand a forward-map entry without a reverse index.
+    _finalize_task_span(task_id)
 
 
 def _call_and_publish_task(
@@ -148,10 +155,69 @@ def _call_and_publish_task(
     args: tuple[typing.Any, ...],
     kwargs: dict[str, typing.Any],
     loop: typing.Optional[asyncio.AbstractEventLoop],
+    coro_index: typing.Optional[int] = None,
 ) -> asyncio.Task[typing.Any]:
-    """Preserve task creation semantics, then publish attribution as a best-effort side effect."""
+    """Seed before an eager first step, or after construction for normally scheduled tasks."""
     had_custom_task_factory = loop is None or _has_custom_task_factory(loop)
-    task = f(*args, **kwargs)
+    construction_pending = True
+    coro_entered = False
+    wrapped_coro: typing.Optional[typing.Coroutine[typing.Any, typing.Any, typing.Any]] = None
+    coro = None
+    # Only the lowest loop API wraps the coroutine, avoiding extra frames from nested creation hooks. A custom
+    # factory can enable eager execution even without an eager_start keyword on the original call.
+    if _span_links._span_linking_active and _TASK_CONTEXT_IS_READABLE and coro_index is not None and loop is not None:
+        try:
+            if kwargs.get("eager_start") or loop.get_task_factory() is not None:
+                coro = get_argument_value(args, kwargs, coro_index, "coro")
+                if not sys.modules["asyncio"].iscoroutine(coro):
+                    coro = None
+        except Exception:
+            coro = None
+    if coro is not None:
+
+        async def publish_on_entry() -> typing.Any:
+            nonlocal coro_entered
+            if construction_pending:
+                try:
+                    task = current_task()
+                    if task is not None:
+                        _publish_task_span(task, None, False)
+                except Exception:  # nosec B110
+                    pass
+            coro_entered = True
+            return await coro
+
+        wrapped_coro = publish_on_entry()
+        # Custom factories commonly derive task names from the coroutine rather than the create_task name argument.
+        for attribute in ("__name__", "__qualname__"):
+            try:
+                setattr(wrapped_coro, attribute, getattr(coro, attribute))
+            except Exception:  # nosec B110
+                pass
+        args, kwargs = set_argument_value(args, kwargs, typing.cast(int, coro_index), "coro", wrapped_coro)
+    try:
+        task = f(*args, **kwargs)
+    except BaseException:
+        if wrapped_coro is not None and coro is not None:
+            # Custom factories may close rejected coroutines. Forward that close to the original, but leave it
+            # reusable when the constructor rejected it without taking ownership.
+            if getattr(wrapped_coro, "cr_frame") is None:
+                coro.close()
+            wrapped_coro.close()
+        raise
+    finally:
+        construction_pending = False
+    if wrapped_coro is not None and not coro_entered:
+
+        def close_unstarted_coro(_: asyncio.Task[typing.Any]) -> None:
+            # Cancellation before the first step closes the wrapper without ever entering the original coroutine.
+            if not coro_entered and coro is not None:
+                coro.close()
+
+        try:
+            task.add_done_callback(close_unstarted_coro, context=contextvars.Context())
+        except Exception:  # nosec B110
+            pass
     _publish_task_span(
         task,
         typing.cast("typing.Optional[contextvars.Context]", kwargs.get("context")),
@@ -284,7 +350,7 @@ def _(asyncio: ModuleType) -> None:
             kwargs: dict[str, typing.Any],
         ) -> aio.Task[typing.Any]:
             loop = typing.cast("aio.AbstractEventLoop", args[0])
-            return _call_and_publish_task(f, args, kwargs, loop)
+            return _call_and_publish_task(f, args, kwargs, loop, coro_index=1)
 
         def _publish_ensured_future(
             f: typing.Callable[..., aio.Future[typing.Any]],
@@ -473,7 +539,7 @@ def _(uvloop: ModuleType) -> None:
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> asyncio.Task[typing.Any]:
-            return _call_and_publish_task(f, args, kwargs, loop)
+            return _call_and_publish_task(f, args, kwargs, loop, coro_index=0)
 
         # uvloop.Loop.create_task is a Cython method, so the bytecode wrapper used above cannot wrap it.
         wrapt.wrap_function_wrapper(uvloop.Loop, "create_task", _publish_uvloop_task)

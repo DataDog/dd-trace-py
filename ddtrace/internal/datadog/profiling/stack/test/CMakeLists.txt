@@ -84,6 +84,7 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_span_links test_span_links.cpp)
+dd_wrapper_add_test(test_span_links_alloc test_span_links_alloc.cpp)
 dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
 
 function(configure_stack_internal_test name)
@@ -100,6 +101,9 @@ function(configure_stack_internal_test name)
             PROPERTY INSTALL_RPATH "${LIB_INSTALL_DIR}")
     endif()
 endfunction()
+
+dd_wrapper_add_test(test_asyncio_loop_registration test_asyncio_loop_registration.cpp)
+configure_stack_internal_test(test_asyncio_loop_registration)
 
 dd_wrapper_add_test(test_sample_lifecycle test_sample_lifecycle.cpp)
 target_link_libraries(test_sample_lifecycle PRIVATE dd_wrapper)
