@@ -167,10 +167,7 @@ def link_span(span_info: typing.Optional[_SpanInfo], source: typing.Optional[typ
         linked_span = _SpanLinkContext(generation, span_info, span_ref)
         _set_active_span_link(linked_span)
         if _span_link_is_current(linked_span):
-            if greenlet_id is None:
-                _publish_span_link(linked_span, task_id)
-            else:
-                _publish_span(span_info, greenlet_id=greenlet_id)
+            _publish_span_link(linked_span, task_id, greenlet_id)
 
 
 def link_current_span() -> bool:
@@ -192,25 +189,35 @@ def _span_link_is_current(linked_span: _SpanLinkContext) -> bool:
     return linked_span.span_ref is None or (source_span is not None and not source_span.finished)
 
 
-def _link_inherited_span(task_id: typing.Optional[int], task_context: typing.Optional[contextvars.Context]) -> bool:
+def _link_inherited_span(
+    task_id: typing.Optional[int],
+    span_context: typing.Optional[contextvars.Context],
+    greenlet_id: typing.Optional[int] = None,
+) -> bool:
     if not _span_linking_active:
         return False
-    linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
+    linked_span = span_context.get(_active_span_link) if span_context is not None else _active_span_link.get()
     if linked_span is None or not _span_link_is_current(linked_span):
-        _clear_span(task_id, None)
+        _clear_span(task_id, greenlet_id)
         return False
-    return _publish_span_link(linked_span, task_id)
+    return _publish_span_link(linked_span, task_id, greenlet_id)
 
 
-def _publish_span_link(linked_span: _SpanLinkContext, task_id: typing.Optional[int]) -> bool:
-    _publish_span(linked_span.span_info, task_id)
+def _publish_span_link(
+    linked_span: _SpanLinkContext,
+    task_id: typing.Optional[int],
+    greenlet_id: typing.Optional[int] = None,
+) -> bool:
+    _publish_span(linked_span.span_info, task_id, greenlet_id)
     # Finish or reset can run after validation but before publication. Retire the stale write without clearing a
     # different span that a reentrant activation may have published in the meantime.
     if not _span_link_is_current(linked_span):
-        if task_id is None:
-            stack.unlink_span(linked_span.span_info.span_id)
-        else:
+        if task_id is not None:
             stack.unlink_task_span(task_id, linked_span.span_info.span_id)
+        elif greenlet_id is not None:
+            stack.unlink_greenlet_span(greenlet_id, linked_span.span_info.span_id)
+        else:
+            stack.unlink_span(linked_span.span_info.span_id)
         return False
     return True
 
@@ -236,34 +243,37 @@ def clear_task_span(task_id: int) -> None:
     stack.clear_task_span(task_id)
 
 
-def link_greenlet_span_context(greenlet_id: int) -> bool:
-    """Seed a gevent greenlet from inherited profiler ContextVar state."""
-    if not _span_linking_active:
+def link_greenlet_span_context(greenlet_id: int, greenlet_context: typing.Optional[contextvars.Context]) -> bool:
+    """Seed a suspended greenlet from its own Context, never the switch target's Context."""
+    if greenlet_context is None:
+        # An unset gr_context is empty, not an invitation to read the current greenlet's attribution.
+        if _span_linking_active:
+            stack.clear_greenlet_span(greenlet_id)
         return False
-    linked_span = _active_span_link.get()
-    if linked_span is None or not _span_link_is_current(linked_span):
-        stack.clear_greenlet_span(greenlet_id)
-        return False
-    _publish_span(linked_span.span_info, greenlet_id=greenlet_id)
-    return True
+    return _link_inherited_span(None, greenlet_context, greenlet_id)
 
 
 def link_current_greenlet_span(greenlet_id: int) -> bool:
-    """Seed a gevent greenlet from the configured tracer's current context."""
+    """Seed from the configured tracer, retracting publication if finish or reset races it."""
     if not _span_linking_active or _current_span_provider is None:
         return False
+    generation = _span_link_generation
     try:
         span_info, source = _current_span_provider()
     except Exception:
+        return False
+    if not _span_linking_active or generation != _span_link_generation:
         return False
     if span_info is None:
         _set_active_span_link(None)
         stack.clear_greenlet_span(greenlet_id)
         return False
     span_ref = weakref.ref(source) if source is not None else None
-    _set_active_span_link(_SpanLinkContext(_span_link_generation, span_info, span_ref))
-    _publish_span(span_info, greenlet_id=greenlet_id)
-    return True
+    linked_span = _SpanLinkContext(generation, span_info, span_ref)
+    _set_active_span_link(linked_span)
+    if not _span_link_is_current(linked_span):
+        return False
+    return _publish_span_link(linked_span, None, greenlet_id)
 
 
 def clear_greenlet_span(greenlet_id: int) -> None:

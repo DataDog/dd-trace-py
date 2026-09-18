@@ -146,6 +146,12 @@ SpanLinks::unlink_greenlet_span(uint64_t greenlet_id)
 }
 
 void
+SpanLinks::unlink_greenlet_span(uint64_t greenlet_id, uint64_t expected_span_id)
+{
+    unlink({ SpanLinkDomain::GeventGreenlet, greenlet_id }, expected_span_id);
+}
+
+void
 SpanLinks::unlink_finished_span(uint64_t span_id)
 {
     std::lock_guard<std::mutex> lock(mtx);

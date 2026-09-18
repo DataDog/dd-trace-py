@@ -298,32 +298,57 @@ def test_new_greenlet_seeds_from_configured_tracer_not_gevent_trace_context() ->
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
-@pytest.mark.subprocess()
-def test_late_origin_discovery_seeds_active_context_not_construction_context() -> None:
+@pytest.mark.subprocess(
+    parametrize={"ORIGIN_CONTEXT": ["traced", "empty", "unset"], "TARGET_CONTEXT": ["traced", "empty"]}
+)
+def test_late_origin_discovery_reads_origin_context_not_target_context() -> None:
+    import contextvars
+    import os
     from unittest.mock import patch
 
     import gevent
     from gevent import thread
 
     from ddtrace.profiling import _gevent as _gevent_module
+    from ddtrace.profiling import _span_links
 
     candidate = gevent.Greenlet(lambda: None)
     candidate.trace_context = object()
     candidate_id = thread.get_ident(candidate)
-    with (
-        patch.object(_gevent_module.stack, "track_greenlet") as track,
-        patch.object(_gevent_module._span_links, "link_current_greenlet_span") as link_current,
-        patch.object(_gevent_module._span_links, "link_greenlet_span_context") as link_active,
-    ):
-        _gevent_module.track_gevent_greenlet(
-            candidate,
-            _from_tracer=True,
-            _seed_context=False,
-        )
+    target = gevent.getcurrent()
+    origin_context = os.environ["ORIGIN_CONTEXT"]
 
-    track.assert_called_once()
-    link_current.assert_not_called()
-    link_active.assert_called_once_with(candidate_id)
+    _span_links.start_span_linking()
+    if origin_context != "unset":
+        candidate.gr_context = contextvars.Context()
+        if origin_context == "traced":
+            candidate.gr_context.run(_span_links.link_span, _span_links._SpanInfo(111, 111, "origin"), None)
+    target_info = _span_links._SpanInfo(222, 222, "target") if os.environ["TARGET_CONTEXT"] == "traced" else None
+    _span_links.link_span(target_info, None)
+    # The callback runs in the target's Context, even when it is discovering the suspended origin.
+    _gevent_module._tracked_greenlets.add(thread.get_ident(target))
+    try:
+        with (
+            patch.object(
+                _gevent_module.stack, "link_greenlet_span", wraps=_gevent_module.stack.link_greenlet_span
+            ) as link,
+            patch.object(
+                _gevent_module.stack, "clear_greenlet_span", wraps=_gevent_module.stack.clear_greenlet_span
+            ) as clear,
+        ):
+            _gevent_module.greenlet_tracer("switch", (candidate, target))
+
+        if origin_context == "traced":
+            link.assert_called_once_with(candidate_id, 111, 111, "origin")
+            clear.assert_not_called()
+        else:
+            link.assert_not_called()
+            clear.assert_called_once_with(candidate_id)
+        target_link = _span_links._active_span_link.get()
+        assert (target_link.span_info if target_link is not None else None) == target_info
+    finally:
+        _gevent_module._untrack_greenlet_by_id(candidate_id)
+        _span_links.stop_span_linking()
 
 
 @pytest.mark.skipif(

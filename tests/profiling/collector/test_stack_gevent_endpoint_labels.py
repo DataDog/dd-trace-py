@@ -316,3 +316,65 @@ def test_stack_gevent_import_keeps_physical_thread_attribution():
 
     assert samples
     assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in samples)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_greenlet_finish_during_publication",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+    parametrize={"RELINK": ["0", "1"]},
+)
+def test_stack_does_not_resurrect_span_finished_during_greenlet_publication():
+    import os
+    import threading
+    from unittest.mock import patch
+
+    import gevent
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    def work_after_source_finished():
+        gevent.sleep(0.5)
+
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    source = tracer.trace("concurrent.greenlet.finish")
+    replacement = tracer.start_span("replacement.greenlet.span") if os.environ["RELINK"] == "1" else None
+    publish = stack.link_greenlet_span
+
+    def finish_then_publish(greenlet_id, span_id, local_root_span_id, span_type):
+        # Finish on another physical thread after metadata is read but before the native write.
+        finisher = threading.Thread(target=source.finish)
+        finisher.start()
+        finisher.join(timeout=5)
+        assert not finisher.is_alive()
+        publish(greenlet_id, span_id, local_root_span_id, span_type)
+        if replacement is not None:
+            # A reentrant activation can replace the stale write before rollback. Preserve that newer link.
+            publish(greenlet_id, replacement.span_id, replacement.span_id, replacement.span_type)
+
+    try:
+        with patch.object(stack, "link_greenlet_span", finish_then_publish):
+            worker = gevent.spawn(work_after_source_finished)
+        assert source.finished
+        worker.get(timeout=5)
+    finally:
+        source.finish()
+        if replacement is not None:
+            replacement.finish()
+        tracer.context_provider.activate(None)
+        p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    samples = pprof_utils.get_samples_with_function(
+        profile, pprof_utils.get_samples_with_value_type(profile, "wall-time"), "work_after_source_finished"
+    )
+    assert samples
+    expected_id = pprof_utils.reinterpret_int_as_int64(replacement.span_id) if replacement is not None else None
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") == expected_id for sample in samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "local root span id") == expected_id for sample in samples)
