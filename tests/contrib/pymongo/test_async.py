@@ -1,6 +1,12 @@
 import asyncio
+from typing import Any
+from typing import Mapping
 
 import pymongo
+from pymongo.monitoring import CommandFailedEvent
+from pymongo.monitoring import CommandListener
+from pymongo.monitoring import CommandStartedEvent
+from pymongo.monitoring import CommandSucceededEvent
 import pytest
 
 from ddtrace.contrib.internal.pymongo.patch import patch
@@ -26,6 +32,20 @@ else:
     AsyncMongoClient = None
 
 
+class AsyncCommandCapture(CommandListener):
+    def __init__(self) -> None:
+        self.started_commands: list[tuple[str, Mapping[str, Any]]] = []
+
+    def started(self, event: CommandStartedEvent) -> None:
+        self.started_commands.append((event.command_name, event.command))
+
+    def succeeded(self, event: CommandSucceededEvent) -> None:
+        pass
+
+    def failed(self, event: CommandFailedEvent) -> None:
+        pass
+
+
 class TestAsyncPymongo(AsyncioTestCase):
     def setUp(self):
         super().setUp()
@@ -36,7 +56,7 @@ class TestAsyncPymongo(AsyncioTestCase):
         unpatch()
 
     @mark_asyncio
-    async def test_async_insert_find(self):
+    async def test_async_insert_find(self) -> None:
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
             db = client["testdb"]
@@ -54,13 +74,18 @@ class TestAsyncPymongo(AsyncioTestCase):
             assert queried[0]["name"] == "Team1"
 
             spans = self.pop_spans()
-            # Filter out checkout spans like sync tests do
             cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
-            assert len(cmd_spans) >= 4
+            checkout_spans = [s for s in spans if s.name == "pymongo.checkout"]
+            assert len(checkout_spans) == 5
 
-            # Filter to spans with collections (exclude internal commands like ismaster)
             teams_spans = [s for s in cmd_spans if s.get_tag("mongodb.collection") == "teams"]
-            assert len(teams_spans) >= 4
+            assert [s.resource for s in teams_spans] == [
+                "drop teams",
+                "insert teams",
+                "insert teams",
+                "find teams",
+                'find teams {"name": "?"}',
+            ]
 
             for span in teams_spans:
                 assert_is_measured(span)
@@ -80,6 +105,42 @@ class TestAsyncPymongo(AsyncioTestCase):
             find_query = [s for s in find_spans if s.get_tag("mongodb.query") is not None][0]
             assert "find teams" in find_all.resource
             assert 'find teams {"name": "?"}' in find_query.resource
+        finally:
+            await client.close()
+            await asyncio.sleep(0.1)
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="full",
+            DD_ENV="test_env",
+            DD_VERSION="1.2.3",
+            DD_SERVICE="test_service",
+        )
+    )
+    async def test_async_dbm_propagation_full_mode(self) -> None:
+        command_capture = AsyncCommandCapture()
+        client = AsyncMongoClient(port=MONGO_CONFIG["port"], event_listeners=[command_capture])
+        try:
+            db = client["testdb"]
+            await db.drop_collection("songs")
+            await db.songs.insert_one({"name": "Name A", "artist": "Artist A"})
+
+            result = await db.songs.find_one({"name": "Name A"})
+            assert result is not None
+
+            find_spans = [s for s in self.pop_spans() if s.name == "pymongo.cmd" and "find" in s.resource]
+            assert len(find_spans) == 1
+            find_span = find_spans[0]
+            assert find_span.get_tag("_dd.dbm_trace_injected") == "true"
+
+            find_commands = [command for name, command in command_capture.started_commands if name == "find"]
+            assert len(find_commands) == 1
+            assert (
+                find_commands[0].get("comment")
+                == "dddbs='pymongo',dde='test_env',ddps='test_service',ddpv='1.2.3',traceparent='%s'"
+                % find_span.context._traceparent
+            )
         finally:
             await client.close()
             await asyncio.sleep(0.1)

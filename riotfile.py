@@ -1023,18 +1023,18 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                # ddtrace patches different methods for the following pymongo version:
-                # pymmongo<3.9, 3.9<=pymongo<3.12, 3.12<=pymongo<4.5, pymongo>=4.5
-                # To get full test coverage we must test all these version ranges
+                # ddtrace changes patched methods or import paths at pymongo 3.9, 3.12,
+                # 4.5, 4.9, 4.12, and 4.18. Keep 4.17 and latest separate to cover
+                # both sides of the newest compatibility boundary.
                 Venv(
                     pys=["3.9"],
-                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.0", latest]},
+                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.17.0", latest]},
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
                     # pymongo added support for Python 3.11 in 3.12.3
                     pys=select_pys(min_version="3.10"),
-                    pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
+                    pkgs={"pymongo": ["~=3.12.3", "~=4.17.0", latest]},
                 ),
             ],
         ),
