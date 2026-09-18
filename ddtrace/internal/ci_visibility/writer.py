@@ -1,7 +1,7 @@
 from http.client import RemoteDisconnected
 import socket
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Optional
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes

@@ -5,7 +5,7 @@ from multiprocessing import Process
 from multiprocessing import Value
 import os
 import time
-from typing import Optional  # noqa:F401
+from typing import Optional
 from urllib.parse import urljoin
 
 from ddtrace.ext import ci
@@ -26,7 +26,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.trace import Tracer  # noqa: F401
+from ddtrace.trace import Tracer
 
 from .. import telemetry
 from ..evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -458,15 +458,13 @@ class CIVisibilityGitClient(object):
         return response.status == 204
 
     @classmethod
-    def _is_shallow_repository(cls, cwd=None):
-        # type () -> bool
+    def _is_shallow_repository(cls, cwd: Optional[str] = None) -> bool:
         is_shallow_repository, duration, returncode = _is_shallow_repository_with_details(cwd=cwd)
         record_git_command(GIT_TELEMETRY_COMMANDS.CHECK_SHALLOW, duration, returncode if returncode != 0 else None)
         return is_shallow_repository
 
     @classmethod
-    def _unshallow_repository(cls, cwd=None):
-        # type () -> None
+    def _unshallow_repository(cls, cwd: Optional[str] = None) -> None:
         with StopWatch() as stopwatch:
             error_exit_code = None
             try:
@@ -501,16 +499,14 @@ class CIVisibilityGitClient(object):
                 record_git_command(GIT_TELEMETRY_COMMANDS.UNSHALLOW, duration, error_exit_code)
 
     @classmethod
-    def _unshallow_repository_to_local_head(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
+    def _unshallow_repository_to_local_head(cls, remote: str, cwd: Optional[str] = None) -> None:
         head = extract_commit_sha(cwd=cwd)
         log.debug("Unshallowing to local head %s", head)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=head)
         log.debug("Unshallowing to local head successful")
 
     @classmethod
-    def _unshallow_repository_to_upstream(cls, remote, cwd=None):
-        # type (str, Optional[str) -> None
+    def _unshallow_repository_to_upstream(cls, remote: str, cwd: Optional[str] = None) -> None:
         upstream = _extract_upstream_sha(cwd=cwd)
         log.debug("Unshallowing to upstream %s", upstream)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)
