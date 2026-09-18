@@ -1,0 +1,12 @@
+_v: 1
+name: pymemcache
+display_name: pymemcache
+description: Instruments pymemcache client cache commands sent to Memcached, including reads, writes, mutations, administrative
+  operations, and errors.
+packages:
+- name: pymemcache
+category:
+- db.client
+systems:
+- memcached
+creation_date: '2018-08-06'
