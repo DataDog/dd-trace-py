@@ -278,7 +278,7 @@ def test_gc_frame_is_limited_to_on_cpu_asyncio_task() -> None:
 
     async def collecting_task(collector: stack.StackCollector) -> None:
         slow_cyclic_collection()
-        # AIDEV-NOTE: Stop before this task returns so the lock-free sampler cannot
+        # Stop before this task returns so the lock-free sampler cannot
         # combine a GC thread stack with task state from after an event-loop switch.
         collector.stop()
 
