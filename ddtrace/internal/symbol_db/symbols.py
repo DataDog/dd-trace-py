@@ -51,6 +51,7 @@ from ddtrace.internal.utils.inspection import ModuleCodeCollector
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_wrapped
 
 
@@ -144,15 +145,19 @@ def get_fields(cls: type) -> set[str]:
     # Otherwise, look at the bytecode for the __init__ method.
     try:
         code = object.__getattribute__(cls, "__init__").__code__
-
-        return {
-            code.co_names[b.arg]
-            for a, b in zip(*(islice(t, i, None) for i, t in enumerate(tee(dis.get_instructions(code), 2))))
-            # Python 3.14 changed this to LOAD_FAST_BORROW
-            if a.opname.startswith("LOAD_FAST") and a.arg & 15 == 0 and b.opname == "STORE_ATTR"
-        }
     except AttributeError:
         return set()
+
+    # Trying to disassemble an obfuscated code object can lead to a crash.
+    if is_obfuscated_code(code):
+        return set()
+
+    return {
+        code.co_names[b.arg]
+        for a, b in zip(*(islice(t, i, None) for i, t in enumerate(tee(dis.get_instructions(code), 2))))
+        # Python 3.14 changed this to LOAD_FAST_BORROW
+        if a.opname.startswith("LOAD_FAST") and a.arg & 15 == 0 and b.opname == "STORE_ATTR"
+    }
 
 
 class SymbolType(str, Enum):
@@ -240,6 +245,19 @@ class Scope:
         module_origin = origin(module)
         if module_origin is None:
             return None
+
+        try:
+            # PyArmor's "obf_mod" mode encrypts the module's entire top-level
+            # code object, so everything declared in it is inspected from
+            # garbage bytecode at best. Skip the module outright instead of
+            # recursing into its classes/functions.
+            if ModuleCodeCollector.is_obfuscated(module):
+                return None
+        except KeyError:
+            # The module was never tracked by the code collector (e.g. a C
+            # extension module, or one imported before the collector was
+            # installed). Nothing to gate on; fall through to inspect it.
+            pass
 
         symbols = []
         scopes = []

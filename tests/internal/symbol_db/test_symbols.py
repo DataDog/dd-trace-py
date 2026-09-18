@@ -16,6 +16,7 @@ from ddtrace.internal.symbol_db.symbols import ScopeType
 from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
 from ddtrace.internal.symbol_db.symbols import _line_ranges
+from ddtrace.internal.symbol_db.symbols import get_fields
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -41,6 +42,27 @@ def test_symbol_from_code():
     symbols = Symbol.from_code(foo.__code__)
     assert {s.name for s in symbols if s.symbol_type == SymbolType.ARG} == {"a", "b", "c"}
     assert {s.name for s in symbols if s.symbol_type == SymbolType.LOCAL} == {"loc"}
+
+
+def test_get_fields_from_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+            self.b = 2
+
+    assert get_fields(Foo) == {"a", "b"}
+
+
+def test_get_fields_skips_obfuscated_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+
+    # Simulate a PyArmor-obfuscated __init__: disassembling it is what can
+    # hard-crash the interpreter, so get_fields must skip that step entirely
+    # rather than attempt it and rely on catching the fallout.
+    with mock.patch("ddtrace.internal.symbol_db.symbols.is_obfuscated_code", return_value=True):
+        assert get_fields(Foo) == set()
 
 
 def test_symbols_class():
