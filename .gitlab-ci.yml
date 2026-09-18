@@ -129,7 +129,7 @@ run-tests-trigger:
  stage: tests
  needs:
    - tests-gen
-   # Child cross-pipeline artifact dependencies must finish before the child is created.
+   # Provides ddtrace wheels for running tests
    - job: "upload manylinux2014_x86_64"
      artifacts: false
  variables:
