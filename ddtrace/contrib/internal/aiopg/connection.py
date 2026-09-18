@@ -3,12 +3,11 @@ from aiopg.utils import _ContextManager
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -16,7 +15,6 @@ from ddtrace.ext import db
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import tracer
 
@@ -27,14 +25,13 @@ AIOPG_VERSION = parse_version(__version__)
 class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
-    def __init__(self, cursor, pin):
+    def __init__(self, cursor, db_tags):
         super(AIOTracedCursor, self).__init__(cursor)
-        pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
+        self._self_db_tags = db_tags
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             result = await method(*args, **kwargs)
             return result
 
@@ -43,7 +40,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
-            set_service_and_source(s, trace_utils.ext_service(pin, config.aiopg), config.aiopg)
+            set_service_and_source(s, trace_utils.ext_service(None, config.aiopg), config.aiopg)
             s._set_attribute(COMPONENT, config.aiopg.integration_name)
             s._set_attribute(db.SYSTEM, "postgresql")
 
@@ -51,7 +48,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             s._set_attribute(_SPAN_MEASURED_KEY, 1)
-            s.set_tags(pin.tags)
+            s.set_tags(self._self_db_tags)
             s.set_tags(extra_tags)
 
             try:
@@ -87,15 +84,12 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 class AIOTracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
-    def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
+    def __init__(self, conn, db_tags, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
-        vendor = dbapi._get_vendor(conn)
-        name = schematize_service_name(vendor)
-        db_pin = pin or Pin(service=name)
-        db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
+        self._self_db_tags = db_tags
 
     # unfortunately we also need to patch this method as otherwise "self"
     # ends up being the aiopg connection object
@@ -117,7 +111,4 @@ class AIOTracedConnection(wrapt.ObjectProxy):
 
     async def _cursor(self, *args, **kwargs):
         cursor = await self.__wrapped__._cursor(*args, **kwargs)
-        pin = Pin.get_from(self)
-        if not pin:
-            return cursor
-        return self._self_cursor_cls(cursor, pin)
+        return self._self_cursor_cls(cursor, self._self_db_tags)
