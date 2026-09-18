@@ -219,15 +219,29 @@ response traffic types are kept as reported, including unfamiliar values.
 Optional: provider key ID
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You can look up Anthropic, OpenAI, and Gemini key IDs automatically, set them manually,
-or use both. A successful lookup takes priority; otherwise the manual value is
-kept. Neither option is required to collect users or usage.
+A provider key ID identifies which key handled a request. It is **not the secret
+API key**. You can look it up automatically, set it yourself, or use both.
+Automatic lookup takes priority; if it fails, your manual value is used.
+User and usage collection work without either option.
 
 Automatic lookup
 ~~~~~~~~~~~~~~~~
 
-Save this in the optional JSON file named by
-``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG``:
+**1. Get permission to look up keys.** Ask your provider administrator for:
+
+* **Anthropic:** an `Admin API key <https://platform.claude.com/docs/en/manage-claude/admin-api>`_
+  that can list keys.
+* **OpenAI:** an admin key with access to your
+  `projects' API keys <https://platform.openai.com/docs/api-reference/project-api-keys>`_.
+  Listing projects is also needed when the response does not identify one.
+* **Gemini:** a `Google access token <https://cloud.google.com/api-keys/docs/reference/rest/v2/keys/lookupKey>`_
+  with the ``cloud-platform`` scope and ``apikeys.keys.lookup`` permission.
+  Add ``resourcemanager.projects.get`` to also collect the project ID.
+  Tokens expire: your application must refresh its own environment variable,
+  or restart with a new token. Datadog does not refresh it.
+
+**2. Enable the providers you use.** Save this JSON to a file, or merge it into
+your existing settings file:
 
 .. code-block:: json
 
@@ -239,77 +253,46 @@ Save this in the optional JSON file named by
       }
     }
 
-Include only the providers you want to enable. Values are **environment variable
-names**, not secrets. Supply those variables through your gateway's secret
-manager. The credentials need permission to list provider keys; an ordinary
-inference key usually cannot do this. Keep inference credentials unchanged.
+Remove providers you do not use. These values are **environment variable names**,
+not secrets. Set the variables on your gateway using your secret manager.
+Keep LiteLLM's existing model credentials unchanged.
 
-* **Anthropic:** uses the `Admin API <https://platform.claude.com/docs/en/manage-claude/admin-api>`_
-  to list keys and, when available, check the response's organization ID.
-* **OpenAI:** uses the `project key API <https://platform.openai.com/docs/api-reference/project-api-keys>`_.
-  It searches the returned project, or lists projects when that ID is unavailable.
-  The credential needs access to the relevant project keys.
-* **Gemini:** uses Google's `key lookup API <https://cloud.google.com/api-keys/docs/reference/rest/v2/keys/lookupKey>`_.
-  Supply a Google access token with the ``cloud-platform`` scope and
-  ``apikeys.keys.lookup`` permission on the key's project. Reading the project ID
-  also needs ``resourcemanager.projects.get``. Tokens expire; this option does
-  not refresh them. The application must refresh the environment variable in
-  its own process, or restart with a new token.
+**3. Point to the file and restart the gateway.** For example:
 
-For Anthropic and OpenAI, the callback compares masked key hints against the outgoing
-credential **inside the gateway**. It accepts only one matching key in the complete
-inventory it reads. This is a masked-hint match, not cryptographic verification;
-missing or duplicate hints leave the ID unresolved. The secret and hint are never
-exported to Datadog. Google's lookup instead sends the key to Google's own API
-and returns an exact key resource ID. If the project-name lookup is denied, its
-key ID and project number are still collected; ``ai.discovery.project_status``
-records the failure. Lookups support direct provider endpoints, not compatible third-party
-proxies or Azure-hosted models.
+.. code-block:: bash
 
-Lookups run in the completion callback, after the model call. They have a
-three-second total timeout, no retries, and a bounded inventory size. Results are
-cached for five minutes; unsuccessful lookups for one minute. A credential change
-uses a separate cache entry. Concurrent requests may use the manual fallback
-while a lookup is in progress. Restart the gateway after changing the JSON file
-or externally supplied credential environment variables. No additional packages are required.
+    export DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG=/etc/datadog/litellm-attribution.json
 
-This discovers provider key IDs, not every cloud identifier. Bedrock profile ARNs,
-Vertex project IDs, and explicit OCI scope are still collected from LiteLLM as
-before. AWS account, Azure resource, and GCP billing-account management lookups
-are not part of this option.
+**Check the result:** ``ai.route.api_key_id`` contains the ID;
+``ai.discovery.status`` explains a failed lookup, such as ``permission_denied``.
 
-Manual value or fallback
-~~~~~~~~~~~~~~~~~~~~~~~~
+Things to know:
 
-Add the **non-secret ID** to the matching model deployment in your existing
-LiteLLM configuration. Merge this ``model_info`` field into the entry; keep its
-existing ``litellm_params`` and other settings unchanged:
+* Only direct Anthropic, OpenAI, and Gemini connections support lookup, not
+  Azure or other proxies. Cloud account/resource lookup is not included.
+* Anthropic and OpenAI match partially hidden keys, not full keys. Unclear or
+  duplicate matches are not used. Google provides an exact key lookup.
+* Secrets are never sent to Datadog. Google's lookup sends the key only to Google.
+* Lookups run after the model call, with a three-second timeout. Results are
+  cached for five minutes; failures for one minute. Requests may use the manual
+  fallback while a lookup is running.
+
+Set an ID yourself
+~~~~~~~~~~~~~~~~~~
+
+In your LiteLLM config, add the ID under each matching model's ``model_info``:
 
 .. code-block:: yaml
 
-    model_list:
-      - model_name: your-existing-model-alias
-        # Keep the existing litellm_params here.
-        model_info:
-          datadog_provider_api_key_id: key_abc123
+    model_info:
+      datadog_provider_api_key_id: key_abc123
 
-Use the exact provider ID from its key-management API or usage export, such as
-OpenAI's ``key_...`` or Anthropic's ``apikey_...``. **Do not put the secret
-``sk-...`` key here**, or use a masked key, display name, or LiteLLM virtual key.
-Your existing secret stays in LiteLLM's normal credential configuration.
+Use the provider's **non-secret ID**, such as ``key_...`` or ``apikey_...``.
+Do not use a secret, a masked key, or a LiteLLM virtual key.
 
-The callback exports this value as ``ai.route.api_key_id``. Set it separately on
-each deployment, including fallback routes, and update it when changing the
-provider key. It follows the selected deployment, not the incoming model alias.
-Discovery follows the actual outgoing credential. If one deployment chooses
-different keys per request, do not set a fixed manual fallback; use separate
-deployments per key or leave the fallback unset. A process-wide tag has the same
-problem when the gateway uses multiple keys.
-
-This setting works for any provider with a non-secret key ID. Providers that
-identify usage by account, project, or resource may not have one. Leave it unset
-in that case; the other available IDs are still collected. Missing response IDs,
-including headers LiteLLM drops during streaming, are not filled from this setting.
+Set it separately for fallback models too, and update it when changing keys.
+If one model uses different keys per request, leave this unset or configure
+separate model entries per key. This works with any provider that has a key ID.
 
 Limitations and privacy
 ^^^^^^^^^^^^^^^^^^^^^^^
