@@ -148,10 +148,9 @@ class JobSpec:
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         if self.fabric_no_proxy:
+            no_proxy_additions = ",".join(FABRIC_NO_PROXY_ADDITIONS)
             lines.append("    - |")
-            lines.append(
-                f'      no_proxy_additions="{",".join(FABRIC_NO_PROXY_ADDITIONS)}"'
-            )
+            lines.append(f'      no_proxy_additions="{no_proxy_additions}"')
             lines.append('      export NO_PROXY="${NO_PROXY:+${NO_PROXY},}${no_proxy_additions}"')
             lines.append('      export no_proxy="${no_proxy:+${no_proxy},}${no_proxy_additions}"')
             lines.append('      echo "NO_PROXY=${NO_PROXY}"')
