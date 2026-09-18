@@ -3,9 +3,13 @@
 from collections.abc import Mapping
 from typing import Any
 
+from ddtrace._trace.span import Span
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
+from ddtrace.internal.constants import COMPONENT
+
 from .constants import _MANUAL_KEEP_OPS
-from .constants import _MANUAL_KEEP_TAG
-from .constants import COMPONENT
 from .constants import COMPONENT_NAME
 from .constants import TEMPORAL_TAG_PREFIX
 from .constants import OperationNames
@@ -13,31 +17,28 @@ from .constants import OperationNames
 
 class _SpanAnnotator:
     _PEER_SERVICE_TAG = "peer.service"
-    _SPAN_KIND_TAG = "span.kind"
-    _PRODUCER = "producer"
-    _CONSUMER = "consumer"
 
     _SPAN_KIND: dict[str, str] = {
-        OperationNames.START_ACTIVITY: _PRODUCER,
-        OperationNames.RUN_ACTIVITY: _CONSUMER,
-        OperationNames.START_CHILD_WORKFLOW: _PRODUCER,
-        OperationNames.START_WORKFLOW: _PRODUCER,
-        OperationNames.SIGNAL_WITH_START_WORKFLOW: _PRODUCER,
-        OperationNames.RUN_WORKFLOW: _CONSUMER,
-        OperationNames.SIGNAL_WORKFLOW: _PRODUCER,
-        OperationNames.SIGNAL_CHILD_WORKFLOW: _PRODUCER,
-        OperationNames.SIGNAL_EXTERNAL_WORKFLOW: _PRODUCER,
-        OperationNames.HANDLE_SIGNAL: _CONSUMER,
-        OperationNames.QUERY_WORKFLOW: _PRODUCER,
-        OperationNames.HANDLE_QUERY: _CONSUMER,
-        OperationNames.UPDATE_WORKFLOW: _PRODUCER,
-        OperationNames.UPDATE_WITH_START_WORKFLOW: _PRODUCER,
-        OperationNames.VALIDATE_UPDATE: _CONSUMER,
-        OperationNames.HANDLE_UPDATE: _CONSUMER,
-        OperationNames.CREATE_SCHEDULE: _PRODUCER,
-        OperationNames.START_NEXUS_OPERATION: _PRODUCER,
-        OperationNames.RUN_NEXUS_OPERATION_START_HANDLER: _CONSUMER,
-        OperationNames.RUN_NEXUS_OPERATION_CANCEL_HANDLER: _CONSUMER,
+        OperationNames.START_ACTIVITY: SpanKind.PRODUCER,
+        OperationNames.RUN_ACTIVITY: SpanKind.CONSUMER,
+        OperationNames.START_CHILD_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.START_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.SIGNAL_WITH_START_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.RUN_WORKFLOW: SpanKind.CONSUMER,
+        OperationNames.SIGNAL_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.SIGNAL_CHILD_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.SIGNAL_EXTERNAL_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.HANDLE_SIGNAL: SpanKind.CONSUMER,
+        OperationNames.QUERY_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.HANDLE_QUERY: SpanKind.CONSUMER,
+        OperationNames.UPDATE_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.UPDATE_WITH_START_WORKFLOW: SpanKind.PRODUCER,
+        OperationNames.VALIDATE_UPDATE: SpanKind.CONSUMER,
+        OperationNames.HANDLE_UPDATE: SpanKind.CONSUMER,
+        OperationNames.CREATE_SCHEDULE: SpanKind.PRODUCER,
+        OperationNames.START_NEXUS_OPERATION: SpanKind.PRODUCER,
+        OperationNames.RUN_NEXUS_OPERATION_START_HANDLER: SpanKind.CONSUMER,
+        OperationNames.RUN_NEXUS_OPERATION_CANCEL_HANDLER: SpanKind.CONSUMER,
     }
 
     def __init__(
@@ -59,15 +60,14 @@ class _SpanAnnotator:
 
     def annotate(
         self,
-        span: Any,
+        span: Span,
         operation: str,
         attributes: Mapping[str, Any] | None,
         parent_service_name: str | None,
         force_keep: bool = False,
     ) -> None:
         # User-defined global custom tags
-        for key, value in self.extra_tags.items():
-            span.set_tag(key, value)
+        span.set_tags(dict(self.extra_tags))
 
         # Mark every span as coming from the temporal integration so the tracer
         # attributes integration telemetry (spans_created/finished, etc.) to
@@ -85,10 +85,10 @@ class _SpanAnnotator:
         # Parents from context_provider.active() are in-process producer spans and
         # should inherit the caller's sampling decision instead.
         if operation in _MANUAL_KEEP_OPS and force_keep:
-            span.set_tag(_MANUAL_KEEP_TAG, True)
+            span.set_tag(MANUAL_KEEP_KEY)
 
         kind = self._SPAN_KIND.get(operation)
         if kind:
-            span.set_tag(self._SPAN_KIND_TAG, kind)
-            if kind == self._CONSUMER and parent_service_name and parent_service_name != self.service_name:
+            span.set_tag(SPAN_KIND, kind)
+            if kind == SpanKind.CONSUMER and parent_service_name and parent_service_name != self.service_name:
                 span.set_tag(self._PEER_SERVICE_TAG, parent_service_name)
