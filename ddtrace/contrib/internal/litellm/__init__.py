@@ -69,8 +69,8 @@ Quick setup
    are reused, so there is no separate Datadog user list to configure.
 
 Without further configuration, the callback collects available user IDs,
-usage, and the provider/model details LiteLLM makes available. It leaves missing
-billing details unknown rather than guessing.
+usage, and the provider/model details LiteLLM makes available. No billing
+configuration file is required to enable collection.
 
 How users are identified
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -101,99 +101,10 @@ may choose this value, and this callback cannot prove who supplied it. Prefer
 authenticated identity for reliable cost attribution. If neither ID is available,
 ``usr.id`` is omitted.
 
-Set ``capture_end_user`` to ``false`` in the optional JSON file below to collect
-only gateway-authenticated identity. IDs LiteLLM omits are not recovered from raw
-request fields, and JSON objects containing device/session details are not used
-as user IDs.
-
-Optional: add billing details
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-LiteLLM does not always expose the account, project, or key ID used on your bill.
-Use a JSON file to fill in those details. This file contains **IDs, not secrets**.
-It does not change where requests are routed.
-
-.. envvar:: DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG
-
-   Path to the JSON file. The callback reads it once at startup. Restart the
-   gateway after changing it. If the file is invalid or unreadable, the gateway
-   keeps working, but the callback ignores its billing and optional user settings.
-
-Save this as ``/etc/litellm/attribution.json``. Replace
-``openai-coding-deployment`` with your route's existing ``model_info.id`` and
-replace the example billing IDs with your own:
-
-.. code-block:: json
-
-    {
-      "billing_scopes": {
-        "openai-coding-deployment": {
-          "provider": "openai",
-          "account_id": "org-example",
-          "product": "api",
-          "project_id": "proj-example"
-        }
-      },
-      "capture_email": false,
-      "auth_metadata_keys": ["cost_center"]
-    }
-
-Set the path **before starting the gateway**:
-
-.. code-block:: bash
-
-    export DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG=/etc/litellm/attribution.json
-    ddtrace-run litellm --config /etc/litellm/config.yaml
-
-Each mapping key must match the selected route's ``model_info.id``, **not** its
-model alias. If you need a stable ID for a mapping, set ``model_info.id`` on that
-route in your existing ``model_list``; keep its credentials and model unchanged.
-Include fallback routes and update mappings when credentials or resources change.
-
-.. list-table:: Settings in the JSON file
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Setting
-     - What to enter
-   * - ``billing_scopes``
-     - Billing details by deployment ID. Optional; omit it if you only want user
-       and usage data. Within each entry, ``provider``, ``account_id``, and
-       ``product`` are required. For example: ``openai``, ``org-example``, ``api``.
-   * - ``project_id``, ``resource_id``
-     - Optional fields within a billing entry. Use IDs from your provider.
-       Values already exposed by a recognized route are collected automatically.
-   * - ``api_key_id``
-     - Optional provider key ID for matching usage to bills by key. This callback
-       currently gets it only from your mapping. It does not derive it from the
-       secret API key. **Never enter the API key itself or a LiteLLM virtual-key
-       hash.** Leave this out if you do not need a key-level cost join.
-   * - ``geography``, ``mode``
-     - Optional fields within a billing entry. Use the billing region or processing
-       mode from your bill. Leave unknown values out: do not assume
-       ``global`` or ``standard``.
-       A mode reported in the response takes priority over a configured mode.
-   * - ``model``
-     - Optional billing-name override. The model is already collected from the
-       response, or from the selected route if absent. Only set this if the bill
-       uses a different name. The original response model is kept separately.
-   * - ``capture_email``
-     - ``false`` by default. Set to ``true`` to include email from the gateway's
-       authenticated user record, when available, as ``usr.email``.
-   * - ``capture_end_user``
-     - ``true`` by default. Include LiteLLM's end-user ID as unverified context
-       and use it as a fallback when the authenticated user ID is missing.
-       Set to ``false`` to disable both behaviors. An invalid configuration file
-       also disables this collection.
-   * - ``auth_metadata_keys``
-     - Empty by default. Names of fields to copy from authenticated user metadata,
-       such as ``cost_center``. These appear as ``ai.enrichment.cost_center``.
-       The callback does not read them from client-supplied request metadata.
-
-Only select user fields you intend to send to Datadog. User IDs can themselves
-contain personal information, even when email collection is off. Values must be
-non-empty strings without control characters or common secret prefixes. Most
-identifiers are limited to 256 characters; resource IDs allow up to 2048.
+Set ``capture_end_user`` to ``false`` in the optional user settings below to
+collect only gateway-authenticated identity. IDs LiteLLM omits are not recovered
+from raw request fields, and JSON objects containing device/session details are
+not used as user IDs.
 
 Check that it works
 ^^^^^^^^^^^^^^^^^^^
@@ -232,9 +143,8 @@ OpenAI-compatible endpoint is **not** assumed to bill through OpenAI.
        its source is ``unknown``. The separate end-user ID is always marked
        ``unverified`` and never overwrites an available authenticated ID.
    * - ``ai.billing.*``
-     - Provider, account, product, and optional project/resource/key IDs,
-       geography, and mode. Your mappings override route defaults. Explicit
-       OpenAI organization/project, Vertex project, Bedrock resource ARN, and
+     - Available provider, account, product, project/resource IDs, geography,
+       and mode. Explicit OpenAI organization/project, Vertex project, Bedrock resource ARN, and
        OCI compartment can be collected automatically. A project or resource
        owner's account is not assumed to be the billed account.
    * - ``ai.billing.provider_source``, ``ai.billing.mode_source``
@@ -243,8 +153,8 @@ OpenAI-compatible endpoint is **not** assumed to bill through OpenAI.
        Conflicting on-demand response values are flagged as incomplete.
    * - ``ai.model``, ``ai.model.source``, ``ai.response.model``
      - Model used for billing comparisons, where it came from, and the original
-       response model. Without a mapping, use the response model, or the selected
-       route model if the response has none. Model version suffixes are kept.
+       response model. By default, use the response model, or the selected route
+       model if the response has none. Model version suffixes are kept.
    * - ``ai.route.*``
      - Selected provider/model, endpoint hostname, region/location, and API
        version. Also includes available OpenAI organization/project, Vertex
@@ -302,14 +212,16 @@ Using the data with costs
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This callback collects inputs for a cost join; it does **not** perform the join
-or calculate an invoice. Match usage to each provider's billing data using:
+or calculate an invoice. Automatic matching from provider credentials to billing
+key/account IDs is not implemented. Raw API keys are never exported. Match
+collected usage to each provider's billing data using:
 
 * Time period, billing provider/account/product, and model.
 * Project, resource, or non-secret key ID when the bill uses that level of detail.
   Account-wide allocation does not require every optional ID.
 * Usage category and amount. Metric names include units such as tokens, requests,
   counts, or seconds. Do not add overlapping observed counts to usage totals.
-* Processing mode and billing geography, using reported values and mappings.
+* Processing mode and billing geography, when available.
   Missing values stay unknown, not ``standard`` or ``global``.
 
 If pricing depends on request size, use each request's ``context_tokens`` and
@@ -334,10 +246,9 @@ Limitations and privacy
 * Retries and fallbacks keep the final route's billing details. Earlier attempts
   may have missing usage. Failed/canceled requests do not mean zero cost.
   Gateway cache hits do not add new provider usage.
-* Client-provided credentials or endpoint changes disable the configured billing
-  mapping for that request. Missing account/key IDs need your mapping; the
-  callback does not read credential files to discover them. Missing outgoing
-  settings are not filled with request settings and presented as provider values.
+* The callback does not inspect credential files or derive billing key/account
+  IDs from secret API keys. Missing outgoing settings are not filled with request
+  settings and presented as provider values.
 * Mixed-media counts remain available, but are not split into non-overlapping
   categories when that split is unknown. Unknown cache-write lifetime is not
   assumed to be five minutes.
@@ -354,12 +265,48 @@ Limitations and privacy
   API keys, exception text, or arbitrary client metadata. Other integrations
   and LiteLLM's own logging have separate settings.
 
+Optional: user data settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+No extra configuration is needed unless you want to change which user details
+are sent to Datadog.
+
+.. envvar:: DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG
+
+   Path to an optional JSON file. The callback reads it once at startup; restart
+   the gateway after changing it. An invalid or unreadable file disables optional
+   user enrichment and end-user capture, but does not stop the gateway.
+
+Available user settings:
+
+* ``capture_email``: ``false`` by default. Set to ``true`` to include email from
+  the gateway's authenticated user record as ``usr.email``.
+* ``capture_end_user``: ``true`` by default. Set to ``false`` to disable collection
+  of LiteLLM's end-user ID, including its use as a fallback for ``usr.id``.
+* ``auth_metadata_keys``: empty by default. Select authenticated user metadata
+  fields such as ``cost_center`` to include as ``ai.enrichment.cost_center``.
+  Client-supplied request metadata is not used for these extra fields.
+
+For example, to include authenticated email, save this JSON in
+``/etc/litellm/attribution.json`` and set
+``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG=/etc/litellm/attribution.json`` before
+starting the gateway:
+
+.. code-block:: json
+
+    {"capture_email": true}
+
+Only select user fields you intend to send to Datadog. User IDs can themselves
+contain personal information, even when email collection is off. Values must be
+non-empty strings without control characters or common secret prefixes. Most
+identifiers are limited to 256 characters; resource IDs allow up to 2048.
+
 Advanced: register from Python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use ``ddtrace.contrib.litellm.GatewayAttribution(billing_scopes=...,
-capture_email=False, capture_end_user=True, auth_metadata_keys=())`` and add exactly one instance to
-LiteLLM's callbacks. Call ``close()`` before ``tracer.shutdown()`` if you manage
+Use ``ddtrace.contrib.litellm.GatewayAttribution()`` and add exactly one instance
+to LiteLLM's callbacks. The optional user settings above are also accepted as
+constructor arguments. Call ``close()`` before ``tracer.shutdown()`` if you manage
 shutdown yourself. The packaged ``gateway_attribution`` callback handles its own
 process-exit cleanup.
 

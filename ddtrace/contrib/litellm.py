@@ -1,7 +1,7 @@
 """Record LiteLLM gateway users and usage, without prompt or response text.
 
 Add ``ddtrace.contrib.litellm.gateway_attribution`` to ``litellm_settings.callbacks``.
-See the LiteLLM integration guide for setup, optional billing details, and limitations.
+See the LiteLLM integration guide for setup, optional user settings, and limitations.
 """
 
 from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution
