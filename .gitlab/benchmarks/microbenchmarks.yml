@@ -93,6 +93,10 @@ variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+    # Use Python 3.12 for benchmark execution. The CI image uses pyenv,
+    # and run-benchmarks.sh creates venvs with `python3 -m venv`. Setting
+    # PYENV_VERSION makes pyenv shims resolve `python3` to 3.12.
+    PYENV_VERSION: "3.12"
 
 baseline:detect:
   image: ${CI_UTILS_IMAGE}
@@ -152,7 +156,7 @@ baseline:build:
 
     echo "BASELINE_WHL=$(ls baseline-wheel/*.whl | head -n 1)" | tee -a baseline.env
   cache:
-    - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+    - key: v1-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
         - "baseline-wheel/*.whl"
   artifacts:
