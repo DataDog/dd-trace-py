@@ -274,18 +274,29 @@ def _setup() -> int:
 # ---------------------------------------------------------------------------
 # Hot-path callbacks — no lock; iterate a pre-built handler snapshot tuple
 # ---------------------------------------------------------------------------
+# AIDEV-NOTE: Keep the single-entry shortcut inside these callbacks so it shares
+# DISABLE bookkeeping and error isolation with normal fan-out. A process-wide
+# route adds promotion races and does not help consumers with per-code handlers.
 
 
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if not handlers or not (snapshot := handlers.snapshot):
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
+    if len(snapshot) == 1:
+        entry = snapshot[0]
+        if not entry.events & _E.PY_START:
+            return _DISABLE
+        if entry.handler.on_py_start(code, instruction_offset) is _DISABLE:
+            handlers.disabled_events |= _E.PY_START
+            return _DISABLE
+        return None
     # DISABLE is forwarded only when every PY_START handler for this code object
     # returns it, mirroring on_py_line. Existing handlers (the wrapping context)
     # return None, so behaviour is unchanged unless a handler opts into DISABLE.
     disable: bool = True
-    for e in handlers.snapshot:
+    for e in snapshot:
         if e.events & _E.PY_START:
             if e.handler.on_py_start(code, instruction_offset) is not _DISABLE:
                 disable = False
@@ -297,10 +308,15 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
 
 def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if not handlers or not (snapshot := handlers.snapshot):
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
-    for e in handlers.snapshot:
+    if len(snapshot) == 1:
+        entry = snapshot[0]
+        if entry.events & _E.PY_RETURN:
+            entry.handler.on_py_return(code, instruction_offset, retval)
+        return None
+    for e in snapshot:
         if e.events & _E.PY_RETURN:
             e.handler.on_py_return(code, instruction_offset, retval)
     return None
@@ -308,10 +324,15 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if not handlers or not (snapshot := handlers.snapshot):
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
-    for e in handlers.snapshot:
+    if len(snapshot) == 1:
+        entry = snapshot[0]
+        if entry.events & _E.PY_UNWIND:
+            entry.handler.on_py_unwind(code, instruction_offset, exception)
+        return None
+    for e in snapshot:
         if e.events & _E.PY_UNWIND:
             e.handler.on_py_unwind(code, instruction_offset, exception)
     return None
@@ -319,10 +340,21 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
 
 def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if not handlers or not (snapshot := handlers.snapshot):
         return _DISABLE
+    if len(snapshot) == 1:
+        entry = snapshot[0]
+        if not entry.events & _E.LINE:
+            return _DISABLE
+        try:
+            if entry.handler.on_py_line(code, line_number) is _DISABLE:
+                handlers.disabled_events |= _E.LINE
+                return _DISABLE
+        except Exception:
+            log.warning("monitoring LINE handler failed", exc_info=True)
+        return None
     disable: bool = True
-    for e in handlers.snapshot:
+    for e in snapshot:
         if e.events & _E.LINE:
             try:
                 if e.handler.on_py_line(code, line_number) is not _DISABLE:

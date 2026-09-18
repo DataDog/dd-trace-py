@@ -387,6 +387,10 @@ PY_START, PY_RETURN, LINE, and Python 3.15+'s PY_UNWIND are enabled locally
 per code object. On Python 3.12–3.14, PY_UNWIND is not available as a local
 event, so the multiplexer rejects handlers that request it.
 
+When a code object has one registered handler, callbacks dispatch directly to
+that entry without entering the fan-out loop. Code objects with multiple
+handlers use the same pre-built snapshot for normal fan-out.
+
 ### `DISABLE` and `refresh()`
 
 A `DISABLE` returned from a local event callback is sticky in CPython until
