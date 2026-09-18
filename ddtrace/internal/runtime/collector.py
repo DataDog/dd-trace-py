@@ -1,5 +1,5 @@
 import importlib
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from ..logger import get_logger
 

@@ -1,9 +1,8 @@
 import logging
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import TypeVar  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Optional
+from typing import TypeVar
+from typing import Union
 
 from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
