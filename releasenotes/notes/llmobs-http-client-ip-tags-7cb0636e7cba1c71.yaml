@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: LLMObs spans now include ``http.client_ip`` and ``network.client.ip``
+    tags when HTTP client IP information is available in the incoming request context. No
+    configuration is required; the tags are populated automatically when the web framework
+    instruments the request.
