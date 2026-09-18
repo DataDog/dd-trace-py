@@ -2455,8 +2455,12 @@ class LLMObs(Service):
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
+            # _meta is trace-scoped, but the values stamped below describe this span, and the
+            # task/thread hooks activate this context long after storing it. Copy it with a
+            # private _meta so a later span's values, or a later clear, cannot reach queued work.
+            context = active.context.copy(active.trace_id, active.span_id)
+            context._meta = dict(context._meta)
             # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
-            context = active.context
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)

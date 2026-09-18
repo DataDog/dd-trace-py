@@ -25,17 +25,28 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if sys.version_info < (3, 15):
-    raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
+if sys.version_info < (3, 12):
+    raise ImportError("ddtrace.internal.monitoring requires Python 3.12+")
 
 log = get_logger(__name__)
 
 _E = sys.monitoring.events
 _DISABLE = sys.monitoring.DISABLE
 
-# On Python 3.15+, PY_UNWIND is a per-code "other" event and can be enabled via
-# set_local_events alongside PY_START/PY_RETURN/LINE.
-_LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
+# PY_UNWIND became a per-code "other" event only in Python 3.15 (its event bit even
+# moved, 0x1000 -> 0x2000). On 3.12-3.14 it is a global-only event that
+# set_local_events() rejects. The only PY_UNWIND consumer is itself 3.15+-gated.
+if sys.version_info >= (3, 15):
+    _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
+    _SUPPORTS_LOCAL_PY_UNWIND = True
+else:
+    _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE
+    _SUPPORTS_LOCAL_PY_UNWIND = False
+
+
+class MonitoringToolUnavailable(RuntimeError):
+    """Raised when no free sys.monitoring tool ID is available for ddtrace."""
+
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
@@ -58,6 +69,10 @@ class _IdentityWeakKeyDictionary:
     ``CodeType.__eq__``, so distinct code objects for the same source remain
     separate entries.
     """
+
+    # NOTE: CodeType equality is structural. Keep identity semantics here and in
+    # every code-object registry built on this class, or separately compiled/reloaded
+    # copies of the same code will overwrite each other.
 
     __slots__ = ("_data",)
 
@@ -82,6 +97,15 @@ class _IdentityWeakKeyDictionary:
     def __contains__(self, key: CodeType) -> bool:
         item = self._data.get(id(key))
         return item is not None and item[0]() is key
+
+    def __iter__(self) -> Any:
+        for ref, _value in tuple(self._data.values()):
+            key = ref()
+            if key is not None:
+                yield key
+
+    def __len__(self) -> int:
+        return len(self._data)
 
     def __getitem__(self, key: CodeType) -> Any:
         item = self._data.get(id(key))
@@ -109,6 +133,9 @@ class _IdentityWeakKeyDictionary:
         del self[key]
         return value
 
+    def clear(self) -> None:
+        self._data.clear()
+
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
 
@@ -134,7 +161,12 @@ class MonitoringEventHandler(ABC):
         handlers commonly share one code object's LINE registration.
     """
 
-    def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+    def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
+        """Return ``sys.monitoring.DISABLE`` to request disabling future PY_START events.
+
+        The multiplexer forwards ``DISABLE`` to CPython only when every registered
+        PY_START handler for this code object returns it, mirroring ``on_py_line``.
+        """
         pass
 
     def on_py_return(self, code: CodeType, instruction_offset: int, retval: object) -> None:
@@ -177,10 +209,14 @@ class _Entry(NamedTuple):
 class _CodeHandlers:
     """Per-code handler table with a pre-built snapshot for hot-path dispatch."""
 
-    __slots__ = ("_by_handler", "snapshot")
+    __slots__ = ("_by_handler", "disabled_events", "snapshot")
 
     def __init__(self) -> None:
         self._by_handler: dict[int, _Entry] = {}
+        # Event bits for which the aggregate callback has returned DISABLE at
+        # least once. This is intentionally conservative: stale bits can cause
+        # an unnecessary targeted re-arm, while missing a bit can lose events.
+        self.disabled_events: int = 0
         self.snapshot: tuple[_Entry, ...] = ()
 
     def __len__(self) -> int:
@@ -225,11 +261,12 @@ def _setup() -> int:
             except ValueError:
                 continue
         else:
-            raise RuntimeError("No free sys.monitoring tool ID available for ddtrace")
+            raise MonitoringToolUnavailable("No free sys.monitoring tool ID available for ddtrace")
 
         sys.monitoring.register_callback(_tool_id, _E.PY_START, _on_py_start)
         sys.monitoring.register_callback(_tool_id, _E.PY_RETURN, _on_py_return)
-        sys.monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
+        if _SUPPORTS_LOCAL_PY_UNWIND:
+            sys.monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
         sys.monitoring.register_callback(_tool_id, _E.LINE, _on_py_line)
 
     return _tool_id
@@ -249,9 +286,17 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     if not handlers or not handlers.snapshot:
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
+    # DISABLE is forwarded only when every PY_START handler for this code object
+    # returns it, mirroring on_py_line. Existing handlers (the wrapping context)
+    # return None, so behaviour is unchanged unless a handler opts into DISABLE.
+    disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
-            e.handler.on_py_start(code, instruction_offset)
+            if e.handler.on_py_start(code, instruction_offset) is not _DISABLE:
+                disable = False
+    if disable:
+        handlers.disabled_events |= _E.PY_START
+        return _DISABLE
     return None
 
 
@@ -290,7 +335,10 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
                 disable = False
-    return _DISABLE if disable else None
+    if disable:
+        handlers.disabled_events |= _E.LINE
+        return _DISABLE
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -302,15 +350,18 @@ def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
     sys.monitoring.set_local_events(tool_id, code, events)
 
 
-def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
-    # A DISABLE returned from a per-line callback is sticky until the monitored
-    # event set changes or restart_events() is called. Re-applying the same
-    # local events does not clear it; toggling local events off and back on
-    # re-arms only this tool's DISABLE marks for code without the global
-    # restart_events() call that would reset other tools' disabled-event
-    # bookkeeping.
-    _set_local_events(tool_id, code, 0)
+def _rearm_local_events(tool_id: int, code: CodeType, events: int, rearm_events: int) -> None:
+    # A DISABLE return is sticky until the monitored event set changes or
+    # restart_events() is called. Re-applying the same local events does not
+    # clear it. Toggle only the requested event bits so unrelated lifecycle
+    # events remain enabled throughout the re-arm operation.
+    _set_local_events(tool_id, code, events & ~rearm_events)
     _set_local_events(tool_id, code, events)
+
+
+def ensure_tool() -> int:
+    """Claim the shared tool ID or raise MonitoringToolUnavailable."""
+    return _setup()
 
 
 def register(code: CodeType, handler: MonitoringEventHandler) -> None:
@@ -319,9 +370,12 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     The handler instance itself is the registration key; pass the same object
     to :func:`unregister` to remove it.
     """
-    handler_events: int = _events_for_handler(handler)
+    declared_events: int = _events_for_handler(handler)
+    if (declared_events & _E.PY_UNWIND) and not _SUPPORTS_LOCAL_PY_UNWIND:
+        raise RuntimeError("on_py_unwind handlers require Python 3.15+ (PY_UNWIND is a global-only event on 3.12-3.14)")
+    handler_events = declared_events & _LOCAL_EVENTS
     if not handler_events:
-        raise ValueError("Handler overrides no MonitoringEventHandler methods")
+        raise ValueError("Handler overrides no local MonitoringEventHandler methods")
 
     tool_id: int = _setup()
     entry: _Entry = _Entry(handler, handler_events)
@@ -331,27 +385,32 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         if handlers is None:
             _registry[code] = handlers = _CodeHandlers()
 
-        had_line: bool = any(e.events & _E.LINE for e in handlers.snapshot)
+        # Events already provided by an existing handler may have been DISABLE'd by
+        # that handler's callback return (LINE, or PY_START when a handler opts in).
+        # If the new handler shares any of those events, re-arm via the tool-scoped
+        # toggle so the new handler actually receives them. This generalises the
+        # previous LINE-only re-arm to every local event.
+        existing_events: int = _events_for(handlers)
         handlers.set_handler(id(handler), entry)
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
+        handlers.disabled_events &= local_events
 
-        if (handler_events & _E.LINE) and had_line:
-            _rearm_local_events(tool_id, code, local_events)
+        rearm_events = handler_events & existing_events & handlers.disabled_events
+        if rearm_events:
+            _rearm_local_events(tool_id, code, local_events, rearm_events)
         else:
             _set_local_events(tool_id, code, local_events)
 
 
-def refresh(code: CodeType) -> None:
-    """Re-apply local events for *code*, resetting any per-line DISABLE state.
-
-    Call this after adding a new hook for a line that may have been previously
-    disabled via a DISABLE return from :meth:`MonitoringEventHandler.on_py_line`.
-    """
+def refresh(code: CodeType, events: int) -> None:
+    """Re-arm disabled local *events* for *code* without changing unrelated events."""
     with _registry_lock:
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers and _tool_id is not None:
-            events: int = _events_for(handlers) & _LOCAL_EVENTS
-            _rearm_local_events(_tool_id, code, events)
+            local_events: int = _events_for(handlers) & _LOCAL_EVENTS
+            rearm_events = events & local_events & handlers.disabled_events
+            if rearm_events:
+                _rearm_local_events(_tool_id, code, local_events, rearm_events)
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
@@ -369,4 +428,6 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
                 _set_local_events(_tool_id, code, 0)
         else:
             assert _tool_id is not None  # nosec
-            _set_local_events(_tool_id, code, _events_for(handlers) & _LOCAL_EVENTS)
+            local_events = _events_for(handlers) & _LOCAL_EVENTS
+            handlers.disabled_events &= local_events
+            _set_local_events(_tool_id, code, local_events)
