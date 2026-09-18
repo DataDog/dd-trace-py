@@ -27,8 +27,8 @@ class BaseStreamHandler(ABC):
 
         self.spans = [(span, kwargs)]
         self.chunks = self.initialize_chunk_storage()
-        # NOTE: iteration (`__iter__`/`__next__`) and GC (`__del__`) both try
-        # to finish the span. Only the first call may run.
+        # NOTE: iteration (`__iter__`/`__next__`), context-manager `__exit__`,
+        # and GC (`__del__`) all try to finish the span. Only the first call may run.
         self._finalized = False
 
     def initialize_chunk_storage(self):
@@ -89,14 +89,23 @@ class BaseStreamHandler(ABC):
     def close_stream(self, exception=None):
         """Call finalize_stream at most once.
 
-        TracedStream finishes from __iter__/__next__ and from __del__ when a
-        caller pulls chunks with next() and then drops the stream. Without
-        this guard, span tags and span.finish() would fire twice.
+        TracedStream finishes from __iter__/__next__, from __exit__, and from
+        __del__ when a caller pulls chunks with next() and then drops the stream.
+        Without this guard, span tags and span.finish() would fire twice.
         """
         if getattr(self, "_finalized", False):
             return
         self._finalized = True
         self.finalize_stream(exception)
+
+    def _close_from_context_exit(self, exception=None):
+        # A raise inside `with stream:` never hits __iter__/__next__'s except
+        # block. Record it on the span before finishing, but only if iteration
+        # has not already finalized: an error after a completed stream belongs
+        # to the caller, not the LLM span.
+        if isinstance(exception, Exception) and not getattr(self, "_finalized", False):
+            self.handle_exception(exception)
+        self.close_stream(exception)
 
 
 class StreamHandler(BaseStreamHandler):
@@ -241,6 +250,15 @@ class TracedStream(wrapt.ObjectProxy):
         return traced_stream
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # NOTE: callers that open the stream as a context manager and
+        # do not iterate it to completion never hit `__iter__`/`__next__`
+        # StopIteration, so the span would stay open and later requests on
+        # this worker would nest under it. Finish here; close_stream is a
+        # no-op if iteration already finalized.
+        try:
+            self._self_handler._close_from_context_exit(exc_val)
+        except Exception:
+            log.debug("Failed to finalize traced stream on context-manager exit", exc_info=True)
         return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     @property
@@ -336,6 +354,10 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         return traced_stream
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self._self_handler._close_from_context_exit(exc_val)
+        except Exception:
+            log.debug("Failed to finalize traced async stream on context-manager exit", exc_info=True)
         return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     @property
