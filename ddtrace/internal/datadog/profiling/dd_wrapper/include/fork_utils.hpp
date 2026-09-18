@@ -2,16 +2,27 @@
 
 #include <new>
 
-// TSan doesn't see placement-new as a mutex reset (libstdc++ std::mutex()
-// doesn't call pthread_mutex_init). Tell TSan explicitly.
-#if defined(__SANITIZE_THREAD__) || (defined(__has_feature) && __has_feature(thread_sanitizer))
+// Detect TSan. GCC uses __SANITIZE_THREAD__, Clang uses __has_feature.
+// __has_feature must be tested in a separate #if because GCC doesn't
+// define the macro and the preprocessor rejects __has_feature(x) as
+// a syntax error rather than evaluating it to 0.
+#if defined(__SANITIZE_THREAD__)
 #define DD_TSAN_ENABLED 1
+#elif defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define DD_TSAN_ENABLED 1
+#endif
+#endif
+
+#ifndef DD_TSAN_ENABLED
+#define DD_TSAN_ENABLED 0
+#endif
+
+#if DD_TSAN_ENABLED
 extern "C" {
 void __tsan_mutex_destroy(void* addr, unsigned flags);
 void __tsan_mutex_create(void* addr, unsigned flags);
 }
-#else
-#define DD_TSAN_ENABLED 0
 #endif
 
 namespace Datadog {
