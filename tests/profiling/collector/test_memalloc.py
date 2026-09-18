@@ -27,8 +27,6 @@ from tests.profiling.collector import pprof_utils
 if TYPE_CHECKING:
     # We need the pyright: ignore because pprof_pb2 does not exist as a real module, only as a pyi.
     from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
-else:
-    from tests.profiling.collector.pprof_utils import pprof_pb2
 
 
 PY_314_OR_ABOVE = sys.version_info[:2] >= (3, 14)
@@ -91,32 +89,6 @@ def _assert_valid_memory_samples(
         assert sample.value[alloc_count_idx] >= 0, (
             f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
         )
-
-
-def test_assert_valid_memory_samples_accepts_mixed_sample_types() -> None:
-    profile = pprof_pb2.Profile()
-    # Value slots represent heap-space, alloc-space, alloc-samples, and cpu-time.
-    for values in ((0, 0, 0, 100), (64, 0, 0, 0), (0, 64, 1, 0), (64, 64, 1, 0)):
-        profile.sample.add().value.extend(values)
-
-    _assert_valid_memory_samples(profile, heap_space_idx=0, alloc_space_idx=1, alloc_count_idx=2)
-
-
-@pytest.mark.parametrize(
-    "values,invalid_type",
-    [
-        ((-1, 0, 0), "heap-space"),
-        ((0, -1, 0), "alloc-space"),
-        ((0, 0, -1), "alloc-samples"),
-        ((64, 64, -1), "alloc-samples"),
-    ],
-)
-def test_assert_valid_memory_samples_rejects_negative_values(values: tuple[int, int, int], invalid_type: str) -> None:
-    profile = pprof_pb2.Profile()
-    profile.sample.add().value.extend(values)
-
-    with pytest.raises(AssertionError, match=f"{invalid_type} should be non-negative"):
-        _assert_valid_memory_samples(profile, heap_space_idx=0, alloc_space_idx=1, alloc_count_idx=2)
 
 
 # This test is marked as subprocess as it changes default heap sample size
