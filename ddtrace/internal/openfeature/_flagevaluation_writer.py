@@ -225,7 +225,12 @@ def _count_metric(name: str, value: int, reason: typing.Optional[str] = None) ->
     if value <= 0:
         return
     tags = (("reason", reason),) if reason else tuple()
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
+    try:
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
+    except Exception:
+        # Telemetry is best effort and must not abort a flush after its rows
+        # have been removed from the aggregation maps.
+        logger.debug("FlagEvaluationWriter: failed to record count metric")
 
 
 # ---------------------------------------------------------------------------

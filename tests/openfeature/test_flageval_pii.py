@@ -447,6 +447,22 @@ class TestWriterPrivacyBoundary:
     def test_error_allowlist_requires_explicit_openfeature_vocabulary_review(self) -> None:
         assert writer_module._PROTECTED_ERROR_CODES == {code.value for code in ErrorCode}
 
+    def test_failed_omission_metric_does_not_lose_valid_or_invalid_key_evaluations(self) -> None:
+        writer = FlagEvaluationWriter()
+        writer.enqueue(self.event(targeting_key=123))
+        writer.enqueue(self.event(targeting_key=CANONICAL_TARGETING_KEY))
+        with mock.patch.object(
+            writer_module.telemetry_writer, "add_count_metric", side_effect=RuntimeError("sink down")
+        ) as metric:
+            with mock.patch.object(writer, "_send_payload") as send:
+                writer.periodic()
+        metric.assert_called_once()
+        assert metric.call_args.args[1] == writer_module.FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC
+        rows = json.loads(send.call_args.args[0])["flagEvaluations"]
+        assert len(rows) == 2
+        assert sum(row["evaluation_count"] for row in rows) == 2
+        assert {row.get("targeting_key") for row in rows} == {None, CANONICAL_HASHED_TARGETING_KEY}
+
     @pytest.mark.parametrize("code", list(ErrorCode))
     @pytest.mark.parametrize("observe", [False, True])
     @pytest.mark.parametrize("degraded", [False, True])
