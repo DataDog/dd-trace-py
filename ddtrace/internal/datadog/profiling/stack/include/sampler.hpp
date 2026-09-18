@@ -32,14 +32,16 @@ struct SamplingThreadError
     std::string message;
 };
 
-// A component other than us owning SIGSEGV/SIGBUS, which forces the sampler onto the slower
-// syscall-based memory copy. `already_owned` distinguishes a handler that was already foreign
-// when the warmup window ended from one taken over after we had upgraded to safe_memcpy: the
-// latter means some component installed its handler lazily, mid-process.
+// A component other than us owning SIGSEGV/SIGBUS. Usually this pins the sampler onto the
+// slower syscall-based memory copy. `already_owned` distinguishes a handler that was already
+// foreign when the warmup window ended from one taken over after we had upgraded to
+// safe_memcpy: the latter means some component installed its handler lazily, mid-process.
+// `sampling_stopped` is true when no safe fallback was available, so sampling ended instead.
 struct ForeignSegvHandler
 {
     bool already_owned;
     std::string owner;
+    bool sampling_stopped;
 };
 
 enum class PauseResult : std::uint8_t
@@ -99,7 +101,7 @@ class Sampler
     std::mutex foreign_segv_handler_mutex_;
     std::optional<ForeignSegvHandler> foreign_segv_handler_;
     // noexcept: a string copy / lock failure must not escape the sampling thread.
-    void record_foreign_segv_handler(bool already_owned, const std::string& owner) noexcept;
+    void record_foreign_segv_handler(bool already_owned, const std::string& owner, bool sampling_stopped) noexcept;
 
     // This is a singleton, so no public constructor
     Sampler();

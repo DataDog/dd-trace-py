@@ -1134,7 +1134,8 @@ stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
             return nullptr;
         }
     }
-    return Py_BuildValue("(ON)", handler->already_owned ? Py_True : Py_False, owner);
+    return Py_BuildValue(
+      "(ONO)", handler->already_owned ? Py_True : Py_False, owner, handler->sampling_stopped ? Py_True : Py_False);
 }
 
 static PyMethodDef stack_methods[] = {
@@ -1236,7 +1237,8 @@ static PyMethodDef stack_methods[] = {
     { "take_foreign_segv_handler",
       stack_take_foreign_segv_handler,
       METH_NOARGS,
-      "Return and clear (already_owned, owner) describing the foreign owner of SIGSEGV/SIGBUS, or None" },
+      "Return and clear (already_owned, owner, sampling_stopped) describing the foreign owner of SIGSEGV/SIGBUS, or "
+      "None" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,

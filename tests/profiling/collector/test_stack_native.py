@@ -1531,7 +1531,7 @@ def test_snapshot_names_foreign_segv_handler_owner(
     owner: str = "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace"
     with mock.patch(
         "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
-        return_value=(already_owned, owner),
+        return_value=(already_owned, owner, False),
     ):
         with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
             with caplog.at_level(logging.WARNING, logger="ddtrace.profiling.collector.stack"):
@@ -1568,7 +1568,7 @@ def test_snapshot_emits_foreign_segv_handler_telemetry(already_owned: bool, expe
     owner: str = "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace"
     with mock.patch(
         "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
-        return_value=(already_owned, owner),
+        return_value=(already_owned, owner, False),
     ):
         with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
             with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
@@ -1603,7 +1603,7 @@ def test_snapshot_foreign_segv_handler_telemetry_sigbus_only_owner() -> None:
     owner: str = "SIGSEGV=ddtrace, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)"
     with mock.patch(
         "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
-        return_value=(False, owner),
+        return_value=(False, owner, False),
     ):
         with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
             with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
@@ -1613,6 +1613,38 @@ def test_snapshot_foreign_segv_handler_telemetry_sigbus_only_owner() -> None:
     tags: dict[str, str] = mock_add_log.call_args[1]["tags"]
     assert tags["handler_owner"] == "libfoo.so"
     assert mock_add_log.call_args[0][0] == TELEMETRY_LOG_LEVEL.WARNING
+
+
+def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: pytest.LogCaptureFixture) -> None:
+    """snapshot() reports a sampler shutdown, not a syscall fallback, when sampling stopped."""
+    import logging
+
+    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
+    owner: str = "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace"
+    with mock.patch(
+        "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
+        return_value=(False, owner, True),
+    ):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
+                with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.collector.stack"):
+                    stack.StackCollector.snapshot()
+
+    assert [r.levelname for r in caplog.records] == ["ERROR"]
+    assert owner in caplog.text
+    assert "stopped sampling" in caplog.text
+    assert "syscall-based memory copy" not in caplog.text
+    mock_add_log.assert_called_once()
+    call_args: mock._Call = mock_add_log.call_args
+    assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+    tags: dict[str, str] = call_args[1]["tags"]
+    assert tags == {
+        "error_type": "foreign_segv_handler",
+        "handler_owner": "libfoo.so",
+        "already_owned": "false",
+        "sampling_stopped": "true",
+    }
 
 
 @pytest.mark.parametrize(

@@ -286,12 +286,14 @@ def test_foreign_handler_after_warmup_fallback_and_oneshot_drain() -> None:
             time.sleep(0.05)
         assert saw_fallback, "sampler never fell back after the foreign SIGSEGV takeover"
 
-        notice: Optional[tuple[bool, str]] = stack.take_foreign_segv_handler()
+        notice: Optional[tuple[bool, str, bool]] = stack.take_foreign_segv_handler()
         assert notice is not None
         already_owned: bool = notice[0]
         owner: str = notice[1]
+        sampling_stopped: bool = notice[2]
         assert already_owned is False
         assert "SIGSEGV=SIG_DFL" in owner
+        assert sampling_stopped is False
         assert stack.take_foreign_segv_handler() is None
     finally:
         stack.stop()

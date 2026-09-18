@@ -192,32 +192,56 @@ class StackCollector(collector.Collector):
     def snapshot() -> None:
         # The sampling thread cannot touch Python, so it stashes what it needs reported and
         # we drain it here, on the scheduler thread, before every upload.
-        foreign_handler: typing.Optional[tuple[bool, str]] = stack.take_foreign_segv_handler()
+        foreign_handler: typing.Optional[tuple[bool, str, bool]] = stack.take_foreign_segv_handler()
         if foreign_handler is not None:
             already_owned: bool = foreign_handler[0]
             owner: str = foreign_handler[1]
-            # Not a failure: profiling continues, just on the slower copy. The owner is named so
-            # the component responsible can be identified without having to reproduce this.
-            LOG.warning(
-                "Another component owns the SIGSEGV/SIGBUS handler, so the stack profiler is using the slower "
-                "syscall-based memory copy for the rest of this process; sample quality may be reduced. "
-                "Handler owners: %s (%s).",
-                owner,
+            sampling_stopped: bool = foreign_handler[2]
+            ownership: str = (
                 "already foreign when the profiler finished warming up"
                 if already_owned
-                else "taken over after the profiler had upgraded to the faster copy",
-                extra={"send_to_telemetry": False},
+                else "taken over after the profiler had upgraded to the faster copy"
             )
             normalized_owner: str = _normalize_foreign_handler_owner(owner)
-            telemetry_writer.add_log(
-                TELEMETRY_LOG_LEVEL.WARNING,
-                "Another component owns the SIGSEGV/SIGBUS handler",
-                tags={
-                    "error_type": "foreign_segv_handler",
-                    "handler_owner": normalized_owner,
-                    "already_owned": str(already_owned).lower(),
-                },
-            )
+            if sampling_stopped:
+                LOG.error(
+                    "Another component owns the SIGSEGV/SIGBUS handler and no safe memory-copy fallback is "
+                    "available, so the stack profiler has stopped sampling. CPU/wall-time profiles will be empty. "
+                    "Handler owners: %s (%s).",
+                    owner,
+                    ownership,
+                    extra={"send_to_telemetry": False},
+                )
+                telemetry_writer.add_log(
+                    TELEMETRY_LOG_LEVEL.ERROR,
+                    "The stack profiler sampling thread stopped because no safe memory-copy fallback was available",
+                    tags={
+                        "error_type": "foreign_segv_handler",
+                        "handler_owner": normalized_owner,
+                        "already_owned": str(already_owned).lower(),
+                        "sampling_stopped": "true",
+                    },
+                )
+            else:
+                # Not a failure: profiling continues, just on the slower copy. The owner is named so
+                # the component responsible can be identified without having to reproduce this.
+                LOG.warning(
+                    "Another component owns the SIGSEGV/SIGBUS handler, so the stack profiler is using the slower "
+                    "syscall-based memory copy for the rest of this process; sample quality may be reduced. "
+                    "Handler owners: %s (%s).",
+                    owner,
+                    ownership,
+                    extra={"send_to_telemetry": False},
+                )
+                telemetry_writer.add_log(
+                    TELEMETRY_LOG_LEVEL.WARNING,
+                    "Another component owns the SIGSEGV/SIGBUS handler",
+                    tags={
+                        "error_type": "foreign_segv_handler",
+                        "handler_owner": normalized_owner,
+                        "already_owned": str(already_owned).lower(),
+                    },
+                )
 
         # The sampling thread also stashes the exception that killed it, if any.
         error = stack.take_sampling_thread_error()
