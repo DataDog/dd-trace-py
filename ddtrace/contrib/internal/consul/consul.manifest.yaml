@@ -6,7 +6,7 @@ description: Instruments synchronous Consul key-value store read, write, and del
 packages:
 - name: python-consul
 category:
-- db.client
+- http.client
 systems:
 - consul
 creation_date: '2019-09-04'

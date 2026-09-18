@@ -6,6 +6,6 @@ description: Instruments Logbook record processing to inject Datadog trace corre
 packages:
 - name: logbook
 category:
-- other
+- log.emission
 systems: []
 creation_date: '2023-11-13'

@@ -6,6 +6,6 @@ description: Instruments structlog processor chains to inject Datadog trace corr
 packages:
 - name: structlog
 category:
-- other
+- log.emission
 systems: []
 creation_date: '2023-10-17'

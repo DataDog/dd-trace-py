@@ -6,6 +6,6 @@ description: Instruments Loguru log records by injecting Datadog trace correlati
 packages:
 - name: loguru
 category:
-- other
+- log.emission
 systems: []
 creation_date: '2023-10-25'
