@@ -47,6 +47,15 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_capable(safe_memcpy_initialized);
     stats.set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
     stats.set_fast_copy_memory_enabled(fast_copy_active);
+    stats.set_fast_copy_memory_foreign_takeover(fast_copy_foreign_takeover.load(std::memory_order_relaxed));
+}
+
+static void
+mark_fast_copy_foreign_takeover()
+{
+    fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
+    mark_fast_copy_syscall_fallback();
+    update_fast_copy_stats(Sample::profile_borrow().stats());
 }
 
 void
@@ -492,7 +501,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // syscall copy (already active from warmup) for the life of
                         // the process.
                         handler_fallback_done = true;
-                        mark_fast_copy_syscall_fallback();
+                        mark_fast_copy_foreign_takeover();
                         const std::string owners = describe_segv_handler_owners_noexcept();
                         record_foreign_segv_handler(true, owners);
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
@@ -513,6 +522,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 const std::string owners = describe_segv_handler_owners_noexcept();
                 const bool fallback_ok = set_fast_copy_enabled(false);
                 record_foreign_segv_handler(false, owners);
+                mark_fast_copy_foreign_takeover();
                 if (!fallback_ok) {
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would
@@ -522,7 +532,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
                               << "Handler owners: " << owners << std::endl;
                     break;
                 }
-                mark_fast_copy_syscall_fallback();
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing. "
                           << "Handler owners: " << owners << std::endl;
@@ -758,6 +767,7 @@ Sampler::restart_after_fork()
     if (!fast_copy_user_disabled && !fast_copy_active && safe_memcpy_initialized && !segv_handler_installed()) {
         const std::string owners = describe_segv_handler_owners_noexcept();
         record_foreign_segv_handler(true, owners);
+        mark_fast_copy_foreign_takeover();
     }
     return true;
 }

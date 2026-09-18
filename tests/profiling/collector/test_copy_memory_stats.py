@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 
@@ -38,6 +40,9 @@ def test_copy_memory_error_count_present():
         assert "fast_copy_memory_capable" in metadata, f"Missing fast_copy_memory_capable in {f}: {metadata}"
         assert "fast_copy_memory_syscall_fallback" in metadata, (
             f"Missing fast_copy_memory_syscall_fallback in {f}: {metadata}"
+        )
+        assert "fast_copy_memory_foreign_takeover" in metadata, (
+            f"Missing fast_copy_memory_foreign_takeover in {f}: {metadata}"
         )
 
 
@@ -80,6 +85,7 @@ def test_fast_copy_memory_disabled():
             )
             assert metadata["fast_copy_memory_user_disabled"] is True, metadata
             assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
+            assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
 
 
 @pytest.mark.subprocess(
@@ -154,3 +160,72 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
+    assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_foreign_takeover",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_foreign_handler_takeover_metadata() -> None:
+    """A foreign SIGSEGV handler records foreign_takeover in internal metadata."""
+    import json
+    import os
+    import signal
+    import time
+    from typing import Any
+    from typing import Optional
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    _stack._set_fast_copy_warmup_seconds(2.0)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    # Land inside the warmup window, then let another component take SIGSEGV before the
+    # upgrade decision runs. The sampler must stay on the syscall copy and record why.
+    saw_warmup: bool = False
+    deadline: float = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        active: bool = _stack.fast_copy_memory_active()
+        if active is False:
+            saw_warmup = True
+            break
+        time.sleep(0.05)
+
+    assert saw_warmup, "sampler never dropped to the syscall copy"
+
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    # Wait past warmup and an upload interval so metadata is flushed.
+    time.sleep(4)
+    p.stop()
+
+    output_filename: str = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
+    assert files, "Expected at least one internal_metadata.json file"
+
+    metadata: Optional[dict[str, Any]] = None
+    for f in reversed(files):
+        with open(f) as fp:
+            candidate: dict[str, Any] = json.load(fp)
+
+        if candidate.get("sampling_event_count", 0) > 0:
+            metadata = candidate
+            break
+
+    assert metadata is not None, f"Expected an upload window with at least one sampling cycle: {files}"
+
+    assert metadata["fast_copy_memory_foreign_takeover"] is True, metadata
+    assert metadata["fast_copy_memory_syscall_fallback"] is True, metadata
+    assert metadata["fast_copy_memory_enabled"] is False, metadata
