@@ -80,7 +80,7 @@ jobs:
           DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
         run: |
           INSTALL_URL="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}/install.sh"
-          POLL_TIMEOUT="${POLL_TIMEOUT:-3600}"
+          POLL_TIMEOUT="${POLL_TIMEOUT:-3800}"
           POLL_INTERVAL="${POLL_INTERVAL:-30}"
           echo "Polling for: ${INSTALL_URL}"
           elapsed=0
