@@ -23,7 +23,6 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import ARTIFICIAL_GEN_AI_TAGS_TAG_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -42,6 +41,7 @@ from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
@@ -1130,4 +1130,4 @@ def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: O
                 span._set_attribute(gen_ai_key, value)
     # Without this tag, the backend processor identifies gen_ai tags on the APM span and creates
     # a duplicate LLMObs span.
-    span.set_tag(ARTIFICIAL_GEN_AI_TAGS_TAG_KEY, "true")
+    span.set_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY, "true")
