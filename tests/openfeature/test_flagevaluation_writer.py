@@ -98,10 +98,10 @@ def _make_event(
     variant: str = "on",
     allocation_key: str = "alloc-1",
     targeting_key: str = "user-1",
-    attrs: dict[str, typing.Any] | None = None,
+    attrs: typing.Optional[dict[str, typing.Any]] = None,
     runtime_default: bool = False,
     error_message: str = "",
-    eval_time_ms: int | None = None,
+    eval_time_ms: typing.Optional[int] = None,
 ) -> _EvalEvent:
     if eval_time_ms is None:
         eval_time_ms = int(time.time() * 1000)
@@ -133,12 +133,14 @@ def _wait_until(predicate: typing.Callable[[], typing.Any], timeout: float = 2.0
     return bool(predicate())
 
 
-def _assert_count_metric(mock_add_count: typing.Any, name: str, value: int, reason: str | None = None) -> None:
+def _assert_count_metric(
+    mock_add_count: typing.Any, name: str, value: int, reason: typing.Optional[str] = None
+) -> None:
     tags = (("reason", reason),) if reason else tuple()
     mock_add_count.assert_any_call(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
 
 
-def _assert_no_count_metric(mock_add_count: typing.Any, name: str, reason: str | None = None) -> None:
+def _assert_no_count_metric(mock_add_count: typing.Any, name: str, reason: typing.Optional[str] = None) -> None:
     tags = (("reason", reason),) if reason else tuple()
     for call in mock_add_count.call_args_list:
         if call.args == (TELEMETRY_NAMESPACE.TRACERS, name, mock.ANY, tags):
