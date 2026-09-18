@@ -1128,10 +1128,8 @@ stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
     PyObject* owner = PyUnicode_DecodeFSDefault(handler->owner.c_str());
     if (owner == nullptr) {
         PyErr_Clear();
-        owner = PyUnicode_Decode(handler->owner.c_str(),
-                                 static_cast<Py_ssize_t>(handler->owner.size()),
-                                 "utf-8",
-                                 "replace");
+        owner =
+          PyUnicode_Decode(handler->owner.c_str(), static_cast<Py_ssize_t>(handler->owner.size()), "utf-8", "replace");
         if (owner == nullptr) {
             return nullptr;
         }
