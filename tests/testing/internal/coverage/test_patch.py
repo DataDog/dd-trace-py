@@ -218,27 +218,22 @@ class TestCoverageErrorHandling:
         coverage_patch.stop_coverage()
         assert not coverage_patch.is_coverage_running()
 
-    def test_generate_report_with_invalid_path(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test generating report with invalid path."""
+    def test_generate_report_with_invalid_path(self, caplog: pytest.LogCaptureFixture, tmp_path: Path) -> None:
+        """Test generating a report when the output parent is not a directory."""
         coverage_patch.start_coverage()
         coverage_patch.stop_coverage()
 
-        # Try to generate report in non-existent directory
-        invalid_path = "/nonexistent/directory/coverage.lcov"
+        invalid_parent = tmp_path / "not-a-directory"
+        invalid_parent.touch()
+        invalid_path = invalid_parent / "coverage.lcov"
 
-        # Should handle error gracefully and return None
-        result = coverage_patch.generate_lcov_report(outfile=invalid_path)
+        result = coverage_patch.generate_lcov_report(outfile=str(invalid_path))
         assert result is None
 
-        # The result could be None or a valid percentage depending on implementation
-        # The key is that it doesn't crash
-
-        # Check if error was logged (may or may not happen depending on coverage.py behavior)
         error_logged = any(
             "An exception occurred when running a coverage report" in record.message for record in caplog.records
         )
         assert error_logged
-        # We don't assert this as it depends on how coverage.py handles the invalid path
 
         coverage_patch.erase_coverage()
 
