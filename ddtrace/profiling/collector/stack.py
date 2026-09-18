@@ -28,13 +28,11 @@ _HEX_DIGITS: str = "0123456789abcdefABCDEF"
 
 
 def _normalize_foreign_handler_owner_component(component: str) -> str:
-    """Return a low-cardinality owner token for one SIGSEGV/SIGBUS descriptor."""
     if component in _FOREIGN_HANDLER_OWNER_SYMBOLS:
         return component
     if component.startswith("unresolved@"):
         return "unresolved"
-    # Native format is `<path>+0x<offset> (<symbol>)`. Strip those generated suffixes
-    # from the right so a path that itself contains `+` or ` (` stays intact.
+    # Strip +0x / (symbol) from the right so a path containing those stays intact.
     path: str = component
     if path.endswith(")"):
         symbol_sep: int = path.rfind(" (")
@@ -50,7 +48,6 @@ def _normalize_foreign_handler_owner_component(component: str) -> str:
 
 
 def _normalize_foreign_handler_owner(owner: str) -> str:
-    """Normalize a foreign handler owner string to a basename-only tag value."""
     sigsegv_owner: typing.Optional[str] = None
     sigbus_owner: typing.Optional[str] = None
     for part in owner.split(", "):
@@ -58,8 +55,7 @@ def _normalize_foreign_handler_owner(owner: str) -> str:
             sigsegv_owner = _normalize_foreign_handler_owner_component(part[len("SIGSEGV=") :])
         elif part.startswith("SIGBUS="):
             sigbus_owner = _normalize_foreign_handler_owner_component(part[len("SIGBUS=") :])
-    # Prefer a concrete library / unresolved over SIG_DFL/SIG_IGN/unknown/none,
-    # and those over ddtrace (we already own that side).
+    # Concrete library / unresolved, then SIG_DFL/IGN/unknown/none, then ddtrace.
     for candidate in (sigsegv_owner, sigbus_owner):
         if candidate is not None and candidate not in _FOREIGN_HANDLER_OWNER_SYMBOLS:
             return candidate
@@ -190,8 +186,7 @@ class StackCollector(collector.Collector):
 
     @staticmethod
     def snapshot() -> None:
-        # The sampling thread cannot touch Python, so it stashes what it needs reported and
-        # we drain it here, on the scheduler thread, before every upload.
+        # Drain notices the sampling thread stashed (no GIL).
         foreign_handler: typing.Optional[tuple[bool, str, bool]] = stack.take_foreign_segv_handler()
         if foreign_handler is not None:
             already_owned: bool = foreign_handler[0]
@@ -223,8 +218,6 @@ class StackCollector(collector.Collector):
                     },
                 )
             else:
-                # Not a failure: profiling continues, just on the slower copy. The owner is named so
-                # the component responsible can be identified without having to reproduce this.
                 LOG.warning(
                     "Another component owns the SIGSEGV/SIGBUS handler, so the stack profiler is using the slower "
                     "syscall-based memory copy for the rest of this process; sample quality may be reduced. "
@@ -243,7 +236,6 @@ class StackCollector(collector.Collector):
                     },
                 )
 
-        # The sampling thread also stashes the exception that killed it, if any.
         error = stack.take_sampling_thread_error()
         if error is None:
             return

@@ -173,7 +173,6 @@ def test_fast_copy_memory_enabled() -> None:
     err=None,
 )
 def test_fast_copy_foreign_handler_takeover_metadata() -> None:
-    """A foreign SIGSEGV handler records foreign_takeover in internal metadata."""
     import json
     import os
     import signal
@@ -191,8 +190,7 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
-    # Land inside the warmup window, then let another component take SIGSEGV before the
-    # upgrade decision runs. The sampler must stay on the syscall copy and record why.
+    # Wait for warmup, then steal SIGSEGV before the upgrade decision.
     saw_warmup: bool = False
     deadline: float = time.monotonic() + 10
     while time.monotonic() < deadline:
@@ -207,7 +205,7 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     signal.signal(signal.SIGSEGV, signal.SIG_DFL)
     assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
 
-    # Wait past warmup and an upload interval so metadata is flushed.
+    # Past warmup (2s) plus an upload interval.
     time.sleep(4)
     p.stop()
 
@@ -240,7 +238,6 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     err=None,
 )
 def test_foreign_handler_after_warmup_fallback_and_oneshot_drain() -> None:
-    """Post-upgrade takeover falls back to the syscall copy and drains once."""
     import signal
     import time
     from typing import Optional
@@ -258,7 +255,7 @@ def test_foreign_handler_after_warmup_fallback_and_oneshot_drain() -> None:
     assert stack.start()
 
     try:
-        # Constructor-time True is not the upgrade; wait for warmup (False) first.
+        # Wait for warmup (False) before treating True as the upgrade.
         saw_warmup: bool = False
         saw_upgrade: bool = False
         upgrade_deadline: float = time.monotonic() + 10

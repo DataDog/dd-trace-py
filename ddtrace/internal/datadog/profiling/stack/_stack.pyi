@@ -19,16 +19,7 @@ def take_sampling_thread_error() -> Optional[tuple[str, str]]:
     ...
 
 def take_foreign_segv_handler() -> Optional[tuple[bool, str, bool]]:
-    """Return and clear (already_owned, owner, sampling_stopped) for a foreign SIGSEGV/SIGBUS handler.
-
-    owner names the current owner of each signal. already_owned is True when the
-    handler was already foreign at the end of the fast-copy warmup window, and False
-    when it was taken over after the sampler had upgraded to safe_memcpy.
-    sampling_stopped is True when no safe memory-copy fallback was available and
-    sampling ended instead of continuing on the syscall copy.
-
-    Returns None if no takeover has been recorded, or if one was already reported.
-    """
+    """Return and clear (already_owned, owner, sampling_stopped), or None if already reported."""
     ...
 
 # Sampling configuration

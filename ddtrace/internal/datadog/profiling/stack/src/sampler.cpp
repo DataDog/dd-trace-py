@@ -390,7 +390,7 @@ Sampler::record_foreign_segv_handler(bool already_owned, const std::string& owne
         const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
         foreign_segv_handler_ = ForeignSegvHandler{ already_owned, owner, sampling_stopped };
     } catch (...) {
-        // Diagnostic only: do not let a string copy or lock failure abort sampling.
+        // Swallow: diagnostic must not abort sampling.
         return;
     }
 }
@@ -505,9 +505,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // degrade sample quality (e.g. on asyncio workloads). We still prefer
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
-                // Fall back first, then record (same order as the warmup-miss site).
-                // If no safe copy is available we stop sampling; still record so Python
-                // can log who forced that.
+                // Fall back, then record (same order as the warmup-miss site).
                 const std::string owners = describe_segv_handler_owners();
                 const bool fallback_ok = set_fast_copy_enabled(false);
                 record_foreign_segv_handler(false, owners, !fallback_ok);
@@ -687,10 +685,7 @@ Sampler::postfork_child()
     new (&sampling_thread_error_mutex_) std::mutex();
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
 
-    // Drop any handler-takeover notice inherited from the parent; the parent reports
-    // its own. restart_after_fork() re-evaluates handlers once, before start(), if the
-    // parent had already fallen back (fast_copy_active stays false, so the sampling
-    // loop will not check again).
+    // Drop a parent-inherited takeover notice; restart_after_fork() re-records locally.
     new (&foreign_segv_handler_mutex_) std::mutex();
     new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
 
@@ -748,10 +743,7 @@ Sampler::restart_after_fork()
     if (!was_running_at_fork_) {
         return false;
     }
-    // After a parent fallback, fast_copy_active stays false, so the child's
-    // sampling loop never re-enters the handler check. If the user still
-    // wanted fast copy, re-evaluate once and record a child-local notice
-    // before start(), so the new thread cannot race the fallback flag.
+    // Parent fallback leaves fast_copy_active false; record a child-local notice before start() to avoid a race.
     if (!fast_copy_user_disabled && !fast_copy_active && safe_memcpy_initialized && !segv_handler_installed()) {
         const std::string owners = describe_segv_handler_owners();
         record_foreign_segv_handler(true, owners, false);

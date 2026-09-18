@@ -32,13 +32,7 @@ uninstall_segv_handler();
 bool
 segv_handler_installed();
 
-// Names the current owner of SIGSEGV and SIGBUS, resolving foreign handler addresses to
-// their shared object and nearest symbol, e.g.
-//   "SIGSEGV=/lib/libtorch_cpu.so+0x3f1a8 (fatal_signal_handler), SIGBUS=ddtrace".
-// For diagnostics only, to attribute a handler takeover to the component responsible.
-// Uses dladdr and allocates, so it is not async-signal-safe: call it from ordinary code
-// such as the sampling loop, never from inside a signal handler. noexcept: allocation
-// failure returns "unknown" rather than throwing into the sampling loop.
+// Not async-signal-safe; allocation failure returns "unknown".
 std::string
 describe_segv_handler_owners() noexcept;
 

@@ -171,8 +171,7 @@ describe_signal_owner(int signo)
         return "unknown";
     }
 
-    // sa_sigaction and sa_handler alias the same storage. Check DFL/IGN first so a
-    // SA_SIGINFO|SIG_DFL (or SIG_IGN) install is not misreported as none/unresolved.
+    // sa_handler aliases sa_sigaction; check DFL/IGN before treating the pointer as a handler.
     if (current.sa_handler == SIG_DFL) {
         return "SIG_DFL";
     }
@@ -191,7 +190,6 @@ describe_signal_owner(int signo)
 
     Dl_info info{};
     if (dladdr(addr, &info) == 0 || info.dli_fname == nullptr) {
-        // Not in any mapped object we can name (JIT-generated, or stripped mapping).
         char buf[32];
         snprintf(buf, sizeof(buf), "unresolved@%p", addr);
         return buf;

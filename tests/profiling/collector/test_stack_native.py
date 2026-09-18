@@ -1525,7 +1525,6 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
 def test_snapshot_names_foreign_segv_handler_owner(
     caplog: pytest.LogCaptureFixture, already_owned: bool, expected_phrase: str
 ) -> None:
-    """snapshot() reports a handler takeover at warning level, naming the foreign owner."""
     import logging
 
     owner: str = "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace"
@@ -1543,7 +1542,6 @@ def test_snapshot_names_foreign_segv_handler_owner(
 
 
 def test_snapshot_silent_without_foreign_segv_handler(caplog: pytest.LogCaptureFixture) -> None:
-    """snapshot() says nothing while the profiler still owns SIGSEGV/SIGBUS."""
     import logging
 
     with mock.patch("ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler", return_value=None):
@@ -1562,7 +1560,6 @@ def test_snapshot_silent_without_foreign_segv_handler(caplog: pytest.LogCaptureF
     ],
 )
 def test_snapshot_emits_foreign_segv_handler_telemetry(already_owned: bool, expected_already_owned: str) -> None:
-    """snapshot() reports a foreign handler owner to telemetry with a normalized basename tag."""
     from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
     owner: str = "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace"
@@ -1587,7 +1584,6 @@ def test_snapshot_emits_foreign_segv_handler_telemetry(already_owned: bool, expe
 
 
 def test_snapshot_foreign_segv_handler_telemetry_not_emitted_without_takeover() -> None:
-    """snapshot() does not emit foreign-handler telemetry when the handler is still ours."""
     with mock.patch("ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler", return_value=None):
         with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
             with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
@@ -1597,7 +1593,6 @@ def test_snapshot_foreign_segv_handler_telemetry_not_emitted_without_takeover() 
 
 
 def test_snapshot_foreign_segv_handler_telemetry_sigbus_only_owner() -> None:
-    """snapshot() tags the foreign SIGBUS owner when SIGSEGV is still ddtrace."""
     from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
     owner: str = "SIGSEGV=ddtrace, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)"
@@ -1616,7 +1611,6 @@ def test_snapshot_foreign_segv_handler_telemetry_sigbus_only_owner() -> None:
 
 
 def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: pytest.LogCaptureFixture) -> None:
-    """snapshot() reports a sampler shutdown, not a syscall fallback, when sampling stopped."""
     import logging
 
     from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -1662,7 +1656,6 @@ def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: py
     ],
 )
 def test_normalize_foreign_handler_owner_component(component: str, expected: str) -> None:
-    """Native +0x / symbol suffixes are stripped from the right, not at the first +."""
     assert stack._normalize_foreign_handler_owner_component(component) == expected
 
 
@@ -1676,5 +1669,4 @@ def test_normalize_foreign_handler_owner_component(component: str, expected: str
     ],
 )
 def test_normalize_foreign_handler_owner(owner: str, expected: str) -> None:
-    """Prefer a concrete library / unresolved over SIG_DFL/SIG_IGN/unknown/none."""
     assert stack._normalize_foreign_handler_owner(owner) == expected

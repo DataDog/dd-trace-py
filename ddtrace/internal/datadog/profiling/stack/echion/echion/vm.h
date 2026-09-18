@@ -60,8 +60,7 @@ inline bool fast_copy_user_disabled = false;
 // Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
 inline bool fast_copy_syscall_fallback = false;
 
-// Sticky: another component owns SIGSEGV/SIGBUS and we have ceded it. Written by the
-// sampling thread, inherited across fork so child profiles keep the cause bit.
+// Sticky: we ceded SIGSEGV/SIGBUS to another owner (survives fork).
 inline std::atomic<bool> fast_copy_foreign_takeover{ false };
 
 inline void

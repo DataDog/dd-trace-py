@@ -1123,8 +1123,7 @@ stack_take_foreign_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
     if (!handler.has_value()) {
         Py_RETURN_NONE;
     }
-    // dladdr paths are filesystem bytes, not UTF-8. "s" would raise UnicodeDecodeError
-    // and abort snapshot() instead of reporting the diagnostic.
+    // dladdr paths are filesystem bytes; "s" would raise and abort snapshot().
     PyObject* owner = PyUnicode_DecodeFSDefault(handler->owner.c_str());
     if (owner == nullptr) {
         PyErr_Clear();
@@ -1237,8 +1236,7 @@ static PyMethodDef stack_methods[] = {
     { "take_foreign_segv_handler",
       stack_take_foreign_segv_handler,
       METH_NOARGS,
-      "Return and clear (already_owned, owner, sampling_stopped) describing the foreign owner of SIGSEGV/SIGBUS, or "
-      "None" },
+      "Return and clear (already_owned, owner, sampling_stopped), or None" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,

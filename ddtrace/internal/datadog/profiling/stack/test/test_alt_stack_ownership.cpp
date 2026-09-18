@@ -151,9 +151,6 @@ foreign_siginfo_handler(int, siginfo_t*, void*)
 
 } // namespace
 
-// describe_segv_handler_owners() is the native half of the foreign-handler diagnostic.
-// Python snapshot tests mock take_foreign_segv_handler, so they never exercise dladdr
-// or the SIG_DFL / SIG_IGN / ddtrace classification.
 TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
 {
     RestoreSignalHandlers restore;
@@ -169,7 +166,6 @@ TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
     EXPECT_NE(def_ign.find("SIGSEGV=SIG_DFL"), std::string::npos);
     EXPECT_NE(def_ign.find("SIGBUS=SIG_IGN"), std::string::npos);
 
-    // Same storage alias: SA_SIGINFO|SIG_DFL / SIG_IGN must still be named DFL/IGN.
     sa = {};
     sa.sa_handler = SIG_DFL;
     sa.sa_flags = SA_SIGINFO;
