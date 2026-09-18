@@ -11,6 +11,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.http import TEST_MANAGEMENT_TESTS_TIMEOUT_SECONDS
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -259,8 +260,19 @@ class APIClient:
 
         try:
             result = self.connector.post_json(
-                "/api/v2/test/libraries/test-management/tests", request_data, telemetry=telemetry
+                "/api/v2/test/libraries/test-management/tests",
+                request_data,
+                telemetry=telemetry,
+                timeout_seconds=TEST_MANAGEMENT_TESTS_TIMEOUT_SECONDS,
             )
+            # AIDEV-NOTE: only log on failure so we can see whether the request exceeded its timeout
+            # budget. Successful calls are silent.
+            if result.error_type:
+                log.warning(
+                    "Test Management tests request took %.3fs (error: %s)",
+                    result.elapsed_seconds,
+                    result.error_type,
+                )
             result.on_error_raise_exception()
 
         except Exception as e:
