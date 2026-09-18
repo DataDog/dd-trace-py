@@ -131,6 +131,7 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 **Fix:**
 - ASGI `TraceMiddleware` finishes leftover descendant `SpanTypes.LLM` spans after `await self.app()` returns (`_finish_unfinished_llm_spans`). Do not attach this to request-span finish: the last `http.response.body` can precede more annotation. Do not finish enclosing LLM ancestors or non-LLM children
 - `TracedStream` / `TracedAsyncStream` `__del__` calls `close_stream()` so dropped partial iteration still finalizes; `close_stream()` is idempotent with `__iter__`/`__next__`
+- Stream-manager `__enter__` retains the child wrapper for the `with` body; `on_stream_created` runs before retain and finalizes on callback failure because `__exit__` will not run
 - Happy path should still annotate and finish the LLM span from the generator `finally` so teardown is a no-op
 
 ---

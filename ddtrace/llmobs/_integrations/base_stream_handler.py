@@ -18,6 +18,25 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+def _bind_entered_stream(parent, traced_stream):
+    # on_stream_created must run before we retain the child. If it raises,
+    # Python never calls __exit__/__aexit__, so finalize here. Do not retain
+    # on failure: that would pin the child and block its __del__.
+    try:
+        callback = parent._self_on_stream_created
+        if callback is not None:
+            callback(traced_stream)
+    except Exception as e:
+        try:
+            parent._self_handler.handle_exception(e)
+            parent._self_handler.close_stream(e)
+        except Exception:
+            log.debug("Failed to finalize traced stream after on_stream_created", exc_info=True)
+        raise
+    parent._self_entered_stream = traced_stream
+    return traced_stream
+
+
 class BaseStreamHandler(ABC):
     def __init__(self, integration, span, args, kwargs, **options):
         self.integration = integration
@@ -243,10 +262,7 @@ class TracedStream(wrapt.ObjectProxy):
         # update iterator in case we are wrapping a stream manager
         self._self_stream_iter = result
         traced_stream = TracedStream(result, self._self_handler, self._self_on_stream_created)
-        self._self_entered_stream = traced_stream
-        if self._self_on_stream_created:
-            self._self_on_stream_created(traced_stream)
-        return traced_stream
+        return _bind_entered_stream(self, traced_stream)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
@@ -341,10 +357,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         # update iterator in case we are wrapping a stream manager
         self._self_async_stream_iter = result
         traced_stream = TracedAsyncStream(result, self._self_handler, self._self_on_stream_created)
-        self._self_entered_stream = traced_stream
-        if self._self_on_stream_created:
-            self._self_on_stream_created(traced_stream)
-        return traced_stream
+        return _bind_entered_stream(self, traced_stream)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)

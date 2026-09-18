@@ -271,6 +271,35 @@ async def test_traced_async_stream_manager_without_as_does_not_finalize_on_enter
         assert handler.finalize_stream_calls == 0
 
 
+def test_traced_stream_finalizes_when_on_stream_created_raises():
+    handler = _SyncRecordingHandler()
+
+    def boom(_stream):
+        raise RuntimeError("callback failed")
+
+    traced = make_traced_stream(_StreamManager(3), handler, on_stream_created=boom)
+    with pytest.raises(RuntimeError, match="callback failed"):
+        with traced:
+            pass
+    assert handler.finalize_stream_calls == 1
+    assert traced._self_entered_stream is None
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_finalizes_when_on_stream_created_raises():
+    handler = _AsyncRecordingHandler()
+
+    def boom(_stream):
+        raise RuntimeError("callback failed")
+
+    traced = make_traced_stream(_AsyncStreamManager(3), handler, on_stream_created=boom)
+    with pytest.raises(RuntimeError, match="callback failed"):
+        async with traced:
+            pass
+    assert handler.finalize_stream_calls == 1
+    assert traced._self_entered_stream is None
+
+
 def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
     from ddtrace.contrib.internal.langchain.utils import LangchainStreamHandler
 
