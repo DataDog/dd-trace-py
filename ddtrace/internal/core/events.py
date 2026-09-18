@@ -58,16 +58,15 @@ Defaults must be defined in ``event_field(...)`` (for example ``default=...`` or
 from dataclasses import MISSING
 from dataclasses import dataclass
 from dataclasses import field
+import sys
 from typing import Any
 from typing import ClassVar
 from typing import TypeVar
 
-from ddtrace.internal.compat import is_at_most_py
-
 
 EventType = TypeVar("EventType", bound="Event")
 
-_PY3_9: bool = is_at_most_py(3, 9)
+_PY3_9: bool = sys.version_info[:2] == (3, 9)
 
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:

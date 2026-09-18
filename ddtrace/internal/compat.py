@@ -17,6 +17,7 @@ __all__ = [
     "PYTHON_VERSION_INFO",
     "is_at_least_py",
     "is_at_most_py",
+    "is_supported_python_version",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
@@ -26,7 +27,7 @@ PYTHON_VERSION_INFO = sys.version_info
 MAX_PY: tuple[int, int] = (3, 14)
 
 # Next CPython: packaging exclusive ceiling and wrap-live inclusive ceiling.
-# wrap() is live through NEXT_MAX_PY (`is_at_most_py(*NEXT_MAX_PY)`); 3.16 dies.
+# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.16 dies.
 # TODO(py-315): bump NEXT_MAX_PY to (3, 16) after 3.15 GAs
 NEXT_MAX_PY: tuple[int, int] = (3, 15)
 
@@ -40,7 +41,6 @@ def is_at_least_py(major: int, minor: int, version: Optional[tuple[int, ...]] = 
     """True if version is at or past (major, minor).
 
     Feature gates pass literals (`is_at_least_py(3, 15)`), not NEXT_MAX_PY.
-    The rolling next-max floor is `is_at_least_py(*NEXT_MAX_PY)`.
     """
     resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
     return resolved[:2] >= (major, minor)
@@ -50,12 +50,24 @@ def is_at_most_py(major: int, minor: int, version: Optional[tuple[int, ...]] = N
     """True if version is at or below (major, minor) inclusive.
 
     Exclusive `< (3, 13)` is `is_at_most_py(3, 12)`, not `is_at_most_py(3, 13)`.
-    Official support is `is_at_most_py(*MAX_PY)`. Wrap is live through
-    `is_at_most_py(*NEXT_MAX_PY)`. Feature gates stay `is_at_least_py(3, 15)`
-    literals, not these constants.
+    Official packaging support is `is_at_most_py(*MAX_PY)`. The rolling runtime
+    ceiling is `is_supported_python_version()`. Feature gates stay
+    `is_at_least_py(3, 15)` literals, not these constants.
     """
     resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
     return resolved[:2] <= (major, minor)
+
+
+def is_supported_python_version(version: Optional[tuple[int, ...]] = None) -> bool:
+    """True if version is within the rolling runtime compatibility ceiling.
+
+    Encapsulates ``PYTHON_VERSION_INFO[:2] <= NEXT_MAX_PY``. This is the
+    inclusive runtime ceiling (wrap/lazy live through the next CPython under
+    development), not the packaging/official support range represented by
+    ``MAX_PY`` / ``requires-python``.
+    """
+    resolved: tuple[int, ...] = version or PYTHON_VERSION_INFO[:2]
+    return resolved[:2] <= NEXT_MAX_PY
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
