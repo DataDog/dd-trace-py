@@ -31,6 +31,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_CYCLE
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_KEY_LENGTH
@@ -46,7 +49,6 @@ from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOI
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_PER_FLAG_BUCKET_TARGET
-from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DEGRADED_METRIC
@@ -77,6 +79,8 @@ from ddtrace.internal.openfeature._flagevaluation_writer import _flatten_sequenc
 from ddtrace.internal.openfeature._flagevaluation_writer import _json_dumps
 from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
+from ddtrace.internal.settings.openfeature import AGENTLESS
+from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import PeriodicThread
 
@@ -94,10 +98,10 @@ def _make_event(
     variant: str = "on",
     allocation_key: str = "alloc-1",
     targeting_key: str = "user-1",
-    attrs: dict = None,
+    attrs: dict[str, typing.Any] | None = None,
     runtime_default: bool = False,
     error_message: str = "",
-    eval_time_ms: int = None,
+    eval_time_ms: int | None = None,
 ) -> _EvalEvent:
     if eval_time_ms is None:
         eval_time_ms = int(time.time() * 1000)
@@ -120,25 +124,38 @@ class _UnsafeLeaf:
         raise AssertionError("arbitrary leaf conversion must not run")
 
 
-def _wait_until(predicate, timeout: float = 2.0) -> bool:
+def _wait_until(predicate: typing.Callable[[], typing.Any], timeout: float = 2.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():
             return True
         time.sleep(0.01)
-    return predicate()
+    return bool(predicate())
 
 
-def _assert_count_metric(mock_add_count, name: str, value: int, reason: str = None) -> None:
+def _assert_count_metric(mock_add_count: typing.Any, name: str, value: int, reason: str | None = None) -> None:
     tags = (("reason", reason),) if reason else tuple()
     mock_add_count.assert_any_call(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
 
 
-def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> None:
+def _assert_no_count_metric(mock_add_count: typing.Any, name: str, reason: str | None = None) -> None:
     tags = (("reason", reason),) if reason else tuple()
     for call in mock_add_count.call_args_list:
         if call.args == (TELEMETRY_NAMESPACE.TRACERS, name, mock.ANY, tags):
             raise AssertionError(f"unexpected metric {name} tags={tags}: {call}")
+
+
+def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key=None, site="datadoghq.com"):
+    return FeatureFlagEVPRouteSelector(
+        configuration_source=source,
+        agent_url="http://agent:8126",
+        api_key=api_key,
+        site=site,
+        info_provider=lambda _: {
+            "endpoints": endpoints,
+            "evp_proxy_allowed_headers": tuple(EVP_ORIGIN_HEADERS),
+        },
+    )
 
 
 def _json_dumps_rejecting_invalid_row(obj: typing.Any) -> bytes:
@@ -150,7 +167,7 @@ def _json_dumps_rejecting_invalid_row(obj: typing.Any) -> bytes:
 @pytest.fixture
 def writer():
     """Create a FlagEvaluationWriter that is NOT started (no background thread)."""
-    return FlagEvaluationWriter(interval=10.0)
+    return FlagEvaluationWriter(interval=10.0, route_selector=_route_selector())
 
 
 # ---------------------------------------------------------------------------
@@ -589,7 +606,7 @@ class TestFlattenAndPruneContext:
                 self.values = values
                 self.accessed: list[int] = []
 
-            def __getitem__(self, index: int) -> typing.Any:
+            def __getitem__(self, index: int) -> typing.Any:  # type: ignore[override]
                 self.accessed.append(index)
                 if index >= len(self.values):
                     raise IndexError(index)
@@ -1222,6 +1239,79 @@ class TestPeriodicFlush:
         assert headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_VALUE
         assert "Content-Type" in headers
 
+    def test_agentless_definitive_rejection_replays_direct_with_authentication(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.return_value = mock.Mock(status=405)
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        assert local_conn.request.call_args[0][1] == "/evp_proxy/v2/api/v2/flagevaluation"
+        _, direct_endpoint, _, direct_headers = direct_conn.request.call_args[0]
+        assert direct_endpoint == "/api/v2/flagevaluation"
+        assert direct_headers["DD-API-KEY"] == "secret"
+        assert direct_headers["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert direct_headers["DD-EVP-ORIGIN-VERSION"]
+        assert "X-Datadog-EVP-Subdomain" not in direct_headers
+
+    def test_agentless_unsafe_site_never_reaches_connection_factory(self):
+        mock_get_conn = mock.Mock()
+        selector = _route_selector(
+            source=AGENTLESS,
+            endpoints=(),
+            api_key="secret",
+            site="datadoghq.com%2eattacker.example",
+        )
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_not_called()
+
+    def test_agentless_ambiguous_failure_does_not_replay_current_batch(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.side_effect = ConnectionResetError("ambiguous")
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_called_once_with("http://agent:8126", timeout=2.0)
+        assert selector.select().direct is True
+
+        writer.enqueue(_make_event(flag_key="future-batch"))
+        writer.periodic()
+
+        assert mock_get_conn.call_args_list[-1] == mock.call(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )
+        assert direct_conn.request.call_args[0][1] == "/api/v2/flagevaluation"
+
     def test_two_evals_same_dims_aggregate_count_2(self, writer):
         t0 = int(time.time() * 1000)
         writer.enqueue(_make_event(eval_time_ms=t0))
@@ -1476,7 +1566,7 @@ _ALLOWED_BATCH_CONTEXT_FIELDS = {"service", "env", "version"}
 _ALLOWED_ROW_CONTEXT_FIELDS = {"evaluation", "dd"}
 
 
-def _assert_row_contract_valid(ev: dict) -> None:
+def _assert_row_contract_valid(ev: dict[str, typing.Any]) -> None:
     """Assert one flagevaluation row uses only the SDK-owned stable EVP fields."""
     extra_fields = set(ev) - _ALLOWED_EVENT_FIELDS
     assert not extra_fields, f"unknown flagevaluation row fields: {sorted(extra_fields)}"
@@ -1518,7 +1608,7 @@ def _assert_row_contract_valid(ev: dict) -> None:
         assert isinstance(ev["runtime_default_used"], bool)
 
 
-def _assert_batch_contract_valid(payload: dict) -> None:
+def _assert_batch_contract_valid(payload: dict[str, typing.Any]) -> None:
     """Assert the batch envelope uses only the stable fields this SDK emits."""
     extra_fields = set(payload) - _ALLOWED_BATCH_FIELDS
     assert not extra_fields, f"unknown flagevaluation batch fields: {sorted(extra_fields)}"
