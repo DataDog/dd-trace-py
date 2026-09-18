@@ -21,6 +21,7 @@ from litellm.integrations.custom_logger import CustomLogger
 from ddtrace import tracer
 from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
+from ddtrace.contrib.internal.litellm._gateway_metadata import response_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
 from ddtrace.contrib.internal.litellm._gateway_usage import BillingScope
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
@@ -207,6 +208,12 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                 "aws_session_token",
                 "vertex_credentials",
                 "azure_ad_token",
+                "oci_key",
+                "oci_key_file",
+                "oci_user",
+                "oci_fingerprint",
+                "oci_tenancy",
+                "oci_compartment_id",
             )
         )
         state = Pending(
@@ -370,6 +377,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                 tags = {key: value for key, value in tags.items() if not key.startswith("ai.billing.")}
             tags.update(scope.tags())
             tags["ai.billing.provider_source"] = "operator_mapping"
+            if scope.mode:
+                tags["ai.billing.mode_source"] = "operator_mapping"
         if not all(f"ai.billing.{key}" in tags for key in ("provider", "account_id", "product")):
             issues.add("billing_scope_unknown")
         if state.dynamic_credentials:
@@ -389,20 +398,20 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             )
         else:
             issues.add("model_unknown")
-        # Only a response-resolved tier is evidence. A requested 'auto' tier is not.
-        tier = label(get(response, "service_tier")) or label(get(get(response, "usage"), "service_tier"))
-        if tier and tier != "auto":
-            tags["ai.billing.mode"] = tier
+        provider = label(get(hidden, "custom_llm_provider")) or tags.get("ai.route.provider")
+        observed = response_tags(response, provider)
+        tier = observed.get("ai.observed.service_tier")
+        if observed.get("ai.observed.traffic_type", "").startswith("ON_DEMAND") and tier:
+            # Traffic type identifies the quota actually consumed. Preserve both
+            # observations and flag contradictory on-demand tiers, not just config.
+            # Provisioned quota and service tier describe different dimensions.
+            if {"default": "standard"}.get(tier, tier) != observed["ai.billing.mode"]:
+                issues.add("conflicting_response_billing_mode")
+        tags.update(observed)
         if "ai.billing.mode" not in tags:
             issues.add("billed_mode_unknown")
         if "ai.billing.geography" not in tags:
             issues.add("billing_geography_unknown")
-        for source, target in (
-            ("speed", "ai.observed.speed"),
-            ("inference_geo", "ai.observed.inference_geo"),
-        ):
-            if value := label(get(get(response, "usage"), source)):
-                tags[target] = value
         if provider := label(get(hidden, "custom_llm_provider")):
             tags["ai.model.provider"] = provider
         if response_id := label(get(response, "id")):

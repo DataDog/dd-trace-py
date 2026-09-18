@@ -11,6 +11,7 @@ import pytest
 
 from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
+from ddtrace.contrib.internal.litellm._gateway_metadata import response_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
 from ddtrace.contrib.internal.litellm._gateway_usage import BillingScope
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
@@ -153,7 +154,13 @@ async def test_identity_is_authenticated_no_secrets_and_opt_in_email():
         metadata={"cost_center": "eng", "secret": "hidden"},
     )
     assert data["metadata"][CORRELATION_FIELD] != "spoof"
-    await finish(callback, data, response(Usage(prompt_tokens=20, completion_tokens=5)))
+    await finish(
+        callback,
+        data,
+        response(
+            Usage(prompt_tokens=20, completion_tokens=5, cache_read_input_tokens=0, cache_creation_input_tokens=0)
+        ),
+    )
     record = records[0]
     assert record.tags["usr.id"] == "user-1"
     assert record.tags["team.id"] == "team-1"
@@ -263,7 +270,14 @@ def test_real_tracer_span_api(tracer):
             now - 2,
             now,
             {"usr.id": "u"},
-            normalize_usage({"prompt_tokens": 4, "completion_tokens": 2}),
+            normalize_usage(
+                {
+                    "prompt_tokens": 4,
+                    "completion_tokens": 2,
+                    "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                }
+            ),
         )
     )
     span = captured[0]
@@ -297,11 +311,15 @@ def test_real_tracer_span_api(tracer):
 )
 def test_native_provider_input_semantics(operation, raw):
     result = normalize_usage(raw, operation)
-    assert result.quantities["input_uncached_tokens"] == 60
+    if operation == "anthropic_messages":
+        assert result.quantities["input_uncached_tokens"] == 60
+        assert not result.issues
+    else:
+        assert "input_uncached_tokens" not in result.quantities
+        assert result.issues == {"cache_write_detail_missing"}
     assert result.quantities["input_cache_read_tokens"] == 40
     assert result.quantities["output_tokens"] == 25
     assert result.diagnostics["context_tokens"] == 100
-    assert not result.issues
 
 
 async def test_multimodal_request_without_usage_breakdown_is_not_allocatable():
@@ -832,3 +850,188 @@ def test_arbitrary_endpoint_objects_are_not_stringified():
     assert (
         route_tags({"model": "openai/gpt-4o", "api_base": Endpoint()})["ai.route.endpoint_host"] == "us.api.openai.com"
     )
+
+
+@pytest.mark.parametrize("in_model", [False, True])
+async def test_bedrock_resource_scope_reaches_apm_without_inventing_billed_account(tracer, test_spans, in_model):
+    arn = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-1"
+    route = {"model": "bedrock/anthropic.claude", "model_id": arn}
+    if in_model:
+        route = {"model": "bedrock/" + arn}
+    callback = make_callback(sink=DatadogSink(tracer))
+    data = await start(callback, data={"metadata": {"model_id": "spoofed"}})
+    await callback.async_pre_call_deployment_hook({**data, **route, "model_info": {"id": "dep-1"}}, "completion")
+    callback.log_pre_api_call(None, None, {"litellm_params": data, "additional_args": {}})
+    await finish(callback, data, response(Usage(prompt_tokens=10, completion_tokens=1)))
+    span = test_spans.pop()[0]
+    assert span.get_tag("ai.billing.resource_id") == arn
+    assert span.get_tag("ai.route.resource_id") == arn
+    assert span.get_tag("ai.route.resource_region") == "us-east-1"
+    assert span.get_tag("ai.route.resource_owner_account_id") == "123456789012"
+    assert span.get_tag("ai.gateway.deployment_id") == "dep-1"
+    assert span.get_tag("ai.billing.account_id") is None
+    assert span.get_tag("ai.billing.geography") is None
+    assert "spoofed" not in repr(span)
+
+
+def test_provider_model_id_overrides_bedrock_profile_and_is_not_a_gateway_deployment():
+    arn = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-1"
+    previous = route_tags({"model": "bedrock/anthropic.claude", "model_id": arn})
+    tags = route_tags({"model_id": "anthropic.claude-v2"}, previous)
+    assert tags["ai.route.model_id"] == "anthropic.claude-v2"
+    assert "ai.billing.resource_id" not in tags
+    tags = route_tags({"model": "openai/gpt-4o", "model_id": arn})
+    assert "ai.route.model_id" not in tags
+    assert "ai.billing.resource_id" not in tags
+    tags = route_tags({"api_base": "https://gateway.example"}, previous)
+    assert tags["ai.route.resource_id"] == arn
+    assert "ai.billing.resource_id" not in tags
+
+
+@pytest.mark.parametrize("suffix", ["services.ai.azure.com", "models.ai.azure.com", "openai.azure.com"])
+def test_azure_ai_official_and_lookalike_endpoints(suffix):
+    for host, official in ((f"resource.{suffix}", True), (f"resource.{suffix}.evil.test", False)):
+        tags = route_tags({"model": "azure_ai/claude-sonnet-4-6", "api_base": f"https://{host}/anthropic"})
+        assert (tags.get("ai.billing.provider") == "azure") is official
+        assert "ai.billing.account_id" not in tags
+        assert "ai.billing.geography" not in tags
+    assert route_tags({"model": "azure_ai/claude-sonnet-4-6"})["ai.billing.provider"] == "azure"
+
+
+def test_oci_explicit_scope_and_credentials_are_not_mixed():
+    tags = route_tags(
+        {
+            "model": "oci/cohere.command-r-plus",
+            "oci_tenancy": "ocid1.tenancy.oc1..test",
+            "oci_compartment_id": "ocid1.compartment.oc1..test",
+            "oci_region": "us-ashburn-1",
+            "oci_key": "PRIVATE key",
+            "oci_key_file": "/PRIVATE.pem",
+            "oci_user": "PRIVATE user",
+            "oci_fingerprint": "PRIVATE fingerprint",
+        }
+    )
+    assert tags["ai.billing.provider"] == "oracle"
+    assert tags["ai.route.oci_tenancy"] == "ocid1.tenancy.oc1..test"
+    assert "ai.billing.account_id" not in tags
+    assert tags["ai.billing.project_id"] == "ocid1.compartment.oc1..test"
+    assert tags["ai.route.oci_region"] == "us-ashburn-1"
+    assert "PRIVATE" not in repr(tags)
+    for host, official in (
+        ("inference.generativeai.us-ashburn-1.oci.oraclecloud.com", True),
+        ("inference.generativeai.us-ashburn-1.oci.oraclecloud.com.evil.test", False),
+        ("gateway.example", False),
+    ):
+        resolved = route_tags({"api_base": "https://" + host}, tags)
+        assert (resolved.get("ai.billing.provider") == "oracle") is official
+        assert ("ai.billing.project_id" in resolved) is official
+
+
+@pytest.mark.parametrize(
+    "key", ["oci_key", "oci_key_file", "oci_user", "oci_fingerprint", "oci_tenancy", "oci_compartment_id"]
+)
+async def test_client_oci_overrides_disable_operator_scope(key):
+    records = []
+    callback = make_callback({"dep-1": SCOPE}, sink=records.append)
+    data = await start(callback, data={key: "PRIVATE"})
+    await finish(callback, data, response(Usage(prompt_tokens=3, completion_tokens=1)))
+    assert "ai.billing.account_id" not in records[0].tags
+    assert "client_credentials_or_endpoint" in records[0].tags["ai.attribution.issues"]
+    assert "PRIVATE" not in repr(records)
+
+
+@pytest.mark.parametrize(
+    "traffic,mode",
+    [
+        ("ON_DEMAND", "standard"),
+        ("ON_DEMAND_PRIORITY", "priority"),
+        ("ON_DEMAND_FLEX", "flex"),
+        ("PROVISIONED_THROUGHPUT", "provisioned_throughput"),
+    ],
+)
+async def test_vertex_returned_traffic_overrides_config_and_reaches_apm(tracer, test_spans, traffic, mode):
+    scope = BillingScope("gcp", "billing-1", "vertex-ai", mode="standard", geography="global")
+    callback = make_callback({"dep-1": scope}, sink=DatadogSink(tracer))
+    data = await start(callback, data={"metadata": {"traffic_type": "spoofed"}})
+    await callback.async_pre_call_deployment_hook(
+        {**data, "model": "vertex_ai/gemini-2.5-pro", "model_info": {"id": "dep-1"}}, "completion"
+    )
+    result = response(Usage(prompt_tokens=10, completion_tokens=1), service_tier="default")
+    result._hidden_params["provider_specific_fields"] = {"traffic_type": traffic, "thought_signature": "PRIVATE"}
+    await finish(callback, data, result)
+    span = test_spans.pop()[0]
+    assert span.get_tag("ai.observed.traffic_type") == traffic
+    assert span.get_tag("ai.observed.service_tier") == "default"
+    assert span.get_tag("ai.billing.mode") == mode
+    assert span.get_tag("ai.billing.mode_source") == "response_traffic_type"
+    assert ("conflicting_response_billing_mode" in span.get_tag("ai.attribution.issues")) is (
+        mode in ("priority", "flex")
+    )
+    assert "PRIVATE" not in repr(span)
+    assert "spoofed" not in repr(span)
+
+
+@pytest.mark.parametrize("traffic", [None, "TRAFFIC_TYPE_UNSPECIFIED", "PRIVATE", {"secret": "PRIVATE"}])
+def test_unknown_vertex_traffic_is_not_exported_or_used_as_billing_mode(traffic):
+    result = {"_hidden_params": {"provider_specific_fields": {"traffic_type": traffic}}}
+    assert not response_tags(result, "vertex_ai")
+    result["_hidden_params"]["provider_specific_fields"]["traffic_type"] = "PROVISIONED_THROUGHPUT"
+    assert not response_tags(result, "openai")
+
+
+def test_response_request_ids_are_bounded_allowlisted_and_unambiguous():
+    headers = {
+        "llm_provider-X-Request-ID": "request-openai",
+        "llm_provider-request-id": "request-anthropic",
+        "llm_provider-x-amzn-requestid": "request-bedrock",
+        "llm_provider-apim-request-id": "request-azure",
+        "llm_provider-opc-request-id": "request-oci",
+        "authorization": "Bearer PRIVATE",
+        "llm_provider-set-cookie": "PRIVATE",
+        "llm_provider-PRIVATE": "PRIVATE",
+    }
+    tags = response_tags({"_hidden_params": {"additional_headers": headers}}, "openai")
+    assert len(tags) == 5
+    assert tags["ai.response.x_request_id"] == "request-openai"
+    assert tags["ai.response.x_amzn_requestid"] == "request-bedrock"
+    assert "PRIVATE" not in repr(tags)
+    headers["llm_provider-x-request-id"] = "different"
+    headers["llm_provider-request-id"] = "sk-PRIVATE"
+    headers["llm_provider-apim-request-id"] = "x" * 257
+    headers["llm_provider-opc-request-id"] = {"PRIVATE": "PRIVATE"}
+    tags = response_tags({"_hidden_params": {"additional_headers": headers}}, "openai")
+    assert tags == {"ai.response.x_amzn_requestid": "request-bedrock"}
+    assert not response_tags({"_hidden_params": {"additional_headers": dict.fromkeys(map(str, range(129)))}}, "openai")
+
+
+def test_long_resource_ids_remain_exact_with_a_separate_bound():
+    resource = (
+        "/subscriptions/sub/resourceGroups/"
+        + "g" * 100
+        + "/providers/Microsoft.CognitiveServices/accounts/"
+        + "a" * 100
+    )
+    scope = BillingScope("azure", "sub", "foundry", resource_id=resource)
+    assert scope.tags()["ai.billing.resource_id"] == resource
+    assert len(resource) > 256
+    for invalid in ("x" * 2049, "sk-PRIVATE", "resource\nPRIVATE", {"PRIVATE": "PRIVATE"}):
+        with pytest.raises(ValueError):
+            BillingScope("azure", "sub", "foundry", resource_id=invalid)
+
+
+@pytest.mark.parametrize("sdk_usage", [False, True])
+def test_absent_cache_details_remain_unknown_not_explicit_zero(sdk_usage):
+    raw = {"prompt_tokens": 100, "completion_tokens": 10}
+    usage = normalize_usage(Usage(**raw) if sdk_usage else raw)
+    assert usage.diagnostics["input_cache_read_reported"] == 0
+    assert usage.diagnostics["input_cache_write_reported"] == 0
+    assert "input_cache_read_tokens" not in usage.diagnostics
+    assert "input_cache_write_tokens" not in usage.diagnostics
+    assert usage.quantities == {"output_tokens": 10}
+    assert {"cache_read_detail_missing", "cache_write_detail_missing"} <= usage.issues
+    raw.update(cache_read_input_tokens=0, cache_creation_input_tokens=0)
+    usage = normalize_usage(Usage(**raw) if sdk_usage else raw)
+    assert usage.diagnostics["input_cache_read_reported"] == 1
+    assert usage.diagnostics["input_cache_write_reported"] == 1
+    assert usage.quantities["input_uncached_tokens"] == 100
+    assert not usage.issues

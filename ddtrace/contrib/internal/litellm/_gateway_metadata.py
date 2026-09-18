@@ -15,11 +15,25 @@ _PROVIDERS = {
     "openai": ("openai", "api"),
     "anthropic": ("anthropic", "platform-api"),
     "azure": ("azure", "foundry"),
+    "azure_ai": ("azure", "foundry"),
     "bedrock": ("aws", "bedrock"),
     "vertex_ai": ("gcp", "vertex-ai"),
     "gemini": ("gcp", "gemini-api"),
+    "oci": ("oracle", "generative-ai"),
 }
 _VERTEX_HOST = re.compile(r"(?:[a-z0-9-]+-)?aiplatform\.googleapis\.com")
+_OCI_HOST = re.compile(r"inference\.generativeai\.[a-z0-9-]+\.oci\.oraclecloud\.com")
+_BEDROCK_RESOURCE = re.compile(
+    r"arn:(?:aws|aws-us-gov|aws-cn):bedrock:(?P<region>[a-z0-9-]+):(?P<account>[0-9]{12})?:"
+    r"(?:application-inference-profile|inference-profile|provisioned-model|imported-model|custom-model-deployment|"
+    r"foundation-model)/[a-zA-Z0-9_.:/-]+"
+)
+_VERTEX_TRAFFIC_MODES = {
+    "ON_DEMAND": "standard",
+    "ON_DEMAND_PRIORITY": "priority",
+    "ON_DEMAND_FLEX": "flex",
+    "PROVISIONED_THROUGHPUT": "provisioned_throughput",
+}
 # Keep this explicit: an arbitrary subdomain does not establish the billing provider.
 # Regional endpoints: https://developers.openai.com/api/docs/guides/your-data
 _OPENAI_REGIONAL_HOSTS = {
@@ -112,7 +126,7 @@ def cache_tags(data: Any, prefix: str) -> dict[str, str]:
 def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers: Any = None) -> dict[str, str]:
     tags: dict[str, str] = {}
     previous = previous or {}
-    model = label(get(data, "model")) or previous.get("ai.route.model")
+    model = label(get(data, "model"), 2048) or previous.get("ai.route.model")
     provider = label(get(data, "custom_llm_provider")) or previous.get("ai.route.provider")
     if model:
         tags["ai.route.model"] = model
@@ -131,6 +145,23 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
     ):
         if value := label(get(data, key)) or previous.get(f"ai.route.{key}"):
             tags[f"ai.route.{key}"] = value
+    if provider == "bedrock":
+        # This is the provider's modelId, NOT _hidden_params.model_id (router deployment).
+        model_id = label(get(data, "model_id"), 2048) if "model_id" in data else previous.get("ai.route.model_id")
+        if model_id:
+            tags["ai.route.model_id"] = model_id
+        resource = model_id or (model or "").removeprefix("bedrock/").removeprefix("converse/").removeprefix("invoke/")
+        match = _BEDROCK_RESOURCE.fullmatch(resource)
+        if match:
+            tags["ai.route.resource_id"] = resource
+            tags["ai.route.resource_region"] = match["region"]
+            if match["account"]:
+                # Resource ownership does not establish the caller's billed account.
+                tags["ai.route.resource_owner_account_id"] = match["account"]
+    if provider == "oci":
+        for key in ("oci_tenancy", "oci_compartment_id", "oci_region"):
+            if value := label(get(data, key)) or previous.get(f"ai.route.{key}"):
+                tags[f"ai.route.{key}"] = value
     # Only the provider pre-call hook supplies headers, never ingress request headers.
     # Select non-secret OpenAI scope IDs without retaining authorization or other headers.
     if provider == "openai" and "ai.route.project" in previous:
@@ -177,10 +208,14 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
         and (
             (provider == "openai" and (host == "api.openai.com" or host in _OPENAI_REGIONAL_HOSTS))
             or (provider == "anthropic" and host == "api.anthropic.com")
-            or (provider == "azure" and host.endswith((".openai.azure.com", ".services.ai.azure.com")))
+            or (
+                provider in ("azure", "azure_ai")
+                and host.endswith((".openai.azure.com", ".services.ai.azure.com", ".models.ai.azure.com"))
+            )
             or (provider == "bedrock" and host.startswith("bedrock-runtime.") and host.endswith(".amazonaws.com"))
             or (provider == "vertex_ai" and _VERTEX_HOST.fullmatch(host) is not None)
             or (provider == "gemini" and host == "generativelanguage.googleapis.com")
+            or (provider == "oci" and _OCI_HOST.fullmatch(host) is not None)
         )
     )
     if provider in _PROVIDERS and official:
@@ -193,4 +228,47 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
             tags["ai.billing.project_id"] = tags["ai.route.project"]
         if provider == "vertex_ai" and "ai.route.vertex_project" in tags:
             tags["ai.billing.project_id"] = tags["ai.route.vertex_project"]
+        if provider == "bedrock" and "ai.route.resource_id" in tags:
+            tags["ai.billing.resource_id"] = tags["ai.route.resource_id"]
+        if provider == "oci":
+            # The signer's tenancy is useful join evidence, but cross-tenancy access
+            # means it is not necessarily the account billed for the resource.
+            if "ai.route.oci_compartment_id" in tags:
+                tags["ai.billing.project_id"] = tags["ai.route.oci_compartment_id"]
+    return tags
+
+
+def response_tags(response: Any, provider: Optional[str]) -> dict[str, str]:
+    """Retain explicit pricing and correlation scalars, never raw response metadata."""
+    tags: dict[str, str] = {}
+    usage = get(response, "usage")
+    tier = label(get(response, "service_tier")) or label(get(usage, "service_tier"))
+    if tier and tier != "auto":
+        tags["ai.observed.service_tier"] = tier
+        tags["ai.billing.mode"] = tier
+        tags["ai.billing.mode_source"] = "response_service_tier"
+    hidden = get(response, "_hidden_params")
+    if provider in ("vertex_ai", "gemini"):
+        traffic = get(get(hidden, "provider_specific_fields"), "traffic_type")
+        if isinstance(traffic, str) and traffic in _VERTEX_TRAFFIC_MODES:
+            tags["ai.observed.traffic_type"] = traffic
+            tags["ai.billing.mode"] = _VERTEX_TRAFFIC_MODES[traffic]
+            tags["ai.billing.mode_source"] = "response_traffic_type"
+    for key in ("speed", "inference_geo"):
+        if value := label(get(usage, key)):
+            tags[f"ai.observed.{key}"] = value
+    # LiteLLM prefixes retained upstream headers with llm_provider-. Never read
+    # caller headers, nor export provider-specific fields containing reasoning/content.
+    headers = get(hidden, "additional_headers")
+    if isinstance(headers, Mapping) and len(headers) <= 128:
+        selected: dict[str, set[Optional[str]]] = {}
+        for header, raw_value in headers.items():
+            if not isinstance(header, str):
+                continue
+            key = header.lower().removeprefix("llm_provider-")
+            if key in ("x-request-id", "request-id", "x-amzn-requestid", "apim-request-id", "opc-request-id"):
+                selected.setdefault(key, set()).add(label(raw_value))
+        for key, values in selected.items():
+            if len(values) == 1 and (value := next(iter(values))) is not None:
+                tags[f"ai.response.{key.replace('-', '_')}"] = value
     return tags

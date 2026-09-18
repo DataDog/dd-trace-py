@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+from urllib.parse import unquote
 
 import httpx
 import litellm
@@ -20,6 +21,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[4]
+BEDROCK_PROFILE = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/local-profile"
 
 
 @pytest.fixture(scope="module")
@@ -37,6 +39,8 @@ def gateway(tmp_path_factory):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("x-request-id", "upstream-request-local")
+            self.send_header("set-cookie", "PRIVATE COOKIE")
             self.end_headers()
             self.wfile.write(body)
 
@@ -61,7 +65,25 @@ def gateway(tmp_path_factory):
             if self.path == "/v0.4/traces":
                 return self.do_PUT()
             data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            provider_requests.append({**data, "observed_project_header": self.headers.get("OpenAI-Project")})
+            provider_requests.append(
+                {**data, "observed_project_header": self.headers.get("OpenAI-Project"), "observed_path": self.path}
+            )
+            if self.path.startswith("/model/") and self.path.endswith("/converse"):
+                self.respond(
+                    {
+                        "output": {"message": {"role": "assistant", "content": [{"text": "PRIVATE OUTPUT"}]}},
+                        "stopReason": "end_turn",
+                        "usage": {
+                            "inputTokens": 60,
+                            "outputTokens": 25,
+                            "totalTokens": 85,
+                            "cacheReadInputTokens": 40,
+                            "cacheWriteInputTokens": 0,
+                        },
+                        "metrics": {"latencyMs": 10},
+                    }
+                )
+                return
             if self.path == "/v1/embeddings":
                 self.respond(
                     {
@@ -305,6 +327,21 @@ def gateway(tmp_path_factory):
         }
     )
     config_path = temp / "config.yaml"
+    models.append(
+        {
+            "model_name": "bedrock-profile",
+            "litellm_params": {
+                "model": "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+                "model_id": BEDROCK_PROFILE,
+                "aws_region_name": "us-east-1",
+                "aws_access_key_id": "SYNTHETIC-AWS-ACCESS",
+                "aws_secret_access_key": "SYNTHETIC-AWS-SECRET",
+                "aws_bedrock_runtime_endpoint": local,
+                "timeout": 5,
+            },
+            "model_info": {"id": "bedrock-deployment"},
+        }
+    )
     config_path.write_text(yaml.safe_dump(config))
     # Inherit only OS/runtime necessities, never real cloud/API/Datadog credentials.
     env = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR", "SYSTEMROOT") if key in os.environ}
@@ -465,12 +502,19 @@ async def test_real_proxy_and_wire_traces(gateway):
         "sub-test",
     ]
     for span in successful:
-        assert span["metrics"]["ai.usage.input_uncached_tokens"] == 60
+        # The OpenAI-shaped mock has no cache-write counter. Preserve totals and
+        # cache reads without silently fabricating a complete uncached partition.
+        assert "ai.usage.input_uncached_tokens" not in span["metrics"]
+        assert span["metrics"]["ai.observed.input_tokens"] == 100
+        assert span["metrics"]["ai.observed.input_cache_write_reported"] == 0
+        assert "cache_write_detail_missing" in span["meta"]["ai.attribution.issues"]
         assert span["metrics"]["ai.usage.input_cache_read_tokens"] == 40
         assert span["metrics"]["ai.usage.output_tokens"] == 25
         assert span["metrics"]["ai.observed.context_tokens"] == 100
         assert span["meta"]["ai.route.provider"] == "openai"
         assert span["meta"]["ai.route.endpoint_host"] == "127.0.0.1"
+        if span["meta"]["usr.id"] == "alice":
+            assert span["meta"]["ai.response.x_request_id"] == "upstream-request-local"
         assert span["meta"]["ai.route.organization"] == "org-router"
         assert span["meta"]["ai.route.project"] == "proj-router"
         assert span["meta"]["ai.request.service_tier"] == "priority"
@@ -479,6 +523,7 @@ async def test_real_proxy_and_wire_traces(gateway):
     for secret in (
         "PRIVATE PROMPT",
         "PRIVATE OUTPUT",
+        "PRIVATE COOKIE",
         "SYNTHETIC-PROVIDER-SECRET",
         "SPOOFED",
         "spoofed",
@@ -541,7 +586,12 @@ async def test_native_coding_agent_endpoints(gateway, stream):
         "anthropic-org-test",
     }
     for s in spans:
-        assert s["metrics"]["ai.usage.input_uncached_tokens"] == 60, s
+        if s["meta"]["ai.operation"] == "anthropic_messages":
+            assert s["metrics"]["ai.usage.input_uncached_tokens"] == 60, s
+        else:
+            assert "ai.usage.input_uncached_tokens" not in s["metrics"]
+            assert s["metrics"]["ai.observed.input_tokens"] == 100
+            assert "cache_write_detail_missing" in s["meta"]["ai.attribution.issues"]
         assert s["metrics"]["ai.usage.input_cache_read_tokens"] == 40
         assert s["metrics"]["ai.usage.output_tokens"] == 25
         assert s["meta"]["usr.id"] == ("alice" if s["meta"]["ai.operation"] == "anthropic_messages" else "bob")
@@ -596,3 +646,38 @@ async def test_embeddings_and_multimodal_wire_counters(gateway):
     assert "ai.usage.input_uncached_tokens" not in modal["metrics"]
     assert "ai.billing.provider" not in modal["meta"]  # Custom endpoint with no mapping.
     assert "PRIVATE" not in json.dumps(spans)
+
+
+async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway):
+    url, traces, upstream = gateway
+    async with httpx.AsyncClient(timeout=20) as client:
+        result = await client.post(
+            f"{url}/chat/completions",
+            headers={"Authorization": "Bearer test-alice"},
+            json={"model": "bedrock-profile", "messages": [{"role": "user", "content": "PRIVATE PROMPT"}]},
+        )
+    assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [
+            span
+            for trace in list(traces)
+            for span in trace
+            if span.get("name") == "ai_gateway.usage"
+            and span["meta"].get("ai.gateway.deployment_id") == "bedrock-deployment"
+        ]
+        if spans:
+            break
+        await asyncio.sleep(0.2)
+    assert len(spans) == 1
+    span = spans[0]
+    assert span["meta"]["ai.route.model_id"] == BEDROCK_PROFILE
+    assert span["meta"]["ai.route.resource_id"] == BEDROCK_PROFILE
+    assert span["meta"]["ai.route.resource_region"] == "us-east-1"
+    assert "ai.billing.account_id" not in span["meta"]
+    # The mock is a custom endpoint, so only route evidence, not AWS billing, is inferred.
+    assert "ai.billing.provider" not in span["meta"]
+    assert any(BEDROCK_PROFILE in unquote(request["observed_path"]) for request in upstream)
+    for private in ("PRIVATE", "SYNTHETIC-AWS-ACCESS", "SYNTHETIC-AWS-SECRET"):
+        assert private not in json.dumps(spans)

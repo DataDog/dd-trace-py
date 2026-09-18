@@ -144,7 +144,7 @@ Collected dimensions
      - Optional authenticated email and explicitly selected authenticated metadata.
    * - ``ai.billing.provider``, ``ai.billing.account_id``, ``ai.billing.product``
      - Provider and product inferred for recognized OpenAI, Anthropic, Azure,
-       Bedrock, Vertex AI, and Gemini routes using known endpoints or adapter
+       Azure AI/Foundry, Bedrock, Vertex AI, Gemini, and OCI routes using known endpoints or adapter
        defaults, including recognized OpenAI regional endpoints. Explicit OpenAI
        organization is also collected. Operator mappings
        override these values; ``ai.billing.provider_source`` records provenance.
@@ -153,10 +153,19 @@ Collected dimensions
      - Optional configured project/workspace, cloud resource, and non-secret
        provider key ID. Explicit Vertex AI project and OpenAI project from outgoing
        ``OpenAI-Project`` headers are collected automatically;
-       it is not substituted for the GCP billing account.
+       it is not substituted for the GCP billing account. Bedrock resource ARNs
+       supplied through ``model`` or provider ``model_id`` are also retained.
+       Explicit OCI compartment supplies project scope; signer tenancy is retained
+       as a route field, not assumed to be the billed account. No OCI credential
+       files or environment credentials are read. Resource IDs accept
+       up to 2048 characters; other configured fields retain their 256-character limit.
    * - ``ai.billing.geography``, ``ai.billing.mode``
      - Configured billing geography and processing mode. A response-resolved
-       ``service_tier`` overrides configured mode; requested tiers, execution
+       ``service_tier`` overrides configured mode. Vertex/Gemini returned traffic
+       type takes precedence over tier and distinguishes standard, priority, flex,
+       and provisioned throughput. ``ai.billing.mode_source`` records this choice;
+       contradictory on-demand response tier/traffic values are flagged as incomplete.
+       Requested tiers, execution
        location, and an ``auto`` tier are not inferred billing evidence.
    * - ``ai.model``, ``ai.model.source``, ``ai.response.model``
      - Billing-model mapping or raw response model, provenance, and raw response
@@ -165,11 +174,14 @@ Collected dimensions
    * - ``ai.route.*``
      - Selected provider/model, endpoint hostname only, OpenAI endpoint region,
        OpenAI organization/project,
-       Vertex project/location, AWS region/Bedrock project, region name and API
+       Vertex project/location, AWS region/Bedrock project, Bedrock resource ID,
+       resource region and resource-owner account, explicit OCI tenancy/compartment/
+       region, region name and API
        version, where exposed. Outgoing provider endpoints and non-secret OpenAI
        scope headers take precedence over route defaults. Authorization and other
        headers, URL paths, queries, and user information are not retained.
        Endpoint residency and execution location are not assumed to be billed geography.
+       A resource-owner account is not assumed to be the caller's billed account.
    * - ``ai.request.*``, ``ai.effective.*`` pricing settings
      - Selected service tier, speed, reasoning effort, image quality/size,
        inference geography, prompt-cache retention, number of outputs, embedding
@@ -185,9 +197,22 @@ Collected dimensions
    * - ``ai.gateway.deployment_id``, ``ai.request.id``, ``ai.response.id``
      - Selected deployment, generated logical request ID, and response ID when
        provided. IDs do not imply that billing exports support request-level joins.
+   * - ``ai.response.x_request_id``, ``ai.response.request_id``,
+       ``ai.response.x_amzn_requestid``, ``ai.response.apim_request_id``,
+       ``ai.response.opc_request_id``
+     - Allowlisted upstream request IDs from LiteLLM's retained response headers,
+       when present, for reconciliation with provider logs. No other response
+       headers are exported. Missing IDs are not synthesized from gateway IDs.
+   * - ``ai.observed.traffic_type``, ``ai.observed.service_tier``,
+       ``ai.observed.speed``, ``ai.observed.inference_geo``
+     - Explicit LiteLLM response pricing/quota dimensions, separate from requested
+       settings. Availability depends on provider, adapter and streaming behavior.
    * - ``ai.usage.*_tokens``
      - Disjoint input not served from cache, cache-read input, cache-write input by
        5-minute, 1-hour, or unknown lifetime, and output. Missing usage is not replaced by zero.
+       When cache-read or cache-write details are absent, input totals and reported
+       subsets remain available but uncached input is not inferred (except embeddings).
+       Provider-specific consumers can apply their own documented omission semantics.
    * - ``ai.usage.web_search_requests``, ``ai.usage.tool_search_requests``,
        ``ai.usage.browser_open_requests``, ``ai.usage.google_maps_grounding_requests``
      - Tool counts from response usage, without adding duplicate native and
@@ -202,6 +227,11 @@ Collected dimensions
        and audio/video duration in seconds when present in usage. Fractional
        seconds are preserved. These may overlap each other and ``ai.usage.*``;
        they remain available even when mixed-media allocation is ambiguous.
+   * - ``ai.observed.input_cache_read_reported``, ``ai.observed.input_cache_write_reported``
+     - One if the corresponding counter exists in LiteLLM usage, zero if absent.
+       A reported zero differs from missing cache detail, which is flagged as
+       incomplete for generation requests. This cannot recover fields discarded
+       or defaulted by LiteLLM before the callback.
    * - ``ai.attribution.status``, ``ai.attribution.issues``, ``ai.usage.source``
      - Collection completeness, missing/ambiguous dimensions, and usage provenance.
        ``observed`` means dimensions were collected, not invoice-exact billing.
@@ -219,8 +249,9 @@ performing the join inside the gateway:
 * ``resource_scope`` uses project/workspace or resource identifiers, and
   ``api_key_id`` uses the configured non-secret provider key ID. They are only
   needed for billing slices scoped that way; account-wide allocation does not
-  require every optional scope field. A Bedrock profile ARN remains intact in
-  ``ai.route.model``; do not remove routing prefixes before extracting scope.
+  require every optional scope field. Bedrock ARNs are retained in
+  ``ai.route.resource_id`` and, for recognized routes, ``ai.billing.resource_id``;
+  the provider's ``ai.route.model_id`` is distinct from the gateway deployment ID.
 * ``model_id`` retains raw route/response models and optional billing mappings.
   ``usage_type`` and ``usage_amount`` are encoded together in named numeric
   counters, with tokens, requests, counts or seconds in the metric name. Do not

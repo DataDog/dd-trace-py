@@ -44,6 +44,12 @@ ingress from provider-transformed outgoing settings. Never dump logging kwargs,
 infer a billing account from opaque credentials, or equate execution region with
 billed geography. Only outgoing provider headers may supply non-secret OpenAI
 organization/project IDs; do not read ingress headers or stringify endpoint objects.
+Bedrock's provider model_id is not the router's hidden model_id: retain selected
+resource ARNs separately, without treating resource ownership as the billed account.
+Response metadata is allowlisted: traffic type, tier, and bounded upstream request
+IDs, never whole header or provider-specific dictionaries. OCI scope uses explicit
+route IDs, not credential-file inspection. Preserve cache-counter presence; absent
+cache detail cannot establish an uncached-input partition.
 Explicit modality counters stay diagnostic when their overlap
 with caching is unknown. Cache-control TTLs are not per-TTL token quantities.
 The constructor keeps both legacy and current LiteLLM message-logging flags off;
