@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -39,6 +40,12 @@ SINGLE_KEY_COMMANDS = [
 ]
 MULTI_KEY_COMMANDS = ["MGET"]
 ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
+
+
+def _get_pipeline_command_args(command: Any) -> Any:
+    if hasattr(command, "args"):
+        return command.args
+    return command[0]
 
 
 def determine_row_count(redis_command: str, result: Optional[Union[list, dict, str]]) -> int:

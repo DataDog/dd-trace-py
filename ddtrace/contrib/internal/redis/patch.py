@@ -3,6 +3,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.internal.redis_utils import _get_pipeline_command_args
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import determine_row_count
@@ -136,14 +137,19 @@ def instrumented_execute_command(integration_config):
 def instrumented_execute_pipeline(integration_config, is_cluster=False):
     def _instrumented_execute_pipeline(func, instance, args, kwargs):
         if is_cluster:
+            command_stack = getattr(instance, "command_stack", None)
+            if not command_stack:
+                execution_strategy = getattr(instance, "_execution_strategy", None)
+                if execution_strategy is not None:
+                    command_stack = getattr(execution_strategy, "command_queue", command_stack)
             cmds = [
                 stringify_cache_args(c.args, cmd_max_len=integration_config.cmd_max_length)
-                for c in instance.command_stack
+                for c in (command_stack or [])
             ]
         else:
             cmds = [
-                stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
-                for c, _ in instance.command_stack
+                stringify_cache_args(_get_pipeline_command_args(command), cmd_max_len=integration_config.cmd_max_length)
+                for command in instance.command_stack
             ]
         with _instrument_redis_execute_pipeline(integration_config, cmds, instance):
             return func(*args, **kwargs)
