@@ -19,8 +19,9 @@ class NativeRuntime(SharedRuntime):
     The SharedRuntime wraps a Tokio async runtime shared across TraceExporter
     instances. Native pthread_atfork hooks ensure the runtime is correctly
     paused and resumed even when a native caller bypasses Python's fork hooks.
-    Python-level before_fork / after_fork_parent / after_fork_child hooks also
-    run so this instance can track `_paused` for callers on the Python side.
+    Python-level before_fork / after_fork_parent hooks also run so this instance
+    can track `_paused` for callers on the Python side. The child side only
+    tracks the flag; see _resume_after_fork_child.
     """
 
     def __init__(self) -> None:
@@ -34,7 +35,7 @@ class NativeRuntime(SharedRuntime):
         self.register_at_fork()
         forksafe.register_before_fork(self.before_fork)
         forksafe.register_after_parent(self.after_fork_parent)
-        forksafe.register(self.after_fork_child)
+        forksafe.register(self._resume_after_fork_child)
         forksafe.register_before_child_hooks(self.defer_after_fork_child)
         forksafe.register_after_child_hooks(self.allow_after_fork_child)
         atexit.register(self._atexit)
@@ -50,8 +51,12 @@ class NativeRuntime(SharedRuntime):
         super().after_fork_parent()
         self._paused = False
 
-    def after_fork_child(self) -> None:
-        super().after_fork_child()
+    def _resume_after_fork_child(self) -> None:
+        # Deliberately does not call the native after_fork_child(). Rebuilding the runtime from the
+        # child fork hook unparks the inherited Tokio I/O driver, which panics once a process manager
+        # such as Celery beat closes the descriptors the child inherited. It also stamps the current
+        # pid, which stops allow_after_fork_child from arming the lazy restart that would otherwise
+        # abandon the inherited runtime on first use.
         self._paused = False
 
     def _atexit(self) -> None:
@@ -75,7 +80,7 @@ class NativeRuntime(SharedRuntime):
         atexit.unregister(self._atexit)
         forksafe.unregister_before_fork(self.before_fork)
         forksafe.unregister_parent(self.after_fork_parent)
-        forksafe.unregister(self.after_fork_child)
+        forksafe.unregister(self._resume_after_fork_child)
         forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
         forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
 
