@@ -2,7 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstdlib>
 #include <new>
 
 namespace {
@@ -10,8 +9,12 @@ namespace {
 thread_local int allocations_before_failure = -1;
 }
 
-void*
-operator new(std::size_t size)
+// Wrap allocation calls, not the allocator itself: ASan and Valgrind must still see matching new/delete operations.
+extern "C" void*
+__real__Znwm(std::size_t size);
+
+extern "C" void*
+__wrap__Znwm(std::size_t size)
 {
     if (allocations_before_failure == 0) {
         allocations_before_failure = -1;
@@ -20,22 +23,7 @@ operator new(std::size_t size)
     if (allocations_before_failure > 0) {
         --allocations_before_failure;
     }
-    if (void* memory = std::malloc(size == 0 ? 1 : size)) {
-        return memory;
-    }
-    throw std::bad_alloc();
-}
-
-void
-operator delete(void* memory) noexcept
-{
-    std::free(memory);
-}
-
-void
-operator delete(void* memory, std::size_t) noexcept
-{
-    std::free(memory);
+    return __real__Znwm(size);
 }
 
 TEST(SpanLinksAllocation, FailedTaskPublicationLeavesNoOrphan)

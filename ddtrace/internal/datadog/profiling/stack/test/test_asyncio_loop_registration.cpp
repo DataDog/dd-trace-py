@@ -8,7 +8,8 @@
 #include <mutex>
 #include <thread>
 
-extern "C" PyObject* PyInit__stack();
+extern "C" PyObject*
+PyInit__stack();
 
 TEST(AsyncioLoopRegistration, ContendedLookupDoesNotHoldGIL)
 {

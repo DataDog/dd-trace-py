@@ -84,7 +84,16 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_span_links test_span_links.cpp)
-dd_wrapper_add_test(test_span_links_alloc test_span_links_alloc.cpp)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # ELF --wrap only redirects unresolved references from the executable, not calls inside _stack. Compile the
+    # production implementation into this isolated test so failure injection leaves sanitizer allocators untouched.
+    add_executable(test_span_links_alloc ../src/span_links.cpp test_span_links_alloc.cpp)
+    target_include_directories(test_span_links_alloc PRIVATE ../include)
+    target_link_libraries(test_span_links_alloc PRIVATE gtest_main)
+    target_link_options(test_span_links_alloc PRIVATE -Wl,--wrap=_Znwm)
+    add_ddup_config(test_span_links_alloc)
+    gtest_discover_tests(test_span_links_alloc DISCOVERY_MODE PRE_TEST)
+endif()
 dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
 
 function(configure_stack_internal_test name)
