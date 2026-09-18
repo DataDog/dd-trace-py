@@ -2426,8 +2426,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.14"),
+                    pys=select_pys(min_version="3.10", max_version="3.15"),
                     pkgs={"rq": latest},
                 ),
             ],
