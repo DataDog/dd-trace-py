@@ -94,6 +94,29 @@ after updating from main.
 An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
 remains supported for existing workflows.
 
+OpenFeature fixtures
+--------------------
+
+The OpenFeature suite loads the checked-in snapshot in
+``tests/openfeature/ffe-system-test-data/``. A fresh clone includes the fixtures;
+running the tests requires no submodule initialization or fixture download.
+
+Add or change shared evaluation cases in
+`DataDog/ffe-system-test-data <https://github.com/DataDog/ffe-system-test-data>`_
+first. To refresh the snapshot from a reviewed upstream commit, run:
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --ref <upstream-commit>
+    $ scripts/run-tests --list tests/openfeature/
+    $ scripts/run-tests --venv <environment-hash>
+
+``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
+locally. The weekly or manually dispatched ``Update FFE fixtures`` workflow opens
+a signed draft PR when the copied contents change. New cases may expose evaluator
+bugs; fix those before merging the update, and change fixture expectations upstream
+only when the shared expectation is incorrect.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 

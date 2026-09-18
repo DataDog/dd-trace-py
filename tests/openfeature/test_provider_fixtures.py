@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ErrorCode
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -101,3 +102,8 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
         f"Fixture {fixture_file} test {test_id}: flag '{flag_key}' returned reason "
         f"{result.reason.value}, expected {expected_result['reason']}"
     )
+    if "errorCode" in expected_result:
+        assert result.error_code == ErrorCode(expected_result["errorCode"]), (
+            f"Fixture {fixture_file} test {test_id}: flag '{flag_key}' returned error code "
+            f"{result.error_code}, expected {expected_result['errorCode']}"
+        )

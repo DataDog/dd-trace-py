@@ -1,6 +1,45 @@
 [
   {
     "attributes": {
+      "comma_regex_case": "xxaaay"
+    },
+    "defaultValue": "none",
+    "flag": "regex-flag",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "comma-quantifier"
+    },
+    "targetingKey": "comma-quantifier",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "whitespace_regex_case": "prefix exact suffix"
+    },
+    "defaultValue": "none",
+    "flag": "regex-flag",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "literal-whitespace"
+    },
+    "targetingKey": "literal-whitespace",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "whitespace_regex_case": "exact"
+    },
+    "defaultValue": "none",
+    "flag": "regex-flag",
+    "result": {
+      "reason": "DEFAULT",
+      "value": "none"
+    },
+    "targetingKey": "trimmed-whitespace-does-not-match",
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
       "email": "user.name+tag@capture.example"
     },
     "defaultValue": "none",

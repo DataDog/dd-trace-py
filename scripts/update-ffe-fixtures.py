@@ -18,11 +18,14 @@ COPY_DISALLOW_LIST = frozenset(
         ".github",
         ".gitignore",
         "ci",
+        "AGENTS.md",
         "CONTRIBUTING.md",
         "LICENSE",
         "LICENSE-3rdparty.csv",
         "NOTICE",
         "README.md",
+        "precomputed-assignments",
+        "schemas",
         SOURCE_METADATA,
     }
 )

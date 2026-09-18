@@ -46,6 +46,11 @@ def test_copy_fixture_snapshot_obeys_consumer_disallow_list(updater, tmp_path):
     snapshot.mkdir()
     write_fixture_snapshot(source)
     (source / "README.md").write_text("upstream documentation", encoding="utf-8")
+    (source / "AGENTS.md").write_text("upstream contributor instructions", encoding="utf-8")
+    (source / "precomputed-assignments").mkdir()
+    (source / "precomputed-assignments" / "case.json").write_text("{}", encoding="utf-8")
+    (source / "schemas").mkdir()
+    (source / "schemas" / "precomputed-assignment.schema.json").write_text("{}", encoding="utf-8")
     (source / "ci").mkdir()
     (source / "ci" / "validate.py").write_text("raise SystemExit(1)", encoding="utf-8")
 
@@ -56,6 +61,9 @@ def test_copy_fixture_snapshot_obeys_consumer_disallow_list(updater, tmp_path):
     assert (snapshot / "ufc-config.json").stat().st_mode & 0o777 == 0o644
     assert (snapshot / "evaluation-cases").stat().st_mode & 0o777 == 0o755
     assert not (snapshot / "README.md").exists()
+    assert not (snapshot / "AGENTS.md").exists()
+    assert not (snapshot / "precomputed-assignments").exists()
+    assert not (snapshot / "schemas").exists()
     assert not (snapshot / "ci").exists()
 
 
