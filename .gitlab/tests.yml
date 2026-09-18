@@ -20,11 +20,6 @@ include:
     - !reference [.services, ddagent]
   before_script:
     - !reference [.testrunner, before_script]
-    - |
-      no_proxy_additions="icanhazdadjoke.com,doesnotexist.google.com,api.stripe.com"
-      export NO_PROXY="${NO_PROXY:+${NO_PROXY},}${no_proxy_additions}"
-      export no_proxy="$NO_PROXY"
-      echo "NO_PROXY=${NO_PROXY}"
     # Artifact extraction preserves build timestamps, so refresh native outputs after checkout.
     - find ddtrace -type f -name '*.so*' -exec touch {} +
     - unset DD_SERVICE
