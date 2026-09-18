@@ -274,7 +274,7 @@ def _setup() -> int:
 # ---------------------------------------------------------------------------
 # Hot-path callbacks — no lock; iterate a pre-built handler snapshot tuple
 # ---------------------------------------------------------------------------
-# AIDEV-NOTE: Keep the single-entry shortcut inside these callbacks so it shares
+# NOTE: Keep the single-entry shortcut inside these callbacks so it shares
 # DISABLE bookkeeping and error isolation with normal fan-out. A process-wide
 # route adds promotion races and does not help consumers with per-code handlers.
 
