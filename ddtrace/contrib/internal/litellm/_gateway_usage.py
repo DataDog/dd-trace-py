@@ -27,35 +27,6 @@ def label(value: Any, max_length: int = 256) -> Optional[str]:
     return value
 
 
-@dataclass(frozen=True)
-class BillingScope:
-    """Operator-maintained scope for ONE selected deployment/credential, not a model alias.
-
-    Values must be non-secret IDs. Absent dimensions stay absent. Mode and geography
-    are billed mode/geography, not the gateway's region or a requested tier.
-    """
-
-    provider: str
-    account_id: str
-    product: str
-    project_id: Optional[str] = None
-    resource_id: Optional[str] = None
-    api_key_id: Optional[str] = None
-    geography: Optional[str] = None
-    mode: Optional[str] = None
-    model: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        for name, value in vars(self).items():
-            if value is not None and label(value, 2048 if name == "resource_id" else 256) is None:
-                raise ValueError(f"Invalid non-secret billing field: {name}")
-        if not all((self.provider, self.account_id, self.product)):
-            raise ValueError("Billing provider, account_id and product are required")
-
-    def tags(self) -> dict[str, str]:
-        return {f"ai.billing.{key}": value for key, value in vars(self).items() if value is not None and key != "model"}
-
-
 @dataclass
 class Usage:
     quantities: dict[str, int] = field(default_factory=dict)

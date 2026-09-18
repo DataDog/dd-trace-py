@@ -14,7 +14,6 @@ from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import response_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
-from ddtrace.contrib.internal.litellm._gateway_usage import BillingScope
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
 from ddtrace.contrib.internal.litellm._gateway_usage import UsageRecord
 from ddtrace.contrib.internal.litellm._gateway_usage import normalize_usage
@@ -23,19 +22,8 @@ from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution
 from ddtrace.contrib.internal.litellm.gateway import configured_callback
 
 
-SCOPE = BillingScope(
-    "openai",
-    "org-1",
-    "api",
-    project_id="proj-1",
-    api_key_id="key-id-1",
-    geography="global",
-    mode="standard",
-)
-
-
-def make_callback(routes=None, *, sink=None, max_pending=10000, pending_ttl=3600, **kwargs):
-    callback = GatewayAttribution({key: vars(value) for key, value in (routes or {}).items()}, **kwargs)
+def make_callback(*, sink=None, max_pending=10000, pending_ttl=3600, **kwargs):
+    callback = GatewayAttribution(**kwargs)
     if sink is not None:
         callback._sink = sink
     callback._max_pending = max_pending
@@ -134,7 +122,7 @@ def test_unknown_ttl_and_explicit_zero():
 
 async def test_identity_is_authenticated_no_secrets_and_opt_in_email():
     records = []
-    callback = make_callback({"dep-1": SCOPE}, sink=records.append, auth_metadata_keys=("cost_center",))
+    callback = make_callback(sink=records.append, auth_metadata_keys=("cost_center",))
     forged = {
         "user": "victim",
         "messages": [{"content": "SECRET PROMPT"}],
@@ -166,10 +154,9 @@ async def test_identity_is_authenticated_no_secrets_and_opt_in_email():
     assert record.tags["usr.id"] == "user-1"
     assert record.tags["team.id"] == "team-1"
     assert record.tags["ai.enrichment.cost_center"] == "eng"
-    assert record.tags["ai.billing.api_key_id"] == "key-id-1"
     assert record.tags["ai.attribution.status"] == "observed"
     assert not any(word in repr(record) for word in ("SECRET", "sk-do-not-log", "victim", "@"))
-    callback = make_callback({}, sink=records.append, capture_email=True)
+    callback = make_callback(sink=records.append, capture_email=True)
     data = await start(callback, user_email="real@example.test")
     await finish(callback, data)
     assert records[-1].tags["usr.email"] == "real@example.test"
@@ -178,7 +165,7 @@ async def test_identity_is_authenticated_no_secrets_and_opt_in_email():
 @pytest.mark.parametrize("user", [None, "shared-service"])
 async def test_end_user_fallback_preserves_authenticated_identity(user):
     records = []
-    callback = make_callback({"dep-1": SCOPE}, sink=records.append)
+    callback = make_callback(sink=records.append)
     data = await start(callback, user=user, end_user_id="claimed-user", data={"user": "ignored-raw-user"})
     await finish(
         callback,
@@ -258,23 +245,20 @@ async def test_end_user_fallback_stays_unverified_on_incomplete_requests(outcome
     assert tags["ai.attribution.status"] == "incomplete"
 
 
-async def test_unknown_scope_byok_and_response_selected_deployment():
+async def test_response_selected_deployment_and_client_credentials():
     records = []
-    alternate = BillingScope("aws", "123456789012", "bedrock", geography="us-east-1", mode="on-demand")
-    callback = make_callback({"dep-1": SCOPE, "fallback": alternate}, sink=records.append)
-    data = await start(callback, data={"metadata": {"model_info": {"id": "dep-1"}}})
-    await finish(callback, data, response(Usage(prompt_tokens=3, completion_tokens=1), "fallback"))
-    assert records[-1].tags["ai.billing.provider"] == "aws"
-    for data, deployment in [({}, "unknown"), ({"api_key": "sk-client"}, "dep-1")]:
+    callback = make_callback(sink=records.append)
+    for data, deployment in [({}, "fallback"), ({"api_key": "sk-client"}, "dep-1")]:
         data = await start(callback, data=data)
         await finish(callback, data, response(deployment=deployment))
-        assert "ai.billing.account_id" not in records[-1].tags
-        assert "billing_scope_unknown" in records[-1].tags["ai.attribution.issues"]
+        assert records[-1].tags["ai.gateway.deployment_id"] == deployment
+        assert not any(key.startswith("ai.billing.") for key in records[-1].tags)
+        assert "sk-client" not in repr(records)
 
 
 async def test_stream_final_only_duplicates_and_cached_response():
     records = []
-    callback = make_callback({"dep-1": SCOPE}, sink=records.append)
+    callback = make_callback(sink=records.append)
     data = await start(callback)
     await callback.async_log_stream_event({"litellm_params": data}, response(), None, None)
     assert not records
@@ -290,7 +274,7 @@ async def test_stream_final_only_duplicates_and_cached_response():
 
 async def test_concurrent_users_failure_and_missing_identity():
     records = []
-    callback = make_callback({}, sink=records.append)
+    callback = make_callback(sink=records.append)
 
     async def request(index):
         data = await start(callback, user=str(index))
@@ -308,13 +292,9 @@ async def test_concurrent_users_failure_and_missing_identity():
     assert not callback._pending
 
 
-def test_threaded_hooks_keep_user_usage_and_billing_scope_together():
+def test_threaded_hooks_keep_user_usage_and_route_together():
     records = []
-    scopes = {
-        "dep-0": SCOPE,
-        "dep-1": BillingScope("openai", "org-2", "api", project_id="proj-2", api_key_id="key-id-2"),
-    }
-    callback = make_callback(scopes, sink=records.append)
+    callback = make_callback(sink=records.append)
 
     def ingress(index):
         return asyncio.run(start(callback, user=str(index)))
@@ -322,7 +302,9 @@ def test_threaded_hooks_keep_user_usage_and_billing_scope_together():
     def route(item):
         index, data = item
         asyncio.run(
-            callback.async_pre_call_deployment_hook({**data, "model_info": {"id": f"dep-{index % 2}"}}, "completion")
+            callback.async_pre_call_deployment_hook(
+                {**data, "model_info": {"id": f"dep-{index % 2}"}, "organization": f"org-{index % 2}"}, "completion"
+            )
         )
         # This synchronous hook may run outside the ingress event loop.
         callback.log_pre_api_call("gpt-4o", [], {"litellm_params": data})
@@ -350,9 +332,8 @@ def test_threaded_hooks_keep_user_usage_and_billing_scope_together():
     assert {record.tags["usr.id"] for record in records} == {str(index) for index in range(200)}
     for record in records:
         index = int(record.tags["usr.id"])
-        scope = scopes[f"dep-{index % 2}"]
         assert record.tags["ai.gateway.deployment_id"] == f"dep-{index % 2}"
-        assert all(record.tags[key] == value for key, value in scope.tags().items())
+        assert record.tags["ai.route.organization"] == f"org-{index % 2}"
         assert record.usage.quantities["input_uncached_tokens"] == index + 1
         assert record.usage.quantities["output_tokens"] == 2
         assert record.usage.diagnostics["attempts"] == 1
@@ -361,7 +342,7 @@ def test_threaded_hooks_keep_user_usage_and_billing_scope_together():
 
 async def test_bounded_state_expiration_shutdown_and_broken_exporter():
     records = []
-    callback = make_callback({}, sink=records.append, max_pending=1, pending_ttl=0.001)
+    callback = make_callback(sink=records.append, max_pending=1, pending_ttl=0.001)
     await start(callback)
     await asyncio.sleep(0.01)
     await start(callback)
@@ -370,7 +351,7 @@ async def test_bounded_state_expiration_shutdown_and_broken_exporter():
     callback.close()
     assert len(records) == 3
     assert not callback._pending
-    callback = make_callback({}, sink=lambda _: 1 / 0)
+    callback = make_callback(sink=lambda _: 1 / 0)
     await finish(callback, await start(callback))  # Never turns a successful request into a 500.
 
 
@@ -386,7 +367,7 @@ async def test_bounded_state_expiration_shutdown_and_broken_exporter():
 )
 def test_bad_configuration(kwargs):
     with pytest.raises(ValueError):
-        make_callback({}, **kwargs)
+        make_callback(**kwargs)
 
 
 def test_real_tracer_span_api(tracer):
@@ -460,7 +441,7 @@ def test_native_provider_input_semantics(operation, raw):
 
 async def test_multimodal_request_without_usage_breakdown_is_not_allocatable():
     records = []
-    callback = make_callback({"dep-1": SCOPE}, sink=records.append)
+    callback = make_callback(sink=records.append)
     data = await start(
         callback,
         data={
@@ -479,22 +460,21 @@ async def test_multimodal_request_without_usage_breakdown_is_not_allocatable():
     assert "secret-image" not in repr(records)
 
 
-async def test_requested_tier_is_not_billed_tier_and_model_suffix_is_preserved():
+async def test_request_and_response_tiers_stay_separate_and_model_suffix_is_preserved():
     records = []
-    scope = BillingScope("openai", "org", "api")
-    callback = make_callback({"dep-1": scope}, sink=records.append)
+    callback = make_callback(sink=records.append)
     data = await start(callback, data={"service_tier": "priority"})
-    await finish(callback, data, response(Usage(prompt_tokens=1, completion_tokens=0)))
-    assert "ai.billing.mode" not in records[0].tags
-    assert records[0].tags["ai.model"] == "gpt-4o-2024-08-06"
-    data = await start(callback)
-    await finish(callback, data, response(Usage(prompt_tokens=1, completion_tokens=0), service_tier="flex"))
-    assert records[-1].tags["ai.billing.mode"] == "flex"
+    await finish(callback, data, response(Usage(prompt_tokens=1, completion_tokens=0), service_tier="future-tier"))
+    tags = records[0].tags
+    assert tags["ai.request.service_tier"] == "priority"
+    assert tags["ai.observed.service_tier"] == "future-tier"
+    assert tags["ai.model"] == tags["ai.response.model"] == "gpt-4o-2024-08-06"
+    assert not any(key.startswith("ai.billing.") for key in tags)
 
 
 async def test_unknown_sdk_callbacks_and_conflicting_tokens_do_not_export():
     records = []
-    callback = make_callback({}, sink=records.append)
+    callback = make_callback(sink=records.append)
     await finish(callback, {"metadata": {CORRELATION_FIELD: "client-invented"}})
     data = await start(callback)
     data["litellm_metadata"][CORRELATION_FIELD] = "mismatched"
@@ -505,11 +485,13 @@ async def test_unknown_sdk_callbacks_and_conflicting_tokens_do_not_export():
 
 
 @pytest.mark.parametrize(
-    "value", ["sk-secret", "Bearer secret", " sk-secret", "secret\x7f", "", "x" * 257, "id\nheader"]
+    "value", ["sk-secret", "Bearer secret", " sk-secret", "secret\x7f", "", "x" * 257, "id\nheader", {}, [], True]
 )
-def test_billing_scope_rejects_bad_or_secret_like_ids(value):
-    with pytest.raises(ValueError):
-        BillingScope("openai", value, "api")
+def test_invalid_pricing_values_are_not_exported(value):
+    assert not request_tags({"service_tier": value}, "x")
+    assert not response_tags({"service_tier": value})
+    assert not response_tags({"_hidden_params": {"provider_specific_fields": {"traffic_type": value}}})
+    assert not cache_tags({"cache_control": {"type": value, "ttl": value}}, "x")
 
 
 @pytest.mark.parametrize(
@@ -532,21 +514,16 @@ def test_invalid_file_configuration_fails_closed(tmp_path, monkeypatch, config):
     monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", str(path))
     with patch("ddtrace.contrib.internal.litellm.gateway.log.warning") as warning:
         callback = configured_callback()
-    warning.assert_called_once_with(
-        "Invalid gateway attribution configuration; billing mappings and optional identity enrichment disabled"
-    )
-    assert not callback._routes
+    warning.assert_called_once_with("Invalid gateway attribution configuration; optional identity enrichment disabled")
     assert not callback._capture_email
     assert not callback._capture_end_user
     assert not callback._auth_metadata_keys
 
 
-def test_missing_configuration_disables_operator_mappings(monkeypatch):
+def test_missing_and_invalid_configuration_identity_defaults(monkeypatch):
     monkeypatch.delenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", raising=False)
-    assert not configured_callback()._routes
     assert configured_callback()._capture_end_user
     monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", "/nonexistent/attribution-config.json")
-    assert not configured_callback()._routes
     assert not configured_callback()._capture_end_user
 
 
@@ -582,7 +559,7 @@ async def test_hook_error_does_not_fail_gateway(monkeypatch, caplog):
 
 async def test_selected_route_attempts_and_parent_context(tracer, monkeypatch):
     records = []
-    callback = make_callback({"dep-1": SCOPE}, sink=records.append)
+    callback = make_callback(sink=records.append)
     monkeypatch.setattr("ddtrace.contrib.internal.litellm.gateway.tracer", tracer)
     with tracer.trace("gateway.request") as parent:
         data = await start(callback)
@@ -595,12 +572,9 @@ async def test_selected_route_attempts_and_parent_context(tracer, monkeypatch):
     assert records[0].parent.span_id == parent.span_id
 
 
-@pytest.mark.parametrize(
-    "bad_scope", [{"provider": "x"}, {"provider": "x", "account_id": "sk-secret", "product": "api"}]
-)
-def test_public_constructor_rejects_bad_billing_scope(bad_scope):
-    with pytest.raises(ValueError, match="Invalid non-secret gateway billing fields"):
-        GatewayAttribution({"deployment": bad_scope})
+def test_public_constructor_does_not_accept_billing_overrides():
+    with pytest.raises(TypeError):
+        GatewayAttribution(billing_scopes={"deployment": {"provider": "openai"}})
 
 
 async def test_response_property_errors_are_not_exported():
@@ -620,28 +594,26 @@ async def test_response_property_errors_are_not_exported():
 
 
 @pytest.mark.parametrize(
-    "data,provider,product",
-    [
-        ({"model": "anthropic/claude-sonnet-4-20250514"}, "anthropic", "platform-api"),
-        ({"model": "openai/gpt-4o", "organization": "org-real"}, "openai", "api"),
-        ({"model": "bedrock/us.anthropic.claude", "aws_region_name": "us-east-1"}, "aws", "bedrock"),
-        ({"custom_llm_provider": "vertex_ai", "vertex_project": "project-real"}, "gcp", "vertex-ai"),
-        ({"custom_llm_provider": "azure", "api_base": "https://my-resource.openai.azure.com/"}, "azure", "foundry"),
-        ({"custom_llm_provider": "gemini"}, "gcp", "gemini-api"),
-    ],
+    "provider", ["anthropic", "openai", "bedrock", "vertex_ai", "azure_ai", "gemini", "oci", "Future_Provider"]
 )
-def test_automatic_route_dimensions(data, provider, product):
+def test_raw_route_dimensions_without_provider_mapping(provider):
+    data = {
+        "custom_llm_provider": provider,
+        "model": "vendor/model-version",
+        "organization": "org-real",
+        "vertex_project": "project-real",
+        "aws_region_name": "future-region",
+    }
     tags = route_tags({**data, "api_key": "sk-PRIVATE", "vertex_credentials": "PRIVATE credentials"})
-    assert tags["ai.billing.provider"] == provider
-    assert tags["ai.billing.product"] == product
-    assert tags["ai.billing.provider_source"] == "selected_route"
-    assert "ai.billing.geography" not in tags  # Routing region may differ from billed geography.
+    assert tags["ai.route.provider"] == provider
+    for key in ("model", "organization", "vertex_project", "aws_region_name"):
+        assert tags[f"ai.route.{key}"] == data[key]
+    assert not any(key.startswith("ai.billing.") for key in tags)
     assert "PRIVATE" not in repr(tags)
-    if "organization" in data:
-        assert tags["ai.billing.account_id"] == "org-real"
-    if "vertex_project" in data:
-        assert tags["ai.billing.project_id"] == "project-real"
-        assert "ai.billing.account_id" not in tags  # Project is not the GCP billing account.
+
+
+def test_model_prefix_does_not_invent_a_provider():
+    assert route_tags({"model": "bedrock/anthropic.claude"}) == {"ai.route.model": "bedrock/anthropic.claude"}
 
 
 @pytest.mark.parametrize(
@@ -649,7 +621,7 @@ def test_automatic_route_dimensions(data, provider, product):
 )
 def test_compatible_or_invalid_endpoint_does_not_imply_billing_provider(endpoint):
     tags = route_tags({"model": "openai/gpt-4o", "api_base": endpoint})
-    assert tags["ai.route.provider"] == "openai"
+    assert tags["ai.route.model"] == "openai/gpt-4o"
     assert "ai.billing.provider" not in tags
 
 
@@ -661,17 +633,17 @@ def test_endpoint_exports_host_only_and_effective_endpoint_replaces_default():
     assert "PRIVATE" not in repr(tags)
     tags = route_tags({"api_base": "https://gateway.example/v1"}, tags)
     assert "ai.billing.provider" not in tags
-    assert tags["ai.route.provider"] == "openai"
+    assert tags["ai.route.model"] == "openai/gpt-4o"
 
 
-def test_pricing_allowlist_and_bounded_cache_scan():
+def test_raw_pricing_values_and_bounded_cache_scan():
     data = {
         "service_tier": "auto",
         "speed": "fast",
         "reasoning": {"effort": "high"},
         "dimensions": 256,
         "n": True,
-        "quality": "PRIVATE",
+        "quality": "future-quality",
         "messages": [
             {"content": [{"text": "PRIVATE", "cache_control": {"type": "ephemeral", "ttl": "1h"}}]},
         ],
@@ -686,10 +658,14 @@ def test_pricing_allowlist_and_bounded_cache_scan():
         "ai.request.speed": "fast",
         "ai.request.reasoning_effort": "high",
         "ai.request.dimensions": "256",
-        "ai.request.prompt_cache_ttls": "1h,5m",
+        "ai.request.prompt_cache_ttls": "1h",
+        "ai.request.prompt_cache_types": "ephemeral",
+        "ai.request.prompt_cache_ttl_unspecified": "true",
+        "ai.request.quality": "future-quality",
     }
     assert cache_tags({"content": [{"cachePoint": {"type": "default", "ttl": "1h"}}]}, "x") == {
-        "x.prompt_cache_ttls": "1h"
+        "x.prompt_cache_ttls": "1h",
+        "x.prompt_cache_types": "default",
     }
     data["messages"] = [data] * 1000
     assert cache_tags(data, "x")["x.prompt_cache_scan"] == "incomplete"
@@ -725,7 +701,7 @@ async def test_effective_settings_do_not_reuse_ingress_or_previous_route_setting
     )
     await finish(callback, data, response(Usage(prompt_tokens=10, completion_tokens=2)))
     tags = records[0].tags
-    assert tags["ai.billing.provider"] == "openai"
+    assert tags["ai.route.model"] == "openai/gpt-4o"
     assert tags["ai.request.prompt_cache_ttls"] == "1h"
     assert "ai.effective.prompt_cache_ttls" not in tags
     assert tags["ai.effective.service_tier"] == "auto"
@@ -843,7 +819,7 @@ async def test_response_route_mismatch_drops_stale_automatic_dimensions():
         {**data, "model": "openai/gpt-4o", "organization": "org-stale", "model_info": {"id": "first"}}, "completion"
     )
     await finish(callback, data, response(Usage(prompt_tokens=1, completion_tokens=1), deployment="different"))
-    assert "ai.billing.account_id" not in records[0].tags
+    assert "ai.route.organization" not in records[0].tags
     assert "ai.route.model" not in records[0].tags
     assert "selected_route_metadata_mismatch" in records[0].tags["ai.attribution.issues"]
 
@@ -874,47 +850,6 @@ def test_callback_disables_both_legacy_and_current_message_logging():
     callback = make_callback()
     assert callback.message_logging is False
     assert callback.turn_off_message_logging is True
-
-
-@pytest.mark.parametrize("host", ["aiplatform.googleapis.com", "us-central1-aiplatform.googleapis.com"])
-def test_vertex_billing_provider_requires_a_complete_official_hostname(host):
-    assert (
-        route_tags({"custom_llm_provider": "vertex_ai", "api_base": f"https://{host}/v1"})["ai.billing.provider"]
-        == "gcp"
-    )
-
-
-@pytest.mark.parametrize(
-    "host",
-    [
-        "aiplatform.googleapis.com.evil.test",
-        "evil.test-aiplatform.googleapis.com",
-        "evil.aiplatform.googleapis.com",
-        "aiplatformgoogleapis.com",
-    ],
-)
-def test_vertex_lookalike_host_does_not_identify_billing_provider(host):
-    assert "ai.billing.provider" not in route_tags(
-        {"custom_llm_provider": "vertex_ai", "api_base": f"https://{host}/v1"}
-    )
-
-
-@pytest.mark.parametrize("region", ["us", "eu", "au", "ca", "jp", "in", "sg", "kr", "gb", "ae"])
-def test_openai_regional_endpoint_preserves_scope_without_assuming_billing_geography(region):
-    tags = route_tags({"model": "openai/gpt-4o", "api_base": f"https://{region}.api.openai.com/v1"})
-    assert tags["ai.billing.provider"] == "openai"
-    assert tags["ai.route.endpoint_region"] == region
-    assert "ai.billing.geography" not in tags
-
-
-@pytest.mark.parametrize(
-    "host",
-    ["us.api.openai.com.evil.test", "evil.us.api.openai.com", "unknown.api.openai.com", "us.api.openai.com@evil.test"],
-)
-def test_openai_regional_lookalike_is_not_an_official_endpoint(host):
-    tags = route_tags({"model": "openai/gpt-4o", "api_base": f"https://{host}/v1"})
-    assert "ai.billing.provider" not in tags
-    assert "ai.route.endpoint_region" not in tags
 
 
 @pytest.mark.parametrize("parsed", [False, True])
@@ -949,10 +884,8 @@ async def test_outgoing_endpoint_and_scope_override_route_defaults_and_reach_apm
     await finish(callback, data, response(Usage(prompt_tokens=200001, completion_tokens=2)))
     span = test_spans.pop()[0]
     assert span.get_tag("ai.route.endpoint_host") == "eu.api.openai.com"
-    assert span.get_tag("ai.route.endpoint_region") == "eu"
-    assert span.get_tag("ai.billing.provider") == "openai"
-    assert span.get_tag("ai.billing.account_id") == "org-outgoing"
-    assert span.get_tag("ai.billing.project_id") == "proj-outgoing"
+    assert span.get_tag("ai.route.organization") == "org-outgoing"
+    assert span.get_tag("ai.route.project") == "proj-outgoing"
     assert span.get_metric("ai.observed.context_tokens") == 200001
     assert "PRIVATE" not in repr(span)
     assert "spoofed" not in repr(span)
@@ -978,8 +911,8 @@ def test_invalid_or_ambiguous_outgoing_scope_does_not_reuse_defaults(headers):
         {"ai.route.project": "proj-default"},
         headers=headers,
     )
-    assert "ai.billing.account_id" not in tags
-    assert "ai.billing.project_id" not in tags
+    assert "ai.route.organization" not in tags
+    assert "ai.route.project" not in tags
     assert "secret" not in repr(tags)
 
 
@@ -989,8 +922,9 @@ def test_openai_scope_headers_are_not_billing_scope_on_custom_or_other_provider_
         {"model": "azure/gpt-4o"},
     ):
         tags = route_tags(route, headers={"OpenAI-Organization": "org-1", "OpenAI-Project": "proj-1"})
-        assert "ai.billing.account_id" not in tags
-        assert "ai.billing.project_id" not in tags
+        assert tags["ai.route.organization"] == "org-1"
+        assert tags["ai.route.project"] == "proj-1"
+        assert not any(key.startswith("ai.billing.") for key in tags)
 
 
 def test_arbitrary_endpoint_objects_are_not_stringified():
@@ -1006,9 +940,10 @@ def test_arbitrary_endpoint_objects_are_not_stringified():
     )
 
 
+@pytest.mark.parametrize("resource_type", ["application-inference-profile", "future-resource-type"])
 @pytest.mark.parametrize("in_model", [False, True])
-async def test_bedrock_resource_scope_reaches_apm_without_inventing_billed_account(tracer, test_spans, in_model):
-    arn = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-1"
+async def test_bedrock_identifiers_reach_apm_without_parsing(tracer, test_spans, in_model, resource_type):
+    arn = f"arn:aws:bedrock:us-east-1:123456789012:{resource_type}/profile-1"
     route = {"model": "bedrock/anthropic.claude", "model_id": arn}
     if in_model:
         route = {"model": "bedrock/" + arn}
@@ -1018,10 +953,9 @@ async def test_bedrock_resource_scope_reaches_apm_without_inventing_billed_accou
     callback.log_pre_api_call(None, None, {"litellm_params": data, "additional_args": {}})
     await finish(callback, data, response(Usage(prompt_tokens=10, completion_tokens=1)))
     span = test_spans.pop()[0]
-    assert span.get_tag("ai.billing.resource_id") == arn
-    assert span.get_tag("ai.route.resource_id") == arn
-    assert span.get_tag("ai.route.resource_region") == "us-east-1"
-    assert span.get_tag("ai.route.resource_owner_account_id") == "123456789012"
+    assert span.get_tag("ai.route.model" if in_model else "ai.route.model_id") == (
+        "bedrock/" + arn if in_model else arn
+    )
     assert span.get_tag("ai.gateway.deployment_id") == "dep-1"
     assert span.get_tag("ai.billing.account_id") is None
     assert span.get_tag("ai.billing.geography") is None
@@ -1035,21 +969,25 @@ def test_provider_model_id_overrides_bedrock_profile_and_is_not_a_gateway_deploy
     assert tags["ai.route.model_id"] == "anthropic.claude-v2"
     assert "ai.billing.resource_id" not in tags
     tags = route_tags({"model": "openai/gpt-4o", "model_id": arn})
-    assert "ai.route.model_id" not in tags
+    assert tags["ai.route.model_id"] == arn
     assert "ai.billing.resource_id" not in tags
     tags = route_tags({"api_base": "https://gateway.example"}, previous)
-    assert tags["ai.route.resource_id"] == arn
+    assert tags["ai.route.model_id"] == arn
     assert "ai.billing.resource_id" not in tags
 
 
-@pytest.mark.parametrize("suffix", ["services.ai.azure.com", "models.ai.azure.com", "openai.azure.com"])
-def test_azure_ai_official_and_lookalike_endpoints(suffix):
-    for host, official in ((f"resource.{suffix}", True), (f"resource.{suffix}.evil.test", False)):
-        tags = route_tags({"model": "azure_ai/claude-sonnet-4-6", "api_base": f"https://{host}/anthropic"})
-        assert (tags.get("ai.billing.provider") == "azure") is official
-        assert "ai.billing.account_id" not in tags
-        assert "ai.billing.geography" not in tags
-    assert route_tags({"model": "azure_ai/claude-sonnet-4-6"})["ai.billing.provider"] == "azure"
+@pytest.mark.parametrize(
+    "host",
+    [
+        "resource.services.ai.azure.com",
+        "future.api.openai.com",
+        "custom-gateway.example",
+        "aiplatform.googleapis.com.evil.test",
+    ],
+)
+def test_endpoint_host_is_preserved_without_billing_inference(host):
+    tags = route_tags({"custom_llm_provider": "Future_Provider", "api_base": f"https://{host}/path"})
+    assert tags == {"ai.route.provider": "Future_Provider", "ai.route.endpoint_host": host}
 
 
 def test_oci_explicit_scope_and_credentials_are_not_mixed():
@@ -1065,47 +1003,42 @@ def test_oci_explicit_scope_and_credentials_are_not_mixed():
             "oci_fingerprint": "PRIVATE fingerprint",
         }
     )
-    assert tags["ai.billing.provider"] == "oracle"
     assert tags["ai.route.oci_tenancy"] == "ocid1.tenancy.oc1..test"
     assert "ai.billing.account_id" not in tags
-    assert tags["ai.billing.project_id"] == "ocid1.compartment.oc1..test"
+    assert tags["ai.route.oci_compartment_id"] == "ocid1.compartment.oc1..test"
     assert tags["ai.route.oci_region"] == "us-ashburn-1"
     assert "PRIVATE" not in repr(tags)
-    for host, official in (
-        ("inference.generativeai.us-ashburn-1.oci.oraclecloud.com", True),
-        ("inference.generativeai.us-ashburn-1.oci.oraclecloud.com.evil.test", False),
-        ("gateway.example", False),
-    ):
-        resolved = route_tags({"api_base": "https://" + host}, tags)
-        assert (resolved.get("ai.billing.provider") == "oracle") is official
-        assert ("ai.billing.project_id" in resolved) is official
+    resolved = route_tags({"api_base": "https://gateway.example"}, tags)
+    assert resolved["ai.route.oci_compartment_id"] == "ocid1.compartment.oc1..test"
+    assert resolved["ai.route.endpoint_host"] == "gateway.example"
+    assert not any(key.startswith("ai.billing.") for key in resolved)
 
 
 @pytest.mark.parametrize(
     "key", ["oci_key", "oci_key_file", "oci_user", "oci_fingerprint", "oci_tenancy", "oci_compartment_id"]
 )
-async def test_client_oci_overrides_disable_operator_scope(key):
+async def test_ingress_oci_fields_are_not_exported_as_route_evidence(key):
     records = []
-    callback = make_callback({"dep-1": SCOPE}, sink=records.append)
+    callback = make_callback(sink=records.append)
     data = await start(callback, data={key: "PRIVATE"})
     await finish(callback, data, response(Usage(prompt_tokens=3, completion_tokens=1)))
-    assert "ai.billing.account_id" not in records[0].tags
-    assert "client_credentials_or_endpoint" in records[0].tags["ai.attribution.issues"]
+    assert f"ai.route.{key}" not in records[0].tags
     assert "PRIVATE" not in repr(records)
 
 
 @pytest.mark.parametrize(
-    "traffic,mode",
+    "traffic",
     [
-        ("ON_DEMAND", "standard"),
-        ("ON_DEMAND_PRIORITY", "priority"),
-        ("ON_DEMAND_FLEX", "flex"),
-        ("PROVISIONED_THROUGHPUT", "provisioned_throughput"),
+        "ON_DEMAND",
+        "ON_DEMAND_PRIORITY",
+        "ON_DEMAND_FLEX",
+        "PROVISIONED_THROUGHPUT",
+        "TRAFFIC_TYPE_UNSPECIFIED",
+        "Future_Traffic",
     ],
 )
-async def test_vertex_returned_traffic_overrides_config_and_reaches_apm(tracer, test_spans, traffic, mode):
-    scope = BillingScope("gcp", "billing-1", "vertex-ai", mode="standard", geography="global")
-    callback = make_callback({"dep-1": scope}, sink=DatadogSink(tracer))
+async def test_raw_traffic_type_reaches_apm_without_mapping(tracer, test_spans, traffic):
+    callback = make_callback(sink=DatadogSink(tracer))
     data = await start(callback, data={"metadata": {"traffic_type": "spoofed"}})
     await callback.async_pre_call_deployment_hook(
         {**data, "model": "vertex_ai/gemini-2.5-pro", "model_info": {"id": "dep-1"}}, "completion"
@@ -1116,24 +1049,48 @@ async def test_vertex_returned_traffic_overrides_config_and_reaches_apm(tracer, 
     span = test_spans.pop()[0]
     assert span.get_tag("ai.observed.traffic_type") == traffic
     assert span.get_tag("ai.observed.service_tier") == "default"
-    assert span.get_tag("ai.billing.mode") == mode
-    assert span.get_tag("ai.billing.mode_source") == "response_traffic_type"
-    assert ("conflicting_response_billing_mode" in span.get_tag("ai.attribution.issues")) is (
-        mode in ("priority", "flex")
-    )
+    assert span.get_tag("ai.billing.mode") is None
     assert "PRIVATE" not in repr(span)
     assert "spoofed" not in repr(span)
 
 
-@pytest.mark.parametrize("traffic", [None, "TRAFFIC_TYPE_UNSPECIFIED", "PRIVATE", {"secret": "PRIVATE"}])
-def test_unknown_vertex_traffic_is_not_exported_or_used_as_billing_mode(traffic):
-    result = {"_hidden_params": {"provider_specific_fields": {"traffic_type": traffic}}}
-    assert not response_tags(result, "vertex_ai")
-    result["_hidden_params"]["provider_specific_fields"]["traffic_type"] = "PROVISIONED_THROUGHPUT"
-    assert not response_tags(result, "openai")
+@pytest.mark.parametrize(
+    "field", ["service_tier", "speed", "reasoning_effort", "quality", "size", "prompt_cache_retention", "inference_geo"]
+)
+def test_new_pricing_values_are_retained(field):
+    assert request_tags({field: "Future_Value"}, "ai.effective") == {f"ai.effective.{field}": "Future_Value"}
 
 
-def test_response_request_ids_are_bounded_allowlisted_and_unambiguous():
+def test_new_native_pricing_and_cache_values_are_retained():
+    assert request_tags(
+        {
+            "reasoning": {"effort": "Future_Effort"},
+            "serviceTier": {"type": "Future_Tier"},
+            "web_search_options": {"search_context_size": "Future_Size"},
+        },
+        "x",
+    ) == {
+        "x.reasoning_effort": "Future_Effort",
+        "x.service_tier": "Future_Tier",
+        "x.web_search_context_size": "Future_Size",
+    }
+    for parent in ("performanceConfig", "performance_config"):
+        assert request_tags({parent: {"latency": "Future_Latency"}}, "x") == {"x.performance_latency": "Future_Latency"}
+    for control in ("cache_control", "cachePoint"):
+        assert cache_tags({control: {"type": "Future_Type", "ttl": "2h"}}, "x") == {
+            "x.prompt_cache_types": "Future_Type",
+            "x.prompt_cache_ttls": "2h",
+        }
+    assert response_tags(
+        {"service_tier": "auto", "usage": {"speed": "Future_Speed", "inference_geo": "Future_Geo"}}
+    ) == {
+        "ai.observed.service_tier": "auto",
+        "ai.observed.speed": "Future_Speed",
+        "ai.observed.inference_geo": "Future_Geo",
+    }
+
+
+def test_response_request_ids_are_bounded_selected_and_unambiguous():
     headers = {
         "llm_provider-X-Request-ID": "request-openai",
         "llm_provider-request-id": "request-anthropic",
@@ -1144,7 +1101,7 @@ def test_response_request_ids_are_bounded_allowlisted_and_unambiguous():
         "llm_provider-set-cookie": "PRIVATE",
         "llm_provider-PRIVATE": "PRIVATE",
     }
-    tags = response_tags({"_hidden_params": {"additional_headers": headers}}, "openai")
+    tags = response_tags({"_hidden_params": {"additional_headers": headers}})
     assert len(tags) == 5
     assert tags["ai.response.x_request_id"] == "request-openai"
     assert tags["ai.response.x_amzn_requestid"] == "request-bedrock"
@@ -1153,9 +1110,9 @@ def test_response_request_ids_are_bounded_allowlisted_and_unambiguous():
     headers["llm_provider-request-id"] = "sk-PRIVATE"
     headers["llm_provider-apim-request-id"] = "x" * 257
     headers["llm_provider-opc-request-id"] = {"PRIVATE": "PRIVATE"}
-    tags = response_tags({"_hidden_params": {"additional_headers": headers}}, "openai")
+    tags = response_tags({"_hidden_params": {"additional_headers": headers}})
     assert tags == {"ai.response.x_amzn_requestid": "request-bedrock"}
-    assert not response_tags({"_hidden_params": {"additional_headers": dict.fromkeys(map(str, range(129)))}}, "openai")
+    assert not response_tags({"_hidden_params": {"additional_headers": dict.fromkeys(map(str, range(129)))}})
 
 
 def test_long_resource_ids_remain_exact_with_a_separate_bound():
@@ -1165,12 +1122,10 @@ def test_long_resource_ids_remain_exact_with_a_separate_bound():
         + "/providers/Microsoft.CognitiveServices/accounts/"
         + "a" * 100
     )
-    scope = BillingScope("azure", "sub", "foundry", resource_id=resource)
-    assert scope.tags()["ai.billing.resource_id"] == resource
+    assert route_tags({"resource_id": resource})["ai.route.resource_id"] == resource
     assert len(resource) > 256
     for invalid in ("x" * 2049, "sk-PRIVATE", "resource\nPRIVATE", {"PRIVATE": "PRIVATE"}):
-        with pytest.raises(ValueError):
-            BillingScope("azure", "sub", "foundry", resource_id=invalid)
+        assert not route_tags({"resource_id": invalid})
 
 
 @pytest.mark.parametrize("sdk_usage", [False, True])

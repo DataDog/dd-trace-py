@@ -47,17 +47,19 @@ LiteLLM omitted, copy JSON-shaped identity payloads, or use end-user claims for
 authenticated enrichment or billing scope. `capture_end_user=false` opts out;
 invalid configuration disables end-user capture too.
 
-`_gateway_metadata.py` allowlists selected-route and pricing inputs, distinguishing
-ingress from provider-transformed outgoing settings. Never dump logging kwargs,
-infer a billing account from opaque credentials, or equate execution region with
-billed geography. Only outgoing provider headers may supply non-secret OpenAI
-organization/project IDs; do not read ingress headers or stringify endpoint objects.
-Bedrock's provider model_id is not the router's hidden model_id: retain selected
-resource ARNs separately, without treating resource ownership as the billed account.
-Response metadata is allowlisted: traffic type, tier, and bounded upstream request
-IDs, never whole header or provider-specific dictionaries. OCI scope uses explicit
-route IDs, not credential-file inspection. Preserve cache-counter presence; absent
-cache detail cannot establish an uncached-input partition.
+`_gateway_metadata.py` selects route and pricing fields for privacy, distinguishing
+ingress from provider-transformed outgoing settings. Keep valid values verbatim,
+including unfamiliar provider names, traffic types, tiers, cache types, and TTLs;
+never use enum-value allowlists or billing-value mappings. Type, size, and secret
+checks still apply. Never dump logging kwargs or whole header/provider-specific
+dictionaries. Do not infer billing provider/account/mode/geography or add manual
+billing overrides. Consumers interpret these observations downstream.
+Only outgoing provider headers may supply non-secret OpenAI organization/project
+IDs; do not read ingress headers or stringify endpoint objects. Keep provider
+model_id/resource_id intact without parsing ARNs; they are not the router's hidden
+model_id. OCI scope uses explicit route IDs, not credential-file inspection.
+Missing cache-control TTL stays unspecified, not an assumed default. Preserve
+cache-counter presence; absent cache detail cannot establish an uncached-input partition.
 Explicit modality counters stay diagnostic when their overlap
 with caching is unknown. Cache-control TTLs are not per-TTL token quantities.
 The constructor keeps both legacy and current LiteLLM message-logging flags off;

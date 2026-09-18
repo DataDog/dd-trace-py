@@ -37,7 +37,7 @@ Gateway usage attribution
 Use this optional feature to see **who used your LiteLLM gateway, which model
 handled each request, and how much usage LiteLLM reported**. It sends a Datadog
 APM span named ``ai_gateway.usage``: a trace record with user IDs, usage counts,
-and available billing details, but no prompt or response text.
+and provider details, but no prompt or response text.
 
 Quick setup
 ^^^^^^^^^^^
@@ -111,18 +111,19 @@ Check that it works
 
 Send a normal request through the gateway, then look in APM for your service's
 ``ai_gateway.usage`` spans. Check ``usr.id``, ``ai.gateway.deployment_id``, and
-``ai.billing.*``. Use ``ai.attribution.issues`` to see what is missing. For example,
+``ai.route.*``. Use ``ai.attribution.issues`` to see what is missing. For example,
 ``authenticated_user_unknown`` means no authenticated user ID was available,
-even if an unverified fallback was collected;
-``billing_scope_unknown`` means provider, billing account, or product is missing.
+even if an unverified fallback was collected.
 Sampling and ingestion settings can prevent individual spans from appearing.
 
 Field reference
 ^^^^^^^^^^^^^^^
 
-Fields are included only when available. The callback recognizes OpenAI,
-Anthropic, Azure/Foundry, Bedrock, Vertex AI, Gemini, and OCI routes. A custom
-OpenAI-compatible endpoint is **not** assumed to bill through OpenAI.
+Fields are included only when available. Provider names, pricing settings, and
+response traffic types are kept as reported, including unfamiliar values. The
+callback does not translate them into billing providers, accounts, or modes.
+Interpret these values on the cost side; for example, ``azure_ai`` stays
+``azure_ai``, and ``ON_DEMAND_PRIORITY`` stays ``ON_DEMAND_PRIORITY``.
 
 .. list-table:: Exported data
    :header-rows: 1
@@ -142,25 +143,16 @@ OpenAI-compatible endpoint is **not** assumed to bill through OpenAI.
      - ``usr.id`` comes from ``gateway_auth`` or ``litellm_end_user``; otherwise
        its source is ``unknown``. The separate end-user ID is always marked
        ``unverified`` and never overwrites an available authenticated ID.
-   * - ``ai.billing.*``
-     - Available provider, account, product, project/resource IDs, geography,
-       and mode. Explicit OpenAI organization/project, Vertex project, Bedrock resource ARN, and
-       OCI compartment can be collected automatically. A project or resource
-       owner's account is not assumed to be the billed account.
-   * - ``ai.billing.provider_source``, ``ai.billing.mode_source``
-     - Where the value came from. For mode, a returned Vertex/Gemini traffic type
-       takes priority over a returned service tier, then the configured mode.
-       Conflicting on-demand response values are flagged as incomplete.
    * - ``ai.model``, ``ai.model.source``, ``ai.response.model``
-     - Model used for billing comparisons, where it came from, and the original
-       response model. By default, use the response model, or the selected route
-       model if the response has none. Model version suffixes are kept.
+     - Response model, or the selected route model if the response has none;
+       its source; and the original response model. Version suffixes are kept.
    * - ``ai.route.*``
      - Selected provider/model, endpoint hostname, region/location, and API
        version. Also includes available OpenAI organization/project, Vertex
-       project, Bedrock project/resource ARN/owner account, and OCI tenancy/
-       compartment. Bedrock's provider ``model_id`` is not the gateway deployment
-       ID. Actual outgoing endpoint and OpenAI scope headers take priority over
+       project, Bedrock project, provider ``model_id``/``resource_id``, and OCI
+       tenancy/compartment. ARNs stay intact, without extracting an account or
+       region. Provider ``model_id`` is not the gateway deployment ID.
+       Actual outgoing endpoint and OpenAI scope headers take priority over
        route defaults. Region or resource ownership alone does not prove billing
        geography or account. URLs' paths, queries, and credentials are not copied.
    * - ``ai.request.*``, ``ai.effective.*``
@@ -171,9 +163,11 @@ OpenAI-compatible endpoint is **not** assumed to bill through OpenAI.
        settings, not proof of usage or the price charged.
    * - ``ai.request.prompt_cache_ttls``, ``ai.effective.prompt_cache_ttls``
      - Provider prompt-cache lifetimes, not the gateway's response-cache lifetime.
-       An explicit cache-control block without a lifetime uses the five-minute
-       default. This does not tell us how many tokens were written at each
-       lifetime. Large payloads can produce ``prompt_cache_scan:incomplete``.
+       Explicit lifetimes and cache types are kept as reported, including new
+       values. Types use ``prompt_cache_types``; a block with no lifetime sets
+       ``prompt_cache_ttl_unspecified:true`` instead of assuming a default.
+       These do not count tokens at each lifetime. Large payloads can produce
+       ``prompt_cache_scan:incomplete``.
    * - ``ai.gateway.deployment_id``, ``ai.request.id``, ``ai.response.id``
      - Selected route ID, generated gateway request ID, and provider response ID.
        These help find requests but may not exist in the provider's bill.
@@ -212,17 +206,18 @@ Using the data with costs
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This callback collects inputs for a cost join; it does **not** perform the join
-or calculate an invoice. Automatic matching from provider credentials to billing
-key/account IDs is not implemented. Raw API keys are never exported. Match
-collected usage to each provider's billing data using:
+or calculate an invoice. Resolve the raw route and response fields to the
+provider's billing dimensions downstream. Automatic matching from credentials
+to billing key/account IDs is not implemented, and API keys are never exported.
+A cost join needs:
 
 * Time period, billing provider/account/product, and model.
 * Project, resource, or non-secret key ID when the bill uses that level of detail.
   Account-wide allocation does not require every optional ID.
 * Usage category and amount. Metric names include units such as tokens, requests,
   counts, or seconds. Do not add overlapping observed counts to usage totals.
-* Processing mode and billing geography, when available.
-  Missing values stay unknown, not ``standard`` or ``global``.
+* Processing mode and billing geography, resolved using provider-specific rules.
+  A requested tier or route location is not proof of what was billed.
 
 If pricing depends on request size, use each request's ``context_tokens`` and
 that provider's rules **before adding requests together**. Session size is not
@@ -243,7 +238,7 @@ Limitations and privacy
 * Usage comes from LiteLLM, not directly from a billing record. Streaming is
   recorded when its final callback arrives; the callback does not buffer the
   stream. LiteLLM may estimate streaming usage, which is marked as unverified.
-* Retries and fallbacks keep the final route's billing details. Earlier attempts
+* Retries and fallbacks keep the final route's provider details. Earlier attempts
   may have missing usage. Failed/canceled requests do not mean zero cost.
   Gateway cache hits do not add new provider usage.
 * The callback does not inspect credential files or derive billing key/account
@@ -261,7 +256,9 @@ Limitations and privacy
 * End-user IDs can contain personal information, including email, even with
   ``capture_email=false``. Client-supplied IDs can be wrong or change per request.
   The callback does not verify identity or change gateway access decisions.
-* This callback does not export prompts, response text, authorization headers,
+* Collection is limited to the fields described above, with type, length, and
+  secret checks. It does not filter valid values against a list of known names.
+  This callback does not export prompts, response text, authorization headers,
   API keys, exception text, or arbitrary client metadata. Other integrations
   and LiteLLM's own logging have separate settings.
 

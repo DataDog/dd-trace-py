@@ -12,7 +12,17 @@ from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
 from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution
 
 
-@pytest.mark.parametrize("traffic", ["ON_DEMAND", "ON_DEMAND_PRIORITY", "ON_DEMAND_FLEX", "PROVISIONED_THROUGHPUT"])
+@pytest.mark.parametrize(
+    "traffic",
+    [
+        "ON_DEMAND",
+        "ON_DEMAND_PRIORITY",
+        "ON_DEMAND_FLEX",
+        "PROVISIONED_THROUGHPUT",
+        "TRAFFIC_TYPE_UNSPECIFIED",
+        "FUTURE_TRAFFIC_TYPE",
+    ],
+)
 async def test_vertex_native_traffic_metadata_survives_litellm_and_apm(tracer, test_spans, traffic):
     raw = httpx.Response(
         200,
@@ -52,8 +62,8 @@ async def test_vertex_native_traffic_metadata_survives_litellm_and_apm(tracer, t
     await callback.async_log_success_event({"litellm_params": data}, result, None, None)
     span = test_spans.pop()[0]
     assert span.get_tag("ai.observed.traffic_type") == traffic
-    assert span.get_tag("ai.billing.mode_source") == "response_traffic_type"
-    assert span.get_tag("ai.billing.project_id") == "project-1"
+    assert span.get_tag("ai.billing.mode") is None
+    assert span.get_tag("ai.route.vertex_project") == "project-1"
     assert span.get_metric("ai.observed.input_tokens") == 100
     assert span.get_metric("ai.usage.input_cache_read_tokens") == 40
     assert "PRIVATE" not in repr(span)

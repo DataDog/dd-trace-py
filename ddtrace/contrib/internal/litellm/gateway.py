@@ -2,7 +2,6 @@
 
 from collections import ChainMap
 from collections import OrderedDict
-from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
@@ -23,7 +22,6 @@ from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import response_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
-from ddtrace.contrib.internal.litellm._gateway_usage import BillingScope
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
 from ddtrace.contrib.internal.litellm._gateway_usage import Usage
 from ddtrace.contrib.internal.litellm._gateway_usage import UsageRecord
@@ -58,7 +56,6 @@ class Pending:
     created: float
     tags: dict[str, str]
     parent: Optional[Context]
-    dynamic_credentials: bool
     multimodal: bool = False
     deployment: Optional[str] = None
     attempts: int = 0
@@ -99,11 +96,6 @@ def _has_nontext_input(data: dict[str, Any]) -> bool:
 class GatewayAttribution(CustomLogger):  # type: ignore[misc]
     """Record gateway users and usage in APM, without prompt or response text.
 
-    :param billing_scopes: Billing details for each deployment's ``model_info.id``,
-        not its model alias. Each entry needs ``provider``, ``account_id``, and
-        ``product``. Optional fields are ``project_id``,
-        ``resource_id``, ``api_key_id``, ``geography``, ``mode``, and ``model``.
-        Use provider IDs, never secret API keys. Omit unknown optional fields.
     :param capture_email: Include authenticated user email. Defaults to ``False``.
     :param capture_end_user: Include LiteLLM's end-user ID as unverified context
         and use it when the authenticated user ID is missing. Defaults to ``True``.
@@ -114,7 +106,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
 
     def __init__(
         self,
-        billing_scopes: Optional[Mapping[str, Mapping[str, str]]] = None,
         *,
         capture_email: bool = False,
         capture_end_user: bool = True,
@@ -136,18 +127,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                 or not key.replace("_", "").isalnum()
                 or any(word in key.lower() for word in ("key", "token", "secret", "password", "authorization"))
             ):
-                raise ValueError("Only non-secret auth metadata keys may be allowlisted")
-        if billing_scopes is not None and not isinstance(billing_scopes, Mapping):
-            raise ValueError("Billing scopes must be a mapping")
-        self._routes: dict[str, BillingScope] = {}
-        for deployment, scope in (billing_scopes or {}).items():
-            if label(deployment) is None or not isinstance(scope, Mapping):
-                raise ValueError("Invalid gateway billing scope")
-            try:
-                self._routes[deployment] = BillingScope(**scope)
-            except (TypeError, ValueError):
-                # Do not include configuration values or exception details in logs.
-                raise ValueError("Invalid non-secret gateway billing fields") from None
+                raise ValueError("Only non-secret auth metadata keys may be selected")
         self._capture_email = capture_email
         self._capture_end_user = capture_end_user
         self._auth_metadata_keys = metadata_keys
@@ -215,32 +195,11 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         for key in self._auth_metadata_keys:
             if value := label(get(get(user_api_key_dict, "metadata"), key)):
                 tags[f"ai.enrichment.{key}"] = value
-        dynamic_credentials = any(
-            key in data
-            for key in (
-                "api_key",
-                "api_base",
-                "base_url",
-                "litellm_credential_name",
-                "aws_access_key_id",
-                "aws_secret_access_key",
-                "aws_session_token",
-                "vertex_credentials",
-                "azure_ad_token",
-                "oci_key",
-                "oci_key_file",
-                "oci_user",
-                "oci_fingerprint",
-                "oci_tenancy",
-                "oci_compartment_id",
-            )
-        )
         state = Pending(
             time.time(),
             time.monotonic(),
             tags,
             tracer.current_trace_context(),
-            dynamic_credentials,
             multimodal=_has_nontext_input(data),
         )
         token = uuid.uuid4().hex
@@ -295,7 +254,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
 
     def log_pre_api_call(self, model: Any, messages: Any, kwargs: dict[str, Any]) -> None:
         # LiteLLM has now applied defaults and provider transformations. Inspect only
-        # allowlisted settings in the outgoing payload; never retain messages or kwargs.
+        # selected settings in the outgoing payload; never retain messages or kwargs.
         try:
             token = self._token(kwargs)
             additional = kwargs.get("additional_args")
@@ -369,7 +328,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
     def _success(self, state: Pending, kwargs: dict[str, Any], response: Any, end_time: Optional[datetime]) -> None:
         hidden = get(response, "_hidden_params", {})
         deployment = label(get(hidden, "model_id")) or state.deployment
-        scope = self._routes.get(deployment) if deployment is not None and not state.dynamic_credentials else None
         usage = normalize_usage(get(response, "usage"), state.tags["ai.operation"])
         if state.multimodal:
             usage.quantities.clear()
@@ -391,46 +349,19 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             issues.add("stream_usage_provenance_unverified")
         if deployment:
             tags["ai.gateway.deployment_id"] = deployment
-        if scope:
-            if tags.get("ai.billing.provider") != scope.provider:
-                tags = {key: value for key, value in tags.items() if not key.startswith("ai.billing.")}
-            tags.update(scope.tags())
-            tags["ai.billing.provider_source"] = "operator_mapping"
-            if scope.mode:
-                tags["ai.billing.mode_source"] = "operator_mapping"
-        if not all(f"ai.billing.{key}" in tags for key in ("provider", "account_id", "product")):
-            issues.add("billing_scope_unknown")
-        if state.dynamic_credentials:
-            issues.add("client_credentials_or_endpoint")
         if tags["ai.identity.source"] != "gateway_auth":
             issues.add("authenticated_user_unknown")
         # Keep the provider-returned raw model, including pricing-relevant suffixes.
-        model = label(get(response, "model"))
+        model = label(get(response, "model"), 2048)
         if model:
             tags["ai.response.model"] = model
         route_model = tags.get("ai.route.model")
-        billed_model = scope.model if scope and scope.model else model or route_model
-        if billed_model:
-            tags["ai.model"] = billed_model
-            tags["ai.model.source"] = (
-                "operator_mapping" if scope and scope.model else "response" if model else "selected_route"
-            )
+        if selected_model := model or route_model:
+            tags["ai.model"] = selected_model
+            tags["ai.model.source"] = "response" if model else "selected_route"
         else:
             issues.add("model_unknown")
-        provider = label(get(hidden, "custom_llm_provider")) or tags.get("ai.route.provider")
-        observed = response_tags(response, provider)
-        tier = observed.get("ai.observed.service_tier")
-        if observed.get("ai.observed.traffic_type", "").startswith("ON_DEMAND") and tier:
-            # Traffic type identifies the quota actually consumed. Preserve both
-            # observations and flag contradictory on-demand tiers, not just config.
-            # Provisioned quota and service tier describe different dimensions.
-            if {"default": "standard"}.get(tier, tier) != observed["ai.billing.mode"]:
-                issues.add("conflicting_response_billing_mode")
-        tags.update(observed)
-        if "ai.billing.mode" not in tags:
-            issues.add("billed_mode_unknown")
-        if "ai.billing.geography" not in tags:
-            issues.add("billing_geography_unknown")
+        tags.update(response_tags(response))
         if provider := label(get(hidden, "custom_llm_provider")):
             tags["ai.model.provider"] = provider
         if response_id := label(get(response, "id")):
@@ -498,7 +429,5 @@ def configured_callback() -> GatewayAttribution:
             raise ValueError("Invalid gateway attribution configuration")
         return GatewayAttribution(**config)
     except (OSError, TypeError, ValueError):
-        log.warning(
-            "Invalid gateway attribution configuration; billing mappings and optional identity enrichment disabled"
-        )
+        log.warning("Invalid gateway attribution configuration; optional identity enrichment disabled")
         return GatewayAttribution(capture_end_user=False)

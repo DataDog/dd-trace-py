@@ -1,8 +1,7 @@
-"""Allowlisted route and pricing inputs, without retaining request content or credentials."""
+"""Raw route and pricing fields, without retaining request content or credentials."""
 
 from collections.abc import Mapping
 from itertools import islice
-import re
 from typing import Any
 from typing import Optional
 from urllib.parse import urlsplit
@@ -11,53 +10,20 @@ from ddtrace.contrib.internal.litellm._gateway_usage import get
 from ddtrace.contrib.internal.litellm._gateway_usage import label
 
 
-_PROVIDERS = {
-    "openai": ("openai", "api"),
-    "anthropic": ("anthropic", "platform-api"),
-    "azure": ("azure", "foundry"),
-    "azure_ai": ("azure", "foundry"),
-    "bedrock": ("aws", "bedrock"),
-    "vertex_ai": ("gcp", "vertex-ai"),
-    "gemini": ("gcp", "gemini-api"),
-    "oci": ("oracle", "generative-ai"),
-}
-_VERTEX_HOST = re.compile(r"(?:[a-z0-9-]+-)?aiplatform\.googleapis\.com")
-_OCI_HOST = re.compile(r"inference\.generativeai\.[a-z0-9-]+\.oci\.oraclecloud\.com")
-_BEDROCK_RESOURCE = re.compile(
-    r"arn:(?:aws|aws-us-gov|aws-cn):bedrock:(?P<region>[a-z0-9-]+):(?P<account>[0-9]{12})?:"
-    r"(?:application-inference-profile|inference-profile|provisioned-model|imported-model|custom-model-deployment|"
-    r"foundation-model)/[a-zA-Z0-9_.:/-]+"
-)
-_VERTEX_TRAFFIC_MODES = {
-    "ON_DEMAND": "standard",
-    "ON_DEMAND_PRIORITY": "priority",
-    "ON_DEMAND_FLEX": "flex",
-    "PROVISIONED_THROUGHPUT": "provisioned_throughput",
-}
-# Keep this explicit: an arbitrary subdomain does not establish the billing provider.
-# Regional endpoints: https://developers.openai.com/api/docs/guides/your-data
-_OPENAI_REGIONAL_HOSTS = {
-    f"{region}.api.openai.com": region for region in ("us", "eu", "au", "ca", "jp", "in", "sg", "kr", "gb", "ae")
-}
-_ENUMS = {
-    "service_tier": {"auto", "default", "standard", "priority", "flex", "scale"},
-    "speed": {"standard", "fast"},
-    "reasoning_effort": {"none", "minimal", "low", "medium", "high", "xhigh", "max"},
-    "quality": {"auto", "low", "medium", "high", "standard", "hd"},
-    "size": {"auto", "256x256", "512x512", "1024x1024", "1024x1536", "1536x1024", "1792x1024", "1024x1792"},
-    "prompt_cache_retention": {"in_memory", "24h"},
-    "inference_geo": {"us", "global"},
-}
-
-
 def request_tags(data: Any, prefix: str) -> dict[str, str]:
     tags: dict[str, str] = {}
-    for key, allowed in _ENUMS.items():
-        value = get(data, key)
-        if isinstance(value, str) and value in allowed:
-            tags[f"{prefix}.{key}"] = value
-    effort = get(get(data, "reasoning"), "effort")
-    if isinstance(effort, str) and effort in _ENUMS["reasoning_effort"]:
+    for key in (
+        "service_tier",
+        "speed",
+        "reasoning_effort",
+        "quality",
+        "size",
+        "prompt_cache_retention",
+        "inference_geo",
+    ):
+        if setting := label(get(data, key)):
+            tags[f"{prefix}.{key}"] = setting
+    if effort := label(get(get(data, "reasoning"), "effort")):
         tags[f"{prefix}.reasoning_effort"] = effort
     for key in ("n", "dimensions", "max_tokens", "max_completion_tokens", "max_output_tokens"):
         value = get(data, key)
@@ -67,14 +33,12 @@ def request_tags(data: Any, prefix: str) -> dict[str, str]:
     tier = get(data, "serviceTier")
     if isinstance(tier, Mapping):
         tier = tier.get("type")
-    if isinstance(tier, str) and tier in _ENUMS["service_tier"]:
+    if tier := label(tier):
         tags[f"{prefix}.service_tier"] = tier
     for parent in ("performanceConfig", "performance_config"):
-        latency = get(get(data, parent), "latency")
-        if isinstance(latency, str) and latency in ("standard", "optimized"):
+        if latency := label(get(get(data, parent), "latency")):
             tags[f"{prefix}.performance_latency"] = latency
-    search_context = get(get(data, "web_search_options"), "search_context_size")
-    if isinstance(search_context, str) and search_context in ("low", "medium", "high"):
+    if search_context := label(get(get(data, "web_search_options"), "search_context_size")):
         tags[f"{prefix}.web_search_context_size"] = search_context
     generation = get(data, "generationConfig")
     for key, value in (
@@ -92,6 +56,8 @@ def cache_tags(data: Any, prefix: str) -> dict[str, str]:
     # Bound work even for huge prompts and cyclic programmatic inputs.
     pending = [(data, 0)]
     ttls: set[str] = set()
+    types: set[str] = set()
+    unspecified_ttl = False
     visited = 0
     truncated = False
     while pending and visited < 512:
@@ -105,11 +71,15 @@ def cache_tags(data: Any, prefix: str) -> dict[str, str]:
             truncated |= len(node) > room
             pending.extend((item, depth + 1) for item in islice(node, room))
         elif isinstance(node, Mapping):
-            for key, kind in (("cache_control", "ephemeral"), ("cachePoint", "default")):
+            for key in ("cache_control", "cachePoint"):
                 control = node.get(key)
-                if isinstance(control, Mapping) and control.get("type") == kind:
-                    ttl = control.get("ttl", "5m")
-                    ttls.add(ttl if isinstance(ttl, str) and ttl in ("5m", "1h") else "unknown")
+                if isinstance(control, Mapping):
+                    if kind := label(control.get("type")):
+                        types.add(kind)
+                    if ttl := label(control.get("ttl")):
+                        ttls.add(ttl)
+                    if "ttl" not in control:
+                        unspecified_ttl = True
             for key in ("messages", "input", "system", "tools", "toolConfig", "content"):
                 child = node.get(key)
                 if isinstance(child, (Mapping, list)):
@@ -118,6 +88,10 @@ def cache_tags(data: Any, prefix: str) -> dict[str, str]:
                     else:
                         truncated = True
     tags = {f"{prefix}.prompt_cache_ttls": ",".join(sorted(ttls))} if ttls else {}
+    if types:
+        tags[f"{prefix}.prompt_cache_types"] = ",".join(sorted(types))
+    if unspecified_ttl:
+        tags[f"{prefix}.prompt_cache_ttl_unspecified"] = "true"
     if truncated or pending:
         tags[f"{prefix}.prompt_cache_scan"] = "incomplete"
     return tags
@@ -130,8 +104,6 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
     provider = label(get(data, "custom_llm_provider")) or previous.get("ai.route.provider")
     if model:
         tags["ai.route.model"] = model
-        if not provider and "/" in model and model.split("/", 1)[0] in _PROVIDERS:
-            provider = model.split("/", 1)[0]
     if provider:
         tags["ai.route.provider"] = provider
     for key in (
@@ -142,31 +114,22 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
         "aws_bedrock_project_id",
         "organization",
         "api_version",
+        "oci_tenancy",
+        "oci_compartment_id",
+        "oci_region",
     ):
         if value := label(get(data, key)) or previous.get(f"ai.route.{key}"):
             tags[f"ai.route.{key}"] = value
-    if provider == "bedrock":
-        # This is the provider's modelId, NOT _hidden_params.model_id (router deployment).
-        model_id = label(get(data, "model_id"), 2048) if "model_id" in data else previous.get("ai.route.model_id")
-        if model_id:
-            tags["ai.route.model_id"] = model_id
-        resource = model_id or (model or "").removeprefix("bedrock/").removeprefix("converse/").removeprefix("invoke/")
-        match = _BEDROCK_RESOURCE.fullmatch(resource)
-        if match:
-            tags["ai.route.resource_id"] = resource
-            tags["ai.route.resource_region"] = match["region"]
-            if match["account"]:
-                # Resource ownership does not establish the caller's billed account.
-                tags["ai.route.resource_owner_account_id"] = match["account"]
-    if provider == "oci":
-        for key in ("oci_tenancy", "oci_compartment_id", "oci_region"):
-            if value := label(get(data, key)) or previous.get(f"ai.route.{key}"):
-                tags[f"ai.route.{key}"] = value
+    # Preserve provider model/resource identifiers without interpreting ARN or billing semantics.
+    for key in ("model_id", "resource_id"):
+        value = label(get(data, key), 2048) if key in data else previous.get(f"ai.route.{key}")
+        if value:
+            tags[f"ai.route.{key}"] = value
     # Only the provider pre-call hook supplies headers, never ingress request headers.
     # Select non-secret OpenAI scope IDs without retaining authorization or other headers.
-    if provider == "openai" and "ai.route.project" in previous:
+    if "ai.route.project" in previous:
         tags["ai.route.project"] = previous["ai.route.project"]
-    if provider == "openai" and isinstance(headers, Mapping):
+    if isinstance(headers, Mapping):
         scope: dict[str, set[Optional[str]]] = {}
         if len(headers) <= 128:
             for key, value in headers.items():
@@ -199,61 +162,19 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
         if host:
             host = host.lower()
             tags["ai.route.endpoint_host"] = host
-            if provider == "openai" and host in _OPENAI_REGIONAL_HOSTS:
-                tags["ai.route.endpoint_region"] = _OPENAI_REGIONAL_HOSTS[host]
-    # A provider adapter can point at another gateway. Only known endpoints/defaults
-    # identify the billing provider; never assume every OpenAI-compatible API is OpenAI.
-    official = endpoint is None or (
-        host is not None
-        and (
-            (provider == "openai" and (host == "api.openai.com" or host in _OPENAI_REGIONAL_HOSTS))
-            or (provider == "anthropic" and host == "api.anthropic.com")
-            or (
-                provider in ("azure", "azure_ai")
-                and host.endswith((".openai.azure.com", ".services.ai.azure.com", ".models.ai.azure.com"))
-            )
-            or (provider == "bedrock" and host.startswith("bedrock-runtime.") and host.endswith(".amazonaws.com"))
-            or (provider == "vertex_ai" and _VERTEX_HOST.fullmatch(host) is not None)
-            or (provider == "gemini" and host == "generativelanguage.googleapis.com")
-            or (provider == "oci" and _OCI_HOST.fullmatch(host) is not None)
-        )
-    )
-    if provider in _PROVIDERS and official:
-        billing_provider, product = _PROVIDERS[provider]
-        tags.update({"ai.billing.provider": billing_provider, "ai.billing.product": product})
-        tags["ai.billing.provider_source"] = "selected_route"
-        if provider == "openai" and "ai.route.organization" in tags:
-            tags["ai.billing.account_id"] = tags["ai.route.organization"]
-        if provider == "openai" and "ai.route.project" in tags:
-            tags["ai.billing.project_id"] = tags["ai.route.project"]
-        if provider == "vertex_ai" and "ai.route.vertex_project" in tags:
-            tags["ai.billing.project_id"] = tags["ai.route.vertex_project"]
-        if provider == "bedrock" and "ai.route.resource_id" in tags:
-            tags["ai.billing.resource_id"] = tags["ai.route.resource_id"]
-        if provider == "oci":
-            # The signer's tenancy is useful join evidence, but cross-tenancy access
-            # means it is not necessarily the account billed for the resource.
-            if "ai.route.oci_compartment_id" in tags:
-                tags["ai.billing.project_id"] = tags["ai.route.oci_compartment_id"]
     return tags
 
 
-def response_tags(response: Any, provider: Optional[str]) -> dict[str, str]:
-    """Retain explicit pricing and correlation scalars, never raw response metadata."""
+def response_tags(response: Any) -> dict[str, str]:
+    """Retain explicit pricing and correlation scalars, never whole response metadata."""
     tags: dict[str, str] = {}
     usage = get(response, "usage")
     tier = label(get(response, "service_tier")) or label(get(usage, "service_tier"))
-    if tier and tier != "auto":
+    if tier:
         tags["ai.observed.service_tier"] = tier
-        tags["ai.billing.mode"] = tier
-        tags["ai.billing.mode_source"] = "response_service_tier"
     hidden = get(response, "_hidden_params")
-    if provider in ("vertex_ai", "gemini"):
-        traffic = get(get(hidden, "provider_specific_fields"), "traffic_type")
-        if isinstance(traffic, str) and traffic in _VERTEX_TRAFFIC_MODES:
-            tags["ai.observed.traffic_type"] = traffic
-            tags["ai.billing.mode"] = _VERTEX_TRAFFIC_MODES[traffic]
-            tags["ai.billing.mode_source"] = "response_traffic_type"
+    if traffic := label(get(get(hidden, "provider_specific_fields"), "traffic_type")):
+        tags["ai.observed.traffic_type"] = traffic
     for key in ("speed", "inference_geo"):
         if value := label(get(usage, key)):
             tags[f"ai.observed.{key}"] = value

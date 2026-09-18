@@ -22,12 +22,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[4]
 BEDROCK_PROFILE = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/local-profile"
-AZURE_RESOURCE = (
-    "/subscriptions/sub-test/resourceGroups/"
-    + "g" * 100
-    + "/providers/Microsoft.CognitiveServices/accounts/"
-    + "a" * 100
-)
 
 
 @pytest.fixture(scope="module")
@@ -263,7 +257,7 @@ def gateway(tmp_path_factory):
                         **base,
                         "object": "chat.completion",
                         "usage": usage,
-                        "service_tier": "default",
+                        "service_tier": "Future_Response_Tier",
                         "choices": [
                             {
                                 "index": 0,
@@ -392,40 +386,6 @@ def gateway(tmp_path_factory):
     attribution_config.write_text(
         json.dumps(
             {
-                "billing_scopes": {
-                    "azure-ai-deployment": {
-                        "provider": "azure",
-                        "account_id": "sub-test",
-                        "product": "foundry",
-                        "resource_id": AZURE_RESOURCE,
-                        "geography": "global",
-                        "mode": "standard",
-                    },
-                    "openai-deployment": {
-                        "provider": "openai",
-                        "account_id": "org-test",
-                        "product": "api",
-                        "project_id": "proj-test",
-                        "geography": "global",
-                        "mode": "standard",
-                    },
-                    "fallback-deployment": {
-                        "provider": "azure",
-                        "account_id": "sub-test",
-                        "product": "foundry",
-                        "resource_id": "resource-test",
-                        "geography": "eastus",
-                        "mode": "standard",
-                    },
-                    "anthropic-deployment": {
-                        "provider": "anthropic",
-                        "account_id": "anthropic-org-test",
-                        "product": "platform-api",
-                        "project_id": "workspace-test",
-                        "geography": "global",
-                        "mode": "standard",
-                    },
-                },
                 "capture_email": True,
                 "auth_metadata_keys": ["cost_center"],
             }
@@ -525,11 +485,12 @@ async def test_real_proxy_and_wire_traces(gateway):
     assert all(t["ai.enrichment.cost_center"] == "test-eng" for t in tags)
     successful = [s for s in spans if s["meta"]["ai.request.outcome"] == "success"]
     assert len(successful) == 3
-    assert sorted(s["meta"].get("ai.billing.account_id", "MISSING") for s in successful) == [
-        "org-test",
-        "org-test",
-        "sub-test",
+    assert sorted(s["meta"]["ai.gateway.deployment_id"] for s in successful) == [
+        "fallback-deployment",
+        "openai-deployment",
+        "openai-deployment",
     ]
+    assert all(not any(key.startswith("ai.billing.") for key in span["meta"]) for span in spans)
     for span in successful:
         # The OpenAI-shaped mock has no cache-write counter. Preserve totals and
         # cache reads without silently fabricating a complete uncached partition.
@@ -544,6 +505,7 @@ async def test_real_proxy_and_wire_traces(gateway):
         assert span["meta"]["ai.route.endpoint_host"] == "127.0.0.1"
         if span["meta"]["usr.id"] == "alice":
             assert span["meta"]["ai.response.x_request_id"] == "upstream-request-local"
+            assert span["meta"]["ai.observed.service_tier"] == "Future_Response_Tier"
         assert span["meta"]["ai.route.organization"] == "org-router"
         assert span["meta"]["ai.route.project"] == "proj-router"
         assert span["meta"]["ai.request.service_tier"] == "priority"
@@ -615,9 +577,9 @@ async def test_native_coding_agent_endpoints(gateway, stream):
             break
         await asyncio.sleep(0.2)
     assert len(spans) == 2, spans
-    assert {s["meta"].get("ai.billing.account_id") for s in spans} == {
-        "org-test",
-        "anthropic-org-test",
+    assert {s["meta"]["ai.gateway.deployment_id"] for s in spans} == {
+        "openai-deployment",
+        "anthropic-deployment",
     }
     for s in spans:
         if s["meta"]["ai.operation"] == "anthropic_messages":
@@ -678,7 +640,7 @@ async def test_embeddings_and_multimodal_wire_counters(gateway):
     assert modal["metrics"]["ai.observed.input_text_tokens"] == 70
     assert modal["metrics"]["ai.observed.input_cache_read_tokens"] == 5
     assert "ai.usage.input_uncached_tokens" not in modal["metrics"]
-    assert "ai.billing.provider" not in modal["meta"]  # Custom endpoint with no mapping.
+    assert "ai.billing.provider" not in modal["meta"]
     assert "PRIVATE" not in json.dumps(spans)
 
 
@@ -707,10 +669,8 @@ async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway)
     assert len(spans) == 1
     span = spans[0]
     assert span["meta"]["ai.route.model_id"] == BEDROCK_PROFILE
-    assert span["meta"]["ai.route.resource_id"] == BEDROCK_PROFILE
-    assert span["meta"]["ai.route.resource_region"] == "us-east-1"
+    assert span["meta"]["ai.route.aws_region_name"] == "us-east-1"
     assert "ai.billing.account_id" not in span["meta"]
-    # The mock is a custom endpoint, so only route evidence, not AWS billing, is inferred.
     assert "ai.billing.provider" not in span["meta"]
     assert any(BEDROCK_PROFILE in unquote(request["observed_path"]) for request in upstream)
     for private in ("PRIVATE", "SYNTHETIC-AWS-ACCESS", "SYNTHETIC-AWS-SECRET"):
@@ -718,7 +678,7 @@ async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway)
 
 
 @pytest.mark.parametrize("stream", [False, True])
-async def test_azure_claude_route_and_long_resource_id_reach_wire(gateway, stream):
+async def test_raw_azure_claude_route_reaches_wire(gateway, stream):
     url, traces, upstream = gateway
     before = {span["span_id"] for trace in list(traces) for span in trace}
     async with httpx.AsyncClient(timeout=20) as client:
@@ -751,10 +711,7 @@ async def test_azure_claude_route_and_long_resource_id_reach_wire(gateway, strea
     span = spans[0]
     assert span["meta"]["usr.id"] == "alice"
     assert span["meta"]["ai.route.provider"] == "azure_ai"
-    assert span["meta"]["ai.billing.provider"] == "azure"
-    assert span["meta"]["ai.billing.account_id"] == "sub-test"
-    assert span["meta"]["ai.billing.resource_id"] == AZURE_RESOURCE
-    assert len(AZURE_RESOURCE) > 256
+    assert not any(key.startswith("ai.billing.") for key in span["meta"])
     assert span["metrics"]["ai.observed.context_tokens"] == 100
     assert span["metrics"]["ai.usage.input_cache_read_tokens"] == 40
     assert span["metrics"]["ai.usage.output_tokens"] == 25
