@@ -84,6 +84,7 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False  # ignored
+    fabric_no_proxy: bool = False
     suite: t.Optional[str] = None
 
     python_versions: t.Optional[set[str]] = None
@@ -140,6 +141,12 @@ class JobSpec:
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
+        if self.fabric_no_proxy:
+            lines.append("    - |")
+            lines.append('      no_proxy_additions="icanhazdadjoke.com,doesnotexist.google.com,api.stripe.com,us-central1-aiplatform.googleapis.com"')
+            lines.append('      export NO_PROXY="${NO_PROXY:+${NO_PROXY},}${no_proxy_additions}"')
+            lines.append('      export no_proxy="${no_proxy:+${no_proxy},}${no_proxy_additions}"')
+            lines.append('      echo "NO_PROXY=${NO_PROXY}"')
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             wait_environment = ""
