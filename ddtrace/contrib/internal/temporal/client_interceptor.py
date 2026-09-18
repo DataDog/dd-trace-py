@@ -4,29 +4,25 @@ from __future__ import annotations
 
 from collections.abc import Awaitable
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 from typing import Any
 
 import temporalio.client
 
+from ddtrace.trace import tracer
+
 from .constants import COMMON_ATTRIBUTE_MAP
 from .constants import OperationNames
 from .constants import SpanAttributes
-from .span_runner import _SpanRunner
 
 
-if TYPE_CHECKING:
-    from .interceptor import DatadogTracingInterceptor
-
-
-class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundInterceptor):  # type: ignore[misc]
+class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.client.OutboundInterceptor,
-        root: DatadogTracingInterceptor,
+        root: Any,  # DatadogTracingInterceptor; not imported to avoid a circular import with .interceptor
     ) -> None:
-        temporalio.client.OutboundInterceptor.__init__(self, next)
-        _SpanRunner.__init__(self, root)
+        super().__init__(next)
+        self.root = root
 
     async def start_workflow(
         self, input: temporalio.client.StartWorkflowInput
@@ -67,7 +63,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
 
     async def create_schedule(self, input: temporalio.client.CreateScheduleInput) -> temporalio.client.ScheduleHandle:
         span = self._get_span(OperationNames.CREATE_SCHEDULE, input.id)
-        return await self.run(span, OperationNames.CREATE_SCHEDULE, super().create_schedule(input))
+        return await self.root._run_span(span, OperationNames.CREATE_SCHEDULE, super().create_schedule(input))
 
     async def start_workflow_update(
         self, input: temporalio.client.StartWorkflowUpdateInput
@@ -89,7 +85,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
             # Update tracing is disabled, but this call also starts a new workflow.
             # Propagate the currently active trace into the workflow start headers so
             # RunWorkflow is not an unparented root when workflow tracing is enabled.
-            active_ctx = self.root.tracer.tracer.context_provider.active()
+            active_ctx = tracer.context_provider.active()
             input.start_workflow_input.headers = self.root.propagator.inject_headers(
                 input.start_workflow_input.headers, active_ctx
             )
@@ -113,7 +109,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
             input.update_workflow_input.headers, span.context
         )
 
-        return await self.run(
+        return await self.root._run_span(
             span,
             operation_name,
             super().start_update_with_start_workflow(input),
@@ -140,7 +136,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
     ) -> Any:
         span = self._get_span(operation_name, resource_name, attributes)
         input.headers = self.root.propagator.inject_headers(input.headers, span.context)
-        return await self.run(span, operation_name, awaitable(input))
+        return await self.root._run_span(span, operation_name, awaitable(input))
 
     def _get_span(
         self,
@@ -149,8 +145,8 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
         attributes: dict[str, Any] | None = None,
     ) -> Any:
         # Use the currently active ddtrace span as parent if one exists
-        parent_ctx = self.root.tracer.tracer.context_provider.active()
-        return self.root.tracer.start_span(
+        parent_ctx = tracer.context_provider.active()
+        return self.root._start_span(
             operation_name=operation_name,
             parent_ctx=parent_ctx,
             resource_name=resource_name,

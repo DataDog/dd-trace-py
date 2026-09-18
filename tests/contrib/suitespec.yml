@@ -2603,6 +2603,24 @@ suites:
       variants:
         - name: logging
           dependencies: [pytest-randomly, pytest-xdist]
+  temporal:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@temporal'
+      - tests/contrib/temporal/*
+    snapshot: true
+    matrix:
+      command: python -m pytest {cmdargs} tests/contrib/temporal
+      variants:
+        - name: temporal
+          python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies: ['pytest-asyncio', 'temporalio~=1.21.0']
+        - name: temporal
+          python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies: ['pytest-asyncio', temporalio]
   tornado:
     paths:
       - '@bootstrap'
@@ -2647,26 +2665,6 @@ suites:
           dependencies: [pytest-randomly, 'trio==0.21.0']
         - name: trio
           dependencies: [pytest-randomly, trio]
-  temporal:
-    parallelism: 1
-    env:
-      DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@temporal'
-      - tests/contrib/temporal/*
-    snapshot: true
-    matrix:
-      env:
-        DD_TRACE_ANALYTICS_ENABLED: 'true'
-      command: python -m pytest {cmdargs} tests/contrib/temporal
-      variants:
-        - name: temporal
-          python: ['3.11', '3.12', '3.13', '3.14']
-          dependencies: ['pytest-asyncio', 'temporalio~=1.31.0']
   urllib3:
     env:
       TEST_HTTPBIN_HOST: httpbin

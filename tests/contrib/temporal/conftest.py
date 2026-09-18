@@ -12,7 +12,7 @@ import pytest_asyncio
 from temporalio.client import Client
 from temporalio.testing import WorkflowEnvironment
 
-from ddtrace.contrib.internal.temporal import DatadogTracingInterceptor
+from ddtrace.contrib.temporal import DatadogTracingInterceptor
 from ddtrace.internal.writer.writer import TraceWriter
 from ddtrace.trace import tracer as _dd_tracer
 
