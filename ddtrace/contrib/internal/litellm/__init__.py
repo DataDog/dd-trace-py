@@ -68,9 +68,9 @@ Quick setup
 4. Check how your gateway identifies users; see below. Existing user settings
    are reused, so there is no separate Datadog user list to configure.
 
-Without further configuration, the callback collects available user IDs,
-usage, and the provider/model details LiteLLM makes available. No billing
-configuration file is required to enable collection.
+Without further configuration, the callback collects available user IDs and
+authenticated email, usage, and the provider/model details LiteLLM makes
+available. No extra configuration file is required to enable collection.
 
 How users are identified
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -130,11 +130,11 @@ response traffic types are kept as reported, including unfamiliar values.
      - Meaning
    * - Span start/duration; ``ai.timezone``
      - Request start and finish times, in UTC.
-   * - ``usr.id``, ``team.id``, ``ai.gateway.org_id``
+   * - ``usr.id``, ``usr.email``, ``team.id``, ``ai.gateway.org_id``
      - User ID (authenticated first, then the optional end-user fallback), plus
        authenticated team and gateway organization. A gateway organization is
-       not a provider billing account. Optional authenticated email and extra
-       user fields use ``usr.email`` and ``ai.enrichment.*``.
+       not a provider billing account. Authenticated email is included when
+       available as ``usr.email``. Optional extra user fields use ``ai.enrichment.*``.
    * - ``ai.identity.source``, ``ai.end_user.id``, ``ai.end_user.trust``
      - ``usr.id`` comes from ``gateway_auth`` or ``litellm_end_user``; otherwise
        its source is ``unknown``. The separate end-user ID is always marked
@@ -285,13 +285,14 @@ are sent to Datadog.
 .. envvar:: DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG
 
    Path to an optional JSON file. The callback reads it once at startup; restart
-   the gateway after changing it. An invalid or unreadable file disables optional
-   user enrichment and end-user capture, but does not stop the gateway.
+   the gateway after changing it. An invalid or unreadable file disables
+   email, extra user metadata, and end-user capture, but does not stop the gateway.
 
 Available user settings:
 
-* ``capture_email``: ``false`` by default. Set to ``true`` to include email from
-  the gateway's authenticated user record as ``usr.email``.
+* ``capture_email``: ``true`` by default. Includes email from the gateway's
+  authenticated user record as ``usr.email`` when available. Set to ``false``
+  to omit this field.
 * ``capture_end_user``: ``true`` by default. Set to ``false`` to disable collection
   of LiteLLM's end-user ID, including its use as a fallback for ``usr.id``.
 * ``auth_metadata_keys``: empty by default. Select authenticated user metadata
@@ -300,14 +301,14 @@ Available user settings:
   is explicit because this free-form data may contain secrets or unrelated
   personal information. User IDs and team IDs do not need this configuration.
 
-For example, to include authenticated email, save this JSON in
+For example, to turn off authenticated email collection, save this JSON in
 ``/etc/litellm/attribution.json`` and set
 ``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG=/etc/litellm/attribution.json`` before
 starting the gateway:
 
 .. code-block:: json
 
-    {"capture_email": true}
+    {"capture_email": false}
 
 Only select user fields you intend to send to Datadog. User IDs can themselves
 contain personal information, even when email collection is off. Values must be

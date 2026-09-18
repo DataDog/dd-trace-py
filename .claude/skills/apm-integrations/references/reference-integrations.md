@@ -45,7 +45,10 @@ may this fill `usr.id`, with source `litellm_end_user`; keep the
 `authenticated_user_unknown` issue. Never re-read raw headers/body to recover an ID
 LiteLLM omitted, copy JSON-shaped identity payloads, or use end-user claims for
 authenticated enrichment or billing scope. `capture_end_user=false` opts out;
-invalid configuration disables end-user capture too.
+invalid configuration disables end-user capture too. Authenticated user email is
+collected by default when available; `capture_email=false` opts out. Invalid or
+unreadable configuration explicitly disables email capture as well, rather than
+falling back to the default and losing a possible privacy opt-out.
 
 `_gateway_metadata.py` selects route and pricing fields for privacy, distinguishing
 ingress from provider-transformed outgoing settings. Keep valid values verbatim,

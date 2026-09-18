@@ -96,7 +96,7 @@ def _has_nontext_input(data: dict[str, Any]) -> bool:
 class GatewayAttribution(CustomLogger):  # type: ignore[misc]
     """Record gateway users and usage in APM, without prompt or response text.
 
-    :param capture_email: Include authenticated user email. Defaults to ``False``.
+    :param capture_email: Include authenticated user email. Defaults to ``True``.
     :param capture_end_user: Include LiteLLM's end-user ID as unverified context
         and use it when the authenticated user ID is missing. Defaults to ``True``.
     :param auth_metadata_keys: User metadata fields to copy, such as ``cost_center``.
@@ -107,7 +107,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
     def __init__(
         self,
         *,
-        capture_email: bool = False,
+        capture_email: bool = True,
         capture_end_user: bool = True,
         auth_metadata_keys: Iterable[str] = (),
     ) -> None:
@@ -432,4 +432,4 @@ def configured_callback() -> GatewayAttribution:
         return GatewayAttribution(**config)
     except (OSError, TypeError, ValueError):
         log.warning("Invalid gateway attribution configuration; optional identity enrichment disabled")
-        return GatewayAttribution(capture_end_user=False)
+        return GatewayAttribution(capture_email=False, capture_end_user=False)

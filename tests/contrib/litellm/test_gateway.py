@@ -120,7 +120,7 @@ def test_unknown_ttl_and_explicit_zero():
     assert result.quantities["output_tokens"] == 0
 
 
-async def test_identity_is_authenticated_no_secrets_and_opt_in_email():
+async def test_identity_is_authenticated_no_secrets_and_email_on_by_default():
     records = []
     callback = make_callback(sink=records.append, auth_metadata_keys=("cost_center",))
     forged = {
@@ -155,11 +155,28 @@ async def test_identity_is_authenticated_no_secrets_and_opt_in_email():
     assert record.tags["team.id"] == "team-1"
     assert record.tags["ai.enrichment.cost_center"] == "eng"
     assert record.tags["ai.attribution.status"] == "observed"
-    assert not any(word in repr(record) for word in ("SECRET", "sk-do-not-log", "victim", "@"))
-    callback = make_callback(sink=records.append, capture_email=True)
+    assert record.tags["usr.email"] == "real@example.test"
+    assert not any(word in repr(record) for word in ("SECRET", "sk-do-not-log", "victim"))
+
+
+async def test_email_capture_can_be_disabled():
+    records = []
+    callback = make_callback(sink=records.append, capture_email=False)
     data = await start(callback, user_email="real@example.test")
     await finish(callback, data)
-    assert records[-1].tags["usr.email"] == "real@example.test"
+    assert "usr.email" not in records[0].tags
+    assert records[0].tags["usr.id"] == "user-1"
+
+
+@pytest.mark.parametrize("email", [None, "", "sk-PRIVATE", {"email": "PRIVATE"}])
+async def test_default_email_capture_omits_missing_or_invalid_email(email):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback, user_email=email, data={"metadata": {"usr.email": "spoofed@example.test"}})
+    await finish(callback, data)
+    assert "usr.email" not in records[0].tags
+    assert "PRIVATE" not in repr(records)
+    assert "spoofed" not in repr(records)
 
 
 @pytest.mark.parametrize("user", [None, "shared-service"])
@@ -522,8 +539,10 @@ def test_invalid_file_configuration_fails_closed(tmp_path, monkeypatch, config):
 
 def test_missing_and_invalid_configuration_identity_defaults(monkeypatch):
     monkeypatch.delenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", raising=False)
+    assert configured_callback()._capture_email
     assert configured_callback()._capture_end_user
     monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", "/nonexistent/attribution-config.json")
+    assert not configured_callback()._capture_email
     assert not configured_callback()._capture_end_user
 
 
@@ -531,7 +550,16 @@ def test_file_configuration_can_disable_end_user_capture(tmp_path, monkeypatch):
     path = tmp_path / "attribution.json"
     path.write_text('{"capture_end_user": false}')
     monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", str(path))
+    assert configured_callback()._capture_email
     assert not configured_callback()._capture_end_user
+
+
+def test_file_configuration_can_disable_email_capture(tmp_path, monkeypatch):
+    path = tmp_path / "attribution.json"
+    path.write_text('{"capture_email": false}')
+    monkeypatch.setenv("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG", str(path))
+    assert not configured_callback()._capture_email
+    assert configured_callback()._capture_end_user
 
 
 async def test_forked_worker_drops_parent_requests(monkeypatch):

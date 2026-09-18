@@ -397,7 +397,6 @@ def gateway(tmp_path_factory):
     attribution_config.write_text(
         json.dumps(
             {
-                "capture_email": True,
                 "auth_metadata_keys": ["cost_center"],
             }
         )
