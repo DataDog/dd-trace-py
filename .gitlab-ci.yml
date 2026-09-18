@@ -61,7 +61,7 @@ workflow:
     - when: always
 
 include:
-  - project: 'DataDog/llm-validation-platform'
+  - project: 'ddoghq/llm-validation-platform'
     ref: c331696647a78672101002ba48ccebbd41b0fae8  # v0.1.3
     file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
@@ -796,5 +796,6 @@ publishing-gate:
 
 "llm validation":
   variables:
+    LLMVAL_PLATFORM_PROJECT: "ddoghq/llm-validation-platform"  # canonical mirror; the DataDog/ mirror is stale (frozen ~v0.1.1)
     LLMVAL_BASE_REF: "main"
     LLMVAL_PLATFORM_REF: "c331696647a78672101002ba48ccebbd41b0fae8"  # v0.1.3 (keep identical to the include ref above)
