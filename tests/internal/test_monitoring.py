@@ -72,6 +72,10 @@ class StartHandler(monitoring.MonitoringEventHandler):
         return None
 
 
+class DirectStartHandler(StartHandler):
+    _direct_events = _E.PY_START
+
+
 class StartAndUnwindHandler(monitoring.MonitoringEventHandler):
     def __init__(self) -> None:
         self.started: bool = False
@@ -309,6 +313,165 @@ def test_refresh_skips_event_that_was_not_physically_disabled(
 
     monkeypatch.setattr(monitoring, "_rearm_local_events", fail_rearm)
     monitoring.refresh(fn.__code__, _E.LINE)
+
+
+def test_refresh_many_rearms_disabled_codes_and_skips_active_events(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def disabled_fn() -> None:
+        pass
+
+    def another_disabled_fn() -> None:
+        pass
+
+    def active_fn() -> None:
+        pass
+
+    registered(disabled_fn.__code__, LineHandler(disable=True))
+    registered(another_disabled_fn.__code__, LineHandler(disable=True))
+    registered(active_fn.__code__, LineHandler(disable=True))
+    registered(active_fn.__code__, LineHandler())
+
+    assert monitoring._on_py_line(disabled_fn.__code__, disabled_fn.__code__.co_firstlineno) is _DISABLE
+    assert monitoring._on_py_line(another_disabled_fn.__code__, another_disabled_fn.__code__.co_firstlineno) is _DISABLE
+    assert monitoring._on_py_line(active_fn.__code__, active_fn.__code__.co_firstlineno) is not _DISABLE
+
+    rearmed = []
+    monkeypatch.setattr(
+        monitoring,
+        "_rearm_local_events",
+        lambda tool_id, code, events, rearm_events: rearmed.append((code, events, rearm_events)),
+    )
+
+    monitoring.refresh_many(
+        (code for code in (disabled_fn.__code__, active_fn.__code__, another_disabled_fn.__code__)),
+        _E.LINE,
+    )
+
+    assert sorted(id(code) for code, _events, _rearm_events in rearmed) == sorted(
+        (id(disabled_fn.__code__), id(another_disabled_fn.__code__))
+    )
+    assert all(events == _E.LINE for _code, events, _rearm_events in rearmed)
+    assert all(rearm_events == _E.LINE for _code, _events, rearm_events in rearmed)
+
+
+def test_direct_callback_switches_to_multiplexing_and_back() -> None:
+    def first_fn() -> None:
+        pass
+
+    def second_fn() -> None:
+        pass
+
+    direct = DirectStartHandler()
+    sibling = StartHandler()
+    monitoring.register(first_fn.__code__, direct)
+    monitoring.register(second_fn.__code__, direct)
+    try:
+        assert monitoring._direct_event_handlers[_E.PY_START] is direct
+
+        monitoring.register(first_fn.__code__, sibling)
+        assert monitoring._direct_event_handlers[_E.PY_START] is None
+
+        monitoring.unregister(first_fn.__code__, sibling)
+        assert monitoring._direct_event_handlers[_E.PY_START] is direct
+    finally:
+        monitoring.unregister(first_fn.__code__, sibling)
+        monitoring.unregister(second_fn.__code__, direct)
+        monitoring.unregister(first_fn.__code__, direct)
+
+
+def test_direct_callback_preserves_disable_across_multiplexing_transitions() -> None:
+    class DirectDisablingStartHandler(monitoring.MonitoringEventHandler):
+        _direct_events = _E.PY_START
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
+            self.calls += 1
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    direct = DirectDisablingStartHandler()
+    sibling = StartHandler()
+    monitoring.register(fn.__code__, direct)
+    try:
+        fn()
+        fn()
+        assert direct.calls == 1
+
+        monitoring.register(fn.__code__, sibling)
+        fn()
+        fn()
+        assert direct.calls == 3
+        assert sibling.started
+
+        monitoring.unregister(fn.__code__, sibling)
+        fn()
+        fn()
+        assert direct.calls == 4
+    finally:
+        monitoring.unregister(fn.__code__, sibling)
+        monitoring.unregister(fn.__code__, direct)
+
+
+def test_restart_events_if_exclusive_restarts_only_for_the_sole_handler(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fn() -> None:
+        pass
+
+    handler = DirectStartHandler()
+    monitoring.register(fn.__code__, handler)
+    tool_id = monitoring.ensure_tool()
+    restarts: list[None] = []
+
+    monkeypatch.setattr(
+        _sys_monitoring,
+        "get_tool",
+        lambda candidate: monitoring._MULTIPLEXER_TOOL_NAME if candidate == tool_id else None,
+    )
+    monkeypatch.setattr(_sys_monitoring, "restart_events", lambda: restarts.append(None))
+    try:
+        registry_version = monitoring.restart_events_if_exclusive(handler)
+        assert registry_version is not None
+        assert monitoring.registry_version_is_current(registry_version)
+        assert restarts == [None]
+
+        sibling = StartHandler()
+        monitoring.register(fn.__code__, sibling)
+        try:
+            assert monitoring.restart_events_if_exclusive(handler) is None
+            assert restarts == [None]
+        finally:
+            monitoring.unregister(fn.__code__, sibling)
+    finally:
+        monitoring.unregister(fn.__code__, handler)
+
+
+def test_restart_events_if_exclusive_rejects_another_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fn() -> None:
+        pass
+
+    handler = DirectStartHandler()
+    monitoring.register(fn.__code__, handler)
+    tool_id = monitoring.ensure_tool()
+    other_tool_id = next(candidate for candidate in range(6) if candidate != tool_id)
+
+    def get_tool(candidate: int) -> str | None:
+        if candidate == tool_id:
+            return monitoring._MULTIPLEXER_TOOL_NAME
+        if candidate == other_tool_id:
+            return "external"
+        return None
+
+    monkeypatch.setattr(_sys_monitoring, "get_tool", get_tool)
+    monkeypatch.setattr(_sys_monitoring, "restart_events", lambda: pytest.fail("unexpected restart"))
+    try:
+        assert monitoring.restart_events_if_exclusive(handler) is None
+    finally:
+        monitoring.unregister(fn.__code__, handler)
 
 
 def test_unrelated_handler_does_not_vote_on_line_disable(
