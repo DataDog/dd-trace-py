@@ -28,7 +28,7 @@ fi
 
 INDEX_URL="${BASE_URL}/${INDEX_FILE}"
 
-POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"  # 30 minutes default
+POLL_TIMEOUT="${POLL_TIMEOUT:-3600}"  # 60 minutes default (GitLab wheel upload often exceeds 30m)
 POLL_INTERVAL="${POLL_INTERVAL:-30}"  # 30 seconds default
 
 echo "Polling for: ${INDEX_URL}"
