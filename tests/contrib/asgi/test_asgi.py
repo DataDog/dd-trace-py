@@ -3,6 +3,10 @@ from functools import partial
 import logging
 import os
 import random
+from typing import Any
+from typing import Awaitable
+from typing import Callable
+from typing import TypedDict
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
@@ -827,7 +831,18 @@ async def test_inferred_spans_api_gateway_default(scope, test_spans, app_type, i
                 )
 
 
-def _http_scope():
+class _HTTPScope(TypedDict):
+    client: tuple[str, int]
+    headers: list[tuple[bytes, bytes]]
+    method: str
+    path: str
+    query_string: bytes
+    scheme: str
+    server: tuple[str, int]
+    type: str
+
+
+def _http_scope() -> _HTTPScope:
     return {
         "client": ("127.0.0.1", 32767),
         "headers": [],
@@ -840,7 +855,11 @@ def _http_scope():
     }
 
 
-async def _send_complete_http_response(receive, send, body=b"*"):
+async def _send_complete_http_response(
+    receive: Callable[[], Awaitable[dict[str, Any]]],
+    send: Callable[[dict[str, Any]], Awaitable[None]],
+    body: bytes = b"*",
+) -> None:
     message = await receive()
     if message.get("type") == "http.request":
         await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
