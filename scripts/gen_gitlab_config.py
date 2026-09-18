@@ -28,6 +28,12 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
+FABRIC_NO_PROXY_ADDITIONS = (
+    "icanhazdadjoke.com",
+    "doesnotexist.google.com",
+    "api.stripe.com",
+    "us-central1-aiplatform.googleapis.com",
+)
 
 
 def _ddtest_module():
@@ -144,7 +150,7 @@ class JobSpec:
         if self.fabric_no_proxy:
             lines.append("    - |")
             lines.append(
-                '      no_proxy_additions="icanhazdadjoke.com,doesnotexist.google.com,api.stripe.com,us-central1-aiplatform.googleapis.com"'
+                f'      no_proxy_additions="{",".join(FABRIC_NO_PROXY_ADDITIONS)}"'
             )
             lines.append('      export NO_PROXY="${NO_PROXY:+${NO_PROXY},}${no_proxy_additions}"')
             lines.append('      export no_proxy="${no_proxy:+${no_proxy},}${no_proxy_additions}"')
