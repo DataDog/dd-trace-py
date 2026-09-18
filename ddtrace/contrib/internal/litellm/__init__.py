@@ -39,30 +39,18 @@ handled each request, and how much usage LiteLLM reported**. It sends a Datadog
 APM span named ``ai_gateway.usage``: a trace record with user IDs, usage counts,
 and available billing details, but no prompt or response text.
 
-The callback is code that LiteLLM calls during a request. It runs **inside the
-gateway**, not on users' laptops. An Agent next to the gateway cannot collect
-this information on its own. This feature does not require LLM Observability,
-and ``ddtrace-run`` alone does not turn it on.
-
 Quick setup
 ^^^^^^^^^^^
 
 1. Install ``ddtrace`` in the same Python environment or container image as your
    LiteLLM proxy. The full gateway flow is tested with LiteLLM 1.101.0; older
    versions may not provide all the request hooks this feature needs.
-2. Add the callback below to your LiteLLM configuration. Keep any existing
-   callbacks. The model and provider key shown here are examples; keep your
-   gateway's existing model settings.
+2. Add the callback below to your existing LiteLLM configuration. Keep your
+   existing callbacks, model settings, and provider credentials. You do not need
+   to enter API keys or model names again for this integration.
 
 .. code-block:: yaml
 
-    model_list:
-      - model_name: coding-model
-        litellm_params:
-          model: openai/gpt-4o
-          api_key: os.environ/OPENAI_API_KEY
-        model_info:
-          id: openai-coding-deployment
     litellm_settings:
       callbacks:
         - ddtrace.contrib.litellm.gateway_attribution
@@ -99,7 +87,8 @@ It does not change where requests are routed.
    gateway after changing it. If the file is invalid or unreadable, the gateway
    keeps working, but the callback ignores its billing and optional user settings.
 
-For the YAML example above, save this as ``/etc/litellm/attribution.json`` and
+Save this as ``/etc/litellm/attribution.json``. Replace
+``openai-coding-deployment`` with your route's existing ``model_info.id`` and
 replace the example billing IDs with your own:
 
 .. code-block:: json
@@ -124,10 +113,10 @@ Set the path **before starting the gateway**:
     export DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG=/etc/litellm/attribution.json
     ddtrace-run litellm --config /etc/litellm/config.yaml
 
-The name ``openai-coding-deployment`` must match ``model_info.id`` in the YAML,
-**not** the model alias ``coding-model``. Each deployment is a configured route
-to a provider. Add a mapping for each route you want to identify, including
-fallbacks, and update it when its credentials or cloud resources change.
+Each mapping key must match the selected route's ``model_info.id``, **not** its
+model alias. If you need a stable ID for a mapping, set ``model_info.id`` on that
+route in your existing ``model_list``; keep its credentials and model unchanged.
+Include fallback routes and update mappings when credentials or resources change.
 
 .. list-table:: Settings in the JSON file
    :header-rows: 1
@@ -139,15 +128,23 @@ fallbacks, and update it when its credentials or cloud resources change.
      - Billing details by deployment ID. Optional; omit it if you only want user
        and usage data. Within each entry, ``provider``, ``account_id``, and
        ``product`` are required. For example: ``openai``, ``org-example``, ``api``.
-   * - ``project_id``, ``resource_id``, ``api_key_id``
+   * - ``project_id``, ``resource_id``
      - Optional fields within a billing entry. Use IDs from your provider.
-       ``api_key_id`` is the provider's non-secret key ID, **never the API key
-       itself or a LiteLLM virtual-key hash**.
-   * - ``geography``, ``mode``, ``model``
-     - Optional fields within a billing entry. Use the billing region, processing
-       mode, or model name from your bill. Leave unknown values out: do not assume
-       ``global`` or ``standard``. The original response model is kept separately.
+       Values already exposed by a recognized route are collected automatically.
+   * - ``api_key_id``
+     - Optional provider key ID for matching usage to bills by key. This callback
+       currently gets it only from your mapping. It does not derive it from the
+       secret API key. **Never enter the API key itself or a LiteLLM virtual-key
+       hash.** Leave this out if you do not need a key-level cost join.
+   * - ``geography``, ``mode``
+     - Optional fields within a billing entry. Use the billing region or processing
+       mode from your bill. Leave unknown values out: do not assume
+       ``global`` or ``standard``.
        A mode reported in the response takes priority over a configured mode.
+   * - ``model``
+     - Optional billing-name override. The model is already collected from the
+       response, or from the selected route if absent. Only set this if the bill
+       uses a different name. The original response model is kept separately.
    * - ``capture_email``
      - ``false`` by default. Set to ``true`` to include email from the gateway's
        authenticated user record, when available, as ``usr.email``.
