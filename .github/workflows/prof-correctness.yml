@@ -29,7 +29,8 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
-    # 60m S3 poll + 60m downstream watch (matches the GitLab job timeout).
+    # 60m S3 poll + 60m downstream watch = 120, plus ~10m slack
+    # for octo-sts / trigger / GHA overhead.
     # Job timeout must stay strictly above POLL_TIMEOUT so a late upload
     # does not consume the entire budget before downstream-python starts.
     timeout-minutes: 130
