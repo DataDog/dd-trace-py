@@ -13,6 +13,7 @@ import temporalio.workflow
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.trace import tracer
 
 from .activity_interceptor import _ActivityInboundInterceptor
@@ -21,8 +22,6 @@ from .constants import CONTINUE_AS_NEW_TAG
 from .constants import DEFAULT_HEADER_KEY
 from .constants import TEMPORAL_TAG_PREFIX
 from .constants import OperationNames
-from .id_generator import gen_span_id
-from .id_generator import gen_trace_id
 from .nexus_interceptor import _NexusOperationInboundInterceptor
 from .propagator import _Propagator
 from .span_annotator import _SpanAnnotator
@@ -87,6 +86,8 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
             resource=resource_name,
             activate=activate,
         )
+        span._ignore_exception(temporalio.workflow.ContinueAsNewError)
+        span._ignore_exception(temporalio.activity._CompleteAsyncError)
         if start_time is not None:
             span.start_ns = start_time
         if span_id is not None:
@@ -115,7 +116,7 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
                         exc_info=True,
                     )
 
-            if exc and not self._should_skip_error(exc):
+            if exc:
                 span.set_exc_info(type(exc), exc, exc.__traceback__)
 
             if result is not None and result.extra_tags:
@@ -123,15 +124,6 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
                     span.set_tag(key, value)
         finally:
             span.finish()
-
-    def _should_skip_error(self, exc: BaseException | None) -> bool:
-        if exc is None:
-            return True
-        if isinstance(exc, temporalio.workflow.ContinueAsNewError):
-            return True
-        if isinstance(exc, temporalio.activity._CompleteAsyncError):
-            return True
-        return False
 
     def intercept_client(self, next: temporalio.client.OutboundInterceptor) -> temporalio.client.OutboundInterceptor:
         return _ClientOutboundInterceptor(next, self)
@@ -171,7 +163,7 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
         # No DD header (uninstrumented client): pass a deterministic trace_id to keep
         # the RunWorkflow trace consistent if the worker restarts mid-run.
         det_trace_id = (
-            gen_trace_id(idempotency_key)
+            fnv1_64(f"trace:{idempotency_key}".encode())
             if operation_name == OperationNames.RUN_WORKFLOW and parent_ctx is None and idempotency_key is not None
             else None
         )
@@ -181,7 +173,7 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
             resource_name=resource_name,
             activate=False,
             start_time=start_time,
-            span_id=gen_span_id(idempotency_key) if idempotency_key is not None else None,
+            span_id=fnv1_64(idempotency_key.encode()) if idempotency_key is not None else None,
             attributes=attributes,
             parent_from_header=True,
             trace_id=det_trace_id,

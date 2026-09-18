@@ -12,12 +12,11 @@ import temporalio.converter
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
-from ddtrace.contrib.internal.temporal.id_generator import gen_span_id
-from ddtrace.contrib.internal.temporal.id_generator import gen_trace_id
 from ddtrace.contrib.internal.temporal.workflow_interceptor import WorkflowTracingConfig
 from ddtrace.contrib.internal.temporal.wrapped_tracer import FinishContext
 from ddtrace.contrib.internal.temporal.wrapped_tracer import FinishResult
 from ddtrace.contrib.temporal import DatadogTracingInterceptor
+from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.trace import tracer as _dd_tracer
 from tests.contrib.temporal._workflows import ChildWorkflow
@@ -145,7 +144,7 @@ async def test_activity_spans(
     run_id = span_collector.tag(run_act, "RunID")
     act_id = span_collector.tag(run_act, "ActivityID")
     attempt = span_collector.tag(run_act, "Attempt")
-    expected_id = gen_span_id(f"{run_id}:{act_id}:{attempt}")
+    expected_id = fnv1_64(f"{run_id}:{act_id}:{attempt}".encode())
     assert run_act.span_id == expected_id
 
 
@@ -261,7 +260,7 @@ async def test_uninstrumented_client_trace_id_stable_across_worker_restart(
 
     run_id = handle.first_execution_run_id or ""
     key = f"WorkflowInboundInterceptor:default:{wf_id}:{run_id}:1"
-    expected_trace_id = gen_trace_id(key)
+    expected_trace_id = fnv1_64(f"trace:{key}".encode())
 
     assert run.trace_id == expected_trace_id, (
         f"RunWorkflow trace_id {run.trace_id} does not match expected deterministic "
@@ -577,7 +576,7 @@ async def test_run_workflow_span_id_is_deterministic(
     wf_id = span_collector.tag(run, "WorkflowID") or ""
     run_id = span_collector.tag(run, "RunID") or ""
     key = f"WorkflowInboundInterceptor:{namespace}:{wf_id}:{run_id}:1"
-    assert run.span_id == gen_span_id(key)
+    assert run.span_id == fnv1_64(key.encode())
 
 
 @pytest.mark.asyncio
@@ -622,7 +621,7 @@ async def test_handle_signal_span_id_is_deterministic(
     run_id = span_collector.tag(sig, "RunID") or ""
 
     # Verify the span_id matches one of the first few counter values.
-    valid_ids = {gen_span_id(f"WorkflowInboundInterceptor:{namespace}:{wf_id}:{run_id}:{n}") for n in range(1, 5)}
+    valid_ids = {fnv1_64(f"WorkflowInboundInterceptor:{namespace}:{wf_id}:{run_id}:{n}".encode()) for n in range(1, 5)}
     assert sig.span_id in valid_ids, (
         f"HandleSignal span_id {sig.span_id} does not match any expected deterministic value (tried counters 1-4)"
     )
@@ -1435,7 +1434,7 @@ async def test_worker_restart_recovery(
     # the handle, and "default" namespace (test server default).
     run_id = handle.first_execution_run_id or ""
     key = f"WorkflowInboundInterceptor:default:{wf_id}:{run_id}:1"
-    assert run.span_id == gen_span_id(key), (
+    assert run.span_id == fnv1_64(key.encode()), (
         f"Recovered RunWorkflow span_id {run.span_id} does not match expected deterministic value for key {key!r}"
     )
 
