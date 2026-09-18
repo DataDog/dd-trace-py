@@ -1,4 +1,4 @@
 ---
-fixes:
+features:
   - |
-    pymongo: Makes the PyMongo instrumentation compatible with PyMongo 4.18.
+    pymongo: Adds support for PyMongo v4.18
