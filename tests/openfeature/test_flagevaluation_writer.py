@@ -31,6 +31,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_CYCLE
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_KEY_LENGTH
@@ -77,6 +79,8 @@ from ddtrace.internal.openfeature._flagevaluation_writer import _flatten_sequenc
 from ddtrace.internal.openfeature._flagevaluation_writer import _json_dumps
 from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
+from ddtrace.internal.settings.openfeature import AGENTLESS
+from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import PeriodicThread
 
@@ -141,6 +145,19 @@ def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> No
             raise AssertionError(f"unexpected metric {name} tags={tags}: {call}")
 
 
+def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key=None, site="datadoghq.com"):
+    return FeatureFlagEVPRouteSelector(
+        configuration_source=source,
+        agent_url="http://agent:8126",
+        api_key=api_key,
+        site=site,
+        info_provider=lambda _: {
+            "endpoints": endpoints,
+            "evp_proxy_allowed_headers": tuple(EVP_ORIGIN_HEADERS),
+        },
+    )
+
+
 def _json_dumps_rejecting_invalid_row(obj: typing.Any) -> bytes:
     if isinstance(obj, dict) and obj.get("flag", {}).get("key") == "invalid":
         raise TypeError("invalid row")
@@ -150,7 +167,7 @@ def _json_dumps_rejecting_invalid_row(obj: typing.Any) -> bytes:
 @pytest.fixture
 def writer():
     """Create a FlagEvaluationWriter that is NOT started (no background thread)."""
-    return FlagEvaluationWriter(interval=10.0)
+    return FlagEvaluationWriter(interval=10.0, route_selector=_route_selector())
 
 
 # ---------------------------------------------------------------------------
@@ -1221,6 +1238,79 @@ class TestPeriodicFlush:
         assert endpoint == FLAGEVALUATIONS_ENDPOINT
         assert headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_VALUE
         assert "Content-Type" in headers
+
+    def test_agentless_definitive_rejection_replays_direct_with_authentication(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.return_value = mock.Mock(status=405)
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        assert local_conn.request.call_args[0][1] == "/evp_proxy/v2/api/v2/flagevaluation"
+        _, direct_endpoint, _, direct_headers = direct_conn.request.call_args[0]
+        assert direct_endpoint == "/api/v2/flagevaluation"
+        assert direct_headers["DD-API-KEY"] == "secret"
+        assert direct_headers["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert direct_headers["DD-EVP-ORIGIN-VERSION"]
+        assert "X-Datadog-EVP-Subdomain" not in direct_headers
+
+    def test_agentless_unsafe_site_never_reaches_connection_factory(self):
+        mock_get_conn = mock.Mock()
+        selector = _route_selector(
+            source=AGENTLESS,
+            endpoints=(),
+            api_key="secret",
+            site="datadoghq.com%2eattacker.example",
+        )
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_not_called()
+
+    def test_agentless_ambiguous_failure_does_not_replay_current_batch(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.side_effect = ConnectionResetError("ambiguous")
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_called_once_with("http://agent:8126", timeout=2.0)
+        assert selector.select().direct is True
+
+        writer.enqueue(_make_event(flag_key="future-batch"))
+        writer.periodic()
+
+        assert mock_get_conn.call_args_list[-1] == mock.call(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )
+        assert direct_conn.request.call_args[0][1] == "/api/v2/flagevaluation"
 
     def test_two_evals_same_dims_aggregate_count_2(self, writer):
         t0 = int(time.time() * 1000)
