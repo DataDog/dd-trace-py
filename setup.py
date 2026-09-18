@@ -105,7 +105,7 @@ _cpu_count = getattr(os, "process_cpu_count", os.cpu_count)() or 1
 if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
     os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(_cpu_count)
 
-# Retry configuration for downloads (handles GitHub API failures like 503, 429)
+# Retry configuration for downloads (handles GitHub failures like 429 and 5xx)
 DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
 DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
 DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
@@ -227,8 +227,8 @@ def retry_download(
 ):
     """
     Decorator to retry downloads with exponential backoff.
-    Handles HTTP 503, 429, network errors from GitHub API, and cargo install failures.
-    Retriable errors: HTTP 429 (rate limit), 502, 503, 504, network timeouts, and subprocess errors.
+    Handles HTTP 429 and server errors, network errors from GitHub, and cargo install failures.
+    Retriable errors: HTTP 429, 500, 502, 503, 504, network timeouts, and subprocess errors.
     """
 
     def decorator(func):
@@ -240,9 +240,10 @@ def retry_download(
                 except (HTTPError, URLError, TimeoutError, OSError, subprocess.CalledProcessError) as e:
                     # Check if it's a retriable error
                     is_retriable = False
+                    error_code: t.Optional[str] = None
                     if isinstance(e, HTTPError):
-                        # Retry on 429 (rate limit), 502/503/504 (server errors)
-                        is_retriable = e.code in (429, 502, 503, 504)
+                        # Retry on 429 (rate limit) and transient server errors
+                        is_retriable = e.code in (429, 500, 502, 503, 504)
                         error_code = f"HTTP {e.code}"
                     elif isinstance(e, (URLError, TimeoutError)):
                         # Retry on network errors and timeouts
@@ -456,7 +457,7 @@ class CustomBuildRust(build_rust):
         """Run the build process with additional post-processing."""
 
         has_profiling_feature = False
-        for ext in self.distribution.rust_extensions:
+        for ext in self.distribution.rust_extensions:  # type: ignore[attr-defined]
             if ext.features and "profiling" in ext.features:
                 has_profiling_feature = True
                 break

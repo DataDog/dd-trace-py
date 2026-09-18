@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import json
 from typing import Any
@@ -81,8 +83,9 @@ def eventbridge_edge_tags(event_entry: dict[str, Any]) -> list[str]:
 def set_produce_checkpoint(trace_data: dict[str, Any], pathway_tags: list[str], payload_size: int) -> None:
     from . import data_streams_processor as processor
 
-    ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size)
-    DsmPathwayCodec.encode(ctx, trace_data)
+    if (p := processor()) is not None:
+        ctx = p.set_checkpoint(pathway_tags, payload_size=payload_size)
+        DsmPathwayCodec.encode(ctx, trace_data)
 
 
 def inject_context(
@@ -265,8 +268,10 @@ def handle_sqs_receive(_, params: dict[str, Any], result: dict[str, Any], *args:
         try:
             context_json = get_datastreams_context(message)
             payload_size = calculate_sqs_payload_size(message)
-            ctx = DsmPathwayCodec.decode(cast(dict[Any, Any], context_json), processor())
-            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
+
+            if (p := processor()) is not None:
+                ctx = DsmPathwayCodec.decode(cast(dict[Any, Any], context_json), p)
+                ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
@@ -287,13 +292,14 @@ def record_data_streams_path_for_kinesis_stream(
         raise StreamMetadataNotFound()
 
     payload_size = calculate_kinesis_payload_size(record)
-    ctx = DsmPathwayCodec.decode(context_json, processor())
-    ctx.set_checkpoint(
-        ["direction:in", "topic:" + stream, "type:kinesis"],
-        edge_start_sec_override=time_estimate,
-        pathway_start_sec_override=time_estimate,
-        payload_size=payload_size,
-    )
+    if (p := processor()) is not None:
+        ctx = DsmPathwayCodec.decode(context_json, p)
+        ctx.set_checkpoint(
+            ["direction:in", "topic:" + stream, "type:kinesis"],
+            edge_start_sec_override=time_estimate,
+            pathway_start_sec_override=time_estimate,
+            payload_size=payload_size,
+        )
 
 
 def handle_kinesis_receive(

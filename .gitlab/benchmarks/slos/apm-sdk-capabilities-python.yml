@@ -315,3 +315,10 @@ experiments:
           - name: flaskstreaming-tracer
             thresholds:
               - execution_time < 6.00 ms
+          # msgpackencoderscenario
+          - name: msgpackencoderscenario-simple_one_span
+            thresholds:
+              - execution_time < 0.005 ms
+          - name: msgpackencoderscenario-flask_trace
+            thresholds:
+              - execution_time < 0.055 ms

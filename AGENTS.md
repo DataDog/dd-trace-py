@@ -14,7 +14,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 7. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
 8. **Test before committing** — Run relevant tests to validate changes before committing.
 9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-10. **Update docs** — Add/update documentation when changing internal or public APIs.
+10. **Update docs** — Add/update documentation when changing internal or public APIs, configuration schemas, or contributor workflows.
 11. **No stray prints** — Check for and remove unexpected `print()` calls.
 12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.

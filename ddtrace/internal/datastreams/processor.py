@@ -1,4 +1,6 @@
 # coding: utf-8
+from __future__ import annotations
+
 import base64
 from collections import defaultdict
 from functools import partial
@@ -6,9 +8,10 @@ import gzip
 import struct
 import threading
 import time
-from typing import NamedTuple  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import NamedTuple
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
@@ -311,7 +314,7 @@ class DataStreamsProcessor(PeriodicService):
         self.periodic()
         self.stop(timeout)
 
-    def decode_pathway(self, data: bytes) -> "DataStreamsCtx":
+    def decode_pathway(self, data: bytes) -> DataStreamsCtx:
         try:
             hash_value = struct.unpack("<Q", data[:8])[0]
             data = data[8:]
@@ -324,7 +327,7 @@ class DataStreamsProcessor(PeriodicService):
         except (EOFError, TypeError, struct.error):
             return self.new_pathway()
 
-    def decode_pathway_b64(self, data: Optional[Union[str, bytes]]) -> "DataStreamsCtx":
+    def decode_pathway_b64(self, data: Optional[Union[str, bytes]]) -> DataStreamsCtx:
         if not data:
             return self.new_pathway()
 
@@ -337,9 +340,8 @@ class DataStreamsProcessor(PeriodicService):
         data_streams_context = self.decode_pathway(encoded_pathway)
         return data_streams_context
 
-    def new_pathway(self, now_sec=None):
+    def new_pathway(self, now_sec: Optional[float] = None) -> DataStreamsCtx:
         """
-        type: (Optional[int]) -> DataStreamsCtx
         :param now_sec: optional start time of this path. Use for services like Kinesis which
                            we aren't getting path information for.
         """
@@ -350,9 +352,14 @@ class DataStreamsProcessor(PeriodicService):
         self._current_context.value = ctx
         return ctx
 
-    def set_checkpoint(self, tags, now_sec=None, payload_size=0, span=None):
+    def set_checkpoint(
+        self,
+        tags: list[str],
+        now_sec: Optional[float] = None,
+        payload_size: int = 0,
+        span: Optional[Any] = None,
+    ) -> DataStreamsCtx:
         """
-        type: (list[str], Optional[int], Optional[int]) -> DataStreamsCtx
         :param tags: a list of strings identifying the pathway and direction
         :param now_sec: The time in seconds to count as "now" when computing latencies
         :param payload_size: The size of the payload being sent in bytes
@@ -429,17 +436,15 @@ class DataStreamsCtx:
 
     def set_checkpoint(
         self,
-        tags,
-        now_sec=None,
-        edge_start_sec_override=None,
-        pathway_start_sec_override=None,
-        payload_size=0,
-        span=None,
-    ):
+        tags: list[str],
+        now_sec: Optional[float] = None,
+        edge_start_sec_override: Optional[float] = None,
+        pathway_start_sec_override: Optional[float] = None,
+        payload_size: int = 0,
+        span: Optional[Any] = None,
+    ) -> None:
         """
-        type: (list[str], float, float, float) -> None
-
-        :param tags: an list of tags identifying the pathway and direction
+        :param tags: a list of tags identifying the pathway and direction
         :param now_sec: The time in seconds to count as "now" when computing latencies
         :param edge_start_sec_override: Use this to override the starting time of an edge
         :param pathway_start_sec_override: Use this to override the starting time of a pathway
@@ -522,12 +527,13 @@ class DsmPathwayCodec:
         return ctx
 
 
-def _atexit(obj=None):
+def _atexit(obj=None) -> None:
     try:
         # Data streams tries to flush data on shutdown.
         # Adding a try except here to ensure we don't crash the application if the agent is killed before
         # the application for example.
-        obj.shutdown(SHUTDOWN_TIMEOUT)
+        if obj is not None:
+            obj.shutdown(SHUTDOWN_TIMEOUT)
     except Exception as e:
         if config._data_streams_enabled:
             log.warning("Failed to shutdown data streams processor: %s", repr(e))
