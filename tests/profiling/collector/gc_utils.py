@@ -1,6 +1,21 @@
 from typing import Any
 
 
+def gc_sample_task_names(profile: Any, pprof_utils: Any, samples: Any) -> set[str]:
+    """Return the set of task-name labels attached to the given GC samples.
+
+    Samples rendered through the thread-stack fallback (when the sampler catches the
+    thread before its asyncio loop is linked, or no leaf task resolves for the cycle)
+    carry no task-name label; those are skipped rather than reported as an empty name.
+    """
+    names = set()
+    for sample in samples:
+        task_name = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if task_name is not None:
+            names.add(profile.string_table[task_name.str])
+    return names
+
+
 def ddtrace_gc_callbacks(gc: Any) -> list[Any]:
     return [callback for callback in gc.callbacks if getattr(callback, "__name__", None) == "_ddtrace_gc_callback"]
 
