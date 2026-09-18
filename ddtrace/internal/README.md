@@ -45,6 +45,20 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## uWSGI startup and fork hooks
+
+`check_uwsgi()` preserves ordinary product startup when uWSGI enables
+`py-call-uwsgi-fork-hooks`. Those hooks already invoke the general forksafe registry,
+so also registering it with `uwsgidecorators.postfork` would invoke it twice per worker.
+
+The profiler calls `check_uwsgi(..., defer_in_master=True)` to defer only its own
+startup in a non-lazy, multi-process master. uWSGI owns master finalization, so Python
+cleanup cannot reliably stop profiler threads before native state is destroyed.
+The callback passed with this option must start the caller's component, not rerun
+the general forksafe registry. Lazy-apps and supported no-master fork-hook startup
+are unchanged.
+
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from

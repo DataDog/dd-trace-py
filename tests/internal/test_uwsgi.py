@@ -81,18 +81,19 @@ def test_lazy_apps_multi_process_is_ordinary(fake_uwsgi):
     assert uwsgi.check_uwsgi() is None
 
 
-def test_fork_hooks_multi_process_with_master_is_deferred_to_worker(fake_uwsgi):
-    """A real master defers profiler startup even when it invokes Python fork hooks."""
+def test_fork_hooks_multi_process_with_master_can_defer_to_worker(fake_uwsgi):
+    """The profiler can defer startup without changing the general fork-hook lifecycle."""
     fake_uwsgi(
         opt={"enable-threads": True, "master": True, "py-call-uwsgi-fork-hooks": True},
         numproc=2,
         worker_id=0,
     )
     with pytest.raises(uwsgi.uWSGIMasterProcess):
-        uwsgi.check_uwsgi()
+        uwsgi.check_uwsgi(defer_in_master=True)
 
 
-def test_fork_hooks_multi_process_without_master_is_ordinary(fake_uwsgi):
+@pytest.mark.parametrize("defer_in_master", [False, True])
+def test_fork_hooks_multi_process_without_master_is_ordinary(fake_uwsgi, defer_in_master):
     """py-call-uwsgi-fork-hooks does not require --master: uwsgi's worker spawn path
     (and therefore its fork-hook invocation) is the same with or without a master.
     """
@@ -101,10 +102,11 @@ def test_fork_hooks_multi_process_without_master_is_ordinary(fake_uwsgi):
         numproc=2,
         worker_id=0,
     )
-    assert uwsgi.check_uwsgi() is None
+    assert uwsgi.check_uwsgi(defer_in_master=defer_in_master) is None
 
 
-def test_fork_hooks_with_master_registers_postfork_callback(fake_uwsgi, monkeypatch):
+@pytest.mark.parametrize("defer_in_master", [False, True])
+def test_fork_hooks_with_master_only_registers_postfork_when_requested(fake_uwsgi, monkeypatch, defer_in_master):
     fake_uwsgi(
         opt={"enable-threads": True, "master": True, "py-call-uwsgi-fork-hooks": True},
         numproc=2,
@@ -118,9 +120,13 @@ def test_fork_hooks_with_master_registers_postfork_callback(fake_uwsgi, monkeypa
     def callback():
         pass
 
-    with pytest.raises(uwsgi.uWSGIMasterProcess):
-        uwsgi.check_uwsgi(worker_callback=callback)
-    assert callbacks == [callback]
+    if defer_in_master:
+        with pytest.raises(uwsgi.uWSGIMasterProcess):
+            uwsgi.check_uwsgi(worker_callback=callback, defer_in_master=True)
+        assert callbacks == [callback]
+    else:
+        assert uwsgi.check_uwsgi(worker_callback=callback) is None
+        assert callbacks == []
 
 
 def test_fork_hooks_ignored_on_worker(fake_uwsgi):
@@ -140,7 +146,8 @@ def test_old_uwsgi_lazy_without_skip_atexit_warns(fake_uwsgi):
         uwsgi.check_uwsgi()
 
 
-def test_old_uwsgi_fork_hooks_without_skip_atexit_is_unaffected(fake_uwsgi):
+@pytest.mark.parametrize("defer_in_master", [False, True])
+def test_old_uwsgi_fork_hooks_without_skip_atexit_is_unaffected(fake_uwsgi, defer_in_master):
     """The skip-atexit warning remains specific to lazy-apps/lazy."""
     fake_uwsgi(
         opt={"enable-threads": True, "master": True, "py-call-uwsgi-fork-hooks": True},
@@ -148,5 +155,8 @@ def test_old_uwsgi_fork_hooks_without_skip_atexit_is_unaffected(fake_uwsgi):
         worker_id=0,
         version_info=(2, 0, 29),
     )
-    with pytest.raises(uwsgi.uWSGIMasterProcess):
-        uwsgi.check_uwsgi()
+    if defer_in_master:
+        with pytest.raises(uwsgi.uWSGIMasterProcess):
+            uwsgi.check_uwsgi(defer_in_master=True)
+    else:
+        assert uwsgi.check_uwsgi() is None

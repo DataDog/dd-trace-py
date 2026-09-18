@@ -39,10 +39,16 @@ def should_register_atexit() -> bool:
         return True
 
 
-def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:
-    """Check whetever uwsgi is running and what needs to be done.
+def check_uwsgi(
+    worker_callback: Optional[Callable] = None,
+    atexit: Optional[Callable] = None,
+    *,
+    defer_in_master: bool = False,
+) -> None:
+    """Check whether uwsgi is running and what needs to be done.
 
     :param worker_callback: Callback function to call in uWSGI worker processes.
+    :param defer_in_master: Defer startup in a non-lazy, multi-process master even when Python fork hooks are enabled.
     """
     try:
         import uwsgi
@@ -76,11 +82,16 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
     # (uwsgi.has_threads), which is already required above.
     fork_hooks_active = bool(uwsgi.opt.get("py-call-uwsgi-fork-hooks"))
 
-    # Outside lazy-apps mode, never start profiler threads in a uWSGI master. uWSGI owns the
-    # master's signal and finalization lifecycle, so Python cleanup is not guaranteed to stop those
-    # threads before native state is destroyed. py-call-uwsgi-fork-hooks makes no-master prefork
-    # safe, but a real master still uses the explicit postfork lifecycle below.
-    if uwsgi.numproc > 1 and not uwsgi.opt.get("lazy-apps") and uwsgi.worker_id() == 0:
+    # Python fork hooks already run the general forksafe registry. Registering that registry with
+    # uwsgidecorators as well would run it twice in each child. Callers such as the profiler can
+    # explicitly defer their own startup: uWSGI owns master finalization, so Python cleanup is not
+    # guaranteed to stop profiler threads before native state is destroyed.
+    if (
+        uwsgi.numproc > 1
+        and not uwsgi.opt.get("lazy-apps")
+        and (not fork_hooks_active or defer_in_master)
+        and uwsgi.worker_id() == 0
+    ):
         if not uwsgi.opt.get("master"):
             if fork_hooks_active:
                 return

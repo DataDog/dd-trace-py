@@ -86,6 +86,7 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     """uWSGI postfork startup should set the active profiler singleton in workers."""
 
     def _raise_master(*args, **kwargs):
+        assert kwargs["defer_in_master"] is True
         raise profiler.uwsgi.uWSGIMasterProcess()
 
     monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
@@ -110,7 +111,8 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     """A worker started through uWSGI postfork should still reject a second profiler."""
     callback_holder = {}
 
-    def _register_postfork(callback, atexit=None):
+    def _register_postfork(callback, atexit=None, *, defer_in_master=False):
+        assert defer_in_master is True
         callback_holder["callback"] = callback
         raise profiler.uwsgi.uWSGIMasterProcess()
 
