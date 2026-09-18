@@ -357,6 +357,19 @@ stack_clear_greenlet_span(PyObject* self, PyObject* args)
 }
 
 static PyObject*
+stack_unlink_greenlet_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t greenlet_id;
+    uint64_t expected_span_id;
+    if (!PyArg_ParseTuple(args, "KK", &greenlet_id, &expected_span_id)) {
+        return nullptr;
+    }
+    SpanLinks::get_instance().unlink_greenlet_span(greenlet_id, expected_span_id);
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_unlink_finished_span(PyObject* self, PyObject* args)
 {
     (void)self;
@@ -1313,6 +1326,10 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a gevent greenlet" },
     { "clear_greenlet_span", stack_clear_greenlet_span, METH_VARARGS, "Clear the span linked to a gevent greenlet" },
+    { "unlink_greenlet_span",
+      stack_unlink_greenlet_span,
+      METH_VARARGS,
+      "Clear the span linked to a gevent greenlet only if its ID matches the expected span ID" },
     { "unlink_finished_span",
       stack_unlink_finished_span,
       METH_VARARGS,

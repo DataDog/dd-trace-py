@@ -90,6 +90,12 @@ TEST(SpanLinks, GreenletSpanLifecycle)
     links.link_greenlet_span(greenlet_id, 202, 200, "web");
     EXPECT_EQ(links.get_active_span_from_greenlet_id(greenlet_id), Datadog::Span(202, 200, "web"));
 
+    links.unlink_greenlet_span(greenlet_id, 201);
+    EXPECT_EQ(links.get_active_span_from_greenlet_id(greenlet_id), Datadog::Span(202, 200, "web"));
+    links.unlink_greenlet_span(greenlet_id, 202);
+    EXPECT_EQ(links.get_active_span_from_greenlet_id(greenlet_id), std::nullopt);
+
+    links.link_greenlet_span(greenlet_id, 203, 200, "web");
     links.unlink_greenlet_span(greenlet_id);
     EXPECT_EQ(links.get_active_span_from_greenlet_id(greenlet_id), std::nullopt);
 }

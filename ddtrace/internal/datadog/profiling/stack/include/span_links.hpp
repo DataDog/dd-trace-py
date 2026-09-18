@@ -73,6 +73,7 @@ class SpanLinks
     void link_greenlet_span(uint64_t greenlet_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
     const SpanAttribution get_active_span_from_greenlet_id(uint64_t greenlet_id);
     void unlink_greenlet_span(uint64_t greenlet_id);
+    void unlink_greenlet_span(uint64_t greenlet_id, uint64_t expected_span_id);
 
     void unlink_finished_span(uint64_t span_id);
     void reset();

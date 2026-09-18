@@ -111,8 +111,8 @@ def track_gevent_greenlet(
             # Read only the tracer configured on the profiler, not the gevent integration's process-global tracer.
             _span_links.link_current_greenlet_span(greenlet_id)
         elif _from_tracer:
-            # A lazily discovered origin may have activated a newer span since its construction Context was captured.
-            _span_links.link_greenlet_span_context(greenlet_id)
+            # Switch callbacks run in the target's Context. Read the origin's saved Context without entering it.
+            _span_links.link_greenlet_span_context(greenlet_id, gl.gr_context)
     except Exception:  # nosec B110
         pass
 
