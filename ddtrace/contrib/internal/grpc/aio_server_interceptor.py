@@ -100,8 +100,12 @@ def _handle_server_exception(
         else:
             details = str(details)
         span._set_attribute(ERROR_MSG, details)
-    if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
-        span._set_attribute(ERROR_TYPE, str(_INT2CODE[servicer_context.code()]))
+    if hasattr(servicer_context, "code"):
+        code = servicer_context.code()
+        if isinstance(code, grpc.StatusCode):
+            span._set_attribute(ERROR_TYPE, str(code))
+        elif code != 0 and code in _INT2CODE:
+            span._set_attribute(ERROR_TYPE, str(_INT2CODE[code]))
 
 
 async def _wrap_aio_stream_response(
