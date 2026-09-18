@@ -17,8 +17,14 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <exception>
+#include <new>
 #include <string_view>
 #include <utility>
+
+#ifdef __GLIBC__
+#include <cxxabi.h>
+#endif
 
 using namespace Datadog;
 
@@ -81,10 +87,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear SpanLinks. The memory should be cleared up
-    // when the program exits as SpanLinks is a static singleton instance.
-    // However, this was necessary to make sure that the state is not shared
-    // across tests, as the tests are run in the same process.
+    // Explicitly clear SpanLinks so tests running in the same process do not share state.
     SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
@@ -247,6 +250,66 @@ stack_clear_span(PyObject* self, PyObject* args)
 }
 
 static PyObject*
+stack_link_task_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    uint64_t task_id;
+    uint64_t span_id;
+    uint64_t local_root_span_id;
+    const char* span_type = nullptr;
+
+    static const char* const_kwlist[] = { "task_id", "span_id", "local_root_span_id", "span_type", nullptr };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "KKKz", kwlist, &task_id, &span_id, &local_root_span_id, &span_type)) {
+        return nullptr;
+    }
+
+    try {
+        SpanLinks::get_instance().link_task_span(
+          task_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
+    } catch (const std::bad_alloc&) {
+        return PyErr_NoMemory();
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_link_task_span = cast_to_pycfunction(stack_link_task_span_impl);
+
+static PyObject*
+stack_clear_task_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t task_id;
+
+    if (!PyArg_ParseTuple(args, "K", &task_id)) {
+        return nullptr;
+    }
+
+    SpanLinks::get_instance().unlink_task_span(task_id);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_unlink_task_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t task_id;
+    uint64_t expected_span_id;
+    if (!PyArg_ParseTuple(args, "KK", &task_id, &expected_span_id)) {
+        return nullptr;
+    }
+    SpanLinks::get_instance().unlink_task_span(task_id, expected_span_id);
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_unlink_finished_span(PyObject* self, PyObject* args)
 {
     (void)self;
@@ -263,6 +326,15 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         Py_END_ALLOW_THREADS;
     }
 
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_reset_span_links(PyObject* self, PyObject* args)
+{
+    (void)self;
+    (void)args;
+    SpanLinks::get_instance().reset();
     Py_RETURN_NONE;
 }
 
@@ -327,18 +399,53 @@ static PyObject*
 stack_track_asyncio_loop(PyObject* self, PyObject* args)
 {
     (void)self;
-    uintptr_t thread_id; // map key
+    uint64_t thread_id;
     PyObject* loop;
 
-    if (!PyArg_ParseTuple(args, "lO", &thread_id, &loop)) {
+    if (!PyArg_ParseTuple(args, "KO", &thread_id, &loop)) {
         return nullptr;
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().track_asyncio_loop(thread_id, loop);
+    Sampler::get().track_asyncio_loop(static_cast<uintptr_t>(thread_id), loop);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_is_asyncio_loop_registered(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t thread_id;
+
+    if (!PyArg_ParseTuple(args, "K", &thread_id)) {
+        return nullptr;
+    }
+
+#if PY_VERSION_HEX >= 0x030d0000
+    if (Py_IsFinalizing()) {
+#else
+    if (_Py_IsFinalizing()) {
+#endif
+        Py_RETURN_FALSE;
+    }
+
+    bool registered;
+#ifdef __GLIBC__
+    try {
+#endif
+        // Sampling holds the thread-map mutex throughout an unwind. Do not stall every Python thread while waiting.
+        Py_BEGIN_ALLOW_THREADS;
+        registered = Sampler::get().is_asyncio_loop_registered(static_cast<uintptr_t>(thread_id));
+        Py_END_ALLOW_THREADS;
+#ifdef __GLIBC__
+    } catch (const abi::__forced_unwind&) {
+        // Finalization can race the check above on Python versions whose GIL restore exits the native thread.
+        throw;
+    }
+#endif
+    return PyBool_FromLong(registered);
 }
 
 static PyObject*
@@ -1132,10 +1239,20 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Clear the span linked to the current thread if its ID matches the expected span ID" },
     { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "link_task_span",
+      reinterpret_cast<PyCFunction>(stack_link_task_span),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link a span to an asyncio task" },
+    { "clear_task_span", stack_clear_task_span, METH_VARARGS, "Clear the span linked to an asyncio task" },
+    { "unlink_task_span",
+      stack_unlink_task_span,
+      METH_VARARGS,
+      "Clear the span linked to an asyncio task only if its ID matches the expected span ID" },
     { "unlink_finished_span",
       stack_unlink_finished_span,
       METH_VARARGS,
-      "Clear every physical-thread link derived from a finished span" },
+      "Clear every current target derived from a finished span" },
+    { "reset_span_links", stack_reset_span_links, METH_NOARGS, "Clear all span links" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),
       METH_VARARGS | METH_KEYWORDS,
@@ -1145,7 +1262,11 @@ static PyMethodDef stack_methods[] = {
       METH_NOARGS,
       "Clear the originating asyncio task for the current (executor worker) thread" },
     // asyncio task support
-    { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
+    { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Track an asyncio loop for a registered thread" },
+    { "is_asyncio_loop_registered",
+      stack_is_asyncio_loop_registered,
+      METH_VARARGS,
+      "Return whether a thread has a tracked running asyncio loop" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },

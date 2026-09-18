@@ -723,7 +723,7 @@ stack_postfork_cleanup()
     // Update PID in Echion
     _set_pid(getpid());
 
-    // Reset SpanLinks state (reset locks, clear span-thread mappings)
+    // Reset SpanLinks state (reset locks, clear span mappings)
     SpanLinks::postfork_child();
 
     // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
@@ -929,6 +929,14 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
     if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
         it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
+}
+
+bool
+Sampler::is_asyncio_loop_registered(uintptr_t thread_id)
+{
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    auto it = echion->thread_info_map().find(thread_id);
+    return it != echion->thread_info_map().end() && it->second->asyncio_loop != 0;
 }
 
 void
