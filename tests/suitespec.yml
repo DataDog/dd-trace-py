@@ -305,6 +305,14 @@ suites:
           env:
             DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
             DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
+        - name: integration-snapshot-native-buffer
+          dependencies: [msgpack, pytest-randomly]
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
+          env:
+            DDTEST_SUITE_PATH: tests/integration
+            DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
+            DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
+            _DD_TRACE_NATIVE_BUFFER_ENABLED: 'true'
   internal:
     retry: 2
     venvs_per_job: 2
