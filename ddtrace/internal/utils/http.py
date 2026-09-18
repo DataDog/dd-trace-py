@@ -5,14 +5,14 @@ from enum import Enum
 from json import loads
 import logging
 import re
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import ContextManager  # noqa:F401
-from typing import Generator  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import ContextManager
+from typing import Generator
 from typing import Mapping
-from typing import Optional  # noqa:F401
-from typing import Pattern  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Optional
+from typing import Pattern
+from typing import Union
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY

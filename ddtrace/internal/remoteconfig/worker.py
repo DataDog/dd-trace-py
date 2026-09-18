@@ -1,7 +1,7 @@
 import os
 from typing import TYPE_CHECKING
-from typing import Iterable  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Iterable
+from typing import Optional
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent

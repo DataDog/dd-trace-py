@@ -23,7 +23,7 @@ from .gc_monitor import gc_pause_monitor
 
 
 class RuntimeMetricCollector(ValueCollector):
-    value = []  # type: list[tuple[str, str]]
+    value: list[tuple[str, str]] = []
     periodic = True
 
 
@@ -54,7 +54,7 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
 
     required_modules = ["gc"]
     _monitor: Optional[GCPauseMonitor] = None
-    _prev_collections: list[int]
+    _prev_collections: list[int] = []
 
     def _on_modules_load(self) -> None:
         monitor: Optional[GCPauseMonitor] = None
@@ -138,7 +138,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
     _NS_TO_SEC = 1e-9
     _forksafe_registered = False
 
-    def _on_modules_load(self):
+    def _on_modules_load(self) -> None:
         # `_reset_state` doubles as the smoke test: if it raises, `_load_modules`'s caller
         # never sees it since it's not an ImportError, so surface it the same way a failed
         # import would.
@@ -158,7 +158,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
             self._forksafe_registered = False
             forksafe.unregister(self._reset_state)
 
-    def _reset_state(self):
+    def _reset_state(self) -> None:
         # Seed the baselines from a fresh reading instead of zero, both here and on fork:
         # a forked child inherits these as the parent's last-observed values, while its own
         # counters (e.g. Linux's /proc/self/stat) restart near zero, so an unseeded baseline
@@ -177,7 +177,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
         }
         self._last_wall_time = time.monotonic()
 
-    def collect_fn(self, keys):
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, int]]:
         native = self.modules["ddtrace.internal.native"]
 
         process_metrics = _ProcessMetrics(*native.process_metrics())

@@ -5,7 +5,7 @@ from importlib.metadata import entry_points
 from itertools import chain
 import sys
 import typing as t
-from typing import Protocol  # noqa:F401
+from typing import Protocol
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
