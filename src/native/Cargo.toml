@@ -60,7 +60,7 @@ libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v43.
   "hyper-proxy",
 ] }
 libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
-libdd-profiling = { git = "https://github.com/DataDog/libdatadog", rev = "70c319be7197b74388db3ca0fa26838632a775e7", optional = true, features = [
+libdd-profiling = { git = "https://github.com/DataDog/libdatadog", rev = "d51759558fe5bebb2384478748915558b3e4d558", optional = true, features = [
     "cxx",
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
