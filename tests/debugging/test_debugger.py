@@ -98,6 +98,23 @@ def test_debugger_line_probe_on_instance_method(stuff):
     assert snapshot["debugger"]["snapshot"]["duration"] is None
 
 
+def test_debugger_line_probe_on_method_declaration(stuff):
+    snapshots = simple_debugger_test(
+        create_snapshot_line_probe(
+            probe_id="probe-method-declaration",
+            source_file="tests/submod/stuff.py",
+            line=35,
+            condition=None,
+        ),
+        stuff.Stuff().instancestuff,
+    )
+
+    (snapshot,) = snapshots
+    captures = snapshot["debugger"]["snapshot"]["captures"]["lines"]["35"]
+    assert set(captures["arguments"].keys()) == {"self", "bar"}
+    assert captures["locals"] == {}
+
+
 def test_debugger_line_probe_on_imported_module_function(stuff):
     lineno = min(linenos(stuff.modulestuff))
     snapshots = simple_debugger_test(
@@ -130,7 +147,7 @@ def test_debugger_line_probe_on_imported_module_function(stuff):
             create_snapshot_line_probe(
                 probe_id="probe-instance-method",
                 source_file="tests/submod/stuff.py",
-                line=36,
+                line=35,
                 rate=1000,
             )
         ),
