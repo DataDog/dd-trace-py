@@ -1802,6 +1802,98 @@ Lorem Ipsum Foobar
             # assert vulnerability["location"].get("stackId") == "1", f"Wrong Vulnerability stackId {vulnerability}"
             # assert "class" not in vulnerability["location"]
 
+    def test_flask_request_sources_preserved_between_callbacks(self):
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+        from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
+
+        before = {}
+        origins = {
+            "args": (OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+            "form": (OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+            "cookies": (OriginType.COOKIE_NAME, OriginType.COOKIE),
+        }
+
+        @self.app.before_request
+        def validate_request_sources():
+            for attribute, expected_origins in origins.items():
+                key, value = next(iter(getattr(request, attribute).items()))
+                before[attribute] = (key, value)
+                for text, origin in zip((key, value), expected_origins):
+                    ranges = get_tainted_ranges(text)
+                    assert len(ranges) == 1
+                    assert ranges[0].source.origin == origin
+                    assert ranges[0].source.name == "location"
+                    add_secure_mark(text, [VulnerabilityType.UNVALIDATED_REDIRECT])
+            updated_form = request.form.copy()
+            updated_form["added"] = "new value"
+            request.form = request.form.__class__(updated_form)
+
+        @self.app.route("/request-sources/", methods=["POST"])
+        def request_sources():
+            for attribute in origins:
+                key, value = next(iter(getattr(request, attribute).items()))
+                for previous, current in zip(before[attribute], (key, value)):
+                    assert current is previous, attribute
+                    ranges = get_tainted_ranges(current)
+                    assert len(ranges) == 1
+                    assert ranges[0].has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT)
+            added_ranges = get_tainted_ranges(request.form["added"])
+            assert len(added_ranges) == 1
+            assert added_ranges[0].source.origin == OriginType.PARAMETER
+            assert added_ranges[0].source.name == "added"
+            assert not added_ranges[0].has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT)
+            return "OK"
+
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+        ):
+            if werkzeug_version >= (2, 3):
+                self.client.set_cookie(domain="localhost", key="location", value="http://dummy.location.com")
+            else:
+                self.client.set_cookie(server_name="localhost", key="location", value="http://dummy.location.com")
+            response = self.client.post(
+                "/request-sources/?location=http://dummy.location.com", data={"location": "http://dummy.location.com"}
+            )
+            assert response.status_code == 200
+            assert response.data == b"OK"
+            root_span = next(span for span in self.pop_spans() if span.parent_id is None)
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert load_iast_report(root_span) is None
+
+    def test_flask_unvalidated_redirect_repeated_requests(self):
+        from flask import Response
+        from flask import redirect
+
+        @self.app.route("/redirect-repro/<mode>", methods=["POST"])
+        def redirect_repro(mode):
+            location = "http://dummy.location.com"
+            if mode.startswith("insecure"):
+                location = request.form["location"]
+            if mode.endswith("header"):
+                response = Response("OK")
+                response.headers["Location"] = location
+                return response
+            return redirect(location)
+
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+        ):
+            for iteration in range(10):
+                for mode in ("insecure_redirect", "secure_redirect", "insecure_header", "secure_header"):
+                    response = self.client.post(
+                        "/redirect-repro/" + mode, data={"location": "http://dummy.location.com"}
+                    )
+                    assert response.status_code == (200 if mode.endswith("header") else 302)
+                    spans = self.pop_spans()
+                    root_span = next(span for span in spans if span.parent_id is None)
+                    assert root_span.get_metric(IAST.ENABLED) == 1.0
+                    report = load_iast_report(root_span)
+                    vulnerabilities = (report or {}).get("vulnerabilities", [])
+                    redirects = [v for v in vulnerabilities if v["type"] == VULN_UNVALIDATED_REDIRECT]
+                    assert len(redirects) == int(mode.startswith("insecure")), (iteration, mode, report)
+
     def test_flask_unvalidated_redirect_headers(self):
         @self.app.route("/unvalidated_redirect_headers/", methods=["GET"])
         def unvalidated_redirect_headers_view():
