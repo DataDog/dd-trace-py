@@ -213,9 +213,13 @@ describe_signal_owner(int signo)
 }
 
 std::string
-describe_segv_handler_owners()
+describe_segv_handler_owners() noexcept
 {
-    return "SIGSEGV=" + describe_signal_owner(SIGSEGV) + ", SIGBUS=" + describe_signal_owner(SIGBUS);
+    try {
+        return "SIGSEGV=" + describe_signal_owner(SIGSEGV) + ", SIGBUS=" + describe_signal_owner(SIGBUS);
+    } catch (...) {
+        return "unknown";
+    }
 }
 
 void

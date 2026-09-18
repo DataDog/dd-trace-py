@@ -27,19 +27,6 @@
 
 using namespace Datadog;
 
-// describe_segv_handler_owners() allocates, so it can throw. The owner string is only
-// diagnostic, and the caller is already committed to the syscall fallback, so a failure
-// here must not abort the sampling loop.
-static std::string
-describe_segv_handler_owners_noexcept() noexcept
-{
-    try {
-        return describe_segv_handler_owners();
-    } catch (...) {
-        return "unknown";
-    }
-}
-
 static void
 update_fast_copy_stats(ProfilerStats& stats)
 {
@@ -502,7 +489,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // the process.
                         handler_fallback_done = true;
                         mark_fast_copy_foreign_takeover();
-                        const std::string owners = describe_segv_handler_owners_noexcept();
+                        const std::string owners = describe_segv_handler_owners();
                         record_foreign_segv_handler(true, owners);
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
                                      "handler; keeping the syscall-based memory copy to avoid crashing. "
@@ -519,7 +506,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // Fall back first, then record (same order as the warmup-miss site).
                 // If no safe copy is available we stop sampling; still record so Python
                 // can log who forced that.
-                const std::string owners = describe_segv_handler_owners_noexcept();
+                const std::string owners = describe_segv_handler_owners();
                 const bool fallback_ok = set_fast_copy_enabled(false);
                 record_foreign_segv_handler(false, owners);
                 mark_fast_copy_foreign_takeover();
@@ -765,7 +752,7 @@ Sampler::restart_after_fork()
     // sampling loop never re-enters the handler check. If the user still
     // wanted fast copy, re-evaluate once and record a child-local notice.
     if (!fast_copy_user_disabled && !fast_copy_active && safe_memcpy_initialized && !segv_handler_installed()) {
-        const std::string owners = describe_segv_handler_owners_noexcept();
+        const std::string owners = describe_segv_handler_owners();
         record_foreign_segv_handler(true, owners);
         mark_fast_copy_foreign_takeover();
     }

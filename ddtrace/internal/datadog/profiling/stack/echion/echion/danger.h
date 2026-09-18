@@ -37,9 +37,10 @@ segv_handler_installed();
 //   "SIGSEGV=/lib/libtorch_cpu.so+0x3f1a8 (fatal_signal_handler), SIGBUS=ddtrace".
 // For diagnostics only, to attribute a handler takeover to the component responsible.
 // Uses dladdr and allocates, so it is not async-signal-safe: call it from ordinary code
-// such as the sampling loop, never from inside a signal handler.
+// such as the sampling loop, never from inside a signal handler. noexcept: allocation
+// failure returns "unknown" rather than throwing into the sampling loop.
 std::string
-describe_segv_handler_owners();
+describe_segv_handler_owners() noexcept;
 
 #if defined PL_LINUX
 ssize_t
