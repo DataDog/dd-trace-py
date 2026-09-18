@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from datetime import timezone
 import time
@@ -221,6 +222,57 @@ async def test_concurrent_users_failure_and_missing_identity():
     assert records[-1].error
     assert "usr.id" not in records[-1].tags
     assert "sk-secret" not in repr(records)
+    assert not callback._pending
+
+
+def test_threaded_hooks_keep_user_usage_and_billing_scope_together():
+    records = []
+    scopes = {
+        "dep-0": SCOPE,
+        "dep-1": BillingScope("openai", "org-2", "api", project_id="proj-2", api_key_id="key-id-2"),
+    }
+    callback = make_callback(scopes, sink=records.append)
+
+    def ingress(index):
+        return asyncio.run(start(callback, user=str(index)))
+
+    def route(item):
+        index, data = item
+        asyncio.run(
+            callback.async_pre_call_deployment_hook({**data, "model_info": {"id": f"dep-{index % 2}"}}, "completion")
+        )
+        # This synchronous hook may run outside the ingress event loop.
+        callback.log_pre_api_call("gpt-4o", [], {"litellm_params": data})
+
+    def complete(index):
+        result = response(
+            Usage(
+                prompt_tokens=index + 1,
+                completion_tokens=2,
+                cache_read_input_tokens=0,
+                cache_creation_input_tokens=0,
+            ),
+            deployment=None,
+        )
+        asyncio.run(finish(callback, requests[index], result))
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        requests = list(executor.map(ingress, range(200)))
+        list(executor.map(route, enumerate(requests)))
+        # Concurrent duplicate terminal callbacks must still emit exactly once.
+        list(executor.map(complete, list(range(199, -1, -1)) * 2))
+
+    assert len(records) == 200
+    assert len({record.tags["ai.request.id"] for record in records}) == 200
+    assert {record.tags["usr.id"] for record in records} == {str(index) for index in range(200)}
+    for record in records:
+        index = int(record.tags["usr.id"])
+        scope = scopes[f"dep-{index % 2}"]
+        assert record.tags["ai.gateway.deployment_id"] == f"dep-{index % 2}"
+        assert all(record.tags[key] == value for key, value in scope.tags().items())
+        assert record.usage.quantities["input_uncached_tokens"] == index + 1
+        assert record.usage.quantities["output_tokens"] == 2
+        assert record.usage.diagnostics["attempts"] == 1
     assert not callback._pending
 
 

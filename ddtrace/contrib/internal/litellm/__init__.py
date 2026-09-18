@@ -200,7 +200,7 @@ Collected dimensions
    * - ``ai.response.x_request_id``, ``ai.response.request_id``,
        ``ai.response.x_amzn_requestid``, ``ai.response.apim_request_id``,
        ``ai.response.opc_request_id``
-     - Allowlisted upstream request IDs from LiteLLM's retained response headers,
+     - Selected upstream request IDs from LiteLLM's retained response headers,
        when present, for reconciliation with provider logs. No other response
        headers are exported. Missing IDs are not synthesized from gateway IDs.
    * - ``ai.observed.traffic_type``, ``ai.observed.service_tier``,
@@ -211,7 +211,7 @@ Collected dimensions
      - Disjoint input not served from cache, cache-read input, cache-write input by
        5-minute, 1-hour, or unknown lifetime, and output. Missing usage is not replaced by zero.
        When cache-read or cache-write details are absent, input totals and reported
-       subsets remain available but uncached input is not inferred (except embeddings).
+       subsets remain available but input not served from cache is not inferred (except embeddings).
        Provider-specific consumers can apply their own documented omission semantics.
    * - ``ai.usage.web_search_requests``, ``ai.usage.tool_search_requests``,
        ``ai.usage.browser_open_requests``, ``ai.usage.google_maps_grounding_requests``

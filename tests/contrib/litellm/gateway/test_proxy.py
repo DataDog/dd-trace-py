@@ -22,6 +22,12 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[4]
 BEDROCK_PROFILE = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/local-profile"
+AZURE_RESOURCE = (
+    "/subscriptions/sub-test/resourceGroups/"
+    + "g" * 100
+    + "/providers/Microsoft.CognitiveServices/accounts/"
+    + "a" * 100
+)
 
 
 @pytest.fixture(scope="module")
@@ -94,7 +100,7 @@ def gateway(tmp_path_factory):
                     }
                 )
                 return
-            if self.path == "/v1/messages":
+            if self.path in ("/v1/messages", "/anthropic/v1/messages"):
                 message = {
                     "id": "msg_local",
                     "type": "message",
@@ -329,6 +335,18 @@ def gateway(tmp_path_factory):
     config_path = temp / "config.yaml"
     models.append(
         {
+            "model_name": "azure-claude",
+            "litellm_params": {
+                "model": "azure_ai/claude-sonnet-4-6",
+                "api_key": "SYNTHETIC-AZURE-SECRET",
+                "api_base": f"{local}/anthropic",
+                "timeout": 5,
+            },
+            "model_info": {"id": "azure-ai-deployment"},
+        }
+    )
+    models.append(
+        {
             "model_name": "bedrock-profile",
             "litellm_params": {
                 "model": "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -372,6 +390,14 @@ def gateway(tmp_path_factory):
         json.dumps(
             {
                 "billing_scopes": {
+                    "azure-ai-deployment": {
+                        "provider": "azure",
+                        "account_id": "sub-test",
+                        "product": "foundry",
+                        "resource_id": AZURE_RESOURCE,
+                        "geography": "global",
+                        "mode": "standard",
+                    },
                     "openai-deployment": {
                         "provider": "openai",
                         "account_id": "org-test",
@@ -681,3 +707,49 @@ async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway)
     assert any(BEDROCK_PROFILE in unquote(request["observed_path"]) for request in upstream)
     for private in ("PRIVATE", "SYNTHETIC-AWS-ACCESS", "SYNTHETIC-AWS-SECRET"):
         assert private not in json.dumps(spans)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_azure_claude_route_and_long_resource_id_reach_wire(gateway, stream):
+    url, traces, upstream = gateway
+    before = {span["span_id"] for trace in list(traces) for span in trace}
+    async with httpx.AsyncClient(timeout=20) as client:
+        result = await client.post(
+            f"{url}/chat/completions",
+            headers={"Authorization": "Bearer test-alice"},
+            json={
+                "model": "azure-claude",
+                "max_tokens": 100,
+                "messages": [{"role": "user", "content": "PRIVATE PROMPT"}],
+                "stream": stream,
+            },
+        )
+    assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [
+            span
+            for trace in list(traces)
+            for span in trace
+            if span.get("name") == "ai_gateway.usage"
+            and span["span_id"] not in before
+            and span["meta"].get("ai.gateway.deployment_id") == "azure-ai-deployment"
+        ]
+        if spans:
+            break
+        await asyncio.sleep(0.2)
+    assert len(spans) == 1
+    span = spans[0]
+    assert span["meta"]["usr.id"] == "alice"
+    assert span["meta"]["ai.route.provider"] == "azure_ai"
+    assert span["meta"]["ai.billing.provider"] == "azure"
+    assert span["meta"]["ai.billing.account_id"] == "sub-test"
+    assert span["meta"]["ai.billing.resource_id"] == AZURE_RESOURCE
+    assert len(AZURE_RESOURCE) > 256
+    assert span["metrics"]["ai.observed.context_tokens"] == 100
+    assert span["metrics"]["ai.usage.input_cache_read_tokens"] == 40
+    assert span["metrics"]["ai.usage.output_tokens"] == 25
+    assert any(request["observed_path"] == "/anthropic/v1/messages" for request in upstream)
+    assert "PRIVATE" not in json.dumps(spans)
+    assert "SYNTHETIC-AZURE-SECRET" not in json.dumps(spans)
