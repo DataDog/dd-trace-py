@@ -36,7 +36,7 @@ class _ActivityInboundInterceptor(_SpanRunner, temporalio.worker.ActivityInbound
 
     def _get_span(self, input: temporalio.worker.ExecuteActivityInput) -> Any:
         info = temporalio.activity.info()
-        return self.root.tracer.start_span(
+        return self.root._start_span(
             operation_name=OperationNames.RUN_ACTIVITY,
             parent_ctx=self.root.propagator.extract_headers(input.headers),
             resource_name=info.activity_type,

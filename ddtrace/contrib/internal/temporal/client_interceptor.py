@@ -9,6 +9,8 @@ from typing import Any
 
 import temporalio.client
 
+from ddtrace.trace import tracer
+
 from .constants import COMMON_ATTRIBUTE_MAP
 from .constants import OperationNames
 from .constants import SpanAttributes
@@ -89,7 +91,7 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
             # Update tracing is disabled, but this call also starts a new workflow.
             # Propagate the currently active trace into the workflow start headers so
             # RunWorkflow is not an unparented root when workflow tracing is enabled.
-            active_ctx = self.root.tracer.tracer.context_provider.active()
+            active_ctx = tracer.context_provider.active()
             input.start_workflow_input.headers = self.root.propagator.inject_headers(
                 input.start_workflow_input.headers, active_ctx
             )
@@ -149,8 +151,8 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
         attributes: dict[str, Any] | None = None,
     ) -> Any:
         # Use the currently active ddtrace span as parent if one exists
-        parent_ctx = self.root.tracer.tracer.context_provider.active()
-        return self.root.tracer.start_span(
+        parent_ctx = tracer.context_provider.active()
+        return self.root._start_span(
             operation_name=operation_name,
             parent_ctx=parent_ctx,
             resource_name=resource_name,
