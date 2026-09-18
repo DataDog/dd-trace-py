@@ -8,7 +8,6 @@ packages:
 category:
 - messaging.consumer
 - messaging.producer
-- rpc.client
 systems:
 - gcp.pubsub
 creation_date: '2026-03-17'
