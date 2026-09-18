@@ -40,6 +40,13 @@ variables:
     (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
+    # Install Python 3.12 via pyenv if not already available.
+    # The CI image only ships Python 3.9; we need 3.12 for the cp312 wheels.
+    if ! pyenv versions | grep -q '3\.12\.'; then
+      pyenv install 3.12.10
+    fi
+    pyenv global 3.12.10
+
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
       export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
@@ -93,10 +100,6 @@ variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
-    # Use Python 3.12 for benchmark execution. The CI image uses pyenv,
-    # and run-benchmarks.sh creates venvs with `python3 -m venv`. Setting
-    # PYENV_VERSION makes pyenv shims resolve `python3` to 3.12.
-    PYENV_VERSION: "3.12"
 
 baseline:detect:
   image: ${CI_UTILS_IMAGE}
