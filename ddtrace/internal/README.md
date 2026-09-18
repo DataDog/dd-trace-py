@@ -401,7 +401,16 @@ off and back on. It tracks events for which the aggregate callback has returned
 `DISABLE`, so a rejected request does not cause a physical re-arm. `register()`
 does this automatically when a new handler shares an event that may already be
 disabled. Call `monitoring.refresh(code, events)` when a handler becomes
-interested in those event bits again.
+interested in those event bits again, or `monitoring.refresh_many(codes,
+events)` to re-arm multiple code objects under one registry lock.
+
+Long-lived singleton handlers can opt into direct delivery for selected events.
+While such a handler is the only local consumer, its callback is registered
+directly with `sys.monitoring`; adding a sibling immediately restores normal
+fan-out and selectively re-arms affected code objects. Coverage additionally
+uses one global `restart_events()` call between contexts only when no other
+Datadog handler or external monitoring tool is registered. Otherwise it uses
+the tool-scoped selective refresh path above.
 
 ### Error Isolation
 

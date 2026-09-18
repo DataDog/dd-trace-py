@@ -17,6 +17,8 @@ from abc import ABC
 import sys
 from types import CodeType
 from typing import Any
+from typing import Callable
+from typing import Iterable
 from typing import NamedTuple
 from typing import Optional
 import weakref
@@ -137,6 +139,15 @@ class _IdentityWeakKeyDictionary:
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
+_registry_version: int = 0
+_exclusive_cache_version: int = -1
+_exclusive_handler_id: Optional[int] = None
+# AIDEV-NOTE: Direct callbacks are an opt-in fast path for long-lived singleton
+# handlers. Every direct/multiplexed transition must re-arm that event for all
+# registered code objects because a prior direct callback may have returned DISABLE.
+# Missing means no handler currently uses the event, None means multiplexed,
+# and a handler value means its callback is installed directly.
+_direct_event_handlers: dict[int, Optional["MonitoringEventHandler"]] = {}
 
 
 class MonitoringEventHandler(ABC):
@@ -159,6 +170,11 @@ class MonitoringEventHandler(ABC):
         ``on_py_line`` is caught and logged instead, since independent
         handlers commonly share one code object's LINE registration.
     """
+
+    # Long-lived singleton handlers can opt into direct callback registration.
+    # The multiplexer restores normal fan-out as soon as another handler needs
+    # the same event.
+    _direct_events: int = 0
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
         """Return ``sys.monitoring.DISABLE`` to request disabling future PY_START events.
@@ -225,9 +241,10 @@ class _CodeHandlers:
         self._by_handler[handler_id] = entry
         self.snapshot = tuple(self._by_handler.values())
 
-    def pop_handler(self, handler_id: int) -> None:
-        self._by_handler.pop(handler_id, None)
+    def pop_handler(self, handler_id: int) -> Optional[_Entry]:
+        entry = self._by_handler.pop(handler_id, None)
         self.snapshot = tuple(self._by_handler.values())
+        return entry
 
 
 def _events_for(handlers: _CodeHandlers) -> int:
@@ -354,6 +371,108 @@ def _rearm_local_events(tool_id: int, code: CodeType, events: int, rearm_events:
     _set_local_events(tool_id, code, events)
 
 
+def _iter_events(events: int) -> Iterable[int]:
+    for event in (_E.PY_START, _E.PY_RETURN, _E.PY_UNWIND, _E.LINE):
+        if events & event:
+            yield event
+
+
+def _multiplexer_callback(event: int) -> Callable[..., Optional[object]]:
+    if event == _E.PY_START:
+        return _on_py_start
+    if event == _E.PY_RETURN:
+        return _on_py_return
+    if event == _E.PY_UNWIND:
+        return _on_py_unwind
+    if event == _E.LINE:
+        return _on_py_line
+    raise ValueError(f"Unsupported local monitoring event: {event}")
+
+
+def _direct_callback(handler: MonitoringEventHandler, event: int) -> Callable[..., Optional[object]]:
+    if event == _E.PY_START:
+        return handler.on_py_start
+    if event == _E.PY_RETURN:
+        return handler.on_py_return
+    if event == _E.PY_UNWIND:
+        return handler.on_py_unwind
+    if event == _E.LINE:
+
+        def on_line(code: CodeType, line_number: int) -> Optional[object]:
+            try:
+                return handler.on_py_line(code, line_number)
+            except Exception:
+                log.warning("monitoring LINE handler failed", exc_info=True)
+                return None
+
+        return on_line
+    raise ValueError(f"Unsupported local monitoring event: {event}")
+
+
+def _rearm_event_for_all_codes(tool_id: int, event: int) -> None:
+    for code in _registry:
+        handlers: Optional[_CodeHandlers] = _registry.get(code)
+        if handlers is None:
+            continue
+        local_events = _events_for(handlers) & _LOCAL_EVENTS
+        if local_events & event:
+            _rearm_local_events(tool_id, code, local_events, event)
+            handlers.disabled_events &= ~event
+
+
+def _configure_event_callbacks_for_registration(
+    tool_id: int, handler: MonitoringEventHandler, handler_events: int
+) -> None:
+    for event in _iter_events(handler_events):
+        if event not in _direct_event_handlers:
+            if handler._direct_events & event:
+                sys.monitoring.register_callback(tool_id, event, _direct_callback(handler, event))
+                _direct_event_handlers[event] = handler
+            else:
+                _direct_event_handlers[event] = None
+            continue
+
+        owner = _direct_event_handlers[event]
+        if owner is handler or owner is None:
+            continue
+
+        sys.monitoring.register_callback(tool_id, event, _multiplexer_callback(event))
+        _direct_event_handlers[event] = None
+        _rearm_event_for_all_codes(tool_id, event)
+
+
+def _recompute_event_callback(tool_id: int, event: int) -> None:
+    unique_handlers: dict[int, MonitoringEventHandler] = {}
+    for code in _registry:
+        handlers: Optional[_CodeHandlers] = _registry.get(code)
+        if handlers is None:
+            continue
+        for entry in handlers.snapshot:
+            if entry.events & event:
+                unique_handlers[id(entry.handler)] = entry.handler
+                if len(unique_handlers) > 1:
+                    break
+        if len(unique_handlers) > 1:
+            break
+
+    current = _direct_event_handlers.get(event)
+    if not unique_handlers:
+        if current is not None:
+            sys.monitoring.register_callback(tool_id, event, _multiplexer_callback(event))
+        _direct_event_handlers.pop(event, None)
+        return
+
+    handler = next(iter(unique_handlers.values()))
+    desired = handler if len(unique_handlers) == 1 and handler._direct_events & event else None
+    if current is desired:
+        return
+
+    callback = _direct_callback(handler, event) if desired is not None else _multiplexer_callback(event)
+    sys.monitoring.register_callback(tool_id, event, callback)
+    _direct_event_handlers[event] = desired
+    _rearm_event_for_all_codes(tool_id, event)
+
+
 def ensure_tool() -> int:
     """Claim the shared tool ID or raise MonitoringToolUnavailable."""
     return _setup()
@@ -365,6 +484,8 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     The handler instance itself is the registration key; pass the same object
     to :func:`unregister` to remove it.
     """
+    global _registry_version
+
     declared_events: int = _events_for_handler(handler)
     if (declared_events & _E.PY_UNWIND) and not _SUPPORTS_LOCAL_PY_UNWIND:
         raise RuntimeError("on_py_unwind handlers require Python 3.15+ (PY_UNWIND is a global-only event on 3.12-3.14)")
@@ -387,6 +508,8 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         # previous LINE-only re-arm to every local event.
         existing_events: int = _events_for(handlers)
         handlers.set_handler(id(handler), entry)
+        _registry_version += 1
+        _configure_event_callbacks_for_registration(tool_id, handler, handler_events)
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
         handlers.disabled_events &= local_events
 
@@ -397,25 +520,94 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
             _set_local_events(tool_id, code, local_events)
 
 
+def _refresh(tool_id: int, code: CodeType, events: int) -> None:
+    handlers: Optional[_CodeHandlers] = _registry.get(code)
+    if handlers is None:
+        return
+
+    local_events: int = _events_for(handlers) & _LOCAL_EVENTS
+    direct_events = sum(event for event, owner in _direct_event_handlers.items() if owner is not None)
+    rearm_events = events & local_events & (handlers.disabled_events | direct_events)
+    if rearm_events:
+        _rearm_local_events(tool_id, code, local_events, rearm_events)
+
+
 def refresh(code: CodeType, events: int) -> None:
     """Re-arm disabled local *events* for *code* without changing unrelated events."""
     with _registry_lock:
-        handlers: Optional[_CodeHandlers] = _registry.get(code)
-        if handlers and _tool_id is not None:
-            local_events: int = _events_for(handlers) & _LOCAL_EVENTS
-            rearm_events = events & local_events & handlers.disabled_events
-            if rearm_events:
-                _rearm_local_events(_tool_id, code, local_events, rearm_events)
+        if _tool_id is not None:
+            _refresh(_tool_id, code, events)
+
+
+def refresh_many(codes: Iterable[CodeType], events: int) -> None:
+    """Re-arm disabled local *events* for multiple code objects under one lock."""
+    with _registry_lock:
+        if _tool_id is None:
+            return
+        for code in codes:
+            _refresh(_tool_id, code, events)
+
+
+def restart_events_if_exclusive(handler: MonitoringEventHandler) -> Optional[int]:
+    """Globally re-arm events when *handler* is the only monitoring consumer.
+
+    Returns the local registry version when the restart is safe, otherwise
+    returns ``None`` without changing monitoring state.
+    """
+    global _exclusive_cache_version
+    global _exclusive_handler_id
+
+    with _registry_lock:
+        if _tool_id is None or sys.monitoring.get_tool(_tool_id) != _MULTIPLEXER_TOOL_NAME:
+            return None
+
+        for tool_id in range(6):
+            if tool_id != _tool_id and sys.monitoring.get_tool(tool_id) is not None:
+                return None
+
+        if _exclusive_cache_version != _registry_version:
+            exclusive_handler_id: Optional[int] = None
+            for code in _registry:
+                handlers: Optional[_CodeHandlers] = _registry.get(code)
+                if handlers is None:
+                    continue
+                for entry in handlers.snapshot:
+                    entry_handler_id = id(entry.handler)
+                    if exclusive_handler_id is None:
+                        exclusive_handler_id = entry_handler_id
+                    elif exclusive_handler_id != entry_handler_id:
+                        exclusive_handler_id = -1
+                        break
+                if exclusive_handler_id == -1:
+                    break
+            _exclusive_handler_id = exclusive_handler_id
+            _exclusive_cache_version = _registry_version
+
+        if _exclusive_handler_id != id(handler):
+            return None
+
+        sys.monitoring.restart_events()
+        return _registry_version
+
+
+def registry_version_is_current(version: int) -> bool:
+    """Return whether no local handler registration changed since *version*."""
+    return version == _registry_version
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Remove *handler* from the handlers registered for *code*."""
+    global _registry_version
+
     with _registry_lock:
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers is None:
             return
 
-        handlers.pop_handler(id(handler))
+        entry = handlers.pop_handler(id(handler))
+        if entry is None:
+            return
+        _registry_version += 1
 
         if not handlers:
             del _registry[code]
@@ -426,3 +618,7 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
             local_events = _events_for(handlers) & _LOCAL_EVENTS
             handlers.disabled_events &= local_events
             _set_local_events(_tool_id, code, local_events)
+
+        if _tool_id is not None:
+            for event in _iter_events(entry.events):
+                _recompute_event_callback(_tool_id, event)

@@ -97,6 +97,7 @@ _CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWea
 # code objects still have independent monitoring state.
 _seen_event_locations: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 _rearm_lock = Lock()
+_exclusive_registry_version: t.Optional[int] = None
 _FILE_EVENT_LOCATION = -1
 
 # Avoid repeating the same warning for every imported module while no tool slot is available.
@@ -106,6 +107,9 @@ _warned_tool_unavailable: bool = False
 
 def _claim_event(code: CodeType, location: int) -> bool:
     """Return whether coverage should report this location in the current context."""
+    if _exclusive_registry_version is not None and _monitoring.registry_version_is_current(_exclusive_registry_version):
+        return True
+
     with _rearm_lock:
         seen = _seen_event_locations.get(code)
         if seen is None:
@@ -130,6 +134,8 @@ def _release_event(code: CodeType, location: int) -> None:
 
 class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
     """Per-code-object handler dispatching file-level coverage via PY_START events."""
+
+    _direct_events = sys.monitoring.events.PY_START
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
@@ -159,6 +165,8 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
 
 class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
     """Per-code-object handler dispatching line-level coverage via LINE events."""
+
+    _direct_events = sys.monitoring.events.LINE
 
     def on_py_line(self, code: CodeType, line_number: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
@@ -196,18 +204,31 @@ _handler: _monitoring.MonitoringEventHandler = (
 def _rearm_disabled() -> None:
     """Re-arm LINE/PY_START events silenced by this collector's DISABLE returns.
 
-    Called from CollectInContext.__enter__ so each test context sees events fire again. Tool- and
-    event-scoped: monitoring.refresh() toggles only this collector's event bit, and is a no-op when
-    another handler kept the aggregate event active. It cannot affect another monitoring tool's
-    disabled state or unrelated ddtrace lifecycle events.
+    When coverage is the only monitoring consumer, one global restart provides the same fast path
+    as the pre-multiplexer collector. Otherwise refresh_many() selectively toggles only coverage's
+    event bit for ddtrace's tool, preserving other consumers' disabled state.
     """
+    global _exclusive_registry_version
+
     with _rearm_lock:
-        if not _seen_event_locations:
-            return
+        was_exclusive = _exclusive_registry_version is not None
+        _exclusive_registry_version = None
         codes = list(_seen_event_locations)
         _seen_event_locations.clear()
-    for code in codes:
-        _monitoring.refresh(code, _EVENT)
+
+        registry_version = _monitoring.restart_events_if_exclusive(_handler)
+        if registry_version is not None:
+            _exclusive_registry_version = registry_version
+            return
+
+        # Direct callbacks skip software deduplication while the global restart
+        # path is safe. If another tool appears, refresh every instrumented code
+        # once because the previous context intentionally did not track touches.
+        if was_exclusive:
+            codes = list(_CODE_HOOKS)
+
+    if codes:
+        _monitoring.refresh_many(codes, _EVENT)
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:

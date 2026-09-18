@@ -390,14 +390,11 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.covered_files = ctx_covered_files.get()[-1]
 
             # Re-arm the LINE/PY_START events this collector silenced with DISABLE during the
-            # previous context. Coverage routes through the shared sys.monitoring multiplexer,
-            # whose DISABLE is tool-scoped, so this refreshes only our own tool slot (via
-            # monitoring.refresh()) and never calls the global sys.monitoring.restart_events()
-            # that would reset other tools' disabled-event state. Re-arming on every context
-            # entry (including import-time) preserves transitive coverage: a module imported
-            # later that calls code from an earlier module still records those lines. The
-            # touched set is cleared each entry, so this is O(total instrumented code) across
-            # the whole run, not O(n) per context.
+            # previous context. When coverage is the only monitoring consumer this uses one
+            # global restart; otherwise it selectively refreshes only ddtrace's event bits so
+            # other consumers keep their disabled state. Re-arming on every context entry
+            # (including import-time) preserves transitive coverage when later imports call
+            # code from an earlier module.
             _rearm_disabled()
 
             return self
