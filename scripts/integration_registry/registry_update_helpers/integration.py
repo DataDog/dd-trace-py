@@ -87,7 +87,7 @@ class Integration:
                 return True
         return False
 
-    def update(self, updates: dict, update_versions: bool = False, riot_venv: Optional[str] = None) -> bool:
+    def update(self, updates: dict, update_versions: bool = False, test_suite: Optional[str] = None) -> bool:
         """Updates the integration with the new dependency versions."""
         # skip if the integration is not an external package
         if not self.is_external_package:
@@ -106,11 +106,11 @@ class Integration:
             changed = True
 
         # only update the dependency versions if:
-        # 1 - we are NOT running in a riot venv as this may be a local script run from:
+        # 1 - we are not running in a test suite, as this may be a local script run from:
         #     `python scripts/integration_registry/update_and_format_registry.py`
-        # 2 - or if the riot venv is the same as the integration name, as this is a test suite run and
+        # 2 - or if the suite is the same as the integration name, as this is a test suite run and
         #     we only update the integration being tested
-        if update_versions and (riot_venv is None or riot_venv == self.integration_name):
+        if update_versions and (test_suite is None or test_suite == self.integration_name):
             prev = self.tested_versions_by_dependency.copy()
             for dep_name in updates.keys():
                 dep_name_lower = dep_name.lower()
