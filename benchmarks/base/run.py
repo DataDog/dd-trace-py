@@ -2,7 +2,6 @@
 
 import json
 import os
-import queue
 import subprocess
 import sys
 import threading
@@ -37,6 +36,18 @@ def cpu_affinity_to_cpu_groups(cpu_affinity: str, cpus_per_run: int) -> list[lis
         raise ValueError(f"CPU count {len(cpu_ids)} not divisible by CPUS_PER_RUN={cpus_per_run}")
     cpu_groups = [cpu_ids[i : i + cpus_per_run] for i in range(0, len(cpu_ids), cpus_per_run)]
     return cpu_groups
+
+
+def assign_configs_to_cpu_groups(
+    config: dict[str, Any], cpu_groups: list[list[int]]
+) -> list[tuple[str, Any, list[int]]]:
+    # The candidate and the baseline are separate run.py invocations. Cores 36-47
+    # measure slower than 24-35, so a config only cancels that per-core offset if it
+    # lands on the same cores in both runs. This mapping is therefore a pure function
+    # of the config names and the core list: sort by name and assign by index, never
+    # by whichever worker happens to free up first, and never by config.yaml's key
+    # order. See https://github.com/DataDog/dd-trace-py/pull/20052.
+    return [(cname, config[cname], cpu_groups[i % len(cpu_groups)]) for i, cname in enumerate(sorted(config))]
 
 
 def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cpus: Optional[list[int]] = None):
@@ -118,27 +129,26 @@ if __name__ == "__main__":
     print(f"CPUs per run: {CPUS_PER_RUN}")
     print(f"CPU groups: {list(cpu_groups)}")
 
-    job_queue = queue.Queue()
-    cpu_queue = queue.Queue()
+    assignments = assign_configs_to_cpu_groups(config, cpu_groups)
 
-    def worker(cpu_queue: queue.Queue, job_queue: queue.Queue):
-        while job_queue.qsize() > 0:
-            cname, cvars = job_queue.get(timeout=1)
+    # One worker per core group, each draining only the configs assigned to that group.
+    # Still len(cpu_groups) configs at a time, but a config can no longer migrate to a
+    # different group between the candidate and the baseline runs. The cost is the loss
+    # of load balancing: the slowest group now gates the run.
+    jobs_by_group: dict[int, list[tuple[str, Any, list[int]]]] = {i: [] for i in range(len(cpu_groups))}
+    for i, assignment in enumerate(assignments):
+        jobs_by_group[i % len(cpu_groups)].append(assignment)
 
-            cpus = cpu_queue.get()
+    def worker(jobs: list[tuple[str, Any, list[int]]]):
+        for cname, cvars, cpus in jobs:
             print(f"Starting run {cname} on CPUs {cpus}")
             run("scenario.py", cname, cvars, output_dir, cpus=cpus)
             print(f"Finished run {cname}")
-            cpu_queue.put(cpus)
-
-    for cname, cvars in config.items():
-        job_queue.put((cname, cvars))
 
     workers = []
     print(f"Starting {len(cpu_groups)} worker threads")
-    for cpus in cpu_groups:
-        cpu_queue.put(cpus)
-        t = threading.Thread(target=worker, args=(cpu_queue, job_queue))
+    for jobs in jobs_by_group.values():
+        t = threading.Thread(target=worker, args=(jobs,))
         t.start()
         workers.append(t)
 
