@@ -13,10 +13,17 @@ from typing import Union
 
 import wrapt
 
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+# Record these on the LLM span. CancelledError and DDBlockException
+# (AI Guard abort) are BaseException, so an Exception-only check misses them.
+# Do not use BaseException here: KeyboardInterrupt/SystemExit/GeneratorExit
+# should not be tagged as stream errors.
+_RECORDED_STREAM_ERRORS = (Exception, CancelledError, DDBlockException)
 
 
 def _safe_close_from_context_exit(handler, exception, message):
@@ -34,7 +41,7 @@ def _bind_entered_stream(parent, traced_stream):
         callback = parent._self_on_stream_created
         if callback is not None:
             callback(traced_stream)
-    except Exception as e:
+    except _RECORDED_STREAM_ERRORS as e:
         _safe_close_from_context_exit(
             parent._self_handler,
             e,
@@ -132,9 +139,9 @@ class BaseStreamHandler(ABC):
         # block. Record it on the span before finishing, but only if iteration
         # has not already finalized: an error after a completed stream belongs
         # to the caller, not the LLM span.
-        # CancelledError is BaseException, so an Exception-only check would
-        # finish a cancelled stream as success.
-        if isinstance(exception, (Exception, CancelledError)) and not getattr(self, "_finalized", False):
+        # CancelledError and DDBlockException are BaseException, so an
+        # Exception-only check would finish an abort/cancel as success.
+        if isinstance(exception, _RECORDED_STREAM_ERRORS) and not getattr(self, "_finalized", False):
             self.handle_exception(exception)
         self.close_stream(exception)
 
@@ -233,7 +240,7 @@ class TracedStream(wrapt.ObjectProxy):
                 self._self_handler.process_chunk(chunk, self._self_stream_iter)
                 if self._self_handler.should_yield_chunk(chunk):
                     yield chunk
-        except Exception as e:
+        except _RECORDED_STREAM_ERRORS as e:
             exc = e
             self._self_handler.handle_exception(e)
             raise
@@ -249,7 +256,7 @@ class TracedStream(wrapt.ObjectProxy):
             except StopIteration:
                 self._self_handler.close_stream()
                 raise
-            except Exception as e:
+            except _RECORDED_STREAM_ERRORS as e:
                 self._self_handler.handle_exception(e)
                 self._self_handler.close_stream(e)
                 raise
@@ -297,8 +304,10 @@ class TracedStream(wrapt.ObjectProxy):
         try:
             suppress = self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
         except BaseException as e:
-            close_exc = e
-            raise
+            if exc_val is None:
+                close_exc = e
+                raise
+            raise exc_val from e
         finally:
             _safe_close_from_context_exit(
                 self._self_handler,
@@ -351,7 +360,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
                 await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
                 if self._self_handler.should_yield_chunk(chunk):
                     yield chunk
-        except Exception as e:
+        except _RECORDED_STREAM_ERRORS as e:
             exc = e
             self._self_handler.handle_exception(e)
             raise
@@ -367,7 +376,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
             except StopAsyncIteration:
                 self._self_handler.close_stream()
                 raise
-            except Exception as e:
+            except _RECORDED_STREAM_ERRORS as e:
                 self._self_handler.handle_exception(e)
                 self._self_handler.close_stream(e)
                 raise
@@ -406,8 +415,10 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         try:
             suppress = await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         except BaseException as e:
-            close_exc = e
-            raise
+            if exc_val is None:
+                close_exc = e
+                raise
+            raise exc_val from e
         finally:
             _safe_close_from_context_exit(
                 self._self_handler,

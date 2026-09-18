@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
@@ -421,6 +422,47 @@ def test_traced_stream_records_exception_from_wrapped_exit():
     assert isinstance(handler.finalize_exceptions[0], RuntimeError)
 
 
+def test_traced_stream_records_block_exception_from_context_manager_body():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_CtxStream(5), handler)
+    with pytest.raises(DDBlockException):
+        with traced:
+            raise DDBlockException()
+    assert handler.finalize_stream_calls == 1
+    assert len(handler.handle_exception_calls) == 1
+    assert isinstance(handler.handle_exception_calls[0], DDBlockException)
+    assert isinstance(handler.finalize_exceptions[0], DDBlockException)
+
+
+def test_traced_stream_records_block_exception_during_iteration():
+    handler = _SyncRecordingHandler()
+
+    def _boom():
+        yield 0
+        raise DDBlockException()
+
+    traced = make_traced_stream(_boom(), handler)
+    with pytest.raises(DDBlockException):
+        list(traced)
+    assert handler.finalize_stream_calls == 1
+    assert len(handler.handle_exception_calls) == 1
+    assert isinstance(handler.handle_exception_calls[0], DDBlockException)
+
+
+def test_traced_stream_prefers_body_error_over_wrapped_exit_error():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_ExitRaises(5), handler)
+    with pytest.raises(ValueError, match="boom") as exc_info:
+        with traced as stream:
+            assert next(stream) == 0
+            raise ValueError("boom")
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+    assert handler.finalize_stream_calls == 1
+    assert len(handler.handle_exception_calls) == 1
+    assert isinstance(handler.handle_exception_calls[0], ValueError)
+    assert isinstance(handler.finalize_exceptions[0], ValueError)
+
+
 @pytest.mark.asyncio
 async def test_traced_async_stream_manager_without_as_does_not_finalize_on_enter():
     handler = _AsyncRecordingHandler()
@@ -443,6 +485,20 @@ async def test_traced_async_stream_records_exception_from_wrapped_exit():
     assert handler.finalize_stream_calls == 1
     assert len(handler.handle_exception_calls) == 1
     assert isinstance(handler.handle_exception_calls[0], RuntimeError)
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_prefers_body_error_over_wrapped_exit_error():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_AsyncExitRaises(5), handler)
+    with pytest.raises(ValueError, match="boom") as exc_info:
+        async with traced as stream:
+            assert await stream.__anext__() == 0
+            raise ValueError("boom")
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+    assert handler.finalize_stream_calls == 1
+    assert len(handler.handle_exception_calls) == 1
+    assert isinstance(handler.handle_exception_calls[0], ValueError)
 
 
 @pytest.mark.asyncio
