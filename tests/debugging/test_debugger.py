@@ -29,7 +29,6 @@ from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.debugging._signal.utils import redacted_value
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.utils import inspection
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
@@ -165,9 +164,6 @@ def test_debugger_probe_new_delete(probe, stuff):
         __import__("tests.submod.stuff")
         # Make Stuff refer to the reloaded class
         stuff.Stuff = sys.modules["tests.submod.stuff"].Stuff
-        # The reload above orphans the previous module's code objects, which
-        # would otherwise leave stale entries in the inspection caches.
-        inspection.clear()
 
         stuff.Stuff().instancestuff(42)
 

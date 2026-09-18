@@ -2,8 +2,6 @@ import sys
 
 import pytest
 
-from ddtrace.internal.utils import inspection
-
 
 def _is_submod(name):
     return name == "tests.submod" or name.startswith("tests.submod.")
@@ -25,7 +23,6 @@ def _isolate_volatile_submodules():
         del sys.modules[name]
     for name in was_loaded:
         __import__(name)
-    inspection.clear()
 
 
 @pytest.fixture
