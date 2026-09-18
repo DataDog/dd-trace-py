@@ -1645,10 +1645,9 @@ def pytest_load_initial_conftests(
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
     # Both can run simultaneously. Coverage registers with the shared sys.monitoring
-    # multiplexer, whose DISABLE optimisation is tool-scoped (cleared via the
-    # tool-scoped monitoring.refresh() in _rearm_disabled(), never the global
-    # restart_events()), so it cannot corrupt coverage.py's or any other tool's
-    # disabled-event state regardless of timing.
+    # multiplexer. A visible coverage.py tool rejects ddtrace's best-effort global
+    # restart shortcut, so _rearm_disabled() uses tool-scoped monitoring.refresh()
+    # without changing coverage.py's disabled-event state.
     # The coverage.py startup itself is handled later in pytest_configure.
     if session_manager.settings.coverage_enabled:
         setup_coverage_collection()

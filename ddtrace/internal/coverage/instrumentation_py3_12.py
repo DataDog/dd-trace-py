@@ -2,8 +2,8 @@
 
 Line mode listens for LINE events and file mode listens for PY_START. Both use
 one handler registered through ddtrace's shared monitoring multiplexer. Between
-test contexts, _rearm_disabled() refreshes only ddtrace's tool so external
-monitoring tools keep their own disabled-event state.
+test contexts, _rearm_disabled() uses the single-subscriber fast path when no
+external tool is visible and otherwise refreshes only ddtrace's tool.
 """
 
 import dis
@@ -98,6 +98,7 @@ _CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWea
 # code objects still have independent monitoring state.
 _seen_event_locations: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 _rearm_lock = Lock()
+_single_subscriber_version: t.Optional[int] = None
 _FILE_EVENT_LOCATION = -1
 
 # Avoid repeating the same warning for every imported module while no tool slot is available.
@@ -107,6 +108,9 @@ _warned_tool_unavailable: bool = False
 
 def _claim_event(code: CodeType, location: int) -> bool:
     """Return whether coverage should report this location in the current context."""
+    if _single_subscriber_version is not None and _monitoring.registry_version_is_current(_single_subscriber_version):
+        return True
+
     with _rearm_lock:
         seen = _seen_event_locations.get(code)
         if seen is None:
@@ -197,16 +201,29 @@ _handler: _monitoring.MonitoringEventHandler = (
 def _rearm_disabled() -> None:
     """Re-arm LINE/PY_START events silenced by this collector's DISABLE returns.
 
-    Called from CollectInContext.__enter__ so each test context sees events fire again. Tool- and
-    event-scoped: monitoring.refresh() toggles only this collector's event bit, and is a no-op when
-    another handler kept the aggregate event active. It cannot affect another monitoring tool's
-    disabled state or unrelated ddtrace lifecycle events.
+    The best-effort global shortcut is used only while coverage is the sole
+    subscriber and no external monitoring tool is visible. Otherwise the
+    tool-scoped fallback keeps other subscribers' disabled-event state intact.
     """
+    global _single_subscriber_version
+
+    version = _monitoring.restart_events(_handler)
     with _rearm_lock:
-        if not _seen_event_locations:
+        if version is not None:
+            _single_subscriber_version = version
+            _seen_event_locations.clear()
             return
-        codes = list(_seen_event_locations)
+
+        was_single_subscriber = _single_subscriber_version is not None
+        _single_subscriber_version = None
+        if was_single_subscriber:
+            codes = list(_CODE_HOOKS)
+        elif _seen_event_locations:
+            codes = list(_seen_event_locations)
+        else:
+            return
         _seen_event_locations.clear()
+
     for code in codes:
         _monitoring.refresh(code, _EVENT)
 
@@ -228,10 +245,10 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Returns:
         Tuple of (code object, CoverageLines with instrumentable lines)
 
-    Coverage registers a single handler with the shared sys.monitoring multiplexer instead of
-    claiming its own tool slot. The handler returns sys.monitoring.DISABLE after recording so each
-    line/file fires only once per test context (performance optimisation); _rearm_disabled()
-    re-enables them between contexts via the tool-scoped monitoring.refresh().
+    Coverage registers one handler with the shared sys.monitoring layer instead of claiming its
+    own tool slot. While it is the only visible subscriber, events use direct delivery and one
+    best-effort global restart per context. If another subscriber appears, normal fan-out and
+    tool-scoped re-arming preserve isolation.
     """
     global _warned_tool_unavailable
 
