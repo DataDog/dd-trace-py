@@ -112,10 +112,22 @@ first. To refresh the snapshot from a reviewed upstream commit, run:
     $ scripts/run-tests --venv <environment-hash>
 
 ``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
-locally. The weekly or manually dispatched ``Update FFE fixtures`` workflow opens
-a signed draft PR when the copied contents change. New cases may expose evaluator
-bugs; fix those before merging the update, and change fixture expectations upstream
-only when the shared expectation is incorrect.
+locally. Only ``ufc-config.json`` and ``evaluation-cases/*.json`` are copied;
+unexpected entries inside ``evaluation-cases/`` are rejected.
+
+The ``Check FFE fixtures`` PR check fetches the exact commit recorded in
+``SOURCE.md`` and compares the copied filenames and contents. It does not update
+the snapshot. To run the same check locally (requires network access):
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --check
+
+The weekly or manually dispatched ``Update FFE fixtures`` workflow opens a signed
+draft PR when the copied contents change. If an update PR is already open, it
+leaves that branch untouched so evaluator fixes added there are preserved. New
+cases may expose evaluator bugs; fix those before merging the update, and change
+fixture expectations upstream only when the shared expectation is incorrect.
 
 Why are my tests failing with 404 errors?
 -----------------------------------------

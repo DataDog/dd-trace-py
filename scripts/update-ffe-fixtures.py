@@ -12,23 +12,6 @@ import tempfile
 SOURCE_REPOSITORY = "https://github.com/DataDog/ffe-system-test-data.git"
 DESTINATION = Path("tests/openfeature/ffe-system-test-data")
 SOURCE_METADATA = "SOURCE.md"
-COPY_DISALLOW_LIST = frozenset(
-    {
-        ".git",
-        ".github",
-        ".gitignore",
-        "ci",
-        "AGENTS.md",
-        "CONTRIBUTING.md",
-        "LICENSE",
-        "LICENSE-3rdparty.csv",
-        "NOTICE",
-        "README.md",
-        "precomputed-assignments",
-        "schemas",
-        SOURCE_METADATA,
-    }
-)
 VALID_REF = re.compile(r"^[A-Za-z0-9._/-]+$")
 
 
@@ -55,29 +38,30 @@ def run_git(working_directory, arguments, environment):
     return result.stdout.strip()
 
 
-def copy_entry(source, destination):
+def copy_fixture_file(source, destination):
     if source.is_symlink():
         raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {source}")
-
-    if source.is_file():
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, destination)
-        destination.chmod(0o644)
-        return
-
-    if not source.is_dir():
+    if not source.is_file():
         raise ValueError(f"Refusing to copy unsupported fixture entry: {source}")
-
-    destination.mkdir(parents=True, exist_ok=True)
-    destination.chmod(0o755)
-    for child in sorted(source.iterdir(), key=lambda path: path.name):
-        copy_entry(child, destination / child.name)
+    shutil.copyfile(source, destination)
+    destination.chmod(0o644)
 
 
 def copy_fixture_snapshot(source, snapshot):
-    for entry in sorted(source.iterdir(), key=lambda path: path.name):
-        if entry.name not in COPY_DISALLOW_LIST:
-            copy_entry(entry, snapshot / entry.name)
+    copy_fixture_file(source / "ufc-config.json", snapshot / "ufc-config.json")
+    cases_directory = source / "evaluation-cases"
+    if cases_directory.is_symlink():
+        raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {cases_directory}")
+    if not cases_directory.is_dir():
+        raise ValueError("FFE fixture repository does not contain the expected fixture layout")
+
+    snapshot_cases = snapshot / "evaluation-cases"
+    snapshot_cases.mkdir()
+    snapshot_cases.chmod(0o755)
+    for entry in sorted(cases_directory.iterdir()):
+        if entry.suffix != ".json":
+            raise ValueError(f"Unexpected entry in FFE evaluation cases: {entry}")
+        copy_fixture_file(entry, snapshot_cases / entry.name)
 
 
 def validate_fixture_snapshot(snapshot):
@@ -134,6 +118,17 @@ def have_same_contents(snapshot, destination):
     )
 
 
+def recorded_source_commit(destination):
+    metadata_path = destination / SOURCE_METADATA
+    if metadata_path.is_symlink():
+        raise ValueError(f"Refusing symbolic link in FFE fixture snapshot: {metadata_path}")
+    metadata = metadata_path.read_text(encoding="utf-8")
+    commits = re.findall(r"^Source commit: (.*)$", metadata, re.MULTILINE)
+    if len(commits) != 1 or re.fullmatch(r"[0-9a-f]{40}", commits[0]) is None:
+        raise ValueError(f"{metadata_path} must record exactly one full upstream commit SHA")
+    return commits[0]
+
+
 def source_metadata(source_commit):
     return f"""# FFE Fixture Snapshot
 
@@ -159,9 +154,11 @@ def write_github_outputs(source_commit, fixture_count, changed):
             output_file.write(f"changed={str(changed).lower()}\n")
 
 
-def update_fixture_snapshot(repository_root, fixture_ref):
-    validate_fixture_ref(fixture_ref)
+def update_fixture_snapshot(repository_root, fixture_ref, *, check=False):
     destination = repository_root / DESTINATION
+    if check:
+        fixture_ref = recorded_source_commit(destination)
+    validate_fixture_ref(fixture_ref)
 
     with tempfile.TemporaryDirectory(prefix="ffe-system-test-data-") as temporary_directory:
         working_directory = Path(temporary_directory)
@@ -186,10 +183,18 @@ def update_fixture_snapshot(repository_root, fixture_ref):
         run_git(source, ["fetch", "--quiet", "--depth", "1", "origin", fixture_ref], git_environment)
         run_git(source, ["checkout", "--quiet", "--detach", "FETCH_HEAD"], git_environment)
         source_commit = run_git(source, ["rev-parse", "HEAD"], git_environment)
+        if check and source_commit != fixture_ref:
+            raise ValueError(f"Fetched FFE fixture commit does not match recorded SHA: {fixture_ref}")
 
         copy_fixture_snapshot(source, snapshot)
         fixture_count = validate_fixture_snapshot(snapshot)
         changed = not have_same_contents(snapshot, destination)
+
+        if check and changed:
+            raise ValueError(
+                f"FFE fixture snapshot does not match SOURCE.md commit {source_commit}. "
+                f"Refresh with: python scripts/update-ffe-fixtures.py --ref {source_commit}"
+            )
 
         if changed:
             metadata_path = snapshot / SOURCE_METADATA
@@ -202,15 +207,20 @@ def update_fixture_snapshot(repository_root, fixture_ref):
     print(f"Checked FFE fixtures from DataDog/ffe-system-test-data@{source_commit}")
     print(f"Loaded {fixture_count} JSON fixture cases")
     print(f"Fixture snapshot changed: {str(changed).lower()}")
-    write_github_outputs(source_commit, fixture_count, changed)
+    if not check:
+        write_github_outputs(source_commit, fixture_count, changed)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Update the checked-in canonical FFE fixture snapshot")
-    parser.add_argument("--ref", default="main", help="Branch, tag, or commit from DataDog/ffe-system-test-data")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--ref", default="main", help="Branch, tag, or commit from DataDog/ffe-system-test-data")
+    mode.add_argument(
+        "--check", action="store_true", help="Verify the snapshot against SOURCE.md without changing files"
+    )
     arguments = parser.parse_args()
     repository_root = Path(__file__).resolve().parent.parent
-    update_fixture_snapshot(repository_root, arguments.ref)
+    update_fixture_snapshot(repository_root, arguments.ref, check=arguments.check)
 
 
 if __name__ == "__main__":
