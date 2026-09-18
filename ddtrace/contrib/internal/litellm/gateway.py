@@ -241,6 +241,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         try:
             token = self._token(kwargs)
             route = route_tags(kwargs)
+            if key_id := label(get(kwargs.get("model_info"), "datadog_provider_api_key_id")):
+                route["ai.route.api_key_id"] = key_id
             with self._lock:
                 self._ensure_process()
                 state = self._pending.get(token) if token is not None else None
@@ -361,7 +363,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             tags["ai.model.source"] = "response" if model else "selected_route"
         else:
             issues.add("model_unknown")
-        tags.update(response_tags(response))
+        tags.update(response_tags(response, provider_response=kwargs.get("httpx_response")))
         if provider := label(get(hidden, "custom_llm_provider")):
             tags["ai.model.provider"] = provider
         if response_id := label(get(response, "id")):

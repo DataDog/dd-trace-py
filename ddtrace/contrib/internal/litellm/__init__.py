@@ -47,7 +47,7 @@ Quick setup
    versions may not provide all the request hooks this feature needs.
 2. Add the callback below to your existing LiteLLM configuration. Keep your
    existing callbacks, model settings, and provider credentials. You do not need
-   to enter API keys or model names again for this integration.
+   to enter secret API keys or model names again for this integration.
 
 .. code-block:: yaml
 
@@ -171,11 +171,22 @@ Interpret these values on the cost side; for example, ``azure_ai`` stays
    * - ``ai.gateway.deployment_id``, ``ai.request.id``, ``ai.response.id``
      - Selected route ID, generated gateway request ID, and provider response ID.
        These help find requests but may not exist in the provider's bill.
+   * - ``ai.route.api_key_id``
+     - Optional provider billing key ID set by the gateway operator on the
+       selected deployment. This is not discovered or verified automatically;
+       see the setup below. It is never read from client request metadata.
    * - ``ai.response.x_request_id``, ``ai.response.request_id``,
        ``ai.response.x_amzn_requestid``, ``ai.response.apim_request_id``,
        ``ai.response.opc_request_id``
      - Request IDs from selected provider response headers, when LiteLLM keeps
-       them. Other response headers are not exported. Missing IDs stay missing.
+       them. Missing IDs stay missing.
+   * - ``ai.response.openai_organization``, ``ai.response.openai_project``,
+       ``ai.response.anthropic_organization_id``, ``ai.response.anthropic_workspace_id``
+     - Organization, project, and workspace IDs returned in provider response
+       headers, when LiteLLM keeps them. They stay separate from outgoing route
+       settings and the gateway organization. Compatible proxies can return these
+       headers too; their names alone do not prove which company bills the request.
+       Other response headers are not exported.
    * - ``ai.observed.traffic_type``, ``ai.observed.service_tier``,
        ``ai.observed.speed``, ``ai.observed.inference_geo``
      - Pricing-related values reported in the response, kept separately from
@@ -208,7 +219,7 @@ Using the data with costs
 This callback collects inputs for a cost join; it does **not** perform the join
 or calculate an invoice. Resolve the raw route and response fields to the
 provider's billing dimensions downstream. Automatic matching from credentials
-to billing key/account IDs is not implemented, and API keys are never exported.
+to billing key/account IDs is not implemented, and secret API keys are never exported.
 A cost join needs:
 
 * Time period, billing provider/account/product, and model.
@@ -227,6 +238,39 @@ Only allocate the part of a bill that the collected usage covers. If requests
 are missing, leave some cost unattributed rather than assigning the whole bill
 to the users you can see. Credits, fees, seats, and reserved capacity need their
 own allocation rules, not token counts.
+
+Add a provider key ID for cost matching
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If your provider's usage data includes ``api_key_id``, add that **non-secret ID**
+to the matching model deployment in your existing LiteLLM configuration. For
+example, merge this ``model_info`` field into the entry; keep its existing
+``litellm_params`` and other settings unchanged:
+
+.. code-block:: yaml
+
+    model_list:
+      - model_name: your-existing-model-alias
+        # Keep the existing litellm_params here.
+        model_info:
+          datadog_provider_api_key_id: key_abc123
+
+Use the exact provider ID from its key-management API or usage export, such as
+OpenAI's ``key_...`` or Anthropic's ``apikey_...``. **Do not put the secret
+``sk-...`` key here**, or use a masked key, display name, or LiteLLM virtual key.
+Your existing secret stays in LiteLLM's normal credential configuration.
+
+The callback exports this value as ``ai.route.api_key_id``. Set it separately on
+each deployment, including fallback routes, and update it when changing the
+provider key. It follows the selected deployment, not the incoming model alias.
+If one deployment chooses different keys per request, a fixed ID is not accurate;
+use separate deployments per key or leave the ID unset. A process-wide tag has
+the same problem when the gateway uses multiple keys.
+
+This setting works for any provider with a non-secret billing key ID. Providers
+that bill by account, project, or resource may not have one. Leave it unset in
+that case; the other available IDs are still collected. Missing response IDs,
+including headers LiteLLM drops during streaming, are not filled from this setting.
 
 Limitations and privacy
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -259,7 +303,7 @@ Limitations and privacy
 * Collection is limited to the fields described above, with type, length, and
   secret checks. It does not filter valid values against a list of known names.
   This callback does not export prompts, response text, authorization headers,
-  API keys, exception text, or arbitrary client metadata. Other integrations
+  secret API keys, exception text, or arbitrary client metadata. Other integrations
   and LiteLLM's own logging have separate settings.
 
 Optional: user data settings

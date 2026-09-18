@@ -127,8 +127,9 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
             tags[f"ai.route.{key}"] = value
     # Only the provider pre-call hook supplies headers, never ingress request headers.
     # Select non-secret OpenAI scope IDs without retaining authorization or other headers.
-    if "ai.route.project" in previous:
-        tags["ai.route.project"] = previous["ai.route.project"]
+    for key in ("ai.route.project", "ai.route.api_key_id"):
+        if key in previous:
+            tags[key] = previous[key]
     if isinstance(headers, Mapping):
         scope: dict[str, set[Optional[str]]] = {}
         if len(headers) <= 128:
@@ -165,7 +166,7 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
     return tags
 
 
-def response_tags(response: Any) -> dict[str, str]:
+def response_tags(response: Any, *, provider_response: Any = None) -> dict[str, str]:
     """Retain explicit pricing and correlation scalars, never whole response metadata."""
     tags: dict[str, str] = {}
     usage = get(response, "usage")
@@ -180,16 +181,29 @@ def response_tags(response: Any) -> dict[str, str]:
             tags[f"ai.observed.{key}"] = value
     # LiteLLM prefixes retained upstream headers with llm_provider-. Never read
     # caller headers, nor export provider-specific fields containing reasoning/content.
-    headers = get(hidden, "additional_headers")
-    if isinstance(headers, Mapping) and len(headers) <= 128:
-        selected: dict[str, set[Optional[str]]] = {}
+    # Native Anthropic streaming retains headers on LiteLLM's httpx_response,
+    # but not on its rebuilt terminal response. Never read the HTTP body.
+    selected: dict[str, set[Optional[str]]] = {}
+    for headers in (get(hidden, "additional_headers"), getattr(provider_response, "headers", None)):
+        if not isinstance(headers, Mapping) or len(headers) > 128:
+            continue
         for header, raw_value in headers.items():
             if not isinstance(header, str):
                 continue
             key = header.lower().removeprefix("llm_provider-")
-            if key in ("x-request-id", "request-id", "x-amzn-requestid", "apim-request-id", "opc-request-id"):
+            if key in (
+                "x-request-id",
+                "request-id",
+                "x-amzn-requestid",
+                "apim-request-id",
+                "opc-request-id",
+                "openai-organization",
+                "openai-project",
+                "anthropic-organization-id",
+                "anthropic-workspace-id",
+            ):
                 selected.setdefault(key, set()).add(label(raw_value))
-        for key, values in selected.items():
-            if len(values) == 1 and (value := next(iter(values))) is not None:
-                tags[f"ai.response.{key.replace('-', '_')}"] = value
+    for key, values in selected.items():
+        if len(values) == 1 and (value := next(iter(values))) is not None:
+            tags[f"ai.response.{key.replace('-', '_')}"] = value
     return tags

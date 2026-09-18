@@ -52,10 +52,17 @@ ingress from provider-transformed outgoing settings. Keep valid values verbatim,
 including unfamiliar provider names, traffic types, tiers, cache types, and TTLs;
 never use enum-value allowlists or billing-value mappings. Type, size, and secret
 checks still apply. Never dump logging kwargs or whole header/provider-specific
-dictionaries. Do not infer billing provider/account/mode/geography or add manual
-billing overrides. Consumers interpret these observations downstream.
-Only outgoing provider headers may supply non-secret OpenAI organization/project
-IDs; do not read ingress headers or stringify endpoint objects. Keep provider
+dictionaries. Do not infer billing provider/account/mode/geography.
+Consumers interpret these observations downstream. An optional non-secret
+`model_info.datadog_provider_api_key_id` is read only in the post-routing deployment
+hook and exported as `ai.route.api_key_id`; never read it from ingress or carry it
+across fallback deployments. It is operator-configured, not automatically verified.
+Outgoing provider headers may supply non-secret OpenAI organization/project IDs;
+selected response headers preserve OpenAI organization/project and Anthropic
+organization/workspace IDs under `ai.response.*`. Do not read ingress headers or
+stringify endpoint objects. Native Anthropic streaming also exposes headers on
+the callback's `httpx_response`; inspect only its headers, never read the body.
+Conflicting header copies must not pick an arbitrary scope. Keep provider
 model_id/resource_id intact without parsing ARNs; they are not the router's hidden
 model_id. OCI scope uses explicit route IDs, not credential-file inspection.
 Missing cache-control TTL stays unspecified, not an assumed default. Preserve

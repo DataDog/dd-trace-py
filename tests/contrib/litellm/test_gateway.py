@@ -1115,6 +1115,87 @@ def test_response_request_ids_are_bounded_selected_and_unambiguous():
     assert not response_tags({"_hidden_params": {"additional_headers": dict.fromkeys(map(str, range(129)))}})
 
 
+@pytest.mark.parametrize(
+    "header",
+    ("openai-organization", "openai-project", "anthropic-organization-id", "anthropic-workspace-id"),
+)
+def test_provider_scope_response_headers(header):
+    tag = f"ai.response.{header.replace('-', '_')}"
+    headers = {f"llm_provider-{header.upper()}": "scope-from-provider", header: "scope-from-provider"}
+    assert response_tags({"_hidden_params": {"additional_headers": headers}}) == {tag: "scope-from-provider"}
+    for invalid in ("different-scope", "sk-PRIVATE", "Bearer PRIVATE", "x" * 257, "scope\nPRIVATE", {}, None):
+        headers[header] = invalid
+        assert not response_tags({"_hidden_params": {"additional_headers": headers}})
+        if invalid != "different-scope":
+            assert not response_tags({"_hidden_params": {"additional_headers": {header: invalid}}})
+    # Request headers and arbitrary response metadata must not supply provider identity.
+    assert not response_tags({"headers": {header: "spoofed"}, "metadata": {header: "spoofed"}})
+    assert not response_tags({}, provider_response={"headers": {header: "spoofed"}})
+
+
+async def test_provider_http_response_headers_without_reading_stream():
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+
+    async def unread_stream():
+        pytest.fail("Provider response body must not be consumed")
+        yield b"PRIVATE"
+
+    raw = httpx.Response(
+        200,
+        headers={"anthropic-workspace-id": "workspace-stream", "set-cookie": "PRIVATE"},
+        content=unread_stream(),
+    )
+    await finish(callback, data, stream=True, httpx_response=raw)
+    assert records[0].tags["ai.response.anthropic_workspace_id"] == "workspace-stream"
+    assert "PRIVATE" not in repr(records)
+    assert not raw.is_stream_consumed
+    await raw.aclose()
+    # Two representations of the provider headers must agree.
+    assert not response_tags(
+        {"_hidden_params": {"additional_headers": {"llm_provider-anthropic-workspace-id": "other"}}},
+        provider_response=raw,
+    )
+
+
+@pytest.mark.parametrize("final_key_id", ["key_final", "apikey_final", None, "sk-PRIVATE", "Bearer PRIVATE", {}, 123])
+async def test_provider_key_id_comes_from_selected_deployment(final_key_id):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(
+        callback,
+        data={"model_info": {"datadog_provider_api_key_id": "spoofed"}, "api_key_id": "spoofed"},
+    )
+    await callback.async_pre_call_deployment_hook(
+        {**data, "model_info": {"id": "failed", "datadog_provider_api_key_id": "key_failed"}}, "completion"
+    )
+    await callback.async_pre_call_deployment_hook(
+        {**data, "model_info": {"id": "dep-1", "datadog_provider_api_key_id": final_key_id}}, "completion"
+    )
+    # The lower-level hook must preserve the configured ID, not take an ID from request kwargs.
+    callback.log_pre_api_call("model", [], {"litellm_params": data, "api_key_id": "spoofed"})
+    await finish(callback, data)
+    expected = final_key_id if final_key_id in ("key_final", "apikey_final") else None
+    assert records[0].tags.get("ai.route.api_key_id") == expected
+    assert "spoofed" not in repr(records)
+    assert "key_failed" not in repr(records)
+
+
+@pytest.mark.parametrize("routed", [False, True])
+async def test_provider_key_id_not_taken_from_ingress_or_mismatched_route(routed):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback, data={"model_info": {"datadog_provider_api_key_id": "spoofed"}})
+    if routed:
+        await callback.async_pre_call_deployment_hook(
+            {**data, "model_info": {"id": "wrong-deployment", "datadog_provider_api_key_id": "key_wrong"}},
+            "completion",
+        )
+    await finish(callback, data)
+    assert "ai.route.api_key_id" not in records[0].tags
+
+
 def test_long_resource_ids_remain_exact_with_a_separate_bound():
     resource = (
         "/subscriptions/sub/resourceGroups/"

@@ -34,6 +34,14 @@ def gateway(tmp_path_factory):
         def log_message(self, *args):
             pass
 
+        def provider_scope_headers(self):
+            if self.path in ("/v1/messages", "/anthropic/v1/messages"):
+                self.send_header("anthropic-organization-id", "org-anthropic-response")
+                self.send_header("anthropic-workspace-id", "wrkspc-response")
+            elif self.path in ("/v1/chat/completions", "/v1/responses", "/v1/embeddings"):
+                self.send_header("openai-organization", "org-openai-response")
+                self.send_header("openai-project", "proj-openai-response")
+
         def respond(self, data, status=200):
             body = json.dumps(data).encode()
             self.send_response(status)
@@ -41,6 +49,7 @@ def gateway(tmp_path_factory):
             self.send_header("Content-Length", str(len(body)))
             self.send_header("x-request-id", "upstream-request-local")
             self.send_header("set-cookie", "PRIVATE COOKIE")
+            self.provider_scope_headers()
             self.end_headers()
             self.wfile.write(body)
 
@@ -56,6 +65,7 @@ def gateway(tmp_path_factory):
         def events(self, events):
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
+            self.provider_scope_headers()
             self.end_headers()
             for event in events:
                 self.wfile.write(f"event: {event['type']}\ndata: {json.dumps(event)}\n\n".encode())
@@ -232,6 +242,7 @@ def gateway(tmp_path_factory):
             if data.get("stream"):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
+                self.provider_scope_headers()
                 self.end_headers()
                 for item in [
                     {
@@ -295,7 +306,7 @@ def gateway(tmp_path_factory):
                     "extra_headers": {"OpenAI-Project": "proj-router"},
                     "timeout": 5,
                 },
-                "model_info": {"id": deployment},
+                "model_info": {"id": deployment, "datadog_provider_api_key_id": f"key_{deployment}"},
             }
         )
     config = {
@@ -326,7 +337,7 @@ def gateway(tmp_path_factory):
                 "api_base": local,
                 "timeout": 5,
             },
-            "model_info": {"id": "anthropic-deployment"},
+            "model_info": {"id": "anthropic-deployment", "datadog_provider_api_key_id": "apikey_anthropic"},
         }
     )
     config_path = temp / "config.yaml"
@@ -446,11 +457,13 @@ async def test_real_proxy_and_wire_traces(gateway):
             "stream": stream,
             "service_tier": "priority",
             "user": "claimed-user",
+            "model_info": {"datadog_provider_api_key_id": "spoofed-key"},
             "metadata": {
                 "user_api_key_user_id": "SPOOFED USER",
                 "usr.email": "spoofed@example.test",
                 "_dd_gateway_attribution_token": "forged",
                 "billing_account_id": "spoofed-org",
+                "datadog_provider_api_key_id": "spoofed-key",
             },
         }
         if stream:
@@ -459,7 +472,7 @@ async def test_real_proxy_and_wire_traces(gateway):
             return await client.post(
                 f"{url}/v1/chat/completions",
                 json=data,
-                headers={"Authorization": f"Bearer test-{user}"},
+                headers={"Authorization": f"Bearer test-{user}", "anthropic-workspace-id": "spoofed-workspace"},
             )
 
     results = await asyncio.gather(
@@ -503,6 +516,10 @@ async def test_real_proxy_and_wire_traces(gateway):
         assert span["metrics"]["ai.observed.context_tokens"] == 100
         assert span["meta"]["ai.route.provider"] == "openai"
         assert span["meta"]["ai.route.endpoint_host"] == "127.0.0.1"
+        assert span["meta"]["ai.route.api_key_id"] == f"key_{span['meta']['ai.gateway.deployment_id']}"
+        assert span["meta"]["ai.response.openai_organization"] == "org-openai-response"
+        assert span["meta"]["ai.response.openai_project"] == "proj-openai-response"
+        assert "ai.response.anthropic_workspace_id" not in span["meta"]
         if span["meta"]["usr.id"] == "alice":
             assert span["meta"]["ai.response.x_request_id"] == "upstream-request-local"
             assert span["meta"]["ai.observed.service_tier"] == "Future_Response_Tier"
@@ -584,7 +601,13 @@ async def test_native_coding_agent_endpoints(gateway, stream):
     for s in spans:
         if s["meta"]["ai.operation"] == "anthropic_messages":
             assert s["metrics"]["ai.usage.input_uncached_tokens"] == 60, s
+            assert s["meta"]["ai.route.api_key_id"] == "apikey_anthropic"
+            assert s["meta"]["ai.response.anthropic_organization_id"] == "org-anthropic-response"
+            assert s["meta"]["ai.response.anthropic_workspace_id"] == "wrkspc-response"
         else:
+            assert s["meta"]["ai.route.api_key_id"] == "key_openai-deployment"
+            assert s["meta"]["ai.response.openai_organization"] == "org-openai-response"
+            assert s["meta"]["ai.response.openai_project"] == "proj-openai-response"
             assert "ai.usage.input_uncached_tokens" not in s["metrics"]
             assert s["metrics"]["ai.observed.input_tokens"] == 100
             assert "cache_write_detail_missing" in s["meta"]["ai.attribution.issues"]
