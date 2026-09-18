@@ -145,35 +145,33 @@ cdef extern from "code_provenance.hpp" namespace "Datadog":
 
 
 # Create wrappers for cython
-cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
-    if not str_arg:
-        return
-    if isinstance(str_arg, bytes):
-        func(string_view(<const char*>str_arg, len(str_arg)))
-        return
+# Convert a StringType (str or bytes) to a string_view.
+# Returns True on success and writes to out[0]. Returns False if the
+# input is empty/None or conversion failed (e.g. non-string object).
+cdef inline bint to_string_view(arg: StringType, string_view* out):
+    if not arg:
+        return False
+    if isinstance(arg, bytes):
+        out[0] = string_view(<const char*>arg, len(arg))
+        return True
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(str_arg, &utf8_size)
-    if utf8_data != NULL:
-        func(string_view(utf8_data, utf8_size))
+    utf8_data = PyUnicode_AsUTF8AndSize(arg, &utf8_size)
+    if utf8_data == NULL:
+        return False
+    out[0] = string_view(utf8_data, utf8_size)
+    return True
+
+cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
+    cdef string_view sv
+    if to_string_view(str_arg, &sv):
+        func(sv)
 
 cdef call_uploader_builder_set_tag(key: StringType, val: StringType):
-    if not key or not val:
-        return
-    if isinstance(key, bytes) and isinstance(val, bytes):
-        UploaderBuilder.set_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
-        return
-    cdef const char* key_utf8_data
-    cdef Py_ssize_t key_utf8_size
-    cdef const char* val_utf8_data
-    cdef Py_ssize_t val_utf8_size
-    key_utf8_data = PyUnicode_AsUTF8AndSize(key, &key_utf8_size)
-    val_utf8_data = PyUnicode_AsUTF8AndSize(val, &val_utf8_size)
-    if key_utf8_data != NULL and val_utf8_data != NULL:
-        UploaderBuilder.set_tag(
-            string_view(key_utf8_data, key_utf8_size),
-            string_view(val_utf8_data, val_utf8_size)
-        )
+    cdef string_view key_sv
+    cdef string_view val_sv
+    if to_string_view(key, &key_sv) and to_string_view(val, &val_sv):
+        UploaderBuilder.set_tag(key_sv, val_sv)
 
 cdef call_code_provenance_set_file_path(str file_path):
     cdef const char* file_path_data
@@ -249,121 +247,51 @@ cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
     ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
 
 cdef call_ddup_push_lock_name(Sample* sample, lock_name: StringType):
-    if not lock_name:
-        return
-    if isinstance(lock_name, bytes):
-        sample.push_lock_name(string_view(<const char*>lock_name, len(lock_name)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(lock_name, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_lock_name(string_view(utf8_data, utf8_size))
+    cdef string_view sv
+    if to_string_view(lock_name, &sv):
+        sample.push_lock_name(sv)
 
 cdef call_ddup_push_frame(Sample* sample, name: StringType, filename: StringType,
                           uint64_t address, int64_t line):
-    if not name or not filename:
-        return
-    if isinstance(name, bytes) and isinstance(filename, bytes):
-        sample.push_frame(string_view(<const char*>name, len(name)),
-                          string_view(<const char*>filename, len(filename)),
-                          address, line)
-        return
-    cdef const char* name_utf8_data
-    cdef Py_ssize_t name_utf8_size
-    cdef const char* filename_utf8_data
-    cdef Py_ssize_t filename_utf8_size
-    name_utf8_data = PyUnicode_AsUTF8AndSize(name, &name_utf8_size)
-    filename_utf8_data = PyUnicode_AsUTF8AndSize(filename, &filename_utf8_size)
-    if name_utf8_data != NULL and filename_utf8_data != NULL:
-        sample.push_frame(string_view(name_utf8_data, name_utf8_size),
-                          string_view(filename_utf8_data, filename_utf8_size),
-                          address, line)
+    cdef string_view name_sv
+    cdef string_view filename_sv
+    if to_string_view(name, &name_sv) and to_string_view(filename, &filename_sv):
+        sample.push_frame(name_sv, filename_sv, address, line)
 
 cdef call_ddup_push_threadinfo(Sample* sample, int64_t thread_id, int64_t thread_native_id, thread_name: StringType):
-    if not thread_name:
-        return
-    if isinstance(thread_name, bytes):
-        sample.push_threadinfo(
-            thread_id, thread_native_id, string_view(<const char*>thread_name, len(thread_name)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(thread_name, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_threadinfo(thread_id, thread_native_id, string_view(utf8_data, utf8_size))
+    cdef string_view sv
+    if to_string_view(thread_name, &sv):
+        sample.push_threadinfo(thread_id, thread_native_id, sv)
 
 cdef call_ddup_push_task_name(Sample* sample, task_name: StringType):
-    if not task_name:
-        return
-    if isinstance(task_name, bytes):
-        sample.push_task_name(string_view(<const char*>task_name, len(task_name)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(task_name, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_task_name(string_view(utf8_data, utf8_size))
+    cdef string_view sv
+    if to_string_view(task_name, &sv):
+        sample.push_task_name(sv)
 
 cdef call_ddup_push_exceptioninfo(Sample* sample, exception_name: StringType, uint64_t count):
-    if not exception_name:
-        return
-    if isinstance(exception_name, bytes):
-        sample.push_exceptioninfo(string_view(<const char*>exception_name, len(exception_name)), count)
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(exception_name, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_exceptioninfo(string_view(utf8_data, utf8_size), count)
+    cdef string_view sv
+    if to_string_view(exception_name, &sv):
+        sample.push_exceptioninfo(sv, count)
 
 cdef call_ddup_push_exception_message(Sample* sample, exception_message: StringType):
-    if not exception_message:
-        return
-    if isinstance(exception_message, bytes):
-        sample.push_exception_message(string_view(<const char*>exception_message, len(exception_message)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(exception_message, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_exception_message(string_view(utf8_data, utf8_size))
+    cdef string_view sv
+    if to_string_view(exception_message, &sv):
+        sample.push_exception_message(sv)
 
 cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
-    if not class_name:
-        return
-    if isinstance(class_name, bytes):
-        sample.push_class_name(string_view(<const char*>class_name, len(class_name)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(class_name, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_class_name(string_view(utf8_data, utf8_size))
+    cdef string_view sv
+    if to_string_view(class_name, &sv):
+        sample.push_class_name(sv)
 
 cdef call_ddup_push_gpu_device_name(Sample* sample, device_name: StringType):
-    if not device_name:
-        return
-    if isinstance(device_name, bytes):
-        sample.push_gpu_device_name(string_view(<const char*>device_name, len(device_name)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(device_name, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_gpu_device_name(string_view(utf8_data, utf8_size))
+    cdef string_view sv
+    if to_string_view(device_name, &sv):
+        sample.push_gpu_device_name(sv)
 
 cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
-    if not trace_type:
-        return
-    if isinstance(trace_type, bytes):
-        sample.push_trace_type(string_view(<const char*>trace_type, len(trace_type)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(trace_type, &utf8_size)
-    if utf8_data != NULL:
-        sample.push_trace_type(string_view(utf8_data, utf8_size))
+    cdef string_view sv
+    if to_string_view(trace_type, &sv):
+        sample.push_trace_type(sv)
 
 # Conversion functions
 cdef uint64_t clamp_to_uint64_unsigned(value):
