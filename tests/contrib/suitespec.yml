@@ -1613,6 +1613,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    fabric_no_proxy: true
     venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/httplib
@@ -2371,6 +2372,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    fabric_no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/requests
       variants:

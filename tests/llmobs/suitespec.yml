@@ -240,6 +240,7 @@ suites:
       - tests/cassettes/vertexai/*
       - tests/cassettes/tests.llmobs.*
     snapshot: true
+    fabric_no_proxy: true
     venvs_per_job: 2
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
