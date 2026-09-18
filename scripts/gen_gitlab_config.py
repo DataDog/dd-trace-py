@@ -143,7 +143,9 @@ class JobSpec:
         lines.append(f"    - !reference [{base}, before_script]")
         if self.fabric_no_proxy:
             lines.append("    - |")
-            lines.append('      no_proxy_additions="icanhazdadjoke.com,doesnotexist.google.com,api.stripe.com,us-central1-aiplatform.googleapis.com"')
+            lines.append(
+                '      no_proxy_additions="icanhazdadjoke.com,doesnotexist.google.com,api.stripe.com,us-central1-aiplatform.googleapis.com"'
+            )
             lines.append('      export NO_PROXY="${NO_PROXY:+${NO_PROXY},}${no_proxy_additions}"')
             lines.append('      export no_proxy="${no_proxy:+${no_proxy},}${no_proxy_additions}"')
             lines.append('      echo "NO_PROXY=${NO_PROXY}"')
