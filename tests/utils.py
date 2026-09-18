@@ -74,6 +74,7 @@ _LLMOBS_SHADOW_IGNORES = [
     "meta._dd.llmobs.span_kind",
     "meta._dd.llmobs.model_name",
     "meta._dd.llmobs.model_provider",
+    "meta._dd.llmobs.artificial_gen_ai_tags",
     "meta._dd.p.llmobs_trace_id",
     "meta._dd.p.llmobs_parent_id",
     "meta._dd.p.llmobs_ml_app",
