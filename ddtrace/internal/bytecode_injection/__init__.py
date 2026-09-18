@@ -105,7 +105,7 @@ if PY >= (3, 15):
                     _monitoring.register(code, handler)
                 else:
                     # Reset any lines that were DISABLE'd so newly added hooks fire.
-                    _monitoring.refresh(code)
+                    _monitoring.refresh(code, _monitoring._E.LINE)  # type: ignore[has-type]
 
         return failed
 
