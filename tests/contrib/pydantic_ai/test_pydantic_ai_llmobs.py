@@ -9,9 +9,9 @@ import pydantic_ai
 import pytest
 from typing_extensions import TypedDict
 
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import AgentManifest
 from tests.contrib.pydantic_ai.utils import ABSENT
 from tests.contrib.pydantic_ai.utils import MANIFEST_FIELD_CASES

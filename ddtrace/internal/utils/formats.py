@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
@@ -151,3 +152,35 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
 def format_trace_id(trace_id: int) -> str:
     """Translate a trace ID to a string format supported by the backend."""
     return "{:032x}".format(trace_id) if trace_id > MAX_UINT_64BITS else str(trace_id)
+
+
+def _unserializable_default_repr(obj: Any) -> Any:
+    try:
+        # Pydantic v2
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump(mode="json")
+        # Pydantic v1
+        if hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
+            return obj.dict()
+        return str(obj)
+    except Exception:
+        log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
+        return "[Unserializable object: {}]".format(repr(obj))
+
+
+def safe_json(obj: Any, ensure_ascii: bool = True) -> Optional[str]:
+    if isinstance(obj, str):
+        return obj
+    try:
+        # Pydantic v2
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            obj = obj.model_dump(mode="json")
+        # Pydantic v1
+        elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
+            obj = obj.dict()
+        return json.dumps(
+            obj, ensure_ascii=ensure_ascii, sort_keys=True, skipkeys=True, default=_unserializable_default_repr
+        )
+    except Exception:
+        log.error("Failed to serialize object to JSON.", exc_info=True)
+        return None

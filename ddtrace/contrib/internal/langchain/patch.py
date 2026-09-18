@@ -14,9 +14,9 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
 

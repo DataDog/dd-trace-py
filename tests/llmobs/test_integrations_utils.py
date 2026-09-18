@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
@@ -46,7 +47,6 @@ from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
 from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_tags
-from ddtrace.llmobs._utils import safe_json
 from tests.utils import override_global_config
 
 

@@ -8,8 +8,8 @@ from typing import Optional
 from typing import TypedDict
 
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.llmobs._utils import resolve_ml_app
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType
 from ddtrace.version import __version__

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import pytest
 
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _MAX_NESTED_META_DEPTH
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -13,7 +14,6 @@ from ddtrace.llmobs._utils import _sanitize_metric_key
 from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import load_data_value
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 

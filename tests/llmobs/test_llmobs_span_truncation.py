@@ -1,12 +1,12 @@
 import json
 
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._integrations.utils import LLMOBS_IMAGE_INLINE_MAX_BYTES
 from ddtrace.llmobs._integrations.utils import _capture_inline_image
 from ddtrace.llmobs._integrations.utils import _inline_image_budget
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import _truncate_span_event
 from tests.llmobs._utils import _oversized_llm_event
 from tests.llmobs._utils import _oversized_retrieval_event

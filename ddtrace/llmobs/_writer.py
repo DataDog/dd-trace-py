@@ -23,6 +23,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -53,7 +54,6 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import HTTPConnection
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ExperimentConfigType as ExperimentConfigType
 from ddtrace.version import __version__
 

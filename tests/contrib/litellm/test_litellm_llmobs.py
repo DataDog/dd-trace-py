@@ -3,6 +3,7 @@ import pytest
 
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -11,7 +12,6 @@ from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
-from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
 from tests.contrib.litellm.utils import consume_stream_iter

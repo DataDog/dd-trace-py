@@ -47,6 +47,7 @@ from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.formats import safe_json
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_ANNOTATION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
@@ -175,7 +176,6 @@ from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import resolve_ml_app
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import set_gen_ai_apm_tags
 from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
