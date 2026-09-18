@@ -6,9 +6,13 @@ from functools import singledispatch
 from pathlib import Path
 from types import CodeType
 from types import FunctionType
+from types import ModuleType
 from typing import Iterator
+from typing import Optional
 from typing import cast
+import weakref
 
+from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
@@ -118,7 +122,27 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             except AttributeError:
                 pass
 
-        # Last resort
+        # PERF: g itself is the answer when it already matches, none of the explicit wrapper
+        # relationships above led elsewhere, and the queue holds no other candidate that the
+        # BFS would have reached first. Both conditions are load-bearing:
+        #   - checking here rather than before the probes preserves their precedence, so a
+        #     wrapper sharing the target's name and file still resolves to the original it
+        #     closes over;
+        #   - requiring an empty queue keeps the BFS honest when an outer wrapper matches but
+        #     a queued intermediate leads to the real original (see
+        #     test_undecorated_same_name_outer_wrapper_defers_to_queued_candidates).
+        # For a plain function neither applies and the expensive __dir__() scan below is
+        # skipped, which is the case the pytest plugin hits once per test.
+        if not q and _isinstance(g, FunctionType) and match(g):
+            return g
+
+        # Last resort.
+        # NOTE: the try wraps the whole loop, so the first name in object.__dir__(g) that is
+        # not gettable via object.__getattribute__ ends the scan early. Bound methods hit
+        # this: object.__dir__ merges in the underlying function's attributes, so a wrapper
+        # decorated with functools.wraps surfaces __wrapped__, which a method object does not
+        # forward, and the scan stops before reaching __func__. That is why a bound method
+        # can come back unresolved, and why the shortcut above is restricted to functions.
         try:
             for v in (object.__getattribute__(g, a) for a in object.__dir__(g)):
                 if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
@@ -163,3 +187,72 @@ def clear():
     """
     _functions_for_code_gc.cache_clear()
     _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()
+
+
+class ModuleCodeCollector(BaseModuleWatchdog):
+    """Collect the nested code objects of every module compiled after install.
+
+    Some products need the full set of code objects a module was compiled with,
+    including ones that become unreachable from the module's namespace after
+    decoration. This watchdog collects them at compile time, before any
+    decorator runs, so that a product can still recover them regardless of what
+    decorators did to the module's namespace.
+
+    Products subscribe with register unconditionally at their own
+    product-module import time (i.e. regardless of whether the product itself
+    is enabled), so that the data is already available if the product is
+    enabled later on. A module's entry is kept until every subscriber that was
+    registered when the module was compiled has called release for it.
+    """
+
+    _subscribers: set[str] = set()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str]]] = weakref.WeakKeyDictionary()
+
+    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
+        self._code[module] = (list(collect_code_objects(code)), set(self._subscribers))
+        return code
+
+    def after_import(self, module: ModuleType) -> None:
+        pass
+
+    @classmethod
+    def register(cls, subscriber: str) -> None:
+        """Declare interest in the collected code objects.
+
+        This must be called unconditionally at product-module import time, not
+        gated behind the product's own enablement check, otherwise modules
+        compiled before the product enables would be missing from its data.
+        """
+        cls._subscribers.add(subscriber)
+        if not cls.is_installed():
+            cls.install()
+
+    @classmethod
+    def get_code_objects(cls, module: ModuleType) -> Optional[list[CodeType]]:
+        """Get the code objects collected for a module, if any."""
+        if not cls.is_installed():
+            return None
+        entry = cast("ModuleCodeCollector", cls._instance)._code.get(module)
+        return entry[0] if entry is not None else None
+
+    @classmethod
+    def release(cls, module: ModuleType, subscriber: str) -> None:
+        """Release a subscriber's interest in a module's collected code objects.
+
+        Once every subscriber that was registered when the module was compiled
+        has released it, the entry is discarded and the memory reclaimed by the
+        garbage collector.
+        """
+        if not cls.is_installed():
+            return
+        instance = cast("ModuleCodeCollector", cls._instance)
+        entry = instance._code.get(module)
+        if entry is None:
+            return
+        _, pending = entry
+        pending.discard(subscriber)
+        if not pending:
+            del instance._code[module]

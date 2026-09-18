@@ -9,9 +9,13 @@ from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import set_function_code
 
+
+log = get_logger(__name__)
 
 HookType = Callable[[Any], Any]
 HookInfoType = tuple[HookType, int, Any]
@@ -124,7 +128,7 @@ if PY >= (3, 15):
                     _monitoring.register(code, handler)
                 else:
                     # Reset any lines that were DISABLE'd so newly added hooks fire.
-                    _monitoring.refresh(code)
+                    _monitoring.refresh(code, _monitoring._E.LINE)  # type: ignore[has-type]
 
         return failed
 
@@ -374,7 +378,18 @@ else:
 
         Returns the list of hooks that failed to be injected.
         """
-        abstract_code: Bytecode = Bytecode.from_code(get_function_code(f))
+        code = get_function_code(f)
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return list(hooks)
+
+        try:
+            abstract_code: Bytecode = Bytecode.from_code(code)
+        except Exception:
+            return list(hooks)
 
         failed: list[HookInfoType] = []
         for hook, line, arg in hooks:
@@ -384,7 +399,11 @@ else:
                 failed.append((hook, line, arg))
 
         if len(failed) < len(hooks):
-            set_function_code(f, abstract_code.to_code())
+            try:
+                new_code = abstract_code.to_code()
+            except Exception:
+                return list(hooks)
+            set_function_code(f, new_code)
 
         return failed
 
@@ -396,7 +415,17 @@ else:
 
         Returns the list of hooks that failed to be ejected.
         """
-        abstract_code: Bytecode = Bytecode.from_code(f.__code__)
+        if is_obfuscated_code(f.__code__):
+            log.warning(
+                "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                f.__code__.co_name,
+            )
+            return list(hooks)
+
+        try:
+            abstract_code: Bytecode = Bytecode.from_code(f.__code__)
+        except Exception:
+            return list(hooks)
 
         failed: list[HookInfoType] = []
         for hook, line, arg in hooks:
@@ -406,7 +435,11 @@ else:
                 failed.append((hook, line, arg))
 
         if len(failed) < len(hooks):
-            f.__code__ = abstract_code.to_code()
+            try:
+                new_code = abstract_code.to_code()
+            except Exception:
+                return list(hooks)
+            f.__code__ = new_code
 
         return failed
 
@@ -417,6 +450,13 @@ else:
         argument. The latter is also used as an identifier for the hook. This should
         be kept in case the hook needs to be removed.
         """
+        if is_obfuscated_code(f.__code__):
+            log.warning(
+                "Cannot inject hook into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                f.__code__.co_name,
+            )
+            return f
+
         abstract_code: Bytecode = Bytecode.from_code(f.__code__)
 
         _inject_hook(abstract_code, hook, line, arg)
@@ -431,6 +471,13 @@ else:
         The hook is identified by its line number and the argument passed to the
         hook.
         """
+        if is_obfuscated_code(f.__code__):
+            log.warning(
+                "Cannot eject hook from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                f.__code__.co_name,
+            )
+            return f
+
         abstract_code: Bytecode = Bytecode.from_code(f.__code__)
 
         _eject_hook(abstract_code, hook, line, arg)

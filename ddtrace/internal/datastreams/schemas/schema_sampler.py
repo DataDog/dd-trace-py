@@ -1,4 +1,4 @@
-import threading
+from ddtrace.internal.threads import Lock
 
 
 class SchemaSampler:
@@ -7,7 +7,7 @@ class SchemaSampler:
     def __init__(self):
         self.weight = 0
         self.last_sample_millis = 0
-        self.lock = threading.Lock()
+        self.lock = Lock()
 
     def try_sample(self, current_time_millis):
         if current_time_millis >= self.last_sample_millis + self.SAMPLE_INTERVAL_MILLIS:

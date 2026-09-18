@@ -1,10 +1,12 @@
 from collections.abc import Mapping
 import io
 import json
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import MutableMapping
 from typing import Optional
+from typing import cast
 
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
@@ -23,6 +25,7 @@ from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_a
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
@@ -34,9 +37,11 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
-from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
 
+
+if TYPE_CHECKING:
+    from ddtrace.internal.native._native import SpanData
 
 logger = get_logger(__name__)
 
@@ -121,14 +126,14 @@ def _on_request_span_modifier(
     return req_body
 
 
-def _on_flask_blocked_request(span: Span) -> None:
+def _on_flask_blocked_request(span: SpanProtocol) -> None:
     span._set_attribute(http.STATUS_CODE, "403")
     request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
         query_string = getattr(request, "query_string", None)
         if base_url and query_string:
-            _set_url_tag(core.find_item("flask_config"), span, base_url, query_string)
+            _set_url_tag(core.find_item("flask_config"), cast("SpanData", span), base_url, query_string)
         if query_string and core.find_item("flask_config").trace_query_string:
             span._set_attribute(http.QUERY_STRING, query_string)
         if request.method is not None:
@@ -185,7 +190,7 @@ def _on_wrapped_view(kwargs: Mapping[str, object]) -> Optional[Callable[[], _Blo
     return callback_block
 
 
-def _flask_block_request_callable(span: Span) -> None:
+def _flask_block_request_callable(span: SpanProtocol) -> None:
     import flask
     from werkzeug.exceptions import abort
 

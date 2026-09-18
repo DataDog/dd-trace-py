@@ -18,6 +18,12 @@ if [ -z "$S3_PATH" ]; then
 fi
 
 shopt -s nullglob
+
+if [ ! -d pywheels ]; then
+  echo "No packages found in pywheels/"
+  exit 0
+fi
+
 WHEELS=(pywheels/*.whl pywheels/*.tar.gz)
 
 if [ ${#WHEELS[@]} -eq 0 ]; then

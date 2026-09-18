@@ -3,9 +3,8 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.22.0",
-#     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
+#     "ruamel.yaml>=0.17.21",
 # ]
 # ///
 """
@@ -21,15 +20,19 @@ from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import hashlib
+import importlib
 import os
 import re
-import subprocess
+import shlex
 import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
-BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
-BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
+
+
+def _ddtest_module():
+    """Load the optional ddtest job emitter after scripts/ is on sys.path."""
+    return importlib.import_module("ddtest_jobs")
 
 
 def _get_bool_env(name: str) -> str:
@@ -43,6 +46,13 @@ def _get_bool_env(name: str) -> str:
     if value not in ("", "true", "false"):
         LOGGER.warning("Ignoring unexpected value for %s, treating it as false", name)
     return "true" if value == "true" else "false"
+
+
+def _wait_lockfile() -> str:
+    from tests.suitespec import get_test_environments
+
+    environments = get_test_environments(nightly=False)["wait"]
+    return str(next(environment.lockfile for environment in environments if environment.python == "3.9"))
 
 
 @dataclass
@@ -73,13 +83,15 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
-    skip_pip_cache: bool = False
+    skip_pip_cache: bool = False  # ignored
+    suite: t.Optional[str] = None
 
     python_versions: t.Optional[set[str]] = None
+    environment_hashes: t.Optional[tuple[str, ...]] = None
 
     def __str__(self) -> str:
         lines = []
-        base = ".test_base_riot"
+        base = ".test_base"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -91,18 +103,18 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Jobs need build_base_venvs artifacts
+        # Base environment artifacts provide the native extensions for test jobs.
         lines.append("  needs:")
         lines.append("    - prechecks")
         if self.python_versions:
-            lines.append("    - job: build_base_venvs")
+            lines.append("    - job: build_base_test_artifacts")
             lines.append("      artifacts: true")
             lines.append("      parallel:")
             lines.append("        matrix:")
             for pv in sorted(self.python_versions):
                 lines.append(f'          - PYTHON_VERSION: "{pv}"')
         else:
-            lines.append("    - job: build_base_venvs")
+            lines.append("    - job: build_base_test_artifacts")
             lines.append("      artifacts: true")
 
         # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
@@ -123,35 +135,37 @@ class JobSpec:
         if self.snapshot:
             wait_for.append("testagent")
 
-        # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
+        # Bake NIGHTLY_BUILD into script (same approach as build_base_test_artifacts template)
         # so the value is set when tests-gen runs and is present in the child job.
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
-        lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            wait_environment = ""
+            if "testagent" in wait_for:
+                wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
+            lines.append(
+                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
+                f"--with-requirements {_wait_lockfile()} --no-progress "
+                f"python tests/wait-for-services.py {' '.join(wait_for)}"
+            )
 
-        env = self.env
+        env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
-            env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
-
-        suite_name = env["SUITE_NAME"]
-        env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-        )
-        if not self.skip_pip_cache:
-            lines.append("  cache:")
-            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
+        env["TEST_SUITE"] = self.suite or self.name
+        if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
+            env["UV_PRERELEASE"] = "allow"
 
         lines.append("  variables:")
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
+        if self.environment_hashes:
+            shard_count = self.parallelism or 1
+            for index in range(shard_count):
+                shard = " ".join(self.environment_hashes[index::shard_count])
+                lines.append(f'    TEST_ENVIRONMENTS_{index + 1}: "{shard}"')
 
         if self.only:
             lines.append("  only:")
@@ -175,153 +189,97 @@ class JobSpec:
 
 @dataclass
 class SuiteVenvInfo:
-    venv_count: int
+    environment_hashes: tuple[str, ...]
     python_versions: set[str]
+    environments: tuple[tuple[str, str], ...]
+    ddtest_metadata: dict[str, tuple[str, str, str, str]]
+
+    @property
+    def venv_count(self) -> int:
+        return len(self.environment_hashes)
 
 
-# Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
+# Module-level state: populated by gen_required_suites, consumed by gen_build_base_test_artifacts
 _global_python_versions: set[str] = set()
-
-# Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
-TARGET_JOBS = 200
+_needs_base_venvs = True
 
 # All supported Python versions (fallback when no venv info is available)
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
-def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
-    """Collect venv count and Python versions for multiple suites in a single pass.
+def _shell_environment(environment: dict[str, str]) -> str:
+    return shlex.join(f"{name}={value}" for name, value in environment.items())
 
-    Iterates riotfile.venv.instances() once and matches each instance against all
-    suite patterns simultaneously, which is much more efficient than per-suite iteration.
+
+def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
+    """Collect environment count and Python versions for multiple suites in a single pass.
 
     Args:
-        suite_patterns: mapping of suite name -> regex pattern string
+        suite_configs: mapping of suite name -> suite configuration
 
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    # Importing will load/evaluate the whole riotfile.py
-    import riotfile
+    from tests.suitespec import get_test_environments
 
-    compiled: dict[str, re.Pattern] = {}
-    for suite, pattern in suite_patterns.items():
-        try:
-            compiled[suite] = re.compile(pattern)
-        except re.error:
-            LOGGER.warning("Invalid pattern for suite %s: %s", suite, pattern)
-
-    venv_hashes: dict[str, set] = {s: set() for s in compiled}
-    python_versions: dict[str, set] = {s: set() for s in compiled}
-
-    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
-        if not inst.name:
-            continue
-        hint = inst.py._hint  # type: ignore[attr-defined]
-        for suite, regex in compiled.items():
-            if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
-                # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
-                if re.match(r"^3\.\d+$", hint):
-                    python_versions[suite].add(hint)
+    all_environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
 
     result: dict[str, SuiteVenvInfo] = {}
-    for suite in compiled:
-        if venv_hashes[suite]:
+    for suite in suite_configs:
+        environments = all_environments.get(suite, ())
+        if environments:
+            ddtest_metadata = {}
+            if suite_configs[suite].get("ddtest"):
+                suite_environment = suite_configs[suite].get("env", {})
+                for environment in environments:
+                    if len(environment.runs) != 1:
+                        raise ValueError(f"ddtest suite {suite} must have one command per environment")
+                    run = environment.runs[0]
+                    command = run.command.replace("{cmdargs}", "--ddtrace")
+                    for name, value in run.environment.items():
+                        command = command.replace(f"${{{{{name}}}}}", value)
+                    test_location = run.environment.get("DDTEST_TESTS_LOCATION") or suite_environment.get(
+                        "DDTEST_TESTS_LOCATION", ""
+                    )
+                    ddtest_metadata[environment.hash] = (
+                        str(environment.lockfile),
+                        test_location,
+                        command,
+                        _shell_environment(run.environment),
+                    )
             result[suite] = SuiteVenvInfo(
-                venv_count=len(venv_hashes[suite]),
-                python_versions=python_versions[suite],
+                environment_hashes=tuple(environment.hash for environment in environments),
+                python_versions={
+                    environment.python for environment in environments if re.match(r"^3\.\d+$", environment.python)
+                },
+                environments=tuple((environment.hash, environment.python) for environment in environments),
+                ddtest_metadata=ddtest_metadata,
             )
         else:
-            LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
+            LOGGER.warning(
+                "No test environments found for suite %s with pattern %s",
+                suite,
+                suite_configs[suite].get("pattern", suite),
+            )
     return result
 
 
-def calculate_parallelism_from_venvs(venv_count: int, venvs_per_job: int, max_parallelism: int = 25) -> int:
+def calculate_parallelism_from_venvs(
+    venv_count: int, venvs_per_job: t.Optional[int] = None, max_parallelism: int = 25
+) -> int:
     """Calculate parallelism given a venv count and venvs_per_job packing density."""
     import math
 
+    # AIDEV-NOTE: Suitespec owns shard density. Avoid a global minimum job count,
+    # which makes small CI runs allocate runners unrelated to their suite timings.
+    if venvs_per_job is None:
+        return 1
     return min(math.ceil(venv_count / venvs_per_job), max_parallelism)
-
-
-def _scale_suites(
-    suite_venv_info: dict[str, SuiteVenvInfo],
-    final_jobs: dict[str, int],
-    scalable_suites: list[str],
-    venvs_per_job_map: dict[str, int],
-    target: int,
-) -> dict[str, int]:
-    """Scale up parallelism for scalable suites to approach the target total job count.
-
-    Works for both venvs_per_job suites (reduces vpj by 1 per step) and static
-    parallelism suites (increments parallelism by 1 per step). Each iteration picks
-    the suite that yields the largest gain until the target is reached.
-
-    Args:
-        suite_venv_info: venv info per suite (from collect_all_suite_venv_info)
-        final_jobs: current parallelism per suite (a copy is returned)
-        scalable_suites: all suites eligible for scaling (with venv info)
-        venvs_per_job_map: current venvs_per_job value for dynamic suites (others absent)
-        target: desired minimum total job count
-
-    Returns:
-        Updated parallelism mapping
-    """
-    import math
-
-    final_jobs = dict(final_jobs)
-    current_vpj = dict(venvs_per_job_map)
-
-    while sum(final_jobs.values()) < target:
-        best_gain = 0
-        best_suite = None
-
-        for suite in scalable_suites:
-            venv_count = suite_venv_info[suite].venv_count
-            current = final_jobs[suite]
-            # Allow up to 1 job per venv when scaling (no parallelism cap during scale-up).
-            # The cap in calculate_parallelism_from_venvs only applies to baseline.
-            if current >= venv_count:
-                continue
-
-            if suite in current_vpj:
-                # Dynamic (venvs_per_job) suite: compute gain from reducing vpj by 1
-                vpj = current_vpj[suite]
-                if vpj <= 1:
-                    continue
-                new_parallelism = math.ceil(venv_count / (vpj - 1))
-            else:
-                # Static parallelism suite: gain is always 1
-                new_parallelism = current + 1
-
-            gain = new_parallelism - current
-            if gain > best_gain:
-                best_gain = gain
-                best_suite = suite
-
-        if best_suite is None or best_gain == 0:
-            break
-
-        venv_count = suite_venv_info[best_suite].venv_count
-        if best_suite in current_vpj:
-            current_vpj[best_suite] -= 1
-            final_jobs[best_suite] = math.ceil(venv_count / current_vpj[best_suite])
-        else:
-            final_jobs[best_suite] += 1
-
-        LOGGER.debug(
-            "Scaled suite %s: parallelism %d -> %d",
-            best_suite,
-            final_jobs[best_suite] - best_gain,
-            final_jobs[best_suite],
-        )
-
-    return final_jobs
 
 
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
-    import suitespec
+    from tests import suitespec
 
     suites = suitespec.get_suites()
 
@@ -420,49 +378,65 @@ microbenchmark-noop:
     _filter_benchmarks_slos_file(benchmark_classnames)
 
 
-def _get_benchmark_class_name(suite_name: str) -> str:
-    contents = Path(f"benchmarks/{suite_name}/scenario.py").read_text()
-    for line in contents.split("\n"):
-        match = re.match(BENCHMARK_CLASS_REGEX, line)
-        if match:
-            return match.group(1).lower()
-
-
 def _filter_benchmarks_slos_file(classnames: list) -> None:
-    in_scenario_to_keep = True
-    new_contents = []
-    kept_scenarios = 0
-    contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
+    # Merge the per-team SLO source files under slos/ (each owned by a team via
+    # CODEOWNERS) into the single generated file consumed by check-slo-breaches,
+    # keeping only scenarios whose benchmark class is in this pipeline.
+    kept_blocks: list[list[str]] = []
+    for src in sorted(MICROBENCHMARKS_SLOS_DIR.glob("*.yml")):
+        for class_prefix, block in iter_slo_scenarios(src.read_text()):
+            if class_prefix in classnames:
+                kept_blocks.append(block)
 
-    for line in contents.split("\n")[1:]:
-        match = re.match(BENCHMARK_SCENARIO_REGEX, line)
-        if match:
-            class_on_line = match.group(1)
-            if class_on_line in classnames:
-                in_scenario_to_keep = True
-                kept_scenarios += 1
-            else:
-                in_scenario_to_keep = False
-        if line.strip().startswith("#"):
-            in_scenario_to_keep = False
-        if in_scenario_to_keep:
-            new_contents.append(line)
+    header = [
+        "experiments:",
+        "  - name: SLO Check",
+        "    steps:",
+        "      - name: SLO Check",
+        "        run: fail_on_breach",
+        "        scenarios: []" if not kept_blocks else "        scenarios:",
+    ]
+    out = header
+    for block in kept_blocks:
+        out.extend(block)
+    MICROBENCHMARKS_SLOS.write_text("\n".join(out) + "\n")
 
-    if kept_scenarios == 0:
-        new_contents[-1] = "scenarios: []"
 
-    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
+def gen_validate_slos() -> None:
+    """Validate microbenchmark SLO structural integrity (no orphans/duplicates).
+
+    Delegates to scripts/check_slo_ownership.py so the same checks run both in
+    the tests-gen CI job (via this generator) and locally via
+    `scripts/lint slo-ownership`.
+    """
+    from check_slo_ownership import validate as _validate_slos
+
+    _validate_slos()
 
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
+    global _needs_base_venvs
 
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
+    explicit_parallelism = sorted(name for name, config in suites.items() if "parallelism" in config)
+    if explicit_parallelism:
+        raise ValueError(
+            "test suites must use venvs_per_job instead of parallelism: " + ", ".join(explicit_parallelism)
+        )
+
+    ignored_ddtest_packing = sorted(
+        name for name, config in suites.items() if config.get("ddtest") and "venvs_per_job" in config
+    )
+    if ignored_ddtest_packing:
+        raise ValueError(
+            "ddtest suites shard with ddtest_nodes and cannot use venvs_per_job: " + ", ".join(ignored_ddtest_packing)
+        )
+
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
-
     # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
@@ -491,50 +465,33 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     # === PASS 1: Collect venv info for all non-skipped required suites ===
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
-    suite_patterns = {s: suites[s].get("pattern", s) for s in non_skipped}
-    suite_venv_info = collect_all_suite_venv_info(suite_patterns)
+    suite_configs = {s: suites[s] for s in non_skipped}
+    suite_venv_info = collect_all_suite_venv_info(suite_configs)
+    _needs_base_venvs = bool(non_skipped)
 
-    # Populate the module-level global so gen_build_base_venvs can use it
+    for suite in non_skipped:
+        if not suites[suite].get("ddtest") or suite not in suite_venv_info:
+            continue
+        info = suite_venv_info[suite]
+        _ddtest_module().validate_ddtest_venv_test_locations(
+            suite,
+            info.environments,
+            {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
+        )
+
+    # Populate the module-level global so gen_build_base_test_artifacts can use it
     _global_python_versions = set()
     for info in suite_venv_info.values():
         _global_python_versions.update(info.python_versions)
 
-    # Compute baseline parallelism. Track scalable suites (those with venv info, eligible
-    # for scaling up) and the vpj map for dynamic suites.
-    baseline_jobs: dict[str, int] = {}
-    scalable_suites: list[str] = []  # all suites with venv info (both static and dynamic)
-    venvs_per_job_map: dict[str, int] = {}  # only for venvs_per_job suites
-
+    final_jobs: dict[str, int] = {}
     for suite in non_skipped:
         config = suites[suite]
-        static_parallelism = config.get("parallelism")
         venvs_per_job = config.get("venvs_per_job")
-
-        if static_parallelism is not None:
-            baseline_jobs[suite] = static_parallelism
-            if suite in suite_venv_info:
-                scalable_suites.append(suite)
-        elif venvs_per_job is not None and suite in suite_venv_info:
-            parallelism = calculate_parallelism_from_venvs(suite_venv_info[suite].venv_count, venvs_per_job)
-            baseline_jobs[suite] = parallelism
-            scalable_suites.append(suite)
-            venvs_per_job_map[suite] = venvs_per_job
+        if suite in suite_venv_info:
+            final_jobs[suite] = calculate_parallelism_from_venvs(suite_venv_info[suite].venv_count, venvs_per_job)
         else:
-            baseline_jobs[suite] = 1
-
-    # Scale up suites if total job count is below the target
-    total_baseline = sum(baseline_jobs.values())
-    if total_baseline < TARGET_JOBS and scalable_suites:
-        LOGGER.info(
-            "Total baseline jobs (%d) below target (%d), scaling up %d suite(s)",
-            total_baseline,
-            TARGET_JOBS,
-            len(scalable_suites),
-        )
-        final_jobs = _scale_suites(suite_venv_info, baseline_jobs, scalable_suites, venvs_per_job_map, TARGET_JOBS)
-        LOGGER.info("Scaled total jobs: %d", sum(final_jobs.values()))
-    else:
-        final_jobs = baseline_jobs
+            final_jobs[suite] = 1
 
     # === PASS 2: Emit YAML ===
     with TESTS_GEN.open("a") as f:
@@ -542,9 +499,37 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config = suites[suite].copy()
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
+            suite_config.pop("matrix", None)
+            suite_config.pop("integration", None)
+            suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
-            jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
+            if suite_config.get("ddtest"):
+                info = suite_venv_info.get(suite)
+                if info is None:
+                    LOGGER.warning("Suite %s opted into ddtest but has no environments; skipping", suite)
+                    continue
+                _ddtest_module().emit_ddtest_jobs(
+                    f,
+                    suite,
+                    stage,
+                    clean_name,
+                    suite_config,
+                    list(info.environments),
+                    _ddtest_module().ddtest_k(suite_config),
+                    info.ddtest_metadata,
+                    _wait_lockfile(),
+                )
+                continue
+
+            environment_hashes = suite_venv_info[suite].environment_hashes if suite in suite_venv_info else None
+            jobspec = JobSpec(
+                clean_name,
+                stage=stage,
+                python_versions=py_versions,
+                environment_hashes=environment_hashes,
+                **suite_config,
+            )
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
@@ -563,6 +548,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
+    global _needs_base_venvs
+
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -571,13 +558,14 @@ def gen_build_docs() -> None:
             "ddtrace/*",
             "scripts/docs/*",
             "scripts/gen_gitlab_config.py",
+            ".uv/build-docs--py310--*.txt",
             "benchmarks/README.rst",
             ".readthedocs.yml",
-            ".uv/build-docs--py310--*.txt",
         }
     ):
-        # build_docs uses Python 3.10; ensure it's included in build_base_venvs
+        # build_docs uses Python 3.10; ensure it is included in build_base_test_artifacts
         _global_python_versions.add("3.10")
+        _needs_base_venvs = True
 
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
@@ -585,7 +573,7 @@ def gen_build_docs() -> None:
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print("    - job: build_base_venvs", file=f)
+            print("    - job: build_base_test_artifacts", file=f)
             print("      artifacts: true", file=f)
             print("      parallel:", file=f)
             print("        matrix:", file=f)
@@ -635,11 +623,6 @@ def gen_pre_checks() -> None:
         paths={"docker*", "ddtrace/*", "pyproject.toml", "scripts/lint"},
     )
     check(
-        name="Run riotfile.py tests",
-        command="scripts/lint riot",
-        paths={"docker*", "riotfile.py", "pyproject.toml", "scripts/lint"},
-    )
-    check(
         name="Style: Test snapshots",
         command="scripts/lint fmt-snapshots && git diff --exit-code tests/snapshots",
         paths={"docker*", "tests/snapshots/*", "scripts/lint"},
@@ -652,6 +635,26 @@ def gen_pre_checks() -> None:
     check(
         name="Check suitespec coverage",
         command="scripts/lint suitespec-check",
+        paths={"*"},
+    )
+    check(
+        name="Check test locks",
+        command="scripts/test-requirements check",
+        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-requirements", "tests/suitespec.py"},
+    )
+    check(
+        name="Check microbenchmark SLO ownership",
+        command="scripts/lint slo-ownership",
+        paths={
+            ".gitlab/benchmarks/slos/*",
+            "benchmarks/*",
+            "scripts/check_slo_ownership.py",
+            "scripts/lint",
+        },
+    )
+    check(
+        name="Check suitespec duplicates",
+        command="scripts/lint suitespec-duplicates",
         paths={"*"},
     )
     check(
@@ -675,7 +678,17 @@ def gen_pre_checks() -> None:
     check(
         name="Check project dependencies",
         command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
-        paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
+        paths={
+            "pyproject.toml",
+            "tests/suitespec.py",
+            "tests/suitespec.yml",
+            "tests/**/suitespec.yml",
+            "benchmarks/suitespec.yml",
+            ".gitlab-ci.yml",
+            ".gitlab/**/*.yml",
+            ".github/workflows/*.yml",
+            "scripts/check-dependency-ci-coverage.py",
+        },
     )
     check(
         name="Check package version",
@@ -742,7 +755,7 @@ def gen_cached_testrunner() -> None:
         )
 
 
-def gen_build_base_venvs() -> None:
+def gen_build_base_test_artifacts() -> None:
     """Generate the list of base jobs for building virtual environments.
 
     We need to generate this dynamically from a template because it depends
@@ -751,6 +764,10 @@ def gen_build_base_venvs() -> None:
     Only builds venvs for the Python versions actually needed by the required suites,
     falling back to all supported versions when no venv info is available.
     """
+    if not _needs_base_venvs:
+        LOGGER.info("Skipping base environments because no test suites were selected")
+        return
+
     if _global_python_versions:
         py_versions = sorted(_global_python_versions)
         LOGGER.info("Building base venvs for Python versions: %s", py_versions)
@@ -763,7 +780,7 @@ def gen_build_base_venvs() -> None:
     with TESTS_GEN.open("a") as f:
         f.write(
             template(
-                "build-base-venvs",
+                "build-base-test-artifacts",
                 python_versions=python_versions_str,
                 unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
                 nightly_build=_get_bool_env("NIGHTLY_BUILD"),
@@ -819,12 +836,16 @@ if args.files:
     _needs_testrun._changed_files_override = set(args.files)
 
 ROOT = Path(__file__).parents[1]
+BENCHMARKS = ROOT / "benchmarks"
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
-MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
+# Source-of-truth SLO thresholds live in one per-team file under slos/, each
+# owned by its team via .github/CODEOWNERS. gen_gitlab_config merges these into
+# the single generated MICROBENCHMARKS_SLOS file consumed by check-slo-breaches.
+MICROBENCHMARKS_SLOS_DIR = GITLAB / "benchmarks" / "slos"
 
 # Compute a short hash of the testrunner image so cache keys are automatically
 # invalidated whenever the image changes (e.g. Python patch version bumps).
@@ -833,10 +854,15 @@ import ruamel.yaml as _ruamel_yaml  # noqa: E402
 
 _testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
 TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
-# Make the project root, scripts, and tests folders available for importing.
+# Make the project root and scripts folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
-sys.path.append(str(ROOT / "tests"))
+
+# Single source of truth for the benchmark SLO naming regexes lives in
+# check_slo_ownership.py; import them here so both this generator and the
+# linter stay in sync.
+from check_slo_ownership import _get_benchmark_class_name  # noqa: E402
+from check_slo_ownership import iter_slo_scenarios  # noqa: E402
 
 
 def template(name: str, **params):

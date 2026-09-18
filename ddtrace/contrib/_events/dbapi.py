@@ -4,10 +4,10 @@ from ddtrace.internal.core.events import Event
 
 
 @dataclass
-class DbApiEvent(Event):
+class DbQueryEvent(Event):
     """A database query shared by instrumentation and product subscribers."""
 
-    event_name = "dbapi.query"
+    event_name = "db.query"
 
     query: str
     span_name_prefix: str

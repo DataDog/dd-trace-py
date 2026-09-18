@@ -11,6 +11,7 @@ from ddtrace.internal.core.subscriber import Subscriber
 
 
 class AppSecSubprocessCommandSubscriber(Subscriber):
+    auto_register = False
     event_names = (SubprocessCommandEvent.event_name,)
 
     @classmethod

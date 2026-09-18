@@ -7,7 +7,6 @@ bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 from __future__ import annotations
 
 import sys
-from threading import Lock
 import types
 from types import FunctionType
 from typing import TYPE_CHECKING
@@ -22,9 +21,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.threads import Lock
 
 
 if TYPE_CHECKING:
+    from _thread import LockType
+
     from ddtrace.appsec.sca._registry import InstrumentationRegistry
 
 
@@ -172,11 +174,11 @@ class Instrumenter:
 
     def __init__(self, registry: InstrumentationRegistry) -> None:
         self.registry = registry
-        self._instrumentation_locks: dict[str, Lock] = {}
+        self._instrumentation_locks: dict[str, LockType] = {}
         self._locks_lock = Lock()
         set_registry(registry)
 
-    def _get_lock(self, qualified_name: str) -> Lock:
+    def _get_lock(self, qualified_name: str) -> LockType:
         with self._locks_lock:
             if qualified_name not in self._instrumentation_locks:
                 self._instrumentation_locks[qualified_name] = Lock()

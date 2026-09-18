@@ -339,6 +339,20 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         return self.conn
 
+    def test_connect_alias(self):
+        conn = mysql.connector.Connect(**MYSQL_CONFIG)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            assert len(rows) == 1
+        finally:
+            conn.close()
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].name == "mysql.query"
+
     def test_patch_unpatch(self):
         unpatch()
         # assert we start unpatched

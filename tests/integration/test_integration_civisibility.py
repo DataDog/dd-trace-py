@@ -1,4 +1,5 @@
 import os
+import re
 from unittest import mock
 
 import pytest
@@ -99,7 +100,29 @@ def test_civisibility_intake_with_apikey():
         CIVisibility.disable()
 
 
-@pytest.mark.subprocess()
+def _stderr_ok_ignoring_operator_otel_warnings(stderr):
+    """Tolerate the known operator-injected OTEL warnings on the subprocess stderr.
+
+    The CI Kubernetes executor injects OTEL_* environment variables (e.g.
+    OTEL_OPERATOR_IMAGE_NAME) that ddtrace does not recognize. On startup ddtrace
+    validates OTEL env vars and logs a warning to stderr for each unrecognized one:
+    "OpenTelemetry configuration <VAR> is not supported by Datadog." That warning is
+    environmental noise unrelated to this test, so accept empty stderr or stderr that
+    contains only such warning lines, while still rejecting any other output.
+    """
+    if not stderr:
+        return True
+    for line in stderr.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if re.fullmatch(r"OpenTelemetry configuration \S+ is not supported by Datadog\.", line):
+            continue
+        return False
+    return True
+
+
+@pytest.mark.subprocess(err=_stderr_ok_ignoring_operator_otel_warnings)
 def test_civisibility_intake_payloads():
     import gzip
     from unittest import mock

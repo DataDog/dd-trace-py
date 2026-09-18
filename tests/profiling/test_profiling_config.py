@@ -269,6 +269,20 @@ class TestEmbeddedInterpreterFastCopy:
         assert _is_python_embedded() is True
 
 
+class TestMemDomainConfig:
+    """Config plumbing for PYMEM_DOMAIN_MEM heap-profiler hooks."""
+
+    def test_default_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED", raising=False)
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.memory.mem_domain_enabled is True
+
+    def test_disabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED", "false")
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.memory.mem_domain_enabled is False
+
+
 class TestNativeHeapConfig:
     """Config plumbing for experimental native (C/C++) heap profiling.
 

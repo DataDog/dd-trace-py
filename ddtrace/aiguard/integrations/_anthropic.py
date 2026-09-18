@@ -31,14 +31,14 @@ from ddtrace.aiguard._api_client import ContentPart
 from ddtrace.aiguard._api_client import Function
 from ddtrace.aiguard._api_client import ImageURL
 from ddtrace.aiguard._api_client import Message
-from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
+from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._common import wrap_abort_error
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
@@ -72,7 +72,7 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     """
     exception_class: type[AIGuardAbortError] = AIGuardAbortError
     try:
-        # AIDEV-NOTE: import lazily -- ``_anthropic_errors`` pulls in the optional
+        # import lazily -- ``_anthropic_errors`` pulls in the optional
         # Anthropic SDK at import time. Python's import lock guarantees all
         # concurrent cold imports observe the same class object.
         from ddtrace.aiguard.integrations._anthropic_errors import AnthropicAIGuardAbortError
@@ -264,7 +264,7 @@ def _format_server_tool_result_block(block: Any) -> Message:
     return msg
 
 
-# AIDEV-NOTE: Anthropic block types intentionally NOT mapped to AI Guard
+# Anthropic block types intentionally NOT mapped to AI Guard
 # content; unknown types are logged at debug-level. ``document`` is NOT
 # dropped (APMSP-3286): it carries model-visible content, see
 # _format_document_block.
@@ -621,7 +621,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         return None
 
     system = kwargs.get("system")
-    # AIDEV-NOTE: Top-level ``system`` may be an Iterable[TextBlockParam].
+    # Top-level ``system`` may be an Iterable[TextBlockParam].
     # Materialise generators before conversion and write them back, otherwise
     # AI Guard consumes the iterator and the SDK later serializes an exhausted
     # prompt.
@@ -637,7 +637,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         logger.debug("AI Guard anthropic before-hook skipped: no convertible messages")
         return None
 
-    # AIDEV-NOTE: Anthropic supports final assistant turns as response prefill
+    # Anthropic supports final assistant turns as response prefill
     # input; unlike OpenAI, those are still pre-model request content and must
     # be evaluated before calling the SDK.
     last_role = ai_guard_messages[-1].get("role")
@@ -650,7 +650,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
 
     logger.debug("AI Guard anthropic before-hook evaluating %d message(s)", len(ai_guard_messages))
     try:
-        client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
+        evaluate_auto(client, ai_guard_messages, AI_GUARD.INTEGRATION_ANTHROPIC)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
@@ -690,7 +690,7 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
     all_messages = request_messages + response_messages
 
     try:
-        client.evaluate(all_messages, Options(block=aiguard_config._ai_guard_block))
+        evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_ANTHROPIC)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:

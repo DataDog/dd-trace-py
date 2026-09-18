@@ -222,6 +222,7 @@ class ExecutionContext(Generic[EventType]):
             # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
             dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
             self._end_event_dispatched = True
+            self._event = None
         try:
             if self._token is not None:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -233,6 +234,8 @@ class ExecutionContext(Generic[EventType]):
             )
         except LookupError:
             log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
+        finally:
+            self._token = None
         return (
             True
             if exc_type is None
@@ -253,6 +256,7 @@ class ExecutionContext(Generic[EventType]):
             return
         dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
         self._end_event_dispatched = True
+        self._event = None
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""

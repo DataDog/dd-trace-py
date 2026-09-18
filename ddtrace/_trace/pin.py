@@ -3,7 +3,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal.compat import is_wrapted
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 
 from ..internal.logger import get_logger
 
@@ -132,7 +132,7 @@ class Pin(object):
         pin.onto(obj)
 
     def enabled(self) -> bool:
-        return ddtrace.tracer.enabled or asm_config._apm_opt_out
+        return ddtrace.tracer.enabled or standalone_config.apm_opt_out
 
     def onto(self, obj: Any, send: bool = True) -> None:
         """Patch this pin onto the given object. If send is true, it will also
