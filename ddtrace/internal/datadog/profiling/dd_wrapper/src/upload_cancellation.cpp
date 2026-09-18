@@ -1,5 +1,6 @@
 #include "upload_cancellation.hpp"
 
+#include "fork_utils.hpp"
 #include <new>
 #include <utility>
 
@@ -52,6 +53,6 @@ Datadog::UploadCancellation::postfork_child()
 {
     // Re-init the mutex after fork. The child is single-threaded here, so it can
     // safely drop the inherited token slot after replacing the inherited mutex.
-    new (&mtx) std::mutex();
+    reset_mutex_after_fork(mtx);
     current.reset();
 }

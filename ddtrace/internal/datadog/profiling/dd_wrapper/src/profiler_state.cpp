@@ -1,5 +1,6 @@
 #include "profiler_state.hpp"
 
+#include "fork_utils.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <chrono>
@@ -176,9 +177,10 @@ ProfilerState::postfork_child()
         void dismiss() { active = false; }
     } guard{ *this };
 
-    // Re-init the mutexes (placement-new to avoid UB with mutexes in undefined state after fork)
-    new (&upload_lock) std::mutex();
-    new (&profiles_dictionary_mtx) std::mutex();
+    // Re-init the mutexes after fork. reset_mutex_after_fork uses placement-new
+    // with TSan annotations so the sanitizer sees fresh mutexes.
+    reset_mutex_after_fork(upload_lock);
+    reset_mutex_after_fork(profiles_dictionary_mtx);
     upload_cancellation.postfork_child();
 
     // Re-init the native call registry mutex (data is preserved so forked
