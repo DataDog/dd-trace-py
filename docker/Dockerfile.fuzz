@@ -46,9 +46,20 @@ RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /fuzz_binaries.
 # Copy shared libraries (libpython, libdd_wrapper) next to the fuzz binaries so they
 # are always resolvable via $ORIGIN rpath or LD_LIBRARY_PATH, even if fuzzydog runs
 # the binary in an environment where the original pyenv/build paths are unavailable.
-RUN PYTHON_LIBDIR="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")" \
-  && echo "PYTHON_LIBDIR=${PYTHON_LIBDIR}" \
-  && cp -v "${PYTHON_LIBDIR}"/libpython*.so* /fuzzer/builds/ 2>/dev/null || true
+RUN set -eu; \
+    PYTHON_LIBDIR="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")"; \
+    echo "PYTHON_LIBDIR=${PYTHON_LIBDIR}"; \
+    copied=0; \
+    for lib in "${PYTHON_LIBDIR}"/libpython*.so*; do \
+        [ -e "$lib" ] || continue; \
+        cp -v "$lib" /fuzzer/builds/; \
+        copied=$((copied + 1)); \
+    done; \
+    if [ "$copied" -eq 0 ]; then \
+        echo "ERROR: no libpython*.so* found under ${PYTHON_LIBDIR}; fuzz binaries would segfault at startup" >&2; \
+        exit 1; \
+    fi; \
+    echo "Copied ${copied} libpython shared object(s) to /fuzzer/builds/"
 RUN cp -v /tmp/fuzz/build/lib/*.so* /fuzzer/builds/ 2>/dev/null || true
 RUN ls -la /fuzzer/builds/
 
