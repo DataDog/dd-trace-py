@@ -4,5 +4,6 @@
 
 #pragma once
 
-// Safety limit for Python frames collected during stack unwinding and task-aware stitching.
-inline constexpr unsigned int MAX_STACK_DISCOVERY_DEPTH = 2048;
+// Internal safety ceiling for stack unwinding and task-aware stitching,
+// separate from the configured per-sample frame limit.
+inline constexpr unsigned int MAX_STACK_UNWIND_SAFETY_LIMIT = 2048;
