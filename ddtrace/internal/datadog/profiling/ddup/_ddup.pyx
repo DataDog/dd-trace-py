@@ -174,76 +174,45 @@ cdef call_uploader_builder_set_tag(key: StringType, val: StringType):
         UploaderBuilder.set_tag(key_sv, val_sv)
 
 cdef call_code_provenance_set_file_path(str file_path):
-    cdef const char* file_path_data
-    cdef Py_ssize_t file_path_size
-    file_path_data = PyUnicode_AsUTF8AndSize(file_path, &file_path_size)
-    if file_path_data != NULL:
-        CodeProvenance.get_instance().set_file_path(string_view(file_path_data, file_path_size))
+    cdef string_view sv
+    if to_string_view(file_path, &sv):
+        CodeProvenance.get_instance().set_file_path(sv)
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
-    # We want to make sure that endpoint strings outlive the for loop below
-    # and prevent them to be GC'ed. We do this by storing them in a list.
-    # This is necessary because we pass string_views to the C++ code, which is
-    # a view into the original string. If the original string is GC'ed, the view
-    # will point to garbage.
+    # endpoint_list pins Python objects so string_views borrowing from them
+    # stay valid for the duration of the C++ call.
     endpoint_list = []
     cdef unordered_map[int64_t, string_view] span_ids_to_endpoints = unordered_map[int64_t, string_view]()
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
+    cdef string_view sv
     for endpoint, span_ids in endpoint_to_span_ids.items():
-        if not endpoint:
+        if not to_string_view(endpoint, &sv):
             continue
         endpoint_list.append(endpoint)
-        if isinstance(endpoint, bytes):
-            for span_id in span_ids:
-                span_ids_to_endpoints.insert(
-                    pair[int64_t, string_view](
-                        clamp_to_uint64_unsigned(span_id),
-                        string_view(<const char*>endpoint, len(endpoint))
-                    )
+        for span_id in span_ids:
+            span_ids_to_endpoints.insert(
+                pair[int64_t, string_view](
+                    clamp_to_uint64_unsigned(span_id),
+                    sv
                 )
-            continue
-        utf8_data = PyUnicode_AsUTF8AndSize(endpoint, &utf8_size)
-        if utf8_data != NULL:
-            for span_id in span_ids:
-                span_ids_to_endpoints.insert(
-                    pair[int64_t, string_view](
-                        clamp_to_uint64_unsigned(span_id),
-                        string_view(utf8_data, utf8_size)
-                    )
-                )
+            )
     ddup_profile_set_endpoints(span_ids_to_endpoints)
 
 cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
-    # We want to make sure that endpoint strings outlive the for loop below
-    # and prevent them to be GC'ed. We do this by storing them in a list.
-    # This is necessary because we pass string_views to the C++ code, which is
-    # a view into the original string. If the original string is GC'ed, the view
-    # will point to garbage.
+    # endpoint_list pins Python objects so string_views borrowing from them
+    # stay valid for the duration of the C++ call.
     endpoint_list = []
     cdef unordered_map[string_view, int64_t] trace_endpoints_to_counts = unordered_map[string_view, int64_t]()
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
+    cdef string_view sv
     for endpoint, count in endpoint_counts.items():
-        if not endpoint:
+        if not to_string_view(endpoint, &sv):
             continue
         endpoint_list.append(endpoint)
-        if isinstance(endpoint, bytes):
-            trace_endpoints_to_counts.insert(
-                pair[string_view, int64_t](
-                    string_view(<const char*>endpoint, len(endpoint)),
-                    clamp_to_int64_unsigned(count)
-                )
+        trace_endpoints_to_counts.insert(
+            pair[string_view, int64_t](
+                sv,
+                clamp_to_int64_unsigned(count)
             )
-            continue
-        utf8_data = PyUnicode_AsUTF8AndSize(endpoint, &utf8_size)
-        if utf8_data != NULL:
-            trace_endpoints_to_counts.insert(
-                pair[string_view, int64_t](
-                    string_view(utf8_data, utf8_size),
-                    clamp_to_int64_unsigned(count)
-                )
-            )
+        )
     ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
 
 cdef call_ddup_push_lock_name(Sample* sample, lock_name: StringType):
