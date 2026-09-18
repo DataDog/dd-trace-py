@@ -19,6 +19,36 @@ from urllib.parse import urlunsplit
 # Canonical rules-based server path appended to the managed CDN host and to
 # custom base URLs that only supply an origin.
 DEFAULT_AGENTLESS_PATH = "/api/v2/feature-flagging/config/rules-based/server"
+DEFAULT_AGENTLESS_SITE = "datadoghq.com"
+
+
+def normalize_agentless_site(site: str) -> str:
+    """Return the canonical Datadog site suffix used by managed agentless endpoints.
+
+    ``DD_SITE`` is configuration, not a URL. Keep one strict parser for both
+    managed configuration and direct event delivery so credentials cannot be
+    attached to hosts derived with different rules.
+
+    :raises ValueError: if ``site`` is not a bounded ASCII DNS suffix. The error
+        deliberately does not include the configured value.
+    """
+    normalized = site.strip()
+    if not normalized:
+        normalized = DEFAULT_AGENTLESS_SITE
+    try:
+        normalized.encode("ascii")
+    except UnicodeEncodeError:
+        raise ValueError("Invalid Feature Flagging agentless site")
+
+    normalized = normalized.lower()
+    if len(normalized) > 230:
+        raise ValueError("Invalid Feature Flagging agentless site")
+    for label in normalized.split("."):
+        if not label or len(label) > 63 or label.startswith("-") or label.endswith("-"):
+            raise ValueError("Invalid Feature Flagging agentless site")
+        if any(not ("a" <= character <= "z" or "0" <= character <= "9" or character == "-") for character in label):
+            raise ValueError("Invalid Feature Flagging agentless site")
+    return normalized
 
 
 def build_agentless_endpoint(site: str, env: Optional[str] = None, base_url: Optional[str] = None) -> str:
@@ -40,7 +70,7 @@ def build_agentless_endpoint(site: str, env: Optional[str] = None, base_url: Opt
     configured = base_url.strip() if base_url else ""
 
     if not configured:
-        netloc = "ufc-server.ff-cdn.{}".format(site.strip().lower())
+        netloc = "ufc-server.ff-cdn.{}".format(normalize_agentless_site(site))
         query = urlencode({"dd_env": env}) if env else ""
         return urlunsplit(("https", netloc, DEFAULT_AGENTLESS_PATH, query, ""))
 

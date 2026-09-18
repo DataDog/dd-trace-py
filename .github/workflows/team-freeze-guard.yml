@@ -42,8 +42,5 @@ jobs:
             CI
             ci-reliability
           frozen-teams: |
-            @DataDog/apm-core-python
             @DataDog/debugger-python
             @DataDog/apm-sdk-capabilities-python
-            @DataDog/apm-python
-            @DataDog/apm-idm-python

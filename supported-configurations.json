@@ -2519,6 +2519,13 @@
         "default": "1.0"
       }
     ],
+    "DD_LLMOBS_SAMPLING_RULES": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_LOGBOOK_SERVICE": [
       {
         "implementation": "A",
@@ -3002,13 +3009,6 @@
         "default": "false"
       }
     ],
-    "DD_PROFILING_NATIVE_TESTS": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_PROFILING_OUTPUT_PPROF": [
       {
         "implementation": "A",
@@ -3122,6 +3122,13 @@
         "aliases": [
           "DD_PROTOBUF_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_PROXY_HTTPS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
       }
     ],
     "DD_PSYCOPG_SERVICE": [
@@ -3890,6 +3897,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_ANYIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOHTTP_CLIENT_ENABLED": [

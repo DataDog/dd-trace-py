@@ -1,0 +1,13 @@
+_v: 1
+name: aiobotocore
+display_name: aiobotocore
+description: Instruments asynchronous AWS SDK API calls and streaming response-body reads performed through aiobotocore service
+  clients.
+packages:
+- name: aiobotocore
+- name: botocore
+category:
+- cloud_provider.client
+systems:
+- aws
+creation_date: '2017-06-07'
