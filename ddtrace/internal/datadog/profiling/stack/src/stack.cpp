@@ -310,6 +310,66 @@ stack_unlink_task_span(PyObject* self, PyObject* args)
 }
 
 static PyObject*
+stack_link_greenlet_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    (void)self;
+    uint64_t greenlet_id;
+    uint64_t span_id;
+    uint64_t local_root_span_id;
+    const char* span_type = nullptr;
+
+    static const char* const_kwlist[] = { "greenlet_id", "span_id", "local_root_span_id", "span_type", nullptr };
+    static char** kwlist = const_cast<char**>(const_kwlist);
+
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "KKKz", kwlist, &greenlet_id, &span_id, &local_root_span_id, &span_type)) {
+        return nullptr;
+    }
+
+    try {
+        SpanLinks::get_instance().link_greenlet_span(
+          greenlet_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
+    } catch (const std::bad_alloc&) {
+        return PyErr_NoMemory();
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
+PyCFunction stack_link_greenlet_span = cast_to_pycfunction(stack_link_greenlet_span_impl);
+
+static PyObject*
+stack_clear_greenlet_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t greenlet_id;
+
+    if (!PyArg_ParseTuple(args, "K", &greenlet_id)) {
+        return nullptr;
+    }
+
+    SpanLinks::get_instance().unlink_greenlet_span(greenlet_id);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_unlink_greenlet_span(PyObject* self, PyObject* args)
+{
+    (void)self;
+    uint64_t greenlet_id;
+    uint64_t expected_span_id;
+    if (!PyArg_ParseTuple(args, "KK", &greenlet_id, &expected_span_id)) {
+        return nullptr;
+    }
+    SpanLinks::get_instance().unlink_greenlet_span(greenlet_id, expected_span_id);
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_unlink_finished_span(PyObject* self, PyObject* args)
 {
     (void)self;
@@ -694,6 +754,19 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+is_greenlet_tracked(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uint64_t greenlet_id;
+    if (!PyArg_ParseTuple(args, "K", &greenlet_id))
+        return nullptr;
+
+    if (Sampler::get().is_greenlet_tracked(static_cast<uintptr_t>(greenlet_id))) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
 }
 
 static PyObject*
@@ -1248,6 +1321,15 @@ static PyMethodDef stack_methods[] = {
       stack_unlink_task_span,
       METH_VARARGS,
       "Clear the span linked to an asyncio task only if its ID matches the expected span ID" },
+    { "link_greenlet_span",
+      reinterpret_cast<PyCFunction>(stack_link_greenlet_span),
+      METH_VARARGS | METH_KEYWORDS,
+      "Link a span to a gevent greenlet" },
+    { "clear_greenlet_span", stack_clear_greenlet_span, METH_VARARGS, "Clear the span linked to a gevent greenlet" },
+    { "unlink_greenlet_span",
+      stack_unlink_greenlet_span,
+      METH_VARARGS,
+      "Clear the span linked to a gevent greenlet only if its ID matches the expected span ID" },
     { "unlink_finished_span",
       stack_unlink_finished_span,
       METH_VARARGS,
@@ -1272,6 +1354,7 @@ static PyMethodDef stack_methods[] = {
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
+    { "is_greenlet_tracked", is_greenlet_tracked, METH_VARARGS, "Return whether a greenlet is tracked" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
     { "record_greenlet_switch", record_greenlet_switch, METH_VARARGS, "Record a greenlet context switch" },

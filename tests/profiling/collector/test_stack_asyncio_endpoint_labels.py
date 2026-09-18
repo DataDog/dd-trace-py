@@ -488,13 +488,13 @@ def test_stack_does_not_resurrect_span_finished_during_task_publication():
         span = tracer.trace("concurrent.finish")
         publish = _span_links._publish_span
 
-        def finish_before_publish(span_info, task_id=None):
+        def finish_before_publish(span_info, task_id=None, greenlet_id=None):
             # Force a real finish on another thread between inherited validation and native publication.
             finisher = threading.Thread(target=span.finish)
             finisher.start()
             finisher.join(timeout=5)
             assert not finisher.is_alive()
-            publish(span_info, task_id)
+            publish(span_info, task_id, greenlet_id)
 
         try:
             with mock.patch.object(_span_links, "_publish_span", finish_before_publish):

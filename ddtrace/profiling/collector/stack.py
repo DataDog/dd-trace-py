@@ -125,6 +125,9 @@ class StackCollector(collector.Collector):
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
                 core.on("trace.span_finish", _unlink_finished_span)
+                gevent_helper = sys.modules.get("ddtrace.profiling._gevent")
+                if gevent_helper is not None:
+                    gevent_helper._restart_gevent_tracking()
                 _span_links.start_span_linking(self._current_span_link)
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
