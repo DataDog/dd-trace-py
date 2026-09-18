@@ -67,42 +67,37 @@ def _done_callback_unary(span: Span, code: grpc.StatusCode, details: str) -> Cal
 
 
 _GRPC_AIO_ERROR_HANDLED = "_dd.grpc_aio.error_handled"
+_GRPC_AIO_STREAM_COMPLETION_TASK = "_dd.grpc_aio.stream_completion_task"
+
+
+async def _finish_successful_stream(call: aio.Call, span: Span) -> None:
+    if span.finished or span._get_ctx_item(_GRPC_AIO_ERROR_HANDLED):
+        return
+    try:
+        code = await call.code()
+    except Exception:
+        log.warning("Unable to read async grpc status code.", exc_info=True)
+        span.finish()
+        return
+    if code != grpc.StatusCode.OK or span.finished or span._get_ctx_item(_GRPC_AIO_ERROR_HANDLED):
+        return
+    span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
+    span.finish()
 
 
 def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
     def func(call: aio.Call) -> None:
-        # gRPC can mark the call done and invoke this callback while
-        # the stream iterator's `_raise_for_status()` is still building the
-        # `AioRpcError` — i.e. before control reaches our `except aio.AioRpcError`
-        # handler and `_handle_stream_rpc_error` has had a chance to set the ctx
-        # flag. So the flag check alone is not sufficient: on any non-OK terminal
-        # state we must also defer to the awaited handler, because parsing
-        # `call.__repr__()` here returns the transport-level placeholder
-        # ("Internal error from Core") and finishing flushes the span before the
-        # handler can apply the authoritative `await call.code()` / `details()`.
-        if span._get_ctx_item(_GRPC_AIO_ERROR_HANDLED):
+        # The callback can run before the stream iterator raises its terminal error.
+        # The async helper therefore finishes only successful calls and leaves errors
+        # to the iterator's authoritative error and cancellation handlers.
+        if span.finished or span._get_ctx_item(_GRPC_AIO_ERROR_HANDLED):
             return
         if not call.done():
             log.warning("Grpc call has not completed, unable to set status code and details on span.")
             span.finish()
             return
-        try:
-            # we need to call __repr__ as we cannot call code() or details() since they are both async
-            code, _details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
-        except ValueError:
-            # ValueError is thrown from _parse_rpc_repr_string
-            log.warning("Unable to parse async grpc string for status code and details.")
-            span.finish()
-            return
-        if code != grpc.StatusCode.OK:
-            # Non-OK terminal state: gRPC will surface an AioRpcError (or
-            # CancelledError) to the consumer of `_wrap_stream_response`, so an
-            # awaited error handler will run and own finishing the span with
-            # authoritative values. Bail before writing repr-derived tags or
-            # calling span.finish().
-            return
-        span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(code))
-        span.finish()
+        completion_task = asyncio.create_task(_finish_successful_stream(call, span))
+        span._set_ctx_item(_GRPC_AIO_STREAM_COMPLETION_TASK, completion_task)
 
     return func
 
@@ -227,6 +222,11 @@ class _ClientInterceptor:
             _handle_add_callback(call, _done_callback_stream(span))
             async for response in call:
                 yield response
+            completion_task = span._get_ctx_item(_GRPC_AIO_STREAM_COMPLETION_TASK)
+            if completion_task is None:
+                await _finish_successful_stream(call, span)
+            else:
+                await completion_task
         except StopAsyncIteration:
             # Callback will handle span finishing
             _handle_cancelled_error()

@@ -2346,6 +2346,13 @@ venv = Venv(
                         "pytest-asyncio": "==0.23.7",
                     },
                 ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.15"),
+                    pkgs={
+                        "grpcio": latest,
+                        "pytest-asyncio": ">=1.0",
+                    },
+                ),
             ],
         ),
         Venv(

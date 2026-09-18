@@ -1579,6 +1579,12 @@ suites:
           env:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
           command: python -m pytest {cmdargs} tests/contrib/grpc_aio
+        - name: grpc:grpc_aio
+          python: ['3.12', '3.13', '3.14', '3.15']
+          dependencies: [googleapis-common-protos, pytest-randomly, grpcio, 'pytest-asyncio>=1.0']
+          env:
+            _DD_TRACE_GRPC_AIO_ENABLED: 'true'
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
   gunicorn:
     venvs_per_job: 2
     paths:
