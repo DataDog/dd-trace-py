@@ -2,11 +2,9 @@
 
 from collections import ChainMap
 from collections import OrderedDict
-from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
-from datetime import timezone
 import json
 import os
 from pathlib import Path
@@ -20,8 +18,6 @@ import uuid
 from litellm.integrations.custom_logger import CustomLogger
 
 from ddtrace import tracer
-from ddtrace.contrib.internal.litellm._gateway_discovery import KeyRequest
-from ddtrace.contrib.internal.litellm._gateway_discovery import ProviderKeyDiscovery
 from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import response_tags
@@ -65,7 +61,6 @@ class Pending:
     attempts: int = 0
     route: dict[str, str] = field(default_factory=dict)
     effective: dict[str, str] = field(default_factory=dict)
-    discovery: Optional[KeyRequest] = field(default=None, repr=False)
 
 
 def _has_nontext_input(data: dict[str, Any]) -> bool:
@@ -106,8 +101,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         and use it when the authenticated user ID is missing. Defaults to ``True``.
     :param auth_metadata_keys: User metadata fields to copy, such as ``cost_center``.
         Only authenticated user metadata is read, never client-supplied request fields.
-    :param provider_key_discovery: Optional mapping of provider names to environment
-        variables holding credentials for their key-listing APIs. Disabled by default.
     :raises ValueError: If configuration contains invalid fields or values.
     """
 
@@ -117,7 +110,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         capture_email: bool = True,
         capture_end_user: bool = True,
         auth_metadata_keys: Iterable[str] = (),
-        provider_key_discovery: Optional[Mapping[str, str]] = None,
     ) -> None:
         # Older SDKs accept only message_logging; newer proxies consult the inverted flag.
         super().__init__(message_logging=False)
@@ -139,7 +131,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         self._capture_email = capture_email
         self._capture_end_user = capture_end_user
         self._auth_metadata_keys = metadata_keys
-        self._discovery = ProviderKeyDiscovery(provider_key_discovery)
         self._sink: Callable[[UsageRecord], None] = DatadogSink()
         self._max_pending = 10000
         self._pending_ttl = 3600.0
@@ -252,7 +243,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             route = route_tags(kwargs)
             if key_id := label(get(kwargs.get("model_info"), "datadog_provider_api_key_id")):
                 route["ai.route.api_key_id"] = key_id
-                route["ai.route.api_key_id_source"] = "configuration"
             with self._lock:
                 self._ensure_process()
                 state = self._pending.get(token) if token is not None else None
@@ -261,7 +251,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                     state.attempts += 1
                     state.route = route
                     state.effective = {}  # Do not reuse an earlier failed deployment's settings.
-                    state.discovery = None
         except Exception:
             log.warning("Gateway route attribution failed; usage coverage is incomplete")
 
@@ -295,7 +284,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                 state = self._pending.get(token) if token is not None else None
                 if state:
                     state.route = route_tags(route, state.route, headers=outgoing_headers)
-                    state.discovery = self._discovery.capture(kwargs, state.route, outgoing_headers)
                     state.effective = effective
         except Exception:
             log.warning("Gateway request attribution failed; usage coverage is incomplete")
@@ -309,6 +297,16 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
 
     def _emit(self, record: UsageRecord) -> None:
         try:
+            if (
+                "ai.route.api_key_id" not in record.tags
+                and record.tags.get("ai.request.outcome") != "gateway_cache_hit"
+            ):
+                # Reuse the tracer logger's rate limit; never log the rejected value.
+                log.warning(
+                    "LiteLLM gateway usage is missing a valid provider key ID. "
+                    "Set model_info.datadog_provider_api_key_id to the provider's non-secret key ID "
+                    "for each model. Usage is still collected without ai.route.api_key_id."
+                )
             self._sink(record)
         except Exception:
             # Do not log exception strings or payloads: they can contain credentials/content.
@@ -335,19 +333,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         if state is None:
             return  # SDK calls without proxy authentication and repeated callbacks are ignored.
         try:
-            # Resolve only after the model call, without adding lookup time to the usage span.
-            end_time = end_time if end_time is not None and end_time.tzinfo else datetime.now(timezone.utc)
-            deployment = label(get(get(response_obj, "_hidden_params"), "model_id"))
-            cache_hit = kwargs.get("cache_hit")
-            if cache_hit is None:
-                cache_hit = get(kwargs.get("standard_logging_object"), "cache_hit")
-            if cache_hit is not True and (not deployment or not state.deployment or deployment == state.deployment):
-                state.route.update(
-                    await self._discovery.resolve(
-                        state.discovery, response_tags(response_obj, provider_response=kwargs.get("httpx_response"))
-                    )
-                )
-            state.discovery = None
             self._success(state, kwargs, response_obj, end_time)
         except Exception:
             self._incomplete(state, "unsupported_callback_shape")

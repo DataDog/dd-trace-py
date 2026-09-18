@@ -328,9 +328,6 @@ def gateway(tmp_path_factory, request):
             "allowed_fails": 100,
         },
     }
-    discover = getattr(request, "param", None) == "discovery"
-    if discover:
-        config["general_settings"]["custom_auth"] = "tests.contrib.litellm.gateway.proxy_discovery.authenticate"
     models.append(
         {
             "model_name": "test-claude",
@@ -371,6 +368,9 @@ def gateway(tmp_path_factory, request):
             "model_info": {"id": "bedrock-deployment"},
         }
     )
+    if getattr(request, "param", None) == "missing_key_id":
+        for model in models:
+            model["model_info"].pop("datadog_provider_api_key_id", None)
     config_path.write_text(yaml.safe_dump(config))
     # Inherit only OS/runtime necessities, never real cloud/API/Datadog credentials.
     env = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR", "SYSTEMROOT") if key in os.environ}
@@ -397,14 +397,13 @@ def gateway(tmp_path_factory, request):
         }
     )
     attribution_config = temp / "attribution.json"
-    attribution_settings = {"auth_metadata_keys": ["cost_center"]}
-    if discover:
-        attribution_settings["provider_key_discovery"] = {
-            "anthropic": "TEST_GATEWAY_DISCOVERY_KEY",
-            "openai": "TEST_GATEWAY_DISCOVERY_KEY",
-        }
-        env["TEST_GATEWAY_DISCOVERY_KEY"] = "sk-SYNTHETIC-ADMIN"
-    attribution_config.write_text(json.dumps(attribution_settings))
+    attribution_config.write_text(
+        json.dumps(
+            {
+                "auth_metadata_keys": ["cost_center"],
+            }
+        )
+    )
     env["DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG"] = str(attribution_config)
     output = (temp / "proxy.log").open("w+")
     command = [
@@ -435,7 +434,7 @@ def gateway(tmp_path_factory, request):
         else:
             output.seek(0)
             pytest.fail("LiteLLM startup timeout:\n" + output.read()[-12000:])
-        yield url, traces, provider_requests
+        yield url, traces, provider_requests, temp / "proxy.log"
     finally:
         if proc is not None:
             proc.terminate()
@@ -450,47 +449,8 @@ def gateway(tmp_path_factory, request):
         thread.join(timeout=5)
 
 
-@pytest.mark.parametrize("gateway", ["discovery"], indirect=True)
-async def test_discovery_through_real_proxy_and_wire_traces(gateway):
-    url, traces, _ = gateway
-    async with httpx.AsyncClient(timeout=20) as client:
-        for path, payload in (
-            ("chat/completions", {"model": "test-model", "messages": [{"role": "user", "content": "PRIVATE"}]}),
-            ("chat/completions", {"model": "fail-model", "messages": [{"role": "user", "content": "PRIVATE"}]}),
-            (
-                "messages",
-                {
-                    "model": "test-claude",
-                    "max_tokens": 10,
-                    "messages": [{"role": "user", "content": "PRIVATE"}],
-                    "stream": True,
-                },
-            ),
-        ):
-            result = await client.post(f"{url}/v1/{path}", json=payload, headers={"Authorization": "Bearer test-alice"})
-            assert result.status_code == 200, result.text
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        spans = [s for trace in list(traces) for s in trace if s.get("name") == "ai_gateway.usage"]
-        if len(spans) == 3:
-            break
-        await asyncio.sleep(0.1)
-    assert len(spans) == 3
-    for span in spans:
-        tags = span["meta"]
-        provider = "anthropic" if tags["ai.operation"] == "anthropic_messages" else "openai"
-        assert tags.get("ai.route.api_key_id") == f"key_discovered_{provider}", json.dumps(tags, sort_keys=True)
-        assert tags.get("ai.route.api_key_id_source") == "unique_key_hint", tags
-        assert tags.get("ai.discovery.status") == "discovered", tags
-        assert tags["usr.id"] == "alice"
-    serialized = json.dumps(traces)
-    assert "SYNTHETIC-PROVIDER-SECRET" not in serialized
-    assert "SYNTHETIC-ADMIN" not in serialized
-    assert "sk-SYNTHETIC...SECRET" not in serialized
-
-
 async def test_real_proxy_and_wire_traces(gateway):
-    url, traces, upstream = gateway
+    url, traces, upstream, _ = gateway
 
     async def request(user, model="test-model", stream=False):
         data = {
@@ -591,7 +551,7 @@ async def test_real_proxy_and_wire_traces(gateway):
 
 @pytest.mark.parametrize("stream", [False, True])
 async def test_native_coding_agent_endpoints(gateway, stream):
-    url, traces, _ = gateway
+    url, traces, _, _ = gateway
     before = {s["span_id"] for t in traces for s in t}
     async with httpx.AsyncClient(timeout=20) as client:
         claude = await client.post(
@@ -663,7 +623,7 @@ async def test_native_coding_agent_endpoints(gateway, stream):
 
 
 async def test_embeddings_and_multimodal_wire_counters(gateway):
-    url, traces, _ = gateway
+    url, traces, _, _ = gateway
     before = {s["span_id"] for t in traces for s in t}
     async with httpx.AsyncClient(timeout=20) as client:
         embedding = await client.post(
@@ -710,7 +670,7 @@ async def test_embeddings_and_multimodal_wire_counters(gateway):
 
 
 async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway):
-    url, traces, upstream = gateway
+    url, traces, upstream, _ = gateway
     async with httpx.AsyncClient(timeout=20) as client:
         result = await client.post(
             f"{url}/chat/completions",
@@ -744,7 +704,7 @@ async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway)
 
 @pytest.mark.parametrize("stream", [False, True])
 async def test_raw_azure_claude_route_reaches_wire(gateway, stream):
-    url, traces, upstream = gateway
+    url, traces, upstream, _ = gateway
     before = {span["span_id"] for trace in list(traces) for span in trace}
     async with httpx.AsyncClient(timeout=20) as client:
         result = await client.post(
@@ -804,7 +764,7 @@ async def test_raw_azure_claude_route_reaches_wire(gateway, stream):
     ],
 )
 async def test_end_user_fallback_through_real_proxy(gateway, endpoint, fields, headers, expected):
-    url, traces, _ = gateway
+    url, traces, _, _ = gateway
     before = {s["span_id"] for t in traces for s in t}
     data = {"model": "test-model", "messages": [{"role": "user", "content": "PRIVATE PROMPT"}]}
     if endpoint == "messages":
@@ -839,3 +799,33 @@ async def test_end_user_fallback_through_real_proxy(gateway, endpoint, fields, h
     assert "authenticated_user_unknown" in tags["ai.attribution.issues"]
     assert spans[0]["metrics"]["ai.usage.output_tokens"] == 25
     assert not any(value in json.dumps(spans) for value in ("PRIVATE", "SYNTHETIC", "ignored-", "test-unassigned"))
+
+
+@pytest.mark.parametrize("gateway", ["missing_key_id"], indirect=True)
+async def test_missing_key_id_warns_but_real_proxy_still_exports_usage(gateway):
+    url, traces, _, log_path = gateway
+    async with httpx.AsyncClient(timeout=20) as client:
+        for model in ("test-model", "fail-model"):
+            result = await client.post(
+                f"{url}/v1/chat/completions",
+                json={"model": model, "messages": [{"role": "user", "content": "PRIVATE"}]},
+                headers={"Authorization": "Bearer test-alice"},
+            )
+            assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [s for trace in list(traces) for s in trace if s.get("name") == "ai_gateway.usage"]
+        if len(spans) == 2:
+            break
+        await asyncio.sleep(0.1)
+    assert len(spans) == 2
+    for span in spans:
+        assert "ai.route.api_key_id" not in span["meta"]
+        assert span["meta"]["usr.id"] == "alice"
+        assert span["metrics"]["ai.observed.context_tokens"] > 0
+    warnings = [line for line in log_path.read_text().splitlines() if "LiteLLM gateway usage is missing" in line]
+    assert len(warnings) == 1
+    assert "model_info.datadog_provider_api_key_id" in warnings[0]
+    assert "non-secret key ID" in warnings[0]
+    assert "PRIVATE" not in warnings[0] and "SYNTHETIC" not in warnings[0]

@@ -9,8 +9,6 @@ features:
     Optionally set ``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG`` to a JSON file path
     to select extra user metadata, disable email with ``"capture_email": false``,
     or disable end-user collection with ``"capture_end_user": false``.
-    To match provider usage by key, optionally set the non-secret billing key ID
-    in each LiteLLM deployment's ``model_info.datadog_provider_api_key_id``.
-    Enable ``provider_key_discovery`` in the JSON file to look up Anthropic and
-    OpenAI key IDs, or Gemini key/project IDs, using authorized credentials, with the manual
-    ID retained as a fallback.
+    Set the provider's non-secret key ID in each LiteLLM deployment's
+    ``model_info.datadog_provider_api_key_id``. Missing or invalid IDs produce
+    a warning without interrupting usage collection.

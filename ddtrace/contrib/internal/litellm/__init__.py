@@ -46,8 +46,7 @@ Quick setup
    LiteLLM proxy. The full gateway flow is tested with LiteLLM 1.101.0; older
    versions may not provide all the request hooks this feature needs.
 2. Add the callback below to your existing LiteLLM configuration. Keep your
-   existing callbacks, model settings, and provider credentials. You do not need
-   to enter secret API keys or model names again for this integration.
+   existing callbacks, model settings, and provider credentials.
 
 .. code-block:: yaml
 
@@ -55,7 +54,24 @@ Quick setup
       callbacks:
         - ddtrace.contrib.litellm.gateway_attribution
 
-3. Set the Agent address and start the gateway. Replace the paths and Agent
+3. Set the provider's **non-secret key ID** in each model's existing
+   ``model_info``, including fallback models:
+
+.. code-block:: yaml
+
+    model_info:
+      datadog_provider_api_key_id: key_abc123
+
+Use the provider's key ID, such as OpenAI's ``key_...`` or Anthropic's
+``apikey_...``. **Do not use the secret API key**, a masked key, or a LiteLLM
+virtual key. Update the ID when you change keys. If a model uses different keys
+per request, use separate model entries per key instead of a fixed ID.
+
+If the ID is missing or invalid, the tracer logs a warning and still collects
+usage without it. Repeated warnings are rate-limited. Providers without a key ID
+can leave this field unset.
+
+4. Set the Agent address and start the gateway. Replace the paths and Agent
    address with your own. ``localhost`` works only if the Agent is reachable
    there from the gateway process.
 
@@ -65,7 +81,7 @@ Quick setup
     export DD_TRACE_AGENT_URL=http://localhost:8126
     ddtrace-run litellm --config /etc/litellm/config.yaml
 
-4. Check how your gateway identifies users; see below. Existing user settings
+5. Check how your gateway identifies users; see below. Existing user settings
    are reused, so there is no separate Datadog user list to configure.
 
 Without further configuration, the callback collects available user IDs and
@@ -168,16 +184,9 @@ response traffic types are kept as reported, including unfamiliar values.
      - Selected route ID, generated gateway request ID, and provider response ID.
        These help find requests but may not exist in the provider's bill.
    * - ``ai.route.api_key_id``
-     - Provider key ID from optional discovery, or the selected deployment's
-       manually configured fallback. It is never read from client request metadata.
-       ``ai.route.api_key_id_source`` is ``unique_key_hint``, ``provider_lookup``,
-       or ``configuration``.
-   * - ``ai.route.api_key_resource_name``, ``ai.route.project_number``, ``ai.route.project``
-     - Gemini key lookup also returns the key resource name and its owning project
-       number. Project lookup supplies the readable project ID when permitted.
-   * - ``ai.discovery.status``
-     - Whether an enabled lookup found a match, or why it could not. For example,
-       ``discovered``, ``permission_denied``, ``ambiguous``, or ``timeout``.
+     - Provider key ID set in the selected model's
+       ``model_info.datadog_provider_api_key_id``. Never read from client request
+       metadata or discovered automatically. Missing or invalid IDs produce a warning.
    * - ``ai.response.x_request_id``, ``ai.response.request_id``,
        ``ai.response.x_amzn_requestid``, ``ai.response.apim_request_id``,
        ``ai.response.opc_request_id``
@@ -215,84 +224,6 @@ response traffic types are kept as reported, including unfamiliar values.
    * - ``ai.attribution.status``, ``ai.attribution.issues``, ``ai.usage.source``
      - Whether collection is incomplete, why, and where usage came from.
        ``observed`` means collected, **not independently verified**.
-
-Optional: provider key ID
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A provider key ID identifies which key handled a request. It is **not the secret
-API key**. You can look it up automatically, set it yourself, or use both.
-Automatic lookup takes priority; if it fails, your manual value is used.
-User and usage collection work without either option.
-
-Automatic lookup
-~~~~~~~~~~~~~~~~
-
-**1. Get permission to look up keys.** Ask your provider administrator for:
-
-* **Anthropic:** an `Admin API key <https://platform.claude.com/docs/en/manage-claude/admin-api>`_
-  that can list keys.
-* **OpenAI:** an admin key with access to your
-  `projects' API keys <https://platform.openai.com/docs/api-reference/project-api-keys>`_.
-  Listing projects is also needed when the response does not identify one.
-* **Gemini:** a `Google access token <https://cloud.google.com/api-keys/docs/reference/rest/v2/keys/lookupKey>`_
-  with the ``cloud-platform`` scope and ``apikeys.keys.lookup`` permission.
-  Add ``resourcemanager.projects.get`` to also collect the project ID.
-  Tokens expire: your application must refresh its own environment variable,
-  or restart with a new token. Datadog does not refresh it.
-
-**2. Enable the providers you use.** Save this JSON to a file, or merge it into
-your existing settings file:
-
-.. code-block:: json
-
-    {
-      "provider_key_discovery": {
-        "anthropic": "ANTHROPIC_ADMIN_KEY",
-        "openai": "OPENAI_ADMIN_KEY",
-        "gemini": "GOOGLE_DISCOVERY_ACCESS_TOKEN"
-      }
-    }
-
-Remove providers you do not use. These values are **environment variable names**,
-not secrets. Set the variables on your gateway using your secret manager.
-Keep LiteLLM's existing model credentials unchanged.
-
-**3. Point to the file and restart the gateway.** For example:
-
-.. code-block:: bash
-
-    export DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG=/etc/datadog/litellm-attribution.json
-
-**Check the result:** ``ai.route.api_key_id`` contains the ID;
-``ai.discovery.status`` explains a failed lookup, such as ``permission_denied``.
-
-Things to know:
-
-* Only direct Anthropic, OpenAI, and Gemini connections support lookup, not
-  Azure or other proxies. Cloud account/resource lookup is not included.
-* Anthropic and OpenAI match partially hidden keys, not full keys. Unclear or
-  duplicate matches are not used. Google provides an exact key lookup.
-* Secrets are never sent to Datadog. Google's lookup sends the key only to Google.
-* Lookups run after the model call, with a three-second timeout. Results are
-  cached for five minutes; failures for one minute. Requests may use the manual
-  fallback while a lookup is running.
-
-Set an ID yourself
-~~~~~~~~~~~~~~~~~~
-
-In your LiteLLM config, add the ID under each matching model's ``model_info``:
-
-.. code-block:: yaml
-
-    model_info:
-      datadog_provider_api_key_id: key_abc123
-
-Use the provider's **non-secret ID**, such as ``key_...`` or ``apikey_...``.
-Do not use a secret, a masked key, or a LiteLLM virtual key.
-
-Set it separately for fallback models too, and update it when changing keys.
-If one model uses different keys per request, leave this unset or configure
-separate model entries per key. This works with any provider that has a key ID.
 
 Limitations and privacy
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -352,8 +283,6 @@ Available user settings:
   Client-supplied request metadata is not used for these extra fields. Selection
   is explicit because this free-form data may contain secrets or unrelated
   personal information. User IDs and team IDs do not need this configuration.
-* ``provider_key_discovery``: empty by default. Enables provider key lookups using
-  the credential environment variables described above.
 
 For example, to turn off authenticated email collection, save this JSON in
 ``/etc/litellm/attribution.json`` and set

@@ -1,7 +1,9 @@
 import asyncio
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from datetime import timezone
+import logging
 import time
 from types import SimpleNamespace
 
@@ -20,6 +22,7 @@ from ddtrace.contrib.internal.litellm._gateway_usage import normalize_usage
 from ddtrace.contrib.internal.litellm.gateway import CORRELATION_FIELD
 from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution
 from ddtrace.contrib.internal.litellm.gateway import configured_callback
+from ddtrace.internal import logger as internal_logger
 
 
 def make_callback(*, sink=None, max_pending=10000, pending_ttl=3600, **kwargs):
@@ -1187,8 +1190,12 @@ async def test_provider_http_response_headers_without_reading_stream():
     )
 
 
-@pytest.mark.parametrize("final_key_id", ["key_final", "apikey_final", None, "sk-PRIVATE", "Bearer PRIVATE", {}, 123])
-async def test_provider_key_id_comes_from_selected_deployment(final_key_id):
+@pytest.mark.parametrize(
+    "final_key_id", ["key_final", "apikey_final", None, "", " ", "sk-PRIVATE", "Bearer PRIVATE", {}, 123]
+)
+async def test_provider_key_id_comes_from_selected_deployment(final_key_id, caplog, monkeypatch):
+    monkeypatch.setattr(internal_logger, "_rate_limit", 0)
+    caplog.set_level(logging.WARNING, logger="ddtrace.contrib.internal.litellm.gateway")
     records = []
     callback = make_callback(sink=records.append)
     data = await start(
@@ -1208,6 +1215,47 @@ async def test_provider_key_id_comes_from_selected_deployment(final_key_id):
     assert records[0].tags.get("ai.route.api_key_id") == expected
     assert "spoofed" not in repr(records)
     assert "key_failed" not in repr(records)
+    assert ("model_info.datadog_provider_api_key_id" in caplog.text) is (expected is None)
+    assert "PRIVATE" not in caplog.text
+    assert "spoofed" not in caplog.text
+
+
+async def test_missing_provider_key_warnings_are_rate_limited(caplog, monkeypatch):
+    monkeypatch.setattr(
+        internal_logger, "_buckets", defaultdict(lambda: internal_logger.LoggingBucket(float("-inf"), 0))
+    )
+    monkeypatch.setattr(internal_logger, "_rate_limit", 60)
+    caplog.set_level(logging.WARNING, logger="ddtrace.contrib.internal.litellm.gateway")
+    records = []
+    callback = make_callback(sink=records.append)
+    for _ in range(3):
+        data = await start(callback)
+        await finish(callback, data)
+    assert len(records) == 3
+    assert all("ai.route.api_key_id" not in record.tags for record in records)
+    assert caplog.text.count("model_info.datadog_provider_api_key_id") == 1
+    assert "non-secret key ID" in caplog.text
+    assert "Usage is still collected" in caplog.text
+
+
+@pytest.mark.parametrize("cache_hit", [True, None])
+async def test_no_missing_provider_key_warning_for_gateway_cache_hits(cache_hit, caplog, monkeypatch):
+    monkeypatch.setattr(internal_logger, "_rate_limit", 0)
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await finish(callback, data, cache_hit=cache_hit, standard_logging_object={"cache_hit": True})
+    assert records[0].tags["ai.request.outcome"] == "gateway_cache_hit"
+    assert "model_info.datadog_provider_api_key_id" not in caplog.text
+
+
+async def test_untracked_sdk_call_does_not_warn_about_provider_key_id(caplog, monkeypatch):
+    monkeypatch.setattr(internal_logger, "_rate_limit", 0)
+    records = []
+    callback = make_callback(sink=records.append)
+    await finish(callback, {})
+    assert not records
+    assert "model_info.datadog_provider_api_key_id" not in caplog.text
 
 
 @pytest.mark.parametrize("routed", [False, True])
