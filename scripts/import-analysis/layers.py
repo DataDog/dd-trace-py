@@ -50,13 +50,14 @@ _PRODUCT_PRODUCT_WEIGHT = 1
 _CYCLE_BONUS = 5
 
 
-def _load_zones(config_path: Path) -> tuple[dict[str, str], set[str], set[tuple[str, str]], set[str]]:
+def _load_zones(config_path: Path) -> tuple[dict[str, str], set[str], set[tuple[str, str]], set[str], bool]:
     config = json.loads(config_path.read_text())
     zones: dict[str, str] = config["zones"]
     forbid_from: set[str] = set(config["rules"]["forbid_from_zones_into_products"])
     exceptions: set[tuple[str, str]] = {(e["from_zone"], e["to_zone"]) for e in config["rules"]["exceptions"]}
     foundation_top_level: set[str] = set(config["foundation"]["top_level"])
-    return zones, forbid_from, exceptions, foundation_top_level
+    forbid_products_into_contrib: bool = config["rules"]["forbid_products_into_contrib"]["enabled"]
+    return zones, forbid_from, exceptions, foundation_top_level, forbid_products_into_contrib
 
 
 def _uncovered_top_level(root: Path, zones: dict[str, str], foundation_top_level: set[str]) -> list[str]:
@@ -88,13 +89,25 @@ def _zone_of(module: str, zones: dict[str, str], prefixes: list[str]) -> str | N
     return None
 
 
-def _violates(from_zone: str, to_zone: str, forbid_from: set[str], exceptions: set[tuple[str, str]]) -> bool:
+def _violates(
+    from_zone: str,
+    to_zone: str,
+    forbid_from: set[str],
+    exceptions: set[tuple[str, str]],
+    forbid_products_into_contrib: bool,
+) -> bool:
     if from_zone == to_zone or (from_zone, to_zone) in exceptions:
         return False
     is_product = to_zone.startswith("product:")
     if from_zone in forbid_from:
         return is_product
-    return from_zone.startswith("product:") and is_product
+    if not from_zone.startswith("product:"):
+        return False
+    # Contrib is meant to depend on products (Pattern 1: dispatch events, let
+    # contrib listen), never the reverse -- a product importing contrib
+    # directly means integration-specific knowledge leaked into code every
+    # install runs, regardless of which integrations are active.
+    return is_product or (forbid_products_into_contrib and to_zone == "contrib")
 
 
 def _severity(from_zone: str, metrics: dict[str, ModuleMetrics], imported: str) -> int:
@@ -109,7 +122,7 @@ def analyze(args: argparse.Namespace) -> None:
     root = args.root if args.root is not None else Path(__file__).parents[2] / "ddtrace"
     root = root.resolve()
     graph = DependencyGraph(root=root, include={"ddtrace"}, exclude=_EXCLUDED_PREFIXES)
-    zones, forbid_from, exceptions, foundation_top_level = _load_zones(_CONFIG_PATH)
+    zones, forbid_from, exceptions, foundation_top_level, forbid_products_into_contrib = _load_zones(_CONFIG_PATH)
     prefixes = sorted(zones, key=len, reverse=True)
     metrics = compute_metrics(graph)
 
@@ -120,7 +133,9 @@ def analyze(args: argparse.Namespace) -> None:
             continue
         for imported in imports:
             to_zone = _zone_of(imported, zones, prefixes)
-            if to_zone is None or not _violates(from_zone, to_zone, forbid_from, exceptions):
+            if to_zone is None or not _violates(
+                from_zone, to_zone, forbid_from, exceptions, forbid_products_into_contrib
+            ):
                 continue
             target = metrics.get(imported)
             violations.append(
