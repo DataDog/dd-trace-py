@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import abc
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 import json
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 
@@ -13,8 +13,10 @@ from ddtrace.internal.utils.fnv import fnv1_64
 from .schema import Schema
 
 
-if TYPE_CHECKING:
-    from .schema_iterator import SchemaIterator
+class SchemaIterator:
+    @abc.abstractmethod
+    def iterate_over_schema(self, builder: SchemaBuilder) -> None:
+        pass
 
 
 class SchemaBuilder:
