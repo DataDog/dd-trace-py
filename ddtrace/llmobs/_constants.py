@@ -51,6 +51,33 @@ PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 # the x-datadog-tags budget (see _utils.py).
 PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
+
+# W3C baggage carrier for the same distributed LLMObs context. Unlike the `_dd.p.*` tags
+# above (which ride x-datadog-tags and are dropped whenever the APM trace/parent ID headers
+# are absent), baggage is injected and extracted independently of APM trace identity, so
+# LLMObs traces survive hops that discard APM trace context. Namespaced under `llmobs.` to
+# avoid colliding with user or other-product baggage keys.
+BAGGAGE_PARENT_ID_KEY = "llmobs.parent_id"
+BAGGAGE_LLMOBS_TRACE_ID_KEY = "llmobs.trace_id"
+BAGGAGE_ML_APP_KEY = "llmobs.ml_app"
+BAGGAGE_SESSION_ID_KEY = "llmobs.session_id"
+BAGGAGE_SAMPLE_RATE_KEY = "llmobs.sample_rate"
+BAGGAGE_SAMPLING_DECISION_KEY = "llmobs.sampling_decision"
+BAGGAGE_PARENT_AGENT_ID_KEY = "llmobs.parent_agent_span_id"
+BAGGAGE_PARENT_AGENT_NAME_KEY = "llmobs.parent_agent_name"
+
+# Propagating-tag key -> baggage key, for dual-write/dual-read during the migration.
+PROPAGATED_KEY_TO_BAGGAGE_KEY = {
+    PROPAGATED_PARENT_ID_KEY: BAGGAGE_PARENT_ID_KEY,
+    PROPAGATED_LLMOBS_TRACE_ID_KEY: BAGGAGE_LLMOBS_TRACE_ID_KEY,
+    PROPAGATED_ML_APP_KEY: BAGGAGE_ML_APP_KEY,
+    PROPAGATED_SESSION_ID_KEY: BAGGAGE_SESSION_ID_KEY,
+    PROPAGATED_SAMPLE_RATE: BAGGAGE_SAMPLE_RATE_KEY,
+    PROPAGATED_SAMPLING_DECISION: BAGGAGE_SAMPLING_DECISION_KEY,
+    PROPAGATED_PARENT_AGENT_ID_KEY: BAGGAGE_PARENT_AGENT_ID_KEY,
+    PROPAGATED_PARENT_AGENT_NAME_KEY: BAGGAGE_PARENT_AGENT_NAME_KEY,
+}
+
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"

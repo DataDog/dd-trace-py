@@ -1,5 +1,6 @@
 import itertools
 import re
+from typing import Any
 from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union
@@ -934,8 +935,18 @@ class _BaggageHeader:
         return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
-    def _inject(span_context: Context, headers: dict[str, str]) -> None:
-        baggage_items = span_context._baggage.items()
+    def _inject(span_context: Context, headers: dict[str, str], extra_items: Optional[dict[str, Any]] = None) -> None:
+        """Encode the context's baggage into the ``baggage`` header.
+
+        ``extra_items`` are merged over the context's own baggage for this injection only. It
+        exists so products can attach their own distributed state to an outbound request
+        without writing it onto the (trace-shared, concurrently-injected) Context — see
+        ``LLMObs._inject_llmobs_context``.
+        """
+        if extra_items:
+            baggage_items = {**span_context._baggage, **extra_items}.items()
+        else:
+            baggage_items = span_context._baggage.items()
         if not baggage_items:
             return
 
@@ -1193,13 +1204,16 @@ class HTTPPropagator(object):
                 span_context,
             )
 
-        core.dispatch("http.span_inject", (span_context, headers))
+        # Listeners may add request-scoped baggage items here instead of mutating span_context,
+        # whose baggage is shared by every other injection from the same trace.
+        extra_baggage: dict[str, Any] = {}
+        core.dispatch("http.span_inject", (span_context, headers, extra_baggage))
         if not config._propagation_style_inject:
             return
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
-            _BaggageHeader._inject(span_context, headers)
+            _BaggageHeader._inject(span_context, headers, extra_baggage)
 
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:
