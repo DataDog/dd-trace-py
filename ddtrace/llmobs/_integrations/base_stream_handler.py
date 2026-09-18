@@ -7,6 +7,7 @@ factory function along with the stream to wrap.
 from abc import ABC
 from abc import abstractmethod
 import sys
+from typing import Optional
 from typing import Union
 
 import wrapt
@@ -30,6 +31,7 @@ class BaseStreamHandler(ABC):
         # NOTE: iteration (`__iter__`/`__next__`) and GC (`__del__`) both try
         # to finish the span. Only the first call may run.
         self._finalized = False
+        self._stream_started = False
 
     def initialize_chunk_storage(self):
         return []
@@ -177,7 +179,7 @@ class TracedStream(wrapt.ObjectProxy):
         # When __enter__ wraps a stream manager, it returns a child TracedStream.
         # The `with` statement only keeps the parent alive, so hold the child
         # here or __del__ would finalize the shared handler before the body runs.
-        self._self_entered_stream = None
+        self._self_entered_stream: Optional["TracedStream"] = None
 
     def _ensure_started(self):
         if not self._self_started:
@@ -276,7 +278,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         self._self_async_stream_iter = self.__wrapped__
         # see ``TracedStream._self_started`` for rationale.
         self._self_started = False
-        self._self_entered_stream = None
+        self._self_entered_stream: Optional["TracedAsyncStream"] = None
 
     def _ensure_started(self):
         if not self._self_started:
