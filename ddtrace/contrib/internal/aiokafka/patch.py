@@ -6,7 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.kafka import KafkaProcessEvent
+from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext import kafka as kafkax
 from ddtrace.ext.kafka import CONSUME
@@ -203,7 +203,7 @@ async def traced_getone(func, instance, args, kwargs):
 
     # Parent via extracted context without activating it, so a surrounding local
     # span stays active after getone returns.
-    event = KafkaProcessEvent(
+    event = KafkaConsumeEvent(
         operation=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
         topic=topic,
         bootstrap_servers=bootstrap_servers,
@@ -247,7 +247,7 @@ async def traced_getmany(func, instance, args, kwargs):
     group_id = instance._group_id
     bootstrap_servers = instance._client._bootstrap_servers
 
-    event = KafkaProcessEvent(
+    event = KafkaConsumeEvent(
         operation=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
         topic=None,
         bootstrap_servers=bootstrap_servers,

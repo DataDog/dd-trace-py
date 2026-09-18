@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingEvent
-from ddtrace.contrib._events.messaging import MessagingProcessEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.ext.kafka import GROUP_ID
 from ddtrace.ext.kafka import HOST_LIST
@@ -36,7 +36,7 @@ class KafkaProducerEvent(MessagingProducerEvent, KafkaEvent):
 
 
 @dataclass
-class KafkaProcessEvent(MessagingProcessEvent, KafkaEvent):
+class KafkaConsumeEvent(MessagingConsumeEvent, KafkaEvent):
     group_id: Optional[str] = event_field(default=None)
 
     def __post_init__(self) -> None:

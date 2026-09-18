@@ -4,8 +4,8 @@ from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingEvent
-from ddtrace.contrib._events.messaging import MessagingProcessEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
@@ -15,7 +15,7 @@ from ddtrace.propagation.http import HTTPPropagator
 class MessagingTracingSubscriber(TracingSubscriber[MessagingEvent]):
     event_names = (
         MessagingProducerEvent.event_name,
-        MessagingProcessEvent.event_name,
+        MessagingConsumeEvent.event_name,
     )
 
     @classmethod
@@ -39,7 +39,7 @@ class MessagingTracingSubscriber(TracingSubscriber[MessagingEvent]):
         _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event = ctx.event
-        if not isinstance(event, MessagingProcessEvent):
+        if not isinstance(event, MessagingConsumeEvent):
             return
 
         span = span_from_context(ctx)

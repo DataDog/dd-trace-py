@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 class MessagingEvents(str, Enum):
     PRODUCE = "messaging.produce"
-    PROCESS = "messaging.process"
+    CONSUME = "messaging.consume"
 
 
 @dataclass
@@ -40,8 +40,8 @@ class MessagingProducerEvent(MessagingEvent):
 
 
 @dataclass
-class MessagingProcessEvent(MessagingEvent):
-    event_name = MessagingEvents.PROCESS.value
+class MessagingConsumeEvent(MessagingEvent):
+    event_name = MessagingEvents.CONSUME.value
     span_kind = SpanKind.CONSUMER
     span_type = SpanTypes.WORKER
 

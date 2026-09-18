@@ -6,7 +6,7 @@ import confluent_kafka
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.kafka import KafkaProcessEvent
+from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import kafka as kafkax
@@ -283,7 +283,7 @@ def _instrument_message(messages, start_ns, instance, err):
             if extracted is not None and extracted.trace_id is not None:
                 distributed_context = extracted
 
-    event = KafkaProcessEvent(
+    event = KafkaConsumeEvent(
         operation=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         topic=topic,
         group_id=instance._group_id,

@@ -6,7 +6,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 
 # project
-from ddtrace.contrib._events.messaging import MessagingProcessEvent
+from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal import core
@@ -103,7 +103,7 @@ def traced_receive(func, instance, args, kwargs):
     message = get_argument_value(args, kwargs, 1, "message")
     exchange = message.delivery_info["exchange"]
 
-    event = MessagingProcessEvent(
+    event = MessagingConsumeEvent(
         operation=schematize_messaging_operation(
             kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING
         ),
