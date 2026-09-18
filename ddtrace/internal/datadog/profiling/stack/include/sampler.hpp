@@ -98,7 +98,8 @@ class Sampler
     // of the new owner is stashed here for the Python side to drain and report.
     std::mutex foreign_segv_handler_mutex_;
     std::optional<ForeignSegvHandler> foreign_segv_handler_;
-    void record_foreign_segv_handler(bool already_owned, std::string owner);
+    // noexcept: a string copy / lock failure must not escape the sampling thread.
+    void record_foreign_segv_handler(bool already_owned, const std::string& owner) noexcept;
 
     // This is a singleton, so no public constructor
     Sampler();

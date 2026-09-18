@@ -171,18 +171,16 @@ describe_signal_owner(int signo)
         return "unknown";
     }
 
-    // sa_sigaction and sa_handler alias the same storage; SA_SIGINFO says which is live.
-    if ((current.sa_flags & SA_SIGINFO) != 0) {
-        if (current.sa_sigaction == segv_handler) {
-            return "ddtrace";
-        }
-    } else {
-        if (current.sa_handler == SIG_DFL) {
-            return "SIG_DFL";
-        }
-        if (current.sa_handler == SIG_IGN) {
-            return "SIG_IGN";
-        }
+    // sa_sigaction and sa_handler alias the same storage. Check DFL/IGN first so a
+    // SA_SIGINFO|SIG_DFL (or SIG_IGN) install is not misreported as none/unresolved.
+    if (current.sa_handler == SIG_DFL) {
+        return "SIG_DFL";
+    }
+    if (current.sa_handler == SIG_IGN) {
+        return "SIG_IGN";
+    }
+    if ((current.sa_flags & SA_SIGINFO) != 0 && current.sa_sigaction == segv_handler) {
+        return "ddtrace";
     }
 
     void* addr = (current.sa_flags & SA_SIGINFO) != 0 ? reinterpret_cast<void*>(current.sa_sigaction)

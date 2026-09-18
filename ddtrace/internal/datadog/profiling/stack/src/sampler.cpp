@@ -386,10 +386,15 @@ Sampler::take_sampling_thread_error()
 }
 
 void
-Sampler::record_foreign_segv_handler(bool already_owned, std::string owner)
+Sampler::record_foreign_segv_handler(bool already_owned, const std::string& owner) noexcept
 {
-    const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
-    foreign_segv_handler_ = ForeignSegvHandler{ already_owned, std::move(owner) };
+    try {
+        const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
+        foreign_segv_handler_ = ForeignSegvHandler{ already_owned, owner };
+    } catch (...) {
+        // Diagnostic only: do not let a string copy or lock failure abort sampling.
+        return;
+    }
 }
 
 std::optional<ForeignSegvHandler>
@@ -502,12 +507,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // degrade sample quality (e.g. on asyncio workloads). We still prefer
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
-                // Name the owner before attempting the fallback. If no safe copy is
-                // available we stop sampling; Python still needs the takeover so it
+                // Fall back first, then record (same order as the warmup-miss site).
+                // If no safe copy is available we stop sampling; still record so Python
                 // can log who forced that.
                 const std::string owners = describe_segv_handler_owners_noexcept();
+                const bool fallback_ok = set_fast_copy_enabled(false);
                 record_foreign_segv_handler(false, owners);
-                if (!set_fast_copy_enabled(false)) {
+                if (!fallback_ok) {
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would
                     // crash - stop sampling instead.
@@ -682,8 +688,10 @@ Sampler::postfork_child()
     new (&sampling_thread_error_mutex_) std::mutex();
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
 
-    // Likewise drop any handler-takeover notice inherited from the parent; the child
-    // re-detects its own takeover, and the parent reports its own.
+    // Drop any handler-takeover notice inherited from the parent; the parent reports
+    // its own. After start(), restart_after_fork() re-evaluates handlers once if the
+    // parent had already fallen back (fast_copy_active stays false, so the sampling
+    // loop will not check again).
     new (&foreign_segv_handler_mutex_) std::mutex();
     new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
 
@@ -738,10 +746,20 @@ Sampler::restart_after_fork()
     // Restart the sampler if it was running before fork.
     // We use the saved flag because postfork_child() resets the live sampler
     // state (thread_running, etc.) before this runs.
-    if (was_running_at_fork_) {
-        return start();
+    if (!was_running_at_fork_) {
+        return false;
     }
-    return false;
+    if (!start()) {
+        return false;
+    }
+    // After a parent fallback, fast_copy_active stays false, so the child's
+    // sampling loop never re-enters the handler check. If the user still
+    // wanted fast copy, re-evaluate once and record a child-local notice.
+    if (!fast_copy_user_disabled && !fast_copy_active && safe_memcpy_initialized && !segv_handler_installed()) {
+        const std::string owners = describe_segv_handler_owners_noexcept();
+        record_foreign_segv_handler(true, owners);
+    }
+    return true;
 }
 
 static void

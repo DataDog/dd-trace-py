@@ -46,6 +46,11 @@ def _normalize_foreign_handler_owner(owner: str) -> str:
             sigsegv_owner = _normalize_foreign_handler_owner_component(part[len("SIGSEGV=") :])
         elif part.startswith("SIGBUS="):
             sigbus_owner = _normalize_foreign_handler_owner_component(part[len("SIGBUS=") :])
+    # Prefer a concrete library / unresolved over SIG_DFL/SIG_IGN/unknown/none,
+    # and those over ddtrace (we already own that side).
+    for candidate in (sigsegv_owner, sigbus_owner):
+        if candidate is not None and candidate not in _FOREIGN_HANDLER_OWNER_SYMBOLS:
+            return candidate
     for candidate in (sigsegv_owner, sigbus_owner):
         if candidate is not None and candidate != "ddtrace":
             return candidate

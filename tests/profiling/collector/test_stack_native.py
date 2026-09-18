@@ -1613,3 +1613,31 @@ def test_snapshot_foreign_segv_handler_telemetry_sigbus_only_owner() -> None:
     tags: dict[str, str] = mock_add_log.call_args[1]["tags"]
     assert tags["handler_owner"] == "libfoo.so"
     assert mock_add_log.call_args[0][0] == TELEMETRY_LOG_LEVEL.WARNING
+
+
+@pytest.mark.parametrize(
+    "owner,expected_handler_owner",
+    [
+        ("SIGSEGV=SIG_DFL, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)", "libfoo.so"),
+        ("SIGSEGV=unknown, SIGBUS=unresolved@0x1234", "unresolved"),
+        ("SIGSEGV=SIG_IGN, SIGBUS=none", "SIG_IGN"),
+    ],
+)
+def test_snapshot_foreign_segv_handler_telemetry_prefers_concrete_owner(
+    owner: str, expected_handler_owner: str
+) -> None:
+    """snapshot() prefers a concrete library / unresolved over SIG_DFL/SIG_IGN/unknown/none."""
+    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
+    with mock.patch(
+        "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
+        return_value=(False, owner),
+    ):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
+                stack.StackCollector.snapshot()
+
+    mock_add_log.assert_called_once()
+    tags: dict[str, str] = mock_add_log.call_args[1]["tags"]
+    assert tags["handler_owner"] == expected_handler_owner
+    assert mock_add_log.call_args[0][0] == TELEMETRY_LOG_LEVEL.WARNING
