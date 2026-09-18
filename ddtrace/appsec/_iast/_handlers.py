@@ -482,24 +482,25 @@ def _on_set_request_tags_iast(request, span, flask_config):
         try:
             if request.url_rule is not None:
                 set_iast_request_endpoint(request.method, request.url_rule.rule)
-            # Both preprocess_request and dispatch_request invoke this callback. Preserve
-            # existing sources so replacement strings do not leave stale taint entries.
             request.cookies = taint_structure(
                 request.cookies,
                 OriginType.COOKIE_NAME,
                 OriginType.COOKIE,
+                override_pyobject_tainted=True,
             )
 
             request.args = taint_structure(
                 request.args,
                 OriginType.PARAMETER_NAME,
                 OriginType.PARAMETER,
+                override_pyobject_tainted=True,
             )
 
             request.form = taint_structure(
                 request.form,
                 OriginType.PARAMETER_NAME,
                 OriginType.PARAMETER,
+                override_pyobject_tainted=True,
             )
         except Exception:
             iast_propagation_listener_log_log("Unexpected exception while tainting Flask request", exc_info=True)
