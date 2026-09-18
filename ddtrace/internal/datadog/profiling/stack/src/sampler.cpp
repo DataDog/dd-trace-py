@@ -749,10 +749,7 @@ Sampler::restart_after_fork()
         record_foreign_segv_handler(true, owners, false);
         mark_fast_copy_foreign_takeover();
     }
-    if (!start()) {
-        return false;
-    }
-    return true;
+    return start();
 }
 
 static void
