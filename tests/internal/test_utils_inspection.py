@@ -1,9 +1,49 @@
 from functools import wraps
+import gc
 from pathlib import Path
 
 import pytest
 
+from ddtrace.internal.utils import inspection
 from ddtrace.internal.utils.inspection import undecorated
+
+
+def _compile_function(name="f"):
+    ns = {}
+    exec(compile(f"def {name}():\n    pass\n", "<test_utils_inspection>", "exec"), ns)
+    return ns[name]
+
+
+def test_functions_for_code_gc_does_not_conflate_structurally_identical_code():
+    # Two code objects compiled from identical source are == and hash equal
+    # (CodeType's __eq__/__hash__ is structural), which is exactly what a
+    # module reload with unchanged source produces. The cache must key on
+    # object identity, not equality, or looking up the second would return
+    # the (possibly stale) functions list cached for the first.
+    f1 = _compile_function()
+    f2 = _compile_function()
+
+    assert f1.__code__ == f2.__code__
+    assert f1.__code__ is not f2.__code__
+
+    assert inspection.functions_for_code(f1.__code__) == [f1]
+    assert inspection.functions_for_code(f2.__code__) == [f2]
+
+
+def test_functions_for_code_gc_cache_entry_collected_with_code_object():
+    f = _compile_function()
+    code = f.__code__
+
+    inspection.functions_for_code(code)
+    assert code in inspection._functions_for_code_gc_cache
+
+    del f
+    del code
+    gc.collect()
+
+    # The finalizer on the code object's weakref should have dropped the
+    # entry entirely, so nothing keeps the now-dead function reachable.
+    assert len(inspection._functions_for_code_gc_cache._data) == 0
 
 
 def test_undecorated():
