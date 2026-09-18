@@ -80,7 +80,7 @@ def trace_async_pool_checkout(
     # Call the original function which returns an async context manager
     cm: AsyncContextManager[Any] = func(*args, **kwargs)
 
-    # If the instance is an SDAM monitor pool, we do not trace the checkout context manager.
+    # SDAM pools serve background topology monitoring, so their checkouts are not application operations.
     if getattr(instance, "is_sdam", False):
         return cm
 
