@@ -248,3 +248,73 @@ def test_taint_structure(iast_context_defaults):
     d = {1: "foo"}
     tainted = taint_structure(d, OriginType.PARAMETER, OriginType.PARAMETER)
     assert is_pyobject_tainted(tainted[1])
+
+
+@pytest.mark.parametrize("structure_kind", ["eager", "lazy_dict", "lazy_list"])
+@pytest.mark.parametrize("override", [False, True])
+@pytest.mark.parametrize("text_type", [str, bytes, bytearray])
+@pytest.mark.parametrize("difference", [None, "origin", "name", "value", "start", "length", "multiple"])
+def test_taint_structure_source_override(iast_context_defaults, structure_kind, override, text_type, difference):
+    from ddtrace.appsec._iast._taint_tracking import Source
+    from ddtrace.appsec._iast._taint_tracking import TaintRange
+    from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_utils import taint_structure
+    from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
+
+    text = "http://dummy.location.com"
+    source_name = "previous" if difference == "name" else "location"
+    source_value = "previous value" if difference == "value" else text
+    source_origin = OriginType.BODY if difference == "origin" else OriginType.PARAMETER
+    value = taint_pyobject(
+        text if text_type is str else text_type(text, "utf-8"),
+        source_name=source_name,
+        source_value=source_value,
+        source_origin=source_origin,
+    )
+    source = Source(source_name, source_value, source_origin)
+    start = 1 if difference == "start" else 0
+    length = len(value) - 1 if difference in ("start", "length") else len(value)
+    ranges = [TaintRange(start, length, source)]
+    if difference == "multiple":
+        ranges = [TaintRange(0, 7, source), TaintRange(7, len(value) - 7, source)]
+    taint_pyobject_with_ranges(value, ranges)
+    add_secure_mark(value, [VulnerabilityType.UNVALIDATED_REDIRECT])
+
+    if structure_kind == "eager":
+        result = taint_structure(
+            {"location": value}, OriginType.PARAMETER_NAME, OriginType.PARAMETER, override_pyobject_tainted=override
+        )["location"]
+    elif structure_kind == "lazy_dict":
+        result = LazyTaintDict(
+            {"location": value},
+            origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+            override_pyobject_tainted=override,
+        )["location"]
+    else:
+        result = LazyTaintList(
+            [value],
+            origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+            override_pyobject_tainted=override,
+            source_name="location",
+        )[0]
+
+    result_ranges = get_tainted_ranges(result)
+    if override and (difference is not None or text_type is bytearray):
+        assert len(result_ranges) == 1
+        taint_range = result_ranges[0]
+        assert taint_range.start == 0
+        assert taint_range.length == len(value)
+        assert taint_range.source.name == "location"
+        assert taint_range.source.value == text
+        assert taint_range.source.origin == OriginType.PARAMETER
+        assert not taint_range.has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT)
+    else:
+        assert result is value
+        assert len(result_ranges) == len(ranges)
+        for actual, expected in zip(result_ranges, ranges):
+            assert actual.start == expected.start
+            assert actual.length == expected.length
+            assert actual.source == expected.source
+            assert actual.has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT) == (text_type is not bytearray)

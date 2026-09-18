@@ -1802,6 +1802,51 @@ Lorem Ipsum Foobar
             # assert vulnerability["location"].get("stackId") == "1", f"Wrong Vulnerability stackId {vulnerability}"
             # assert "class" not in vulnerability["location"]
 
+    def test_flask_request_sources_override_body_taint(self):
+        from werkzeug.datastructures import ImmutableMultiDict
+
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+
+        @self.app.before_request
+        def populate_request_sources():
+            body = request.get_json()
+            key, value = next(iter(body.items()))
+            assert get_tainted_ranges(key)[0].source.origin == OriginType.BODY
+            assert get_tainted_ranges(value)[0].source.origin == OriginType.BODY
+            request.args = ImmutableMultiDict(body)
+            request.form = ImmutableMultiDict(body)
+            request.cookies = ImmutableMultiDict(body)
+
+        @self.app.route("/request-source-origins/", methods=["POST"])
+        def request_source_origins():
+            origins = {
+                "args": (OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+                "form": (OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+                "cookies": (OriginType.COOKIE_NAME, OriginType.COOKIE),
+            }
+            for attribute, expected_origins in origins.items():
+                key, value = next(iter(getattr(request, attribute).items()))
+                for text, origin in zip((key, value), expected_origins):
+                    ranges = get_tainted_ranges(text)
+                    assert len(ranges) == 1
+                    assert ranges[0].source.origin == origin, (attribute, ranges)
+                    assert ranges[0].source.name == "location"
+                    assert ranges[0].source.value == text
+                    assert ranges[0].start == 0
+                    assert ranges[0].length == len(text)
+            return "OK"
+
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+        ):
+            response = self.client.post("/request-source-origins/", json={"location": "http://dummy.location.com"})
+            assert response.status_code == 200
+            assert response.data == b"OK"
+            root_span = next(span for span in self.pop_spans() if span.parent_id is None)
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert load_iast_report(root_span) is None
+
     def test_flask_request_sources_preserved_between_callbacks(self):
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
