@@ -2647,6 +2647,10 @@ class Experiment:
             self._update_status("failed", error=self._build_error_summary(result))
         else:
             self._update_status("completed")
+        if getattr(self, "_id", None):
+            logger.info(
+                "Experiment %r is ready — view it in the UI: %s", self.name, self.url, extra={"product": "llmobs"}
+            )
         self.result = result
         return result
 
