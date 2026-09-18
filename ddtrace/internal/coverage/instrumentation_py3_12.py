@@ -1,11 +1,9 @@
-"""
-Coverage instrumentation for Python 3.12+ using sys.monitoring API.
+"""Coverage instrumentation for Python 3.12+ using the sys.monitoring API.
 
-This module supports two modes:
-1. Line-level coverage: Tracks which specific lines are executed (LINE events)
-2. File-level coverage: Tracks which files are executed (PY_START events)
-
-The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable.
+Line mode listens for LINE events and file mode listens for PY_START. Both use
+one handler registered through ddtrace's shared monitoring multiplexer. Between
+test contexts, _rearm_disabled() uses the single-subscriber fast path when no
+external tool is visible and otherwise refreshes only ddtrace's tool.
 """
 
 import dis
@@ -15,6 +13,7 @@ import typing as t
 
 from bytecode import Bytecode
 
+from ddtrace.internal import monitoring as _monitoring
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
@@ -22,6 +21,7 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesB
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_import_hooks
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
+from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -73,155 +73,158 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
 # INSTRUCTION events. Static import tracking (iter_import_events/import_names_by_line) already
 # works on 3.15+ and is used as the fallback.
 
-EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
-
-# NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
-# Slot 4 is preferred; slot 1 (COVERAGE_ID) is a last resort since other coverage tools may use it.
-# _DD_TOOL_ID is None until register_coverage() succeeds; instrument_all_lines() is a no-op
-# while it remains None.
-_DD_TOOL_ID: t.Optional[int] = None  # noqa: UP006
-_DD_CANDIDATE_SLOTS = (4, 3, 1)
+# The sys.monitoring event this collector listens on. The actual event enabled per code object
+# is derived from the handler's overridden methods (PY_START for file-level, LINE for line-level)
+# by the multiplexer; this constant is kept for observability and test compatibility.
+_EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
+# Backwards-compatible alias used by tests.
+EVENT = _EVENT
 
 # Store: (hook, path, import_names_by_line, line_hook, file_hook, import_hook)
-# IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
-# Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
+# IMPORTANT: Do not change t.Tuple to tuple until minimum Python version is 3.11+. Module-level
+# tuple[...] in Python 3.10 affects import timing. See packages.py for details.
 LineHookType = t.Optional[t.Callable[[str, int], None]]  # noqa: UP006
 FileHookType = t.Optional[t.Callable[[str], None]]  # noqa: UP006
 ImportHookType = t.Optional[t.Callable[[str, ImportName], None]]  # noqa: UP006
 CodeHookData = t.Tuple[HookType, str, ImportNamesByLine, LineHookType, FileHookType, ImportHookType]  # noqa: UP006
-_CODE_HOOKS: t.Dict[CodeType, CodeHookData] = {}  # noqa: UP006
+# Code objects compare structurally, so this registry must use identity keys. It is weak to avoid
+# retaining dynamically compiled code after the application drops it.
+_CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 
-# NOTE: When True (default), _event_handler returns sys.monitoring.DISABLE after recording a
-# line so Python stops firing that event for this code location — a performance optimisation that
-# avoids redundant callbacks in loops.  CollectInContext.__enter__ then calls restart_events() at
-# the start of each test to re-enable them (safe there: it only fires while we believe no other
-# tool is registered, so there is nothing else to corrupt).
-# Automatically set to False when another sys.monitoring tool (e.g. coverage.py) is detected via
-# has_other_monitoring_tools(): without this, our own DISABLE'd lines could only be re-armed via
-# the global restart_events(), which would also reset that other tool's disabled-event state,
-# corrupting its data.  Without DISABLE, events keep firing on every execution (slightly slower but
-# still correct, since CoverageLines.add() is idempotent).
-# The flag is re-evaluated in CollectInContext.__enter__ via update_disable_optimization().
-# On the True→False transition, _rearm_all_events() re-enables events that were DISABLE'd during
-# the window between our install and the other tool registering (e.g. early conftest imports in
-# pytest happen before coverage.py registers in pytest_configure).  It does this via a per-code-
-# object set_local_events() toggle rather than the global restart_events() — verified empirically
-# (see _rearm_all_events()'s docstring) to only affect our own tool's state, leaving any other
-# registered tool's disabled-event state untouched.
-_use_disable_optimization: bool = True
+# Locations already reported in the current test context. Besides avoiding duplicate coverage work
+# when another multiplexer handler keeps an event enabled, the keys identify code objects whose
+# DISABLE marks need to be refreshed for the next context. Identity keys are required because equal
+# code objects still have independent monitoring state.
+_seen_event_locations: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+_rearm_lock = Lock()
+_single_subscriber_version: t.Optional[int] = None
+_FILE_EVENT_LOCATION = -1
+
+# Avoid repeating the same warning for every imported module while no tool slot is available.
+# Acquisition is still retried so coverage can recover if another tool releases a slot later.
+_warned_tool_unavailable: bool = False
 
 
-def has_other_monitoring_tools() -> bool:
-    """Check whether any non-datadog tool is registered with sys.monitoring.
-
-    Iterates all six tool slots (0-5) and returns True if any slot other than ours is occupied.
-    This is used to decide whether the DISABLE optimisation (and the global restart_events() call
-    it requires) is safe to use.
-
-    Note: this can't see the two legacy tool slots that back sys.settrace()/sys.setprofile()-based
-    debuggers and profilers. restart_events()'s global reach does include those, but resetting a
-    legacy tracer's own DISABLE-equivalent state isn't a correctness issue for it, so this blind
-    spot is treated as acceptable.
-    """
-    for tool_id in range(6):
-        if tool_id == _DD_TOOL_ID:
-            continue
-        if sys.monitoring.get_tool(tool_id):
-            return True
-    return False
-
-
-def _rearm_all_events() -> None:
-    """Re-enable Datadog line events that were DISABLE'd during the early-import window.
-
-    In CPython 3.12+, returning sys.monitoring.DISABLE from a callback replaces specific
-    bytecode instructions with their non-instrumented variants. Two APIs can undo that:
-
-    - Calling set_local_events(tool_id, code, event_set) with the SAME event_set it already has
-      is a guaranteed no-op: CPython's implementation short-circuits (returns immediately,
-      skipping re-instrumentation) whenever the event set passed is identical to what's already
-      recorded for that tool+code object. This is deterministic, not a version inconsistency —
-      it's just why this function can't simply call set_local_events(_DD_TOOL_ID, code, EVENT).
-    - Toggling instead — set_local_events(_DD_TOOL_ID, code, 0) immediately followed by
-      set_local_events(_DD_TOOL_ID, code, EVENT) — passes a genuinely different value on the
-      first call, which does pass through CPython's real re-instrumentation path and clears our
-      own DISABLE marks for that code object. Verified empirically (LINE events, PY_START events,
-      and nested code objects) that this toggle only affects the calling tool's own state —
-      another tool's DISABLE'd locations are provably left untouched, unlike the global
-      sys.monitoring.restart_events() this function used to call.
-
-    We loop over _CODE_HOOKS — the registry of every code object we've instrumented, populated in
-    _instrument_with_monitoring() and never cleared — reusing it here for a second purpose:
-    finding every code object that might still have a stale DISABLE mark to clear.
-
-    Called on the True→False transition in update_disable_optimization(), i.e. when another
-    sys.monitoring tool (e.g. coverage.py) is detected AFTER some events were already DISABLE'd
-    during the window between our install and the other tool registering (e.g. early conftest
-    imports in pytest happen before coverage.py registers in pytest_configure). Being tool-scoped,
-    this no longer depends on careful timing to be safe — it cannot affect any other tool's
-    disabled-event state regardless of when it runs.
-    """
-    # Nothing to re-arm unless we actually own a registered tool slot. set_local_events() requires
-    # an integer tool id, so a None _DD_TOOL_ID (no slot ever claimed, or the slot was freed) would
-    # otherwise raise "'NoneType' object cannot be interpreted as an integer". In production this
-    # only happens when nothing was instrumented (so _CODE_HOOKS is empty and the loop is a no-op
-    # anyway); the guard also keeps us safe if our slot was released out from under us.
-    if _DD_TOOL_ID is None or sys.monitoring.get_tool(_DD_TOOL_ID) != "datadog":
-        return
-
-    for code in _CODE_HOOKS:
-        sys.monitoring.set_local_events(_DD_TOOL_ID, code, 0)
-        sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)
-
-
-def update_disable_optimization() -> bool:
-    """Re-evaluate _use_disable_optimization based on the current sys.monitoring state.
-
-    Called from CollectInContext.__enter__ so that the flag is always in sync with the actual
-    set of registered monitoring tools (e.g. coverage.py may have started after our install).
-
-    When another tool is detected for the first time (True→False transition), any events that
-    were DISABLE'd during the early-import window (before the other tool registered) are
-    re-armed via _rearm_all_events() so per-test contexts don't miss those lines.
-
-    Returns the new value of _use_disable_optimization.
-    """
-    global _use_disable_optimization
-    prev = _use_disable_optimization
-    _use_disable_optimization = not has_other_monitoring_tools()
-    if prev and not _use_disable_optimization:
-        # We were using DISABLE but another tool just appeared.  Re-arm events that were
-        # disabled during the window before the other tool registered via _rearm_all_events()
-        # (see its docstring for the tool-scoped set_local_events() toggle it uses).
-        _rearm_all_events()
-    return _use_disable_optimization
-
-
-def _ensure_registered() -> bool:
-    """Claim a tool slot on first call; return True if registered, False if all slots are taken."""
-    global _DD_TOOL_ID
-
-    if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
+def _claim_event(code: CodeType, location: int) -> bool:
+    """Return whether coverage should report this location in the current context."""
+    if _single_subscriber_version is not None and _monitoring.registry_version_is_current(_single_subscriber_version):
         return True
 
-    for slot in _DD_CANDIDATE_SLOTS:
-        try:
-            sys.monitoring.use_tool_id(slot, "datadog")
-            _DD_TOOL_ID = slot
-            break
-        except ValueError:
-            continue
-    else:
-        log.warning(
-            "No sys.monitoring tool slot available (tried slots %s), not gathering coverage",
-            _DD_CANDIDATE_SLOTS,
-        )
-        return False
+    with _rearm_lock:
+        seen = _seen_event_locations.get(code)
+        if seen is None:
+            _seen_event_locations[code] = {location}
+            return True
+        if location in seen:
+            return False
+        seen.add(location)
+        return True
 
-    mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
-    log.debug("Registered %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
-    sys.monitoring.register_callback(_DD_TOOL_ID, EVENT, _event_handler)
-    return True
+
+def _release_event(code: CodeType, location: int) -> None:
+    """Allow a failed coverage hook to be retried on the next event."""
+    with _rearm_lock:
+        seen = _seen_event_locations.get(code)
+        if seen is None:
+            return
+        seen.discard(location)
+        if not seen:
+            _seen_event_locations.pop(code, None)
+
+
+class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
+    """Per-code-object handler dispatching file-level coverage via PY_START events."""
+
+    def on_py_start(self, code: CodeType, instruction_offset: int) -> t.Optional[object]:
+        hook_data = _CODE_HOOKS.get(code)
+        if hook_data is None or not _claim_event(code, _FILE_EVENT_LOCATION):
+            return _monitoring._DISABLE
+        hook, path, import_names, _line_hook, file_hook, import_hook = hook_data
+
+        try:
+            # File-level coverage only means that this file executed. Import metadata is emitted separately.
+            if file_hook is not None:
+                file_hook(path)
+            else:
+                hook((0, path, None))
+
+            # Static import metadata is less precise because PY_START fires before guarded imports execute.
+            for import_name in import_names.values():
+                if import_hook is not None:
+                    import_hook(path, import_name)
+                else:
+                    hook((0, path, import_name))
+        except BaseException:
+            _release_event(code, _FILE_EVENT_LOCATION)
+            raise
+
+        return _monitoring._DISABLE
+
+
+class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
+    """Per-code-object handler dispatching line-level coverage via LINE events."""
+
+    def on_py_line(self, code: CodeType, line_number: int) -> t.Optional[object]:
+        hook_data = _CODE_HOOKS.get(code)
+        if hook_data is None or not _claim_event(code, line_number):
+            return _monitoring._DISABLE
+        hook, path, import_names, line_hook, _file_hook, import_hook = hook_data
+
+        try:
+            if line_hook is not None:
+                line_hook(path, line_number)
+                if import_name := import_names.get(line_number, None):
+                    if import_hook is not None:
+                        import_hook(path, import_name)
+                    else:
+                        hook((line_number, path, import_name))
+            else:
+                import_name = import_names.get(line_number, None)
+                hook((line_number, path, import_name))
+        except BaseException:
+            _release_event(code, line_number)
+            raise
+
+        return _monitoring._DISABLE
+
+
+# A single shared handler instance is registered for every instrumented code object; it dispatches
+# by looking the code object up in _CODE_HOOKS. The multiplexer keys handlers per code object by
+# identity, so one instance shared across many code objects is fine. Both handler classes are
+# defined unconditionally so tests can exercise either mode regardless of the active env var.
+_handler: _monitoring.MonitoringEventHandler = (
+    _CoverageFileHandler() if _USE_FILE_LEVEL_COVERAGE else _CoverageLineHandler()
+)
+
+
+def _rearm_disabled() -> None:
+    """Re-arm LINE/PY_START events silenced by this collector's DISABLE returns.
+
+    The best-effort global shortcut is used only while coverage is the sole
+    subscriber and no external monitoring tool is visible. Otherwise the
+    tool-scoped fallback keeps other subscribers' disabled-event state intact.
+    """
+    global _single_subscriber_version
+
+    version = _monitoring.restart_events(_handler)
+    with _rearm_lock:
+        if version is not None:
+            _single_subscriber_version = version
+            _seen_event_locations.clear()
+            return
+
+        was_single_subscriber = _single_subscriber_version is not None
+        _single_subscriber_version = None
+        if was_single_subscriber:
+            codes = list(_CODE_HOOKS)
+        elif _seen_event_locations:
+            codes = list(_seen_event_locations)
+        else:
+            return
+        _seen_event_locations.clear()
+
+    for code in codes:
+        _monitoring.refresh(code, _EVENT)
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
@@ -241,66 +244,26 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Returns:
         Tuple of (code object, CoverageLines with instrumentable lines)
 
-    Note: By default callbacks return DISABLE after recording so each line fires only once per
-    test context (performance optimisation).  When _use_disable_optimization is False the callback
-    returns None instead, trading some performance for compatibility with other sys.monitoring tools.
+    Coverage registers one handler with the shared sys.monitoring layer instead of claiming its
+    own tool slot. While it is the only visible subscriber, events use direct delivery and one
+    best-effort global restart per context. If another subscriber appears, normal fan-out and
+    tool-scoped re-arming preserve isolation.
     """
-    if not _ensure_registered():
+    global _warned_tool_unavailable
+
+    try:
+        _monitoring.ensure_tool()
+    except _monitoring.MonitoringToolUnavailable:
+        if not _warned_tool_unavailable:
+            _warned_tool_unavailable = True
+            log.warning(
+                "No sys.monitoring tool slot available for ddtrace, not gathering coverage. "
+                "Disable a conflicting sys.monitoring tool to restore coverage."
+            )
         return code, CoverageLines()
 
+    _warned_tool_unavailable = False
     return _instrument_with_monitoring(code, hook, path, package)
-
-
-def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monitoring.DISABLE]]:
-    """
-    Callback for LINE/PY_START events.
-
-    When _use_disable_optimization is True (default), returns sys.monitoring.DISABLE after
-    recording so Python stops firing events for this code location — a performance win for
-    loops and hot paths.  CollectInContext then calls restart_events() between tests to
-    re-enable them.
-
-    When _use_disable_optimization is False (set when another sys.monitoring tool such as
-    coverage.py is active), returns None so events keep firing.  This is slightly slower but
-    means restart_events() is never needed, leaving the other tool's state untouched.
-    """
-    hook_data = _CODE_HOOKS.get(code)
-    if hook_data is None:
-        return sys.monitoring.DISABLE
-
-    hook, path, import_names, line_hook, file_hook, import_hook = hook_data
-
-    if _USE_FILE_LEVEL_COVERAGE:
-        # Report file-level coverage using a dedicated hook. File-level coverage only means "this file executed";
-        # import metadata is emitted separately below.
-        if file_hook is not None:
-            file_hook(path)
-        else:
-            hook((0, path, None))
-
-        # Conservative static import metadata path. This is the default when accurate import-hook injection is off, and
-        # also the fallback if injection fails. It is less precise because PY_START fires before guarded imports are
-        # known to execute.
-        for import_name in import_names.values():
-            if import_hook is not None:
-                import_hook(path, import_name)
-            else:
-                hook((0, path, import_name))
-    else:
-        if line_hook is not None:
-            line_hook(path, line)
-            if import_name := import_names.get(line, None):
-                if import_hook is not None:
-                    import_hook(path, import_name)
-                else:
-                    hook((line, path, import_name))
-        else:
-            import_name = import_names.get(line, None)
-            hook((line, path, import_name))
-
-    if _use_disable_optimization:
-        return sys.monitoring.DISABLE
-    return None
 
 
 def _instrument_with_monitoring(
@@ -320,7 +283,7 @@ def _instrument_with_monitoring(
 
     if accurate_file_imports:
         lines = CoverageLines()
-        import_names = {}
+        import_names: ImportNamesByLine = {}
     elif track_lines or collect_import_coverage:
         # Keep the default path cheap: use raw co_code scanning for line numbers and conservative import metadata.
         lines, import_names = _extract_lines_and_imports(
@@ -370,8 +333,8 @@ def _instrument_with_monitoring(
                 # current module's dependency on its containing package is not backed by an import opcode.
                 import_names = {0: import_names[0]} if 0 in import_names else {}
 
-        # Enable local PY_START events for the final code object.
-        sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)  # noqa
+        # Register the multiplexer handler for this code object (enables local PY_START events).
+        _monitoring.register(code, _handler)
         _CODE_HOOKS[code] = (hook, path, import_names, line_hook, file_hook, import_hook)
 
         # Return CoverageLines with line 0 as sentinel to indicate file-level coverage.
@@ -386,8 +349,8 @@ def _instrument_with_monitoring(
         if package is not None:
             import_names[0] = (package, ("",))
 
-    # Enable local LINE events for the final code object.
-    sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)  # noqa
+    # Register the multiplexer handler for this code object (enables local LINE events).
+    _monitoring.register(code, _handler)
     # Register the generic hook plus specialized hooks when the collector provides them. Keeping file-, line-, and
     # import-level operations separate makes the two coverage modes easier to follow and avoids tuple dispatch in the
     # common ModuleCodeCollector path.

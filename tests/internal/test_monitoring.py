@@ -129,6 +129,52 @@ def registered() -> Iterator[
         monitoring.unregister(code, handler)
 
 
+@pytest.mark.subprocess(out=None, err=None)
+def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
+    """The best-effort global shortcut rejects non-owners, visible tools, and siblings."""
+    import sys
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    first_code = compile("pass", "<first>", "exec")
+    first = Handler()
+    monitoring.register(first_code, first)
+
+    outsider = Handler()
+    assert monitoring.restart_events(outsider) is None
+    forced_version = monitoring.restart_events(outsider, force=True)
+
+    version = monitoring.restart_events(first)
+    assert version == forced_version
+    assert version is not None
+    assert monitoring.registry_version_is_current(version)
+
+    own_tool = monitoring.ensure_tool()
+    external_tool = next(
+        tool_id for tool_id in range(6) if tool_id != own_tool and sys_monitoring.get_tool(tool_id) is None
+    )
+    sys_monitoring.use_tool_id(external_tool, "external")
+    try:
+        assert monitoring.restart_events(first) is None
+        assert monitoring.restart_events(first, force=True) == version
+    finally:
+        sys_monitoring.free_tool_id(external_tool)
+
+    second_code = compile("pass", "<second>", "exec")
+    second = Handler()
+    monitoring.register(second_code, second)
+    assert monitoring.restart_events(first) is None
+    assert monitoring.restart_events(second) is None
+    assert not monitoring.registry_version_is_current(version)
+
+
 @_py315
 def test_register_unwind_handler_does_not_raise(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],

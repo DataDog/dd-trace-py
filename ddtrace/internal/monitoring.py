@@ -137,6 +137,9 @@ class _IdentityWeakKeyDictionary:
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
+_registry_version: int = 0
+_single_subscriber_cache_version: int = -1
+_single_subscriber_cache_handler: "Optional[weakref.ReferenceType[MonitoringEventHandler]]" = None
 
 
 class MonitoringEventHandler(ABC):
@@ -221,13 +224,16 @@ class _CodeHandlers:
     def __len__(self) -> int:
         return len(self._by_handler)
 
-    def set_handler(self, handler_id: int, entry: _Entry) -> None:
+    def set_handler(self, handler_id: int, entry: _Entry) -> Optional[_Entry]:
+        previous = self._by_handler.get(handler_id)
         self._by_handler[handler_id] = entry
         self.snapshot = tuple(self._by_handler.values())
+        return previous
 
-    def pop_handler(self, handler_id: int) -> None:
-        self._by_handler.pop(handler_id, None)
+    def pop_handler(self, handler_id: int) -> Optional[_Entry]:
+        entry = self._by_handler.pop(handler_id, None)
         self.snapshot = tuple(self._by_handler.values())
+        return entry
 
 
 def _events_for(handlers: _CodeHandlers) -> int:
@@ -408,6 +414,8 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
+        global _registry_version
+
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers is None:
             _registry[code] = handlers = _CodeHandlers()
@@ -418,7 +426,9 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         # toggle so the new handler actually receives them. This generalises the
         # previous LINE-only re-arm to every local event.
         existing_events: int = _events_for(handlers)
-        handlers.set_handler(id(handler), entry)
+        previous = handlers.set_handler(id(handler), entry)
+        if previous is None or previous.events != entry.events:
+            _registry_version += 1
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
         handlers.disabled_events &= local_events
 
@@ -440,14 +450,70 @@ def refresh(code: CodeType, events: int) -> None:
                 _rearm_local_events(_tool_id, code, local_events, rearm_events)
 
 
+def restart_events(handler: MonitoringEventHandler, *, force: bool = False) -> Optional[int]:
+    """Restart events and return the registry version on success.
+
+    By default, handler must be the sole ddtrace subscriber and no external tool
+    may be visible. force bypasses those safeguards. The handler argument is an
+    ownership check only; the underlying sys.monitoring restart remains global.
+    """
+    global _single_subscriber_cache_handler
+    global _single_subscriber_cache_version
+
+    with _registry_lock:
+        if not force:
+            if _single_subscriber_cache_version != _registry_version:
+                subscriber: Optional[MonitoringEventHandler] = None
+                for code in _registry:
+                    handlers: Optional[_CodeHandlers] = _registry.get(code)
+                    if handlers is None:
+                        continue
+                    for entry in handlers.snapshot:
+                        if subscriber is None:
+                            subscriber = entry.handler
+                        elif entry.handler is not subscriber:
+                            subscriber = None
+                            break
+                    if subscriber is None and handlers.snapshot:
+                        break
+                _single_subscriber_cache_handler = weakref.ref(subscriber) if subscriber is not None else None
+                _single_subscriber_cache_version = _registry_version
+
+            sole_subscriber = (
+                _single_subscriber_cache_handler() if _single_subscriber_cache_handler is not None else None
+            )
+            if sole_subscriber is not handler or _tool_id is None:
+                return None
+            for tool_id in range(6):
+                if tool_id != _tool_id and sys.monitoring.get_tool(tool_id) is not None:
+                    return None
+
+        # AIDEV-NOTE: The external-tool scan and restart are not atomic because
+        # sys.monitoring exposes no shared lock or tool-scoped restart. This narrow
+        # registration race is intentional parity with the previous coverage
+        # implementation; visible external tools always use selective re-arming.
+        sys.monitoring.restart_events()
+        return _registry_version
+
+
+def registry_version_is_current(version: int) -> bool:
+    """Return whether the local subscriber registry still has version."""
+    return version == _registry_version
+
+
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Remove *handler* from the handlers registered for *code*."""
     with _registry_lock:
+        global _registry_version
+
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers is None:
             return
 
-        handlers.pop_handler(id(handler))
+        entry = handlers.pop_handler(id(handler))
+        if entry is None:
+            return
+        _registry_version += 1
 
         if not handlers:
             del _registry[code]
