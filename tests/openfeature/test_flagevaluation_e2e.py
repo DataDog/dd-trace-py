@@ -11,6 +11,7 @@ cannot prove:
 - The OTel `feature_flag.evaluations` path is preserved alongside the EVP path (non-regression).
 """
 
+import json
 from unittest import mock
 
 from openfeature import api
@@ -18,7 +19,7 @@ from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
-from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
+from ddtrace.internal.openfeature._flageval_pii import prefixed_targeting_key_digest
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
@@ -113,10 +114,12 @@ class TestFlagEvalEVPHookFiresOnRealEvalPath:
 class TestFlagEvalLoggingExitPathsCovered:
     """success / engine-error / runtime-default / disabled exit paths are all captured."""
 
-    def test_flag_not_found_runtime_default_path(self, provider_and_client):
+    @pytest.mark.parametrize("observe", [False, True])
+    def test_flag_not_found_runtime_default_path(self, provider_and_client, observe):
         provider, client = provider_and_client
         # A config is loaded but the requested flag isn't in it -> native FlagNotFound -> ERROR.
         config = create_config(create_boolean_flag("present-flag", enabled=True))
+        config["observeFullEvaluationData"] = observe
         process_ffe_configuration(config)
 
         assert client.get_boolean_value("absent-flag", False) is False
@@ -127,6 +130,7 @@ class TestFlagEvalLoggingExitPathsCovered:
         # No variant -> runtime_default_used True.
         assert row.get("runtime_default_used") is True
         assert "variant" not in row
+        assert row["error"] == {"message": "FLAG_NOT_FOUND"}
 
     def test_no_config_provider_not_ready_path(self, provider_and_client):
         provider, client = provider_and_client
@@ -138,10 +142,13 @@ class TestFlagEvalLoggingExitPathsCovered:
         row = next((r for r in rows if r["flag"]["key"] == "no-config-flag"), None)
         assert row is not None, "no-config eval must still emit a flagevaluation row"
         assert row.get("runtime_default_used") is True
+        assert row["error"] == {"message": "PROVIDER_NOT_READY"}
 
-    def test_type_mismatch_error_path(self, provider_and_client):
+    @pytest.mark.parametrize("observe", [False, True])
+    def test_type_mismatch_error_path(self, provider_and_client, observe):
         provider, client = provider_and_client
         config = create_config(create_string_flag("str-flag", "hello", enabled=True))
+        config["observeFullEvaluationData"] = observe
         process_ffe_configuration(config)
 
         # Evaluate a string flag as boolean -> type mismatch ERROR.
@@ -154,6 +161,27 @@ class TestFlagEvalLoggingExitPathsCovered:
         assert row.get("runtime_default_used") is True
         assert row["first_evaluation"] == details.flag_metadata[EVAL_TIMESTAMP_METADATA_KEY]
         assert row["last_evaluation"] == details.flag_metadata[EVAL_TIMESTAMP_METADATA_KEY]
+        assert row["error"] == {"message": "TYPE_MISMATCH"}
+
+    @pytest.mark.parametrize("observe", [False, True])
+    def test_evaluator_exception_canary_never_reaches_wire(self, provider_and_client, observe):
+        provider, client = provider_and_client
+        config = create_config(create_boolean_flag("exception-flag"))
+        config["observeFullEvaluationData"] = observe
+        process_ffe_configuration(config)
+        writer = provider._flag_eval_evp_writer
+        with mock.patch(
+            "ddtrace.internal.openfeature._provider.resolve_flag", side_effect=RuntimeError("error-only-canary")
+        ):
+            assert client.get_boolean_value("exception-flag", False) is False
+        with mock.patch.object(writer, "_send_payload") as send:
+            writer.periodic()
+        raw = send.call_args.args[0]
+        row = json.loads(raw)["flagEvaluations"][0]
+        assert row["error"] == {"message": "GENERAL"}
+        assert row["runtime_default_used"] is True
+        assert row["evaluation_count"] == 1
+        assert b"error-only-canary" not in raw
 
     def test_disabled_flag_path(self, provider_and_client):
         provider, client = provider_and_client
@@ -191,7 +219,7 @@ class TestFlagEvalLoggingExitPathsCovered:
 
         rows = _drain(provider)
         row = next(r for r in rows if r["flag"]["key"] == "protected-flag")
-        assert row["targeting_key"] == hash_targeting_key("user-77")
+        assert row["targeting_key"] == prefixed_targeting_key_digest("user-77")
         assert "context" not in row
 
 

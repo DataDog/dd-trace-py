@@ -22,7 +22,7 @@ experiments:
         scenarios:
 
           # openfeatureflagevaluation (class OpenFeatureFlagEvaluation)
-          - name: openfeatureflagevaluation-aggregate-full-typical
+          - name: openfeatureflagevaluation-aggregate-protected-typical
             thresholds:
               - execution_time < 0.029 ms
           - name: openfeatureflagevaluation-aggregate-scale
@@ -37,7 +37,7 @@ experiments:
           - name: openfeatureflagevaluation-hook-enqueue-bounded-adversarial
             thresholds:
               - execution_time < 0.380 ms
-          - name: openfeatureflagevaluation-hook-enqueue-full-typical
+          - name: openfeatureflagevaluation-hook-enqueue-protected-typical
             thresholds:
               - execution_time < 0.033 ms
           - name: openfeatureflagevaluation-hook-enqueue-scale

@@ -452,7 +452,7 @@ class DataDogProvider(AbstractProvider):
           flag is not found in the configuration
         - Returns error with error_code and error_message on other errors
         """
-        # AIDEV-NOTE: Capture one snapshot at provider entry. Every exit path
+        # Capture one snapshot at provider entry. Every exit path
         # carries consent from the exact configuration used for resolution;
         # downstream code must never reread live configuration.
         snapshot = _get_ffe_snapshot()

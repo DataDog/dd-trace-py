@@ -1,6 +1,7 @@
 ---
 features:
   - |
-    openfeature: Protects experimental server-side evaluation telemetry by hashing targeting keys and
-    omitting evaluation context by default, while retaining raw targeting keys and bounded context when
-    full evaluation data is enabled in the delivered feature-flag configuration.
+    openfeature: Feature flag evaluation telemetry now hashes targeting keys and omits context by default;
+    enabling full evaluation data for the environment includes raw targeting keys and bounded context.
+    In both modes, errors contain only standard error codes and invalid targeting keys are omitted without
+    losing evaluation counts.

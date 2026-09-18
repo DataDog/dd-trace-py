@@ -3,7 +3,6 @@
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
-from typing import Union
 
 from ddtrace.internal.native._native import ffe
 
@@ -28,8 +27,8 @@ _FFE_SNAPSHOT: Optional[_FfeSnapshot] = None
 _provider_instances: list[Any] = []
 
 
-# AIDEV-NOTE: Existing callers may use this compatibility accessor. Evaluation
-# code must use _get_ffe_snapshot() so consent stays bound to the configuration.
+# Tests may inspect the configuration alone. Evaluation code must use
+# _get_ffe_snapshot() so consent stays bound to the configuration.
 def _get_ffe_config() -> Optional[ffe.Configuration]:
     """Retrieve only the current native FFE configuration."""
     snapshot = _FFE_SNAPSHOT
@@ -41,19 +40,10 @@ def _get_ffe_snapshot() -> Optional[_FfeSnapshot]:
     return _FFE_SNAPSHOT
 
 
-def _set_ffe_config(value: Union[None, ffe.Configuration, _FfeSnapshot]) -> None:
-    """Set the FFE snapshot and notify registered providers.
-
-    Bare configurations remain supported for existing internal callers and
-    fail closed to protected mode.
-    """
+def _set_ffe_config(value: Optional[_FfeSnapshot]) -> None:
+    """Set the FFE snapshot and notify registered providers."""
     global _FFE_SNAPSHOT
-    if value is None:
-        _FFE_SNAPSHOT = None
-    elif isinstance(value, _FfeSnapshot):
-        _FFE_SNAPSHOT = value
-    else:
-        _FFE_SNAPSHOT = _FfeSnapshot(config=value, observe_full_evaluation_data=False)
+    _FFE_SNAPSHOT = value
 
     if _FFE_SNAPSHOT is not None:
         _notify_providers_config_received()

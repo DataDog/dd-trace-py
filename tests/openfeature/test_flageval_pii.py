@@ -5,6 +5,7 @@ import os
 import typing
 from unittest import mock
 from unittest.mock import MagicMock
+from uuid import UUID
 
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
@@ -22,9 +23,10 @@ from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_pii import TARGETING_KEY_HASH_PREFIX
-from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
+from ddtrace.internal.openfeature._flageval_pii import prefixed_targeting_key_digest
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _Entry
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.openfeature._provider import DataDogProvider
@@ -40,10 +42,10 @@ CANONICAL_HASHED_TARGETING_KEY = "sha256_b4698f9b6d186781fa8dc59e533578fa2d8379a
 
 class TestHashTargetingKey:
     def test_matches_cross_sdk_canonical_vector(self) -> None:
-        assert hash_targeting_key(CANONICAL_TARGETING_KEY) == CANONICAL_HASHED_TARGETING_KEY
+        assert prefixed_targeting_key_digest(CANONICAL_TARGETING_KEY) == CANONICAL_HASHED_TARGETING_KEY
 
     def test_uses_prefixed_lowercase_sha256(self) -> None:
-        result = hash_targeting_key(CANONICAL_TARGETING_KEY)
+        result = prefixed_targeting_key_digest(CANONICAL_TARGETING_KEY)
 
         assert result is not None
         assert result.startswith(TARGETING_KEY_HASH_PREFIX)
@@ -51,11 +53,11 @@ class TestHashTargetingKey:
         assert all(character in "0123456789abcdef" for character in result[len(TARGETING_KEY_HASH_PREFIX) :])
 
     def test_preserves_explicit_empty_string(self) -> None:
-        assert hash_targeting_key("") == ""
+        assert prefixed_targeting_key_digest("") == ""
 
     @pytest.mark.parametrize("invalid", [None, [], b"user", "\ud800"])
     def test_omits_missing_non_string_and_malformed_values(self, invalid: typing.Any) -> None:
-        assert hash_targeting_key(invalid) is None
+        assert prefixed_targeting_key_digest(invalid) is None
 
     def test_hashes_exact_utf8_bytes_without_normalization(self) -> None:
         nfc = "jos\u00e9@datadoghq.com"
@@ -69,23 +71,16 @@ class TestHashTargetingKey:
             nfd,
         ]
 
-        results = [hash_targeting_key(value) for value in inputs]
+        results = [prefixed_targeting_key_digest(value) for value in inputs]
 
         assert len(set(results)) == len(inputs)
-
-    def test_does_not_mutate_the_input(self) -> None:
-        value = "  Jane.Doe@datadoghq.com  "
-
-        hash_targeting_key(value)
-
-        assert value == "  Jane.Doe@datadoghq.com  "
 
     def test_str_subclass_cannot_override_hashed_bytes(self) -> None:
         class HostileString(str):
             def encode(self, *args, **kwargs):
                 raise RuntimeError("subclass encode must not run")
 
-        assert hash_targeting_key(HostileString(CANONICAL_TARGETING_KEY)) == CANONICAL_HASHED_TARGETING_KEY
+        assert prefixed_targeting_key_digest(HostileString(CANONICAL_TARGETING_KEY)) == CANONICAL_HASHED_TARGETING_KEY
 
 
 class TestFfeSnapshot:
@@ -105,16 +100,6 @@ class TestFfeSnapshot:
         assert snapshot.config is config
         assert snapshot.observe_full_evaluation_data is True
         assert _get_ffe_config() is config
-
-    def test_legacy_bare_config_fails_closed(self) -> None:
-        config = MagicMock(name="ffe.Configuration")
-
-        _set_ffe_config(config)
-
-        snapshot = _get_ffe_snapshot()
-        assert snapshot is not None
-        assert snapshot.config is config
-        assert snapshot.observe_full_evaluation_data is False
 
 
 class TestObserveFullEvaluationDataParsing:
@@ -174,7 +159,7 @@ class TestProviderConsentMetadata:
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             return DataDogProvider()
 
-    def test_metadata_key_matches_cross_sdk_contract(self) -> None:
+    def test_metadata_key_matches_approved_private_contract(self) -> None:
         assert METADATA_OBSERVE_FULL_EVALUATION_DATA == "__dd_observe_full_evaluation_data"
 
     @pytest.mark.parametrize("observe", [False, True])
@@ -224,7 +209,7 @@ class TestProviderConsentMetadata:
                 None,
             ),
         ],
-        ids=["flag-not-found", "native-error", "runtime-default"],
+        ids=["flag-not-found", "native-error", "disabled-flag"],
     )
     def test_native_terminal_paths_stamp_evaluated_consent(
         self,
@@ -358,15 +343,126 @@ class TestHookPrivacyCapture:
         assert event.error_message == ErrorCode.TYPE_MISMATCH.value
         assert "secret@example.com" not in event.error_message
 
-    def test_full_error_preserves_message(self) -> None:
+    def test_full_error_uses_stable_code(self) -> None:
         message = 'For input string: "secret@example.com"'
 
         event = self.capture(True, error_message=message, error_code=ErrorCode.TYPE_MISMATCH)
 
-        assert event.error_message == message
+        assert event.error_message == ErrorCode.TYPE_MISMATCH.value
 
 
 class TestWriterPrivacyBoundary:
+    def test_event_constructor_defaults_to_protected(self) -> None:
+        event = _EvalEvent("flag", "on", "allocation", "key", {"secret": "value"}, False, "", 1)
+        assert event.observe_full_evaluation_data is False
+
+    @pytest.mark.parametrize("observe", [False, "true", 1])
+    def test_direct_aggregation_discards_protected_context(self, observe) -> None:
+        writer = FlagEvaluationWriter()
+        writer._aggregate(self.event(attrs={"email": "context-only-canary"}, observe=observe))
+        entry = next(iter(writer._full.values()))
+        assert entry.context_attrs == {}
+        with mock.patch.object(writer, "_send_payload") as send:
+            writer.periodic()
+        raw = send.call_args.args[0]
+        assert b"context-only-canary" not in raw
+        assert "context" not in json.loads(raw)["flagEvaluations"][0]
+
+    @pytest.mark.parametrize("observe", [False, "true", 1])
+    def test_serializer_independently_omits_protected_context(self, observe) -> None:
+        writer = FlagEvaluationWriter()
+        writer._full[("pii-flag", "on", "allocation")] = _Entry(
+            1, False, CANONICAL_HASHED_TARGETING_KEY, {"secret": "context-only-canary"}, "", observe
+        )
+        with mock.patch.object(writer, "_send_payload") as send:
+            writer.periodic()
+        raw = send.call_args.args[0]
+        assert b"context-only-canary" not in raw
+        assert "context" not in json.loads(raw)["flagEvaluations"][0]
+
+    def test_protected_queue_retains_no_attribute_alias(self) -> None:
+        attrs = {"nested": {"email": "context-only-canary"}}
+        writer = FlagEvaluationWriter()
+        writer.enqueue(self.event(attrs=attrs))
+        queued = writer._queue.get_nowait()
+        attrs["nested"]["email"] = "mutated-canary"
+        assert queued.attrs == {}
+        assert queued.attrs is not attrs
+
+    @pytest.mark.parametrize("observe", [False, True])
+    @pytest.mark.parametrize("degraded", [False, True])
+    def test_serializer_independently_sanitizes_error_text(self, observe, degraded) -> None:
+        writer = FlagEvaluationWriter()
+        entries = writer._degraded if degraded else writer._full
+        entries[("pii-flag", "on", "allocation")] = _Entry(1, True, None, {}, "error-only-canary", observe)
+        with mock.patch.object(writer, "_send_payload") as send:
+            writer.periodic()
+        raw = send.call_args.args[0]
+        row = json.loads(raw)["flagEvaluations"][0]
+        assert row["error"] == {"message": "GENERAL"}
+        assert row["runtime_default_used"] is True
+        assert b"error-only-canary" not in raw
+
+    @pytest.mark.parametrize("initial,incoming", [(False, False), (False, True), (True, False), (True, True)])
+    def test_entry_fold_and_out_of_order_timestamps(self, initial, incoming) -> None:
+        entry = _Entry(20, False, "", {}, "", initial)
+        entry.observe(30, incoming)
+        entry.observe(10, incoming)
+        assert entry.count == 3
+        assert entry.first_evaluation == 10
+        assert entry.last_evaluation == 30
+        assert entry.observe_full_evaluation_data is (initial and incoming)
+
+    @pytest.mark.parametrize("observe", [False, True])
+    def test_full_tier_merge_passes_consent_to_fold(self, observe) -> None:
+        writer = FlagEvaluationWriter()
+        event = self.event(observe=observe)
+        writer._aggregate(event)
+        entry = next(iter(writer._full.values()))
+        with mock.patch.object(_Entry, "observe", autospec=True) as merge:
+            writer._aggregate(event)
+        merge.assert_called_once_with(entry, event.eval_time_ms, observe)
+
+    @pytest.mark.parametrize("observe", [False, True])
+    def test_invalid_key_counter_counts_inputs_not_rows(self, observe) -> None:
+        writer = FlagEvaluationWriter()
+        invalids = [UUID(int=1), 123, b"user", "\ud800"]
+        for value in invalids + [None, "", "valid"]:
+            writer.enqueue(self.event(targeting_key=value, observe=observe))
+        with mock.patch.object(writer, "_send_payload") as send:
+            with mock.patch.object(writer_module, "_count_metric") as count:
+                writer.periodic()
+                count.assert_any_call(writer_module.FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC, 4, "invalid")
+                assert not any(
+                    c.args[0] == writer_module.FLAG_EVALUATION_DROPPED_METRIC and c.args[1]
+                    for c in count.call_args_list
+                )
+                assert (
+                    sum(row["evaluation_count"] for row in json.loads(send.call_args.args[0])["flagEvaluations"]) == 7
+                )
+                count.reset_mock()
+                writer.periodic()
+                count.assert_any_call(writer_module.FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC, 0, "invalid")
+
+    def test_error_allowlist_requires_explicit_openfeature_vocabulary_review(self) -> None:
+        assert writer_module._PROTECTED_ERROR_CODES == {code.value for code in ErrorCode}
+
+    @pytest.mark.parametrize("code", list(ErrorCode))
+    @pytest.mark.parametrize("observe", [False, True])
+    @pytest.mark.parametrize("degraded", [False, True])
+    def test_direct_error_code_wire_contract(self, code, observe, degraded) -> None:
+        writer = FlagEvaluationWriter()
+        if degraded:
+            writer._per_flag_count["pii-flag"] = writer_module.PER_FLAG_CAP
+        writer._aggregate(self.event(observe=observe, error_message="error-only-canary", error_code=code.value))
+        with mock.patch.object(writer, "_send_payload") as send:
+            writer.periodic()
+        raw = send.call_args.args[0]
+        row = json.loads(raw)["flagEvaluations"][0]
+        assert row["error"] == {"message": code.value}
+        assert row["evaluation_count"] == 1
+        assert b"error-only-canary" not in raw
+
     @staticmethod
     def event(
         *,
@@ -504,6 +600,13 @@ class TestWriterPrivacyBoundary:
         entry = next(iter(writer._degraded.values()))
         assert entry.count == 2
         assert entry.observe_full_evaluation_data is False
+        with mock.patch.object(writer, "_send_payload") as send:
+            writer.periodic()
+        rows = json.loads(send.call_args.args[0])["flagEvaluations"]
+        assert len(rows) == 1
+        assert rows[0]["evaluation_count"] == 2
+        assert "targeting_key" not in rows[0]
+        assert "context" not in rows[0]
 
     def test_protected_buckets_do_not_key_on_context(self) -> None:
         rows = self.flush(
@@ -542,11 +645,12 @@ class TestWriterPrivacyBoundary:
         assert rows[0]["error"]["message"] == ErrorCode.TYPE_MISMATCH.value
         assert "secret@example.com" not in json.dumps(rows)
 
-    def test_writer_rejects_unknown_protected_error_code(self) -> None:
+    @pytest.mark.parametrize("observe", [False, True])
+    def test_writer_rejects_unknown_error_code(self, observe) -> None:
         rows = self.flush(
             [
                 self.event(
-                    observe=False,
+                    observe=observe,
                     error_message="ignored raw message",
                     error_code="secret@example.com",
                 )
@@ -561,13 +665,15 @@ class TestWriterPrivacyBoundary:
         event = self.event(attrs={"secret": "value"}, observe=False)
 
         with mock.patch.object(writer_module, "flatten_and_prune_context") as snapshot:
-            with mock.patch.object(writer_module, "hash_targeting_key") as hash_key:
+            with mock.patch.object(writer_module, "prefixed_targeting_key_digest") as hash_key:
                 writer.enqueue(event)
 
         snapshot.assert_not_called()
         hash_key.assert_not_called()
 
-        with mock.patch.object(writer_module, "hash_targeting_key", wraps=hash_targeting_key) as hash_key:
+        with mock.patch.object(
+            writer_module, "prefixed_targeting_key_digest", wraps=prefixed_targeting_key_digest
+        ) as hash_key:
             writer._aggregate(writer._queue.get_nowait())
 
         hash_key.assert_called_once_with(CANONICAL_TARGETING_KEY)

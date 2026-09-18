@@ -20,10 +20,13 @@ from openfeature.hook import HookHints
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_HOOK_ERRORS_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _count_metric
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
 
 
 logger = get_logger(__name__)
@@ -108,12 +111,8 @@ class FlagEvalEVPHook(Hook):
                     str(details.error_code.value) if hasattr(details.error_code, "value") else str(details.error_code)
                 )
 
-            # AIDEV-NOTE: Raw error messages can echo evaluation-context PII.
-            # Protected mode carries only the stable low-cardinality code.
-            if observe_full_evaluation_data and details.error_message:
-                error_message = str(details.error_message)
-            else:
-                error_message = error_code
+            # Raw error messages can echo PII, even with full-data consent.
+            error_message = _protected_error_message(error_code)
 
             event = _EvalEvent(
                 flag_key=flag_key,
@@ -132,6 +131,11 @@ class FlagEvalEVPHook(Hook):
 
         except Exception as exc:
             # Never propagate hook exceptions — best-effort telemetry.
+            # This counts hook failures, not dropped rows: enqueue owns drop accounting.
+            try:
+                _count_metric(FLAG_EVALUATION_HOOK_ERRORS_METRIC, 1)
+            except Exception:
+                logger.debug("FlagEvalEVPHook: failed to count hook failure")
             logger.debug(
                 "FlagEvalEVPHook.finally_after: failed to enqueue eval snapshot (%s)",
                 type(exc).__name__,

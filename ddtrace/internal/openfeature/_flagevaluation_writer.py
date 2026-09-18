@@ -45,8 +45,8 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLAT
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
-from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
 from ddtrace.internal.openfeature._flageval_pii import normalize_targeting_key
+from ddtrace.internal.openfeature._flageval_pii import prefixed_targeting_key_digest
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -66,7 +66,7 @@ _JSON_SEPARATORS = (",", ":")
 # Private OpenFeature metadata key for evaluation-time UFC consent.
 METADATA_OBSERVE_FULL_EVALUATION_DATA = "__dd_observe_full_evaluation_data"
 
-# OpenFeature-defined low-cardinality error codes. Protected payloads accept
+# OpenFeature-defined low-cardinality error codes. All payloads accept
 # only these exact built-in strings at the writer's final privacy boundary.
 _PROTECTED_ERROR_CODES = frozenset(
     (
@@ -177,7 +177,7 @@ _PACK_LENGTH = struct.Struct(">Q").pack
 # hoisted out of the walk for the same reason as _PACK_LENGTH.
 _IS_FINITE = math.isfinite
 
-# AIDEV-NOTE: Keep this an exact-type allowlist. datetime.isoformat() calls
+# Keep this an exact-type allowlist. datetime.isoformat() calls
 # tzinfo.utcoffset(), so accepting a caller-defined implementation would run arbitrary
 # code on the evaluation thread. The stdlib implementations below do not dispatch to
 # caller overrides; subclasses must remain unsupported.
@@ -192,6 +192,8 @@ FLAG_EVALUATION_DROPPED_METRIC = "flagevaluation.rows.dropped"
 FLAG_EVALUATION_DEGRADED_METRIC = "flagevaluation.rows.degraded"
 FLAG_EVALUATION_SPLITS_METRIC = "flagevaluation.payload.splits"
 FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC = "flagevaluation.context.truncated"
+FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC = "flagevaluation.targeting_key.omitted"
+FLAG_EVALUATION_HOOK_ERRORS_METRIC = "flagevaluation.hook.errors"
 
 FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW = "pre_queue_overflow"
 FLAG_EVALUATION_REASON_QUEUE_OVERFLOW = "queue_overflow"
@@ -485,7 +487,7 @@ def _flatten_sequence(
             return
         # See the charge-first note in _flatten_mapping.
         state[0] = remaining - 1
-        # AIDEV-NOTE: Keep Python's existing tags[0] list notation. Changing it
+        # Keep Python's existing tags[0] list notation. Changing it
         # to tags.0 requires explicit backend-owner approval under FFL-3060.
         index_text = str(index)
         if len(index_text) + 2 > key_budget:
@@ -660,12 +662,12 @@ class _Entry:
         self.observe_full_evaluation_data: bool = observe_full_evaluation_data
 
     def observe(self, eval_time_ms: int, observe_full_evaluation_data: typing.Optional[bool] = None) -> None:
-        """Update count, time bounds, and optional degraded-bucket consent."""
+        """Update count, time bounds, and defensive bucket consent."""
         self.count += 1
         if observe_full_evaluation_data is not None:
-            # A degraded bucket can combine events only when their serialized
-            # identity is otherwise equal. Preserve full-data consent only when
-            # every event in that bucket has it.
+            # Preserve consent only when every merged event has it. This is
+            # defensive in the full tier (consent is already in its identity).
+            # Degraded rows always omit key/context, independently of this fold.
             self.observe_full_evaluation_data = (
                 self.observe_full_evaluation_data and observe_full_evaluation_data is True
             )
@@ -681,7 +683,7 @@ class _EvalEvent(typing.NamedTuple):
     flag_key: str
     variant: str  # "" when absent (= runtime_default)
     allocation_key: str
-    targeting_key: typing.Any
+    targeting_key: object
     attrs: typing.Mapping[str, typing.Any]  # immutable, flattened context snapshot once queued
     runtime_default: bool
     error_message: str
@@ -734,6 +736,7 @@ class _WriterProcessState:
         self.dropped_queue = 0
         self.dropped_degraded_overflow = 0
         self.context_truncated: dict[str, int] = {}
+        self.targeting_key_omitted = 0
         self.context_snapshot_error_logged = False
         # A fork child starts open. The child restarts its PeriodicThread through
         # threads._after_fork_child, which never calls _start_service, so a False
@@ -918,7 +921,7 @@ class FlagEvaluationWriter(PeriodicService):
             targeting_key=event.targeting_key,
             attrs=bounded_attrs,
             runtime_default=event.runtime_default,
-            error_message=event.error_message,
+            error_message=_protected_error_message(event.error_code),
             eval_time_ms=event.eval_time_ms,
             observe_full_evaluation_data=observe_full_evaluation_data,
             error_code=event.error_code,
@@ -1008,9 +1011,11 @@ class FlagEvaluationWriter(PeriodicService):
             dropped_pre_queue = self._dropped_pre_queue
             dropped_queue = self._dropped_queue
             context_truncated = self._context_truncated
+            targeting_key_omitted = self._process_state.targeting_key_omitted
             self._dropped_pre_queue = 0
             self._dropped_queue = 0
             self._context_truncated = {}
+            self._process_state.targeting_key_omitted = 0
 
         if dropped_pre_queue:
             logger.warning(
@@ -1036,6 +1041,7 @@ class FlagEvaluationWriter(PeriodicService):
             _count_metric(FLAG_EVALUATION_DROPPED_METRIC, dropped_degraded, FLAG_EVALUATION_REASON_DEGRADED_CAP)
         for reason, count in context_truncated.items():
             _count_metric(FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC, count, reason)
+        _count_metric(FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC, targeting_key_omitted, "invalid")
 
         if not full and not degraded:
             return
@@ -1055,14 +1061,14 @@ class FlagEvaluationWriter(PeriodicService):
             # None means missing or malformed; an explicit empty key stays present.
             if entry.targeting_key is not None:
                 ev["targeting_key"] = entry.targeting_key
-            if entry.observe_full_evaluation_data and entry.context_attrs:
+            if entry.observe_full_evaluation_data is True and entry.context_attrs:
                 ev["context"] = {"evaluation": entry.context_attrs}
             if variant:
                 ev["variant"] = {"key": variant}
             if allocation_key:
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
-                ev["error"] = {"message": entry.error_message}
+                ev["error"] = {"message": _protected_error_message(entry.error_message)}
             events.append(ev)
 
         # Degraded-tier events: no targeting_key, no context.
@@ -1080,7 +1086,7 @@ class FlagEvaluationWriter(PeriodicService):
             if allocation_key:
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
-                ev["error"] = {"message": entry.error_message}
+                ev["error"] = {"message": _protected_error_message(entry.error_message)}
             events.append(ev)
         _count_metric(FLAG_EVALUATION_DEGRADED_METRIC, degraded_count, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
 
@@ -1174,16 +1180,20 @@ class FlagEvaluationWriter(PeriodicService):
         if observe_full_evaluation_data:
             targeting_key = normalize_targeting_key(event.targeting_key)
         else:
-            targeting_key = hash_targeting_key(event.targeting_key)
+            targeting_key = prefixed_targeting_key_digest(event.targeting_key)
 
-        # AIDEV-NOTE: Re-enforce every privacy-sensitive field here even when
+        # Re-enforce every privacy-sensitive field here even when
         # an internal caller bypasses the hook and constructs _EvalEvent directly.
+        if targeting_key is None and event.targeting_key is not None:
+            # Count once per aggregated input, not per transmitted row. Missing
+            # keys and valid empty strings are not rejected values.
+            with self._counter_lock:
+                self._process_state.targeting_key_omitted += 1
+        error_message = _protected_error_message(event.error_code)
         if observe_full_evaluation_data:
             context_attrs = event.attrs if event.attrs is not None else _EMPTY_CONTEXT
-            error_message = event.error_message
         else:
             context_attrs = _EMPTY_CONTEXT
-            error_message = _protected_error_message(event.error_code)
 
         # Build the full-tier key tuple. A valid OpenFeature number can exceed
         # Python's configured integer-to-decimal conversion limit. Keep numeric
@@ -1219,7 +1229,7 @@ class FlagEvaluationWriter(PeriodicService):
         with self._lock:
             # Fast path: existing full-tier bucket.
             if full_key in self._full:
-                self._full[full_key].observe(event.eval_time_ms)
+                self._full[full_key].observe(event.eval_time_ms, observe_full_evaluation_data)
                 return
 
             # Per-flag cap check.
@@ -1252,11 +1262,7 @@ class FlagEvaluationWriter(PeriodicService):
         Add to the degraded-tier map (drops targeting_key + context).
         Must be called with self._lock held.
         """
-        error_message = (
-            event.error_message
-            if event.observe_full_evaluation_data is True
-            else _protected_error_message(event.error_code)
-        )
+        error_message = _protected_error_message(event.error_code)
         deg_key = (
             event.flag_key,
             event.variant,

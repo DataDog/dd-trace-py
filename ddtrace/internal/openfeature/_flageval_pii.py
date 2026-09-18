@@ -24,7 +24,7 @@ def targeting_key_digest(raw: str) -> str:
     so a low-entropy subject identifier stays recoverable by dictionary attack.
 
     Raises on non-string input, matching the frozen span-enrichment contract.
-    Callers that must not raise use hash_targeting_key instead.
+    Callers that must not raise use prefixed_targeting_key_digest instead.
     """
     # Use the unbound built-ins so a str subclass cannot replace the bytes
     # used for the cross-SDK digest.
@@ -48,7 +48,7 @@ def normalize_targeting_key(raw: typing.Any) -> typing.Optional[str]:
     return normalized
 
 
-def hash_targeting_key(raw: typing.Any) -> typing.Optional[str]:
+def prefixed_targeting_key_digest(raw: typing.Any) -> typing.Optional[str]:
     """Produce the protected cross-SDK targeting-key representation.
 
     Wraps targeting_key_digest with the TARGETING_KEY_HASH_PREFIX and strict
