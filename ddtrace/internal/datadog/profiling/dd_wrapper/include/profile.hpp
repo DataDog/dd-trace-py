@@ -14,7 +14,7 @@ namespace Datadog {
 
 struct ProfileBorrow;
 
-// Serves to collect individual samples, as well as lengthen the scope of string data
+// Owns the active libdatadog Profile and serializes sample collection under profile_mtx.
 class Profile
 {
   private:

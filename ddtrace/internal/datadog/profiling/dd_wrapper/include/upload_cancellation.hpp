@@ -7,9 +7,9 @@
 
 namespace Datadog {
 
-// Owns the cancellation token for the current in-flight upload.
-// The CXX cancellation token is move-only, so replacing/cancelling the current
-// token requires a small synchronized slot rather than the old C FFI exchange pattern.
+// Synchronized slot for the current in-flight upload's cancellation token.
+// start_upload() replaces the token and returns a clone for the request;
+// cancel_inflight() cancels and drops it.
 class UploadCancellation
 {
   private:

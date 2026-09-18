@@ -7,9 +7,8 @@
 
 namespace Datadog {
 
-// RAII wrapper for borrowing both profile and stats under profile_mtx.
-// Two fields instead of one, so this doesn't use Borrow<T>.
-// Movable via unique_lock; non-copyable by default.
+// RAII guard for the active profile and its stats under profile_mtx.
+// Movable via unique_lock; non-copyable.
 struct ProfileBorrow
 {
     std::unique_lock<std::mutex> lock;

@@ -84,9 +84,7 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // Get the reference to the uploader
     auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
 
-    // Upload while holding the lock (encoding has already been done in UploaderBuilder::build)
-    // This also cancels inflight uploads. There are better ways to do this, but this is what
-    // we have for now.
+    // Upload while holding the lock (encoding was already done in UploaderBuilder::build).
     return uploader.upload_unlocked();
 }
 

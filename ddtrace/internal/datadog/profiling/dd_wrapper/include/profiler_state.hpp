@@ -41,7 +41,8 @@ class ProfilerState
     void postfork_parent();
     void postfork_child();
 
-    // Query state
+    // Cheap check to avoid locking when the profiler isn't running.
+    // Can briefly return true during cleanup; borrow() rechecks under lock.
     bool is_initialized() const { return initialized_.load(std::memory_order_acquire); }
 
     // ========================================================================
