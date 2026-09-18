@@ -1,13 +1,33 @@
 """Tests for ddtrace.contrib.internal.coverage.patch module."""
 
+from io import StringIO
 from pathlib import Path
+import runpy
 import tempfile
 from unittest.mock import Mock
 from unittest.mock import patch
 
+from coverage import Coverage
+from coverage.exceptions import NoDataError
 import pytest
 
 from ddtrace.contrib.internal.coverage import patch as coverage_patch
+
+
+@pytest.fixture
+def measured_coverage(tmp_path: Path) -> tuple[Coverage, Path]:
+    """Return isolated coverage data for a fully executed source file."""
+    source_path = tmp_path / "measured.py"
+    source_path.write_text("value = 1\nvalue += 1\n")
+
+    cov = Coverage(config_file=False, data_file=None, include=[str(source_path)])
+    cov.start()
+    try:
+        runpy.run_path(str(source_path))
+    finally:
+        cov.stop()
+
+    return cov, source_path
 
 
 class TestCoverageIntegration:
@@ -40,67 +60,32 @@ class TestCoverageIntegration:
         external_cov.erase.assert_not_called()
         coverage_patch.reset_coverage_state()
 
-    def test_generate_lcov_report_returns_percentage(self) -> None:
+    def test_generate_lcov_report_returns_percentage(
+        self, measured_coverage: tuple[Coverage, Path], tmp_path: Path
+    ) -> None:
         """Test that generating LCOV report returns coverage percentage."""
-        # Start coverage for this test
-        coverage_patch.start_coverage()
+        cov, source_path = measured_coverage
+        report_path = tmp_path / "coverage.lcov"
 
-        # Execute some code to get coverage data
-        def sample_function():
-            x = 1
-            y = 2
-            return x + y
+        pct_covered = coverage_patch.generate_lcov_report(cov=cov, outfile=str(report_path))
 
-        result = sample_function()
-        assert result == 3
+        assert pct_covered == 100.0
+        assert report_path.exists()
+        lcov_content = report_path.read_text()
+        assert f"SF:{source_path}" in lcov_content
+        assert "DA:1,1" in lcov_content
+        assert "DA:2,1" in lcov_content
+        assert "end_of_record" in lcov_content
 
-        # Stop coverage
-        coverage_patch.stop_coverage()
-
-        # Generate LCOV report
-        with tempfile.TemporaryDirectory() as tmpdir:
-            report_path = Path(tmpdir) / "coverage.lcov"
-            pct_covered = coverage_patch.generate_lcov_report(outfile=str(report_path))
-
-            # Verify file was created
-            assert report_path.exists()
-
-            # Verify percentage was returned
-            assert pct_covered is not None
-            assert isinstance(pct_covered, float)
-            assert 0.0 <= pct_covered <= 100.0
-
-            # Verify LCOV file has valid content
-            lcov_content = report_path.read_text()
-            assert "SF:" in lcov_content
-            assert "DA:" in lcov_content
-            assert "end_of_record" in lcov_content
-
-        # Cleanup
-        coverage_patch.erase_coverage()
-
-    def test_get_coverage_percentage(self) -> None:
+    def test_get_coverage_percentage(self, measured_coverage: tuple[Coverage, Path], tmp_path: Path) -> None:
         """Test retrieving stored coverage percentage."""
-        coverage_patch.start_coverage()
+        cov, _ = measured_coverage
+        report_path = tmp_path / "coverage.lcov"
 
-        # Execute some code
-        _ = 1 + 1
+        pct_from_gen = coverage_patch.generate_lcov_report(cov=cov, outfile=str(report_path))
 
-        coverage_patch.stop_coverage()
-
-        # Generate report to store percentage
-        with tempfile.TemporaryDirectory() as tmpdir:
-            report_path = Path(tmpdir) / "coverage.lcov"
-            pct_from_gen = coverage_patch.generate_lcov_report(outfile=str(report_path))
-
-        # Retrieve percentage
-        pct_from_get = coverage_patch.get_coverage_percentage()
-
-        assert pct_from_get is not None
-        assert pct_from_get == pct_from_gen
-
-        # Cleanup
-        coverage_patch.erase_coverage()
+        assert pct_from_gen == 100.0
+        assert coverage_patch.get_coverage_percentage() == pct_from_gen
 
     def test_coverage_instance_available_when_running(self) -> None:
         """Test that coverage instance is available when coverage is running."""
@@ -174,20 +159,17 @@ class TestCoverageIntegration:
         # Cleanup
         coverage_patch.erase_coverage()
 
-    def test_lcov_report_with_no_data(self) -> None:
+    def test_lcov_report_with_no_data(self, tmp_path: Path) -> None:
         """Test generating LCOV report with no coverage data."""
-        # Start and immediately stop
-        coverage_patch.start_coverage()
-        coverage_patch.stop_coverage(save=True, erase=False)
+        cov = coverage_patch.start_coverage(config_file=False, data_file=None, omit=["*"])
+        assert cov is not None
+        coverage_patch.stop_coverage(save=False)
+        report_path = tmp_path / "coverage.lcov"
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            report_path = Path(tmpdir) / "coverage.lcov"
-            pct = coverage_patch.generate_lcov_report(outfile=str(report_path))
+        with pytest.raises(NoDataError):
+            cov.lcov_report(outfile=str(report_path))
 
-            # Should handle empty coverage gracefully
-            assert pct is not None or pct == 0.0
-
-        coverage_patch.erase_coverage()
+        assert coverage_patch.generate_lcov_report(cov=cov, outfile=str(report_path)) is None
 
     def test_get_coverage_data_returns_dict(self) -> None:
         """Test that get_coverage_data returns a dictionary."""
@@ -218,29 +200,19 @@ class TestCoverageErrorHandling:
         coverage_patch.stop_coverage()
         assert not coverage_patch.is_coverage_running()
 
-    def test_generate_report_with_invalid_path(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test generating report with invalid path."""
-        coverage_patch.start_coverage()
-        coverage_patch.stop_coverage()
-
-        # Try to generate report in non-existent directory
+    def test_generate_report_with_invalid_path(self) -> None:
+        """Test that an output-path error is handled without masking the failure."""
         invalid_path = "/nonexistent/directory/coverage.lcov"
+        error = OSError("unable to write coverage report")
+        cov = Mock()
+        cov.lcov_report.side_effect = error
 
-        # Should handle error gracefully and return None
-        result = coverage_patch.generate_lcov_report(outfile=invalid_path)
+        with patch.object(coverage_patch.log, "warning") as log_warning:
+            result = coverage_patch.generate_lcov_report(cov=cov, outfile=invalid_path)
+
         assert result is None
-
-        # The result could be None or a valid percentage depending on implementation
-        # The key is that it doesn't crash
-
-        # Check if error was logged (may or may not happen depending on coverage.py behavior)
-        error_logged = any(
-            "An exception occurred when running a coverage report" in record.message for record in caplog.records
-        )
-        assert error_logged
-        # We don't assert this as it depends on how coverage.py handles the invalid path
-
-        coverage_patch.erase_coverage()
+        cov.lcov_report.assert_called_once_with(outfile=invalid_path)
+        log_warning.assert_called_once_with("An exception occurred when running a coverage report: %s", error)
 
     def test_erase_coverage_when_not_running(self) -> None:
         """Test erasing coverage data when coverage is not running."""
@@ -313,33 +285,24 @@ class TestCoveragePatching:
         assert result == 85.5
         assert coverage_patch.get_coverage_percentage() == 85.5
 
-    def test_generate_coverage_report_with_different_formats(self) -> None:
+    def test_generate_coverage_report_with_different_formats(
+        self, measured_coverage: tuple[Coverage, Path], tmp_path: Path
+    ) -> None:
         """Test generating coverage reports with different formats."""
-        coverage_patch.start_coverage()
+        cov, source_path = measured_coverage
+        text_output = StringIO()
+        lcov_path = tmp_path / "coverage.lcov"
 
-        # Execute some code
-        _ = 1 + 1
+        text_pct = coverage_patch.generate_coverage_report("text", cov=cov, file=text_output)
+        lcov_pct = coverage_patch.generate_coverage_report("lcov", cov=cov, outfile=str(lcov_path))
 
-        coverage_patch.stop_coverage()
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Test text report (without outfile parameter which is not supported by coverage.report())
-            text_pct = coverage_patch.generate_coverage_report("text")
-            assert text_pct is not None
-            assert text_pct >= 3.0
-
-            # Test LCOV report
-            lcov_path = Path(tmpdir) / "coverage.lcov"
-            lcov_pct = coverage_patch.generate_coverage_report("lcov", outfile=str(lcov_path))
-            assert lcov_pct is not None
-            assert lcov_pct >= 3.0
-
-            # Verify LCOV file was created
-            if lcov_path.exists():
-                lcov_content = lcov_path.read_text()
-                assert "SF:" in lcov_content or lcov_content.strip() == ""
-
-        coverage_patch.erase_coverage()
+        assert text_pct == 100.0
+        assert lcov_pct == 100.0
+        assert "100%" in text_output.getvalue()
+        lcov_content = lcov_path.read_text()
+        assert f"SF:{source_path}" in lcov_content
+        assert "end_of_record" in lcov_content
+        assert coverage_patch.get_coverage_percentage() == lcov_pct
 
     def test_start_coverage_with_custom_parameters(self) -> None:
         """Test starting coverage with custom parameters."""

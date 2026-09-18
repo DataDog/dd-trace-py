@@ -395,7 +395,7 @@ integrations:
   tested_versions_by_dependency:
     falcon:
       min: 3.0.1
-      max: 4.2.0
+      max: 4.3.1
 
 - integration_name: fastapi
   is_external_package: true
@@ -547,7 +547,7 @@ integrations:
   tested_versions_by_dependency:
     confluent-kafka:
       min: 1.9.2
-      max: 2.14.0
+      max: 2.15.1
 
 - integration_name: kombu
   is_external_package: true
