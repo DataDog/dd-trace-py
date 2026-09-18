@@ -57,6 +57,7 @@ read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary);
 
 // Discovers the runtime table. Linux requires readable ELF section headers and proof that
 // they belong to the loaded file; macOS uses the loaded Mach-O metadata. Missing metadata omits native task-list
-// attribution, not thread stacks. Call during asyncio initialization. Must never run on the sampling thread.
+// attribution, not thread stacks. Memory reads use syscalls independently of the sampler's copy strategy and fail
+// closed when unavailable. Call during asyncio initialization. Must never run on the sampling thread.
 std::optional<AsyncioOffsets>
 find_asyncio_debug_offsets();

@@ -1,5 +1,7 @@
 #include "echion/echion_sampler.h"
 
+#include "dd_wrapper/include/defer.hpp"
+
 #include <gtest/gtest.h>
 
 #include <array>
@@ -14,6 +16,7 @@
 #if defined(__linux__)
 #include <fcntl.h>
 #include <link.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 namespace {
@@ -41,6 +44,22 @@ struct ReadInjection
 };
 
 thread_local ReadInjection read_injection;
+
+enum class MemoryReadFault
+{
+    None,
+    PermissionDenied,
+    ShortRead,
+};
+
+struct MemoryReadInjection
+{
+    const void* address = nullptr;
+    MemoryReadFault fault = MemoryReadFault::None;
+    unsigned int calls = 0;
+};
+
+thread_local MemoryReadInjection memory_read_injection;
 
 template<typename Read>
 ssize_t
@@ -110,6 +129,33 @@ __wrap___pread64_chk(int fd, void* buffer, size_t size, off64_t offset, size_t b
     return inject_read(fd, size, offset, [&] { return __real___pread64_chk(fd, buffer, size, offset, buffer_size); });
 }
 #endif
+
+extern "C" ssize_t
+__real_process_vm_readv(pid_t, const iovec*, unsigned long, const iovec*, unsigned long, unsigned long);
+
+extern "C" ssize_t
+__wrap_process_vm_readv(pid_t target_pid,
+                        const iovec* local,
+                        unsigned long local_count,
+                        const iovec* remote,
+                        unsigned long remote_count,
+                        unsigned long flags)
+{
+    auto& injection = memory_read_injection;
+    if (remote_count == 1 && remote[0].iov_base == injection.address) {
+        ++injection.calls;
+        if (injection.fault == MemoryReadFault::PermissionDenied) {
+            errno = EPERM;
+            return -1;
+        }
+        if (injection.fault == MemoryReadFault::ShortRead && remote[0].iov_len > 0) {
+            iovec short_remote = remote[0];
+            --short_remote.iov_len;
+            return __real_process_vm_readv(target_pid, local, local_count, &short_remote, 1, flags);
+        }
+    }
+    return __real_process_vm_readv(target_pid, local, local_count, remote, remote_count, flags);
+}
 
 extern "C"
 {
@@ -214,6 +260,15 @@ TEST(AsyncioDebugOffsets, RejectsMisalignedThreadHead)
 TEST(AsyncioDebugOffsets, DiscoversRuntimeTableAfterAnEarlierAttempt)
 {
     Py_Initialize();
+#if defined(__linux__)
+    // The executable fixture is searched before _asyncio, so disable it to exercise CPython's real table.
+    const auto saved_table = process_asyncio_debug_offsets;
+    process_asyncio_debug_offsets = {};
+    defer
+    {
+        process_asyncio_debug_offsets = saved_table;
+    };
+#endif
     // Shared _asyncio builds have no table yet. Built-in _asyncio may already expose it before import.
     (void)find_asyncio_debug_offsets();
     PyObject* module = PyImport_ImportModule("asyncio");
@@ -221,8 +276,9 @@ TEST(AsyncioDebugOffsets, DiscoversRuntimeTableAfterAnEarlierAttempt)
     auto offsets = find_asyncio_debug_offsets();
     Py_DECREF(module);
     ASSERT_TRUE(offsets);
-    EXPECT_GT(offsets->interpreter_tasks_head, 0);
-    EXPECT_GT(offsets->thread_tasks_head, 0);
+    // Native tests use the same interpreter and headers, unlike wheels running on a different patch release.
+    EXPECT_EQ(offsets->interpreter_tasks_head, offsetof(PyInterpreterState, asyncio_tasks_head));
+    EXPECT_EQ(offsets->thread_tasks_head, offsetof(_PyThreadStateImpl, asyncio_tasks_head));
 }
 #endif
 
@@ -252,6 +308,7 @@ class AsyncioElfTest : public ::testing::Test
     void SetUp() override
     {
         read_injection = {};
+        memory_read_injection = {};
         auto& header = loaded.header;
         std::memcpy(header.e_ident, ELFMAG, SELFMAG);
         header.e_ident[EI_CLASS] = sizeof(void*) == 8 ? ELFCLASS64 : ELFCLASS32;
@@ -292,6 +349,7 @@ class AsyncioElfTest : public ::testing::Test
     void TearDown() override
     {
         read_injection = {};
+        memory_read_injection = {};
         if (file != nullptr) {
             std::fclose(file);
         }
@@ -641,6 +699,46 @@ TEST_F(AsyncioElfTest, RejectsInvalidLoadedTable)
     loaded.table.thread.asyncio_tasks_head = 0;
     EXPECT_FALSE(discover());
 }
+
+class AsyncioElfMemoryReadTest
+  : public AsyncioElfTest
+  , public ::testing::WithParamInterface<bool>
+{
+  protected:
+    void SetUp() override
+    {
+        AsyncioElfTest::SetUp();
+        memory_read_injection.address = GetParam() ? static_cast<const void*>(&loaded.table) : &loaded.note;
+    }
+};
+
+TEST_P(AsyncioElfMemoryReadTest, UsesDirectSyscall)
+{
+    // Only calls linked into the reader are wrapped, not copy_memory inside the stack extension.
+    EXPECT_TRUE(discover());
+    EXPECT_EQ(memory_read_injection.calls, 1);
+}
+
+TEST_P(AsyncioElfMemoryReadTest, RejectsDeniedReadWithoutFallback)
+{
+    memory_read_injection.fault = MemoryReadFault::PermissionDenied;
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(memory_read_injection.calls, 1);
+}
+
+TEST_P(AsyncioElfMemoryReadTest, RejectsShortRead)
+{
+    memory_read_injection.fault = MemoryReadFault::ShortRead;
+    EXPECT_FALSE(discover());
+    EXPECT_EQ(memory_read_injection.calls, 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(MemoryReads,
+                         AsyncioElfMemoryReadTest,
+                         ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool>& parameter) {
+                             return parameter.param ? "DebugTable" : "BuildId";
+                         });
 
 struct ReadStage
 {

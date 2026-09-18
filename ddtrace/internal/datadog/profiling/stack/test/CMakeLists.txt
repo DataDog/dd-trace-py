@@ -111,7 +111,8 @@ configure_stack_internal_test(test_sampling_cycle_state)
 dd_wrapper_add_test(test_asyncio_debug test_asyncio_debug.cpp)
 configure_stack_internal_test(test_asyncio_debug)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    # Link the reader into the test executable so --wrap can inject pread failures without changing the extension.
+    # Link the reader into the test executable so --wrap can observe direct memory reads and inject syscall failures
+    # without changing the extension.
     target_sources(test_asyncio_debug PRIVATE ../src/echion/asyncio_debug.cc)
     # Exercise /proc/self/exe identity validation when the executable has no GNU build ID.
     target_link_options(
@@ -121,6 +122,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         -Wl,--wrap=pread64
         -Wl,--wrap=__pread_chk
         -Wl,--wrap=__pread64_chk
+        -Wl,--wrap=process_vm_readv
         -Wl,--build-id=none
         -Wl,--undefined=process_asyncio_debug_offsets)
     if(DO_VALGRIND)
@@ -129,8 +131,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(APPLE)
-    dd_wrapper_add_test(test_asyncio_debug_macos test_asyncio_debug_macos.cpp ../src/echion/asyncio_debug.cc
-                        ../src/echion/vm.cc ../src/echion/danger.cc)
+    dd_wrapper_add_test(test_asyncio_debug_macos test_asyncio_debug_macos.cpp ../src/echion/asyncio_debug.cc)
     configure_stack_internal_test(test_asyncio_debug_macos)
     # Isolate fixture discovery from the host's Python images, without mocking getsectiondata or guarded reads.
     target_compile_definitions(

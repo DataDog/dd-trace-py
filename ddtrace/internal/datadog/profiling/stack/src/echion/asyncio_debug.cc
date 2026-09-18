@@ -3,7 +3,6 @@
 #endif
 
 #include <echion/cpython/asyncio_debug.h>
-#include <echion/vm.h>
 
 #include "dd_wrapper/include/defer.hpp"
 
@@ -22,10 +21,13 @@
 #include <link.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <sys/uio.h>
 #include <unistd.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #include <mach-o/getsect.h>
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
 #endif
 
 std::optional<AsyncioOffsets>
@@ -58,6 +60,28 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
 
 namespace {
 
+bool
+read_loaded_memory(const void* address, void* buffer, size_t size)
+{
+    // Discovery runs without the GIL on an initialization thread. Use process_vm_readv directly (and
+    // mach_vm_read_overwrite on macOS), not copy_memory: the sampler can change safe_copy concurrently, and signal
+    // handler swaps pause only the sampler, not this thread. Fail closed if the syscall is unavailable or fails;
+    // falling back to signal-based memcpy would reintroduce those races.
+#if defined(__linux__)
+    const iovec local{ buffer, size };
+    const iovec remote{ const_cast<void*>(address), size };
+    return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
+#elif defined(__APPLE__)
+    mach_vm_size_t copied = 0;
+    return mach_vm_read_overwrite(mach_task_self(),
+                                  reinterpret_cast<mach_vm_address_t>(address),
+                                  size,
+                                  reinterpret_cast<mach_vm_address_t>(buffer),
+                                  &copied) == KERN_SUCCESS &&
+           copied == size;
+#endif
+}
+
 std::optional<AsyncioOffsets>
 read_asyncio_debug_table(const PyAsyncioDebugOffsets* debug_offsets)
 {
@@ -66,7 +90,7 @@ read_asyncio_debug_table(const PyAsyncioDebugOffsets* debug_offsets)
     }
 
     PyAsyncioDebugOffsets table;
-    return copy_type(debug_offsets, table) == 0 ? parse_asyncio_debug_offsets(table) : std::nullopt;
+    return read_loaded_memory(debug_offsets, &table, sizeof(table)) ? parse_asyncio_debug_offsets(table) : std::nullopt;
 }
 
 bool
@@ -338,7 +362,7 @@ matches_loaded_binary(int fd,
         // The loader exposes virtual addresses as integers.
         // NOLINTNEXTLINE(performance-no-int-to-ptr)
         const auto* address = reinterpret_cast<const void*>(binary.dlpi_addr + segment.p_vaddr);
-        if (copy_generic(address, loaded_notes.data(), size) != 0) {
+        if (!read_loaded_memory(address, loaded_notes.data(), size)) {
             inspected_all_notes = false;
             continue;
         }
