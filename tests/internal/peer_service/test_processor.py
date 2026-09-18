@@ -100,6 +100,11 @@ def test_peer_service_enablement(schema_peer_enabled):
             assert PeerServiceConfig().set_defaults_enabled == expected
 
 
+def test_otel_http_semantics_disable_peer_service_defaults():
+    with mock.patch("ddtrace.internal.settings.peer_service.config._otel_trace_semantics_enabled", True):
+        assert PeerServiceConfig(set_defaults_enabled=True).set_defaults_enabled is False
+
+
 @pytest.mark.subprocess(env=dict(DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True"), ddtrace_run=True)
 def test_tracer_hooks():
     from ddtrace.constants import SPAN_KIND
