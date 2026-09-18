@@ -37,6 +37,7 @@
       "Skill(find-cpython-usage)",
       "Skill(compare-cpython-versions)",
       "Skill(releasenote)",
+      "Skill(dd-apm-sdk-review)",
       "Skill(review-ci)"
     ],
     "deny": []
