@@ -8,7 +8,6 @@ import subprocess
 
 system_tests_repo = "https://github.com/DataDog/system-tests.git"
 system_tests_workflows_path = ".github/workflows/system-tests.yml"
-system_tests_gitlab_e2e_path = ".gitlab/system-tests.yml"
 gitlab_ci_path = ".gitlab-ci.yml"
 
 
@@ -68,26 +67,6 @@ def update_system_tests_version(latest_version: str) -> None:
     if lines and lines[-1]:
         lines.append("")
     with open(gitlab_ci_path, "w") as file:
-        file.write("\n".join(lines))
-
-    # Update Gitlab e2e workflow file
-    with open(system_tests_gitlab_e2e_path, "r") as file:
-        content = file.read()
-
-    lines = content.splitlines()
-    update_ref_count = 0
-    for i in range(len(lines)):
-        # Only update the ref if the repository is DataDog/system-tests
-        if "- project: 'DataDog/system-tests'" in lines[i]:
-            update_ref_count = 2
-        if update_ref_count and lines[i].strip().startswith("ref:"):
-            pre, _, _ = lines[i].partition(":")
-            lines[i] = f"{pre}: '{latest_version}'"
-            update_ref_count -= 1
-
-    if lines and lines[-1]:
-        lines.append("")
-    with open(system_tests_gitlab_e2e_path, "w") as file:
         file.write("\n".join(lines))
 
 
