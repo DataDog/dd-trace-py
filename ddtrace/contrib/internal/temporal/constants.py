@@ -14,13 +14,11 @@ BAGGAGE_ITEM_SERVICE = "servicename"
 CONTINUE_AS_NEW_TAG = "temporal.continued_as_new"
 DEFAULT_HEADER_KEY = "dd_trace_span"
 TEMPORAL_TAG_PREFIX = "temporal."
-_MANUAL_KEEP_TAG = "manual.keep"
 
 # Standard integration component tag.  The tracer's SpanAggregator keys
 # integration telemetry on this attribute, so every Temporal span must carry
 # it to be attributed to the temporal integration rather than the generic
 # datadog span API.
-COMPONENT = "component"
 COMPONENT_NAME = "temporal"
 
 

@@ -6,18 +6,20 @@ from typing import cast
 import temporalio.api.common.v1
 import temporalio.converter
 
+from ddtrace.internal.logger import get_logger
+from ddtrace.propagation.http import HTTPPropagator
+
 from .constants import BAGGAGE_ITEM_SERVICE
 from .constants import Carrier
 from .constants import StringHeader
 from .constants import TemporalHeader
 
 
-class _Propagator:
-    """Wraps HTTPPropagator with Temporal header encode/decode logic.
+log = get_logger(__name__)
 
-    The ``ddtrace`` import is deferred to ``__init__`` so sandbox re-importing
-    this module does not import ``ddtrace``.
-    """
+
+class _Propagator:
+    """Wraps HTTPPropagator with Temporal header encode/decode logic."""
 
     def __init__(
         self,
@@ -25,15 +27,10 @@ class _Propagator:
         header_key: str,
         service_name: str | None,
         payload_converter: temporalio.converter.PayloadConverter,
-        allow_invalid_parent_spans: bool = False,
     ) -> None:
-        from ddtrace.propagation.http import HTTPPropagator
-
-        self._propagator = HTTPPropagator
         self.header_key = header_key
         self.service_name = service_name
         self._payload_converter = payload_converter
-        self.allow_invalid_parent_spans = allow_invalid_parent_spans
 
     @staticmethod
     def get_baggage(ctx: Any) -> str | None:
@@ -57,7 +54,7 @@ class _Propagator:
         carrier: Carrier = {}
         if context is None:
             return carrier
-        self._propagator.inject(context, carrier)
+        HTTPPropagator.inject(context, carrier)
         return carrier
 
     def extract(self, header: StringHeader | None) -> Any:
@@ -65,11 +62,10 @@ class _Propagator:
             return None
 
         try:
-            ctx = self._propagator.extract(header)  # type: ignore[no-untyped-call]
+            ctx = HTTPPropagator.extract(header)  # type: ignore[no-untyped-call]
         except Exception:
-            if self.allow_invalid_parent_spans:
-                return None
-            raise
+            log.debug("Failed to extract Datadog context from Temporal header", exc_info=True)
+            return None
 
         if ctx is None or getattr(ctx, "trace_id", None) is None:
             return None
@@ -105,7 +101,6 @@ class _Propagator:
         try:
             carrier = self._payload_to_carrier(payload)
         except Exception:
-            if self.allow_invalid_parent_spans:
-                return None
-            raise
+            log.debug("Failed to decode Temporal header %r", self.header_key, exc_info=True)
+            return None
         return self.extract(carrier)

@@ -15,8 +15,8 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
 
-from ddtrace.contrib.internal.temporal import disconnect_trace_span_from_workflow_context
-from ddtrace.contrib.internal.temporal import span_from_workflow_context
+from ddtrace.contrib.internal.temporal.workflow_interceptor import disconnect_trace_span_from_workflow_context
+from ddtrace.contrib.internal.temporal.workflow_interceptor import span_from_workflow_context
 
 
 @dataclass
