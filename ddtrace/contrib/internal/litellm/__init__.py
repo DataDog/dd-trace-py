@@ -120,10 +120,7 @@ Field reference
 ^^^^^^^^^^^^^^^
 
 Fields are included only when available. Provider names, pricing settings, and
-response traffic types are kept as reported, including unfamiliar values. The
-callback does not translate them into billing providers, accounts, or modes.
-Interpret these values on the cost side; for example, ``azure_ai`` stays
-``azure_ai``, and ``ON_DEMAND_PRIORITY`` stays ``ON_DEMAND_PRIORITY``.
+response traffic types are kept as reported, including unfamiliar values.
 
 .. list-table:: Exported data
    :header-rows: 1
@@ -132,8 +129,7 @@ Interpret these values on the cost side; for example, ``azure_ai`` stays
    * - Fields
      - Meaning
    * - Span start/duration; ``ai.timezone``
-     - Request start and finish times, in UTC. Keep these when grouping usage
-       into a provider's billing periods.
+     - Request start and finish times, in UTC.
    * - ``usr.id``, ``team.id``, ``ai.gateway.org_id``
      - User ID (authenticated first, then the optional end-user fallback), plus
        authenticated team and gateway organization. A gateway organization is
@@ -211,36 +207,10 @@ Interpret these values on the cost side; for example, ``azure_ai`` stays
        or filled in before calling us.
    * - ``ai.attribution.status``, ``ai.attribution.issues``, ``ai.usage.source``
      - Whether collection is incomplete, why, and where usage came from.
-       ``observed`` means collected, **not verified against an invoice**.
+       ``observed`` means collected, **not independently verified**.
 
-Using the data with costs
+Optional: provider key ID
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This callback collects inputs for a cost join; it does **not** perform the join
-or calculate an invoice. Resolve the raw route and response fields to the
-provider's billing dimensions downstream. Automatic matching from credentials
-to billing key/account IDs is not implemented, and secret API keys are never exported.
-A cost join needs:
-
-* Time period, billing provider/account/product, and model.
-* Project, resource, or non-secret key ID when the bill uses that level of detail.
-  Account-wide allocation does not require every optional ID.
-* Usage category and amount. Metric names include units such as tokens, requests,
-  counts, or seconds. Do not add overlapping observed counts to usage totals.
-* Processing mode and billing geography, resolved using provider-specific rules.
-  A requested tier or route location is not proof of what was billed.
-
-If pricing depends on request size, use each request's ``context_tokens`` and
-that provider's rules **before adding requests together**. Session size is not
-request size. Billing SKU lookup happens on the cost side, not in the gateway.
-
-Only allocate the part of a bill that the collected usage covers. If requests
-are missing, leave some cost unattributed rather than assigning the whole bill
-to the users you can see. Credits, fees, seats, and reserved capacity need their
-own allocation rules, not token counts.
-
-Add a provider key ID for cost matching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If your provider's usage data includes ``api_key_id``, add that **non-secret ID**
 to the matching model deployment in your existing LiteLLM configuration. For
@@ -267,9 +237,9 @@ If one deployment chooses different keys per request, a fixed ID is not accurate
 use separate deployments per key or leave the ID unset. A process-wide tag has
 the same problem when the gateway uses multiple keys.
 
-This setting works for any provider with a non-secret billing key ID. Providers
-that bill by account, project, or resource may not have one. Leave it unset in
-that case; the other available IDs are still collected. Missing response IDs,
+This setting works for any provider with a non-secret key ID. Providers that
+identify usage by account, project, or resource may not have one. Leave it unset
+in that case; the other available IDs are still collected. Missing response IDs,
 including headers LiteLLM drops during streaming, are not filled from this setting.
 
 Limitations and privacy
@@ -294,7 +264,7 @@ Limitations and privacy
 * Pending requests are held in memory: up to 10,000, with a one-hour expiry
   checked when new requests arrive. Expiry, eviction, and normal shutdown emit
   incomplete records. Forked workers discard inherited requests. Crashes or
-  missing callbacks can lose data; this is not a permanent billing ledger.
+  missing callbacks can lose data.
 * APM sampling, delivery, and retention rules still apply. Sampled traces are
   not a complete usage total. Do not count the same usage again from SDK spans.
 * End-user IDs can contain personal information, including email, even with
@@ -326,7 +296,9 @@ Available user settings:
   of LiteLLM's end-user ID, including its use as a fallback for ``usr.id``.
 * ``auth_metadata_keys``: empty by default. Select authenticated user metadata
   fields such as ``cost_center`` to include as ``ai.enrichment.cost_center``.
-  Client-supplied request metadata is not used for these extra fields.
+  Client-supplied request metadata is not used for these extra fields. Selection
+  is explicit because this free-form data may contain secrets or unrelated
+  personal information. User IDs and team IDs do not need this configuration.
 
 For example, to include authenticated email, save this JSON in
 ``/etc/litellm/attribution.json`` and set
