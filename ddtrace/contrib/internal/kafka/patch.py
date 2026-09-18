@@ -289,7 +289,6 @@ def _instrument_message(messages, start_ns, instance, err):
         group_id=instance._group_id,
         distributed_context=distributed_context,
         use_active_context=distributed_context is None,
-        activate=distributed_context is None,
         span_links=links,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
