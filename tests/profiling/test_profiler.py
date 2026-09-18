@@ -1,3 +1,4 @@
+# mypy: follow-imports=silent
 import logging
 import os
 import sys
