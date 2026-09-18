@@ -36,7 +36,7 @@ components:
     - ddtrace/contrib/internal/vllm/*
 suites:
   anthropic:
-    parallelism: 2
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -57,7 +57,7 @@ suites:
         - name: anthropic
           dependencies: [pytest-asyncio, vcrpy, anthropic, 'httpx<0.28.0']
   claude_agent_sdk:
-    parallelism: 3
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -104,7 +104,7 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    parallelism: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -123,7 +123,7 @@ suites:
         - name: google_genai
           dependencies: [pytest-asyncio, google-genai]
   vertexai:
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -153,7 +153,7 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
-    parallelism: 4
+    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       env:
@@ -165,9 +165,13 @@ suites:
         - name: llama_index
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
+        # PR #20079: Python 3.14 is covered by the latest dependency row only.
+        - name: llama_index
+          python: ['3.14']
+          dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
     retry: 2
-    parallelism: 6
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -216,6 +220,10 @@ suites:
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+        # PR #20079: Python 3.14 is covered by the latest compatible dependency row only.
+        - name: litellm
+          python: ['3.14']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
   llmobs:
     paths:
       - '@bootstrap'
@@ -232,7 +240,7 @@ suites:
       - tests/cassettes/vertexai/*
       - tests/cassettes/tests.llmobs.*
     snapshot: true
-    venvs_per_job: 1
+    venvs_per_job: 2
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
       env:
@@ -270,7 +278,6 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, mcp]
   mistralai:
-    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -369,7 +376,7 @@ suites:
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
     retry: 2
-    parallelism: 3
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -423,7 +430,8 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, pytest-asyncio, openai, 'openai-agents~=0.14.0']
         - name: openai_agents
-          python: ['3.10', '3.11', '3.12', '3.13']
+          # PR #20079: Python 3.14 is covered by the latest dependency row only.
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
   pydantic_ai:
     paths:
@@ -472,9 +480,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/vllm
       env:
         DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
-      python: ['3.10', '3.11', '3.12', '3.13']
       variants:
         - name: vllm
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2']
         - name: vllm
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]

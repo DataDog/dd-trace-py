@@ -210,13 +210,13 @@ def otel_flask_app_env(flask_wsgi_application):
             "tests.opentelemetry.flask_app:app",
             otel_flask_app_env,
             "8010",
-            ["ddtrace-run", "flask", "run", "-h", "0.0.0.0", "-p", "8010"],
+            ["ddtrace-run", "flask", "run", "--without-threads", "-h", "0.0.0.0", "-p", "8010"],
         ),
         pytest.param(
             "tests.opentelemetry.flask_app:app",
             otel_flask_app_env,
             "8011",
-            ["opentelemetry-instrument", "flask", "run", "-h", "0.0.0.0", "-p", "8011"],
+            ["opentelemetry-instrument", "flask", "run", "--without-threads", "-h", "0.0.0.0", "-p", "8011"],
             marks=pytest.mark.skipif(
                 OTEL_VERSION < (1, 16),
                 reason="otel flask instrumentation is in beta and is unstable with earlier versions of the api",
