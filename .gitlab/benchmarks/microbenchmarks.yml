@@ -42,10 +42,15 @@ variables:
 
     # Install Python 3.12 via pyenv if not already available.
     # The CI image only ships Python 3.9; we need 3.12 for the cp312 wheels.
+    # Update pyenv first so the latest 3.12.x definitions are available.
     if ! pyenv versions | grep -q '3\.12\.'; then
-      pyenv install 3.12.10
+      (cd /pyenv && git pull --ff-only)
+      PYTHON312=$(pyenv install --list | grep -E '^\s+3\.12\.[0-9]+$' | tail -1 | tr -d ' ')
+      pyenv install "$PYTHON312"
+      pyenv global "$PYTHON312"
+    else
+      pyenv global $(pyenv versions | grep -oE '3\.12\.[0-9]+' | head -1)
     fi
-    pyenv global 3.12.10
 
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
