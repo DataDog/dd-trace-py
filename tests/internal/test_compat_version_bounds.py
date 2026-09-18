@@ -256,7 +256,8 @@ def test_wrap_raises_not_implemented_on_future_py(monkeypatch: pytest.MonkeyPatc
     """wrap() must fail closed from 3.16 on."""
     wrapping: ModuleType = importlib.import_module("ddtrace.internal.wrapping")
 
-    monkeypatch.setattr(wrapping, "is_at_most_py", lambda *args, **kwargs: False)
+    # wrap()/wrap_bytecode resolve the module binding at call time.
+    monkeypatch.setattr(wrapping, "is_supported_python_version", lambda *args, **kwargs: False)
 
     def f() -> None:
         return None
