@@ -60,6 +60,19 @@ Consumers interpret these observations downstream. An optional non-secret
 `model_info.datadog_provider_api_key_id` is read only in the post-routing deployment
 hook and exported as `ai.route.api_key_id`; never read it from ingress or carry it
 across fallback deployments. It is operator-configured, not automatically verified.
+Opt-in `provider_key_discovery` maps Anthropic/OpenAI/Gemini to credential environment
+variable names. Capture only the outgoing provider credential, transiently and
+with repr disabled; never resolve client-supplied environment-variable references.
+After successful inference, `_gateway_discovery.py` searches bounded, paginated
+provider inventories. Unique masked-hint matches replace the manual key ID, with
+source `unique_key_hint`; failures retain the configuration. Do not claim hints
+are cryptographic proof. HTTP uses a direct async transport (no instrumented
+client, redirects, or proxy environment), fixed provider hosts, a total timeout,
+and process-local bounded caches keyed by salted digests, not secrets. Reset
+captured credentials on fallback and skip lookups on cache hits/route mismatches.
+Gemini uses Google's exact key lookup, then reads the project ID when permitted;
+its secret goes only to the fixed Google API endpoint, never telemetry. OAuth
+token refresh is application-managed, not performed by the tracer.
 Outgoing provider headers may supply non-secret OpenAI organization/project IDs;
 selected response headers preserve OpenAI organization/project and Anthropic
 organization/workspace IDs under `ai.response.*`. Do not read ingress headers or

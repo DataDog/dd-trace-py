@@ -11,3 +11,6 @@ features:
     or disable end-user collection with ``"capture_end_user": false``.
     To match provider usage by key, optionally set the non-secret billing key ID
     in each LiteLLM deployment's ``model_info.datadog_provider_api_key_id``.
+    Enable ``provider_key_discovery`` in the JSON file to look up Anthropic and
+    OpenAI key IDs, or Gemini key/project IDs, using authorized credentials, with the manual
+    ID retained as a fallback.

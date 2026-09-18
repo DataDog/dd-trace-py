@@ -127,7 +127,7 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
             tags[f"ai.route.{key}"] = value
     # Only the provider pre-call hook supplies headers, never ingress request headers.
     # Select non-secret OpenAI scope IDs without retaining authorization or other headers.
-    for key in ("ai.route.project", "ai.route.api_key_id"):
+    for key in ("ai.route.project", "ai.route.api_key_id", "ai.route.api_key_id_source"):
         if key in previous:
             tags[key] = previous[key]
     if isinstance(headers, Mapping):

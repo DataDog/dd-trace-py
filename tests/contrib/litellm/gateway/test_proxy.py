@@ -25,7 +25,7 @@ BEDROCK_PROFILE = "arn:aws:bedrock:us-east-1:123456789012:application-inference-
 
 
 @pytest.fixture(scope="module")
-def gateway(tmp_path_factory):
+def gateway(tmp_path_factory, request):
     temp = tmp_path_factory.mktemp("gateway")
     traces = []
     provider_requests = []
@@ -328,6 +328,9 @@ def gateway(tmp_path_factory):
             "allowed_fails": 100,
         },
     }
+    discover = getattr(request, "param", None) == "discovery"
+    if discover:
+        config["general_settings"]["custom_auth"] = "tests.contrib.litellm.gateway.proxy_discovery.authenticate"
     models.append(
         {
             "model_name": "test-claude",
@@ -394,13 +397,14 @@ def gateway(tmp_path_factory):
         }
     )
     attribution_config = temp / "attribution.json"
-    attribution_config.write_text(
-        json.dumps(
-            {
-                "auth_metadata_keys": ["cost_center"],
-            }
-        )
-    )
+    attribution_settings = {"auth_metadata_keys": ["cost_center"]}
+    if discover:
+        attribution_settings["provider_key_discovery"] = {
+            "anthropic": "TEST_GATEWAY_DISCOVERY_KEY",
+            "openai": "TEST_GATEWAY_DISCOVERY_KEY",
+        }
+        env["TEST_GATEWAY_DISCOVERY_KEY"] = "sk-SYNTHETIC-ADMIN"
+    attribution_config.write_text(json.dumps(attribution_settings))
     env["DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG"] = str(attribution_config)
     output = (temp / "proxy.log").open("w+")
     command = [
@@ -444,6 +448,45 @@ def gateway(tmp_path_factory):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("gateway", ["discovery"], indirect=True)
+async def test_discovery_through_real_proxy_and_wire_traces(gateway):
+    url, traces, _ = gateway
+    async with httpx.AsyncClient(timeout=20) as client:
+        for path, payload in (
+            ("chat/completions", {"model": "test-model", "messages": [{"role": "user", "content": "PRIVATE"}]}),
+            ("chat/completions", {"model": "fail-model", "messages": [{"role": "user", "content": "PRIVATE"}]}),
+            (
+                "messages",
+                {
+                    "model": "test-claude",
+                    "max_tokens": 10,
+                    "messages": [{"role": "user", "content": "PRIVATE"}],
+                    "stream": True,
+                },
+            ),
+        ):
+            result = await client.post(f"{url}/v1/{path}", json=payload, headers={"Authorization": "Bearer test-alice"})
+            assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        spans = [s for trace in list(traces) for s in trace if s.get("name") == "ai_gateway.usage"]
+        if len(spans) == 3:
+            break
+        await asyncio.sleep(0.1)
+    assert len(spans) == 3
+    for span in spans:
+        tags = span["meta"]
+        provider = "anthropic" if tags["ai.operation"] == "anthropic_messages" else "openai"
+        assert tags.get("ai.route.api_key_id") == f"key_discovered_{provider}", json.dumps(tags, sort_keys=True)
+        assert tags.get("ai.route.api_key_id_source") == "unique_key_hint", tags
+        assert tags.get("ai.discovery.status") == "discovered", tags
+        assert tags["usr.id"] == "alice"
+    serialized = json.dumps(traces)
+    assert "SYNTHETIC-PROVIDER-SECRET" not in serialized
+    assert "SYNTHETIC-ADMIN" not in serialized
+    assert "sk-SYNTHETIC...SECRET" not in serialized
 
 
 async def test_real_proxy_and_wire_traces(gateway):

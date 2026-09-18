@@ -168,9 +168,16 @@ response traffic types are kept as reported, including unfamiliar values.
      - Selected route ID, generated gateway request ID, and provider response ID.
        These help find requests but may not exist in the provider's bill.
    * - ``ai.route.api_key_id``
-     - Optional provider billing key ID set by the gateway operator on the
-       selected deployment. This is not discovered or verified automatically;
-       see the setup below. It is never read from client request metadata.
+     - Provider key ID from optional discovery, or the selected deployment's
+       manually configured fallback. It is never read from client request metadata.
+       ``ai.route.api_key_id_source`` is ``unique_key_hint``, ``provider_lookup``,
+       or ``configuration``.
+   * - ``ai.route.api_key_resource_name``, ``ai.route.project_number``, ``ai.route.project``
+     - Gemini key lookup also returns the key resource name and its owning project
+       number. Project lookup supplies the readable project ID when permitted.
+   * - ``ai.discovery.status``
+     - Whether an enabled lookup found a match, or why it could not. For example,
+       ``discovered``, ``permission_denied``, ``ambiguous``, or ``timeout``.
    * - ``ai.response.x_request_id``, ``ai.response.request_id``,
        ``ai.response.x_amzn_requestid``, ``ai.response.apim_request_id``,
        ``ai.response.opc_request_id``
@@ -212,10 +219,71 @@ response traffic types are kept as reported, including unfamiliar values.
 Optional: provider key ID
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-If your provider's usage data includes ``api_key_id``, add that **non-secret ID**
-to the matching model deployment in your existing LiteLLM configuration. For
-example, merge this ``model_info`` field into the entry; keep its existing
-``litellm_params`` and other settings unchanged:
+You can look up Anthropic, OpenAI, and Gemini key IDs automatically, set them manually,
+or use both. A successful lookup takes priority; otherwise the manual value is
+kept. Neither option is required to collect users or usage.
+
+Automatic lookup
+~~~~~~~~~~~~~~~~
+
+Save this in the optional JSON file named by
+``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG``:
+
+.. code-block:: json
+
+    {
+      "provider_key_discovery": {
+        "anthropic": "ANTHROPIC_ADMIN_KEY",
+        "openai": "OPENAI_ADMIN_KEY",
+        "gemini": "GOOGLE_DISCOVERY_ACCESS_TOKEN"
+      }
+    }
+
+Include only the providers you want to enable. Values are **environment variable
+names**, not secrets. Supply those variables through your gateway's secret
+manager. The credentials need permission to list provider keys; an ordinary
+inference key usually cannot do this. Keep inference credentials unchanged.
+
+* **Anthropic:** uses the `Admin API <https://platform.claude.com/docs/en/manage-claude/admin-api>`_
+  to list keys and, when available, check the response's organization ID.
+* **OpenAI:** uses the `project key API <https://platform.openai.com/docs/api-reference/project-api-keys>`_.
+  It searches the returned project, or lists projects when that ID is unavailable.
+  The credential needs access to the relevant project keys.
+* **Gemini:** uses Google's `key lookup API <https://cloud.google.com/api-keys/docs/reference/rest/v2/keys/lookupKey>`_.
+  Supply a Google access token with the ``cloud-platform`` scope and
+  ``apikeys.keys.lookup`` permission on the key's project. Reading the project ID
+  also needs ``resourcemanager.projects.get``. Tokens expire; this option does
+  not refresh them. The application must refresh the environment variable in
+  its own process, or restart with a new token.
+
+For Anthropic and OpenAI, the callback compares masked key hints against the outgoing
+credential **inside the gateway**. It accepts only one matching key in the complete
+inventory it reads. This is a masked-hint match, not cryptographic verification;
+missing or duplicate hints leave the ID unresolved. The secret and hint are never
+exported to Datadog. Google's lookup instead sends the key to Google's own API
+and returns an exact key resource ID. If the project-name lookup is denied, its
+key ID and project number are still collected; ``ai.discovery.project_status``
+records the failure. Lookups support direct provider endpoints, not compatible third-party
+proxies or Azure-hosted models.
+
+Lookups run in the completion callback, after the model call. They have a
+three-second total timeout, no retries, and a bounded inventory size. Results are
+cached for five minutes; unsuccessful lookups for one minute. A credential change
+uses a separate cache entry. Concurrent requests may use the manual fallback
+while a lookup is in progress. Restart the gateway after changing the JSON file
+or externally supplied credential environment variables. No additional packages are required.
+
+This discovers provider key IDs, not every cloud identifier. Bedrock profile ARNs,
+Vertex project IDs, and explicit OCI scope are still collected from LiteLLM as
+before. AWS account, Azure resource, and GCP billing-account management lookups
+are not part of this option.
+
+Manual value or fallback
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add the **non-secret ID** to the matching model deployment in your existing
+LiteLLM configuration. Merge this ``model_info`` field into the entry; keep its
+existing ``litellm_params`` and other settings unchanged:
 
 .. code-block:: yaml
 
@@ -233,9 +301,10 @@ Your existing secret stays in LiteLLM's normal credential configuration.
 The callback exports this value as ``ai.route.api_key_id``. Set it separately on
 each deployment, including fallback routes, and update it when changing the
 provider key. It follows the selected deployment, not the incoming model alias.
-If one deployment chooses different keys per request, a fixed ID is not accurate;
-use separate deployments per key or leave the ID unset. A process-wide tag has
-the same problem when the gateway uses multiple keys.
+Discovery follows the actual outgoing credential. If one deployment chooses
+different keys per request, do not set a fixed manual fallback; use separate
+deployments per key or leave the fallback unset. A process-wide tag has the same
+problem when the gateway uses multiple keys.
 
 This setting works for any provider with a non-secret key ID. Providers that
 identify usage by account, project, or resource may not have one. Leave it unset
@@ -255,8 +324,8 @@ Limitations and privacy
 * Retries and fallbacks keep the final route's provider details. Earlier attempts
   may have missing usage. Failed/canceled requests do not mean zero cost.
   Gateway cache hits do not add new provider usage.
-* The callback does not inspect credential files or derive billing key/account
-  IDs from secret API keys. Missing outgoing settings are not filled with request
+* The callback does not inspect credential files or guess billing IDs from a
+  secret's format. Missing outgoing settings are not filled with request
   settings and presented as provider values.
 * Mixed-media counts remain available, but are not split into non-overlapping
   categories when that split is unknown. Unknown cache-write lifetime is not
@@ -300,6 +369,8 @@ Available user settings:
   Client-supplied request metadata is not used for these extra fields. Selection
   is explicit because this free-form data may contain secrets or unrelated
   personal information. User IDs and team IDs do not need this configuration.
+* ``provider_key_discovery``: empty by default. Enables provider key lookups using
+  the credential environment variables described above.
 
 For example, to turn off authenticated email collection, save this JSON in
 ``/etc/litellm/attribution.json`` and set
