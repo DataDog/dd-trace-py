@@ -32,10 +32,14 @@ Before writing anything, read the existing implementation that most closely matc
 
 Create `ddtrace/llmobs/_integrations/{name}.py`:
 
-```python
-from typing import Any, Optional
+Do not import the concrete `Span` class (`ddtrace.trace.Span` / `ddtrace._trace.span.Span`) into `ddtrace/llmobs/_integrations/` modules — that recreates a `product:llmobs -> product:tracing` dependency. Type the `span` parameter as `SpanData` from `ddtrace.internal.native._native` instead; it carries the attributes and struct/attribute-tag methods (`_set_attribute`, `_get_struct_tag`, `_set_struct_tag`, etc.) without pulling in `Span`.
 
-from ddtrace.trace import Span
+`_annotate_llmobs_span_data` (and a few other helpers such as `get_tool_version_from_llm_span`) need `_set_ctx_item`, which `SpanData` doesn't have, so they're typed to accept `_LLMObsAnnotatableSpan` from `ddtrace.llmobs._utils` — a structural `Protocol` covering exactly the extra operations they need. `SpanData` does not satisfy that protocol, so a caller passing a bare `SpanData` there is a type error rather than a silently swallowed exception. The object every integration actually passes at runtime is a full `Span`, which does satisfy the protocol; type-narrow with `cast(Any, span)` at that call site rather than widening `_annotate_llmobs_span_data`'s own parameter type back to `SpanData`.
+
+```python
+from typing import Any, Optional, cast
+
+from ddtrace.internal.native._native import SpanData
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY, OUTPUT_TOKENS_METRIC_KEY, TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -45,13 +49,13 @@ from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolDefinition, T
 class MyLibIntegration(BaseLLMIntegration):
     _integration_name: str = "mylib"
 
-    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+    def _set_base_span_tags(self, span: SpanData, **kwargs: Any) -> None:
         """Set APM tags on span."""
-        span.set_tag_str("mylib.request.model", kwargs.get("model", ""))
+        span._set_attribute("mylib.request.model", kwargs.get("model", ""))
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: SpanData,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -64,8 +68,10 @@ class MyLibIntegration(BaseLLMIntegration):
         # response. Merge so response-derived keys never clobber the request params.
         if response is not None:
             metadata.update(self._extract_response_metadata(response))
+        # cast(Any, span): _annotate_llmobs_span_data needs _set_ctx_item, which SpanData lacks;
+        # the real object passed in at runtime is always a full Span.
         _annotate_llmobs_span_data(
-            span,
+            cast(Any, span),
             kind="llm",
             model_name=kwargs.get("model", ""),
             model_provider="mylib",
@@ -199,7 +205,7 @@ span = integration.trace(
 
 Integration overrides the hook:
 ```python
-def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+def _llmobs_agent_name_at_start(self, span: SpanData, **kwargs: Any) -> Optional[str]:
     agent = kwargs.get("_dd_agent")
     return getattr(agent, "name", None) if agent else None
 ```
