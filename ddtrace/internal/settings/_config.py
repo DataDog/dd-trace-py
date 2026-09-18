@@ -103,6 +103,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 # This allows users to set integration configs before an integration is patched.
 INTEGRATION_CONFIGS = frozenset(
     {
+        "aio_pika",
         "claude_agent_sdk",
         "pyodbc",
         "dramatiq",

@@ -18,7 +18,7 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | http-client | `httpx/patch.py` | `requests/connection.py` | Outbound HTTP, `http.*` span tags. httpx and requests use `context_with_event` |
 | http-server | `flask/patch.py` | `django/patch.py` | Web frameworks, request/response spans, Pin + `context_with_data` |
 | logging | `logging/patch.py` | `loguru/patch.py` | Log correlation injection (trace ID, span ID) -- no spans created |
-| messaging | `kafka/patch.py` | `kombu/patch.py` | Message brokers, DSM support, Pin + `tracer.trace` |
+| messaging | `aio_pika/patch.py` | `kafka/patch.py`, `kombu/patch.py` | aio-pika uses shared messaging events (`context_with_event`). Kafka, aiokafka, RQ, and Kombu still use Pin until they migrate to the same events API |
 | object-store | `botocore/patch.py` (S3) | -- | S3 via botocore service-specific handlers |
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
