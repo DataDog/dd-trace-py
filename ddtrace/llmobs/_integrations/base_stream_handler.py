@@ -174,10 +174,15 @@ class TracedStream(wrapt.ObjectProxy):
         # are used on the same stream. It also ensures the hook does not run
         # on a stream that is constructed but never consumed.
         self._self_started = False
+        # When __enter__ wraps a stream manager, it returns a child TracedStream.
+        # The `with` statement only keeps the parent alive, so hold the child
+        # here or __del__ would finalize the shared handler before the body runs.
+        self._self_entered_stream = None
 
     def _ensure_started(self):
         if not self._self_started:
             self._self_started = True
+            self._self_handler._stream_started = True
             self._self_handler.start_stream()
 
     def __iter__(self):
@@ -236,6 +241,7 @@ class TracedStream(wrapt.ObjectProxy):
         # update iterator in case we are wrapping a stream manager
         self._self_stream_iter = result
         traced_stream = TracedStream(result, self._self_handler, self._self_on_stream_created)
+        self._self_entered_stream = traced_stream
         if self._self_on_stream_created:
             self._self_on_stream_created(traced_stream)
         return traced_stream
@@ -270,10 +276,12 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         self._self_async_stream_iter = self.__wrapped__
         # see ``TracedStream._self_started`` for rationale.
         self._self_started = False
+        self._self_entered_stream = None
 
     def _ensure_started(self):
         if not self._self_started:
             self._self_started = True
+            self._self_handler._stream_started = True
             self._self_handler.start_stream()
 
     async def __aiter__(self):
@@ -331,6 +339,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         # update iterator in case we are wrapping a stream manager
         self._self_async_stream_iter = result
         traced_stream = TracedAsyncStream(result, self._self_handler, self._self_on_stream_created)
+        self._self_entered_stream = traced_stream
         if self._self_on_stream_created:
             self._self_on_stream_created(traced_stream)
         return traced_stream

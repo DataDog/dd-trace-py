@@ -4,6 +4,8 @@ LLM contrib, so a regression here surfaces as silent breakage downstream.
 """
 
 import gc
+from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
 
@@ -191,3 +193,96 @@ async def test_traced_async_stream_finalizes_when_dropped_after_partial_anext():
     del traced
     gc.collect()
     assert handler.finalize_stream_calls == 1
+
+
+class _CtxStream:
+    def __init__(self, n):
+        self._it = iter(range(n))
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._it)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _AsyncCtxStream:
+    def __init__(self, n):
+        self._it = iter(range(n))
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._it)
+        except StopIteration:
+            raise StopAsyncIteration
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _StreamManager:
+    def __init__(self, n):
+        self._n = n
+
+    def __enter__(self):
+        return _CtxStream(self._n)
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _AsyncStreamManager:
+    def __init__(self, n):
+        self._n = n
+
+    async def __aenter__(self):
+        return _AsyncCtxStream(self._n)
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def test_traced_stream_manager_without_as_does_not_finalize_on_enter():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_StreamManager(3), handler)
+    with traced:
+        gc.collect()
+        assert handler.finalize_stream_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_manager_without_as_does_not_finalize_on_enter():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_AsyncStreamManager(3), handler)
+    async with traced:
+        gc.collect()
+        assert handler.finalize_stream_calls == 0
+
+
+def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
+    from ddtrace.contrib.internal.langchain.utils import LangchainStreamHandler
+
+    span = Mock()
+    handler = LangchainStreamHandler(None, span, (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
+        handler.finalize_stream()
+    dispatch.assert_not_called()
+    span.finish.assert_called_once()
+
+    started = LangchainStreamHandler(None, Mock(), (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    started._stream_started = True
+    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
+        started.finalize_stream()
+    dispatch.assert_called_once_with("langchain.llm.stream.finally", ())
