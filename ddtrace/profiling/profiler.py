@@ -61,7 +61,7 @@ class Profiler(object):
                 return
 
             try:
-                uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
+                uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop, defer_in_master=True)
             except uwsgi.uWSGIMasterProcess:
                 # Do nothing in master, the profiler will be started in each worker via _start_on_fork
                 return

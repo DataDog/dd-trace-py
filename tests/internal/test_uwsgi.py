@@ -1,6 +1,6 @@
 """Unit tests for ddtrace.internal.uwsgi.check_uwsgi() branching logic.
 
-These tests use a fake ``uwsgi`` module so they can exercise check_uwsgi()'s
+These tests use a fake uwsgi module so they can exercise check_uwsgi()'s
 decision logic directly, without spawning a real uwsgi process. End-to-end
 coverage against a real uwsgi binary lives in tests/profiling/test_uwsgi.py.
 """
@@ -81,19 +81,19 @@ def test_lazy_apps_multi_process_is_ordinary(fake_uwsgi):
     assert uwsgi.check_uwsgi() is None
 
 
-def test_fork_hooks_multi_process_with_master_is_ordinary(fake_uwsgi):
-    """py-call-uwsgi-fork-hooks makes real os.register_at_fork hooks fire on uwsgi's
-    fork, so ddtrace can be treated like any other regular forking process.
-    """
+def test_fork_hooks_multi_process_with_master_can_defer_to_worker(fake_uwsgi):
+    """The profiler can defer startup without changing the general fork-hook lifecycle."""
     fake_uwsgi(
         opt={"enable-threads": True, "master": True, "py-call-uwsgi-fork-hooks": True},
         numproc=2,
         worker_id=0,
     )
-    assert uwsgi.check_uwsgi() is None
+    with pytest.raises(uwsgi.uWSGIMasterProcess):
+        uwsgi.check_uwsgi(defer_in_master=True)
 
 
-def test_fork_hooks_multi_process_without_master_is_ordinary(fake_uwsgi):
+@pytest.mark.parametrize("defer_in_master", [False, True])
+def test_fork_hooks_multi_process_without_master_is_ordinary(fake_uwsgi, defer_in_master):
     """py-call-uwsgi-fork-hooks does not require --master: uwsgi's worker spawn path
     (and therefore its fork-hook invocation) is the same with or without a master.
     """
@@ -102,21 +102,31 @@ def test_fork_hooks_multi_process_without_master_is_ordinary(fake_uwsgi):
         numproc=2,
         worker_id=0,
     )
-    assert uwsgi.check_uwsgi() is None
+    assert uwsgi.check_uwsgi(defer_in_master=defer_in_master) is None
 
 
-def test_fork_hooks_does_not_register_postfork_callback(fake_uwsgi, monkeypatch):
-    """When fork hooks are active, check_uwsgi should not need uwsgidecorators at all."""
+@pytest.mark.parametrize("defer_in_master", [False, True])
+def test_fork_hooks_with_master_only_registers_postfork_when_requested(fake_uwsgi, monkeypatch, defer_in_master):
     fake_uwsgi(
         opt={"enable-threads": True, "master": True, "py-call-uwsgi-fork-hooks": True},
         numproc=2,
         worker_id=0,
     )
-    monkeypatch.setitem(sys.modules, "uwsgidecorators", None)
+    callbacks = []
+    decorators = types.ModuleType("uwsgidecorators")
+    setattr(decorators, "postfork", callbacks.append)
+    monkeypatch.setitem(sys.modules, "uwsgidecorators", decorators)
 
-    called = []
-    assert uwsgi.check_uwsgi(worker_callback=lambda: called.append(True)) is None
-    assert called == []
+    def callback():
+        pass
+
+    if defer_in_master:
+        with pytest.raises(uwsgi.uWSGIMasterProcess):
+            uwsgi.check_uwsgi(worker_callback=callback, defer_in_master=True)
+        assert callbacks == [callback]
+    else:
+        assert uwsgi.check_uwsgi(worker_callback=callback) is None
+        assert callbacks == []
 
 
 def test_fork_hooks_ignored_on_worker(fake_uwsgi):
@@ -136,14 +146,17 @@ def test_old_uwsgi_lazy_without_skip_atexit_warns(fake_uwsgi):
         uwsgi.check_uwsgi()
 
 
-def test_old_uwsgi_fork_hooks_without_skip_atexit_is_unaffected(fake_uwsgi):
-    """The skip-atexit deprecation warning is specific to lazy-apps/lazy; it does not
-    apply to the py-call-uwsgi-fork-hooks alternative, which does not reload the app.
-    """
+@pytest.mark.parametrize("defer_in_master", [False, True])
+def test_old_uwsgi_fork_hooks_without_skip_atexit_is_unaffected(fake_uwsgi, defer_in_master):
+    """The skip-atexit warning remains specific to lazy-apps/lazy."""
     fake_uwsgi(
         opt={"enable-threads": True, "master": True, "py-call-uwsgi-fork-hooks": True},
         numproc=2,
         worker_id=0,
         version_info=(2, 0, 29),
     )
-    assert uwsgi.check_uwsgi() is None
+    if defer_in_master:
+        with pytest.raises(uwsgi.uWSGIMasterProcess):
+            uwsgi.check_uwsgi(defer_in_master=True)
+    else:
+        assert uwsgi.check_uwsgi() is None
