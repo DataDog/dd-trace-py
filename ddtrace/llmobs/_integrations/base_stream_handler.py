@@ -6,6 +6,7 @@ factory function along with the stream to wrap.
 
 from abc import ABC
 from abc import abstractmethod
+from asyncio import CancelledError
 import sys
 from typing import Optional
 from typing import Union
@@ -16,6 +17,32 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+def _safe_close_from_context_exit(handler, exception, message):
+    try:
+        handler._close_from_context_exit(exception)
+    except Exception:
+        log.debug(message, exc_info=True)
+
+
+def _bind_entered_stream(parent, traced_stream):
+    # on_stream_created must run before we retain the child. If it raises,
+    # Python never calls __exit__/__aexit__, so finalize here. Do not retain
+    # on failure: that would pin the child and block its __del__.
+    try:
+        callback = parent._self_on_stream_created
+        if callback is not None:
+            callback(traced_stream)
+    except Exception as e:
+        _safe_close_from_context_exit(
+            parent._self_handler,
+            e,
+            "Failed to finalize traced stream after on_stream_created",
+        )
+        raise
+    parent._self_entered_stream = traced_stream
+    return traced_stream
 
 
 class BaseStreamHandler(ABC):
@@ -105,7 +132,9 @@ class BaseStreamHandler(ABC):
         # block. Record it on the span before finishing, but only if iteration
         # has not already finalized: an error after a completed stream belongs
         # to the caller, not the LLM span.
-        if isinstance(exception, Exception) and not getattr(self, "_finalized", False):
+        # CancelledError is BaseException, so an Exception-only check would
+        # finish a cancelled stream as success.
+        if isinstance(exception, (Exception, CancelledError)) and not getattr(self, "_finalized", False):
             self.handle_exception(exception)
         self.close_stream(exception)
 
@@ -252,10 +281,7 @@ class TracedStream(wrapt.ObjectProxy):
         # update iterator in case we are wrapping a stream manager
         self._self_stream_iter = result
         traced_stream = TracedStream(result, self._self_handler, self._self_on_stream_created)
-        self._self_entered_stream = traced_stream
-        if self._self_on_stream_created:
-            self._self_on_stream_created(traced_stream)
-        return traced_stream
+        return _bind_entered_stream(self, traced_stream)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # NOTE: callers that open the stream as a context manager and
@@ -263,20 +289,23 @@ class TracedStream(wrapt.ObjectProxy):
         # StopIteration, so the span would stay open and later requests on
         # this worker would nest under it. Close the wrapped stream first so a
         # cleanup failure is recorded before finalize; close_stream is a
-        # no-op if iteration already finalized.
+        # no-op if iteration already finalized. Catch BaseException so
+        # asyncio.CancelledError from wrapped cleanup still finalizes
+        # instead of leaving the span open until __del__.
+        close_exc = exc_val
+        suppress = False
         try:
             suppress = self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
-        except Exception as e:
-            try:
-                self._self_handler._close_from_context_exit(e)
-            except Exception:
-                log.debug("Failed to finalize traced stream on context-manager exit", exc_info=True)
+        except BaseException as e:
+            close_exc = e
             raise
-        try:
-            self._self_handler._close_from_context_exit(exc_val)
-        except Exception:
-            log.debug("Failed to finalize traced stream on context-manager exit", exc_info=True)
-        self._self_entered_stream = None
+        finally:
+            _safe_close_from_context_exit(
+                self._self_handler,
+                close_exc,
+                "Failed to finalize traced stream on context-manager exit",
+            )
+            self._self_entered_stream = None
         return suppress
 
     @property
@@ -369,25 +398,23 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         # update iterator in case we are wrapping a stream manager
         self._self_async_stream_iter = result
         traced_stream = TracedAsyncStream(result, self._self_handler, self._self_on_stream_created)
-        self._self_entered_stream = traced_stream
-        if self._self_on_stream_created:
-            self._self_on_stream_created(traced_stream)
-        return traced_stream
+        return _bind_entered_stream(self, traced_stream)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        close_exc = exc_val
+        suppress = False
         try:
             suppress = await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
-        except Exception as e:
-            try:
-                self._self_handler._close_from_context_exit(e)
-            except Exception:
-                log.debug("Failed to finalize traced async stream on context-manager exit", exc_info=True)
+        except BaseException as e:
+            close_exc = e
             raise
-        try:
-            self._self_handler._close_from_context_exit(exc_val)
-        except Exception:
-            log.debug("Failed to finalize traced async stream on context-manager exit", exc_info=True)
-        self._self_entered_stream = None
+        finally:
+            _safe_close_from_context_exit(
+                self._self_handler,
+                close_exc,
+                "Failed to finalize traced async stream on context-manager exit",
+            )
+            self._self_entered_stream = None
         return suppress
 
     @property
