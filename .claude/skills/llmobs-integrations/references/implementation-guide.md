@@ -111,6 +111,8 @@ Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/llmobs/_integrations
 - `process_chunk(chunk)` — accumulate text, tool blocks, usage from each chunk
 - `finalize_stream(exception)` — build the final response and complete the deferred span lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; direct-trace integrations may need to call `llmobs_set_tags()` and `span.finish()` themselves.
 
+When `__enter__` wraps a stream manager, the parent retains the child wrapper for the `with` body so `__del__` cannot finalize the shared handler early. `on_stream_created` runs before that retain; if it raises, the handler is finalized immediately because Python will not call `__exit__`.
+
 Wire into patch with `make_traced_stream(response, handler)`.
 
 For the agent pattern (tool child spans within streams), see `ddtrace/llmobs/_integrations/claude_agent_sdk.py`.
