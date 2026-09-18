@@ -29,4 +29,370 @@ Configuration
    The service name reported by default for LiteLLM requests.
 
    Alternatively, set this option with the ``DD_LITELLM_SERVICE`` environment variable.
+
+
+Gateway usage attribution
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use this optional feature to see **who used your LiteLLM gateway, which model
+handled each request, and how much usage LiteLLM reported**. It sends a Datadog
+APM span named ``ai_gateway.usage``: a trace record with user IDs, usage counts,
+and provider details, but no prompt or response text.
+
+Quick setup
+^^^^^^^^^^^
+
+1. Install ``ddtrace`` in the same Python environment or container image as your
+   LiteLLM proxy. The full gateway flow is tested with LiteLLM 1.101.0; older
+   versions may not provide all the request hooks this feature needs.
+2. Add the callback below to your existing LiteLLM configuration. Keep your
+   existing callbacks, model settings, and provider credentials. You do not need
+   to enter secret API keys or model names again for this integration.
+
+.. code-block:: yaml
+
+    litellm_settings:
+      callbacks:
+        - ddtrace.contrib.litellm.gateway_attribution
+
+3. Set the Agent address and start the gateway. Replace the paths and Agent
+   address with your own. ``localhost`` works only if the Agent is reachable
+   there from the gateway process.
+
+.. code-block:: bash
+
+    export DD_SERVICE=ai-gateway
+    export DD_TRACE_AGENT_URL=http://localhost:8126
+    ddtrace-run litellm --config /etc/litellm/config.yaml
+
+4. Check how your gateway identifies users; see below. Existing user settings
+   are reused, so there is no separate Datadog user list to configure.
+
+Without further configuration, the callback collects available user IDs and
+authenticated email, usage, and the provider/model details LiteLLM makes
+available. No extra configuration file is required to enable collection.
+
+How users are identified
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Recommended: identify users through gateway authentication.** If you already
+give each person a LiteLLM virtual key linked to their user account, no extra
+setup is needed. When creating a key through ``/key/generate``, set
+``"user_id": "employee-123"`` to link it to that user. For custom authentication,
+validate the caller's credentials and return
+``UserAPIKeyAuth(user_id=verified_user_id)``. See LiteLLM's
+`virtual keys <https://docs.litellm.ai/docs/proxy/virtual_keys>`_ and
+`custom authentication <https://docs.litellm.ai/docs/proxy/custom_auth>`_ guides.
+Do not assume every key has a user: shared or service credentials may not identify
+the person making the request.
+
+**Fallback: use the end-user ID LiteLLM already collects.** For example, a client
+can send ``"user": "employee-123"`` in an OpenAI-compatible request, or the header
+``x-litellm-end-user-id: employee-123``. LiteLLM also supports metadata and
+configured customer-ID headers; see its
+`end-user guide <https://docs.litellm.ai/docs/proxy/customers>`_. No extra Datadog
+mapping is needed. Supported sources depend on your LiteLLM version.
+
+The callback uses the gateway's ``user_id`` as ``usr.id`` first. If it is missing,
+it uses LiteLLM's ``end_user_id`` and sets ``ai.identity.source=litellm_end_user``.
+The end-user ID is also kept as ``ai.end_user.id``, even when ``usr.id`` identifies
+a shared service. It is always marked ``ai.end_user.trust=unverified``: a caller
+may choose this value, and this callback cannot prove who supplied it. Prefer
+authenticated identity for reliable cost attribution. If neither ID is available,
+``usr.id`` is omitted.
+
+Set ``capture_end_user`` to ``false`` in the optional user settings below to
+collect only gateway-authenticated identity. IDs LiteLLM omits are not recovered
+from raw request fields, and JSON objects containing device/session details are
+not used as user IDs.
+
+Check that it works
+^^^^^^^^^^^^^^^^^^^
+
+Send a normal request through the gateway, then look in APM for your service's
+``ai_gateway.usage`` spans. Check ``usr.id``, ``ai.gateway.deployment_id``, and
+``ai.route.*``. Use ``ai.attribution.issues`` to see what is missing. For example,
+``authenticated_user_unknown`` means no authenticated user ID was available,
+even if an unverified fallback was collected.
+Sampling and ingestion settings can prevent individual spans from appearing.
+
+Field reference
+^^^^^^^^^^^^^^^
+
+Fields are included only when available. Provider names, pricing settings, and
+response traffic types are kept as reported, including unfamiliar values.
+
+.. list-table:: Exported data
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Fields
+     - Meaning
+   * - Span start/duration; ``ai.timezone``
+     - Request start and finish times, in UTC.
+   * - ``usr.id``, ``usr.email``, ``team.id``, ``ai.gateway.org_id``
+     - User ID (authenticated first, then the optional end-user fallback), plus
+       authenticated team and gateway organization. A gateway organization is
+       not a provider billing account. Authenticated email is included when
+       available as ``usr.email``. Optional extra user fields use ``ai.enrichment.*``.
+   * - ``ai.identity.source``, ``ai.end_user.id``, ``ai.end_user.trust``
+     - ``usr.id`` comes from ``gateway_auth`` or ``litellm_end_user``; otherwise
+       its source is ``unknown``. The separate end-user ID is always marked
+       ``unverified`` and never overwrites an available authenticated ID.
+   * - ``ai.model``, ``ai.model.source``, ``ai.response.model``
+     - Response model, or the selected route model if the response has none;
+       its source; and the original response model. Version suffixes are kept.
+   * - ``ai.route.*``
+     - Selected provider/model, endpoint hostname, region/location, and API
+       version. Also includes available OpenAI organization/project, Vertex
+       project, Bedrock project, provider ``model_id``/``resource_id``, and OCI
+       tenancy/compartment. ARNs stay intact, without extracting an account or
+       region. Provider ``model_id`` is not the gateway deployment ID.
+       Actual outgoing endpoint and OpenAI scope headers take priority over
+       route defaults. Region or resource ownership alone does not prove billing
+       geography or account. URLs' paths, queries, and credentials are not copied.
+   * - ``ai.request.*``, ``ai.effective.*``
+     - Settings received by the gateway versus those sent to the provider:
+       service tier, speed, reasoning/thinking budgets, image quality/size,
+       inference geography, cache retention, output limits/counts, embedding
+       dimensions, search context, and Bedrock performance latency. These are
+       settings, not proof of usage or the price charged.
+   * - ``ai.request.prompt_cache_ttls``, ``ai.effective.prompt_cache_ttls``
+     - Provider prompt-cache lifetimes, not the gateway's response-cache lifetime.
+       Explicit lifetimes and cache types are kept as reported, including new
+       values. Types use ``prompt_cache_types``; a block with no lifetime sets
+       ``prompt_cache_ttl_unspecified:true`` instead of assuming a default.
+       These do not count tokens at each lifetime. Large payloads can produce
+       ``prompt_cache_scan:incomplete``.
+   * - ``ai.gateway.deployment_id``, ``ai.request.id``, ``ai.response.id``
+     - Selected route ID, generated gateway request ID, and provider response ID.
+       These help find requests but may not exist in the provider's bill.
+   * - ``ai.route.api_key_id``
+     - Provider key ID from optional discovery, or the selected deployment's
+       manually configured fallback. It is never read from client request metadata.
+       ``ai.route.api_key_id_source`` is ``unique_key_hint``, ``provider_lookup``,
+       or ``configuration``.
+   * - ``ai.route.api_key_resource_name``, ``ai.route.project_number``, ``ai.route.project``
+     - Gemini key lookup also returns the key resource name and its owning project
+       number. Project lookup supplies the readable project ID when permitted.
+   * - ``ai.discovery.status``
+     - Whether an enabled lookup found a match, or why it could not. For example,
+       ``discovered``, ``permission_denied``, ``ambiguous``, or ``timeout``.
+   * - ``ai.response.x_request_id``, ``ai.response.request_id``,
+       ``ai.response.x_amzn_requestid``, ``ai.response.apim_request_id``,
+       ``ai.response.opc_request_id``
+     - Request IDs from selected provider response headers, when LiteLLM keeps
+       them. Missing IDs stay missing.
+   * - ``ai.response.openai_organization``, ``ai.response.openai_project``,
+       ``ai.response.anthropic_organization_id``, ``ai.response.anthropic_workspace_id``
+     - Organization, project, and workspace IDs returned in provider response
+       headers, when LiteLLM keeps them. They stay separate from outgoing route
+       settings and the gateway organization. Compatible proxies can return these
+       headers too; their names alone do not prove which company bills the request.
+       Other response headers are not exported.
+   * - ``ai.observed.traffic_type``, ``ai.observed.service_tier``,
+       ``ai.observed.speed``, ``ai.observed.inference_geo``
+     - Pricing-related values reported in the response, kept separately from
+       requested settings. Availability varies by provider and streaming behavior.
+   * - ``ai.usage.*_tokens``
+     - Non-overlapping token counts: input not served from cache, cache reads,
+       cache writes with 5-minute/1-hour/unknown lifetimes, and output. Missing
+       usage stays unknown, not zero. Missing cache details prevent calculating
+       input not served from cache, except for embeddings.
+   * - ``ai.usage.web_search_requests``, ``ai.usage.tool_search_requests``,
+       ``ai.usage.browser_open_requests``, ``ai.usage.google_maps_grounding_requests``
+     - Reported tool request counts, with duplicates removed and conflicts
+       flagged. These are requests, not tokens.
+   * - ``ai.observed.*`` usage counts
+     - Input totals including caches (``context_tokens``), reasoning output,
+       text/audio/image/video tokens, cache reads/writes by lifetime, prediction/
+       tool tokens, character/image counts, and audio/video seconds, including
+       fractions. These counts can overlap: **do not add them to** ``ai.usage.*``.
+   * - ``ai.observed.input_cache_read_reported``, ``ai.observed.input_cache_write_reported``
+     - ``1`` if LiteLLM supplied the counter, ``0`` if not. A reported zero is
+       different from a missing field. This cannot recover data LiteLLM dropped
+       or filled in before calling us.
+   * - ``ai.attribution.status``, ``ai.attribution.issues``, ``ai.usage.source``
+     - Whether collection is incomplete, why, and where usage came from.
+       ``observed`` means collected, **not independently verified**.
+
+Optional: provider key ID
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can look up Anthropic, OpenAI, and Gemini key IDs automatically, set them manually,
+or use both. A successful lookup takes priority; otherwise the manual value is
+kept. Neither option is required to collect users or usage.
+
+Automatic lookup
+~~~~~~~~~~~~~~~~
+
+Save this in the optional JSON file named by
+``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG``:
+
+.. code-block:: json
+
+    {
+      "provider_key_discovery": {
+        "anthropic": "ANTHROPIC_ADMIN_KEY",
+        "openai": "OPENAI_ADMIN_KEY",
+        "gemini": "GOOGLE_DISCOVERY_ACCESS_TOKEN"
+      }
+    }
+
+Include only the providers you want to enable. Values are **environment variable
+names**, not secrets. Supply those variables through your gateway's secret
+manager. The credentials need permission to list provider keys; an ordinary
+inference key usually cannot do this. Keep inference credentials unchanged.
+
+* **Anthropic:** uses the `Admin API <https://platform.claude.com/docs/en/manage-claude/admin-api>`_
+  to list keys and, when available, check the response's organization ID.
+* **OpenAI:** uses the `project key API <https://platform.openai.com/docs/api-reference/project-api-keys>`_.
+  It searches the returned project, or lists projects when that ID is unavailable.
+  The credential needs access to the relevant project keys.
+* **Gemini:** uses Google's `key lookup API <https://cloud.google.com/api-keys/docs/reference/rest/v2/keys/lookupKey>`_.
+  Supply a Google access token with the ``cloud-platform`` scope and
+  ``apikeys.keys.lookup`` permission on the key's project. Reading the project ID
+  also needs ``resourcemanager.projects.get``. Tokens expire; this option does
+  not refresh them. The application must refresh the environment variable in
+  its own process, or restart with a new token.
+
+For Anthropic and OpenAI, the callback compares masked key hints against the outgoing
+credential **inside the gateway**. It accepts only one matching key in the complete
+inventory it reads. This is a masked-hint match, not cryptographic verification;
+missing or duplicate hints leave the ID unresolved. The secret and hint are never
+exported to Datadog. Google's lookup instead sends the key to Google's own API
+and returns an exact key resource ID. If the project-name lookup is denied, its
+key ID and project number are still collected; ``ai.discovery.project_status``
+records the failure. Lookups support direct provider endpoints, not compatible third-party
+proxies or Azure-hosted models.
+
+Lookups run in the completion callback, after the model call. They have a
+three-second total timeout, no retries, and a bounded inventory size. Results are
+cached for five minutes; unsuccessful lookups for one minute. A credential change
+uses a separate cache entry. Concurrent requests may use the manual fallback
+while a lookup is in progress. Restart the gateway after changing the JSON file
+or externally supplied credential environment variables. No additional packages are required.
+
+This discovers provider key IDs, not every cloud identifier. Bedrock profile ARNs,
+Vertex project IDs, and explicit OCI scope are still collected from LiteLLM as
+before. AWS account, Azure resource, and GCP billing-account management lookups
+are not part of this option.
+
+Manual value or fallback
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add the **non-secret ID** to the matching model deployment in your existing
+LiteLLM configuration. Merge this ``model_info`` field into the entry; keep its
+existing ``litellm_params`` and other settings unchanged:
+
+.. code-block:: yaml
+
+    model_list:
+      - model_name: your-existing-model-alias
+        # Keep the existing litellm_params here.
+        model_info:
+          datadog_provider_api_key_id: key_abc123
+
+Use the exact provider ID from its key-management API or usage export, such as
+OpenAI's ``key_...`` or Anthropic's ``apikey_...``. **Do not put the secret
+``sk-...`` key here**, or use a masked key, display name, or LiteLLM virtual key.
+Your existing secret stays in LiteLLM's normal credential configuration.
+
+The callback exports this value as ``ai.route.api_key_id``. Set it separately on
+each deployment, including fallback routes, and update it when changing the
+provider key. It follows the selected deployment, not the incoming model alias.
+Discovery follows the actual outgoing credential. If one deployment chooses
+different keys per request, do not set a fixed manual fallback; use separate
+deployments per key or leave the fallback unset. A process-wide tag has the same
+problem when the gateway uses multiple keys.
+
+This setting works for any provider with a non-secret key ID. Providers that
+identify usage by account, project, or resource may not have one. Leave it unset
+in that case; the other available IDs are still collected. Missing response IDs,
+including headers LiteLLM drops during streaming, are not filled from this setting.
+
+Limitations and privacy
+^^^^^^^^^^^^^^^^^^^^^^^
+
+* Supported requests: chat/text completions, Anthropic Messages, OpenAI Responses,
+  and embeddings. Standalone image generation, speech/transcription, video, batch
+  jobs, and their later status updates are not covered. Available media counters
+  within supported requests are still collected.
+* Usage comes from LiteLLM, not directly from a billing record. Streaming is
+  recorded when its final callback arrives; the callback does not buffer the
+  stream. LiteLLM may estimate streaming usage, which is marked as unverified.
+* Retries and fallbacks keep the final route's provider details. Earlier attempts
+  may have missing usage. Failed/canceled requests do not mean zero cost.
+  Gateway cache hits do not add new provider usage.
+* The callback does not inspect credential files or guess billing IDs from a
+  secret's format. Missing outgoing settings are not filled with request
+  settings and presented as provider values.
+* Mixed-media counts remain available, but are not split into non-overlapping
+  categories when that split is unknown. Unknown cache-write lifetime is not
+  assumed to be five minutes.
+* Pending requests are held in memory: up to 10,000, with a one-hour expiry
+  checked when new requests arrive. Expiry, eviction, and normal shutdown emit
+  incomplete records. Forked workers discard inherited requests. Crashes or
+  missing callbacks can lose data.
+* APM sampling, delivery, and retention rules still apply. Sampled traces are
+  not a complete usage total. Do not count the same usage again from SDK spans.
+* End-user IDs can contain personal information, including email, even with
+  ``capture_email=false``. Client-supplied IDs can be wrong or change per request.
+  The callback does not verify identity or change gateway access decisions.
+* Collection is limited to the fields described above, with type, length, and
+  secret checks. It does not filter valid values against a list of known names.
+  This callback does not export prompts, response text, authorization headers,
+  secret API keys, exception text, or arbitrary client metadata. Other integrations
+  and LiteLLM's own logging have separate settings.
+
+Optional: user data settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+No extra configuration is needed unless you want to change which user details
+are sent to Datadog.
+
+.. envvar:: DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG
+
+   Path to an optional JSON file. The callback reads it once at startup; restart
+   the gateway after changing it. An invalid or unreadable file disables
+   email, extra user metadata, and end-user capture, but does not stop the gateway.
+
+Available user settings:
+
+* ``capture_email``: ``true`` by default. Includes email from the gateway's
+  authenticated user record as ``usr.email`` when available. Set to ``false``
+  to omit this field.
+* ``capture_end_user``: ``true`` by default. Set to ``false`` to disable collection
+  of LiteLLM's end-user ID, including its use as a fallback for ``usr.id``.
+* ``auth_metadata_keys``: empty by default. Select authenticated user metadata
+  fields such as ``cost_center`` to include as ``ai.enrichment.cost_center``.
+  Client-supplied request metadata is not used for these extra fields. Selection
+  is explicit because this free-form data may contain secrets or unrelated
+  personal information. User IDs and team IDs do not need this configuration.
+* ``provider_key_discovery``: empty by default. Enables provider key lookups using
+  the credential environment variables described above.
+
+For example, to turn off authenticated email collection, save this JSON in
+``/etc/litellm/attribution.json`` and set
+``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG=/etc/litellm/attribution.json`` before
+starting the gateway:
+
+.. code-block:: json
+
+    {"capture_email": false}
+
+Only select user fields you intend to send to Datadog. User IDs can themselves
+contain personal information, even when email collection is off. Values must be
+non-empty strings without control characters or common secret prefixes. Most
+identifiers are limited to 256 characters; resource IDs allow up to 2048.
+
+Advanced: register from Python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use ``ddtrace.contrib.litellm.GatewayAttribution()`` and add exactly one instance
+to LiteLLM's callbacks. The optional user settings above are also accepted as
+constructor arguments. Call ``close()`` before ``tracer.shutdown()`` if you manage
+shutdown yourself. The packaged ``gateway_attribution`` callback handles its own
+process-exit cleanup.
+
 """  # noqa: E501

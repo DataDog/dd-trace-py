@@ -16,6 +16,7 @@ components:
     - ddtrace/contrib/internal/langchain/*
   litellm:
     - ddtrace/contrib/internal/litellm/*
+    - ddtrace/contrib/litellm.py
   llmobs:
     - ddtrace/llmobs/*
   mcp:
@@ -216,6 +217,24 @@ suites:
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+  litellm_gateway:
+    pattern: litellm:gateway
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@litellm'
+      - tests/contrib/litellm/gateway/*
+      - tests/contrib/litellm/test_gateway.py
+    venvs_per_job: 1
+    matrix:
+      command: pytest {cmdargs} tests/contrib/litellm/test_gateway.py tests/contrib/litellm/gateway
+      env:
+        LITELLM_LOCAL_MODEL_COST_MAP: 'True'
+      variants:
+        - name: litellm:gateway
+          python: ['3.12']
+          dependencies: [pytest-asyncio, 'litellm[proxy]==1.101.0', msgpack, pyyaml, httpx, vcrpy]
   llmobs:
     paths:
       - '@bootstrap'

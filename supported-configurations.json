@@ -2380,6 +2380,13 @@
         ]
       }
     ],
+    "DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_LITELLM_SERVICE": [
       {
         "implementation": "A",
