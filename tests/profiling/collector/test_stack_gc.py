@@ -118,10 +118,10 @@ def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread(
     ddup.start()
     ddup.upload()
 
-    collecting_thread = {"id": None}
+    collecting_thread_id = [0]
 
     def collect_cycles() -> None:
-        collecting_thread["id"] = _thread.get_ident()
+        collecting_thread_id[0] = _thread.get_ident()
         slow_cyclic_collection()
 
     stop = threading.Event()
@@ -150,7 +150,7 @@ def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread(
     for sample in samples:
         thread_id = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
         thread_name = pprof_utils.get_label_with_key(profile.string_table, sample, "thread name")
-        assert thread_id is not None and thread_id.num == collecting_thread["id"]
+        assert thread_id is not None and thread_id.num == collecting_thread_id[0]
         assert thread_name is not None and profile.string_table[thread_name.str] == "collecting-thread"
 
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
@@ -315,12 +315,11 @@ def test_gc_frame_survives_collection_started_by_a_coroutine() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.gc_utils import gc_sample_task_names
     from tests.profiling.collector.gc_utils import gc_samples
     from tests.profiling.collector.gc_utils import slow_cyclic_collection_coroutine
 
-    # Prevent automatic generational collections from producing GC samples outside the
-    # collecting task; those samples would render via the thread-stack fallback and
-    # miss the "task name" label the assertions below rely on.
+    # Disable automatic GC so only the explicit collecting task can generate these samples.
     gc.disable()
 
     test_name = "test_gc_frame_survives_coroutine_collection"
@@ -345,10 +344,9 @@ def test_gc_frame_survives_collection_started_by_a_coroutine() -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = gc_samples(profile, pprof_utils)
     assert samples
-    for sample in samples:
-        task_name = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
-        assert task_name is not None
-        assert profile.string_table[task_name.str] == "collecting-task"
+    # Thread-stack fallback samples can lack a task label. Still require GC to reach
+    # the collecting task and never another named task.
+    assert gc_sample_task_names(profile, pprof_utils, samples) == {"collecting-task"}
 
 
 @pytest.mark.subprocess(
@@ -522,3 +520,30 @@ def test_gc_fallback_clears_stale_frame_after_fork_without_duplicate_callback() 
     collector.stop()
     gc.enable()
     assert os.waitstatus_to_exitcode(status) == 0
+
+
+@pytest.mark.parametrize(
+    "task_names, expected",
+    (
+        ([], set()),
+        ([None], set()),
+        (["collecting-task"], {"collecting-task"}),
+        ([None, "collecting-task"], {"collecting-task"}),
+        ([None, "collecting-task", "suspended-task"], {"collecting-task", "suspended-task"}),
+    ),
+)
+def test_gc_sample_task_names_preserves_named_tasks(task_names, expected):
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.gc_utils import gc_sample_task_names
+
+    profile = pprof_utils.pprof_pb2.Profile()
+    string_table = ("", "task name", "collecting-task", "suspended-task")
+    profile.string_table.extend(string_table)
+    for task_name in task_names:
+        sample = profile.sample.add()
+        if task_name is not None:
+            label = sample.label.add()
+            label.key = 1
+            label.str = string_table.index(task_name)
+
+    assert gc_sample_task_names(profile, pprof_utils, profile.sample) == expected
