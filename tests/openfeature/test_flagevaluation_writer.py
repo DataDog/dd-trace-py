@@ -31,7 +31,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_CYCLE
@@ -49,6 +48,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOI
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_PER_FLAG_BUCKET_TARGET
+from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DEGRADED_METRIC
@@ -98,10 +98,10 @@ def _make_event(
     variant: str = "on",
     allocation_key: str = "alloc-1",
     targeting_key: str = "user-1",
-    attrs: typing.Optional[dict[str, typing.Any]] = None,
+    attrs: dict = None,
     runtime_default: bool = False,
     error_message: str = "",
-    eval_time_ms: typing.Optional[int] = None,
+    eval_time_ms: int = None,
 ) -> _EvalEvent:
     if eval_time_ms is None:
         eval_time_ms = int(time.time() * 1000)
@@ -124,23 +124,21 @@ class _UnsafeLeaf:
         raise AssertionError("arbitrary leaf conversion must not run")
 
 
-def _wait_until(predicate: typing.Callable[[], typing.Any], timeout: float = 2.0) -> bool:
+def _wait_until(predicate, timeout: float = 2.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():
             return True
         time.sleep(0.01)
-    return bool(predicate())
+    return predicate()
 
 
-def _assert_count_metric(
-    mock_add_count: typing.Any, name: str, value: int, reason: typing.Optional[str] = None
-) -> None:
+def _assert_count_metric(mock_add_count, name: str, value: int, reason: str = None) -> None:
     tags = (("reason", reason),) if reason else tuple()
     mock_add_count.assert_any_call(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
 
 
-def _assert_no_count_metric(mock_add_count: typing.Any, name: str, reason: typing.Optional[str] = None) -> None:
+def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> None:
     tags = (("reason", reason),) if reason else tuple()
     for call in mock_add_count.call_args_list:
         if call.args == (TELEMETRY_NAMESPACE.TRACERS, name, mock.ANY, tags):
@@ -608,7 +606,7 @@ class TestFlattenAndPruneContext:
                 self.values = values
                 self.accessed: list[int] = []
 
-            def __getitem__(self, index: int) -> typing.Any:  # type: ignore[override]
+            def __getitem__(self, index: int) -> typing.Any:
                 self.accessed.append(index)
                 if index >= len(self.values):
                     raise IndexError(index)
@@ -1568,7 +1566,7 @@ _ALLOWED_BATCH_CONTEXT_FIELDS = {"service", "env", "version"}
 _ALLOWED_ROW_CONTEXT_FIELDS = {"evaluation", "dd"}
 
 
-def _assert_row_contract_valid(ev: dict[str, typing.Any]) -> None:
+def _assert_row_contract_valid(ev: dict) -> None:
     """Assert one flagevaluation row uses only the SDK-owned stable EVP fields."""
     extra_fields = set(ev) - _ALLOWED_EVENT_FIELDS
     assert not extra_fields, f"unknown flagevaluation row fields: {sorted(extra_fields)}"
@@ -1610,7 +1608,7 @@ def _assert_row_contract_valid(ev: dict[str, typing.Any]) -> None:
         assert isinstance(ev["runtime_default_used"], bool)
 
 
-def _assert_batch_contract_valid(payload: dict[str, typing.Any]) -> None:
+def _assert_batch_contract_valid(payload: dict) -> None:
     """Assert the batch envelope uses only the stable fields this SDK emits."""
     extra_fields = set(payload) - _ALLOWED_BATCH_FIELDS
     assert not extra_fields, f"unknown flagevaluation batch fields: {sorted(extra_fields)}"
