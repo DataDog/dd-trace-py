@@ -17,7 +17,10 @@ if TYPE_CHECKING:
     from .interceptor import DatadogTracingInterceptor
 
 
-class _NexusOperationInboundInterceptor(_SpanRunner, temporalio.worker.NexusOperationInboundInterceptor):  # type: ignore[misc]
+class _NexusOperationInboundInterceptor(
+    _SpanRunner,
+    temporalio.worker.NexusOperationInboundInterceptor,  # type: ignore[misc]
+):
     def __init__(
         self,
         next: temporalio.worker.NexusOperationInboundInterceptor,
@@ -43,7 +46,7 @@ class _NexusOperationInboundInterceptor(_SpanRunner, temporalio.worker.NexusOper
         )
 
     def _get_span(self, input: Any, operation_name: str) -> Any:
-        return self.root.tracer.start_span(
+        return self.root._start_span(
             operation_name=operation_name,
             parent_ctx=self.root.propagator.extract(input.ctx.headers),
             resource_name=f"{input.ctx.service}/{input.ctx.operation}",

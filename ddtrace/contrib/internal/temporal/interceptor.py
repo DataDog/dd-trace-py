@@ -4,18 +4,24 @@ from collections.abc import Callable
 from collections.abc import Mapping
 from typing import Any
 
+import temporalio.activity
 import temporalio.client
 import temporalio.converter
 import temporalio.worker
 import temporalio.workflow
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.fnv import fnv1_64
+from ddtrace.trace import tracer
+
 from .activity_interceptor import _ActivityInboundInterceptor
 from .client_interceptor import _ClientOutboundInterceptor
 from .constants import CONTINUE_AS_NEW_TAG
 from .constants import DEFAULT_HEADER_KEY
+from .constants import TEMPORAL_TAG_PREFIX
 from .constants import OperationNames
-from .id_generator import gen_span_id
-from .id_generator import gen_trace_id
 from .nexus_interceptor import _NexusOperationInboundInterceptor
 from .propagator import _Propagator
 from .span_annotator import _SpanAnnotator
@@ -24,7 +30,9 @@ from .workflow_interceptor import WorkflowTracingConfig
 from .workflow_interceptor import _active_workflow_span
 from .wrapped_tracer import FinishContext
 from .wrapped_tracer import FinishResult
-from .wrapped_tracer import WrappedTracer
+
+
+log = get_logger(__name__)
 
 
 class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker.Interceptor):  # type: ignore[misc]
@@ -49,12 +57,73 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
             allow_invalid_parent_spans=allow_invalid_parent_spans,
         )
 
-        self.tracer = WrappedTracer(
-            service_name=service_name,
-            on_span_finish=on_span_finish,
-            annotator=_SpanAnnotator(service_name=service_name, extra_tags=extra_tags),
-            propagator=self.propagator,
+        self._service_name = service_name
+        self._on_span_finish = on_span_finish
+        self._annotator = _SpanAnnotator(service_name=service_name, extra_tags=extra_tags)
+
+    def _start_span(
+        self,
+        *,
+        operation_name: str,
+        parent_ctx: Span | Context | None,
+        resource_name: str,
+        activate: bool,
+        start_time: int | None = None,
+        span_id: int | None = None,
+        attributes: Mapping[str, Any] | None = None,
+        parent_from_header: bool = False,
+        trace_id: int | None = None,
+    ) -> Span:
+        # AIDEV-NOTE: Supply deterministic trace IDs through the parent context;
+        # changing span.trace_id after creation breaks the tracer's trace registry.
+        effective_parent = parent_ctx
+        if trace_id is not None and parent_ctx is None:
+            effective_parent = Context(trace_id=trace_id, span_id=None, is_remote=True)
+        span = tracer.start_span(
+            name=f"{TEMPORAL_TAG_PREFIX}{operation_name}",
+            child_of=effective_parent,
+            service=self._service_name,
+            resource=resource_name,
+            activate=activate,
         )
+        span._ignore_exception(temporalio.workflow.ContinueAsNewError)
+        span._ignore_exception(temporalio.activity._CompleteAsyncError)
+        if start_time is not None:
+            span.start_ns = start_time
+        if span_id is not None:
+            span.span_id = span_id
+            span.context.span_id = span_id
+        force_keep = parent_ctx is None or parent_from_header
+        self._annotator.annotate(span, operation_name, attributes, self.propagator.get_baggage(parent_ctx), force_keep)
+        self.propagator.set_baggage(span.context)
+        return span
+
+    def _finish_span(
+        self,
+        span: Span,
+        operation_name: str,
+        exc: BaseException | None,
+    ) -> None:
+        try:
+            result: FinishResult | None = None
+            if self._on_span_finish is not None:
+                try:
+                    result = self._on_span_finish(FinishContext(operation=operation_name, exception=exc))
+                except Exception:
+                    log.error(
+                        "temporal on_span_finish callback for %r raised; ignoring",
+                        operation_name,
+                        exc_info=True,
+                    )
+
+            if exc:
+                span.set_exc_info(type(exc), exc, exc.__traceback__)
+
+            if result is not None and result.extra_tags:
+                for key, value in result.extra_tags.items():
+                    span.set_tag(key, value)
+        finally:
+            span.finish()
 
     def intercept_client(self, next: temporalio.client.OutboundInterceptor) -> temporalio.client.OutboundInterceptor:
         return _ClientOutboundInterceptor(next, self)
@@ -94,17 +163,17 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
         # No DD header (uninstrumented client): pass a deterministic trace_id to keep
         # the RunWorkflow trace consistent if the worker restarts mid-run.
         det_trace_id = (
-            gen_trace_id(idempotency_key)
+            fnv1_64(f"trace:{idempotency_key}".encode())
             if operation_name == OperationNames.RUN_WORKFLOW and parent_ctx is None and idempotency_key is not None
             else None
         )
-        span = self.tracer.start_span(
+        span = self._start_span(
             operation_name=operation_name,
             parent_ctx=parent_ctx,
             resource_name=resource_name,
             activate=False,
             start_time=start_time,
-            span_id=gen_span_id(idempotency_key) if idempotency_key is not None else None,
+            span_id=fnv1_64(idempotency_key.encode()) if idempotency_key is not None else None,
             attributes=attributes,
             parent_from_header=True,
             trace_id=det_trace_id,
@@ -127,7 +196,7 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
         if isinstance(operation_exc, temporalio.workflow.ContinueAsNewError):
             span.set_tag(CONTINUE_AS_NEW_TAG, True)
 
-        self.tracer.finish_span(span, operation_name, operation_exc)
+        self._finish_span(span, operation_name, operation_exc)
 
 
 # The workflow sandbox re-imports every non-passthrough module fresh; doing

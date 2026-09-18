@@ -8,9 +8,10 @@ from typing import Any
 import temporalio.activity
 import temporalio.worker
 
+from ddtrace.internal.utils.fnv import fnv1_64
+
 from .constants import OperationNames
 from .constants import SpanAttributes
-from .id_generator import gen_span_id
 from .span_runner import _SpanRunner
 
 
@@ -36,12 +37,12 @@ class _ActivityInboundInterceptor(_SpanRunner, temporalio.worker.ActivityInbound
 
     def _get_span(self, input: temporalio.worker.ExecuteActivityInput) -> Any:
         info = temporalio.activity.info()
-        return self.root.tracer.start_span(
+        return self.root._start_span(
             operation_name=OperationNames.RUN_ACTIVITY,
             parent_ctx=self.root.propagator.extract_headers(input.headers),
             resource_name=info.activity_type,
             activate=True,
-            span_id=gen_span_id(f"{info.workflow_run_id}:{info.activity_id}:{info.attempt}"),
+            span_id=fnv1_64(f"{info.workflow_run_id}:{info.activity_id}:{info.attempt}".encode()),
             attributes=self._get_activity_attributes(info),
             parent_from_header=True,
         )

@@ -13,10 +13,14 @@ from typing import cast
 import temporalio.worker
 import temporalio.workflow
 
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.utils.fnv import fnv1_64
+from ddtrace.internal.utils.formats import format_trace_id
+
 from .constants import COMMON_ATTRIBUTE_MAP
 from .constants import OperationNames
 from .constants import SpanAttributes
-from .id_generator import gen_span_id
 from .propagator import _Propagator
 
 
@@ -42,8 +46,8 @@ class _DDTraceLogFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         info = _current_span_info.get()
         if info is not None:
-            record.__dict__["dd.trace_id"] = info[0]
-            record.__dict__["dd.span_id"] = info[1]
+            record.__dict__[LOG_ATTR_TRACE_ID] = info[0]
+            record.__dict__[LOG_ATTR_SPAN_ID] = info[1]
         return True
 
 
@@ -154,7 +158,7 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
         # because workflow.info().headers is always available.
         ctx = self.propagator.extract_headers(temporalio.workflow.info().headers)
         if ctx is not None:
-            ctx.span_id = gen_span_id(self._make_idempotency_key(1))
+            ctx.span_id = fnv1_64(self._make_idempotency_key(1).encode())
             return ctx
 
         # No start headers (uninstrumented client). Fall back to the live span.
@@ -204,10 +208,7 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
         ) as (i, span):
             if span is not None:
                 i.headers = self.propagator.inject_headers(i.headers, span.context)
-                tid = span.context.trace_id
-                # Match ddtrace's format_trace_id: decimal for 64-bit IDs, 32-char hex for 128-bit.
-                formatted_tid = f"{tid:032x}" if tid > (1 << 64) - 1 else str(tid)
-                _current_span_info.set((formatted_tid, str(span.span_id)))
+                _current_span_info.set((format_trace_id(span.trace_id), str(span.span_id)))
             _active_workflow_span.set(span)
             return await super().execute_workflow(i)
 

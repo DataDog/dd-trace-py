@@ -23,5 +23,5 @@ class _SpanRunner:
             operation_exc = exc
             raise
         finally:
-            self.root.tracer.finish_span(span, operation_name, operation_exc)
+            self.root._finish_span(span, operation_name, operation_exc)
         return result
