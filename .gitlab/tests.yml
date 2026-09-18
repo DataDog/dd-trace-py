@@ -11,7 +11,7 @@ include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 
-build_base_test_artifacts:
+extract_test_artifacts:
   extends: .testrunner
   stage: setup
   needs:

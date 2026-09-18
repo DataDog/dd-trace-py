@@ -27,6 +27,9 @@ class BaseStreamHandler(ABC):
 
         self.spans = [(span, kwargs)]
         self.chunks = self.initialize_chunk_storage()
+        # NOTE: iteration (`__iter__`/`__next__`), context-manager `__exit__`,
+        # and GC (`__del__`) all try to finish the span. Only the first call may run.
+        self._finalized = False
 
     def initialize_chunk_storage(self):
         return []
@@ -82,6 +85,27 @@ class BaseStreamHandler(ABC):
         3. Finish all spans
         """
         raise NotImplementedError("finalize_stream must be implemented by the subclass")
+
+    def close_stream(self, exception=None):
+        """Call finalize_stream at most once.
+
+        TracedStream finishes from __iter__/__next__, from __exit__, and from
+        __del__ when a caller pulls chunks with next() and then drops the stream.
+        Without this guard, span tags and span.finish() would fire twice.
+        """
+        if getattr(self, "_finalized", False):
+            return
+        self._finalized = True
+        self.finalize_stream(exception)
+
+    def _close_from_context_exit(self, exception=None):
+        # A raise inside `with stream:` never hits __iter__/__next__'s except
+        # block. Record it on the span before finishing, but only if iteration
+        # has not already finalized: an error after a completed stream belongs
+        # to the caller, not the LLM span.
+        if isinstance(exception, Exception) and not getattr(self, "_finalized", False):
+            self.handle_exception(exception)
+        self.close_stream(exception)
 
 
 class StreamHandler(BaseStreamHandler):
@@ -178,7 +202,7 @@ class TracedStream(wrapt.ObjectProxy):
             self._self_handler.handle_exception(e)
             raise
         finally:
-            self._self_handler.finalize_stream(exc)
+            self._self_handler.close_stream(exc)
 
     def __next__(self):
         self._ensure_started()
@@ -187,14 +211,23 @@ class TracedStream(wrapt.ObjectProxy):
                 chunk = self._self_stream_iter.__next__()
                 self._self_handler.process_chunk(chunk, self._self_stream_iter)
             except StopIteration:
-                self._self_handler.finalize_stream()
+                self._self_handler.close_stream()
                 raise
             except Exception as e:
                 self._self_handler.handle_exception(e)
-                self._self_handler.finalize_stream(e)
+                self._self_handler.close_stream(e)
                 raise
             if self._self_handler.should_yield_chunk(chunk):
                 return chunk
+
+    def __del__(self):
+        # AIDEV-NOTE: next() without exhausting never hits StopIteration, so
+        # the LLM span would stay open until process exit and later work on
+        # this worker would nest under it. Finalize here as a last resort.
+        try:
+            self._self_handler.close_stream()
+        except Exception:  # nosec B110 - destructors must not raise
+            pass
 
     def __enter__(self):
         """
@@ -217,6 +250,15 @@ class TracedStream(wrapt.ObjectProxy):
         return traced_stream
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # NOTE: callers that open the stream as a context manager and
+        # do not iterate it to completion never hit `__iter__`/`__next__`
+        # StopIteration, so the span would stay open and later requests on
+        # this worker would nest under it. Finish here; close_stream is a
+        # no-op if iteration already finalized.
+        try:
+            self._self_handler._close_from_context_exit(exc_val)
+        except Exception:
+            log.debug("Failed to finalize traced stream on context-manager exit", exc_info=True)
         return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     @property
@@ -265,7 +307,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
             self._self_handler.handle_exception(e)
             raise
         finally:
-            self._self_handler.finalize_stream(exc)
+            self._self_handler.close_stream(exc)
 
     async def __anext__(self):
         self._ensure_started()
@@ -274,14 +316,22 @@ class TracedAsyncStream(wrapt.ObjectProxy):
                 chunk = await self._self_async_stream_iter.__anext__()
                 await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
             except StopAsyncIteration:
-                self._self_handler.finalize_stream()
+                self._self_handler.close_stream()
                 raise
             except Exception as e:
                 self._self_handler.handle_exception(e)
-                self._self_handler.finalize_stream(e)
+                self._self_handler.close_stream(e)
                 raise
             if self._self_handler.should_yield_chunk(chunk):
                 return chunk
+
+    def __del__(self):
+        # AIDEV-NOTE: see TracedStream.__del__ — same last-resort finalize for
+        # dropped __anext__ iteration.
+        try:
+            self._self_handler.close_stream()
+        except Exception:  # nosec B110 - destructors must not raise
+            pass
 
     async def __aenter__(self):
         """
@@ -304,6 +354,10 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         return traced_stream
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self._self_handler._close_from_context_exit(exc_val)
+        except Exception:
+            log.debug("Failed to finalize traced async stream on context-manager exit", exc_info=True)
         return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     @property
