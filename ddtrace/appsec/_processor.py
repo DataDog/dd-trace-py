@@ -9,7 +9,6 @@ from typing import Sequence
 from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -33,6 +32,7 @@ from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
@@ -197,7 +197,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def rasp_sqli_enabled(self) -> bool:
         return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
 
-    def on_span_start(self, span: Span) -> None:
+    def on_span_start(self, span: SpanProtocol) -> None:
         from ddtrace.contrib.internal import trace_utils
 
         if isinstance(self._ddwaf, _DDWafNotInitialized):
@@ -260,7 +260,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _waf_action(
         self,
-        entry_span: Span,
+        entry_span: SpanProtocol,
         ctx: DDWafContext,
         custom_data: Optional[dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
@@ -420,7 +420,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
 
-    def on_span_finish(self, span: Span) -> None:
+    def on_span_finish(self, span: SpanProtocol) -> None:
         if not isinstance(self._ddwaf, DDWaf):
             return
         if span.span_type not in asm_config._asm_processed_span_types:

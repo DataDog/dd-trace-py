@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 from contextvars import Context
 import ctypes
@@ -7,8 +8,11 @@ import threading
 
 import pytest
 
+from ddtrace._trace.context import Context as DDContext
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
+from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.internal import core
 from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
 
@@ -26,12 +30,14 @@ if sys.platform == "linux":
             ("span_id", ctypes.c_ubyte * 8),
             ("valid", ctypes.c_ubyte),
             ("trace_flags", ctypes.c_ubyte),
+            ("attrs_data_size", ctypes.c_ushort),
+            ("attrs_data", ctypes.c_ubyte * 612),
         ]
 
     _NATIVE_LIBRARY = ctypes.CDLL(_native.__file__)
 
 
-def _published_span_id():
+def _published_context():
     slot = ctypes.c_void_p.in_dll(_NATIVE_LIBRARY, "otel_thread_ctx_v1")
     if slot.value is None:
         return None
@@ -39,18 +45,26 @@ def _published_span_id():
     record = _ThreadContextRecord.from_address(slot.value)
     if not record.valid:
         return None
-    return int.from_bytes(record.span_id, byteorder="big")
+
+    attrs_data = bytes(record.attrs_data[: record.attrs_data_size])
+    if len(attrs_data) < 18 or attrs_data[0] != 0 or attrs_data[1] != 16:
+        return None
+    return (
+        int.from_bytes(record.trace_id, byteorder="big"),
+        int.from_bytes(record.span_id, byteorder="big"),
+        record.trace_flags,
+        int(attrs_data[2:18], 16),
+    )
+
+
+def _published_span_id():
+    context = _published_context()
+    return None if context is None else context[1]
 
 
 def _published_trace_flags():
-    slot = ctypes.c_void_p.in_dll(_NATIVE_LIBRARY, "otel_thread_ctx_v1")
-    if slot.value is None:
-        return None
-
-    record = _ThreadContextRecord.from_address(slot.value)
-    if not record.valid:
-        return None
-    return record.trace_flags
+    context = _published_context()
+    return None if context is None else context[2]
 
 
 @pytest.fixture(autouse=True)
@@ -79,6 +93,40 @@ def test_span_context_publishes_trace_flags(tracer: Tracer):
         span.context.sampling_priority = 0
         tracer.context_provider.activate(span)
         assert _published_trace_flags() == 0
+
+
+def test_context_is_published_with_zero_local_root(tracer: Tracer):
+    context = DDContext(trace_id=123, span_id=456, sampling_priority=1)
+
+    tracer.context_provider.activate(context)
+
+    assert _published_context() == (context.trace_id, context.span_id, 1, 0)
+
+    context.sampling_priority = 0
+    tracer.context_provider.activate(context)
+    assert _published_context() == (context.trace_id, context.span_id, 0, 0)
+
+    tracer.context_provider.activate(None)
+    assert _published_context() is None
+
+
+@pytest.mark.parametrize(
+    ("trace_id", "span_id"),
+    [
+        (1, None),
+        (None, 2),
+        (0, 2),
+        (1, 0),
+        (1, 2**64),
+    ],
+)
+def test_invalid_context_detaches_thread_context(tracer: Tracer, trace_id, span_id):
+    tracer.context_provider.activate(DDContext(trace_id=1, span_id=2))
+    assert _published_span_id() == 2
+
+    tracer.context_provider.activate(DDContext(trace_id=trace_id, span_id=span_id))
+
+    assert _published_span_id() is None
 
 
 def test_span_context_is_thread_local(tracer: Tracer):
@@ -140,6 +188,41 @@ def test_python_context_switch_syncs_active_span(tracer: Tracer):
 
         core.dispatch("python.context.switch")
         assert _published_span_id() == span.span_id
+
+
+def test_python_context_switch_syncs_active_context(tracer: Tracer):
+    context = DDContext(trace_id=123, span_id=456, sampling_priority=1)
+    tracer.context_provider.activate(context)
+    detach_otel_thread_context()
+
+    core.dispatch("python.context.switch")
+
+    assert _published_context() == (context.trace_id, context.span_id, 1, 0)
+
+
+def test_asyncio_to_thread_clears_stale_thread_context(tracer: Tracer):
+    """Do not expose native TLS left on a reused worker to an untraced to_thread call."""
+    ambient_worker = tracer.start_span("ambient-worker")
+    try:
+        patch_futures()
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=1,
+            initializer=tracer.context_provider.activate,
+            initargs=(ambient_worker,),
+        ) as executor:
+
+            async def exercise():
+                asyncio.get_running_loop().set_default_executor(executor)
+                assert await asyncio.to_thread(_published_span_id) is None
+
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(exercise())
+            finally:
+                loop.close()
+    finally:
+        unpatch_futures()
+        ambient_worker.finish()
 
 
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):

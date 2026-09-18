@@ -3,17 +3,19 @@ from dataclasses import dataclass
 from dataclasses import field
 import hashlib
 import json
-import threading
 from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Union
 from urllib.parse import quote
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 import warnings
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import Thread
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
@@ -116,6 +118,9 @@ class PromptManager:
         agentless: bool = True,
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
+        # get_connection() only keeps scheme/host/port, so any path prefix on a user-supplied
+        # base_url (e.g. via DD_LLMOBS_OVERRIDE_ORIGIN pointing at a proxy) must be reattached here.
+        self._base_path = urlparse(self._base_url).path.rstrip("/")
         self._timeout = timeout
         self._agentless = agentless
         self._api_key = api_key
@@ -132,9 +137,9 @@ class PromptManager:
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
 
-        self._refresh_threads: dict[str, threading.Thread] = {}
-        self._refresh_lock = threading.Lock()
-        self._ffe_lock = threading.Lock()
+        self._refresh_threads: dict[str, Thread] = {}
+        self._refresh_lock = Lock()
+        self._ffe_lock = Lock()
         self._ffe_rc_enabled = False
         self._ffe_provider_set = False
         if file_cache_enabled:
@@ -302,12 +307,12 @@ class PromptManager:
         with self._refresh_lock:
             if key in self._refresh_threads:
                 return
-            thread = threading.Thread(target=run_refresh, daemon=True)
+            thread = Thread(run_refresh, name=f"{__name__}:{self.__class__.__name__}:refresh:{key}")
             self._refresh_threads[key] = thread
 
         try:
             thread.start()
-        except RuntimeError:
+        except (RuntimeError, OSError):
             with self._refresh_lock:
                 self._refresh_threads.pop(key, None)
             log.debug("Failed to start background refresh thread for prompt %s", req.prompt_id)
@@ -323,6 +328,10 @@ class PromptManager:
         for thread in threads:
             thread.join(timeout=self._timeout)
 
+    def _full_path(self, path: str) -> str:
+        """Reattach any path prefix stripped from ``self._base_url`` by ``get_connection()``."""
+        return self._base_path + path if self._base_path else path
+
     def _http_request(
         self,
         method: str,
@@ -335,7 +344,7 @@ class PromptManager:
         conn = None
         try:
             conn = get_connection(self._base_url, timeout=timeout or self._timeout)
-            conn.request(method, path, body=body, headers=headers or self._headers)
+            conn.request(method, self._full_path(path), body=body, headers=headers or self._headers)
             response = conn.getresponse()
             return response.status, response.read().decode("utf-8")
         finally:
@@ -383,9 +392,10 @@ class PromptManager:
         Returns a prompt only on a positive FF hit. All other outcomes (not ready, disabled,
         no flag, error) return None and fall through to the HTTP floor.
         """
-        from ddtrace.internal.settings.openfeature import config as ffe_config
+        from ddtrace.internal.settings import openfeature as ffe_settings
 
-        if not ffe_config.experimental_flagging_provider_enabled:
+        source = ffe_settings.resolve_configuration_source(ffe_settings.config)
+        if source == ffe_settings.DISABLED:
             return None
 
         try:
@@ -396,7 +406,8 @@ class PromptManager:
             log.debug("OpenFeature SDK unavailable for FF prompt evaluation")
             return None
 
-        self._ensure_ffe_rc()
+        if source == ffe_settings.REMOTE_CONFIG:
+            self._ensure_ffe_rc()
         self._ensure_ffe_provider()
 
         try:
@@ -441,9 +452,13 @@ class PromptManager:
                 path = f"{PROMPTS_ENDPOINT}/{escaped_id}/resolve"
                 body = json.dumps({"data": {"type": "prompt_resolve_requests", "attributes": attrs}})
                 headers = {**self._headers, "Content-Type": "application/json", "DD-APPLICATION-KEY": self._app_key}
-                conn.request("POST", path, body=body, headers=headers)
+                conn.request("POST", self._full_path(path), body=body, headers=headers)
             else:
-                conn.request("GET", self._build_path(req.prompt_id, req.label, req.version), headers=self._headers)
+                conn.request(
+                    "GET",
+                    self._full_path(self._build_path(req.prompt_id, req.label, req.version)),
+                    headers=self._headers,
+                )
             response = conn.getresponse()
             status = response.status
 

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from textwrap import dedent
 from typing import Optional
@@ -9,6 +10,13 @@ import pytest
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
+from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_OPERATION_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_PROVIDER_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_REQUEST_MODEL_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
@@ -17,6 +25,7 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
@@ -1245,6 +1254,22 @@ class TestAPMShadowTags:
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY) is None
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY) is None
 
+    @pytest.mark.parametrize("span_kind", ["llm", "embedding", "agent", "workflow"])
+    def test_no_gen_ai_tags_when_llmobs_disabled(self, tracer, span_kind):
+        """gen_ai.* attributes are an LLMObs product feature, so they stay off APM-only spans."""
+        integration = self._make_integration(llmobs_enabled=False)
+
+        with tracer.trace("test") as span:
+            metrics = {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+            integration._apply_shadow_metrics(span, metrics, span_kind, "gpt-4", "openai")
+
+        assert span.get_tag(GEN_AI_OPERATION_NAME_TAG_KEY) is None
+        assert span.get_tag(GEN_AI_REQUEST_MODEL_TAG_KEY) is None
+        assert span.get_tag(GEN_AI_PROVIDER_NAME_TAG_KEY) is None
+        assert span.get_metric(GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY) is None
+
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
     """Test that llmobs_trace_id is NOT written when there are no LLMObs spans."""
@@ -1255,8 +1280,8 @@ def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
     assert not span._has_attribute("llmobs_trace_id")
 
 
-@pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
-def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events, tracer, llmobs_env):
+@pytest.mark.parametrize("ddtrace_global_config", [dict(apm_tracing_enabled=False)])
+def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events, tracer, ddtrace_global_config):
     from tests.utils import DummyWriter
 
     dummy_writer = DummyWriter()
@@ -1287,6 +1312,210 @@ def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
     event_dd = llmobs_events[0]["_dd"]
     assert event_dd["sample_rate"] == "1"
     assert event_dd["sampling_decision"] in ("0", "1")
+
+
+_DROP_GOLD_RULE = '[{"tags": {"tier": "gold"}, "sample_rate": 0}]'
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_sampling_rule_matches_tag_annotated_after_span_start(llmobs, llmobs_events):
+    """The headline case: a tag set at the top of the ``with`` body still drives the decision.
+
+    The decision is not made at span start, so an annotation that lands before anything leaves the
+    process is visible to the rule.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "0"
+    assert event_dd["sample_rate"] == "0"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_non_matching_tag_falls_back_to_global_rate(llmobs, llmobs_events):
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "free"})
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "1"
+    assert event_dd["sample_rate"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_whole_trace_shares_one_decision(llmobs, llmobs_events):
+    """The no-splits invariant: every span of a trace reports the same rate and decision."""
+    with llmobs.workflow("parent") as parent:
+        llmobs.annotate(parent, tags={"tier": "gold"})
+        with llmobs.task("child-1"):
+            pass
+        with llmobs.task("child-2"):
+            pass
+    assert len(llmobs_events) == 3
+    decisions = {(e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("0", "0")}
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_a_child_finishing_does_not_freeze_the_decision(llmobs, llmobs_events):
+    """Resolution waits for the root, not for the first span to finish.
+
+    Every span runs through _on_span_finish, so without the root check a child finishing would
+    freeze the decision while the root is still running and still being annotated -- which is
+    what happens here.
+    """
+    with llmobs.workflow("parent") as parent:
+        with llmobs.task("child"):
+            pass
+        llmobs.annotate(parent, tags={"tier": "gold"})
+    assert len(llmobs_events) == 2
+    decisions = {(e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("0", "0")}
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_partial_flush_after_a_thread_handoff_keeps_one_decision(llmobs, llmobs_events, tracer, patched_futures):
+    """A partially flushed chunk must not mix the frozen decision with the stale floor.
+
+    The hand-off freezes the decision, but the thread child holds no state and leads the chunk:
+    spans arrive in creation order and the root has not finished. main-child meanwhile still
+    carries the floor copied off the root, so skipping the chunk would split the trace.
+    """
+    import concurrent.futures
+
+    tracer._span_aggregator.partial_flush_enabled = True
+    tracer._span_aggregator.partial_flush_min_spans = 2
+
+    def fn():
+        with llmobs.task("thread-child"):
+            return 42
+
+    with llmobs.workflow("root") as root:
+        llmobs.annotate(root, tags={"tier": "gold"})
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            assert executor.submit(fn).result() == 42
+        with llmobs.task("main-child"):
+            pass
+
+    assert len(llmobs_events) == 3
+    decisions = {(e["name"], e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("root", "0", "0"), ("thread-child", "0", "0"), ("main-child", "0", "0")}
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_decision_frozen_at_injection_is_not_revised(llmobs, llmobs_events):
+    """Once the decision has left the process it must not change, even if a later tag would match.
+
+    This is the trade that prevents one trace carrying two different decisions.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})  # freezes: no matching tag yet
+        llmobs.annotate(span, tags={"tier": "gold"})  # would have matched, but too late
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "1"
+    assert event_dd["sample_rate"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_sibling_llmobs_traces_decide_independently(llmobs, llmobs_events):
+    """Two successive root workflows are separate LLMObs traces even in one APM trace."""
+    with llmobs.workflow("gold") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    with llmobs.workflow("free") as span:
+        llmobs.annotate(span, tags={"tier": "free"})
+    by_name = {e["name"]: e["_dd"] for e in llmobs_events}
+    assert by_name["gold"]["sampling_decision"] == "0"
+    assert by_name["free"]["sampling_decision"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_decision_survives_an_unresolvable_trace(llmobs, llmobs_events):
+    """A span must never ship without a decision.
+
+    When the resolver cannot answer for a trace -- no local root, as for one continued from
+    another process -- the span keeps the global-rate floor stamped at activation instead of
+    shipping with the fields absent entirely.
+    """
+    from ddtrace.llmobs._constants import LLMOBS_SAMPLING
+
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+        span._set_ctx_item(LLMOBS_SAMPLING, None)  # stand in for a trace with no local state
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "1"  # the floor, not the matching rule's 0
+    assert event_dd["sample_rate"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_frozen_state_drops_its_root_reference(llmobs, llmobs_events):
+    """The root's ctx item points at the state, so the state must not point back once frozen.
+
+    Otherwise the pair is a cycle and the root waits on the cyclic collector instead of being
+    reclaimed by reference counting.
+    """
+    from ddtrace.llmobs._constants import LLMOBS_SAMPLING
+
+    with llmobs.workflow("root") as root:
+        llmobs.annotate(root, tags={"tier": "gold"})
+        state = root._get_ctx_item(LLMOBS_SAMPLING)
+        assert state.root is root  # held until the decision is frozen
+
+    assert state.frozen is not None
+    assert state.root is None
+
+
+def test_no_rules_opens_no_sampling_state(llmobs, llmobs_events, patched_futures):
+    """With no rules configured, no tag can change the decision, so no state is opened.
+
+    The floor stamped at activation is already final. The spans must still agree on it across a
+    thread hand-off, which is one of the points that would otherwise freeze and restamp the trace.
+    """
+    import concurrent.futures
+
+    from ddtrace.llmobs._constants import LLMOBS_SAMPLING
+
+    assert llmobs._instance._sampler.rules == []
+    assert llmobs._instance._sampling_resolver.resolves_late is False
+
+    def fn():
+        with llmobs.task("thread-child"):
+            return 42
+
+    with llmobs.workflow("root") as root:
+        llmobs.annotate(root, tags={"tier": "gold"})
+        assert root._get_ctx_item(LLMOBS_SAMPLING) is None
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            assert executor.submit(fn).result() == 42
+
+    assert len(llmobs_events) == 2
+    decisions = {(e["name"], e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("root", "1", "1"), ("thread-child", "1", "1")}
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules="not-valid-json")])
+def test_invalid_sampling_rules_fall_back_to_global_rate(llmobs, llmobs_events):
+    """Unparsable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""
+    assert llmobs._instance._sampler.rules == []
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == "1"
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_sampling_rules='[{"tags": {"tier": "gold"}, "sample_rate": 1}]', _llmobs_sample_rate=0.0)],
+)
+def test_matching_rule_overrides_global_rate(llmobs, llmobs_events):
+    """A matched rule replaces the global rate rather than compounding with it.
+
+    With a global rate of 0 nothing would be kept, yet the matching trace is kept at the rule's
+    rate of 1 -- so the rule wins outright instead of the two multiplying to 0.
+    """
+    with llmobs.workflow("matched") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    with llmobs.workflow("unmatched") as span:
+        llmobs.annotate(span, tags={"tier": "silver"})
+    by_name = {e["name"]: e["_dd"] for e in llmobs_events}
+    assert by_name["matched"] == {**by_name["matched"], "sample_rate": "1", "sampling_decision": "1"}
+    assert by_name["unmatched"] == {**by_name["unmatched"], "sample_rate": "0", "sampling_decision": "0"}
 
 
 @pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app"})
@@ -1432,3 +1661,83 @@ def test_sampling_decisions_follow_configured_rate():
     assert abs(sampled - expected) <= 25, (
         f"rate={configured_rate}: expected ~{expected} sampled out of {n}, got {sampled}"
     )
+
+
+class TestSpanEventJSONSafety:
+    """Span data must be JSON-safe by span finish, or agentless APM exporter will drop the entire trace.
+
+    Sanitizing at finish rather than at annotation time also covers what the user span processor adds.
+    """
+
+    class RawObject:
+        """Stands in for the live SDK objects integrations hand us (e.g. a safety-settings enum)."""
+
+        def __init__(self, value):
+            self.value = value
+
+        def __str__(self):
+            return "RawObject({})".format(self.value)
+
+    def test_agent_version_tag_is_stringified(self, llmobs):
+        """annotate(agent=...) is not type-validated, and the version is written into tags at finish,
+        after the string coercion in _annotate_llmobs_span_data has already run.
+        """
+        with llmobs.agent(name="my_agent") as span:
+            llmobs.annotate(span=span, agent={"version": self.RawObject("v2")})
+        tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
+        assert tags[AGENT_VERSION_TAG_KEY] == "RawObject(v2)"
+
+    def test_metadata_is_sanitized_at_finish(self, llmobs, tracer):
+        with tracer.trace("root", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(
+                span,
+                kind="llm",
+                metadata={"safety_settings": [self.RawObject("BLOCK_NONE")], "nested": {"cfg": self.RawObject("LOW")}},
+            )
+        assert get_llmobs_metadata(span) == {
+            "safety_settings": ["RawObject(BLOCK_NONE)"],
+            "nested": {"cfg": "RawObject(LOW)"},
+        }
+
+    def test_config_is_sanitized_at_finish(self, llmobs, tracer):
+        """config sits at the top level of the struct rather than under meta, so it gets its own pass."""
+        with tracer.trace("root", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(span, kind="llm", config={"safety_settings": [self.RawObject("BLOCK_NONE")]})
+        data = _get_llmobs_data_metastruct(span)
+        assert data[LLMOBS_STRUCT.CONFIG] == {"safety_settings": ["RawObject(BLOCK_NONE)"]}
+
+    def test_metadata_from_user_span_processor_is_sanitized(self, llmobs, tracer):
+        """A user processor writing a raw object into metadata must not be able to poison the payload.
+
+        This is the case write-time enforcement in _annotate_llmobs_span_data cannot cover: the
+        processor runs at finish, after every annotation has already been stored.
+        """
+        raw = self.RawObject("from-processor")
+
+        def _sp(span):
+            span.metadata["injected"] = raw
+            return span
+
+        llmobs.register_processor(_sp)
+        try:
+            with tracer.trace("root", span_type=SpanTypes.LLM) as span:
+                _annotate_llmobs_span_data(span, kind="llm")
+            assert get_llmobs_metadata(span)["injected"] == "RawObject(from-processor)"
+        finally:
+            llmobs.register_processor(None)
+
+    def test_whole_struct_survives_json_encoding(self, llmobs, tracer):
+        """Reproduces the actual failure mode: json.dumps over the whole struct, the way the agentless
+        APM exporter encodes it. The per-field tests above assert sanitized values; this one asserts
+        that no other field (tags, metrics, _dd, ...) can still raise TypeError and drop the payload.
+        """
+        with tracer.trace("root", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(
+                span,
+                kind="llm",
+                metadata={"raw": self.RawObject("m")},
+                config={"raw": self.RawObject("c")},
+                tags={self.RawObject("k"): self.RawObject("v")},
+                metrics={"input_tokens": 1},
+            )
+        json.dumps(_get_llmobs_data_metastruct(span))

@@ -8,6 +8,7 @@ import os
 import pickle
 import shutil
 import tarfile
+import tempfile
 from zipfile import ZipFile
 
 
@@ -58,8 +59,9 @@ def path_os_remove(origin_string):
 
 def path_os_rename(origin_string):
     try:
-        # label path_os_rename
-        os.rename(origin_string, "test.txt")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # label path_os_rename
+            os.rename(origin_string, os.path.join(tmp_dir, "test.txt"))
     except Exception:
         pass
 
@@ -90,24 +92,27 @@ def path_os_listdir(origin_string):
 
 def path_shutil_copy(origin_string):
     try:
-        # label path_shutil_copy
-        shutil.copy(origin_string, "not_exists.txt2")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # label path_shutil_copy
+            shutil.copy(origin_string, os.path.join(tmp_dir, "copied.txt"))
     except Exception:
         pass
 
 
 def path_shutil_copytree(origin_string):
     try:
-        # label path_shutil_copytree
-        shutil.copytree(origin_string, "not_exists.txt2")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # label path_shutil_copytree
+            shutil.copytree(origin_string, os.path.join(tmp_dir, "copied"))
     except Exception:
         pass
 
 
 def path_shutil_move(origin_string):
     try:
-        # label path_shutil_move
-        shutil.move(origin_string, "not_exists.txt2")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # label path_shutil_move
+            shutil.move(origin_string, os.path.join(tmp_dir, "moved.txt"))
     except Exception:
         pass
 

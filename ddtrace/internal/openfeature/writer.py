@@ -3,10 +3,12 @@ Writer for Feature Flag Exposure events to EVP proxy intake.
 """
 
 import atexit
+from collections.abc import Callable
 import json
 from typing import Any
 from typing import Optional
 from typing import TypedDict
+from typing import Union
 
 from ddtrace import config
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
@@ -14,8 +16,14 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._evp_transport import EVPRoute
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
+from ddtrace.internal.openfeature._evp_transport import _is_definitive_pre_send_failure
+from ddtrace.internal.openfeature._evp_transport import get_evp_connection
+from ddtrace.internal.openfeature._evp_transport import get_feature_flag_evp_route_selector
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
@@ -37,16 +45,20 @@ DEFAULT_INTERVAL = 1.0
 DEFAULT_TIMEOUT = 2.0
 
 
-class ExposureEvent(TypedDict):
-    """
-    Feature flag exposure event structure.
-    """
-
+class _RequiredExposureEvent(TypedDict):
     timestamp: int
     allocation: dict[str, str]
     flag: dict[str, str]
     variant: dict[str, str]
     subject: dict[str, Any]
+
+
+class ExposureEvent(_RequiredExposureEvent, total=False):
+    """
+    Feature flag exposure event structure.
+    """
+
+    serial_id: int
 
 
 class GeoContext(TypedDict, total=False):
@@ -93,6 +105,8 @@ class ExposureWriter(PeriodicService):
         interval: Optional[float] = None,
         timeout: float = DEFAULT_TIMEOUT,
         enabled: Optional[bool] = None,
+        route_selector: Optional[FeatureFlagEVPRouteSelector] = None,
+        connection_factory: Optional[Callable[..., Any]] = None,
     ) -> None:
         # Read configuration from settings
         if enabled is None:
@@ -107,6 +121,8 @@ class ExposureWriter(PeriodicService):
         self._buffer_size: int = 0
         self._timeout: float = timeout
         self._enabled: bool = enabled
+        self._route_selector = route_selector or get_feature_flag_evp_route_selector()
+        self._connection_factory = connection_factory
 
         # Configure intake endpoint
         self._intake: str = agent_config.trace_agent_url
@@ -117,13 +133,6 @@ class ExposureWriter(PeriodicService):
             "Content-Type": "application/json",
             EVP_SUBDOMAIN_HEADER_NAME: EXPOSURE_SUBDOMAIN_NAME,
         }
-
-        # Setup retry mechanism
-        self._send_payload_with_retry = fibonacci_backoff_with_jitter(
-            attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, Response),
-        )(self._send_payload)
 
         logger.debug(
             "ExposureWriter initialized with intake=%s, endpoint=%s, enabled=%s, interval=%s",
@@ -191,9 +200,30 @@ class ExposureWriter(PeriodicService):
             return
 
         try:
-            self._send_payload_with_retry(payload, len(events))
+            route = self._route_selector.select()
+            if route is None:
+                return
+            self._send_payload_with_retry(payload, len(events), route)
         except Exception:
             logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
+
+    def _send_payload_with_retry(self, payload: bytes, num_events: int, route: EVPRoute) -> Response:
+        if self._route_selector.configuration_source != REMOTE_CONFIG:
+            return self._send_payload(payload, num_events, route)
+
+        # AIDEV-NOTE: Keep Remote Config's bounded retries only when no bytes were
+        # sent. A later ambiguous failure must stop retries even after a refusal;
+        # Agentless batches retain the selector's separate fallback policy.
+        send = fibonacci_backoff_with_jitter(
+            attempts=self.RETRY_ATTEMPTS,
+            initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
+            until=lambda result: not (isinstance(result, Exception) and _is_definitive_pre_send_failure(result)),
+        )(self._send_payload)
+        response: Union[Response, Exception] = send(payload, num_events, route)
+        # The retry helper returns terminal exceptions accepted by until.
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     def _encode(self, events: list[ExposureEvent]) -> bytes:
         """
@@ -221,30 +251,41 @@ class ExposureWriter(PeriodicService):
             logger.debug("failed to encode %d exposure events", len(events), exc_info=True)
             return b""
 
-    def _send_payload(self, payload: bytes, num_events: int):
+    def _send_payload(self, payload: bytes, num_events: int, route: EVPRoute) -> Response:
         """
-        Send payload to the EVP proxy intake endpoint.
+        Send payload through one immutable route snapshot.
         """
-        conn = get_connection(self._intake)
-        try:
-            conn.request("POST", self._endpoint, payload, self._headers)
-            resp = conn.getresponse()
-            if resp.status >= 300:
-                logger.debug(
-                    "failed to send %d exposure events to %s, got response code %d, status: %s",
-                    num_events,
-                    self._url,
-                    resp.status,
-                    resp.read(),
-                )
-            else:
-                logger.debug("sent %d exposure events to %s", num_events, self._url)
-            return Response.from_http_response(resp)
-        except Exception:
-            logger.debug("failed to send %d exposure events to %s", num_events, self._intake, exc_info=True)
-            raise
-        finally:
-            conn.close()
+
+        def send_once(active_route: EVPRoute) -> Response:
+            endpoint = active_route.endpoint(EXPOSURE_ENDPOINT)
+            headers = dict(active_route.headers)
+            connection_factory = self._connection_factory or get_connection
+            conn = get_evp_connection(active_route, self._timeout, connection_factory)
+            try:
+                conn.request("POST", endpoint, payload, headers)
+                resp = conn.getresponse()
+                # Only the status determines delivery. Draining a direct response body
+                # can block the synchronous shutdown flush: stdlib socket timeouts are
+                # not a total deadline when the response keeps making progress.
+                response = Response(status=resp.status)
+                if response.status >= 300:
+                    logger.debug(
+                        "failed to send %d exposure events to %s%s, got response code %d",
+                        num_events,
+                        active_route.intake,
+                        endpoint,
+                        response.status,
+                    )
+                else:
+                    logger.debug("sent %d exposure events to %s%s", num_events, active_route.intake, endpoint)
+                return response
+            except Exception:
+                logger.debug("failed to send %d exposure events", num_events, exc_info=True)
+                raise
+            finally:
+                conn.close()
+
+        return self._route_selector.send(route, send_once)
 
     @property
     def _url(self) -> str:

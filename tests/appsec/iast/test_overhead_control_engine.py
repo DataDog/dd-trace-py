@@ -8,6 +8,7 @@ from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_fr
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
+from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.appsec._iast.taint_sinks.weak_hash import WeakHash
 from ddtrace.internal.settings.asm import config as asm_config
@@ -51,6 +52,7 @@ def test_oce_max_vulnerabilities_per_request(iast_context_deduplication_enabled)
 
     # Reset deduplication cache to ensure clean state
     WeakHash._prepare_report._reset_cache()
+    _reset_global_limit()
 
     # Verify IAST context is enabled
     assert is_iast_request_enabled(), "IAST request context should be enabled"
@@ -88,6 +90,7 @@ def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
 
     # Reset deduplication cache to ensure clean state
     WeakHash._prepare_report._reset_cache()
+    _reset_global_limit()
 
     # Verify IAST context is enabled
     assert is_iast_request_enabled(), "IAST request context should be enabled"

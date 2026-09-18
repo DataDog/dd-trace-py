@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    openfeature: Datadog now uses a serial id to attribute an exposure
+    to the experiment or holdout that assigned the variant.

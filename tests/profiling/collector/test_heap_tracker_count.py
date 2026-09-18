@@ -11,13 +11,13 @@ import pytest
 )
 def test_heap_tracker_count_present():
     """heap_tracker_count is present and non-zero when memory profiling is enabled."""
-    import glob
     import json
     import os
     import time
 
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     p = profiler.Profiler(tracer=tracer)
     p.start()
@@ -33,7 +33,7 @@ def test_heap_tracker_count_present():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
     for f in files:

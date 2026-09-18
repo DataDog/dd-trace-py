@@ -4,7 +4,7 @@ from typing import Optional  # noqa:F401
 from ddtrace.internal.runtime import runtime_metrics
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
@@ -46,7 +46,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         :param tracer: Deprecated and unused.
         """
         if tracer is not _TRACER_NOT_SET:
-            deprecate(  # type: ignore[no-untyped-call]
+            deprecate(
                 prefix="The tracer parameter to RuntimeMetrics.enable is deprecated",
                 message="It is not used and will be removed in a future version.",
                 removal_version="5.0.0",

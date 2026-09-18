@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    selenium: Fixes a memory leak where memory usage grows over the lifetime of a browser
+    test session, proportionally to the number of ``WebDriver.get``, ``WebDriver.quit`` and
+    ``WebDriver.close`` calls made.

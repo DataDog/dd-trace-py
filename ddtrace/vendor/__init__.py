@@ -37,27 +37,6 @@ Notes:
       namespace first and skips _read_cgroup_path entirely when not host.
 
 
-debtcollector
--------------
-
-Website: https://docs.openstack.org/debtcollector/latest/index.html
-Source: https://github.com/openstack/debtcollector
-Version: 2.5.0
-License: Apache License 2.0
-
-Notes:
-   Removed dependency on `pbr` and manually set `__version__`
-
-
-psutil
-------
-
-Website: https://github.com/giampaolo/psutil
-Source: https://github.com/giampaolo/psutil
-Version: 5.6.7
-License: BSD 3
-
-
 sqlcommenter
 ------------
 

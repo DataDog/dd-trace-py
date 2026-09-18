@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import os
 import sys
 import sysconfig
 import typing as t
@@ -27,6 +28,19 @@ from ddtrace.internal.utils.formats import parse_tags_str
 logger = get_logger(__name__)
 
 
+def _is_python_embedded() -> bool:
+    try:
+        real_exe = os.readlink("/proc/self/exe") if sys.platform == "linux" else ""
+    except OSError:
+        real_exe = ""
+
+    exe = real_exe or (getattr(sys, "executable", "") or "")
+    if not exe:
+        return True
+
+    return "python" not in os.path.basename(exe).lower()
+
+
 def _derive_default_heap_sample_size(
     heap_config: Env,
     default_heap_sample_size: int = 1024 * 1024,
@@ -40,9 +54,9 @@ def _derive_default_heap_sample_size(
         return 0
 
     try:
-        from ddtrace.vendor import psutil
+        from ddtrace.internal.native import total_memory_bytes
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
+        total_mem = total_memory_bytes()
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -75,9 +89,8 @@ def _check_for_stack_available() -> tuple[str, bool]:
 
 
 def _check_for_native_heap_available() -> tuple[str, bool]:
-    # Importing heap_gotter dlopen's the gotter cdylib (if present) but does
-    # NOT install anything; installation is an explicit, separate call.
-    # The module is fail-closed and never raises on import.
+    # Importing heap_gotter dlopen's the gotter cdylib but does NOT install
+    # anything; installation is an explicit, separate call. Import never raises.
     from ddtrace.internal.datadog.profiling import heap_gotter
 
     return (heap_gotter.failure_msg, heap_gotter.is_available)
@@ -423,6 +436,14 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
     )
 
+    gc_enabled = DDConfig.v(
+        bool,
+        "gc_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to add Garbage collection frames on stacks that initiated garbage collection.",
+    )
+
     fast_copy = DDConfig.v(
         bool,
         "fast_copy",
@@ -516,14 +537,11 @@ class ProfilingConfigMemory(DDConfig):
     mem_domain_enabled = DDConfig.v(
         bool,
         "mem_domain_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help=(
-            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
-            "Python allocations (list internal buffers, array.array data) in addition "
-            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
-            "by default for incremental rollout; will be enabled by default once the "
-            "feature is GA."
+            "Profile PyMem_Malloc/Calloc/Realloc events (allocations in the Mem domain). "
+            "Requires Python 3.12 or later. Enabled by default."
         ),
     )
 
@@ -560,7 +578,7 @@ class ProfilingConfigNativeHeap(DDConfig):
         help=(
             "Whether to enable experimental native (C/C++) heap profiling. "
             "Requires DD_PROFILING_ENABLED=true, Linux, and a wheel built with "
-            "DD_PROFILING_NATIVE_HEAP_BUILD=1. Disabled by default."
+            "DD_PROFILING_NATIVE_HEAP_ENABLED=1. Disabled by default."
         ),
     )
 
@@ -694,9 +712,9 @@ exception_failure_msg, exception_is_available = _check_for_exception_available()
 if not exception_is_available and config.exception.enabled:
     config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
-# Native heap profiling only arms USDT probes via a separately-built cdylib.
+# Native heap profiling only arms USDT probes via the gotter cdylib.
 # Check availability lazily (only when requested) so the common disabled path
-# never dlopen's the gotter library, and fail closed if it can't be loaded.
+# never dlopen's the gotter library. Disable the feature if it can't be loaded.
 if config.native_heap.enabled:
     native_heap_failure_msg, native_heap_is_available = _check_for_native_heap_available()
     if not native_heap_is_available:
@@ -707,6 +725,13 @@ if config.native_heap.enabled:
             f"Native heap profiling requested but unavailable ({msg}), disabling",
         )
         config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Fast memory copy is unsafe in embedded interpreters: the host process may
+# install its own signal handlers that conflict with the SIGSEGV/SIGBUS
+# recovery mechanism used by safe_memcpy.
+if config.stack.fast_copy and _is_python_embedded():
+    logger.debug("Python is running as an embedded interpreter; disabling fast memory copy for stack profiling")
+    config.stack.fast_copy = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Report configuration after all availability overrides so telemetry
 # reflects the effective state.

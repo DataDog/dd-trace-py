@@ -20,6 +20,7 @@ from tests.testing.mocks import CoverageReportUploadCapture
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import get_mock_git_instance
 from tests.testing.mocks import mock_api_client_settings
+from tests.utils import reinitialize_agentless_config
 
 
 @pytest.fixture(autouse=True)
@@ -148,6 +149,9 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
+            # Agentless settings resolve once at import; refresh them for the patched environment
+            # so the connector choice reflects this test's DD_CIVISIBILITY_AGENTLESS_ENABLED.
+            reinitialize_agentless_config()
             sm = SessionManager(session=_make_session())
 
         assert not isinstance(sm.connector_setup, NoOpBackendConnectorSetup)

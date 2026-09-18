@@ -18,13 +18,18 @@ use libdd_trace_utils::span::{
     SpanText as _,
 };
 
+use super::span_link::SPAN_LINK_FLAGS_PRESENT;
 use super::utils::{
     extract_backed_string_or_default, extract_backed_string_or_none, extract_i32_or_default,
     extract_i64_or_default, extract_time_unix_nano, wall_clock_ns,
 };
 use super::{SpanEvent, SpanLink};
 
-#[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
+#[pyo3::pyclass(
+    name = "SpanData",
+    module = "ddtrace.internal.native._native",
+    subclass
+)]
 #[derive(Default)]
 pub struct SpanData {
     pub name: PyBackedString,
@@ -58,9 +63,18 @@ pub struct SpanData {
     /// Set from Python during span creation; read natively by the context
     /// provider when walking the ancestor chain in `_update_active`.
     pub _parent: Option<Py<PyAny>>,
+    /// The process-local root span, or `None` when this span is the local root.
+    ///
+    /// This mirrors the Python-facing `_local_root` property while keeping the
+    /// relationship available to native consumers without a Python slot lookup.
+    pub _local_root: Option<Py<SpanData>>,
+    /// The entry span for this service, or `None` when this span is the entry.
+    ///
+    /// Like `_local_root`, `None` represents `self` to preserve the existing
+    /// Python property contract without creating a self-reference.
+    pub _service_entry_span: Option<Py<SpanData>>,
     /// The parent `Context` this span was created under, or `None`.
-    /// Held as `Py<PyAny>` because `Context` is still a pure-Python class.
-    pub _parent_context: Option<Py<PyAny>>,
+    pub _parent_context: Option<Py<crate::context::Context>>,
 }
 
 impl SpanData {
@@ -74,17 +88,105 @@ impl SpanData {
         self.trace_id = id;
         self._trace_id_py = None;
     }
-
-    /// Setdefault helper for `_set_default_attributes`: insert one key/value pair only if
-    /// the key is not already present in either meta or metrics.
-    fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
-        if !self.has_attribute(k) {
-            let _ = self.set_attribute(k, v);
-        }
-    }
 }
 
 const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
+const W3C_PROPAGATION_STATE_KEYS: [&str; 2] = ["traceparent", "tracestate"];
+
+/// Convert one Python key/value pair to native attribute storage.
+///
+/// DEV: Keep Python coercion outside a mutable SpanData borrow. Arbitrary
+/// `__str__` and `__index__` implementations can start nested spans and re-enter
+/// the native context provider, which needs to borrow the active SpanData.
+fn extract_attribute(
+    key: &Bound<'_, PyAny>,
+    value: &Bound<'_, PyAny>,
+) -> Option<(AttrKey, AttributeValue)> {
+    let key_str = key.cast::<PyString>().ok()?;
+    let is_http_status_code = key_str.to_str().unwrap_or("") == HTTP_STATUS_CODE_KEY;
+    let attr_key = AttrKey::new(key_str.clone().unbind());
+
+    // http.status_code must always be a string in meta.
+    // Fast path: typed contract is `str`, so most callers already pass a PyString.
+    // Only fall back to str() for non-string inputs (e.g. an int 200).
+    if is_http_status_code {
+        let s = if let Ok(s) = value.cast::<PyString>() {
+            s.clone()
+        } else {
+            value.str().ok()?
+        };
+        return Some((attr_key, AttributeValue::Str(s.unbind())));
+    }
+
+    // str → Str
+    if let Ok(s) = value.cast::<PyString>() {
+        return Some((attr_key, AttributeValue::Str(s.clone().unbind())));
+    }
+
+    // float → Float (drop NaN/Inf)
+    // Check before int because some types (e.g. numpy.float64) implement __float__
+    // but not __index__, so PyFloat succeeds and PyInt would fail.
+    if let Ok(f) = value.cast::<PyFloat>() {
+        let n = f.value();
+        if n.is_nan() || n.is_infinite() {
+            return None;
+        }
+        return Some((attr_key, AttributeValue::Float(n)));
+    }
+
+    // int (catches bool and numpy.int* via __index__) → Int.
+    // extract::<i64>() succeeds for bool (True → 1, False → 0) and for any
+    // type implementing __index__. Python ints that overflow i64 fall through
+    // to the str() fallback below.
+    if let Ok(n) = value.extract::<i64>() {
+        return Some((attr_key, AttributeValue::Int(n)));
+    }
+
+    // bytes → UTF-8 decoded Str (with U+FFFD replacements for invalid sequences)
+    if let Ok(b) = value.cast::<PyBytes>() {
+        let decoded = String::from_utf8_lossy(b.as_bytes());
+        let py_str = PyString::new(key.py(), &decoded);
+        return Some((attr_key, AttributeValue::Str(py_str.unbind())));
+    }
+
+    // Fallback: str(value) — covers Python ints that overflow i64, arbitrary objects, etc.
+    let s = value.str().ok()?;
+    Some((attr_key, AttributeValue::Str(s.unbind())))
+}
+
+fn set_default_attribute(
+    slf: &Bound<'_, SpanData>,
+    key: &Bound<'_, PyAny>,
+    value: &Bound<'_, PyAny>,
+    excluded_keys: Option<&[&str]>,
+) {
+    let Ok(key_str) = key.cast::<PyString>() else {
+        return;
+    };
+    let Ok(key_text) = key_str.to_str() else {
+        return;
+    };
+    if excluded_keys.is_some_and(|keys| keys.contains(&key_text)) {
+        return;
+    }
+    if slf.borrow().attributes.contains_key(key_text) {
+        return;
+    }
+    if let Some((attr_key, attr_value)) = extract_attribute(key, value) {
+        // Re-entrant coercion may have inserted the key after the check above; if so,
+        // `attr_value` is discarded rather than stored. A discarded str subclass can run
+        // Python finalization when its last reference is dropped, so release the SpanData
+        // borrow before dropping it (same hazard as the `replaced` value in `set_attribute`).
+        let discarded = match slf.borrow_mut().attributes.entry(attr_key) {
+            std::collections::hash_map::Entry::Occupied(_) => Some(attr_value),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(attr_value);
+                None
+            }
+        };
+        drop(discarded);
+    }
+}
 
 #[pyo3::pymethods]
 impl SpanData {
@@ -458,10 +560,123 @@ impl SpanData {
         };
     }
 
+    // _local_root property — the local root Span, or self when this is the root.
+    #[getter(_local_root)]
+    #[inline(always)]
+    fn get_local_root<'py>(slf: &Bound<'py, Self>) -> Bound<'py, SpanData> {
+        slf.borrow()
+            ._local_root
+            .as_ref()
+            .map(|span| span.bind(slf.py()).clone())
+            .unwrap_or_else(|| slf.clone())
+    }
+
+    #[setter(_local_root)]
+    #[inline(always)]
+    fn set_local_root(slf: &Bound<'_, Self>, value: Option<&Bound<'_, SpanData>>) {
+        let value = value
+            .and_then(|value| (!value.as_any().is(slf.as_any())).then(|| value.clone().unbind()));
+        // Releasing the borrow before the replaced reference is dropped avoids
+        // a re-entrant finalizer observing an active mutable SpanData borrow.
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._local_root, value)
+        };
+        drop(replaced);
+    }
+
+    #[deleter(_local_root)]
+    #[inline(always)]
+    fn del_local_root(slf: &Bound<'_, Self>) {
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::take(&mut this._local_root)
+        };
+        drop(replaced);
+    }
+
+    // _service_entry_span property — the service entry Span, or self when this is it.
+    #[getter(_service_entry_span)]
+    #[inline(always)]
+    fn get_service_entry_span<'py>(slf: &Bound<'py, Self>) -> Bound<'py, SpanData> {
+        slf.borrow()
+            ._service_entry_span
+            .as_ref()
+            .map(|span| span.bind(slf.py()).clone())
+            .unwrap_or_else(|| slf.clone())
+    }
+
+    #[setter(_service_entry_span)]
+    #[inline(always)]
+    fn set_service_entry_span(slf: &Bound<'_, Self>, value: Option<&Bound<'_, SpanData>>) {
+        let value = value
+            .and_then(|value| (!value.as_any().is(slf.as_any())).then(|| value.clone().unbind()));
+        // See set_local_root: dropping a Python reference can invoke arbitrary
+        // Python finalizers, so it must happen after releasing the native borrow.
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._service_entry_span, value)
+        };
+        drop(replaced);
+    }
+
+    #[deleter(_service_entry_span)]
+    #[inline(always)]
+    fn del_service_entry_span(slf: &Bound<'_, Self>) {
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::take(&mut this._service_entry_span)
+        };
+        drop(replaced);
+    }
+
+    /// Attach a newly-created child span and derive its local-root and
+    /// same-service entry relationships in one native operation.
+    fn _inherit_from_parent(slf: &Bound<'_, Self>, parent: &Bound<'_, SpanData>) {
+        if parent.is(slf) {
+            return;
+        }
+
+        let py = slf.py();
+        let parent_ref = parent.clone().unbind().into_any();
+        let parent_span_ref = parent.clone().unbind();
+        let (inherits_service_entry, local_root, service_entry_span) = {
+            let child = slf.borrow();
+            let parent = parent.borrow();
+            (
+                parent.service == child.service,
+                parent
+                    ._local_root
+                    .as_ref()
+                    .map(|span| span.clone_ref(py))
+                    .unwrap_or_else(|| parent_span_ref.clone_ref(py)),
+                parent
+                    ._service_entry_span
+                    .as_ref()
+                    .map(|span| span.clone_ref(py))
+                    .unwrap_or_else(|| parent_span_ref.clone_ref(py)),
+            )
+        };
+        let service_entry_span = inherits_service_entry.then_some(service_entry_span);
+
+        let replaced = {
+            let mut child = slf.borrow_mut();
+            let old_parent = child._parent.replace(parent_ref);
+            let old_local_root = child._local_root.replace(local_root);
+            let old_service_entry_span =
+                std::mem::replace(&mut child._service_entry_span, service_entry_span);
+            (old_parent, old_local_root, old_service_entry_span)
+        };
+        drop(replaced);
+    }
+
     // _parent_context property — the parent Context, or None.
     #[getter(_parent_context)]
     #[inline(always)]
-    fn get_parent_context<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+    fn get_parent_context<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> Option<Bound<'py, crate::context::Context>> {
         self._parent_context.as_ref().map(|c| c.bind(py).clone())
     }
 
@@ -471,7 +686,8 @@ impl SpanData {
         self._parent_context = if value.is_none() {
             None
         } else {
-            Some(value.clone().unbind())
+            // Silently ignore non-Context values, matching other setters' defensive style.
+            value.extract::<Py<crate::context::Context>>().ok()
         };
     }
 
@@ -509,75 +725,19 @@ impl SpanData {
     /// basis (bytes → UTF-8 decoded str, oversized ints → str, arbitrary objects → str).
     #[pyo3(name = "_set_attribute")]
     fn set_attribute(
-        &mut self,
+        slf: &Bound<'_, Self>,
         key: &Bound<'_, PyAny>,
         value: &Bound<'_, PyAny>,
     ) -> pyo3::PyResult<()> {
-        let Ok(key_str) = key.cast::<PyString>() else {
-            return Ok(());
-        };
-        let attr_key = AttrKey::new(key_str.clone().unbind());
-
-        // http.status_code must always be a string in meta.
-        // Fast path: typed contract is `str`, so most callers already pass a PyString.
-        // Only fall back to str() for non-string inputs (e.g. an int 200).
-        if key_str.to_str().unwrap_or("") == HTTP_STATUS_CODE_KEY {
-            let s = if let Ok(s) = value.cast::<PyString>() {
-                s.clone()
-            } else {
-                let Ok(s) = value.str() else {
-                    return Ok(());
-                };
-                s
+        if let Some((attr_key, attr_value)) = extract_attribute(key, value) {
+            let replaced = {
+                let mut span = slf.borrow_mut();
+                span.attributes.insert(attr_key, attr_value)
             };
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(s.unbind()));
-            return Ok(());
+            // A replaced str subclass can run Python finalization when its last
+            // reference is dropped, so release the SpanData borrow first.
+            drop(replaced);
         }
-
-        // str → Str
-        if let Ok(s) = value.cast::<PyString>() {
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(s.clone().unbind()));
-            return Ok(());
-        }
-
-        // float → Float (drop NaN/Inf)
-        // Check before int because some types (e.g. numpy.float64) implement __float__
-        // but not __index__, so PyFloat succeeds and PyInt would fail.
-        if let Ok(f) = value.cast::<PyFloat>() {
-            let n = f.value();
-            if n.is_nan() || n.is_infinite() {
-                return Ok(());
-            }
-            self.attributes.insert(attr_key, AttributeValue::Float(n));
-            return Ok(());
-        }
-
-        // int (catches bool and numpy.int* via __index__) → Int.
-        // extract::<i64>() succeeds for bool (True → 1, False → 0) and for any
-        // type implementing __index__. Python ints that overflow i64 fall through
-        // to the str() fallback below.
-        if let Ok(n) = value.extract::<i64>() {
-            self.attributes.insert(attr_key, AttributeValue::Int(n));
-            return Ok(());
-        }
-
-        // bytes → UTF-8 decoded Str (with U+FFFD replacements for invalid sequences)
-        if let Ok(b) = value.cast::<PyBytes>() {
-            let decoded = String::from_utf8_lossy(b.as_bytes());
-            let py_str = PyString::new(key.py(), &decoded);
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(py_str.unbind()));
-            return Ok(());
-        }
-
-        // Fallback: str(value) — covers Python ints that overflow i64, arbitrary objects, etc.
-        let Ok(s) = value.str() else {
-            return Ok(());
-        };
-        self.attributes
-            .insert(attr_key, AttributeValue::Str(s.unbind()));
         Ok(())
     }
 
@@ -588,10 +748,10 @@ impl SpanData {
     /// neither, the call is a no-op. Invalid value types follow the same coercion rules as
     /// `_set_attribute`.
     #[pyo3(name = "_set_attributes")]
-    fn set_attributes(&mut self, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+    fn set_attributes(slf: &Bound<'_, Self>, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
         if let Ok(d) = attrs.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
-                let _ = self.set_attribute(&k, &v);
+                let _ = Self::set_attribute(slf, &k, &v);
             }
         } else if let Ok(m) = attrs.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
@@ -605,7 +765,7 @@ impl SpanData {
                     let Ok(v) = pair.get_item(1) else {
                         continue;
                     };
-                    let _ = self.set_attribute(&k, &v);
+                    let _ = Self::set_attribute(slf, &k, &v);
                 }
             }
         }
@@ -740,13 +900,15 @@ impl SpanData {
     /// (routing str→meta, numeric→metrics). Keys that already exist are skipped.
     ///
     /// Accepts any Python dict (fast path) or mapping. Bails silently on bad input.
-    /// Used by callers that previously called `_update_tags_from_context`.
-    /// Callers handle any locking on the source dict themselves.
+    /// The source dictionaries are shared trace-level state.
     #[pyo3(name = "_set_default_attributes")]
-    fn set_default_attributes(&mut self, values: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+    fn set_default_attributes(
+        slf: &Bound<'_, Self>,
+        values: &Bound<'_, PyAny>,
+    ) -> pyo3::PyResult<()> {
         if let Ok(d) = values.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
-                self.set_default_attribute_entry(&k, &v);
+                set_default_attribute(slf, &k, &v, None);
             }
         } else if let Ok(m) = values.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
@@ -760,12 +922,27 @@ impl SpanData {
                     let Ok(v) = pair.get_item(1) else {
                         continue;
                     };
-                    self.set_default_attribute_entry(&k, &v);
+                    set_default_attribute(slf, &k, &v, None);
                 }
             }
         }
         // Not a dict or mapping — bail silently.
         Ok(())
+    }
+
+    /// Copy shared Context state while excluding propagation-only W3C state.
+    #[pyo3(name = "_set_default_context_attributes")]
+    fn set_default_context_attributes(
+        slf: &Bound<'_, Self>,
+        meta: &Bound<'_, PyDict>,
+        metrics: &Bound<'_, PyDict>,
+    ) {
+        for (k, v) in meta.iter() {
+            set_default_attribute(slf, &k, &v, Some(&W3C_PROPAGATION_STATE_KEYS));
+        }
+        for (k, v) in metrics.iter() {
+            set_default_attribute(slf, &k, &v, None);
+        }
     }
     // meta_struct methods
 
@@ -954,11 +1131,17 @@ impl SpanData {
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
         }
-        // `_parent` closes span -> parent span -> ... cycles; `_parent_context`
-        // can reach back to the span through the Context. Both must be visited
+        // Span relationships close span -> ancestor cycles; `_parent_context`
+        // can reach back to the span through the Context. All must be visited
         // so the cyclic GC can collect a finished trace.
         if let Some(p) = &self._parent {
             visit.call(p)?;
+        }
+        if let Some(span) = &self._local_root {
+            visit.call(span)?;
+        }
+        if let Some(span) = &self._service_entry_span {
+            visit.call(span)?;
         }
         if let Some(c) = &self._parent_context {
             visit.call(c)?;
@@ -1056,10 +1239,9 @@ fn build_native_link(
 ) -> NativeSpanLink<PyTraceData> {
     let trace_id_low = trace_id as u64;
     let trace_id_high = (trace_id >> 64) as u64;
-    // Encode "flags present" using bit 31: None -> 0, Some(f) -> f as u32 | 0x8000_0000.
     let flags = match flags {
         None => 0u32,
-        Some(f) => (f as u32) | 0x8000_0000u32,
+        Some(f) => (f as u32) | SPAN_LINK_FLAGS_PRESENT,
     };
     NativeSpanLink {
         trace_id: trace_id_low,
@@ -1183,9 +1365,8 @@ fn native_span_link_to_py(
     } else {
         Some(link.tracestate.clone_ref(py))
     };
-    // Bit 31 of native flags encodes "flags present": 0 means None, otherwise strip bit 31.
-    let flags = if link.flags & 0x8000_0000 != 0 {
-        Some((link.flags & 0x7FFF_FFFF) as i64)
+    let flags = if link.flags & SPAN_LINK_FLAGS_PRESENT != 0 {
+        Some((link.flags & !SPAN_LINK_FLAGS_PRESENT) as i64)
     } else {
         None
     };

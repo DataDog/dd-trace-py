@@ -15,7 +15,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
-from ddtrace.contrib.internal.django.patch import _collect_routes_once
+from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags

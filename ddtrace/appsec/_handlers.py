@@ -4,7 +4,6 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
 from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
@@ -13,6 +12,7 @@ from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 
 def _on_set_http_meta(
-    span: Span,
+    span: SpanProtocol,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],
@@ -77,7 +77,7 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
 
 
 def _on_set_http_meta_for_normalized_route(
-    span: Span,
+    span: SpanProtocol,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],

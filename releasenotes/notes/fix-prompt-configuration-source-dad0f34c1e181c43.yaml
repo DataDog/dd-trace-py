@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: Fixes missing Prompt Experimentation exposures when
+    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is set to ``agentless`` or ``remote_config``.

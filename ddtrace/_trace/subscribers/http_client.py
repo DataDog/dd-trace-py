@@ -9,13 +9,14 @@ from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: set True by a higher-level integration to skip its own injection
+# set True by a higher-level integration to skip its own injection
 # (e.g. botocore SigV4, requests suppressing the nested urllib3 span). Only
 # `patched_api_call`, `_wrapped_api_call`, and `_wrap_adapter_send` may set this,
 # and must reset() in try/finally — see PR #18152 for the leak that caused.
@@ -34,6 +35,9 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
+
+        if config._otel_trace_semantics_enabled and event.request_method:
+            span_from_context(ctx).resource = event.request_method.upper()
 
         if _http_propagation_suppressed.get():
             return

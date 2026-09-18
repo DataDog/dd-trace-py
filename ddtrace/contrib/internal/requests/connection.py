@@ -17,7 +17,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -118,7 +118,7 @@ def _get_service_name(request, hostname) -> Optional[str]:
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
     # skip if tracing is not enabled
-    if not tracer.enabled and not asm_config._apm_opt_out:
+    if not tracer.enabled and not standalone_config.apm_opt_out:
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")

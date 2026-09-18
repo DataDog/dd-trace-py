@@ -181,6 +181,25 @@ def test_symbols_decorated_methods():
     assert bar_scope.name == "bar"
 
 
+@pytest.mark.subprocess
+def test_symbols_finds_decorator_discarded_function():
+    # tests.submod.custom_decorated_stuff's "home" function is rebound to None
+    # by its decorator, so a namespace walk alone would miss it. Scope.from_module
+    # recovers it from ModuleCodeCollector's code objects instead.
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("symdb")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    assert custom_decorated_stuff.home is None
+
+    scope = Scope.from_module(custom_decorated_stuff)
+
+    assert any(s.name == "home" for s in scope.scopes)
+
+
 def test_symbols_to_json():
     assert Scope(
         scope_type=ScopeType.MODULE,
@@ -524,6 +543,44 @@ def test_symbols_fork_uploads():
     for pid in pids:
         _, status = os.waitpid(pid, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child {pid} exited with status {status}"
+
+
+def test_symbols_rejected_fork_child_does_not_claim_uploader_slot():
+    from ddtrace.internal.ipc import SharedStringFile
+    from ddtrace.internal.symbol_db import remoteconfig
+
+    # Sibling pytest-xdist workers share the controller-keyed pid file and clear
+    # it on teardown, so this test asserts on a file that no other worker touches.
+    pid_file = SharedStringFile(f"{os.getpid()}-symdb-pids-uploader-slot")
+    pid_file.clear()
+
+    with (
+        mock.patch.object(remoteconfig, "shared_pid_file", pid_file),
+        mock.patch.object(remoteconfig, "get_generation", return_value=1),
+        mock.patch.object(remoteconfig, "get_ancestor_runtime_id", return_value="parent-runtime-id"),
+        mock.patch.object(remoteconfig.SymbolDatabaseUploader, "is_installed", return_value=False),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "unregister_callback"),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "disable_product"),
+    ):
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=200),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=True),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == []
+
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=201),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=False),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == ["201"]
+
+    pid_file.clear()
 
 
 @pytest.mark.subprocess(ddtrace_run=True, err=None)

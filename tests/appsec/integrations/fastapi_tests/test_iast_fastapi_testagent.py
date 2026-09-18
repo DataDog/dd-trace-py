@@ -19,10 +19,10 @@ IAST_ENV = {
 }
 
 
-def test_iast_header_injection_secure_attack(iast_test_token):
+def test_iast_header_injection_secure_attack(iast_test_token, free_port):
     """Test that header injection is prevented in a secure FastAPI endpoint."""
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, env={"DD_TRACE_DEBUG": "true"}
+        iast_enabled="true", token=iast_test_token, port=free_port, env={"DD_TRACE_DEBUG": "true"}
     ) as context:
         _, fastapi_client, pid = context
         with pytest.raises(ConnectionError):
@@ -47,10 +47,10 @@ def test_iast_header_injection_secure_attack(iast_test_token):
 
 
 @pytest.mark.parametrize("use_multiprocess", (True, False))
-def test_iast_header_injection(iast_test_token, use_multiprocess):
+def test_iast_header_injection(iast_test_token, use_multiprocess, free_port):
     """Test that header injection attempts are detected in FastAPI."""
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, use_multiprocess=use_multiprocess
+        iast_enabled="true", token=iast_test_token, port=free_port, use_multiprocess=use_multiprocess
     ) as context:
         _, fastapi_client, pid = context
 
@@ -74,10 +74,10 @@ def test_iast_header_injection(iast_test_token, use_multiprocess):
     assert len(vulnerabilities) == 0
 
 
-def test_iast_header_injection_attack(iast_test_token):
+def test_iast_header_injection_attack(iast_test_token, free_port):
     """Test that header injection attempts are detected in FastAPI."""
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, env={"DD_TRACE_DEBUG": "true"}
+        iast_enabled="true", token=iast_test_token, port=free_port, env={"DD_TRACE_DEBUG": "true"}
     ) as context:
         _, fastapi_client, pid = context
         with pytest.raises(ConnectionError):
@@ -101,9 +101,9 @@ def test_iast_header_injection_attack(iast_test_token):
 
 
 @pytest.mark.parametrize("use_multiprocess", (True, False))
-def test_iast_ssrf_secure_mark_validator(iast_test_token, use_multiprocess):
+def test_iast_ssrf_secure_mark_validator(iast_test_token, use_multiprocess, free_port):
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, use_multiprocess=use_multiprocess
+        iast_enabled="true", token=iast_test_token, port=free_port, use_multiprocess=use_multiprocess
     ) as context:
         _, fastapi_client, pid = context
         response = fastapi_client.post(
@@ -128,10 +128,10 @@ def test_iast_ssrf_secure_mark_validator(iast_test_token, use_multiprocess):
 
 
 @pytest.mark.parametrize("use_multiprocess", (True, False))
-def test_iast_cmdi_uvicorn(iast_test_token, use_multiprocess):
+def test_iast_cmdi_uvicorn(iast_test_token, use_multiprocess, free_port):
     """Test command injection vulnerability detection with uvicorn server."""
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, use_multiprocess=use_multiprocess
+        iast_enabled="true", token=iast_test_token, port=free_port, use_multiprocess=use_multiprocess
     ) as context:
         _, fastapi_client, pid = context
 
@@ -162,14 +162,14 @@ def test_iast_cmdi_uvicorn(iast_test_token, use_multiprocess):
     assert vulnerability["hash"]
 
 
-def test_iast_cmdi_form_request_fastapi(iast_test_token):
+def test_iast_cmdi_form_request_fastapi(iast_test_token, free_port):
     """Validate IAST CMDI detection when FastAPI parses forms via request.form().
 
     Targets the endpoint /iast-cmdi-vulnerability-form-request which reads the form from the
     Request object rather than using Form(...) in the signature.
     """
 
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=IAST_ENV) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=free_port, env=IAST_ENV) as context:
         _, fastapi_client, pid = context
 
         response = fastapi_client.post(
@@ -204,14 +204,14 @@ def test_iast_cmdi_form_request_fastapi(iast_test_token):
     assert vulnerability["hash"]
 
 
-def test_iast_cmdi_form_multiple_fastapi(iast_test_token):
+def test_iast_cmdi_form_multiple_fastapi(iast_test_token, free_port):
     """Validate IAST CMDI detection with multiple Form parameters in FastAPI.
 
     Targets the endpoint /iast-cmdi-vulnerability-form-multiple which declares two Form parameters
     (command and flag). The vulnerable value is "command".
     """
 
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=IAST_ENV) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=free_port, env=IAST_ENV) as context:
         _, fastapi_client, pid = context
 
         response = fastapi_client.post(
@@ -248,10 +248,10 @@ def test_iast_cmdi_form_multiple_fastapi(iast_test_token):
     assert vulnerability["hash"]
 
 
-def test_iast_cmdi_form_uvicorn(iast_test_token):
+def test_iast_cmdi_form_uvicorn(iast_test_token, free_port):
     """Test command injection vulnerability detection with form data using uvicorn server."""
     with uvicorn_server(
-        iast_enabled="true", token=iast_test_token, port=8050, env={"DD_TRACE_DEBUG": "true"}
+        iast_enabled="true", token=iast_test_token, port=free_port, env={"DD_TRACE_DEBUG": "true"}
     ) as context:
         _, fastapi_client, pid = context
 
@@ -284,7 +284,7 @@ def test_iast_cmdi_form_uvicorn(iast_test_token):
     assert vulnerability["hash"]
 
 
-def test_iast_concurrent_requests_limit(iast_test_token):
+def test_iast_concurrent_requests_limit(iast_test_token, free_port):
     """Ensure only DD_IAST_MAX_CONCURRENT_REQUESTS requests have IAST enabled concurrently.
 
     This test hits the /iast-enabled endpoint concurrently. The endpoint awaits a short sleep
@@ -300,7 +300,7 @@ def test_iast_concurrent_requests_limit(iast_test_token):
         "DD_IAST_MAX_CONCURRENT_REQUESTS": str(max_concurrent),
     }
 
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=env) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=free_port, env=env) as context:
         _, fastapi_client, pid = context
 
         def worker():
@@ -320,7 +320,7 @@ def test_iast_concurrent_requests_limit(iast_test_token):
     assert false_count == rejected_requests
 
 
-def test_iast_vulnerable_request_downstream_fastapi(iast_test_token):
+def test_iast_vulnerable_request_downstream_fastapi(iast_test_token, free_port):
     """Mirror downstream propagation test for FastAPI server.
 
     Sends a request with Datadog headers to the FastAPI endpoint which triggers a weak-hash
@@ -331,14 +331,14 @@ def test_iast_vulnerable_request_downstream_fastapi(iast_test_token):
         "DD_APM_TRACING_ENABLED": "false",
         "DD_TRACE_URLLIB3_ENABLED": "true",
     }
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, env=env, port=8050) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, env=env, port=free_port) as context:
         _, fastapi_client, pid = context
 
         trace_id = 1212121212121212121
         parent_id = 34343434
         response = fastapi_client.get(
             "/vulnerablerequestdownstream",
-            params={"port": 8050},
+            params={"port": free_port},
             headers={
                 "x-datadog-trace-id": str(trace_id),
                 "x-datadog-parent-id": str(parent_id),
@@ -386,11 +386,11 @@ def test_iast_vulnerable_request_downstream_fastapi(iast_test_token):
         ('{"key":"master"}', "application/json"),  # simple JSON object
     ],
 )
-def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token):
+def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token, free_port):
     """Parametrized body encodings to validate that IAST taints http.request.body in FastAPI
     and still reports CMDI on the vulnerable sink in tests/appsec/integrations/fastapi_tests/app.py:cmdi_body
     """
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=IAST_ENV) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=free_port, env=IAST_ENV) as context:
         _, fastapi_client, pid = context
 
         response = fastapi_client.post(
@@ -438,12 +438,12 @@ def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token):
         ("[{}]", "application/json"),  # JSON array
     ],
 )
-def test_iast_cmdi_bodies_fastapi_no_vulnerabilities(body, content_type, iast_test_token):
+def test_iast_cmdi_bodies_fastapi_no_vulnerabilities(body, content_type, iast_test_token, free_port):
     """Parametrized body encodings to validate that IAST taints http.request.body in FastAPI
     and still reports CMDI on the vulnerable sink in tests/appsec/integrations/fastapi_tests/app.py:cmdi_body
     """
 
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=IAST_ENV) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=free_port, env=IAST_ENV) as context:
         _, fastapi_client, pid = context
 
         response = fastapi_client.post(
@@ -469,13 +469,13 @@ def test_iast_cmdi_bodies_fastapi_no_vulnerabilities(body, content_type, iast_te
     assert len(vulnerabilities) == 0, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
 
 
-def test_iast_stream_fastapi(iast_test_token):
+def test_iast_stream_fastapi(iast_test_token, free_port):
     """Test IAST with streaming responses in FastAPI.
 
     Validates that IAST can handle streaming responses without segfaults or crashes.
     Also validates middleware correctly processes headers during streaming.
     """
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=free_port) as context:
         _, fastapi_client, pid = context
 
         headers = {
@@ -507,13 +507,13 @@ def test_iast_stream_fastapi(iast_test_token):
     assert len(spans_with_iast) >= 1
 
 
-def test_iast_stream_cmdi_fastapi(iast_test_token):
+def test_iast_stream_cmdi_fastapi(iast_test_token, free_port):
     """Test IAST CMDI detection with streaming responses in FastAPI.
 
     Validates that IAST can detect CMDI vulnerabilities even when the response is streamed.
     Also validates middleware correctly processes headers during streaming with POST requests.
     """
-    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=8050, env=IAST_ENV) as context:
+    with uvicorn_server(iast_enabled="true", token=iast_test_token, port=free_port, env=IAST_ENV) as context:
         _, fastapi_client, pid = context
 
         headers = {

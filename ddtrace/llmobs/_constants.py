@@ -22,6 +22,7 @@ class LLMObsExportMode(str, Enum):
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
+LLMOBS_SAMPLING = "_llmobs.sampling"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -96,6 +97,19 @@ LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
 LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
+
+GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
+GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
+GEN_AI_PROVIDER_NAME_TAG_KEY = "gen_ai.provider.name"
+GEN_AI_APPLICATION_NAME_TAG_KEY = "gen_ai.application.name"
+GEN_AI_CONVERSATION_ID_TAG_KEY = "gen_ai.conversation.id"
+
+GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY = "gen_ai.usage.total_tokens"
+GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_read_input_tokens"
+GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_write_input_tokens"
+GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.reasoning_output_tokens"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -177,6 +191,15 @@ DEFAULT_PROJECT_NAME = "default-project"
 IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
 AUDIO_FALLBACK_MARKER = "[audio]"
+# Distinct from IMAGE_FALLBACK_MARKER so a dropped inline image stays greppable instead of looking
+# like a remote reference we never fetch.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
+
+# Anthropic/Bedrock marker for an image we saw but did not capture (URL, file id, unsupported source).
+IMAGE_DETECTED_MARKER = "([IMAGE DETECTED])"
+
+# Deliberately size-free: span content is aggregated, and a per-image size would fragment grouping.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
 
 # OpenAI input types
 INPUT_TYPE_IMAGE = "input_image"

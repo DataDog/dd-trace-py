@@ -17,7 +17,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils.inspection import collect_code_objects
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
@@ -259,15 +259,16 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         self._cached: dict[int, list[FullyNamedFunction]] = {}
 
         # Create the line to function mapping
-        if hasattr(module, "__dd_code__"):
+        code_objects = ModuleCodeCollector.get_code_objects(module)
+        if code_objects is not None:
             self._fullname_index = {}
-            for code in module.__dd_code__:
+            for code in code_objects:
                 fcp = _FunctionCodePair(code=code)
 
                 if PYTHON_VERSION_INFO >= (3, 11):
                     # From this version of Python we can derive the qualified
                     # name of the function directly from the code object.
-                    fullname = f"{module.__name__}.{code.co_qualname}"
+                    fullname = f"{module.__name__}.{code.co_qualname}"  # type: ignore[attr-defined]
                     self._fullname_index[fullname] = fcp
                 else:
                     self._name_index[code.co_name].append(fcp)
@@ -400,12 +401,6 @@ class FunctionDiscovery(defaultdict[Any, Any]):
             return cast("FunctionDiscovery", module.__function_discovery__)
         except AttributeError:
             fd = module.__function_discovery__ = cls(module)  # type: ignore[attr-defined]
-            if hasattr(module, "__dd_code__"):
-                # We no longer need to keep this collection around
-                del module.__dd_code__
+            # We no longer need to keep this collection around
+            ModuleCodeCollector.release(module, "di")
             return fd
-
-    @classmethod
-    def transformer(cls, code: CodeType, module: ModuleType) -> CodeType:
-        module.__dd_code__ = collect_code_objects(code)  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-        return code

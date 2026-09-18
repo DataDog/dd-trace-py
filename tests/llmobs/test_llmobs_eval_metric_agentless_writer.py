@@ -136,7 +136,7 @@ def test_send_metric_bad_api_key(mock_writer_logs):
     server.shutdown()
     server.server_close()
 
-    mock_writer_logs.error.assert_called_with(
+    mock_writer_logs.error.assert_any_call(
         "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
         1,
         "evaluation_metric",

@@ -1,0 +1,11 @@
+_v: 1
+name: sqlite3
+display_name: SQLite
+description: Instruments SQLite database queries, transaction commits and rollbacks, and optional row-fetch operations through
+  Python's built-in sqlite3 module.
+packages: []
+category:
+- db.client
+systems:
+- sqlite
+creation_date: '2016-06-20'

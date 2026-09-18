@@ -10,7 +10,18 @@ if [ -n "$staged_files" ]; then
     # ruff runs on .py and .pyi files only — ruff does not support Cython syntax in .pyx files
     # (see https://github.com/astral-sh/ruff/issues/10250)
     staged_ruff=$(echo "$staged_files" | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
+    # Partial staging: we skip re-add of dirty files, so ruff would format the
+    # working tree and leave the index unformatted. Fail before running ruff so
+    # we do not mutate unstaged hunks on this path.
     if [ -n "$(printf '%s' "$staged_ruff" | tr -d ' \t\n')" ]; then
+        for f in $staged_ruff; do
+            if echo "$unstaged_before" | grep -qFx "$f"; then
+                printf '\nFormat/lint error: %s is partially staged.\n' "$f" >&2
+                printf 'The hook will not format a partially staged file (index would stay unformatted).\n' >&2
+                printf 'Fix: git add %s   (or unstage, run scripts/lint fmt, then re-stage)\n\n' "$f" >&2
+                exit 1
+            fi
+        done
         "$LINT_CMD" ruff format --no-cache $staged_ruff || exit $?
         "$LINT_CMD" ruff check --fix --show-fixes --no-cache $staged_ruff || exit $?
     fi
@@ -20,6 +31,28 @@ if [ -n "$staged_files" ]; then
         [ -n "$f" ] || continue
         echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
     done
+
+    # Verify staged .py/.pyi content is formatted after ruff + re-add
+    if [ -n "$(printf '%s' "$staged_ruff" | tr -d ' \t\n')" ]; then
+        staged_ruff_now=$(git diff --staged --name-only HEAD --diff-filter=ACMR | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
+        if [ -n "$(printf '%s' "$staged_ruff_now" | tr -d ' \t\n')" ]; then
+            ruff_staged_output=$("$LINT_CMD" ruff format --check --no-cache $staged_ruff_now 2>&1)
+            if [ $? -ne 0 ]; then
+                RED='\033[0;31m'
+                BOLD='\033[1m'
+                RESET='\033[0m'
+                printf "\n${BOLD}${RED}╔══ FORMAT ERROR ═══════════════════════════════════════════╗${RESET}\n"
+                printf "${BOLD}${RED}║  Staged file(s) are still unformatted after ruff format:${RESET}\n"
+                echo "$ruff_staged_output" | grep -E "^Would reformat" | while IFS= read -r line; do
+                    printf "${RED}║    • %s${RESET}\n" "$line"
+                done
+                printf "${BOLD}${RED}║${RESET}\n"
+                printf "${BOLD}${RED}║  Fix: scripts/lint fmt && git add <files>${RESET}\n"
+                printf "${BOLD}${RED}╚═══════════════════════════════════════════════════════════╝${RESET}\n\n"
+                exit 1
+            fi
+        fi
+    fi
 
     # cython-lint runs on .pyx files only; ruff covers .py/.pyi, and cython-lint's
     # pycodestyle checks would be redundant on .py files

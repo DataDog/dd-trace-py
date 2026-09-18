@@ -12,19 +12,19 @@ subject_pattern: "project_path:DataDog/apm-reliability/dd-trace-py:ref_type:bran
 #   definition lives in the same project), so triggered/child pipelines and
 #   foreign/included configs cannot request it.
 # - pipeline_source limits it to ordinary branch-push pipelines.
-# - ref_protected: "false" ensures the token can never be minted for a protected
-#   ref (e.g. main / merge-queue refs) at the source, independent of the
-#   consuming job's rules.
-# The ref itself is intentionally left open (any non-protected branch head): the
-# whole point of this policy is to push regenerated lockfiles back to *PR
-# branches*. Defense in depth: commit_requirements_lockfiles also refuses to push
-# to protected / merge-queue refs, and GitHub branch protection on main is the
-# backstop.
+# - ref / ref_path positively match feature branches (must contain '/') so
+#   main, N.N release lines, and mq-working-branch-* cannot mint. GitHub merge
+#   queue refs (gh-readonly-queue/...) are excluded by rejecting the gh-r*
+#   prefix. octo-sts compiles claim patterns with Go/RE2 (no lookaheads) and
+#   wraps each value in ^...$, so do not add those anchors here.
+# - ref_protected cannot be used: this GitLab project is a gitsync mirror with
+#   a blanket `*` protected-branch rule, so every ref reports
+#   ref_protected="true".
 claim_pattern:
   project_path: "DataDog/apm-reliability/dd-trace-py"
   ref_type: "branch"
-  ref: ".+"
-  ref_protected: "false"
+  ref: "([^g]|g[^h]|gh[^-]|gh-[^r]).*/.+"
+  ref_path: "refs/heads/([^g]|g[^h]|gh[^-]|gh-[^r]).*/.+"
   pipeline_source: "push"
   ci_config_ref_uri: "gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py//.gitlab-ci.yml@refs/heads/.+"
 

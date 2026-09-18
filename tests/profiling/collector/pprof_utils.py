@@ -285,6 +285,17 @@ def parse_newest_profile(
     return profile
 
 
+def get_internal_metadata_files(filename_prefix: str) -> list[str]:
+    """Internal metadata files with the given prefix (which includes the pid), oldest upload first.
+
+    Files are named <filename_prefix>.<counter>.internal_metadata.json without
+    padding, so a lexicographic sort would place upload 10 before upload 2.
+    """
+    files = glob.glob(filename_prefix + ".*.internal_metadata.json")
+    files.sort(key=lambda f: int(f.rsplit(".", 3)[-3]))
+    return files
+
+
 def get_sample_type_index(profile: pprof_pb2.Profile, value_type: str) -> int:
     return next(
         i for i, sample_type in enumerate(profile.sample_type) if profile.string_table[sample_type.type] == value_type
