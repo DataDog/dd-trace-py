@@ -68,9 +68,6 @@ struct StringArena
 using string_id = ddog_prof_StringId2;
 using function_id = ddog_prof_FunctionId2;
 
-std::optional<string_id>
-intern_string(std::string_view s);
-
 std::optional<function_id>
 intern_function(string_id name, string_id filename);
 
