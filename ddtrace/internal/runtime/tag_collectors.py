@@ -14,9 +14,9 @@ from .constants import SERVICE
 from .constants import TRACER_VERSION
 
 
-class RuntimeTagCollector(ValueCollector):
+class RuntimeTagCollector(ValueCollector[str]):
     periodic = False
-    value: list[tuple[str, str]] = []
+    value: Optional[list[tuple[str, str]]] = []
 
 
 class TracerTagCollector(RuntimeTagCollector):

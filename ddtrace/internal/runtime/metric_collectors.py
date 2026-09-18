@@ -2,6 +2,7 @@ import time
 from types import ModuleType
 from typing import NamedTuple
 from typing import Optional
+from typing import Union
 
 from .. import forksafe
 from .collector import ValueCollector
@@ -22,8 +23,11 @@ from .gc_monitor import GCPauseSnapshot
 from .gc_monitor import gc_pause_monitor
 
 
-class RuntimeMetricCollector(ValueCollector):
-    value: list[tuple[str, str]] = []
+MetricValue = Union[int, float]
+
+
+class RuntimeMetricCollector(ValueCollector[MetricValue]):
+    value: Optional[list[tuple[str, MetricValue]]] = []
     periodic = True
 
 
@@ -86,7 +90,7 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
             monitor.release()
             forksafe.unregister(self._reset_state)
 
-    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, int]]:
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, MetricValue]]:
         # Snapshot first so flush allocations are not attributed to this window,
         # and so stop() cannot None-out _monitor between the check and the call.
         monitor: Optional[GCPauseMonitor] = self._monitor
@@ -101,7 +105,7 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
         prev: list[int] = self._prev_collections
         self._prev_collections: list[int] = collections
 
-        metrics: list[tuple[str, int]] = []
+        metrics: list[tuple[str, MetricValue]] = []
         name: str
         n: int
         for name, n in zip(GC_COUNT_GENS, gc_mod.get_count()):
@@ -177,7 +181,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
         }
         self._last_wall_time = time.monotonic()
 
-    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, int]]:
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, MetricValue]]:
         native = self.modules["ddtrace.internal.native"]
 
         process_metrics = _ProcessMetrics(*native.process_metrics())
@@ -193,7 +197,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
         self.stored_cpu_times[CPU_TIME_SYS] = cpu_time_sys
         self.stored_cpu_times[CPU_TIME_USER] = cpu_time_user
 
-        metrics = {
+        metrics: dict[str, MetricValue] = {
             CPU_TIME_SYS: delta_cpu_time_sys,
             CPU_TIME_USER: delta_cpu_time_user,
             THREAD_COUNT: process_metrics.num_threads,
