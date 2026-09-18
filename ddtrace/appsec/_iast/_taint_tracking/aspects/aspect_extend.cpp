@@ -13,7 +13,8 @@ PyObject*
 api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2 or !args) {
-        throw py::value_error(MSG_ERROR_N_PARAMS);
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        return nullptr;
     }
 
     PyObject* candidate_text = args[0];
@@ -29,43 +30,32 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
 
-    auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text, to_add });
-    if (not ctx_map or ctx_map->empty()) {
-        auto method_name = PyUnicode_FromString("extend");
-        if (method_name == nullptr) {
-            return nullptr;
-        }
-        PyObject* extend_result = PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        Py_DecRef(method_name);
-        if (extend_result == nullptr) {
-            return nullptr;
-        }
-        Py_DECREF(extend_result);
-    } else {
+    const auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text, to_add });
+    TaintedObjectPtr to_result;
+    TaintedObjectPtr to_toadd;
+    if (ctx_map and !ctx_map->empty()) {
         const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
-        auto to_result = safe_allocate_tainted_object_copy(to_candidate);
-        const auto& to_toadd = get_tainted_object(to_add, ctx_map);
-
-        // Ensure no returns are done before this method call
-        auto method_name = PyUnicode_FromString("extend");
-        if (method_name == nullptr) {
-            return nullptr;
-        }
-        PyObject* extend_result = PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        Py_DecRef(method_name);
-        if (extend_result == nullptr) {
-            return nullptr;
-        }
-        Py_DECREF(extend_result);
-
-        if (to_result == nullptr) {
-            Py_RETURN_NONE;
-        }
-
-        if (to_toadd) {
-            to_result->add_ranges_shifted(to_toadd, (long)len_candidate_text);
-        }
-        set_tainted_object(candidate_text, to_result, ctx_map);
+        to_result = safe_allocate_tainted_object_copy(to_candidate);
+        to_toadd = get_tainted_object(to_add, ctx_map);
     }
+
+    py::object method_name = py::reinterpret_steal<py::object>(PyUnicode_FromString("extend"));
+    if (!method_name) {
+        return nullptr;
+    }
+    py::object extend_result =
+      py::reinterpret_steal<py::object>(PyObject_CallMethodObjArgs(candidate_text, method_name.ptr(), to_add, nullptr));
+    if (!extend_result) {
+        return nullptr;
+    }
+
+    if (!to_result) {
+        Py_RETURN_NONE;
+    }
+
+    if (to_toadd) {
+        to_result->add_ranges_shifted(to_toadd, (long)len_candidate_text);
+    }
+    set_tainted_object(candidate_text, to_result, ctx_map);
     Py_RETURN_NONE;
 }
