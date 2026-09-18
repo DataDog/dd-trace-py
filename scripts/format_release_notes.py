@@ -38,7 +38,19 @@ Usage:
     reno report | pandoc -f rst -t gfm --wrap=none | python scripts/format_release_notes.py
     reno report | pandoc -f rst -t gfm --wrap=none | python scripts/format_release_notes.py v1.2.3
     python scripts/format_release_notes.py v1.2.3 notes.gfm.md
+    python scripts/format_release_notes.py --exclude-unreleased
     python scripts/format_release_notes.py  # no stdin, no input_file: runs reno/pandoc itself
+
+When earliest_version is given, output includes every release at or after it
+(by semantic version, plus the Unreleased section if present) instead of just
+the single matching release.
+
+--exclude-unreleased drops the Unreleased section from the output, whether or
+not earliest_version is given.
+
+--collapse-release-candidates combines the output sections for release
+candidates whose version numbers are identical except for the rc number
+(e.g. v1.2.3rc1 and v1.2.3rc2) into a single "v1.2.3rc" section.
 """
 
 import argparse
@@ -54,6 +66,7 @@ SECTION_RE = re.compile(r"(?m)^(### .+)$")
 VERSION_RE = re.compile(r"(?m)^## (.+)$")
 SEPARATOR_RE = re.compile(r"\n?<!-- -->\n?")
 CATEGORY_RE = re.compile(r"^([^:]{1,80}?):\s+(.*)$", re.DOTALL)
+RC_VERSION_RE = re.compile(r"(?i)^(.*rc)(\d+)$")
 
 UNRELEASED = "Unreleased"
 
@@ -153,6 +166,70 @@ def parse_releases(raw_text):
     return releases
 
 
+def rc_base_version(version):
+    """Return version with its trailing rc number stripped (e.g. "v1.2.3rc" for
+    "v1.2.3rc1"), or None if version isn't a release candidate.
+    """
+    match = RC_VERSION_RE.match(version)
+    return match.group(1) if match else None
+
+
+def merge_release_bodies(bodies):
+    """Merge several raw release bodies into one, combining any "### heading"
+    sections that share the same header so they're grouped/formatted once
+    instead of appearing as separate, repeated sections.
+    """
+    preambles = []
+    order = []
+    section_bodies = {}
+    for body in bodies:
+        parts = SECTION_RE.split(body)
+        preamble = parts[0].strip("\n")
+        if preamble:
+            preambles.append(preamble)
+        for i in range(1, len(parts), 2):
+            header = parts[i].strip()
+            section_body = (parts[i + 1] if i + 1 < len(parts) else "").strip("\n")
+            if header not in section_bodies:
+                section_bodies[header] = []
+                order.append(header)
+            if section_body:
+                section_bodies[header].append(section_body)
+
+    out = []
+    if preambles:
+        out.append("\n\n".join(preambles))
+    for header in order:
+        out.append(header)
+        out.append("\n\n<!-- -->\n\n".join(section_bodies[header]))
+    return "\n\n".join(out)
+
+
+def group_release_candidates(releases):
+    """Combine consecutive-in-order releases whose version numbers are
+    identical except for the trailing rc number (e.g. "v1.2.3rc1" and
+    "v1.2.3rc2") into a single "v1.2.3rc" entry.
+    """
+    groups = {}
+    order = []
+    for version, body in releases:
+        base = rc_base_version(version)
+        key = base if base is not None else version
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append((version, body))
+
+    collapsed = []
+    for key in order:
+        entries = groups[key]
+        if rc_base_version(entries[0][0]) is not None and len(entries) > 1:
+            collapsed.append((key, merge_release_bodies([body for _, body in entries])))
+        else:
+            collapsed.extend(entries)
+    return collapsed
+
+
 def normalize_version(version):
     return version[1:] if version.startswith("v") else version
 
@@ -164,35 +241,55 @@ def parsed_version(version):
         return None
 
 
-def select_release_body(releases, earliest_version):
-    """Pick the body to format for earliest_version, per the module docstring rules."""
-    for version, body in releases:
-        if version == earliest_version or normalize_version(version) == normalize_version(earliest_version):
-            return body
+def select_releases(releases, earliest_version):
+    """Select every release at or after earliest_version, per the module docstring rules.
+
+    "At or after" means: an exact match on earliest_version (by raw or normalized
+    name), any known release whose parsed semantic version is >= earliest_version,
+    and the Unreleased section (always the newest, if present).
+    """
+    exact_match_versions = {
+        version
+        for version, _ in releases
+        if version == earliest_version or normalize_version(version) == normalize_version(earliest_version)
+    }
 
     target = parsed_version(earliest_version)
-    if target is None:
+    if target is None and not exact_match_versions:
         raise ValueError(f"version {earliest_version!r} not found and is not a valid semantic version")
 
     known_versions = [v for v, _ in releases if v != UNRELEASED]
     latest = max((v for v in (parsed_version(v) for v in known_versions) if v is not None), default=None)
 
-    if latest is not None and target <= latest:
+    if target is not None and latest is not None and target > latest and not exact_match_versions:
         raise ValueError(f"version {earliest_version!r} not found among known releases: {known_versions}")
 
+    selected = []
     for version, body in releases:
-        if version == UNRELEASED:
-            return body
+        if version == UNRELEASED or version in exact_match_versions:
+            selected.append((version, body))
+            continue
+        parsed = parsed_version(version)
+        if target is not None and parsed is not None and parsed >= target:
+            selected.append((version, body))
 
-    raise ValueError(f"version {earliest_version!r} not found and no {UNRELEASED!r} section is present")
+    if not selected:
+        raise ValueError(f"version {earliest_version!r} not found and no {UNRELEASED!r} section is present")
+
+    return selected
 
 
-def format_release_notes(raw_text, earliest_version=None):
+def format_release_notes(raw_text, earliest_version=None, exclude_unreleased=False, collapse_release_candidates=False):
     releases = parse_releases(raw_text)
 
     if earliest_version is not None:
-        body = select_release_body(releases, earliest_version)
-        return format_release_body(body) + "\n"
+        releases = select_releases(releases, earliest_version)
+
+    if exclude_unreleased:
+        releases = [(version, body) for version, body in releases if version != UNRELEASED]
+
+    if collapse_release_candidates:
+        releases = group_release_candidates(releases)
 
     out = []
     for version, body in releases:
@@ -219,6 +316,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("earliest_version", nargs="?", default=None)
     parser.add_argument("input_file", nargs="?", default=None)
+    parser.add_argument(
+        "--exclude-unreleased", action="store_true", help="Exclude the Unreleased section from the output."
+    )
+    parser.add_argument(
+        "--collapse-release-candidates",
+        action="store_true",
+        help="Combine sections for release candidates whose version numbers are identical except for the rc "
+        "number (e.g. v1.2.3rc1 and v1.2.3rc2) into a single section.",
+    )
     args = parser.parse_args()
 
     if args.input_file is not None:
@@ -234,7 +340,12 @@ def main():
     else:
         raw_text = generate_raw_text()
 
-    result = format_release_notes(raw_text, args.earliest_version)
+    result = format_release_notes(
+        raw_text,
+        args.earliest_version,
+        exclude_unreleased=args.exclude_unreleased,
+        collapse_release_candidates=args.collapse_release_candidates,
+    )
     sys.stdout.write(result)
 
 
