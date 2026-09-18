@@ -53,6 +53,19 @@ The ``scripts/run-tests`` script handles this automatically:
     $ scripts/run-tests tests/contrib/django/
     $ scripts/run-tests tests/contrib/flask/test_flask.py
 
+**Profiling on a new Python version**
+
+When bringing up Continuous Profiler support for a new CPython (for example 3.15),
+use ``scripts/run-profiling-tests`` to run the compatibility smoke script and riot
+profiling suites in one pass:
+
+.. code-block:: bash
+
+    $ scripts/run-profiling-tests --python 3.15
+
+See also :doc:`contributing-profiling-new-cpython` for the native stack-profiler
+migration checklist.
+
 **Manual approach with ddtest**
 
 This repo includes a Docker container definition that provides a pre-built test environment.

@@ -18,6 +18,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
 
+`Profiling and new CPython versions <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-profiling-new-cpython.rst>`_ (stack profiler / Echion migration checklist).
+
 Thanks for working with us!
 
 .. _change_process:
@@ -227,6 +229,7 @@ in its output. A Datadog maintainer must add the key to the registry before the 
     contributing-integrations
     contributing-testing
     contributing-fuzzing
+    contributing-profiling-new-cpython
     contributing-tracing
     contributing-release
     releasenotes
