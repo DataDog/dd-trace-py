@@ -54,7 +54,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
-        # AIDEV-NOTE: Anchor pytester's teardown CWD before the test body and keep nested pytest
+        # NOTE: Anchor pytester's teardown CWD before the test body and keep nested pytest
         # controllers from inheriting an outer xdist worker identity.
         testdir.chdir()
         monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)

@@ -219,7 +219,7 @@ class SessionManagerMockBuilder:
 
         from ddtrace.internal.settings._agentless import config as agentless_config
 
-        # AIDEV-NOTE: Preserve the exact singleton state: callers may have applied runtime or stable-config
+        # NOTE: Preserve the exact singleton state: callers may have applied runtime or stable-config
         # overrides that cannot be reconstructed from the ambient environment.
         original_agentless_config_state = agentless_config.__dict__
 
