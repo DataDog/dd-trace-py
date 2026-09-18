@@ -561,8 +561,9 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        initial_allocations_valid = all(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
-        assert initial_allocations_valid, "Initial snapshot should have alloc-space>0 (new allocations)"
+        # The process-wide exporter can include previously reported live samples alongside new allocations.
+        has_new_allocations = any(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
+        assert has_new_allocations, "Initial snapshot should include new allocations"
 
         # Get freed samples (alloc-space > 0, heap-space == 0)
         freed_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0]

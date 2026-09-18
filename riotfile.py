@@ -1056,6 +1056,8 @@ venv = Venv(
         # 6.0     3.12, 3.13
         # 6.1     3.12, 3.13, 3.14
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
+        # 3.15 isn't in Django's support matrix yet (no CPython 3.15 GA); the 6.x block below
+        # opts in early via select_pys(max_version="3.15") to track dd-trace-py's own py-315 work.
         Venv(
             name="django",
             command="pytest {cmdargs} tests/contrib/django",
@@ -1124,6 +1126,27 @@ venv = Venv(
                     ),
                     pkgs={
                         "django": ["~=5.1"],
+                        "psycopg": latest,
+                        "channels": latest,
+                        "django-q2": latest,
+                    },
+                ),
+                Venv(
+                    # django 6.x (#py-315 coverage). Same skip list as the 5.x block above;
+                    # 6.0 dropped Postgres 12 too and the suite's docker-compose still runs it.
+                    # max_version="3.15" is a forward test only: Django hasn't declared 3.15
+                    # support yet since CPython 3.15 isn't GA (see comment above the table).
+                    pys=select_pys(min_version="3.12", max_version="3.15"),
+                    command=(
+                        "pytest {cmdargs} "
+                        "--ignore=tests/contrib/django/test_django_dbm.py "
+                        "--ignore=tests/contrib/django/test_django_snapshots.py "
+                        "-k 'not test_user_name_included and not test_user_name_excluded "
+                        "and not test_cached_view' "
+                        "tests/contrib/django"
+                    ),
+                    pkgs={
+                        "django": "~=6.1",
                         "psycopg": latest,
                         "channels": latest,
                         "django-q2": latest,
@@ -1582,7 +1605,7 @@ venv = Venv(
         ),
         Venv(
             name="pymemcache",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "pytest-randomly": latest,
                 "pymemcache": [
@@ -3509,7 +3532,7 @@ venv = Venv(
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
+                            pys=select_pys(min_version="3.11", max_version="3.14"),
                             pkgs={"confluent-kafka": latest},
                         ),
                     ],
@@ -4669,6 +4692,16 @@ venv = Venv(
             pkgs={
                 "requests": latest,
             },
+            pys=select_pys(),
+        ),
+        Venv(
+            # Cross-product tests: a security/AI product in standalone mode alongside another
+            # product. Owned by no single product team, see tests/standalone/.
+            name="standalone",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
+            command="pytest {cmdargs} tests/standalone/",
             pys=select_pys(),
         ),
         Venv(
