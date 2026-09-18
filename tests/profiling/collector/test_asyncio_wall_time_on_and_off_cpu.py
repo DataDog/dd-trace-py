@@ -159,3 +159,27 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+@pytest.mark.parametrize("print_samples_on_failure", (False, True))
+def test_missing_sample_diagnostic_precedes_profile_dump(capsys, monkeypatch, print_samples_on_failure):
+    from tests.profiling.collector import pprof_utils
+
+    profile = pprof_utils.pprof_pb2.Profile()
+    expected = pprof_utils.StackEvent(
+        task_name="missing-task",
+        locations=[pprof_utils.StackLocation(function_name="missing_function", filename="missing.py", line_no=-1)],
+    )
+    monkeypatch.setattr(pprof_utils, "print_all_samples", lambda _profile: print("x" * 6000))
+
+    with pytest.raises(AssertionError, match="Expected samples not found") as exc:
+        pprof_utils.assert_profile_has_sample(profile, [], expected, print_samples_on_failure=print_samples_on_failure)
+
+    output = capsys.readouterr().out
+    if print_samples_on_failure:
+        assert output.splitlines()[0] == str(exc.value)
+        assert "missing-task" in output[:5000]
+        assert "missing_function" in output[:5000]
+        assert len(output) > 5000
+    else:
+        assert output == ""

@@ -614,6 +614,8 @@ def assert_profile_has_sample(
             error_description += ", thread name " + expected_sample.thread_name
 
         if print_samples_on_failure:
+            # Keep the actionable failure ahead of the dump so CI truncation retains it.
+            print(error_description)
             print_all_samples(profile)
 
     assert found, error_description
