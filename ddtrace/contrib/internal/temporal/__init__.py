@@ -6,7 +6,7 @@ Temporal Python SDK.
 Usage (manual)::
 
     from temporalio.client import Client
-    from ddtrace.contrib.internal.temporal import DatadogTracingInterceptor
+    from ddtrace.contrib.temporal import DatadogTracingInterceptor
 
     interceptor = DatadogTracingInterceptor(
         service_name="my-service",
@@ -27,16 +27,6 @@ log injection.
 """
 
 from .interceptor import DatadogTracingInterceptor
-from .workflow_interceptor import disconnect_trace_span_from_workflow_context
-from .workflow_interceptor import span_from_workflow_context
-from .wrapped_tracer import FinishContext
-from .wrapped_tracer import FinishResult
 
 
-__all__ = [
-    "DatadogTracingInterceptor",
-    "FinishContext",
-    "FinishResult",
-    "disconnect_trace_span_from_workflow_context",
-    "span_from_workflow_context",
-]
+__all__ = ["DatadogTracingInterceptor"]

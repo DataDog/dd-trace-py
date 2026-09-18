@@ -65,6 +65,7 @@ def patch() -> None:
     if getattr(temporalio, "_datadog_patch", False):
         return
     temporalio._datadog_patch = True
+
     wrap("temporalio.client", "Client.__init__", _traced_client_init)
 
 
@@ -73,4 +74,5 @@ def unpatch() -> None:
     if not getattr(temporalio, "_datadog_patch", False):
         return
     temporalio._datadog_patch = False
+
     unwrap(temporalio.client.Client, "__init__")

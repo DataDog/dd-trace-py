@@ -60,7 +60,7 @@ double-registration:
 
 ```python
 from temporalio.client import Client
-from ddtrace.contrib.internal.temporal import DatadogTracingInterceptor
+from ddtrace.contrib.temporal import DatadogTracingInterceptor
 
 interceptor = DatadogTracingInterceptor(
     service_name="my-service",
@@ -147,11 +147,11 @@ then reuses the host's already-imported `ddtrace.contrib.internal.temporal.*`
 modules (including `DatadogTracingWorkflowInboundInterceptor`) instead of
 re-importing them, so no ddtrace code runs under sandbox restrictions.
 
-Because `ddtrace` is passthrough, workflow code can also import the public
-helpers directly:
+Because `ddtrace` is passthrough, workflow code can also import the helpers
+directly:
 
 ```python
-from ddtrace.contrib.internal.temporal import span_from_workflow_context
+from ddtrace.contrib.internal.temporal.workflow_interceptor import span_from_workflow_context
 ```
 
 ### Extern-function bridge

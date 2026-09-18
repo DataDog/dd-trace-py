@@ -1,7 +1,13 @@
+from ddtrace.contrib.internal.temporal.interceptor import DatadogTracingInterceptor as InternalDatadogTracingInterceptor
 from ddtrace.contrib.internal.temporal.patch import get_version
 from ddtrace.contrib.internal.temporal.patch import patch
 from ddtrace.contrib.internal.temporal.patch import unpatch
+from ddtrace.contrib.temporal import DatadogTracingInterceptor
 from tests.contrib.patch import PatchTestCase
+
+
+def test_datadog_tracing_interceptor_is_public():
+    assert DatadogTracingInterceptor is InternalDatadogTracingInterceptor
 
 
 class TestTemporalPatch(PatchTestCase.Base):
