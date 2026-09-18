@@ -1,7 +1,7 @@
-"""Opt-in, content-free usage attribution for a LiteLLM proxy.
+"""Record LiteLLM gateway usage by authenticated user, without prompt or response text.
 
 Add ``ddtrace.contrib.litellm.gateway_attribution`` to ``litellm_settings.callbacks``.
-See the LiteLLM integration documentation for configuration and coverage limitations.
+See the LiteLLM integration guide for setup, optional billing details, and limitations.
 """
 
 from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution

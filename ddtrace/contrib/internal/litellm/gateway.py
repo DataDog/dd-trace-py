@@ -97,14 +97,16 @@ def _has_nontext_input(data: dict[str, Any]) -> bool:
 
 # LiteLLM is optional and not installed in the lint environment.
 class GatewayAttribution(CustomLogger):  # type: ignore[misc]
-    """Collect content-free APM usage spans for authenticated LiteLLM proxy requests.
+    """Record gateway users and usage in APM, without prompt or response text.
 
-    :param billing_scopes: Mapping from router ``model_info.id`` to non-secret billing
-        fields: ``provider``, ``account_id``, ``product``, and optionally ``project_id``,
+    :param billing_scopes: Billing details for each deployment's ``model_info.id``,
+        not its model alias. Each entry needs ``provider``, ``account_id``, and
+        ``product``. Optional fields are ``project_id``,
         ``resource_id``, ``api_key_id``, ``geography``, ``mode``, and ``model``.
+        Use provider IDs, never secret API keys. Omit unknown optional fields.
     :param capture_email: Include authenticated user email. Defaults to ``False``.
-    :param auth_metadata_keys: Non-secret keys to copy from authenticated user metadata.
-        Request-supplied metadata is never used for attribution.
+    :param auth_metadata_keys: User metadata fields to copy, such as ``cost_center``.
+        Only authenticated user metadata is read, never client-supplied request fields.
     :raises ValueError: If configuration contains invalid fields or values.
     """
 

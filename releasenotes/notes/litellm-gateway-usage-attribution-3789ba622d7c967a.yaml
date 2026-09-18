@@ -1,8 +1,6 @@
 features:
   - |
-    litellm: Adds the opt-in ``ddtrace.contrib.litellm.gateway_attribution`` proxy
-    callback for content-free APM usage spans attributed to authenticated gateway
-    users, with selected-route dimensions, outgoing pricing settings, cache TTLs,
-    and available modality usage. Set ``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG`` to
-    a JSON configuration path to supply additional billing dimensions and opt in
-    to email or authenticated metadata.
+    litellm: Add ``ddtrace.contrib.litellm.gateway_attribution`` to your gateway's
+    callbacks to record users, models, and usage in APM without prompt or response
+    text. Optionally set ``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG`` to a JSON file
+    path to add billing details or enable email and selected user metadata.
