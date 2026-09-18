@@ -64,6 +64,7 @@ def test_uds_wrong_socket_path():
 
     import mock
 
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
@@ -71,16 +72,24 @@ def test_uds_wrong_socket_path():
         t.trace("client.testing").finish()
         t.shutdown()
 
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s: %s",
-            1,
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
-            "Network error: client error (Connect)",
-            extra={"send_to_telemetry": False},
-        )
-    ]
-    log.error.assert_has_calls(calls)
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # libdatadog's exporter retries a permanently unreachable socket in the background;
+        # the blocking flush on shutdown only ever sees that as a timed-out wait, never a
+        # send error, so this never reaches log.error.
+        calls = [call for call in log.warning.call_args_list if "TimedOut" in call.args[-1]]
+        assert calls, log.warning.call_args_list
+        log.error.assert_not_called()
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+                "Network error: client error (Connect)",
+                extra={"send_to_telemetry": False},
+            )
+        ]
+        log.error.assert_has_calls(calls)
 
 
 @skip_if_testagent
@@ -318,6 +327,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
     import mock
 
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -326,16 +336,23 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
 
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s: %s",
-            1,
-            "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
-            "Network error: client error (Connect)",
-            extra={"send_to_telemetry": False},
-        )
-    ]
-    log.error.assert_has_calls(calls)
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # Same as test_uds_wrong_socket_path: a permanently unreachable agent surfaces as a
+        # timed-out flush wait, not a send error, so log.error is never called.
+        calls = [call for call in log.warning.call_args_list if "TimedOut" in call.args[-1]]
+        assert calls, log.warning.call_args_list
+        log.error.assert_not_called()
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
+                "Network error: client error (Connect)",
+                extra={"send_to_telemetry": False},
+            )
+        ]
+        log.error.assert_has_calls(calls)
 
 
 @skip_if_testagent
