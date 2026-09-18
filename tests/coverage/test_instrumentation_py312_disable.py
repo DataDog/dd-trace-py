@@ -16,6 +16,7 @@ def _restore_coverage_state():
 
     orig_hooks = [(code, m._CODE_HOOKS[code]) for code in m._CODE_HOOKS]
     orig_seen = [(code, set(m._seen_event_locations[code])) for code in m._seen_event_locations]
+    orig_single_subscriber_version = m._single_subscriber_version
     orig_warned = m._warned_tool_unavailable
 
     try:
@@ -28,6 +29,7 @@ def _restore_coverage_state():
             m._seen_event_locations.clear()
             for code, locations in orig_seen:
                 m._seen_event_locations[code] = locations
+        m._single_subscriber_version = orig_single_subscriber_version
         m._warned_tool_unavailable = orig_warned
 
 
@@ -166,6 +168,7 @@ def test_handlers_isolate_structurally_equal_code_objects(handler_name, monkeypa
     assert sorted(id(code) for code in m._seen_event_locations) == sorted((id(code_a), id(code_b)))
 
     refreshed = []
+    monkeypatch.setattr(m._monitoring, "restart_events", lambda _handler: None)
     monkeypatch.setattr(m._monitoring, "refresh", lambda code, events: refreshed.append((code, events)))
     m._rearm_disabled()
     assert sorted(id(code) for code, _events in refreshed) == sorted((id(code_a), id(code_b)))
@@ -210,6 +213,7 @@ def test_rearm_disabled_refreshes_each_touched_code_object(monkeypatch):
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
     refreshed = []
+    monkeypatch.setattr(monitoring, "restart_events", lambda _handler: None)
     monkeypatch.setattr(monitoring, "refresh", lambda code, events: refreshed.append((code, events)))
 
     code_a = compile("a = 1", "<a>", "exec")
@@ -234,10 +238,77 @@ def test_rearm_disabled_is_noop_when_empty(monkeypatch):
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
     called = []
+    monkeypatch.setattr(monitoring, "restart_events", lambda _handler: None)
     monkeypatch.setattr(monitoring, "refresh", lambda code, events: called.append((code, events)))
 
     m._rearm_disabled()
     assert called == []
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_rearm_disabled_uses_global_restart_for_single_subscriber(monkeypatch):
+    from ddtrace.internal import monitoring
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    restarted = []
+
+    def restart_events(handler):
+        restarted.append(handler)
+        return 42
+
+    monkeypatch.setattr(monitoring, "restart_events", restart_events)
+    monkeypatch.setattr(
+        monitoring,
+        "refresh",
+        lambda code, events: pytest.fail("single-subscriber coverage must not use targeted refresh"),
+    )
+
+    code_obj = compile("a = 1", "<a>", "exec")
+    m._single_subscriber_version = None
+    assert m._claim_event(code_obj, 1)
+
+    m._rearm_disabled()
+
+    assert restarted == [m._handler]
+    assert m._single_subscriber_version == 42
+    assert len(m._seen_event_locations) == 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_claim_event_skips_software_deduplication_for_single_subscriber(monkeypatch):
+    from ddtrace.internal import monitoring
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    monkeypatch.setattr(monitoring, "registry_version_is_current", lambda version: version == 42)
+    m._single_subscriber_version = 42
+    code_obj = compile("a = 1", "<a>", "exec")
+
+    assert m._claim_event(code_obj, 1)
+    assert m._claim_event(code_obj, 1)
+    assert len(m._seen_event_locations) == 0
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_rearm_disabled_refreshes_all_code_after_single_subscriber_state_ends(monkeypatch):
+    from ddtrace.internal import monitoring
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    code_a = compile("a = 1", "<a>", "exec")
+    code_b = compile("b = 2", "<b>", "exec")
+    hook_data = (lambda info: None, "/test.py", {}, None, None, None)
+    m._CODE_HOOKS[code_a] = hook_data
+    m._CODE_HOOKS[code_b] = hook_data
+    m._single_subscriber_version = 42
+
+    refreshed = []
+    monkeypatch.setattr(monitoring, "restart_events", lambda _handler: None)
+    monkeypatch.setattr(monitoring, "refresh", lambda code, events: refreshed.append((code, events)))
+
+    m._rearm_disabled()
+
+    assert sorted(id(code) for code, _events in refreshed) == sorted((id(code_a), id(code_b)))
+    assert all(events == m._EVENT for _code, events in refreshed)
+    assert m._single_subscriber_version is None
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")

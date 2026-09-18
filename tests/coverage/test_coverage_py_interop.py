@@ -10,12 +10,11 @@ using sys.monitoring (e.g. `pytest-cov` running alongside ddtrace's CI Visibilit
 per-test coverage collection), ddtrace would repeatedly stomp on coverage.py's own internal
 state and corrupt its report.
 
-The fix: coverage no longer claims its own sys.monitoring tool slot. It registers a
-handler with the shared ddtrace sys.monitoring multiplexer
-(`ddtrace.internal.monitoring`), and its DISABLE optimisation is tool-scoped (a
-per-(tool, code, location) mark cleared by a tool-scoped `set_local_events` toggle in
-`monitoring.refresh()`, never by the global `restart_events()`). Per-test re-arming
-therefore cannot corrupt another tool's disabled-event state, regardless of timing.
+The fix: coverage registers a handler with the shared ddtrace sys.monitoring
+multiplexer. A sole ddtrace subscriber may use global `restart_events()` only while no
+external tool is visible. A registered coverage.py tool rejects that shortcut, so
+per-test re-arming uses a per-(tool, code, location) `set_local_events` toggle in
+`monitoring.refresh()` and cannot alter coverage.py's disabled-event state.
 
 Unlike the other tests in this directory (test_coverage_tool_clash.py,
 test_instrumentation_py312_disable.py, test_coverage_context_reinstrumentation.py),
@@ -49,12 +48,11 @@ def test_ddtrace_context_transition_with_real_coverage_py():
        Python 3.14). The same line is executed again -- now observed by coverage.py,
        whose own sys.monitoring callback also returns DISABLE after recording it (on
        coverage.py's own, separate tool slot).
-    4. A ddtrace CollectInContext is entered. _rearm_disabled() re-arms ddtrace's own
-       silenced events via a tool-scoped monitoring.refresh(); it never touches
-       coverage.py's tool slot, so coverage.py's already-recorded data is preserved.
-       A different line is executed for the first time inside this context.
-    5. A second CollectInContext is entered/exited. Per-test coverage isolation still
-       holds, and no global restart_events() is ever called.
+    4. A ddtrace CollectInContext is entered. Because coverage.py's tool is visible,
+       _rearm_disabled() rejects the global shortcut and re-arms ddtrace's own events
+       via monitoring.refresh(). A different line is then executed for the first time.
+    5. A second CollectInContext is entered/exited. coverage.py remains visible, so
+       per-test coverage isolation continues through the selective fallback.
 
     Assertions verify BOTH tools end up with correct, uncorrupted data: ddtrace's
     per-context coverage is complete and properly isolated between the two contexts,
@@ -64,9 +62,12 @@ def test_ddtrace_context_transition_with_real_coverage_py():
     """
     import os
     from pathlib import Path
+    import sys
 
     import coverage
 
+    from ddtrace.internal import monitoring
+    from ddtrace.internal.coverage import instrumentation_py3_12
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
     from tests.coverage.utils import _get_relpath_dict
@@ -96,6 +97,11 @@ def test_ddtrace_context_transition_with_real_coverage_py():
     cov = coverage.Coverage(data_file=None, config_file=False)
     cov.start()
 
+    assert any(sys.monitoring.get_tool(tool_id) not in (None, "ddtrace") for tool_id in range(6)), (
+        "coverage.py must own a separate sys.monitoring slot"
+    )
+    assert monitoring.restart_events(instrumentation_py3_12._handler) is None
+
     try:
         # Same line, now observed by coverage.py for the first time. coverage.py
         # records it and DISABLEs that line's event on its own tool slot -- this is
@@ -117,9 +123,8 @@ def test_ddtrace_context_transition_with_real_coverage_py():
             called_in_context(6, 7)
             ctx1_covered = _get_relpath_dict(cwd_path, ctx1.get_covered_lines())
 
-        # Step 5: a second context. No transition happens this time (the flag is
-        # already False), so no further restart_events() call is made. Per-test
-        # coverage isolation must still hold even without the DISABLE optimisation.
+        # Step 5: coverage.py remains visible, so this context also takes the
+        # selective fallback and preserves per-test coverage isolation.
         with ModuleCodeCollector.CollectInContext() as ctx2:
             called_in_context(8, 9)
             ctx2_covered = _get_relpath_dict(cwd_path, ctx2.get_covered_lines())

@@ -378,11 +378,10 @@ def test_sequential_contexts_with_other_monitoring_tool():
     Test that coverage from one context does not spill into the next when another
     sys.monitoring tool is active.
 
-    Coverage routes through the shared sys.monitoring multiplexer, whose DISABLE is
-    tool-scoped (per-(tool, code, location)), so it never affects another tool's
-    disabled-event state and never calls the global restart_events(). Per-test
-    re-arming is therefore always safe, regardless of other registered tools, and
-    coverage isolation between contexts still holds.
+    Coverage routes through the shared sys.monitoring multiplexer. Because another
+    tool is visible, the best-effort global restart shortcut is rejected and per-test
+    re-arming uses tool-scoped event toggles. The other tool's disabled-event state
+    remains unchanged and coverage isolation between contexts still holds.
     """
     import os
     from pathlib import Path
