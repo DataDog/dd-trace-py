@@ -1,12 +1,10 @@
-defaults: &defaults
+# Eval hot path the caller pays: bounded immutable snapshot + non-blocking enqueue.
+# Keep the shared anchor on a real scenario; the runner executes every top-level key.
+hook-enqueue-typical: &defaults
   num_flags: 100
   num_users: 50
   num_context_fields: 10
   observe_full_evaluation_data: true
-
-# Eval hot path the caller pays: bounded immutable snapshot + non-blocking enqueue.
-hook-enqueue-typical:
-  <<: *defaults
   mode: hook_enqueue
 
 hook-enqueue-protected-typical:
