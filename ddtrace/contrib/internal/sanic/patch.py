@@ -5,8 +5,8 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -34,8 +34,7 @@ def _supported_versions() -> dict[str, str]:
 
 
 def _get_current_span(request):
-    pin = Pin._find(request.ctx)
-    if not pin or not pin.enabled():
+    if not getattr(request.ctx, "_datadog_request_traced", False) or not is_tracing_enabled():
         return None
 
     return tracer.current_span()
@@ -190,9 +189,8 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
 
 def _create_sanic_request_span(request):
-    """Helper to create sanic.request span and attach a pin to request.ctx"""
-    pin = Pin()
-    pin.onto(request.ctx)
+    """Create the Sanic request span and mark its request context as traced."""
+    request.ctx._datadog_request_traced = True
 
     if SANIC_VERSION < (21, 0, 0):
         # Set span resource from the framework request
@@ -211,7 +209,6 @@ def _create_sanic_request_span(request):
         service=trace_utils.int_service(None, config.sanic),
         resource=resource,
         tags={},
-        pin=pin,
         distributed_headers=headers,
         integration_config=config.sanic,
         activate_distributed_headers=True,
