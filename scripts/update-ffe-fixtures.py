@@ -214,13 +214,14 @@ def update_fixture_snapshot(repository_root, fixture_ref, *, check=False):
 def main():
     parser = argparse.ArgumentParser(description="Update the checked-in canonical FFE fixture snapshot")
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--ref", default="main", help="Branch, tag, or commit from DataDog/ffe-system-test-data")
+    mode.add_argument("--ref", help="Branch, tag, or commit from DataDog/ffe-system-test-data")
     mode.add_argument(
         "--check", action="store_true", help="Verify the snapshot against SOURCE.md without changing files"
     )
     arguments = parser.parse_args()
     repository_root = Path(__file__).resolve().parent.parent
-    update_fixture_snapshot(repository_root, arguments.ref, check=arguments.check)
+    fixture_ref = arguments.ref if arguments.ref is not None else "main"
+    update_fixture_snapshot(repository_root, fixture_ref, check=arguments.check)
 
 
 if __name__ == "__main__":

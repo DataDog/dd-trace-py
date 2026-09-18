@@ -220,10 +220,35 @@ def test_update_repairs_drift_and_then_preserves_unchanged_snapshot(updater, fix
     assert snapshot_state(destination) == before
 
 
-def test_check_cannot_override_recorded_commit(updater, monkeypatch):
-    monkeypatch.setattr(sys, "argv", [str(SCRIPT_PATH), "--check", "--ref", "main"])
+@pytest.mark.parametrize("fixture_ref", ["main", "reviewed-ref"])
+def test_check_cannot_override_recorded_commit(updater, monkeypatch, fixture_ref):
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT_PATH), "--check", "--ref", fixture_ref])
+    monkeypatch.setattr(updater, "update_fixture_snapshot", lambda *args, **kwargs: None)
 
     with pytest.raises(SystemExit) as error:
         updater.main()
 
     assert error.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "arguments,expected_ref,expected_check",
+    [([], "main", False), (["--ref", "reviewed-ref"], "reviewed-ref", False), (["--check"], "main", True)],
+)
+def test_main_selects_fixture_mode(updater, monkeypatch, arguments, expected_ref, expected_check):
+    calls = []
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT_PATH), *arguments])
+    monkeypatch.setattr(
+        updater, "update_fixture_snapshot", lambda root, ref, *, check: calls.append((root, ref, check))
+    )
+
+    updater.main()
+
+    assert calls == [(SCRIPT_PATH.parent.parent, expected_ref, expected_check)]
+
+
+def test_main_rejects_empty_ref(updater, monkeypatch):
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT_PATH), "--ref", ""])
+
+    with pytest.raises(ValueError, match="Invalid FFE fixture ref"):
+        updater.main()
