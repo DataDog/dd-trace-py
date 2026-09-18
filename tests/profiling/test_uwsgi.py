@@ -378,12 +378,10 @@ def test_uwsgi_threads_processes_primary(
     - --py-call-uwsgi-fork-hooks: ensures Python fork hooks are called after fork
     - --processes 2: spawns 2 worker processes
 
-    With --py-call-uwsgi-fork-hooks active, check_uwsgi() treats this as an ordinary
-    forking process (like gunicorn without preload): uwsgi itself invokes CPython's
-    os.register_at_fork hooks around each worker fork, so the profiler's normal
-    fork-safety machinery (forksafe registry, PeriodicThread auto-restart) restarts
-    it in each worker -- no uwsgidecorators.postfork bridging is needed. The test
-    verifies that:
+    Even with --py-call-uwsgi-fork-hooks active, the profiler does not start in the
+    master. uWSGI owns the master's shutdown lifecycle and can tear down native state
+    before Python cleanup runs. Instead, uwsgidecorators.postfork starts a fresh
+    profiler in each worker. The test verifies that:
     - Both workers start successfully
     - Each worker independently collects wall-time samples
     - Profiles are written with each worker's PID suffix
@@ -395,15 +393,30 @@ def test_uwsgi_threads_processes_primary(
 
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
+        assert len(worker_pids) == 2, "expected 2 workers, saw %r (uwsgi returncode=%r)" % (
+            worker_pids,
+            proc.poll(),
+        )
         for pid in worker_pids:
             _wait_for_profile_samples(filename, pid, "wall-time")
     finally:
         # Ensure uwsgi is torn down even on assertion failure so we do not
         # leak master + workers into subsequent tests / CI cleanup.
         proc.terminate()
-        exit_code = proc.wait()
+        try:
+            remaining_stdout, _ = proc.communicate(timeout=10)
+        except TimeoutExpired:
+            proc.kill()
+            try:
+                remaining_stdout, _ = proc.communicate(timeout=10)
+            except TimeoutExpired:
+                pytest.fail("uWSGI master did not exit after SIGTERM and SIGKILL")
+        exit_code = proc.returncode
 
-    assert exit_code == 0
+    assert exit_code == 0, "uWSGI master exited with %d; remaining stdout:\n%s" % (
+        exit_code,
+        remaining_stdout.decode(errors="replace"),
+    )
 
 
 def test_uwsgi_threads_processes_primary_lazy_apps(
