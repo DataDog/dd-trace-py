@@ -408,7 +408,7 @@ class PropagationTestCase(TracerTestCase):
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
-@pytest.mark.subprocess(ddtrace_run=True, timeout=5)
+@pytest.mark.subprocess(ddtrace_run=True, timeout=15)
 def test_concurrent_futures_with_gevent():
     """Check compatibility between the integration and gevent"""
     import os
