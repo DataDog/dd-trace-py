@@ -9,14 +9,12 @@ class GlobMatcher(object):
     The match method will be cached for quicker matching and is in a class to keep it from being global.
     """
 
-    def __init__(self, pattern):
-        # type: (str) -> None
+    def __init__(self, pattern: str) -> None:
         self.pattern = pattern.lower()
         self.wildcards_only = not (set(self.pattern) - {"?", "*"})
 
     @cachedmethod()
-    def match(self, subject):
-        # type: (str) -> bool
+    def match(self, subject: str) -> bool:
         pattern = self.pattern
         subject = subject.lower()
         px = 0  # [p]attern inde[x]
