@@ -3,6 +3,7 @@ Datadog trace code for cherrypy.
 """
 
 import logging
+from typing import cast
 
 import cherrypy
 from cherrypy.lib.httputil import valid_status
@@ -12,12 +13,10 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -45,9 +44,6 @@ def _supported_versions() -> dict[str, str]:
     return {"cherrypy": ">=17.0.0"}
 
 
-SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direction=SpanDirection.INBOUND)
-
-
 class TraceTool(cherrypy.Tool):
     def __init__(self, app, service, use_distributed_tracing=None):
         self.app = app
@@ -73,89 +69,110 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
-        with core.context_with_data(
-            "cherrypy.request",
-            span_name=SPAN_NAME,
-            span_type=SpanTypes.WEB,
-            tags={},
-            distributed_headers=cherrypy.request.headers,
+        service = trace_utils.int_service(
+            None,
+            config.cherrypy,
+            default="cherrypy",
+        )
+        url = str(cherrypy.request.base + cherrypy.request.path_info)
+
+        event = WebFrameworkRequestEvent(
+            http_operation="cherrypy.request",
+            component=config.cherrypy.integration_name,
             integration_config=config.cherrypy,
+            request_method=cherrypy.request.method,
+            request_url=url,
+            request_headers=cherrypy.request.headers,
+            query="",
+            request_route=None,
             activate_distributed_headers=True,
             headers_case_sensitive=True,
-        ) as ctx:
-            req_span = span_from_context(ctx)
-            set_service_and_source(
-                req_span,
-                trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
-                config.cherrypy,
-            )
-
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request.start", (ctx, config.cherrypy))
-
-            cherrypy.request._datadog_span = req_span
-
-    def _after_error_response(self):
-        span = getattr(cherrypy.request, "_datadog_span", None)
-
-        if not span:
-            log.warning("cherrypy: tracing tool after_error_response hook called, but no active span found")
-            return
-
-        span.error = 1
-        span._set_attribute(ERROR_TYPE, str(cherrypy._cperror._exc_info()[0]))
-        span._set_attribute(ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
-        span._set_attribute(ERROR_STACK, cherrypy._cperror.format_exc())
-
-        self._close_span(span)
-
-    def _on_end_request(self):
-        span = getattr(cherrypy.request, "_datadog_span", None)
-
-        if not span:
-            log.warning("cherrypy: tracing tool on_end_request hook called, but no active span found")
-            return
-
-        self._close_span(span)
-
-    def _close_span(self, span):
-        # Let users specify their own resource in middleware if they so desire.
-        # See case https://github.com/DataDog/dd-trace-py/issues/353
-        if span.resource == SPAN_NAME:
-            # In the future, mask virtual path components in a
-            # URL e.g. /dispatch/abc123 becomes /dispatch/{{test_value}}/
-            # Following investigation, this should be possible using
-            # [find_handler](https://docs.cherrypy.org/en/latest/_modules/cherrypy/_cpdispatch.html#Dispatcher.find_handler)
-            # but this may not be as easy as `cherrypy.request.dispatch.find_handler(cherrypy.request.path_info)` as
-            # this function only ever seems to return an empty list for the virtual path components.
-
-            # For now, default resource is method and path:
-            #   GET /
-            #   POST /save
-            resource = "{} {}".format(cherrypy.request.method, cherrypy.request.path_info)
-            span.resource = str(resource)
-
-        url = str(cherrypy.request.base + cherrypy.request.path_info)
-        status_code, _, _ = valid_status(cherrypy.response.status)
-
-        core.dispatch(
-            "web.request.finish",
-            (
-                span,
-                config.cherrypy,
-                cherrypy.request.method,
-                url,
-                status_code,
-                None,
-                cherrypy.request.headers,
-                cherrypy.response.headers,
-                None,
-                True,
-            ),
         )
 
-        # Clear our span just in case.
-        cherrypy.request._datadog_span = None
+        with core.context_with_event(
+            event,
+            dispatch_end_event=False,
+        ) as ctx:
+            request_span = span_from_context(ctx)
+
+            if request_span is not None:
+                # Apply the service after event creation to preserve CherryPy
+                # as the service source.
+                set_service_and_source(
+                    request_span,
+                    service,
+                    config.cherrypy,
+                )
+
+            cherrypy.request._datadog_context = ctx
+            cherrypy.request._datadog_span = request_span
+
+    def _after_error_response(self):
+        ctx = getattr(cherrypy.request, "_datadog_context", None)
+
+        if ctx is None:
+            log.warning("cherrypy: tracing tool after_error_response hook called, but no active context found")
+            return
+
+        span = span_from_context(ctx)
+        if span is None:
+            return
+
+        exc_info = cherrypy._cperror._exc_info()
+        span.error = 1
+        span._set_attribute(ERROR_TYPE, str(exc_info[0]))
+        span._set_attribute(ERROR_MSG, str(exc_info[1]))
+        span._set_attribute(
+            ERROR_STACK,
+            cherrypy._cperror.format_exc(),
+        )
+
+        self._close_request(ctx)
+
+    def _on_end_request(self):
+        ctx = getattr(cherrypy.request, "_datadog_context", None)
+
+        if ctx is None:
+            log.warning("cherrypy: tracing tool on_end_request hook called, but no active context found")
+            return
+
+        self._close_request(ctx)
+
+    def _close_request(self, ctx):
+        try:
+            span = span_from_context(ctx)
+            if span is None:
+                return
+
+            event = cast(WebFrameworkRequestEvent, ctx.event)
+
+            # Let users specify their own resource in middleware if they so desire.
+            # See case https://github.com/DataDog/dd-trace-py/issues/353
+            # Comparing against event.operation_name also works under schema v1.
+            if span.resource == event.operation_name:
+                # In the future, mask virtual path components in a
+                # URL e.g. /dispatch/abc123 becomes /dispatch/{{test_value}}/
+                # Following investigation, this should be possible using
+                # [find_handler](https://docs.cherrypy.org/en/latest/_modules/cherrypy/_cpdispatch.html#Dispatcher.find_handler)
+                # but this may not be as easy as `cherrypy.request.dispatch.find_handler(cherrypy.request.path_info)` as
+                # this function only ever seems to return an empty list for the virtual path components.
+
+                # For now, default resource is method and path:
+                #   GET /
+                #   POST /save
+                span.resource = "{} {}".format(
+                    cherrypy.request.method,
+                    cherrypy.request.path_info,
+                )
+
+            status_code, _, _ = valid_status(cherrypy.response.status)
+            event.response_status_code = status_code
+            event.response_headers = cherrypy.response.headers
+
+            ctx.dispatch_ended_event()
+        finally:
+            cherrypy.request._datadog_context = None
+            cherrypy.request._datadog_span = None
 
 
 class TraceMiddleware(object):
@@ -168,4 +185,5 @@ class TraceMiddleware(object):
                 category=DDTraceDeprecationWarning,
                 removal_version="5.0.0",
             )
+
         self.app.tools.tracer = TraceTool(app, service, distributed_tracing)
