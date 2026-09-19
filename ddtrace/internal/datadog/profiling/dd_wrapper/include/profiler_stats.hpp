@@ -40,6 +40,9 @@ class ProfilerStats
     // Sticky: fell back to syscall copy (init failure, foreign handler, etc.)
     std::optional<bool> fast_copy_memory_syscall_fallback;
 
+    // Sticky: we ceded SIGSEGV/SIGBUS to a foreign handler
+    std::optional<bool> fast_copy_memory_foreign_takeover;
+
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
     size_t copy_memory_error_count = 0;
 
@@ -86,6 +89,9 @@ class ProfilerStats
 
     void set_fast_copy_memory_syscall_fallback(bool fallback);
     std::optional<bool> get_fast_copy_memory_syscall_fallback() const;
+
+    void set_fast_copy_memory_foreign_takeover(bool takeover);
+    std::optional<bool> get_fast_copy_memory_foreign_takeover() const;
 
     // fast_copy_memory_* are process-static; carry them across ProfilerStats swaps.
     void copy_fast_copy_metadata_from(const ProfilerStats& other);

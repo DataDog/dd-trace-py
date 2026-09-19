@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <csignal>
+#include <string>
 #include <sys/mman.h>
 
 namespace {
@@ -119,4 +120,78 @@ TEST(ThreadAltStackOwnership, DestructorDoesNotDisableReplacedAltStack)
 
     disable_alt_stack();
     munmap(sentinel, kSentinelSize);
+}
+
+namespace {
+
+struct RestoreSignalHandlers
+{
+    struct sigaction segv
+    {};
+    struct sigaction bus
+    {};
+
+    RestoreSignalHandlers()
+    {
+        sigaction(SIGSEGV, nullptr, &segv);
+        sigaction(SIGBUS, nullptr, &bus);
+    }
+
+    ~RestoreSignalHandlers()
+    {
+        sigaction(SIGSEGV, &segv, nullptr);
+        sigaction(SIGBUS, &bus, nullptr);
+    }
+};
+
+void
+foreign_siginfo_handler(int, siginfo_t*, void*)
+{
+}
+
+} // namespace
+
+TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
+{
+    RestoreSignalHandlers restore;
+
+    struct sigaction sa
+    {};
+    sa.sa_handler = SIG_DFL;
+    ASSERT_EQ(sigaction(SIGSEGV, &sa, nullptr), 0);
+    sa.sa_handler = SIG_IGN;
+    ASSERT_EQ(sigaction(SIGBUS, &sa, nullptr), 0);
+
+    const std::string def_ign = describe_segv_handler_owners();
+    EXPECT_NE(def_ign.find("SIGSEGV=SIG_DFL"), std::string::npos);
+    EXPECT_NE(def_ign.find("SIGBUS=SIG_IGN"), std::string::npos);
+
+    sa = {};
+    sa.sa_handler = SIG_DFL;
+    sa.sa_flags = SA_SIGINFO;
+    ASSERT_EQ(sigaction(SIGSEGV, &sa, nullptr), 0);
+    sa.sa_handler = SIG_IGN;
+    sa.sa_flags = SA_SIGINFO;
+    ASSERT_EQ(sigaction(SIGBUS, &sa, nullptr), 0);
+
+    const std::string def_ign_siginfo = describe_segv_handler_owners();
+    EXPECT_NE(def_ign_siginfo.find("SIGSEGV=SIG_DFL"), std::string::npos);
+    EXPECT_NE(def_ign_siginfo.find("SIGBUS=SIG_IGN"), std::string::npos);
+
+    ASSERT_EQ(init_segv_catcher(), 0);
+    EXPECT_EQ(describe_segv_handler_owners(), "SIGSEGV=ddtrace, SIGBUS=ddtrace");
+    uninstall_segv_handler();
+
+    struct sigaction foreign
+    {};
+    foreign.sa_sigaction = foreign_siginfo_handler;
+    sigemptyset(&foreign.sa_mask);
+    foreign.sa_flags = SA_SIGINFO;
+    ASSERT_EQ(sigaction(SIGSEGV, &foreign, nullptr), 0);
+    ASSERT_EQ(sigaction(SIGBUS, &foreign, nullptr), 0);
+
+    const std::string named = describe_segv_handler_owners();
+    EXPECT_NE(named.find("test_alt_stack_ownership"), std::string::npos);
+    EXPECT_EQ(named.find("SIGSEGV=ddtrace"), std::string::npos);
+    EXPECT_EQ(named.find("SIGSEGV=SIG_DFL"), std::string::npos);
 }

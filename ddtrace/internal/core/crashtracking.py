@@ -274,20 +274,41 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         # (profiler -> crashtracker -> default) with no cycle. We only touch the
         # stack module if it is already imported: importing it here would load the
         # native extension and install signal handlers even when profiling is off.
+        #
+        # Pause the sampler for the same reason as _faulthandler: an unpaused
+        # sampling loop can observe the transient uninstall as a foreign
+        # takeover and permanently fall back to the syscall copy.
         stack_mod = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        pause_result: Optional[bool] = None
         if stack_mod is not None:
             try:
-                stack_mod.uninstall_segv_handler()
+                # pause_sampling returns:
+                #   True  — sampler paused (safe to swap handlers)
+                #   False — sampler not running (safe to swap; no racing thread)
+                #   None  — timed out; skip uninstall to avoid racing safe_memcpy
+                pause_result = stack_mod.pause_sampling()
             except Exception:  # nosec: B110
-                pass
-        crashtracker_init(config, receiver_config, metadata)
-        excepthook.register(_unhandled_exception_reporter)
+                pause_result = None
+            if pause_result is not None:
+                try:
+                    stack_mod.uninstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
+        try:
+            crashtracker_init(config, receiver_config, metadata)
+            excepthook.register(_unhandled_exception_reporter)
 
-        if stack_mod is not None:
-            try:
-                stack_mod.reinstall_segv_handler()
-            except Exception:  # nosec: B110
-                pass
+            if stack_mod is not None:
+                try:
+                    stack_mod.reinstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
+        finally:
+            if stack_mod is not None and pause_result is True:
+                try:
+                    stack_mod.resume_sampling()
+                except Exception:  # nosec: B110
+                    pass
 
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after
