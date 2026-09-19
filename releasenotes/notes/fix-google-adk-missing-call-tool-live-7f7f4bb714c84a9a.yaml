@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    google-adk: Fixes an ``AttributeError`` when patching ``google-adk`` releases below 2.7.0 that do not
+    provide ``__call_tool_live``, such as 1.39.1. The wrapper is now applied only when the function exists.
