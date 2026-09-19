@@ -1,0 +1,13 @@
+_v: 1
+name: temporalio
+display_name: Temporal
+description: Instruments Temporal workflow and activity operations and propagates trace context across execution boundaries.
+packages:
+- name: temporalio
+category:
+- messaging.consumer
+- messaging.producer
+- workflow.durable_execution
+systems:
+- temporal
+creation_date: '2026-09-15'

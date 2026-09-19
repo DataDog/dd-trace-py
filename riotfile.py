@@ -3848,6 +3848,25 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            name="temporalio",
+            command="pytest {cmdargs} tests/contrib/temporalio",
+            pkgs={
+                "temporalio": latest,
+                "pytest-asyncio": "==0.23.7",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys="3.9",
+                    pkgs={"temporalio": "==1.0.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"temporalio": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={

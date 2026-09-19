@@ -622,6 +622,13 @@ Subprocess
 .. automodule:: ddtrace.contrib.internal.subprocess
 
 
+.. _temporalio:
+
+Temporal
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.temporalio
+
+
 .. _tornado:
 
 Tornado

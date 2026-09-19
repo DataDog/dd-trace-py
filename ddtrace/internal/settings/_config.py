@@ -174,6 +174,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aredis",
         "algoliasearch",
         "asgi",
+        "temporalio",
         "tornado",
         "avro",
         "fastapi",
