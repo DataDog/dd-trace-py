@@ -24,6 +24,11 @@ CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
 LLMOBS_SAMPLING = "_llmobs.sampling"
 
+# Core keys used to stash HTTP client IP across spans within a request context.
+# Set by the set_http_meta_for_asm listener; read at LLM span finish to enrich LLMObs tags.
+LLMOBS_CLIENT_IP_CORE_KEY = "llmobs.http.client_ip"
+LLMOBS_NETWORK_CLIENT_IP_CORE_KEY = "llmobs.network.client.ip"
+
 
 SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"
