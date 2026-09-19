@@ -137,7 +137,7 @@ The two operations are deliberately separate because a product may need its
 callback to be active (e.g. for periodic housekeeping) without yet requesting
 configuration from the agent, or vice-versa.
 
-#### `register_callback(product, callback, capabilities=[])`
+#### `register_callback(product, callback, capabilities=())`
 
 Installs a callback for a product.  The callback will receive all payloads
 dispatched by the RC subscriber, as well as periodic calls.  If this is the
