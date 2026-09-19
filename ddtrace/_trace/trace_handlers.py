@@ -2029,7 +2029,6 @@ def listen():
         "molten.request",
         "molten.trace_func",
         "pyramid.request",
-        "sanic.request",
         "tornado.request",
         "flask.call",
         "flask.jsonify",
