@@ -1548,6 +1548,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="niquests",
+            command="pytest {cmdargs} tests/contrib/niquests",
+            pkgs={
+                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys="3.9",
+                    pkgs={"niquests": ["==3.0.0", "==3.14.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"niquests": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="psycopg:psycopg2",
             command="pytest {cmdargs} tests/contrib/psycopg2",
             pys=select_pys(),

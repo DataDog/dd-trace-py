@@ -201,6 +201,7 @@ INTEGRATION_CONFIGS = frozenset(
         "valkey",
         "molten",
         "mysql",
+        "niquests",
         "grpc_server",
         "grpc_client",
         "grpc_aio_client",
