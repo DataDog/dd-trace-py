@@ -214,6 +214,8 @@ components:
     - ddtrace/contrib/internal/subprocess/*
   tornado:
     - ddtrace/contrib/internal/tornado/*
+  trio:
+    - ddtrace/contrib/internal/trio/*
   urllib3:
     - ddtrace/contrib/internal/urllib3/*
   valkey:
@@ -435,7 +437,10 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@anyio'
+      - '@context_watcher'
+      - '@trio'
       - tests/contrib/anyio/*
+      - tests/tracer/test_otel_thread_context.py
     services:
       - testagent
     snapshot: false
@@ -450,6 +455,7 @@ suites:
           python: ['3.10']
           dependencies: [pytest-randomly, 'anyio<4.0', 'trio<0.22']
         - name: anyio
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, anyio, trio]
   aredis:
     paths:
@@ -1304,9 +1310,11 @@ suites:
       - '@fastapi'
       - '@asgi'
       - '@asyncio'
+      - '@context_watcher'
       - tests/contrib/fastapi/*
       - tests/snapshots/tests.contrib.starlette.*
       - tests/snapshots/tests.{suite}.*
+      - tests/tracer/test_otel_thread_context.py
     snapshot: true
     venvs_per_job: 2
     matrix:
@@ -1431,6 +1439,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@gevent'
+      - '@context_watcher'
       - tests/contrib/gevent/*
     snapshot: false
     venvs_per_job: 2
@@ -2543,6 +2552,7 @@ suites:
       - '@asyncio'
       - '@starlette'
       - '@asgi'
+      - '@context_watcher'
       - tests/contrib/starlette/*
     snapshot: true
     venvs_per_job: 2
@@ -2585,6 +2595,7 @@ suites:
       - '@core'
       - '@logging'
       - '@asyncio'
+      - '@context_watcher'
       - '@futures'
       - '@sqlite3'
       - '@dbapi'
@@ -2712,6 +2723,29 @@ suites:
         - name: tornado
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'tornado==6.4.1']
+  trio:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@trio'
+      - '@context_watcher'
+      - tests/contrib/trio/*
+      - tests/tracer/test_otel_thread_context.py
+    services:
+      - testagent
+    snapshot: false
+    venvs_per_job: 2
+    matrix:
+      command: pytest {cmdargs} tests/contrib/trio
+      variants:
+        - name: trio
+          python: ['3.9']
+          dependencies: [pytest-randomly, 'trio==0.21.0']
+        - name: trio
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-randomly, trio]
   urllib3:
     venvs_per_job: 6
     env:

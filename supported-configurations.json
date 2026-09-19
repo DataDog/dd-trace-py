@@ -5148,6 +5148,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_TRIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_UNITTEST_ENABLED": [
       {
         "implementation": "A",
