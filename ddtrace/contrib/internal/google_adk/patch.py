@@ -13,7 +13,6 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.time import Time
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -29,9 +28,6 @@ def _supported_versions() -> dict[str, str]:
 
 def get_version() -> str:
     return getattr(adk, "__version__", "")
-
-
-GOOGLE_ADK_VERSION = parse_version(get_version())
 
 
 def _traced_agent_run_async(wrapped, instance, args, kwargs):
@@ -286,7 +282,8 @@ def patch():
 
     # Tool execution (central dispatch)
     wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
-    if GOOGLE_ADK_VERSION < (2, 7, 0):
+    # Removed in google-adk 2.7.0, but also missing from some earlier releases such as 1.39.1
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
         wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
@@ -309,7 +306,7 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_live")
 
     unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
-    if GOOGLE_ADK_VERSION < (2, 7, 0):
+    if check_module_path(adk, "flows.llm_flows.functions.__call_tool_live"):
         unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
 
     # Code executors
