@@ -298,6 +298,22 @@ experiments:
           - name: tracer-small
             thresholds:
               - execution_time < 0.42 ms
+          # wsgitracediterablescenario
+          - name: wsgitracediterablescenario-single_chunk
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: wsgitracediterablescenario-streaming_1000_chunks
+            thresholds:
+              - execution_time < 0.30 ms
+          # flaskstreaming (1000-chunk streamed response through the full Flask
+          # + WSGI middleware stack). tracer threshold matches the flasksimple-tracer
+          # convention; the tracer-off baseline is left ungated like flasksimple-baseline.
+          - name: flaskstreaming-baseline
+            thresholds:
+              - execution_time < 10000 ms
+          - name: flaskstreaming-tracer
+            thresholds:
+              - execution_time < 3.65 ms
           # msgpackencoderscenario
           - name: msgpackencoderscenario-simple_one_span
             thresholds:

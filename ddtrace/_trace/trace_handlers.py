@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+from collections.abc import Iterator
 import functools
 import sys
 from types import TracebackType
@@ -7,8 +9,6 @@ from typing import Mapping
 from typing import Optional
 from typing import Protocol
 from urllib import parse
-
-import wrapt
 
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
@@ -96,27 +96,39 @@ _WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
 
-class _TracedIterable(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False):
-        self._self_wrapped_is_iterator = wrapped_is_iterator
-        if self._self_wrapped_is_iterator:
-            super(_TracedIterable, self).__init__(wrapped)
-            self._wrapped_iterator = iter(wrapped)
-        else:
-            super(_TracedIterable, self).__init__(iter(wrapped))
+class _TracedIterableSpan(Protocol):
+    def finish(self) -> None: ...
+
+    def set_exc_info(
+        self,
+        exc_type: type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+    ) -> None: ...
+
+
+class _TracedIterable:
+    __slots__ = ("__wrapped__", "_wrapped_iterator", "_self_span", "_self_parent_span", "_self_span_finished")
+
+    def __init__(
+        self,
+        wrapped: Iterable[Any],
+        span: _TracedIterableSpan,
+        parent_span: _TracedIterableSpan,
+        wrapped_is_iterator: bool = False,
+    ) -> None:
+        self._wrapped_iterator: Iterator[Any] = iter(wrapped)
+        self.__wrapped__ = wrapped if wrapped_is_iterator else self._wrapped_iterator
         self._self_span = span
         self._self_parent_span = parent_span
         self._self_span_finished = False
 
-    def __iter__(self):
+    def __iter__(self) -> "_TracedIterable":
         return self
 
-    def __next__(self):
+    def __next__(self) -> Any:
         try:
-            if self._self_wrapped_is_iterator:
-                return next(self._wrapped_iterator)
-            else:
-                return next(self.__wrapped__)
+            return next(self._wrapped_iterator)
         except StopIteration:
             self._finish_spans()
             raise
@@ -125,24 +137,39 @@ class _TracedIterable(wrapt.ObjectProxy):
             self._finish_spans()
             raise
 
-    def close(self):
-        if getattr(self.__wrapped__, "close", None):
-            self.__wrapped__.close()
+    def close(self) -> None:
+        close = getattr(self.__wrapped__, "close", None)
+        if close is not None:
+            close()
         self._finish_spans()
 
-    def _finish_spans(self):
+    def _finish_spans(self) -> None:
         if not self._self_span_finished:
             self._self_span.finish()
             self._self_parent_span.finish()
             self._self_span_finished = True
 
-    def __getattribute__(self, name):
+    @property  # type: ignore[misc]
+    def __class__(self) -> type[Any]:
+        return self.__wrapped__.__class__
+
+    def __getattr__(self, name: str) -> Any:
         if name == "__len__":
-            # __len__ is defined by the parent class, wrapt.ObjectProxy.
-            # However this attribute should not be defined for iterables.
-            # By definition, iterables should not support len(...).
+            # WSGI iterables must not expose the wrapped object's length.
             raise AttributeError("__len__ is not supported")
-        return super(_TracedIterable, self).__getattribute__(name)
+        return getattr(self.__wrapped__, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in self.__slots__:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self.__wrapped__, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in self.__slots__:
+            object.__delattr__(self, name)
+        else:
+            delattr(self.__wrapped__, name)
 
 
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
@@ -478,7 +505,9 @@ def _on_app_exception(ctx):
     req_span.finish()
 
 
-def _on_request_complete(ctx, closing_iterable, app_is_iterator):
+def _on_request_complete(
+    ctx: core.ExecutionContext, closing_iterable: Iterable[Any], app_is_iterator: bool
+) -> _TracedIterable:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
