@@ -4,5 +4,6 @@
 
 #pragma once
 
-// Safety limit for Python frames collected while discovering and stitching task-aware stacks.
-inline constexpr unsigned int MAX_TASK_FRAMES = 2048;
+// Hard safety bound for physical stack discovery. Reportable sync and task
+// frame materialization is separately bounded by DD_PROFILING_MAX_FRAMES.
+inline constexpr unsigned int MAX_STACK_DISCOVERY_DEPTH = 2048;

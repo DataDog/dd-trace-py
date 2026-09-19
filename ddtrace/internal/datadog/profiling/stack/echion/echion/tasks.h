@@ -102,6 +102,12 @@ class GenInfo
 
 // ----------------------------------------------------------------------------
 
+struct TaskUnwindResult
+{
+    size_t retained = 0;
+    size_t depth = 0;
+};
+
 class TaskInfo
 {
   public:
@@ -145,7 +151,7 @@ class TaskInfo
     {
     }
 
-    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop);
+    TaskUnwindResult unwind(EchionSampler& echion, FrameStack&, bool using_uvloop, size_t max_depth);
 };
 
 // Checks whether a Frame is the uvloop.run coroutine wrapper.
