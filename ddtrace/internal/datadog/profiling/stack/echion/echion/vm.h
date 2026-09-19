@@ -54,16 +54,36 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 // Whether safe_copy is currently set to the memcpy-based wrapper.
 inline bool fast_copy_active = false;
 
+// Persistent intent to run safe_memcpy, decided at init or via set_fast_copy().
+// Unlike fast_copy_active, the startup warmup window does not clear it, so handler
+// ownership operations remain enabled while the sampler warms up on the syscall copy,
+// and a child of fork() re-runs the warmup decision rather than inheriting the
+// warmup's fast_copy_active == false for the rest of its life.
+inline bool fast_copy_desired = false;
+
 // User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
 inline bool fast_copy_user_disabled = false;
 
 // Sticky: fell back to syscall copy (init failure, foreign handler, warmup miss).
 inline bool fast_copy_syscall_fallback = false;
 
+// Sticky: another component owns SIGSEGV/SIGBUS and we have ceded it. Written by the
+// sampling thread, read from the main thread via uninstall/reinstall_segv_handler.
+inline std::atomic<bool> fast_copy_foreign_takeover{ false };
+
 inline void
 mark_fast_copy_syscall_fallback()
 {
     fast_copy_syscall_fallback = true;
+}
+
+// Whether we may install, uninstall or reclaim our SIGSEGV/SIGBUS handlers. Keys off
+// the persistent intent so a swap during warmup is still reclaimed, and stops once a
+// foreign owner is authoritative so we never take the handler back from it.
+inline bool
+fast_copy_handler_ops_enabled()
+{
+    return fast_copy_desired && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
 }
 
 // Set at init; survives toggling fast_copy_active.
