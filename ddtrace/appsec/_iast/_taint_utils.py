@@ -5,7 +5,10 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -14,6 +17,34 @@ from ddtrace.internal.settings.asm import config as asm_config
 DBAPI_PREFIXES = ("django-",)
 
 log = get_logger(__name__)
+
+
+def _should_taint(value, source_name, source_origin, override_pyobject_tainted):
+    if not override_pyobject_tainted:
+        return not is_pyobject_tainted(value)
+
+    # AIDEV-NOTE: Overrides must correct source attribution and partial ranges. Reusing
+    # an identical immutable source preserves secure marks and avoids stale map entries
+    # when repeated Flask callbacks would otherwise discard the previous source string.
+    if isinstance(value, (str, bytes)):
+        ranges = get_tainted_ranges(value)
+        if len(ranges) == 1:
+            taint_range = ranges[0]
+            source = taint_range.source
+            if isinstance(source_name, (bytes, bytearray)):
+                source_name = source_name.decode("utf-8", errors="ignore")
+            elif isinstance(source_name, OriginType):
+                source_name = origin_to_str(source_name)
+            source_value = value.decode("utf-8", errors="ignore") if isinstance(value, bytes) else value
+            if (
+                taint_range.start == 0
+                and taint_range.length == len(value)
+                and source.origin == source_origin
+                and source.name == source_name
+                and source.value == source_value
+            ):
+                return False
+    return True
 
 
 # Non Lazy Tainting
@@ -56,7 +87,7 @@ class _DeepTaintCommand:
 def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
     if initial_object.__class__ is wanted_object.__class__:
         return wanted_object
-    #### custom tailor actions
+    # Custom tailor actions
     wanted_type = initial_object.__class__.__module__, initial_object.__class__.__name__
     if wanted_type == ("builtins", "tuple"):
         return tuple(wanted_object)
@@ -86,7 +117,8 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
 def taint_structure(main_obj, source_key, source_value, override_pyobject_tainted=False):
     """taint any structured object
     use a queue like mechanism to avoid recursion
-    Best effort: mutate mutable structures and rebuild immutable ones if possible
+    Best effort: mutate mutable structures and rebuild immutable ones if possible.
+    Overrides replace differing sources or ranges, preserving identical immutable sources.
     """
     if not main_obj:
         return main_obj
@@ -103,7 +135,12 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                 if not command.obj:
                     command.store(command.obj)
                 elif isinstance(command.obj, IAST.TEXT_TYPES):
-                    if override_pyobject_tainted or not is_pyobject_tainted(command.obj):
+                    if _should_taint(
+                        command.obj,
+                        command.source_key,
+                        source_key if command.is_key else source_value,
+                        override_pyobject_tainted,
+                    ):
                         new_obj = taint_pyobject(
                             pyobject=command.obj,
                             source_name=command.source_key,
@@ -164,7 +201,7 @@ class LazyTaintList:
     def _taint(self, value):
         if value:
             if isinstance(value, IAST.TEXT_TYPES):
-                if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
+                if _should_taint(value, self._source_name, self._origin_value, self._override_pyobject_tainted):
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
@@ -345,7 +382,7 @@ class LazyTaintDict:
             origin = self._origin_value
         if value:
             if isinstance(value, IAST.TEXT_TYPES):
-                if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
+                if _should_taint(value, key, origin, self._override_pyobject_tainted):
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
                         value = taint_pyobject(
