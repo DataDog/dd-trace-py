@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import itertools
-from typing import ClassVar  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import ClassVar
+from typing import Optional
 
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
@@ -83,7 +85,7 @@ class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd client."""
 
     enabled = False
-    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
+    _instance: ClassVar[Optional[RuntimeWorker]] = None
     _lock = Lock()
 
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url=None) -> None:
