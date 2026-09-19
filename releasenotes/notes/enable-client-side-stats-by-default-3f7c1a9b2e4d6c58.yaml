@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    tracing: Client-side stats computation is now enabled by default in all environments and
+    on all supported Python versions. It was previously enabled by default only on Python 3.14
+    and above, in Google Cloud Functions, in Azure Functions, and in agentless mode. Set
+    ``DD_TRACE_STATS_COMPUTATION_ENABLED=false`` to disable it.
