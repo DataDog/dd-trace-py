@@ -1,0 +1,11 @@
+_v: 1
+name: pytorch
+display_name: PyTorch
+description: Instruments PyTorch distributed training lifecycles and optional optimizer-step boundaries, emitting per-rank
+  spans with job, framework, and device context.
+packages:
+- name: torch
+category:
+- other
+systems: []
+creation_date: '2026-06-16'

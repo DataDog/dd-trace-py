@@ -1,0 +1,13 @@
+_v: 1
+name: llama_index
+display_name: LlamaIndex
+description: Instruments LlamaIndex LLM calls, query and retrieval workflows, embeddings, agent runs, and tool calls, including
+  synchronous, asynchronous, and streamed operations.
+packages:
+- name: llama-index
+- name: llama-index-core
+- name: llama_index
+category:
+- gen_ai
+systems: []
+creation_date: '2026-04-08'
