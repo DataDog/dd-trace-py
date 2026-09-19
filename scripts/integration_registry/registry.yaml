@@ -1021,6 +1021,16 @@ integrations:
       min: 6.1.0
       max: 6.5.1
 
+- integration_name: temporal
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - temporalio
+  tested_versions_by_dependency:
+    temporalio:
+      min: 1.31.0
+      max: 1.31.0
+
 - integration_name: unittest
   is_external_package: false
   is_tested: true
