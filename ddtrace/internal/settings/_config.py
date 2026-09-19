@@ -3,11 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 import re
 import sys
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Literal  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Literal
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata

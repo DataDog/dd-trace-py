@@ -1,8 +1,8 @@
 import sys
-from typing import Any  # noqa:F401
-from typing import Iterator  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Iterator
+from typing import Optional
+from typing import Union
 
 import wrapt
 

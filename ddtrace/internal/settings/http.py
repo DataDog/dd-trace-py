@@ -1,6 +1,6 @@
-from typing import Mapping  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Mapping
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod

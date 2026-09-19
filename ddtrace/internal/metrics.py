@@ -1,5 +1,5 @@
-from typing import Optional  # noqa:F401
-from typing import Protocol  # noqa:F401
+from typing import Optional
+from typing import Protocol
 
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.settings._agent import config as agent_config
