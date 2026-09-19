@@ -1,9 +1,9 @@
 #include <echion/interp.h>
 
-void
+bool
 for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback)
 {
-    InterpreterInfo interpreter_info = { 0 };
+    bool all_interpreter_data_captured = true;
 
     // Limit interpreter iteration to prevent infinite loops from cycles or corrupted memory.
     // This limit is based on CPython's tachyon profiler (256) and should be more than
@@ -18,16 +18,24 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
 
         // Cycle detection: if we didn't advance from previous iteration, we're stuck
         if (prev_interp_addr != nullptr && interp_addr == prev_interp_addr) {
-            break; // Cycle detected or failed to advance
+            return false; // Cycle detected or failed to advance
         }
         prev_interp_addr = interp_addr;
+
+        InterpreterInfo interpreter_info = { 0 };
         interpreter_info.interp = reinterpret_cast<PyInterpreterState*>(interp_addr);
+#if PY_VERSION_HEX >= 0x030e0000
+        all_interpreter_data_captured &=
+          !copy_type(interp_addr + runtime->debug_offsets.interpreter_state.code_object_generation,
+                     interpreter_info.code_object_generation);
+#endif
 
         // Always read next pointer first - we need it to advance
         if (copy_type(interp_addr + offsetof(PyInterpreterState, next), interpreter_info.next))
-            break; // Can't read next, can't advance - stop iteration
+            return false; // Can't read next, can't advance - stop iteration
 
         if (copy_type(interp_addr + offsetof(PyInterpreterState, id), interpreter_info.id)) {
+            all_interpreter_data_captured = false;
             interp_addr = reinterpret_cast<char*>(interpreter_info.next);
             continue;
         }
@@ -38,6 +46,7 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         if (copy_type(interp_addr + offsetof(PyInterpreterState, tstate_head), interpreter_info.tstate_head))
 #endif
         {
+            all_interpreter_data_captured = false;
             interp_addr = reinterpret_cast<char*>(interpreter_info.next);
             continue;
         }
@@ -47,4 +56,6 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         // Move to next interpreter
         interp_addr = reinterpret_cast<char*>(interpreter_info.next);
     }
+
+    return all_interpreter_data_captured && interp_addr == NULL;
 }
