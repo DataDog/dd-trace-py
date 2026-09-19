@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -13,7 +14,14 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import EVAL_NAME_TAG
+from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
+from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
+from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import JUDGE_SPAN_ID_KEY
+from ddtrace.llmobs._constants import JUDGE_TRACE_ID_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -25,6 +33,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._llmobs import LLMObsSubmitEvaluationError
 from ddtrace.llmobs._telemetry import LLMObsTelemetryMetrics
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -48,6 +57,7 @@ from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -653,6 +663,401 @@ def test_agent_span(llmobs):
         assert span.resource == "agent"
         assert span.span_type == "llm"
     assert get_llmobs_span_kind(span) == "agent"
+
+
+def test_evaluation_span_span_scope(llmobs):
+    with llmobs.evaluation(
+        name="relevance",
+        evaluated_span={"span_id": "111", "trace_id": "222"},
+        evaluated_ml_app="my-app",
+    ) as judge:
+        assert judge.name == "custom_evaluator.relevance"
+        assert judge.resource == "workflow"
+        assert judge.span_type == "llm"
+    assert get_llmobs_span_kind(judge) == "workflow"
+    # The judge trace is reported under the judged application, not a separate evaluations service.
+    assert get_llmobs_ml_app(judge) == "my-app"
+    tags = get_llmobs_tags(judge)
+    # EVALUATED_ML_APP_TAG is the judge-span marker, so `source` is left at its default.
+    assert tags["source"] != "datadog-evaluations"
+    assert tags[EVAL_NAME_TAG] == "relevance"
+    assert tags[EVAL_SOURCE_TYPE_TAG] == "external"
+    assert tags[EVALUATED_ML_APP_TAG] == "my-app"
+    assert tags[EVALUATED_TRACE_ID_TAG] == "222"
+    assert tags[EVALUATED_SPAN_ID_TAG] == "111"
+
+
+def test_evaluation_defaults_ml_app_to_configured_app(llmobs):
+    # With no evaluated_ml_app, the judge trace lands on the configured app and the marker matches it,
+    # which is correct when the evaluator runs inside the application it judges.
+    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+        pass
+    expected = resolve_ml_app()
+    assert get_llmobs_ml_app(judge) == expected
+    assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == expected
+
+
+def test_evaluation_while_disabled_still_yields_a_span(llmobs):
+    # Disabling LLMObs must not change control flow: the block still runs and yields a span.
+    llmobs.disable()
+    try:
+        with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+            assert judge is not None
+    finally:
+        llmobs.enable()
+
+
+def test_evaluation_joins_active_agent_trace(llmobs):
+    # evaluation() called INSIDE an active agent span joins that trace as a child, and restores the
+    # agent context on exit so spans opened afterwards are unaffected.
+    with llmobs.agent(name="qa_agent") as agent_span:
+        agent_ref = llmobs.export_span(agent_span)
+        with llmobs.evaluation(name="relevance", evaluated_span=agent_ref) as judge:
+            assert llmobs._instance._current_span() is judge  # judge is active within its own block
+            judge_ref = llmobs.export_span(judge)
+        assert llmobs._instance._current_span() is agent_span  # caller's context restored on exit
+    assert get_llmobs_parent_id(judge) == str(agent_span.span_id)  # a child of the agent, not a root
+    assert judge_ref["trace_id"] == agent_ref["trace_id"]  # same LLMObs trace as the agent
+
+
+def test_evaluation_without_active_trace_is_its_own_root(llmobs):
+    # Run standalone (no active trace) the judge simply starts its own trace. evaluated_span is still
+    # recorded as tags, which is what lets the UI link back to what was judged.
+    target = {"span_id": "111", "trace_id": "222"}
+    with llmobs.evaluation(name="relevance", evaluated_span=target) as judge:
+        with llmobs.llm(name="grade", model_name="m", model_provider="p") as judge_child:
+            pass
+    assert get_llmobs_parent_id(judge) == "undefined"
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    assert get_llmobs_trace_id(judge_child) == get_llmobs_trace_id(judge)
+    tags = get_llmobs_tags(judge)
+    assert tags["evaluated_span_id"] == "111"
+    assert tags["evaluated_trace_id"] == "222"
+
+
+@pytest.mark.parametrize("outer_kind", ["agent", "workflow", "task"])
+def test_evaluation_restores_context_so_later_spans_reattach(llmobs, outer_kind):
+    # The core restore contract: evaluation() activates the judge for its block, then restores the
+    # caller's context on exit. So a span opened AFTER the judge block must nest back under the outer
+    # span, NOT under the judge.
+    outer = getattr(llmobs, outer_kind)
+    with outer(name="outer") as outer_span:
+        with llmobs.tool(name="pre_eval_step") as pre_step:  # anchors the outer trace before the eval
+            pass
+        with llmobs.evaluation(name="relevance", evaluated_span=llmobs.export_span(outer_span)) as judge:
+            assert llmobs._instance._current_span() is judge  # judge is active within its own block
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as judge_child:
+                pass
+        assert llmobs._instance._current_span() is outer_span  # caller's context restored on exit
+        with llmobs.tool(name="post_eval_step") as post_step:
+            pass
+
+    # The judge joined the outer trace as a child of the outer span.
+    assert get_llmobs_trace_id(judge) == get_llmobs_trace_id(outer_span)
+    assert get_llmobs_parent_id(judge) == str(outer_span.span_id)
+    # The judge's own child nested UNDER the judge.
+    assert get_llmobs_trace_id(judge_child) == get_llmobs_trace_id(judge)
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    # Spans before and after the eval stay in the outer trace...
+    assert get_llmobs_trace_id(pre_step) == get_llmobs_trace_id(outer_span)
+    assert get_llmobs_trace_id(post_step) == get_llmobs_trace_id(outer_span)
+    # ...and the post-eval span is parented under the outer span, NOT the judge (context restored).
+    assert get_llmobs_parent_id(post_step) == str(outer_span.span_id)
+    assert get_llmobs_parent_id(post_step) != str(judge.span_id)
+    # Every span id is distinct.
+    assert len({outer_span.span_id, judge.span_id, judge_child.span_id, pre_step.span_id, post_step.span_id}) == 5
+
+
+async def test_evaluation_restores_context_across_await(llmobs):
+    # Same reattach contract, but the judge block awaits (yields to the event loop) and is entered via
+    # `async with` (__aenter__/__aexit__). The restore must still land in the caller's context so a
+    # span opened after the await-ing judge block reattaches to the agent trace.
+    with llmobs.agent(name="qa_agent") as agent_span:
+        with llmobs.evaluation(name="relevance", evaluated_span=llmobs.export_span(agent_span)) as judge:
+            assert llmobs._instance._current_span() is judge
+            await asyncio.sleep(0)  # force a yield to the event loop inside the judge block
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as judge_child:
+                pass
+        assert llmobs._instance._current_span() is agent_span  # restored after the async block
+        with llmobs.tool(name="post_eval_step") as post_step:
+            pass
+
+    assert get_llmobs_trace_id(judge) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(judge) == str(agent_span.span_id)
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    assert get_llmobs_trace_id(post_step) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(post_step) == str(agent_span.span_id)
+    assert get_llmobs_parent_id(post_step) != str(judge.span_id)
+    assert len({agent_span.span_id, judge.span_id, judge_child.span_id, post_step.span_id}) == 4
+
+
+async def test_evaluation_concurrent_async_tasks_are_isolated(llmobs):
+    # Two judges running concurrently in separate asyncio tasks, neither under an active trace, must be
+    # independent roots. ContextVars are copied per-task, so one task's judge can't bleed into the other
+    # even though they interleave at the await point.
+    async def run_judge(name, evaluated):
+        with llmobs.evaluation(name=name, evaluated_span=evaluated) as judge:
+            await asyncio.sleep(0)  # yield so the two tasks interleave while both judge blocks are open
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as child:
+                pass
+        return judge, child
+
+    (j1, c1), (j2, c2) = await asyncio.gather(
+        run_judge("rel1", {"span_id": "1", "trace_id": "2"}),
+        run_judge("rel2", {"span_id": "3", "trace_id": "4"}),
+    )
+    # Independent traces, each a root (no active trace to join).
+    assert get_llmobs_trace_id(j1) != get_llmobs_trace_id(j2)
+    assert get_llmobs_parent_id(j1) == "undefined"
+    assert get_llmobs_parent_id(j2) == "undefined"
+    # Each child nested under its OWN judge — no cross-task bleed.
+    assert get_llmobs_parent_id(c1) == str(j1.span_id)
+    assert get_llmobs_parent_id(c2) == str(j2.span_id)
+    assert get_llmobs_trace_id(c1) == get_llmobs_trace_id(j1)
+    assert get_llmobs_trace_id(c2) == get_llmobs_trace_id(j2)
+    assert get_llmobs_trace_id(c1) != get_llmobs_trace_id(j2)
+    assert len({j1.span_id, j2.span_id, c1.span_id, c2.span_id}) == 4
+
+
+async def test_original_trace_child_ignores_concurrently_open_judge(llmobs):
+    # The precise worry: the LLMObs context lives in a *module-level* ContextVar (_DD_LLMOBS_CONTEXTVAR),
+    # so it LOOKS global. It is not shared — each asyncio task gets its own copy. This holds a judge OPEN
+    # (mid-flight) in a separate task while the ORIGINAL task creates a child of its agent span, and
+    # asserts the child nests under the agent. The concurrently-active judge in the other task's context
+    # must not capture it. If the ContextVar were a plain global, the child would land under the judge.
+    judge_open = asyncio.Event()
+    let_judge_finish = asyncio.Event()
+    holder = {}
+
+    async def run_judge(evaluated):
+        with llmobs.evaluation(name="relevance", evaluated_span=evaluated) as judge:
+            holder["judge"] = judge
+            judge_open.set()  # judge is now open & active in ITS task's context
+            await let_judge_finish.wait()  # stay open while the original task makes its child
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as jchild:
+                pass
+            holder["judge_child"] = jchild
+
+    with llmobs.agent(name="qa_agent") as agent_span:
+        judge_task = asyncio.create_task(run_judge(llmobs.export_span(agent_span)))
+        await judge_open.wait()  # judge is confirmed open/active before we touch the agent's child
+        # The original task's view is unaffected by the other task's activate(None)/activate(judge).
+        assert llmobs._instance._current_span() is agent_span
+        with llmobs.tool(name="child_of_agent") as child:
+            pass
+        let_judge_finish.set()
+        await judge_task
+
+    judge, judge_child = holder["judge"], holder["judge_child"]
+    # The agent's child is parented under the AGENT, not under the judge that was open concurrently in
+    # the other task. This is the assertion that would break if the ContextVar were a shared global.
+    assert get_llmobs_parent_id(child) == str(agent_span.span_id)
+    assert get_llmobs_parent_id(child) != str(judge.span_id)
+    # The judge task inherited the agent context at create_task, so the judge joined the agent trace,
+    # and its own child still nests under the judge rather than under the agent.
+    assert get_llmobs_trace_id(judge) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(judge) == str(agent_span.span_id)
+    assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
+    assert get_llmobs_trace_id(judge_child) == get_llmobs_trace_id(judge)
+    assert len({agent_span.span_id, child.span_id, judge.span_id, judge_child.span_id}) == 4
+
+
+def test_evaluation_in_worker_thread_does_not_disturb_main_trace(llmobs):
+    # A judge opened in a worker thread runs in a fresh (empty) LLMObs context — it does not see the
+    # main thread's active agent, so it has no trace to join and never touches the main thread's
+    # context. After the thread joins, the main thread's agent is still active.
+    results = {}
+
+    def run_judge(evaluated):
+        try:
+            assert llmobs._instance._current_span() is None  # new thread starts with an empty context
+            with llmobs.evaluation(name="relevance", evaluated_span=evaluated) as judge:
+                assert llmobs._instance._current_span() is judge
+                with llmobs.llm(name="grade", model_name="m", model_provider="p") as child:
+                    pass
+            assert llmobs._instance._current_span() is None  # restored to the thread's empty context
+            results["judge"], results["child"] = judge, child
+        except BaseException as e:  # surface in-thread assertion failures to the test thread
+            results["exc"] = e
+
+    with llmobs.agent(name="qa_agent") as agent_span:
+        with llmobs.tool(name="pre_eval_step") as pre_step:
+            pass
+        assert llmobs._instance._current_span() is agent_span
+        t = threading.Thread(target=run_judge, args=(llmobs.export_span(agent_span),))
+        t.start()
+        t.join()
+        assert llmobs._instance._current_span() is agent_span  # worker thread did not disturb main
+        with llmobs.tool(name="post_eval_step") as post_step:
+            pass
+
+    if "exc" in results:
+        raise results["exc"]
+    judge, child = results["judge"], results["child"]
+    # The worker thread's context was empty, so the judge is its own root.
+    assert get_llmobs_trace_id(judge) != get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(judge) == "undefined"
+    assert get_llmobs_parent_id(child) == str(judge.span_id)
+    assert get_llmobs_trace_id(child) == get_llmobs_trace_id(judge)
+    # Main-thread spans stay in the agent trace; post-eval parented under the agent, not the judge.
+    assert get_llmobs_trace_id(pre_step) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_trace_id(post_step) == get_llmobs_trace_id(agent_span)
+    assert get_llmobs_parent_id(post_step) == str(agent_span.span_id)
+    assert get_llmobs_parent_id(post_step) != str(judge.span_id)
+    assert len({agent_span.span_id, judge.span_id, child.span_id, pre_step.span_id, post_step.span_id}) == 5
+
+
+def test_evaluation_concurrent_threads_are_isolated(llmobs):
+    # Two judges opened in two threads AT THE SAME TIME (held open together by a barrier), neither under
+    # an active trace, must be independent roots. Thread-local ContextVars mean one thread's judge can't
+    # bleed into the other's, even while both blocks are simultaneously open.
+    barrier = threading.Barrier(2)
+    results = {}
+
+    def run_judge(key, evaluated):
+        try:
+            with llmobs.evaluation(name=key, evaluated_span=evaluated) as judge:
+                barrier.wait(timeout=5)  # both threads are inside their judge block at once here
+                with llmobs.llm(name="grade", model_name="m", model_provider="p") as child:
+                    pass
+            results[key] = (judge, child)
+        except BaseException as e:
+            results[key] = e
+
+    t1 = threading.Thread(target=run_judge, args=("rel1", {"span_id": "1", "trace_id": "2"}))
+    t2 = threading.Thread(target=run_judge, args=("rel2", {"span_id": "3", "trace_id": "4"}))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    for key in ("rel1", "rel2"):
+        assert not isinstance(results[key], BaseException), results[key]
+    (j1, c1), (j2, c2) = results["rel1"], results["rel2"]
+    assert get_llmobs_trace_id(j1) != get_llmobs_trace_id(j2)
+    assert get_llmobs_parent_id(j1) == "undefined"
+    assert get_llmobs_parent_id(j2) == "undefined"
+    # Each child nested under its OWN judge despite both judges being open concurrently.
+    assert get_llmobs_parent_id(c1) == str(j1.span_id)
+    assert get_llmobs_parent_id(c2) == str(j2.span_id)
+    assert get_llmobs_trace_id(c1) == get_llmobs_trace_id(j1)
+    assert get_llmobs_trace_id(c2) == get_llmobs_trace_id(j2)
+    assert get_llmobs_trace_id(c1) != get_llmobs_trace_id(j2)
+    assert len({j1.span_id, j2.span_id, c1.span_id, c2.span_id}) == 4
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"name": "", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # empty name
+        {"name": "has.dot", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # dotted name
+        {"name": "relevance", "eval_scope": "typo", "evaluated_span": {"span_id": "1", "trace_id": "2"}},  # bad scope
+        {"name": "relevance", "eval_scope": "session"},  # session scope no longer supported
+        {"name": "relevance", "evaluated_span": {"span_id": "1"}},  # malformed evaluated_span (no trace_id)
+        {"name": "relevance"},  # span scope without evaluated_span
+    ],
+)
+def test_evaluation_invalid_args_raise_before_starting_span(llmobs, kwargs):
+    # Bad args must raise before the judge span is started, so nothing is left active in the trace.
+    with pytest.raises(ValueError):
+        llmobs.evaluation(**kwargs)
+    assert llmobs._instance._current_span() is None
+
+
+def test_evaluation_auto_error_metric_on_exception(llmobs, mock_llmobs_eval_metric_writer):
+    # An unhandled exception inside the judge block auto-submits a first-class errored eval metric
+    # (status="ERROR" + structured error, no value) on the evaluated span, linked back to the judge
+    # trace — no user try/except required.
+    judge_ref = {}
+    with pytest.raises(ValueError):
+        with llmobs.evaluation(
+            name="relevance", evaluated_span={"span_id": "111", "trace_id": "222"}, evaluated_ml_app="my-app"
+        ) as judge:
+            judge_ref.update(llmobs.export_span(judge))  # capture the judge ids while the span is live
+            raise ValueError("boom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="my-app",
+            span_id="111",
+            trace_id="222",
+            label="relevance",
+            metric_type="categorical",
+            status="ERROR",
+            error={"type": "ValueError", "message": "boom", "stack": mock.ANY},
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app"],
+            reasoning="evaluator raised ValueError: boom",
+            metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
+        )
+    )
+
+
+def test_evaluation_auto_error_metric_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
+    judge_ref = {}
+    with pytest.raises(RuntimeError):
+        with llmobs.evaluation(
+            name="relevance",
+            evaluated_span={"span_id": "9", "trace_id": "8"},
+            evaluated_ml_app="my-app",
+            eval_scope="trace",
+        ) as judge:
+            judge_ref.update(llmobs.export_span(judge))
+            raise RuntimeError("kaboom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="my-app",
+            span_id="9",
+            trace_id="8",
+            label="relevance",
+            metric_type="categorical",
+            status="ERROR",
+            error={"type": "RuntimeError", "message": "kaboom", "stack": mock.ANY},
+            eval_scope="trace",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app"],
+            reasoning="evaluator raised RuntimeError: kaboom",
+            metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
+        )
+    )
+
+
+def test_evaluation_no_error_metric_on_success(llmobs, mock_llmobs_eval_metric_writer):
+    # A clean judge block submits nothing automatically — the score is the user's to submit.
+    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}):
+        pass
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+
+
+def test_evaluation_error_metric_opt_out(llmobs, mock_llmobs_eval_metric_writer):
+    # emit_error_metric=False -> bare span; a crash is recorded on the judge span but NOT auto-metric'd.
+    with pytest.raises(ValueError):
+        with llmobs.evaluation(
+            name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, emit_error_metric=False
+        ):
+            raise ValueError("boom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+
+
+async def test_evaluation_auto_error_metric_async(llmobs, mock_llmobs_eval_metric_writer):
+    judge_ref = {}
+    with pytest.raises(ValueError):
+        with llmobs.evaluation(
+            name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, evaluated_ml_app="my-app"
+        ) as judge:
+            judge_ref.update(llmobs.export_span(judge))
+            raise ValueError("boom")
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="my-app",
+            span_id="1",
+            trace_id="2",
+            label="relevance",
+            metric_type="categorical",
+            status="ERROR",
+            error={"type": "ValueError", "message": "boom", "stack": mock.ANY},
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:my-app"],
+            reasoning="evaluator raised ValueError: boom",
+            metadata={JUDGE_TRACE_ID_KEY: judge_ref["trace_id"], JUDGE_SPAN_ID_KEY: judge_ref["span_id"]},
+        )
+    )
 
 
 def test_embedding_span_no_model_sets_default(llmobs):
@@ -2561,6 +2966,174 @@ def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_wr
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:agent_service", "foo:bar"],
         )
     )
+
+
+def test_submit_evaluation_judge_span_adds_metadata(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="score",
+        value=4,
+        ml_app="dummy",
+        judge_span={"span_id": "j-span", "trace_id": "j-trace"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="score",
+            score_value=4,
+            metadata={JUDGE_TRACE_ID_KEY: "j-trace", JUDGE_SPAN_ID_KEY: "j-span"},
+        )
+    )
+
+
+def test_submit_evaluation_judge_span_merges_with_existing_metadata(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="score",
+        value=4,
+        ml_app="dummy",
+        metadata={"foo": "bar"},
+        judge_span={"span_id": "j-span", "trace_id": "j-trace"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="score",
+            score_value=4,
+            metadata={"foo": "bar", JUDGE_TRACE_ID_KEY: "j-trace", JUDGE_SPAN_ID_KEY: "j-span"},
+        )
+    )
+
+
+def test_submit_evaluation_invalid_judge_span_raises(llmobs):
+    with pytest.raises(TypeError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="score",
+            value=4,
+            ml_app="dummy",
+            judge_span={"span_id": "j-span"},  # missing trace_id
+        )
+
+
+def test_submit_evaluation_invalid_metadata_with_judge_span_raises_submission_error(llmobs):
+    # Folding the judge ids into metadata must not preempt validation with a bare TypeError from the
+    # dict unpack — a bad metadata value still surfaces as LLMObsSubmitEvaluationError.
+    with pytest.raises(LLMObsSubmitEvaluationError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="score",
+            value=4,
+            ml_app="dummy",
+            judge_span={"span_id": "j-span", "trace_id": "j-trace"},
+            metadata="not-a-dict",
+        )
+
+
+@pytest.mark.parametrize(
+    "status,error,exc",
+    [
+        # "OK" with an error would enqueue a successful metric carrying an error and no value.
+        ("OK", {"type": "E", "message": "m"}, ValueError),
+        # The event schema requires string values under known keys.
+        (None, {"message": 123}, TypeError),
+        (None, {"unexpected": "x"}, TypeError),
+    ],
+)
+def test_submit_evaluation_rejects_contradictory_or_malformed_error(llmobs, status, error, exc):
+    with pytest.raises(exc):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="categorical",
+            status=status,
+            error=error,
+            ml_app="dummy",
+        )
+
+
+def test_submit_evaluation_error_status_omits_value(llmobs, mock_llmobs_eval_metric_writer):
+    # An errored eval carries no value — only status="ERROR" + the structured error dict.
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="categorical",
+        ml_app="dummy",
+        error={"type": "ValueError", "message": "boom"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="categorical",
+            status="ERROR",  # defaulted from the error payload
+            error={"type": "ValueError", "message": "boom"},
+        )
+    )
+    # No value key of any type is emitted for an errored eval.
+    enqueued = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
+    assert not any(k.endswith("_value") for k in enqueued)
+
+
+def test_submit_evaluation_invalid_status_raises(llmobs):
+    with pytest.raises(ValueError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="categorical",
+            value="ok",
+            ml_app="dummy",
+            status="typo",
+        )
+
+
+def test_submit_evaluation_error_status_without_error_raises(llmobs):
+    # The backend requires a structured error for WARN/ERROR — fail fast client-side.
+    with pytest.raises(ValueError):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="relevance",
+            metric_type="categorical",
+            ml_app="dummy",
+            status="ERROR",  # no error payload
+        )
+
+
+def test_submit_evaluation_warn_status_omits_value(llmobs, mock_llmobs_eval_metric_writer):
+    # A skipped (WARN) eval is value-less too, and carries a structured error.
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="relevance",
+        metric_type="categorical",
+        ml_app="dummy",
+        status="WARN",
+        error={"type": "skipped", "message": "no ground truth available"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="dummy",
+            span_id="123",
+            trace_id="456",
+            label="relevance",
+            metric_type="categorical",
+            status="WARN",
+            error={"type": "skipped", "message": "no ground truth available"},
+        )
+    )
+    enqueued = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
+    assert not any(k.endswith("_value") for k in enqueued)
 
 
 def test_submit_evaluation_span_with_tag_value_enqueues_writer_with_categorical_metric(
