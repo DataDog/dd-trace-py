@@ -5,7 +5,6 @@
 #include "profile_borrow.hpp"
 #include "types.hpp"
 
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,7 +34,7 @@ struct StringArena
 {
   private:
     // Default size, in bytes, of each Chunk. Frame strings (function names,
-    // filenames) are interned directly into libdatadog's ProfilesDictionary,
+    // filenames) are interned directly into libdatadog's ProfileDictionary,
     // so only label values (thread name, task name, trace type, lock name,
     // etc.) are stored here. Typical total per sample is 20-150 bytes.
     // 256 bytes covers the vast majority of samples; insert() allocates a
@@ -65,12 +64,6 @@ struct StringArena
 
 } // namespace internal
 
-using string_id = ddog_prof_StringId2;
-using function_id = ddog_prof_FunctionId2;
-
-std::optional<function_id>
-intern_function(string_id name, string_id filename);
-
 class SampleManager; // friend
 
 // Sample represents a single profiling sample being built.
@@ -83,13 +76,13 @@ class Sample
     std::string errmsg;
 
     // Keeps temporary buffer of frames in the stack
-    std::vector<ddog_prof_Location2> locations;
+    std::vector<ddprof::DictionaryLocation> locations;
     size_t dropped_frames = 0;
     bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
     // Storage for labels
-    std::vector<ddog_prof_Label2> labels{};
+    std::vector<ddprof::DictionaryLabel> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};
@@ -145,10 +138,7 @@ class Sample
 
     // Assumes frames are pushed in leaf-order
     void push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
-    void push_frame(function_id function_id, // for ddog_prof_Location
-                    uint64_t address,        // for ddog_prof_Location
-                    int64_t line             // for ddog_prof_Location
-    );
+    void push_frame(function_id function_id, uint64_t address, int64_t line);
 
     // Explicitly mark that one or more frames were dropped without attempting to push them.
     // This is useful for callers that perform their own frame-limit checks and want to
@@ -170,7 +160,7 @@ class Sample
     // This is useful when the Sample object is embedded and will be destroyed later
     bool export_sample();
 
-    static ProfileBorrow profile_borrow();
+    static std::optional<ProfileBorrow> profile_borrow();
     static void postfork_child();
     static void cleanup();
     Sample(SampleType _type_mask, unsigned int _max_nframes);

@@ -1,5 +1,6 @@
 #include "profiler_state.hpp"
 
+#include "fork_utils.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <chrono>
@@ -7,11 +8,6 @@
 #include <pthread.h>
 #include <thread>
 #include <unistd.h>
-
-extern "C"
-{
-#include <datadog/profiling.h>
-}
 
 namespace Datadog {
 
@@ -29,82 +25,55 @@ ProfilerState::get()
 bool
 ProfilerState::init_profiles_dictionary()
 {
-    // Guard against double-initialization: dict_handle_ must be null before we create a new one.
+    // Guard against double-initialization: profiles_dictionary must be empty before we create a new one.
     // This is guaranteed by call_once in start() for the initial call, and by release_profiles_dictionary()
     // being called before this in postfork_child().
-    if (dict_handle_.load(std::memory_order_acquire) != nullptr) {
+    const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
+    if (profiles_dictionary.has_value()) {
         std::cerr << "profiles dictionary already initialized" << std::endl;
         return false;
     }
 
-    ddog_prof_ProfilesDictionaryHandle temp = nullptr;
-    auto result = ddog_prof_ProfilesDictionary_new(&temp);
-    if (result.flags) {
-        std::cerr << "could not initialise profiles dictionary: " << result.err << std::endl;
+    auto result = ddprof::ProfileDictionary::create();
+    if (!result->check_and_print()) {
         return false;
     }
+    profiles_dictionary.emplace(result->take_value());
+    profiles_dictionary.value()->set_error_policy(ddprof::ErrorPolicy::PrintOncePerOperation);
 
-    dict_handle_.store(temp, std::memory_order_release);
     return true;
 }
 
-std::optional<ddog_prof_ProfilesDictionaryHandle>
-ProfilerState::get_profiles_dictionary()
+std::optional<Borrow<ddprof::ProfileDictionary>>
+ProfilerState::borrow_dictionary()
 {
-    auto handle = dict_handle_.load(std::memory_order_acquire);
-    if (handle == nullptr) {
+    std::unique_lock<std::mutex> lk(profiles_dictionary_mtx);
+    if (!profiles_dictionary.has_value()) {
         return std::nullopt;
     }
-    return handle;
+    return Borrow<ddprof::ProfileDictionary>{ std::move(lk), *profiles_dictionary.value() };
 }
 
 void
 ProfilerState::release_profiles_dictionary()
 {
-    // Atomically swap out the handle before dropping, so concurrent callers of
-    // get_profiles_dictionary() see nullptr rather than a pointer to freed memory.
-    ddog_prof_ProfilesDictionaryHandle temp = dict_handle_.exchange(nullptr, std::memory_order_acq_rel);
-    if (temp != nullptr) {
-        ddog_prof_ProfilesDictionary_drop(&temp);
-    }
-}
-
-bool
-ProfilerState::init_interned_strings()
-{
-    auto maybe_dict = get_profiles_dictionary();
-    if (!maybe_dict) {
-        return false;
-    }
-
-    // Intern the empty string, which is used frequently
-    ddog_prof_StringId2 string_id;
-    auto result = ddog_prof_ProfilesDictionary_insert_str(
-      &string_id, maybe_dict.value(), to_slice(""), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
-
-    if (result.flags) {
-        std::cerr << "Error interning empty string: " << result.err << std::endl;
-        return false;
-    }
-    cached_empty_string_id = string_id;
-
-    return true;
+    const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
+    profiles_dictionary.reset();
 }
 
 void
 ProfilerState::reset_key_caches()
 {
     for (auto& entry : label_cache) {
-        entry.store(nullptr, std::memory_order_relaxed);
+        entry.store({}, std::memory_order_relaxed);
     }
-    cached_empty_string_id = nullptr;
 }
 
 void
 ProfilerState::start()
 {
     // init_flag_ is a std::once_flag. We intentionally do NOT reinitialise it after fork:
-    // in the child process, postfork_child() re-creates the Profiles Dictionary directly,
+    // in the child process, postfork_child() re-creates the ProfileDictionary directly,
     // bypassing call_once. The once_flag therefore stays "already called" in the child,
     // which is correct — we don't want a second call to start() to re-run initialization.
     std::call_once(init_flag_, [this]() {
@@ -113,13 +82,13 @@ ProfilerState::start()
             return;
         }
 
-        // Initialize cached interned strings (must happen after profiles dictionary is created)
-        if (!init_interned_strings()) {
+        // TODO: If profile initialization fails after the dictionary is created,
+        // call_once still records this initialization attempt as done. A follow-up
+        // should either clean up partial state here or replace this with a
+        // retryable initialization state machine.
+        if (!profile_state.one_time_init(type_mask, max_nframes)) {
             return;
         }
-
-        // Initialize the Profile object
-        profile_state.one_time_init(type_mask, max_nframes);
 
         // Install fork handlers
         pthread_atfork([]() { ProfilerState::get().prefork(); },
@@ -137,36 +106,39 @@ ProfilerState::start()
 void
 ProfilerState::cleanup()
 {
-    // Clear the profile, decreasing the refcount on the Profiles Dictionary
+    // Mark the profiler unavailable before dropping profile state so callers
+    // that check ddup_is_initialized() will not borrow an empty profile.
+    initialized_.store(false, std::memory_order_release);
+
+    // Clear the profile, decreasing the refcount on the ProfileDictionary
     profile_state.cleanup();
 
-    // Decrease the refcount on the Profiles Dictionary
+    // Decrease the refcount on the ProfileDictionary
     release_profiles_dictionary();
 }
 
 void
 ProfilerState::prefork()
 {
-    // Cancel inflight uploads to prevent state leaking to children
-    auto current_cancel = upload_cancel.exchange({ .inner = nullptr });
-    if (current_cancel.inner != nullptr) {
-        ddog_CancellationToken_cancel(&current_cancel);
-        ddog_CancellationToken_drop(&current_cancel);
-    }
+    // Cancel inflight uploads to prevent state leaking to children.
+    upload_cancellation.cancel_inflight();
 
-    // Keep cancelling and trying to acquire the lock until we succeed
+    // Keep cancelling and trying to acquire the lock until we succeed.
     while (!upload_lock.try_lock()) {
-        current_cancel = upload_cancel.exchange({ .inner = nullptr });
-        if (current_cancel.inner != nullptr) {
-            ddog_CancellationToken_cancel(&current_cancel);
-            ddog_CancellationToken_drop(&current_cancel);
-        }
+        upload_cancellation.cancel_inflight();
         std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
-    // upload_lock is now held - will be released in postfork_parent/child
+    // upload_lock is now held - will be released in postfork_parent/child.
+
+    upload_cancellation.prefork();
+
+    // Lock the dictionary mutex so no thread is mid-intern when the child
+    // reinitializes the dictionary. Acquired before profile_mtx to match
+    // the temporal order of the sampling path (intern → collect).
+    profiles_dictionary_mtx.lock();
 
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
-    // inside ddog_prof_Profile_add2 when the child calls ddog_prof_Profile_drop.
+    // inside the CXX Profile::add_dictionary_sample path when the child resets profile state.
     // postfork_parent releases it via unlock; postfork_child releases it
     // via placement-new reinit of profile_mtx (which implicitly creates a fresh
     // unlocked mutex, consistent with every other mutex's postfork path).
@@ -177,12 +149,16 @@ void
 ProfilerState::postfork_parent()
 {
     profile_state.postfork_parent();
+    profiles_dictionary_mtx.unlock();
+    upload_cancellation.postfork_parent();
     upload_lock.unlock();
 }
 
 void
 ProfilerState::postfork_child()
 {
+    const bool was_initialized = initialized_.exchange(false, std::memory_order_acq_rel);
+
     // profile_mtx was locked in prefork; ensure postfork_child is called on
     // every exit path to unlock it.
     // We need to call this at the end of the function because the Sampling Thread
@@ -191,37 +167,50 @@ ProfilerState::postfork_child()
     struct ProfileGuard
     {
         ProfilerState& self;
-        ~ProfileGuard() { self.profile_state.postfork_child(); }
+        bool active{ true };
+        ~ProfileGuard()
+        {
+            if (active) {
+                self.profile_state.postfork_child(false);
+            }
+        }
+        void dismiss() { active = false; }
     } guard{ *this };
 
-    // Re-init the mutex (placement-new to avoid UB with mutex in undefined state after fork)
-    new (&upload_lock) std::mutex();
+    // Re-init the mutexes after fork. reset_mutex_after_fork uses placement-new
+    // with TSan annotations so the sanitizer sees fresh mutexes.
+    reset_mutex_after_fork(upload_lock);
+    reset_mutex_after_fork(profiles_dictionary_mtx);
+    upload_cancellation.postfork_child();
 
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();
 
-    // Free our copy of the Profiles Dictionary - its String IDs refer to memory
+    // Free our copy of the ProfileDictionary - its String IDs refer to memory
     // that doesn't exist in the child process
     release_profiles_dictionary();
 
-    // Reset all caches that depend on the Profiles Dictionary
+    // Reset all caches that depend on the ProfileDictionary
     reset_key_caches();
 
-    // Re-initialize the Profiles Dictionary in the child process
+    if (!was_initialized) {
+        return;
+    }
+
+    // Re-initialize the ProfileDictionary in the child process
     if (!init_profiles_dictionary()) {
         std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
                   << std::endl;
-        initialized_.store(false, std::memory_order_release);
         return;
     }
 
-    // Initialize cached interned strings with the new Profiles Dictionary
-    if (!init_interned_strings()) {
-        std::cerr << "failed to initialise interned strings in child process, profiler will be disabled" << std::endl;
-        initialized_.store(false, std::memory_order_release);
+    if (!profile_state.postfork_child()) {
+        guard.dismiss();
         return;
     }
+    guard.dismiss();
+    initialized_.store(true, std::memory_order_release);
 }
 
 } // namespace Datadog

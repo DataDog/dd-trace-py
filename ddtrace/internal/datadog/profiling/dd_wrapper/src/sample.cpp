@@ -16,55 +16,10 @@
 
 #include <algorithm>
 #include <chrono>
-#include <datadog/profiling.h>
+#include <iostream>
 #include <string_view>
 
 #include "clock.hpp"
-
-std::optional<Datadog::string_id>
-Datadog::intern_string(std::string_view s)
-{
-    auto maybe_dict = ProfilerState::get().get_profiles_dictionary();
-    if (!maybe_dict) {
-        return std::nullopt;
-    }
-
-    ddog_prof_StringId2 string_id;
-    auto insert_str_res = ddog_prof_ProfilesDictionary_insert_str(
-      &string_id, *maybe_dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
-
-    if (insert_str_res.flags) {
-        std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
-        return std::nullopt;
-    }
-
-    return string_id;
-}
-
-std::optional<Datadog::function_id>
-Datadog::intern_function(string_id name, string_id filename)
-{
-    auto& state = ProfilerState::get();
-    auto maybe_dict = state.get_profiles_dictionary();
-    if (!maybe_dict) {
-        return std::nullopt;
-    }
-
-    ddog_prof_Function2 my_function = {
-        .name = name,
-        .system_name = state.cached_empty_string_id, // No support for system_name in Python
-        .file_name = filename,
-    };
-
-    ddog_prof_FunctionId2 function_id;
-    auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, *maybe_dict, &my_function);
-    if (insert_function_res.flags) {
-        std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
-        return std::nullopt;
-    }
-
-    return function_id;
-}
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -134,7 +89,7 @@ void
 Datadog::Sample::push_frame_impl(function_id func_id, uint64_t address, int64_t line)
 {
     locations.push_back({
-      .mapping = nullptr, // No support for mappings in Python
+      .mapping = { nullptr }, // No support for mappings in Python
       .function = func_id,
       .address = address,
       .line = line,
@@ -291,17 +246,17 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     std::string_view val_str = string_storage.insert(val);
-    const static std::string unit_str = "";
 
     // Otherwise, persist the val string and add the label
     labels.push_back({
       .key = *maybe_key_id,
-      // Do not intern this because it could be a memory leak if values are high-cardinality.
-      // For example, asyncio Task names are dynamic and only persist for the duration of the Task.
-      .str = to_slice(val_str),
+      // Label values come from user-supplied data that may contain invalid
+      // UTF-8. Pass as raw bytes; the Rust side applies lossy conversion.
+      // Not interned because values may be high-cardinality (e.g. asyncio
+      // Task names that only persist for the duration of the Task).
+      .str_bytes = strings::bytes(val_str),
       .num = 0,
-      // Do not intern this because it could be a memory leak if values are high-cardinality.
-      .num_unit = to_slice(unit_str.c_str()),
+      .num_unit = {},
     });
     return true;
 }
@@ -317,12 +272,11 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
         return true;
     }
 
-    auto empty_string = to_slice("");
     labels.push_back({
       .key = *maybe_key_id,
-      .str = empty_string,
+      .str_bytes = {},
       .num = val,
-      .num_unit = empty_string,
+      .num_unit = {},
     });
     return true;
 }
@@ -361,7 +315,7 @@ Datadog::Sample::export_sample()
         has_dropped_frames_indicator = true;
     }
 
-    const ddog_prof_Sample2 sample = {
+    const ddprof::DictionarySample sample = {
         .locations = { locations.data(), locations.size() },
         .values = { values.data(), values.size() },
         .labels = { labels.data(), labels.size() },
@@ -816,7 +770,7 @@ Datadog::Sample::is_timeline_enabled()
     return ProfilerState::get().timeline_enabled;
 }
 
-Datadog::ProfileBorrow
+std::optional<Datadog::ProfileBorrow>
 Datadog::Sample::profile_borrow()
 {
     return ProfilerState::get().profile_state.borrow();

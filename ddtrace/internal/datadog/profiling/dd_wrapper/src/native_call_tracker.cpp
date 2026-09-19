@@ -1,5 +1,6 @@
 #include "native_call_tracker.hpp"
 
+#include "fork_utils.hpp"
 #include <functional>
 #include <mutex>
 #include <shared_mutex>
@@ -54,7 +55,7 @@ NativeCallRegistry::postfork_child()
     // at the same addresses, and sys.monitoring has already returned DISABLE for
     // every call site seen in the parent. Clearing would lose native frame info
     // with no way to re-populate it.
-    new (&mtx) std::shared_mutex();
+    reset_mutex_after_fork(mtx);
 }
 
 size_t
