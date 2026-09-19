@@ -34,6 +34,7 @@ cdef extern from "stdint.h":
 
 cdef extern from "<string_view>" namespace "std" nogil:
     cdef cppclass string_view:
+        string_view()
         string_view(const char* s, size_t count)
 
 cdef extern from "sample.hpp":
