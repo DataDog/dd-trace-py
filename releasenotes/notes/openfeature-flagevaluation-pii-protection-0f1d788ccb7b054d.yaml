@@ -5,3 +5,4 @@ features:
     user identifiers and omits evaluation context attributes to limit sensitive data collection,
     without changing flag results. Enabling full evaluation data for an environment includes
     the original identifiers and attributes to help investigate flag usage and unexpected behavior.
+    Targeting keys must be strings; other values are omitted.
