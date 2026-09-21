@@ -4,7 +4,7 @@
 
 ## Summary
 
-**Functional profiling on CPython 3.15.0a7 works.** Memory parity with 3.14 is **not** claimed; GA / broad advertise is **not yet**. Evidence below is **a7-only** — [3.15.0rc2](https://peps.python.org/pep-0790/) shipped 2026-09-01; local re-soak on rc2 **not done**.
+**Functional profiling on CPython 3.15.0a7 works.** Memory parity with 3.14 is **not** claimed; GA / broad advertising is **not yet**. Evidence below is **a7-only** — [3.15.0rc2](https://peps.python.org/pep-0790/) shipped 2026-09-01; local re-soak on rc2 **not done**.
 
 | Claim | Result (local AB, 2026-09-21, harness tip [`049961374f`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315)) |
 | :---- | :---- |
@@ -30,7 +30,7 @@ Harness + writeups + `runs/`: branch `vlad/chore-local-ab-314v315` @ [`049961374
 | Functional profiling on 3.15.0a7 | **Works** |
 | Same claim on 3.15.0rc2 | **Not re-soaked** |
 | Memory parity vs 3.14 | **Not claimed** |
-| Broad advertise (docs/marketing) | **Not yet** |
+| Broad advertising (docs/marketing) | **Not yet** |
 | Gate on memalloc before functional claim | **Rejected** |
 
 ## Evidence
@@ -90,4 +90,4 @@ Verified = named artifact on harness tip [`049961374f`](https://github.com/DataD
 
 * Docs may say profiling **functions** on 3.15 with an **RSS caveat** once packaging lands; priority is RSS attribution + staging clear, not a memalloc rewrite.
 * Single-run laptop soaks; no local latency; evidence is **3.15.0a7** (rc2 exists, not re-soaked); asyncio parent/child link and dedicated sample type still open.
-* Track [PEP 790](https://peps.python.org/pep-0790/) — land engraver images within days of each RC/final.
+* Track [PEP 790](https://peps.python.org/pep-0790/) — land engraver images within days of each RC/final. As of Mon Sep 21 14:14 EDT 2026 (−0400): rc2 (2026-09-01) still absent from images master (`python/3.15*`); only draft images#11732.

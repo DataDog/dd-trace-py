@@ -40,8 +40,7 @@ CPython pre-releases move on a published calendar (e.g. [PEP 790](https://peps.p
    State vintage (local datetime + TZ + offset) next to the PEP date you compared to.
 3. Open/merge `ddoghq/images` engraver `python/<tag>` (+fips) promptly; do not sit on `rc1` after `rc2` exists.
 4. "Integrated" means **merged to images master + engraver digests**, not a draft PR.
-
-**Caution (verified Mon Sep 21 14:14 EDT 2026 −0400):** 3.15.0rc2 published 2026-09-01 (PEP 790); ~20 days later images master still had no `python/3.15*` — rc2 only on draft images#11732. Do not repeat that lag.
+5. Put time-specific "still missing on images master" observations in a dated ADR / ticket — not in this reusable skill.
 
 ## Key Principles
 
