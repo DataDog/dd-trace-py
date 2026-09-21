@@ -3,6 +3,10 @@ from functools import partial
 import logging
 import os
 import random
+from typing import Any
+from typing import Awaitable
+from typing import Callable
+from typing import TypedDict
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
@@ -14,7 +18,9 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
+from ddtrace.ext import SpanTypes
 from ddtrace.propagation import http as http_propagation
+from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_global_config
@@ -823,3 +829,157 @@ async def test_inferred_spans_api_gateway_default(scope, test_spans, app_type, i
                     distributed_parent_id=2,
                     distributed_sampling_priority=USER_KEEP,
                 )
+
+
+class _HTTPScope(TypedDict):
+    client: tuple[str, int]
+    headers: list[tuple[bytes, bytes]]
+    method: str
+    path: str
+    query_string: bytes
+    scheme: str
+    server: tuple[str, int]
+    type: str
+
+
+def _http_scope() -> _HTTPScope:
+    return {
+        "client": ("127.0.0.1", 32767),
+        "headers": [],
+        "method": "GET",
+        "path": "/",
+        "query_string": b"",
+        "scheme": "http",
+        "server": ("127.0.0.1", 80),
+        "type": "http",
+    }
+
+
+async def _send_complete_http_response(
+    receive: Callable[[], Awaitable[dict[str, Any]]],
+    send: Callable[[dict[str, Any]], Awaitable[None]],
+    body: bytes = b"*",
+) -> None:
+    message = await receive()
+    if message.get("type") == "http.request":
+        await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": body})
+
+
+@pytest.mark.asyncio
+async def test_unfinished_llm_child_finished_when_request_completes(test_spans):
+    """An LLM span left open by an abandoned stream generator must not keep the
+    request trace in the aggregator after the HTTP response finishes.
+    """
+    llm_span = None
+
+    async def app(scope, receive, send):
+        nonlocal llm_span
+        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
+        await _send_complete_http_response(receive, send)
+
+    instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
+    await instance.send_input({"type": "http.request", "body": b""})
+    await instance.receive_output(1)
+    await instance.receive_output(1)
+
+    assert llm_span is not None
+    assert llm_span.duration_ns is not None
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    names = {span.name for span in traces[0]}
+    assert names == {"asgi.request", "openai.request"}
+    assert all(span.duration_ns is not None for span in traces[0])
+
+
+@pytest.mark.asyncio
+async def test_unfinished_llm_child_finished_when_request_errors(test_spans):
+    llm_span = None
+
+    async def app(scope, receive, send):
+        nonlocal llm_span
+        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
+        raise OSError("client disconnected")
+
+    instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
+    with pytest.raises(OSError, match="client disconnected"):
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+
+    assert llm_span is not None
+    assert llm_span.duration_ns is not None
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    names = {span.name for span in traces[0]}
+    assert names == {"asgi.request", "openai.request"}
+
+
+@pytest.mark.asyncio
+async def test_enclosing_llm_span_not_finished_by_nested_asgi_request(test_spans):
+    """An in-process ASGI call under LLMObs.llm() must not finish the enclosing
+    agent span. Only LLM descendants of the request span are swept.
+    """
+    leftover = None
+
+    async def outer_app(scope, receive, send):
+        nonlocal leftover
+        leftover = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
+        await TraceMiddleware(basic_app)(scope, receive, send)
+
+    instance = ApplicationCommunicator(outer_app, _http_scope())
+    await instance.send_input({"type": "http.request", "body": b""})
+    await instance.receive_output(1)
+    await instance.receive_output(1)
+
+    assert leftover is not None
+    assert leftover.duration_ns is None
+    assert test_spans.pop_traces() == []
+    leftover.finish()
+
+
+@pytest.mark.asyncio
+async def test_llm_span_can_be_annotated_after_last_response_chunk(test_spans):
+    """The request span finishes on the last http.response.body, but the app
+    may still be running. Sweeping LLM spans at that moment would drop
+    output/token tags set after the last chunk.
+    """
+    llm_span = None
+
+    async def app(scope, receive, send):
+        nonlocal llm_span
+        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
+        await _send_complete_http_response(receive, send)
+        llm_span.set_tag("output", "done")
+        llm_span.finish()
+
+    instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
+    await instance.send_input({"type": "http.request", "body": b""})
+    await instance.receive_output(1)
+    await instance.receive_output(1)
+
+    assert llm_span is not None
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    flushed = next(span for span in traces[0] if span.name == "openai.request")
+    assert flushed.get_tag("output") == "done"
+
+
+@pytest.mark.asyncio
+async def test_unfinished_non_llm_child_not_finished_when_request_completes(test_spans):
+    """Fire-and-forget / background spans must stay open after the request ends."""
+    worker_span = None
+
+    async def app(scope, receive, send):
+        nonlocal worker_span
+        worker_span = tracer.trace("background.job", span_type="worker")
+        await _send_complete_http_response(receive, send)
+
+    instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
+    await instance.send_input({"type": "http.request", "body": b""})
+    await instance.receive_output(1)
+    await instance.receive_output(1)
+
+    assert worker_span is not None
+    assert worker_span.duration_ns is None
+    assert test_spans.pop_traces() == []
+    worker_span.finish()

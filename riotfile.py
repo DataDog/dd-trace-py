@@ -943,11 +943,27 @@ venv = Venv(
                 ),
                 Venv(
                     command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
+                    pkgs={"bottle": latest},
+                ),
+                Venv(
+                    command=(
                         "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
                     ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
+                ),
+                Venv(
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
+                    env={"DD_SERVICE": "bottle-app"},
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
+                    pkgs={"bottle": latest},
                 ),
             ],
         ),
@@ -1495,7 +1511,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pys=select_pys(min_version="3.12", max_version="3.14"),
                     pkgs={
                         "mlflow": [latest],
                         # pkg_resources was removed in v82.0.0
@@ -1654,6 +1670,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"moto": "==5.2.3"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13", max_version="3.14"),
+                    pkgs={"moto": "==5.2.3", "pynamodb": "<6.0"},
                 ),
             ],
         ),
@@ -2703,6 +2723,7 @@ venv = Venv(
                     pys="3.10",
                     pkgs={"yaaredis": latest},
                 ),
+                Venv(pys=select_pys(min_version="3.11", max_version="3.14"), pkgs={"yaaredis": latest}),
             ],
         ),
         Venv(
@@ -2765,6 +2786,13 @@ venv = Venv(
                     pkgs={
                         "sanic": ["~=23.12"],
                         "sanic-testing": "~=23.12.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13", max_version="3.14"),
+                    pkgs={
+                        "sanic": latest,
+                        "sanic-testing": latest,
                     },
                 ),
             ],
@@ -3168,6 +3196,10 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.13"),
                     pkgs={"openai-agents": ["~=0.14.0", latest]},
                 ),
+                Venv(
+                    pys="3.14",
+                    pkgs={"openai-agents": latest},
+                ),
             ],
         ),
         Venv(
@@ -3279,6 +3311,20 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="litellm",
+            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
+            command="pytest {cmdargs} tests/contrib/litellm",
+            pys="3.14",
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "botocore": latest,
+                "boto3": latest,
+                "litellm": "==1.80.16",
+                "openai": ">=2.8.0",
+            },
+        ),
+        Venv(
             name="llama_index",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -3289,6 +3335,19 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
                 "llama-index-core": ["~=0.11.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
+            name="llama_index",
+            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys="3.14",
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "llama-index-core": latest,
                 "llama-index-llms-openai": latest,
                 "llama-index-embeddings-openai": latest,
             },
@@ -3339,6 +3398,7 @@ venv = Venv(
                         "torch": ["~=2.8.0", "~=2.9.0", "~=2.10.0", "~=2.11.0", "~=2.12.0", latest],
                     },
                 ),
+                Venv(pys=select_pys(min_version="3.13", max_version="3.14"), pkgs={"torch": latest}),
             ],
         ),
         Venv(
@@ -3444,9 +3504,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/ray",
             env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
-            pkgs={
-                "ray[default]": ["~=2.46.0", "~=2.54.1"],
-            },
+            pkgs={"ray[default]": ["~=2.46.0", "~=2.54.1"]},
         ),
         Venv(
             name="ray_serve",
@@ -3532,7 +3590,7 @@ venv = Venv(
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
+                            pys=select_pys(min_version="3.11", max_version="3.14"),
                             pkgs={"confluent-kafka": latest},
                         ),
                     ],
@@ -3549,6 +3607,18 @@ venv = Venv(
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=6.105.0", latest],
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="aws_lambda",
+            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
+            command="pytest {cmdargs} tests/contrib/aws_lambda",
+            pys="3.14",
+            pkgs={
+                "boto3": latest,
+                "datadog-lambda": latest,
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
