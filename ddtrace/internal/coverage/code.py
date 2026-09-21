@@ -5,7 +5,6 @@ from copy import deepcopy
 from inspect import getmodule
 import os
 from pathlib import Path
-import sys
 import threading as _threading
 from types import CodeType
 from types import ModuleType
