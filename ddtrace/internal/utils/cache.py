@@ -65,7 +65,7 @@ class IdentityWeakKeyDictionary(Generic[WK, WV]):
     __slots__ = ("_data",)
 
     def __init__(self) -> None:
-        self._data: dict[int, tuple["weakref.ref[WK]", WV]] = {}
+        self._data: dict[int, tuple[weakref.ref[WK], WV]] = {}
 
     def _make_remove(self, key_id: int) -> Callable[["weakref.ref[WK]"], None]:
         def remove(_ref: "weakref.ref[WK]") -> None:

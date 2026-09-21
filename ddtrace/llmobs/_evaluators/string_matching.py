@@ -1,10 +1,10 @@
 """String matching evaluators for LLMObs."""
 
 import re
+from re import Pattern
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Pattern
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext

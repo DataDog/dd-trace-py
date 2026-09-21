@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import ddtrace
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import SpanDecoration
@@ -15,7 +14,7 @@ from tests.utils import TracerTestCase
 
 class SpanDecorationProbeTestCase(TracerTestCase):
     def setUp(self):
-        super(SpanDecorationProbeTestCase, self).setUp()
+        super().setUp()
 
         import tests.submod.traced_stuff as ts
 
@@ -29,7 +28,7 @@ class SpanDecorationProbeTestCase(TracerTestCase):
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
-        super(SpanDecorationProbeTestCase, self).tearDown()
+        super().tearDown()
 
     def test_debugger_span_decoration_probe_on_inner_function_active_span(self):
         with debugger() as d:

@@ -366,7 +366,7 @@ def test_gevent_gunicorn_behaviour():
 
     class TestService(PeriodicService):
         def __init__(self):
-            super(TestService, self).__init__(interval=0.1)
+            super().__init__(interval=0.1)
             self._has_run = False
             self._pid = os.getpid()
 

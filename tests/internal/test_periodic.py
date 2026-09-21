@@ -801,7 +801,7 @@ def _get_native_thread_name():
         # Read from /proc/self/task/<tid>/comm
         try:
             tid = ctypes.CDLL(None).syscall(186)  # SYS_gettid
-            with open(f"/proc/self/task/{tid}/comm", "r") as f:
+            with open(f"/proc/self/task/{tid}/comm") as f:
                 return f.read().strip()
         except Exception:
             return None
