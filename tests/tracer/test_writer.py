@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import time
+from typing import Any
 
 import mock
 import msgpack
@@ -16,6 +17,7 @@ import pytest
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
+from ddtrace.internal import forksafe
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.http import HTTPConnection
@@ -914,6 +916,82 @@ def test_racing_start():
         assert len(writer._encoder) == 100
 
 
+def test_native_exporter_shutdown_waits_for_send() -> None:
+    send_started = threading.Event()
+    release_send = threading.Event()
+    shutdown_called = threading.Event()
+    shutdown_waiting = threading.Event()
+    calls: list[str] = []
+
+    class Exporter:
+        def send(self, payload: bytes) -> None:
+            calls.append("send_enter")
+            send_started.set()
+            assert release_send.wait(timeout=2)
+            calls.append("send_exit")
+
+        def shutdown(self, timeout: int) -> None:
+            calls.append("shutdown")
+            shutdown_called.set()
+
+    class TrackingLock:
+        """Reports that the shutdown thread reached the lock before it blocks on it."""
+
+        def __init__(self, lock: Any) -> None:
+            self._lock = lock
+
+        def __enter__(self) -> Any:
+            # The sender takes the lock before it sets send_started, so any acquisition
+            # after that point belongs to the shutdown thread.
+            if send_started.is_set():
+                shutdown_waiting.set()
+            return self._lock.__enter__()
+
+        def __exit__(self, *exc_info: Any) -> Any:
+            return self._lock.__exit__(*exc_info)
+
+    writer = NativeWriter("http://localhost:9126")
+    original_exporter = writer._exporter
+    writer._exporter = Exporter()
+    writer._shutdown_exporter(original_exporter)
+    writer._exporter_lock = TrackingLock(writer._exporter_lock)
+
+    send_thread = threading.Thread(target=writer._send_payload, args=(b"payload", 1, writer._clients[0]))
+    send_thread.start()
+    assert send_started.wait(timeout=2)
+
+    shutdown_thread = threading.Thread(target=writer.shutdown_exporter)
+    shutdown_thread.start()
+    assert shutdown_waiting.wait(timeout=2)
+    assert not shutdown_called.wait(timeout=0.1)
+
+    release_send.set()
+    send_thread.join(timeout=2)
+    shutdown_thread.join(timeout=2)
+
+    assert not send_thread.is_alive()
+    assert not shutdown_thread.is_alive()
+    assert shutdown_called.is_set()
+    # The shutdown must land after the send completes, not interleaved with it.
+    assert calls == ["send_enter", "send_exit", "shutdown"]
+
+
+def test_native_exporter_lock_resets_after_fork() -> None:
+    """A child inheriting the lock held by a thread that no longer exists must not deadlock."""
+    writer = NativeWriter("http://localhost:9126")
+    assert isinstance(writer._exporter_lock, forksafe.ResetObject)
+
+    holder = threading.Thread(target=writer._exporter_lock.acquire)
+    holder.start()
+    holder.join(timeout=2)
+    assert not holder.is_alive()
+
+    # forksafe applies this to every resettable object in the child after a fork.
+    writer._exporter_lock._reset_object()
+    assert writer._exporter_lock.acquire(blocking=False)
+    writer._exporter_lock.release()
+
+
 def test_bad_encoding(monkeypatch):
     with override_global_config({"_trace_api": "foo"}):
         writer = NativeWriter("http://localhost:9126")
@@ -1170,6 +1248,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_language_interpreter",
         "set_tracer_version",
         "set_git_commit_sha",
+        "set_runtime_id",
         "set_client_computed_top_level",
         "set_input_format",
         "set_output_format",
@@ -1177,15 +1256,55 @@ def test_writer_telemetry_enabled_on_linux(
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 
-    with mock_sys_platform(platform):
-        with override_global_config(dict(_telemetry_enabled=config_value)):
+    # override_global_config must enter under the real platform. Mocking sys.platform first
+    # can make a cold AppSec import fail, which recreates the tracer writer and double-counts
+    # builder.set_restart_after_fork on the patched TraceExporterBuilder.
+    with override_global_config(dict(_telemetry_enabled=config_value)):
+        with mock_sys_platform(platform):
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
-            if expected_enabled:
-                mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
-            else:
-                mock_builder.enable_telemetry.assert_not_called()
-            mock_builder.set_restart_after_fork.assert_called_once_with(False)
+        if expected_enabled:
+            mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
+        else:
+            mock_builder.enable_telemetry.assert_not_called()
+        mock_builder.set_restart_after_fork.assert_called_once_with(False)
+
+
+@pytest.mark.subprocess(err=None, env={"DD_APPSEC_ENABLED": "false"})
+def test_writer_telemetry_platform_mock_does_not_rebuild_exporter_on_import_cold():
+    """Import-cold: override_global_config must not construct NativeWriter before the test writer."""
+    import sys
+    from unittest import mock
+
+    from ddtrace.internal.writer import NativeWriter
+    from tests.utils import override_global_config
+
+    with mock.patch("ddtrace.internal.native.TraceExporterBuilder") as builder_class:
+        builder = mock.Mock()
+        builder_class.return_value = builder
+        builder.build.return_value = mock.Mock()
+        for method_name in (
+            "set_url",
+            "set_hostname",
+            "set_language",
+            "set_language_version",
+            "set_language_interpreter",
+            "set_tracer_version",
+            "set_git_commit_sha",
+            "set_runtime_id",
+            "set_client_computed_top_level",
+            "set_input_format",
+            "set_output_format",
+            "enable_telemetry",
+        ):
+            getattr(builder, method_name).return_value = builder
+
+        with override_global_config(dict(_telemetry_enabled=False)):
+            assert builder.set_restart_after_fork.call_count == 0
+            with mock.patch.object(sys, "platform", "darwin"):
+                NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+            builder.set_restart_after_fork.assert_called_once_with(False)
+            builder.enable_telemetry.assert_not_called()
 
 
 @pytest.mark.subprocess(
@@ -1208,6 +1327,7 @@ def test_otlp_metric_tags_configured():
         "set_language_interpreter",
         "set_tracer_version",
         "set_git_commit_sha",
+        "set_runtime_id",
         "set_client_computed_top_level",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder

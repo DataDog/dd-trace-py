@@ -14,11 +14,12 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 7. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
 8. **Test before committing** — Run relevant tests to validate changes before committing.
 9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-10. **Update docs** — Add/update documentation when changing internal or public APIs.
+10. **Update docs** — Add/update documentation when changing internal or public APIs, configuration schemas, or contributor workflows.
 11. **No stray prints** — Check for and remove unexpected `print()` calls.
 12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
 14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
+15. **No automatic GitLab CI retries on `main`** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies with `retry: 0`. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
 
 ## Docstrings and Comments
 

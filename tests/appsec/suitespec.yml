@@ -19,7 +19,7 @@ components:
     - ddtrace/appsec/sca/*
 suites:
   appsec:
-    parallelism: 4
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -68,7 +68,6 @@ suites:
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -114,7 +113,7 @@ suites:
         - name: appsec_iast_native
           dependencies: [cmake, pybind11, clang]
   iast_aggregated_leak_testing:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@appsec_iast'
       - 'tests/appsec/iast_aggregated_memcheck/*'
@@ -150,7 +149,6 @@ suites:
           dependencies: [requests, flask, 'pip==26.2.1', pytest-xdist, 'psutil==7.1.3']
           riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', requests, flask, pytest-xdist, 'psutil==7.1.3']
   iast_tdd_propagation:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -174,7 +172,7 @@ suites:
         - name: iast_tdd_propagation
           dependencies: [requests, flask, cryptography, 'sqlalchemy~=2.0.23', pony, aiosqlite, tortoise-orm, peewee, 'psutil==7.1.3']
   appsec_integrations_pygoat:
-    parallelism: 3
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -231,6 +229,7 @@ suites:
         - name: appsec_integrations_packages
           dependencies: [gevent, pytest-xdist, pytest-asyncio, requests, SQLAlchemy, 'psycopg2-binary~=2.9.9', psycopg, pymysql, 'mysqlclient==2.1.1', mysql-connector-python, 'MarkupSafe~=2.1.1', 'Werkzeug~=3.0.6', babel]
   appsec_integrations_stripe:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -250,7 +249,7 @@ suites:
         - name: appsec_integrations_stripe
           dependencies: ['stripe~=13.0', vcrpy]
   appsec_integrations_langchain:
-    venvs_per_job: 1
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -281,7 +280,6 @@ suites:
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.3', 'langchain-community~=0.3', 'langchain-experimental~=0.3']
   appsec_integrations_flask:
     pattern: appsec_integrations_flask$
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -435,7 +433,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', fastapi, 'pydantic~=2.12', 'mcp==1.21.2']
   appsec_threats_django_no_iast:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -494,7 +492,7 @@ suites:
           python: ['3.12', '3.14']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_iast:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -557,7 +555,6 @@ suites:
           python: ['3.12', '3.14']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_rc:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -585,7 +582,7 @@ suites:
         - name: appsec_threats_django_rc
           dependencies: [requests, httpx, httpx2, 'django~=5.1']
   appsec_threats_fastapi_no_iast:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -632,7 +629,7 @@ suites:
           python: ['3.10', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_iast:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -682,7 +679,6 @@ suites:
           python: ['3.10', '3.14']
           dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_rc:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -712,7 +708,7 @@ suites:
         - name: appsec_threats_fastapi_rc
           dependencies: [hypothesis, requests, 'httpx<0.28.0', httpx2, 'fastapi~=0.114.2']
   appsec_threats_flask_no_iast:
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -810,7 +806,6 @@ suites:
           python: ['3.11', '3.13']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_rc:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -839,7 +834,7 @@ suites:
         - name: appsec_threats_flask_rc
           dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=3.0']
   appsec_threats_tornado_no_iast:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -881,7 +876,7 @@ suites:
           python: ['3.10', '3.14']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_iast:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -927,7 +922,6 @@ suites:
           python: ['3.10', '3.14']
           dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_rc:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -963,7 +957,6 @@ suites:
       - '@sca'
       - tests/appsec/sca/*
     retry: 2
-    venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/appsec/sca/
       env:

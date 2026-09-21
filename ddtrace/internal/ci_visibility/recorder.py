@@ -211,7 +211,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         self._api_key = env.get("_CI_DD_API_KEY", env.get("DD_API_KEY"))
 
         self._dd_site = env.get("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
+        self.config: Optional[IntegrationConfig] = config or ddconfig.test_visibility
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
         self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
         if not isinstance(ddconfig.test_visibility.itr_skipping_level, ITR_SKIPPING_LEVEL):
@@ -666,7 +666,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
             cls._instance.is_known_tests_enabled(),
         )
 
-    # AIDEV-NOTE: _suspend()/_resume() allow a nested pytest session (e.g. inline_run())
+    # _suspend()/_resume() allow a nested pytest session (e.g. inline_run())
     # or a test fixture to get a clean-slate view of CIVisibility without stopping the
     # outer session's instance.  Unlike calling disable(), _suspend() never calls stop()
     # on the instance, so the outer tracer and telemetry keep running.  Pair them in a
