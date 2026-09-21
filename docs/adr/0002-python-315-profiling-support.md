@@ -10,6 +10,7 @@
 | **Vintage of evidence** | Mon Sep 21 12:19–~13:00 EDT 2026 (−0400); re-verify any live CI/staging claim before citing as current |
 | **Primary reviewers** | Profiling Python team |
 | **Related** | Tracker [#17817](https://github.com/DataDog/dd-trace-py/issues/17817) / parent [#17809](https://github.com/DataDog/dd-trace-py/issues/17809); asyncio monitoring [#19272](https://github.com/DataDog/dd-trace-py/pull/19272); Jira [PROF-14084](https://datadoghq.atlassian.net/browse/PROF-14084) |
+| **Confluence mirror** | [ADR: Python 3.15 profiling support](https://datadoghq.atlassian.net/wiki/spaces/PROF/pages/7230194825/ADR+Python+3.15+profiling+support+dd-trace-py) (page id `7230194825`) |
 
 ### Publication
 
