@@ -452,11 +452,13 @@ def test_traced_stream_records_block_exception_during_iteration():
 def test_traced_stream_prefers_body_error_over_wrapped_exit_error():
     handler = _SyncRecordingHandler()
     traced = make_traced_stream(_ExitRaises(5), handler)
-    with pytest.raises(ValueError, match="boom") as exc_info:
+    db_err = RuntimeError("db")
+    with pytest.raises(RuntimeError, match="close failed") as exc_info:
         with traced as stream:
             assert next(stream) == 0
-            raise ValueError("boom")
-    assert isinstance(exc_info.value.__cause__, RuntimeError)
+            raise ValueError("boom") from db_err
+    assert isinstance(exc_info.value.__context__, ValueError)
+    assert exc_info.value.__context__.__cause__ is db_err
     assert handler.finalize_stream_calls == 1
     assert len(handler.handle_exception_calls) == 1
     assert isinstance(handler.handle_exception_calls[0], ValueError)
@@ -491,11 +493,13 @@ async def test_traced_async_stream_records_exception_from_wrapped_exit():
 async def test_traced_async_stream_prefers_body_error_over_wrapped_exit_error():
     handler = _AsyncRecordingHandler()
     traced = make_traced_stream(_AsyncExitRaises(5), handler)
-    with pytest.raises(ValueError, match="boom") as exc_info:
+    db_err = RuntimeError("db")
+    with pytest.raises(RuntimeError, match="close failed") as exc_info:
         async with traced as stream:
             assert await stream.__anext__() == 0
-            raise ValueError("boom")
-    assert isinstance(exc_info.value.__cause__, RuntimeError)
+            raise ValueError("boom") from db_err
+    assert isinstance(exc_info.value.__context__, ValueError)
+    assert exc_info.value.__context__.__cause__ is db_err
     assert handler.finalize_stream_calls == 1
     assert len(handler.handle_exception_calls) == 1
     assert isinstance(handler.handle_exception_calls[0], ValueError)
