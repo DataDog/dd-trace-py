@@ -1,8 +1,15 @@
 # -*- encoding: utf-8 -*-
 import functools
 import time
+from typing import Callable
+from typing import TypeVar
 
 import pytest
+from typing_extensions import ParamSpec
+
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 # Inclusive elapsed wall time, including preemption, is the ground truth for each
@@ -10,9 +17,9 @@ import pytest
 measured_wall_ns: dict[str, int] = {}
 
 
-def _measure_wall(func):
+def _measure_wall(func: Callable[_P, _R]) -> Callable[_P, _R]:
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         start = time.monotonic_ns()
         try:
             return func(*args, **kwargs)
@@ -23,30 +30,30 @@ def _measure_wall(func):
 
 
 @_measure_wall
-def spend_1():
+def spend_1() -> None:
     time.sleep(1)
 
 
 @_measure_wall
-def spend_3():
+def spend_3() -> None:
     time.sleep(3)
 
 
 @_measure_wall
-def spend_4():
+def spend_4() -> None:
     spend_3()
     spend_1()
 
 
 @_measure_wall
-def spend_7():
+def spend_7() -> None:
     spend_3()
     spend_1()
     spend_cpu_3()
 
 
 @_measure_wall
-def spend_16():
+def spend_16() -> None:
     spend_4()
     spend_7()
     spend_cpu_2()
@@ -54,7 +61,7 @@ def spend_16():
 
 
 @_measure_wall
-def spend_cpu_2():
+def spend_cpu_2() -> None:
     # Active wait for 2 seconds
     now = time.thread_time_ns()
     while time.thread_time_ns() - now < 2e9:
@@ -62,7 +69,7 @@ def spend_cpu_2():
 
 
 @_measure_wall
-def spend_cpu_3():
+def spend_cpu_3() -> None:
     # Active wait for 3 seconds
     now = time.thread_time_ns()
     while time.thread_time_ns() - now < 3e9:
@@ -87,7 +94,7 @@ def assert_almost_equal(value: float, target: float, tolerance: float = TOLERANC
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
     )
 )
-def test_accuracy_stack():
+def test_accuracy_stack() -> None:
     import collections
     import os
 
@@ -102,8 +109,8 @@ def test_accuracy_stack():
     p.start()
     spend_16()
     p.stop()
-    wall_times = collections.defaultdict(lambda: 0)
-    cpu_times = collections.defaultdict(lambda: 0)
+    wall_times: collections.defaultdict[str, int] = collections.defaultdict(lambda: 0)
+    cpu_times: collections.defaultdict[str, int] = collections.defaultdict(lambda: 0)
     profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
 
     for sample in profile.sample:
@@ -131,7 +138,7 @@ def test_accuracy_stack():
     assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
 
 
-def test_measure_wall_accumulates_inclusive_intervals(monkeypatch):
+def test_measure_wall_accumulates_inclusive_intervals(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
 
     ticks = iter((0, 10, 40, 60, 100, 140))
@@ -139,11 +146,11 @@ def test_measure_wall_accumulates_inclusive_intervals(monkeypatch):
     monkeypatch.setattr(f"{__name__}.measured_wall_ns", {})
 
     @_measure_wall
-    def inner(value):
+    def inner(value: int) -> int:
         return value
 
     @_measure_wall
-    def outer():
+    def outer() -> int:
         return inner(7)
 
     assert outer() == 7
@@ -152,6 +159,6 @@ def test_measure_wall_accumulates_inclusive_intervals(monkeypatch):
 
 
 @pytest.mark.parametrize("value", (89, 111))
-def test_accuracy_tolerance_rejects_outside_error_budget(value):
+def test_accuracy_tolerance_rejects_outside_error_budget(value: int) -> None:
     with pytest.raises(AssertionError):
         assert_almost_equal(value, 100)
