@@ -162,7 +162,6 @@ suites:
       python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants: [{name: smoke_test}]
   crashtracker:
-    venvs_per_job: 6
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
@@ -187,7 +186,6 @@ suites:
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
   conftest:
-    parallelism: 1
     paths:
       - 'conftest.py'
       - '**/conftest.py'
@@ -203,7 +201,7 @@ suites:
       python: ['3.10']
       variants: [{name: meta-testing}]
   ddtracerun:
-    parallelism: 3
+    venvs_per_job: 2
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -218,7 +216,7 @@ suites:
         - name: ddtracerun
           dependencies: [redis, gevent, pytest-randomly]
   detect_global_locks:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - 'ddtrace/*'
       - 'setup.py'
@@ -246,7 +244,6 @@ suites:
     ddtest: true
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
-    parallelism: 2
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -281,7 +278,6 @@ suites:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
       DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
-    venvs_per_job: 3
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -359,7 +355,6 @@ suites:
           command: pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, pyarmor]
   wrapping:
-    venvs_per_job: 6
     paths:
       - '@core'
       - '@tracing'
@@ -382,7 +377,7 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@lib_injection'
-    parallelism: 2
+    venvs_per_job: 2
     pattern: ^lib_injection$
     matrix:
       command: pytest {cmdargs} tests/lib_injection/
@@ -404,7 +399,6 @@ suites:
         - name: runtime
           dependencies: [msgpack, pytest-randomly]
   openfeature:
-    parallelism: 1
     paths:
       - '@openfeature'
       - '@remoteconfig'
@@ -418,7 +412,6 @@ suites:
         - name: openfeature
           dependencies: [pytest-randomly, openfeature-sdk]
   telemetry:
-    parallelism: 1
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
@@ -471,7 +464,6 @@ suites:
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
-    venvs_per_job: 1
     matrix:
       command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
       env:
@@ -539,7 +531,6 @@ suites:
         - name: wait
           dependencies: [azure-data-tables, azure-storage-blob, azure-storage-queue, cassandra-driver, psycopg2-binary, 'mysql-connector-python!=8.0.18', 'vertica-python>=0.6.0,<0.7.0', 'kombu>=4.2.0,<4.3.0', pymssql, pytest-randomly, redis, requests]
   vendor:
-    parallelism: 1
     paths:
       - '@vendor'
       - tests/vendor/*

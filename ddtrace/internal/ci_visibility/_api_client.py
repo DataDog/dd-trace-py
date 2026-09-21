@@ -6,7 +6,7 @@ import json
 from json import JSONDecodeError
 import socket
 import typing as t
-from typing import TypedDict  # noqa:F401
+from typing import TypedDict
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL

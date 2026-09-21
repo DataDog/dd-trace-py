@@ -1651,7 +1651,8 @@ def test_cached_view():
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": (
-                "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
+                "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82."
+                "d41d8cd98f00b204e9800998ecf8..."
             ),
             "_dd.base_service": "ddtrace_subprocess_dir",
         }
@@ -2039,6 +2040,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
     """
     # must be in this form to override headers (workaround for python 3.7 django tests)
     # which doesn't have support to use headers kwarg in client.get()
+    # PingFilter reserves trace ID 1 for snapshot health checks and drops those traces.
     test_headers = {
         "HTTP_X_DD_PROXY": "aws-apigateway",
         "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
@@ -2046,7 +2048,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
         "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
         "HTTP_X_DD_PROXY_STAGE": "stage",
-        "HTTP_X_DATADOG_TRACE_ID": "1",
+        "HTTP_X_DATADOG_TRACE_ID": "1234",
         "HTTP_X_DATADOG_PARENT_ID": "2",
         "HTTP_X_DATADOG_ORIGIN": "rum",
         "HTTP_X_DATADOG_SAMPLING_PRIORITY": "2",
@@ -2061,7 +2063,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
     assert aws_gateway_span is None
     web_span.assert_matches(
         name="django.request",
-        trace_id=1,
+        trace_id=1234,
         parent_id=2,
         metrics={
             _SAMPLING_PRIORITY_KEY: USER_KEEP,
@@ -2089,7 +2091,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
             url="https://local/",
             start=1736973768.0,
             is_distributed=True,
-            distributed_trace_id=1,
+            distributed_trace_id=1234,
             distributed_parent_id=2,
             distributed_sampling_priority=USER_KEEP,
         )
@@ -2097,7 +2099,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         # No test for SAMPLING_PRIORITY_KEY because it doesn't appear when the web span is a child
         web_span.assert_matches(
             name="django.request",
-            trace_id=1,
+            trace_id=1234,
         )
         assert len(test_spans.spans) == 27
 

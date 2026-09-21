@@ -367,6 +367,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
+        # PingFilter reserves trace ID 1 for snapshot health checks and drops those traces.
         test_headers = {
             "x-dd-proxy": "aws-apigateway",
             "x-dd-proxy-request-time-ms": "1736973768000",
@@ -374,7 +375,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "x-dd-proxy-httpmethod": "GET",
             "x-dd-proxy-domain-name": "local",
             "x-dd-proxy-stage": "stage",
-            "x-datadog-trace-id": "1",
+            "x-datadog-trace-id": "1234",
             "x-datadog-parent-id": "2",
             "x-datadog-origin": "rum",
             "x-datadog-sampling-priority": "2",
@@ -386,7 +387,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         aws_gateway_span = web_span._parent
         assert aws_gateway_span is None
         assert web_span.parent_id == 2
-        assert web_span.trace_id == 1
+        assert web_span.trace_id == 1234
 
         # With the feature enabled
         with self.override_global_config(dict(_inferred_proxy_services_enabled="true")):
@@ -410,7 +411,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 url="https://local/",
                 start=1736973768,
                 is_distributed=True,
-                distributed_trace_id=1,
+                distributed_trace_id=1234,
                 distributed_parent_id=2,
                 distributed_sampling_priority=USER_KEEP,
             )
