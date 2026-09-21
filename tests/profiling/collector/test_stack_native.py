@@ -1666,6 +1666,8 @@ def test_normalize_foreign_handler_owner_component(component: str, expected: str
         ("SIGSEGV=unknown, SIGBUS=unresolved@0x1234", "unresolved"),
         ("SIGSEGV=SIG_IGN, SIGBUS=none", "SIG_IGN"),
         ("SIGSEGV=/opt/libfoo+cuda.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo+cuda.so"),
+        ("SIGSEGV=/opt/foo, bar/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo.so"),
+        ("SIGSEGV=ddtrace, SIGBUS=/opt/foo, bar/libbar.so+0x1 (bar_handler)", "libbar.so"),
     ],
 )
 def test_normalize_foreign_handler_owner(owner: str, expected: str) -> None:

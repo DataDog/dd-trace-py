@@ -50,11 +50,15 @@ def _normalize_foreign_handler_owner_component(component: str) -> str:
 def _normalize_foreign_handler_owner(owner: str) -> str:
     sigsegv_owner: typing.Optional[str] = None
     sigbus_owner: typing.Optional[str] = None
-    for part in owner.split(", "):
-        if part.startswith("SIGSEGV="):
-            sigsegv_owner = _normalize_foreign_handler_owner_component(part[len("SIGSEGV=") :])
-        elif part.startswith("SIGBUS="):
-            sigbus_owner = _normalize_foreign_handler_owner_component(part[len("SIGBUS=") :])
+    # rpartition so a comma inside the SIGSEGV path is not a field delimiter.
+    sigsegv_part: str
+    sep: str
+    sigbus_part: str
+    sigsegv_part, sep, sigbus_part = owner.rpartition(", SIGBUS=")
+    if sep:
+        sigbus_owner = _normalize_foreign_handler_owner_component(sigbus_part)
+        if sigsegv_part.startswith("SIGSEGV="):
+            sigsegv_owner = _normalize_foreign_handler_owner_component(sigsegv_part[len("SIGSEGV=") :])
     # Concrete library / unresolved, then SIG_DFL/IGN/unknown/none, then ddtrace.
     for candidate in (sigsegv_owner, sigbus_owner):
         if candidate is not None and candidate not in _FOREIGN_HANDLER_OWNER_SYMBOLS:

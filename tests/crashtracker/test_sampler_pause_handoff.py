@@ -45,7 +45,7 @@ def test_crashtracker_start_pauses_sampler_before_handler_swap(monkeypatch):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 def test_crashtracker_start_skips_uninstall_on_pause_timeout(monkeypatch):
-    """When pause_sampling times out (None), do not uninstall the profiler handler."""
+    """When pause_sampling times out (None), do not uninstall or reinstall."""
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
@@ -74,5 +74,5 @@ def test_crashtracker_start_skips_uninstall_on_pause_timeout(monkeypatch):
 
     stack_mod.pause_sampling.assert_called_once()
     stack_mod.uninstall_segv_handler.assert_not_called()
-    stack_mod.reinstall_segv_handler.assert_called_once()
+    stack_mod.reinstall_segv_handler.assert_not_called()
     stack_mod.resume_sampling.assert_not_called()

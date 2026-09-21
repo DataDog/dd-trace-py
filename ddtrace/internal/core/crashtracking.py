@@ -285,7 +285,7 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 # pause_sampling returns:
                 #   True  — sampler paused (safe to swap handlers)
                 #   False — sampler not running (safe to swap; no racing thread)
-                #   None  — timed out; skip uninstall to avoid racing safe_memcpy
+                #   None  — timed out; skip uninstall/reinstall (race + cycle)
                 pause_result = stack_mod.pause_sampling()
             except Exception:  # nosec: B110
                 pause_result = None
@@ -298,7 +298,8 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             crashtracker_init(config, receiver_config, metadata)
             excepthook.register(_unhandled_exception_reporter)
 
-            if stack_mod is not None:
+            # Reinstall only after uninstall; otherwise crashtracker ↔ profiler cycle.
+            if stack_mod is not None and pause_result is not None:
                 try:
                     stack_mod.reinstall_segv_handler()
                 except Exception:  # nosec: B110
