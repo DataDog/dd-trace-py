@@ -389,11 +389,11 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.covered = ctx_covered.get()[-1]
                 _tls_coverage.covered_files = ctx_covered_files.get()[-1]
 
-            # Re-arm the LINE/PY_START events this collector silenced with DISABLE during the
-            # previous context. A sole subscriber uses one global restart; sharing with another
-            # subscriber or monitoring tool uses the isolated tool-scoped fallback. Re-arming on
-            # every context entry preserves transitive coverage when later imports call code from
-            # an earlier module.
+            # NOTE: Re-arm the LINE/PY_START events this collector silenced with DISABLE during
+            # the previous context. A sole subscriber with no external tool uses one global
+            # restart; shared monitoring uses the tool-scoped, event-selective fallback so another
+            # subscriber's disabled-event state is preserved. Re-arming on every context entry
+            # also preserves transitive coverage when later imports call code from an earlier module.
             _rearm_disabled()
 
             return self
@@ -440,6 +440,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             return
         cls._instance._covered_files.clear()
         cls._instance._coverage_enabled = True
+        # Code can execute while session coverage is inactive and consume the
+        # handler's DISABLE callback. Re-arm it when collection starts.
+        _rearm_disabled()
 
     @classmethod
     def stop_coverage(cls):

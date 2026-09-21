@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 import sys
+import threading
 from types import CodeType
 from typing import Any
 from typing import Callable
@@ -157,6 +158,14 @@ def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
     assert version == forced_version
     assert version is not None
     assert monitoring.registry_version_is_current(version)
+
+    # Registering more code for the same subscriber must keep the ownership version valid.
+    # Coverage instruments many code objects between contexts; invalidating here would make
+    # each restart rescan the entire registry and turn that workload quadratic.
+    same_subscriber_code = compile("pass", "<same-subscriber>", "exec")
+    monitoring.register(same_subscriber_code, first)
+    assert monitoring.registry_version_is_current(version)
+    assert monitoring.restart_events(first) == version
 
     own_tool = monitoring.ensure_tool()
     external_tool = next(
@@ -676,6 +685,41 @@ def test_register_rearms_disabled_py_start_for_new_handler(
 
     assert disabling.count == 3
     assert passive.count == 2
+
+
+def test_register_invalidates_inflight_disable(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A handler registered during dispatch is not hidden by that dispatch's DISABLE."""
+    started = threading.Event()
+    release = threading.Event()
+    results: list[object | None] = []
+
+    class BlockingLineHandler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> object | None:
+            started.set()
+            release.wait()
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, BlockingLineHandler())
+    second = LineHandler(disable=True)
+
+    thread = threading.Thread(target=lambda: results.append(monitoring._on_py_line(fn.__code__, 1)))
+    thread.start()
+    try:
+        assert started.wait(timeout=5)
+        registered(fn.__code__, second)
+    finally:
+        release.set()
+        thread.join(timeout=5)
+
+    assert not thread.is_alive()
+    assert results == [None]
+    assert monitoring._on_py_line(fn.__code__, 1) is _DISABLE
+    assert second.lines == [1]
 
 
 def test_py_start_continues_when_any_handler_declines_disable(

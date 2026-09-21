@@ -277,6 +277,39 @@ def test_many_sequential_contexts_no_degradation():
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+def test_session_coverage_rearms_code_executed_while_inactive():
+    """Starting session coverage re-arms callbacks consumed while collection was inactive."""
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+
+    install(include_paths=[include_path])
+
+    from tests.coverage.included_path.lib import called_in_session
+
+    # The handler still returns DISABLE while collection is inactive. Starting
+    # coverage must re-arm this function so the active call is not missed.
+    called_in_session(1, 2)
+    ModuleCodeCollector.start_coverage()
+    called_in_session(3, 4)
+    ModuleCodeCollector.stop_coverage()
+
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines())
+    path = "tests/coverage/included_path/lib.py"
+    assert path in covered
+    if not file_level_mode:
+        assert 2 in covered[path]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_context_after_session_coverage():
     """
     Test that context-based coverage works correctly after session-level coverage.

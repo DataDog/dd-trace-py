@@ -74,6 +74,9 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
 # INSTRUCTION events. Static import tracking (iter_import_events/import_names_by_line) already
 # works on 3.15+ and is used as the fallback.
 
+# NOTE: Coverage registers through ddtrace's shared multiplexer, which tries tool slots 4 and 3.
+# It must not claim coverage.py's conventional slot 1, and it must coexist with other ddtrace
+# monitoring subscribers through the same selected tool.
 # The sys.monitoring event this collector listens on. The actual event enabled per code object
 # is derived from the handler's overridden methods (PY_START for file-level, LINE for line-level)
 # by the multiplexer; this constant is kept for observability and test compatibility.
@@ -92,12 +95,18 @@ CodeHookData = t.Tuple[HookType, str, ImportNamesByLine, LineHookType, FileHookT
 # retaining dynamically compiled code after the application drops it.
 _CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 
+# NOTE: Coverage handlers return DISABLE after reporting a location to avoid redundant callbacks
+# in loops. _rearm_disabled() restores those callbacks at each context or session start: it uses a
+# global restart only while this handler is the sole ddtrace subscriber and no external tool is
+# visible, otherwise it selectively toggles this tool's affected local events. The multiplexer
+# also prevents an in-flight callback from restoring DISABLE after either re-arm completes.
 # Locations already reported in the current test context. Besides avoiding duplicate coverage work
 # when another multiplexer handler keeps an event enabled, the keys identify code objects whose
 # DISABLE marks need to be refreshed for the next context. Identity keys are required because equal
 # code objects still have independent monitoring state.
 _seen_event_locations: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 _rearm_lock = Lock()
+_rearm_generation: int = 0
 _single_subscriber_version: t.Optional[int] = None
 _FILE_EVENT_LOCATION = -1
 
@@ -106,25 +115,28 @@ _FILE_EVENT_LOCATION = -1
 _warned_tool_unavailable: bool = False
 
 
-def _claim_event(code: CodeType, location: int) -> bool:
-    """Return whether coverage should report this location in the current context."""
+def _claim_event(code: CodeType, location: int) -> tuple[bool, int]:
+    """Return whether coverage should report this location and its claim generation."""
     if _single_subscriber_version is not None and _monitoring.registry_version_is_current(_single_subscriber_version):
-        return True
+        return True, _rearm_generation
 
     with _rearm_lock:
+        generation = _rearm_generation
         seen = _seen_event_locations.get(code)
         if seen is None:
             _seen_event_locations[code] = {location}
-            return True
+            return True, generation
         if location in seen:
-            return False
+            return False, generation
         seen.add(location)
-        return True
+        return True, generation
 
 
-def _release_event(code: CodeType, location: int) -> None:
-    """Allow a failed coverage hook to be retried on the next event."""
+def _release_event(code: CodeType, location: int, generation: int) -> None:
+    """Allow a failed hook to retry without erasing a later generation's claim."""
     with _rearm_lock:
+        if generation != _rearm_generation:
+            return
         seen = _seen_event_locations.get(code)
         if seen is None:
             return
@@ -138,7 +150,10 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
-        if hook_data is None or not _claim_event(code, _FILE_EVENT_LOCATION):
+        if hook_data is None:
+            return _monitoring._DISABLE
+        claimed, generation = _claim_event(code, _FILE_EVENT_LOCATION)
+        if not claimed:
             return _monitoring._DISABLE
         hook, path, import_names, _line_hook, file_hook, import_hook = hook_data
 
@@ -156,7 +171,7 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
                 else:
                     hook((0, path, import_name))
         except BaseException:
-            _release_event(code, _FILE_EVENT_LOCATION)
+            _release_event(code, _FILE_EVENT_LOCATION, generation)
             raise
 
         return _monitoring._DISABLE
@@ -167,7 +182,10 @@ class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
 
     def on_py_line(self, code: CodeType, line_number: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
-        if hook_data is None or not _claim_event(code, line_number):
+        if hook_data is None:
+            return _monitoring._DISABLE
+        claimed, generation = _claim_event(code, line_number)
+        if not claimed:
             return _monitoring._DISABLE
         hook, path, import_names, line_hook, _file_hook, import_hook = hook_data
 
@@ -183,7 +201,7 @@ class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
                 import_name = import_names.get(line_number, None)
                 hook((line_number, path, import_name))
         except BaseException:
-            _release_event(code, line_number)
+            _release_event(code, line_number, generation)
             raise
 
         return _monitoring._DISABLE
@@ -205,6 +223,7 @@ def _rearm_disabled() -> None:
     subscriber and no external monitoring tool is visible. Otherwise the
     tool-scoped fallback keeps other subscribers' disabled-event state intact.
     """
+    global _rearm_generation
     global _single_subscriber_version
 
     version = _monitoring.restart_events(_handler)
@@ -212,6 +231,7 @@ def _rearm_disabled() -> None:
         if version is not None:
             _single_subscriber_version = version
             _seen_event_locations.clear()
+            _rearm_generation += 1
             return
 
         was_single_subscriber = _single_subscriber_version is not None
@@ -223,6 +243,7 @@ def _rearm_disabled() -> None:
         else:
             return
         _seen_event_locations.clear()
+        _rearm_generation += 1
 
     for code in codes:
         _monitoring.refresh(code, _EVENT)

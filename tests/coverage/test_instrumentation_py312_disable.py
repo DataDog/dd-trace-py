@@ -16,6 +16,7 @@ def _restore_coverage_state():
 
     orig_hooks = [(code, m._CODE_HOOKS[code]) for code in m._CODE_HOOKS]
     orig_seen = [(code, set(m._seen_event_locations[code])) for code in m._seen_event_locations]
+    orig_rearm_generation = m._rearm_generation
     orig_single_subscriber_version = m._single_subscriber_version
     orig_warned = m._warned_tool_unavailable
 
@@ -29,6 +30,7 @@ def _restore_coverage_state():
             m._seen_event_locations.clear()
             for code, locations in orig_seen:
                 m._seen_event_locations[code] = locations
+            m._rearm_generation = orig_rearm_generation
         m._single_subscriber_version = orig_single_subscriber_version
         m._warned_tool_unavailable = orig_warned
 
@@ -66,6 +68,78 @@ def test_file_handler_returns_disable_and_records():
     # File-level coverage reports line 0.
     assert calls == [(0, "/test/path.py", None)]
     assert m._seen_event_locations.get(code_obj) == {m._FILE_EVENT_LOCATION}
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+@pytest.mark.parametrize("handler_name", ["_CoverageLineHandler", "_CoverageFileHandler"])
+@pytest.mark.parametrize("shared", [False, True], ids=["global", "selective"])
+def test_inflight_dispatch_does_not_disable_after_rearm(handler_name, shared, monkeypatch):
+    """An aggregate callback begun before a global or selective re-arm cannot undo it."""
+    import threading
+
+    from ddtrace.internal import monitoring
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    started = threading.Event()
+    release = threading.Event()
+    results = []
+    errors = []
+
+    class BlockingHandler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code, instruction_offset):
+            started.set()
+            release.wait()
+            return monitoring._DISABLE
+
+        def on_py_line(self, code, line_number):
+            started.set()
+            release.wait()
+            return monitoring._DISABLE
+
+    def hook(_info):
+        if not shared:
+            started.set()
+            release.wait()
+
+    code_obj = compile("x = 1", "<inflight>", "exec")
+    m._CODE_HOOKS[code_obj] = (hook, "/test/path.py", {}, None, None, None)
+    m._single_subscriber_version = None
+    coverage_handler = getattr(m, handler_name)()
+    blocking_handler = BlockingHandler()
+    event = monitoring._E.LINE if handler_name == "_CoverageLineHandler" else monitoring._E.PY_START
+    monkeypatch.setattr(m, "_handler", coverage_handler)
+    monkeypatch.setattr(m, "_EVENT", event)
+
+    def invoke():
+        try:
+            if handler_name == "_CoverageLineHandler":
+                results.append(monitoring._on_py_line(code_obj, 1))
+            else:
+                results.append(monitoring._on_py_start(code_obj, 0))
+        except BaseException as exc:
+            errors.append(exc)
+
+    monitoring.register(code_obj, coverage_handler)
+    try:
+        if shared:
+            monitoring.register(code_obj, blocking_handler)
+        thread = threading.Thread(target=invoke)
+        thread.start()
+        try:
+            assert started.wait(timeout=5)
+            m._rearm_disabled()
+            assert (m._single_subscriber_version is None) is shared
+        finally:
+            release.set()
+            thread.join(timeout=5)
+        assert not thread.is_alive()
+    finally:
+        if shared:
+            monitoring.unregister(code_obj, blocking_handler)
+        monitoring.unregister(code_obj, coverage_handler)
+
+    assert errors == []
+    assert results == [None]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
@@ -207,6 +281,26 @@ def test_line_handler_deduplicates_when_another_handler_keeps_event_enabled():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_failed_old_callback_does_not_release_new_generation_claim(monkeypatch):
+    """A hook failure from before re-arm cannot erase the next context's claim."""
+    from ddtrace.internal import monitoring
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    monkeypatch.setattr(monitoring, "restart_events", lambda _handler: None)
+    monkeypatch.setattr(monitoring, "refresh", lambda _code, _events: None)
+    code_obj = compile("a = 1", "<generation>", "exec")
+
+    claimed, old_generation = m._claim_event(code_obj, 1)
+    assert claimed
+    m._rearm_disabled()
+    assert m._claim_event(code_obj, 1)[0]
+
+    m._release_event(code_obj, 1, old_generation)
+
+    assert m._seen_event_locations.get(code_obj) == {1}
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_rearm_disabled_refreshes_each_touched_code_object(monkeypatch):
     """_rearm_disabled() calls monitoring.refresh() for every DISABLE'd code object and clears the set."""
     from ddtrace.internal import monitoring
@@ -218,8 +312,8 @@ def test_rearm_disabled_refreshes_each_touched_code_object(monkeypatch):
 
     code_a = compile("a = 1", "<a>", "exec")
     code_b = compile("b = 2", "<b>", "exec")
-    assert m._claim_event(code_a, 1)
-    assert m._claim_event(code_b, 2)
+    assert m._claim_event(code_a, 1)[0]
+    assert m._claim_event(code_b, 2)[0]
 
     m._rearm_disabled()
 
@@ -265,7 +359,7 @@ def test_rearm_disabled_uses_global_restart_for_single_subscriber(monkeypatch):
 
     code_obj = compile("a = 1", "<a>", "exec")
     m._single_subscriber_version = None
-    assert m._claim_event(code_obj, 1)
+    assert m._claim_event(code_obj, 1)[0]
 
     m._rearm_disabled()
 
@@ -283,8 +377,8 @@ def test_claim_event_skips_software_deduplication_for_single_subscriber(monkeypa
     m._single_subscriber_version = 42
     code_obj = compile("a = 1", "<a>", "exec")
 
-    assert m._claim_event(code_obj, 1)
-    assert m._claim_event(code_obj, 1)
+    assert m._claim_event(code_obj, 1)[0]
+    assert m._claim_event(code_obj, 1)[0]
     assert len(m._seen_event_locations) == 0
 
 
