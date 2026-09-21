@@ -5,14 +5,13 @@ from ddtrace import config
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.web_framework import WebFrameworkRouteEvent
+from ddtrace.contrib._events.molten import MoltenRouteEvent
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.utils.importlib import func_name
 
 
 MOLTEN_REQUEST_CONTEXT_KEY = "molten.request.context"
-MOLTEN_ROUTE = "molten.route"
 
 
 def trace_wrapped(resource, wrapped, *args, **kwargs):
@@ -82,12 +81,11 @@ class WrapperRouter(wrapt.ObjectProxy):
             request_context = core.find_item(MOLTEN_REQUEST_CONTEXT_KEY)
             if request_context is not None:
                 core.dispatch_event(
-                    WebFrameworkRouteEvent(
+                    MoltenRouteEvent(
                         request_context=request_context,
                         resource="{} {}".format(route.method, route.template),
                         request_route=route.template,
                         route_name=route.name,
-                        route_name_tag=MOLTEN_ROUTE,
                     )
                 )
 
