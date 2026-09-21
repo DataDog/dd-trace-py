@@ -1,6 +1,7 @@
 ---
 suites:
   standalone:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -11,7 +12,6 @@ suites:
       - '@llmobs'
       - tests/standalone/*
       - tests/aiguard/utils.py
-    venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/standalone/
       env:

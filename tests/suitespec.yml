@@ -162,6 +162,7 @@ suites:
       python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants: [{name: smoke_test}]
   crashtracker:
+    venvs_per_job: 6
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
@@ -201,7 +202,7 @@ suites:
       python: ['3.10']
       variants: [{name: meta-testing}]
   ddtracerun:
-    venvs_per_job: 2
+    venvs_per_job: 3
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -216,7 +217,7 @@ suites:
         - name: ddtracerun
           dependencies: [redis, gevent, pytest-randomly]
   detect_global_locks:
-    venvs_per_job: 3
+    venvs_per_job: 6
     paths:
       - 'ddtrace/*'
       - 'setup.py'
@@ -240,8 +241,7 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants: [{name: detect_global_locks}]
   integration_agent:
-    ddtest_nodes: 2
-    ddtest: true
+    venvs_per_job: 1
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     paths:
@@ -271,8 +271,7 @@ suites:
             DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
             DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
   integration_testagent:
-    ddtest_nodes: 2
-    ddtest: true
+    venvs_per_job: 1
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
@@ -306,8 +305,8 @@ suites:
             DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
             DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
   internal:
+    venvs_per_job: 4
     retry: 2
-    venvs_per_job: 2
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
@@ -370,13 +369,13 @@ suites:
         - name: wrapping
           dependencies: [pytest-xdist, 'wrapt<2.0.0']
   lib_injection:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@contrib'
       - '@lib_injection'
-    venvs_per_job: 2
     pattern: ^lib_injection$
     matrix:
       command: pytest {cmdargs} tests/lib_injection/
@@ -440,8 +439,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
-    ddtest: true
-    ddtest_nodes: 2
+    venvs_per_job: 1
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
       DDTEST_SUITE_PATH: tests/tracer
@@ -489,7 +487,7 @@ suites:
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:
-    venvs_per_job: 1
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'

@@ -18,7 +18,7 @@ components:
     - ddtrace/testing/*
 suites:
   ci_visibility:
-    venvs_per_job: 3
+    venvs_per_job: 5
     paths:
       - '@ci_visibility'
       - '@ci'
@@ -42,6 +42,7 @@ suites:
         - name: ci_visibility
           dependencies: [msgpack, pytest-randomly, pytest-xdist, gevent]
   ci_visibility:snapshot:
+    venvs_per_job: 5
     paths:
       - '@ci_visibility'
       - '@ci'
@@ -66,7 +67,7 @@ suites:
         - name: ci_visibility:snapshot
           dependencies: [msgpack, pytest-randomly, gevent]
   dd_coverage:
-    venvs_per_job: 3
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -78,7 +79,7 @@ suites:
       command: pytest --no-cov {cmdargs} tests/coverage -s
       variants: [{name: dd_coverage}]
   pytest:
-    venvs_per_job: 2
+    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@core'
@@ -121,7 +122,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest:snapshot:
-    venvs_per_job: 3
+    venvs_per_job: 14
     paths:
       - '@bootstrap'
       - '@core'
@@ -159,6 +160,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest_benchmark:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -182,7 +184,7 @@ suites:
         - name: pytest_benchmark
           dependencies: [msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
   pytest_bdd:
-    venvs_per_job: 3
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -209,6 +211,7 @@ suites:
         - name: pytest_bdd
           dependencies: ['pytest==7.4.4', msgpack, 'more_itertools<8.11.0', pytest-randomly, 'pytest-bdd>=6.0,<6.1']
   pytest_flaky:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -234,8 +237,8 @@ suites:
           integration: pytest
           dependencies: [flaky, pytest-randomly]
   testing:
+    venvs_per_job: 4
     retry: 2
-    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -276,6 +279,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   selenium:
+    venvs_per_job: 2
     env:
       SELENIUM_GRID_URL: http://selenium-chrome:4444
     paths:
@@ -302,7 +306,7 @@ suites:
           dependencies: ['selenium~=4.0', webdriver-manager]
           python: ['3.10', '3.12']
   unittest:
-    venvs_per_job: 3
+    venvs_per_job: 5
     paths:
       - '@contrib'
       - '@unittest'

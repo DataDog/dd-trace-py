@@ -36,7 +36,7 @@ components:
     - ddtrace/contrib/internal/vllm/*
 suites:
   anthropic:
-    venvs_per_job: 5
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -86,7 +86,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [claude-agent-sdk, pytest-asyncio]
   google_adk:
-    venvs_per_job: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -104,7 +104,7 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    venvs_per_job: 2
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -123,7 +123,7 @@ suites:
         - name: google_genai
           dependencies: [pytest-asyncio, google-genai]
   vertexai:
-    venvs_per_job: 2
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -143,6 +143,7 @@ suites:
         - name: vertexai
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -153,7 +154,6 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       env:
@@ -170,8 +170,8 @@ suites:
           python: ['3.14']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
+    venvs_per_job: 4
     retry: 2
-    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -198,6 +198,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
   litellm:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -208,7 +209,6 @@ suites:
       - tests/contrib/litellm/*
       - tests/snapshots/tests.contrib.litellm.*
     snapshot: true
-    venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/contrib/litellm
       env:
@@ -301,7 +301,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, mistralai]
   openai:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -336,6 +336,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai==1.66.0', pillow]
   langgraph:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -346,7 +347,6 @@ suites:
       - '@llmobs'
       - tests/contrib/langgraph/*
     snapshot: true
-    venvs_per_job: 4
     matrix:
       command: pytest {cmdargs} tests/contrib/langgraph
       variants:
@@ -375,8 +375,8 @@ suites:
           python: ['3.14']
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
+    venvs_per_job: 2
     retry: 2
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -400,6 +400,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
   openai_agents:
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -410,7 +411,6 @@ suites:
       - tests/contrib/openai_agents/*
       - tests/snapshots/tests.contrib.openai_agents.*
     snapshot: true
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/openai_agents
       variants:
@@ -434,6 +434,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
   pydantic_ai:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -444,7 +445,6 @@ suites:
       - tests/contrib/pydantic_ai/*
       - tests/snapshots/tests.contrib.pydantic_ai.*
     snapshot: true
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/pydantic_ai
       env:

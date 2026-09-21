@@ -28,6 +28,7 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
+MAX_TOTAL_TEST_JOBS = 600
 
 
 def _ddtest_module():
@@ -492,6 +493,23 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             final_jobs[suite] = calculate_parallelism_from_venvs(suite_venv_info[suite].venv_count, venvs_per_job)
         else:
             final_jobs[suite] = 1
+
+    total_test_jobs = 0
+    for suite in non_skipped:
+        config = suites[suite]
+        if config.get("ddtest"):
+            info = suite_venv_info.get(suite)
+            if info is None:
+                continue
+            k = _ddtest_module().ddtest_k(config)
+            total_test_jobs += 1 + len(info.environments) * k  # plan job + K run instances per venv
+        else:
+            total_test_jobs += final_jobs.get(suite, 1)
+    if total_test_jobs >= MAX_TOTAL_TEST_JOBS:
+        raise ValueError(
+            f"Generated pipeline would produce {total_test_jobs} test job instances, "
+            f">= the {MAX_TOTAL_TEST_JOBS} limit. Reduce suite count or increase venvs_per_job packing."
+        )
 
     # === PASS 2: Emit YAML ===
     with TESTS_GEN.open("a") as f:

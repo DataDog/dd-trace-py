@@ -7,6 +7,7 @@ components:
     - ddtrace/internal/settings/aiguard.py
 suites:
   ai_guard_api:
+    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -24,6 +25,7 @@ suites:
         - name: ai_guard_api
           dependencies: [requests]
   ai_guard_langchain:
+    venvs_per_job: 10
     paths:
       - '@bootstrap'
       - '@core'
@@ -35,7 +37,6 @@ suites:
     retry: 2
     services:
       - testagent
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/langchain/
       env:
@@ -51,6 +52,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.23.7', langchain, langchain-core, langchain-openai, openai]
   ai_guard_openai:
+    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@core'
@@ -61,7 +63,6 @@ suites:
       - tests/aiguard/suitespec.yml
     services:
       - testagent
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/openai/
       env:
@@ -76,6 +77,7 @@ suites:
         - name: ai_guard_openai
           dependencies: ['pytest-asyncio==0.23.7', openai]
   ai_guard_anthropic:
+    venvs_per_job: 12
     paths:
       - '@bootstrap'
       - '@core'
@@ -86,7 +88,6 @@ suites:
       - tests/aiguard/suitespec.yml
     services:
       - testagent
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/anthropic/
       env:
@@ -97,6 +98,7 @@ suites:
         - name: ai_guard_anthropic
           dependencies: ['pytest-asyncio==0.23.7', pyyaml, anthropic, 'httpx<0.28.0']
   ai_guard_strands:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -115,6 +117,7 @@ suites:
         - name: ai_guard_strands
           dependencies: ['strands-agents>=1.29.0']
   ai_guard_litellm_guardrail:
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -124,7 +127,6 @@ suites:
       - tests/aiguard/utils.py
       - tests/aiguard/suitespec.yml
     retry: 2
-    venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
       env:
