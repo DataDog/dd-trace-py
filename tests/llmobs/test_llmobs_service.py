@@ -3,9 +3,9 @@ import os
 import re
 import threading
 import time
+from unittest import mock
 import urllib.parse
 
-import mock
 import pytest
 
 import ddtrace
@@ -1660,8 +1660,7 @@ assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad
 def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1690,8 +1689,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1722,8 +1720,7 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1761,8 +1758,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
@@ -1793,8 +1789,7 @@ def test_llmobs_fork_evaluator_runner_run():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
     import sys
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
@@ -2363,10 +2358,8 @@ def test_submit_evaluation_span_incorrect_type_raises(llmobs):
     with pytest.raises(
         TypeError,
         match=re.escape(
-            (
-                "`span` must be a dictionary containing both span_id and trace_id keys. "
-                "LLMObs.export_span() can be used to generate this dictionary from a given span."
-            )
+            "`span` must be a dictionary containing both span_id and trace_id keys. "
+            "LLMObs.export_span() can be used to generate this dictionary from a given span."
         ),
     ):
         llmobs.submit_evaluation(span="asd", label="toxicity", metric_type="categorical", value="high")
@@ -2394,10 +2387,8 @@ def test_submit_evaluation_empty_span_or_trace_id_raises_error(llmobs, mock_llmo
     with pytest.raises(
         TypeError,
         match=re.escape(
-            (
-                "`span` must be a dictionary containing both span_id and trace_id keys. "
-                "LLMObs.export_span() can be used to generate this dictionary from a given span."
-            )
+            "`span` must be a dictionary containing both span_id and trace_id keys. "
+            "LLMObs.export_span() can be used to generate this dictionary from a given span."
         ),
     ):
         llmobs.submit_evaluation(span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high")
@@ -2535,7 +2526,7 @@ def test_submit_evaluation_metric_tags(llmobs, mock_llmobs_eval_metric_writer):
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
         )
     )
 
@@ -2558,7 +2549,7 @@ def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_wr
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:agent_service", "foo:bar"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:agent_service", "foo:bar"],
         )
     )
 
@@ -2672,7 +2663,7 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
         )
     )
@@ -2709,7 +2700,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2733,7 +2724,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2771,7 +2762,7 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             reasoning="the content of the message involved profanity",
         )
@@ -2926,7 +2917,7 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
             "metric_type": "score",
             "label": "quality",
             "tags": [
-                "ddtrace.version:{}".format(ddtrace.__version__),
+                f"ddtrace.version:{ddtrace.__version__}",
                 "ml_app:test_app",
             ],
             "join_on": {"span": {"span_id": "123", "trace_id": "456"}},
@@ -3071,7 +3062,7 @@ def test_submit_feedback_rejects_invalid_direct_identifier(
     record_telemetry.assert_called_once_with(
         target_type,
         "categorical",
-        "invalid_{}".format(target_type),
+        f"invalid_{target_type}",
     )
 
 
@@ -3291,7 +3282,7 @@ def test_submit_feedback_optional_fields_and_agent_service_precedence(llmobs, mo
             ml_app="feedback-service",
             timestamp_ms=1756910127022,
             tags=[
-                "ddtrace.version:{}".format(ddtrace.__version__),
+                f"ddtrace.version:{ddtrace.__version__}",
                 "ml_app:feedback-service",
                 "team:support",
                 "channel:chat",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from unittest import mock
 
 import pytest
@@ -18,7 +17,7 @@ class TestValkeyPatch(TracerTestCase):
     TEST_PORT = VALKEY_CONFIG["port"]
 
     def setUp(self):
-        super(TestValkeyPatch, self).setUp()
+        super().setUp()
         patch()
         r = valkey.Valkey(port=self.TEST_PORT)
         r.flushall()
@@ -26,7 +25,7 @@ class TestValkeyPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestValkeyPatch, self).tearDown()
+        super().tearDown()
 
     def command_test_rowcount(self, raw_command, row_count, expect_result=True, **kwargs):
         command_args_as_list = raw_command.split(" ")
@@ -464,14 +463,14 @@ class TestValkeyPatchSnapshot(TracerTestCase):
     TEST_PORT = VALKEY_CONFIG["port"]
 
     def setUp(self):
-        super(TestValkeyPatchSnapshot, self).setUp()
+        super().setUp()
         patch()
         r = valkey.Valkey(port=self.TEST_PORT)
         self.r = r
 
     def tearDown(self):
         unpatch()
-        super(TestValkeyPatchSnapshot, self).tearDown()
+        super().tearDown()
         self.r.flushall()
 
     @snapshot()

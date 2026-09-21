@@ -728,7 +728,7 @@ def test_django_sqli_http_cookies_name(client, iast_span, tracer):
         if vuln["type"] == VULN_SQL_INJECTION:
             vulnerability = vuln
 
-    assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
+    assert vulnerability, f"No {VULN_SQL_INJECTION} reported"
 
     assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
     assert vulnerability["evidence"] == {
@@ -785,7 +785,7 @@ def test_django_sqli_http_cookies_value(client, iast_span, tracer):
         if vuln["type"] == VULN_SQL_INJECTION:
             vulnerability = vuln
 
-    assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
+    assert vulnerability, f"No {VULN_SQL_INJECTION} reported"
     assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
     assert vulnerability["type"] == "SQL_INJECTION"
 
