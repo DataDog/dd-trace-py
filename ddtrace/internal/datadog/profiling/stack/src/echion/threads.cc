@@ -250,8 +250,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     std::unordered_map<PyObject*, CachedTaskStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         CachedTaskStack cached;
-        auto result = task->unwind(echion, cached.frames, using_uvloop, max_frames);
-        cached.depth = result.depth;
+        cached.depth = task->unwind(echion, cached.frames, using_uvloop, max_frames);
         task_coro_stacks.emplace(task->origin, std::move(cached));
     }
 
@@ -954,12 +953,12 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             });
 
             auto& stack = greenlet_stack->stack;
-            stack.render(echion, TruncationStatus::Unknown);
+            stack.render(echion, TruncationStatus::Unknown, SIZE_MAX, 0);
 
             renderer.render_stack_end();
         }
     } else {
-        python_stack.render(echion, python_stack_unwind_result.truncation);
+        python_stack.render(echion, python_stack_unwind_result.truncation, SIZE_MAX, 0);
         renderer.render_stack_end();
     }
 }

@@ -102,12 +102,6 @@ class GenInfo
 
 // ----------------------------------------------------------------------------
 
-struct TaskUnwindResult
-{
-    size_t retained = 0;
-    size_t depth = 0;
-};
-
 class TaskInfo
 {
   public:
@@ -151,7 +145,9 @@ class TaskInfo
     {
     }
 
-    TaskUnwindResult unwind(EchionSampler& echion, FrameStack&, bool using_uvloop, size_t max_depth);
+    // Append at most max_depth frames and return the discovered coroutine depth, not the number added.
+    // Stitching needs that depth to identify overlapping physical frames even when only a prefix is retained.
+    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop, size_t max_depth);
 };
 
 // Checks whether a Frame is the uvloop.run coroutine wrapper.
