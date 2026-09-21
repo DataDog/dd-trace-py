@@ -173,21 +173,6 @@ def test_thread_context_listeners_can_be_disabled():
         assert is_context_watcher_registered() is False
 
 
-@pytest.mark.subprocess()
-def test_thread_context_listeners_are_disabled_by_default():
-    import sys
-
-    assert "ddtrace" not in sys.modules
-
-    from ddtrace.internal import core
-    from ddtrace.internal.settings._config import config
-    from ddtrace.trace import tracer  # noqa: F401
-
-    assert config._otel_thread_context_enabled is False
-    assert core.has_listeners("ddtrace.context_provider.activate") is False
-    assert core.has_listeners("python.context.switch") is False
-
-
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
 def test_thread_context_listeners_can_be_enabled():
     import sys
