@@ -1051,8 +1051,10 @@ async def test_context_buckets_separate_metric_totals_without_model_rules(gatewa
     cases = [
         (31_999, "0_32000"),
         (32_000, "0_32000"),
-        (32_001, "32001_128000"),
-        (128_000, "32001_128000"),
+        (32_001, "32001_64000"),
+        (64_000, "32001_64000"),
+        (64_001, "64001_128000"),
+        (128_000, "64001_128000"),
         (128_001, "128001_200000"),
         (200_000, "128001_200000"),
         (200_001, "200001_256000"),
@@ -1061,7 +1063,11 @@ async def test_context_buckets_separate_metric_totals_without_model_rules(gatewa
         (272_000, "256001_272000"),
         (272_001, "272001_512000"),
         (512_000, "272001_512000"),
-        (512_001, "512001_plus"),
+        (512_001, "512001_1024000"),
+        (1_024_000, "512001_1024000"),
+        (1_024_001, "1024001_2048000"),
+        (2_048_000, "1024001_2048000"),
+        (2_048_001, "2048001_4096000"),
     ]
     async with httpx.AsyncClient(timeout=40) as client:
         for tokens, _ in cases:
@@ -1072,7 +1078,7 @@ async def test_context_buckets_separate_metric_totals_without_model_rules(gatewa
             )
             assert result.status_code == 200
     groups = await metrics.wait(len(cases))
-    assert len(groups) == 7
+    assert len(groups) == 10
     assert len(upstream) == len(cases)
     assert not metrics.traces
     for group in groups:

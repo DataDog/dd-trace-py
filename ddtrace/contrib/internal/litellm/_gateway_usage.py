@@ -35,12 +35,10 @@ class Usage:
     issues: set[str] = field(default_factory=set)
 
 
-# Shared across providers, not a model/pricing lookup. Decimal token boundaries:
-# https://www.alibabacloud.com/help/en/model-studio/model-pricing (32k/128k/256k)
+# Additional boundaries between the generic 32k, 64k, 128k, ... ranges:
 # https://ai.google.dev/gemini-api/docs/pricing (200k)
 # https://developers.openai.com/api/docs/models/gpt-5.4-pro (272k)
-# Keep 512k as an additional long-context boundary. Reviewed September 2026.
-_CONTEXT_TOKEN_BOUNDARIES = (32_000, 128_000, 200_000, 256_000, 272_000, 512_000)
+_CONTEXT_TOKEN_EXTRA_BOUNDARIES = (200_000, 272_000)
 
 
 def context_tokens_bucket(usage: Usage) -> str:
@@ -53,11 +51,16 @@ def context_tokens_bucket(usage: Usage) -> str:
     ):
         return "unknown"
     lower = 0
-    for boundary in _CONTEXT_TOKEN_BOUNDARIES:
+    upper = 32_000
+    while tokens > upper:
+        lower = upper + 1
+        upper *= 2
+    for boundary in _CONTEXT_TOKEN_EXTRA_BOUNDARIES:
         if tokens <= boundary:
-            return f"{lower}_{boundary}"
-        lower = boundary + 1
-    return f"{lower}_plus"
+            upper = min(upper, boundary)
+        else:
+            lower = max(lower, boundary + 1)
+    return f"{lower}_{upper}"
 
 
 class _UsageError(Exception):

@@ -83,12 +83,13 @@ def test_partition_cache_ttl_and_reasoning():
 @pytest.mark.parametrize(
     "lower,upper,bucket,next_bucket",
     [
-        (0, 32_000, "0_32000", "32001_128000"),
-        (32_001, 128_000, "32001_128000", "128001_200000"),
+        (0, 32_000, "0_32000", "32001_64000"),
+        (32_001, 64_000, "32001_64000", "64001_128000"),
+        (64_001, 128_000, "64001_128000", "128001_200000"),
         (128_001, 200_000, "128001_200000", "200001_256000"),
         (200_001, 256_000, "200001_256000", "256001_272000"),
         (256_001, 272_000, "256001_272000", "272001_512000"),
-        (272_001, 512_000, "272001_512000", "512001_plus"),
+        (272_001, 512_000, "272001_512000", "512001_1024000"),
     ],
 )
 def test_global_context_bucket_boundaries(lower, upper, bucket, next_bucket):
@@ -97,6 +98,15 @@ def test_global_context_bucket_boundaries(lower, upper, bucket, next_bucket):
         assert context_tokens_bucket(usage) == bucket
     usage = normalize_usage({"prompt_tokens": upper + 1, "completion_tokens": 0})
     assert context_tokens_bucket(usage) == next_bucket
+
+
+@pytest.mark.parametrize("exponent", range(5, 39))
+def test_context_buckets_keep_doubling_for_large_valid_counts(exponent):
+    upper = 32_000 * 2**exponent
+    lower = upper // 2 + 1
+    for tokens in (lower, upper - 1, upper):
+        assert context_tokens_bucket(RecordedUsage(diagnostics={"context_tokens": tokens})) == f"{lower}_{upper}"
+    assert context_tokens_bucket(RecordedUsage(diagnostics={"context_tokens": upper + 1})) == f"{upper + 1}_{upper * 2}"
 
 
 @pytest.mark.parametrize("tokens", [None, True, -1, 1.5, float("nan"), float("inf"), "32000", 2**53 + 1])
@@ -121,12 +131,14 @@ def test_context_bucket_includes_native_anthropic_caches_without_double_counting
         },
         "anthropic_messages",
     )
-    assert context_tokens_bucket(usage) == "32001_128000"
+    assert context_tokens_bucket(usage) == "32001_64000"
     normalized = normalize_usage(
         {"prompt_tokens": 32_000, "cache_read_input_tokens": 20_000, "completion_tokens": 30_000}
     )
     assert context_tokens_bucket(normalized) == "0_32000"
-    assert context_tokens_bucket(RecordedUsage(diagnostics={"context_tokens": 2**53})) == "512001_plus"
+    assert context_tokens_bucket(RecordedUsage(diagnostics={"context_tokens": 2**53})) == (
+        f"{32_000 * 2**38 + 1}_{32_000 * 2**39}"
+    )
 
 
 @pytest.mark.parametrize("provider", ["openai", "anthropic", "vertex_ai", "new-provider"])

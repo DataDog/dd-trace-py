@@ -233,12 +233,13 @@ remain explicitly selected; the full logging payload is never exported.
        tool tokens, character/image counts, and audio/video seconds, including
        fractions. These counts can overlap: **do not add them to** ``ai_gateway.usage.*``.
    * - ``ai.context_tokens.bucket``
-     - Input length, including cached tokens, grouped at 32,000, 128,000, 200,000,
-       256,000, 272,000, and 512,000 tokens. The same buckets apply to every model
-       and provider; output tokens are excluded. Ranges have inclusive ends
-       (for example, ``32001_128000``); above the largest boundary is ``512001_plus``.
+     - Input length, including cached tokens, grouped at 32k, 64k, 128k, 256k,
+       512k, 1024k, and so on, with extra boundaries at 200k and 272k (k = 1,000
+       tokens). Boundaries keep doubling for larger counts, without a model list
+       or tracer update. The same buckets apply to every provider; output tokens
+       are excluded. Ranges have inclusive ends (for example, ``32001_64000``
+       and ``512001_1024000``).
        Missing or invalid usage, failures, and gateway cache hits use ``unknown``.
-       This produces at most eight values, not a separate value for every token count.
    * - ``ai_gateway.observed.input_cache_read_reported``, ``ai_gateway.observed.input_cache_write_reported``
      - Number of responses for which LiteLLM supplied each counter. A reported
        zero is different from a missing field. This cannot recover data LiteLLM dropped
