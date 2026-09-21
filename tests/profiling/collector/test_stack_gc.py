@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 import pytest
 
@@ -532,7 +533,7 @@ def test_gc_fallback_clears_stale_frame_after_fork_without_duplicate_callback() 
         ([None, "collecting-task", "suspended-task"], {"collecting-task", "suspended-task"}),
     ),
 )
-def test_gc_sample_task_names_preserves_named_tasks(task_names, expected):
+def test_gc_sample_task_names_preserves_named_tasks(task_names: list[Optional[str]], expected: set[str]) -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.gc_utils import gc_sample_task_names
 
