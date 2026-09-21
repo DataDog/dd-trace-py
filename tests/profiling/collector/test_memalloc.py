@@ -1770,8 +1770,8 @@ def test_mem_domain_enabled_by_default_on_profiler() -> None:
 
     # Quoted: this body is exec'd as a subprocess module without
     # `from __future__ import annotations`, and pprof_pb2 is pyi-only.
-    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
-    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    profile: "pprof_pb2.Profile" = pprof_utils.parse_newest_profile(output_filename)
+    samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
     assert samples, "Expected alloc-space samples"
     mem_frame_values: list[str] = pprof_utils.get_label_str_values_for_function(
         profile, samples, ALLOCATOR_DOMAIN_KEY, "_make_mem_domain_object"

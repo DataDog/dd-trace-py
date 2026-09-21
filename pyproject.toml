@@ -304,6 +304,9 @@ lint.unfixable =[
 
 # Line numbers referenced by debugger span decoration probes
 "tests/submod/traced_stuff.py" = ["UP009"]
+# Subprocess test body uses quoted annotations because it's exec'd without
+# `from __future__ import annotations` and pprof_pb2 is pyi-only
+"tests/profiling/collector/test_memalloc.py" = ["UP037"]
 
 [tool.ruff.format]
 # Formatter-specific settings
