@@ -57,5 +57,5 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         interp_addr = reinterpret_cast<char*>(interpreter_info.next);
     }
 
-    return all_interpreter_data_captured && interp_addr == NULL;
+    return all_interpreter_data_captured;
 }
