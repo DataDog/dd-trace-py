@@ -97,9 +97,12 @@ variables:
         # from the cache key. This gives a best-effort incremental cache shared
         # across all parallel jobs, keyed only on the base requirements which
         # rarely change.
+        # PYENV_VERSION is included because the pip cache contains version-specific
+        # wheels; mixing cp39 and cp312 caches causes "invalid wheel" errors.
         files:
           - benchmarks/base/requirements.txt
           - benchmarks/base/requirements_scenario.txt
+        prefix: cp312-
       paths:
         - .cache/pip
       policy: pull-push
