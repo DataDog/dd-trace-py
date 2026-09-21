@@ -40,17 +40,17 @@ variables:
     (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
-    # Install Python 3.12 via pyenv if not already available.
-    # The CI image only ships Python 3.9; we need 3.12 for the cp312 wheels.
-    # Update pyenv first so the latest 3.12.x definitions are available.
+    # Ensure Python 3.12 is the active pyenv version for the cp312 wheels.
+    # The CI image (ci/benchmarking-platform:dd-trace-py) is being updated to
+    # ship Python 3.12 pre-installed (see benchmarking-platform PR). Once that
+    # image is rebuilt and BENCHMARKING_COMMIT_SHA is bumped, this block can be
+    # replaced with a simple `pyenv global 3.12.10`.
     if ! pyenv versions | grep -q '3\.12\.'; then
       (cd /pyenv && git pull --ff-only)
       PYTHON312=$(pyenv install --list | grep -E '^\s+3\.12\.[0-9]+$' | tail -1 | tr -d ' ')
       pyenv install "$PYTHON312"
-      pyenv global "$PYTHON312"
-    else
-      pyenv global $(pyenv versions | grep -oE '3\.12\.[0-9]+' | head -1)
     fi
+    pyenv global $(pyenv versions | grep -oE '3\.12\.[0-9]+' | head -1)
 
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
