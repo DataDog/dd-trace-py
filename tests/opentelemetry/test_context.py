@@ -17,8 +17,11 @@ import pytest
 import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.internal import core
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
+from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
 from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
+from ddtrace.internal.settings._config import config as dd_config
 
 from .test_logs import EXPORTER_VERSION
 
@@ -183,9 +186,14 @@ async def test_otel_trace_multiple_coroutines(oteltracer):
     reason="requires the CPython 3.14 context watcher on Linux",
 )
 @pytest.mark.asyncio
-async def test_otel_thread_context_follows_async_context_switches(oteltracer):
+async def test_otel_thread_context_follows_async_context_switches(oteltracer, monkeypatch):
     """The published thread context follows each OTel span as asyncio switches tasks."""
     from ddtrace.internal.native import _native
+    from ddtrace.trace import tracer
+
+    monkeypatch.setattr(dd_config, "_otel_thread_context_enabled", True)
+    listeners = register_otel_thread_context_listener(tracer)
+    assert listeners is not None
 
     class _ThreadContextRecord(ctypes.Structure):
         _fields_ = [
@@ -230,8 +238,13 @@ async def test_otel_thread_context_follows_async_context_switches(oteltracer):
             await asyncio.sleep(0)
             assert published_context() == expected_context
 
-    await asyncio.gather(first(), second())
-    assert published_context() is None
+    try:
+        await asyncio.gather(first(), second())
+        assert published_context() is None
+    finally:
+        activation_listener, context_switch_listener = listeners
+        core.reset_listeners("ddtrace.context_provider.activate", activation_listener)
+        core.reset_listeners("python.context.switch", context_switch_listener)
 
 
 def test_otel_get_current_span(oteltracer):

@@ -17,6 +17,9 @@ from ddtrace.contrib.internal.anyio.patch import patch as anyio_patch
 from ddtrace.contrib.internal.anyio.patch import unpatch as anyio_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
+from ddtrace.internal import core
+from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
+from ddtrace.internal.settings._config import config as dd_config
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -52,8 +55,11 @@ def _trace_context_ids(tracer):
     reason="Starlette < 0.15 uses run_in_executor instead of AnyIO workers",
 )
 @pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
-def test_sync_handlers_publish_and_clear_native_thread_context(fastapi_tracer):
+def test_sync_handlers_publish_and_clear_native_thread_context(fastapi_tracer, monkeypatch):
     """Sync handlers publish request context and clear it when a worker becomes idle."""
+    monkeypatch.setattr(dd_config, "_otel_thread_context_enabled", True)
+    listeners = register_otel_thread_context_listener(fastapi_tracer)
+    assert listeners is not None
     handler_states = []
     application = fastapi.FastAPI()
 
@@ -88,6 +94,9 @@ def test_sync_handlers_publish_and_clear_native_thread_context(fastapi_tracer):
         anyio_unpatch()
         if was_patched:
             anyio_patch()
+        activation_listener, context_switch_listener = listeners
+        core.reset_listeners("ddtrace.context_provider.activate", activation_listener)
+        core.reset_listeners("python.context.switch", context_switch_listener)
 
     assert len(handler_states) == 2
     for _, active_context, published_context in handler_states:
