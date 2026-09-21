@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct

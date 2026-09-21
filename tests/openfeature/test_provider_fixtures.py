@@ -18,13 +18,13 @@ FLAGS_CONFIG_PATH = FFE_SYSTEM_TEST_DATA_DIR / "ufc-config.json"
 
 
 def load_flags_config():
-    with open(FLAGS_CONFIG_PATH, "r") as f:
+    with open(FLAGS_CONFIG_PATH) as f:
         return json.load(f)
 
 
 def load_fixture_test_cases(fixture_file):
     fixture_path = FIXTURES_DIR / fixture_file
-    with open(fixture_path, "r") as f:
+    with open(fixture_path) as f:
         return json.load(f)
 
 
