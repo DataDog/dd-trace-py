@@ -1997,6 +1997,10 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
     def test_chat_completion_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
         """A stream that errors part-way still reports the chunks it did receive.
 
@@ -2013,7 +2017,6 @@ MUL: "*"
                 messages=input_messages,
                 stream=True,
                 user="ddtrace-test",
-                stream_options={"include_usage": False},
             )
             stream = iter(resp)
             partial = ""
@@ -2041,6 +2044,10 @@ MUL: "*"
         assert span.error == 1
         assert span.get_tag("error.type") == "builtins.ValueError"
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
     async def test_chat_completion_async_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
         """Async mirror of the sync partial-response-on-abort case."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
@@ -2052,7 +2059,6 @@ MUL: "*"
                 messages=input_messages,
                 stream=True,
                 user="ddtrace-test",
-                stream_options={"include_usage": False},
             )
             stream = resp.__aiter__()
             partial = ""
