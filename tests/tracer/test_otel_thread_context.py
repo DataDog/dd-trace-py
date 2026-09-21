@@ -80,7 +80,7 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
         assert _published_span_id() == span.span_id
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": None})
 def test_thread_context_listeners_are_disabled_by_default():
     import sys
 
