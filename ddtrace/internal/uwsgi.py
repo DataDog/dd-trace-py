@@ -40,8 +40,8 @@ def should_register_atexit() -> bool:
 
 
 def check_uwsgi(
-    worker_callback: Optional[Callable] = None,
-    atexit: Optional[Callable] = None,
+    worker_callback: Optional[Callable[[], None]] = None,
+    atexit: Optional[Callable[[], None]] = None,
     *,
     defer_in_master: bool = False,
 ) -> None:
@@ -115,7 +115,7 @@ def check_uwsgi(
         if atexit is not None:
             original_atexit = getattr(uwsgi, "atexit", None)
 
-            def _atexit():
+            def _atexit() -> None:
                 try:
                     atexit()
                 except Exception:

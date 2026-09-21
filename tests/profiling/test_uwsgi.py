@@ -31,10 +31,12 @@ from typing import IO
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Generator
+from typing import NoReturn
 from typing import Optional
 
 import pytest
 
+from ddtrace.internal import uwsgi as uwsgi_support
 from ddtrace.profiling import profiler
 from tests.contrib.uwsgi import run_uwsgi
 from tests.profiling.collector import pprof_utils
@@ -85,11 +87,11 @@ def uwsgi(
 def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     """uWSGI postfork startup should set the active profiler singleton in workers."""
 
-    def _raise_master(*args, **kwargs):
+    def _raise_master(*args: object, **kwargs: object) -> NoReturn:
         assert kwargs["defer_in_master"] is True
-        raise profiler.uwsgi.uWSGIMasterProcess()
+        raise uwsgi_support.uWSGIMasterProcess()
 
-    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)  # type: ignore[attr-defined]
+    monkeypatch.setattr(uwsgi_support, "check_uwsgi", _raise_master)
 
     p = profiler.Profiler()
     p.start()
@@ -109,14 +111,16 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A worker started through uWSGI postfork should still reject a second profiler."""
-    callback_holder = {}
+    callback_holder: dict[str, Callable[[], None]] = {}
 
-    def _register_postfork(callback, atexit=None, *, defer_in_master=False):
+    def _register_postfork(
+        callback: Callable[[], None], atexit: Optional[Callable[[], None]] = None, *, defer_in_master: bool = False
+    ) -> NoReturn:
         assert defer_in_master is True
         callback_holder["callback"] = callback
-        raise profiler.uwsgi.uWSGIMasterProcess()
+        raise uwsgi_support.uWSGIMasterProcess()
 
-    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _register_postfork)  # type: ignore[attr-defined]
+    monkeypatch.setattr(uwsgi_support, "check_uwsgi", _register_postfork)
 
     p1 = profiler.Profiler()
     p1.start()
@@ -126,7 +130,7 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     assert profiler.Profiler._active_instance is p1
 
     # In workers, check_uwsgi should return normally.
-    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", lambda *args, **kwargs: None)  # type: ignore[attr-defined]
+    monkeypatch.setattr(uwsgi_support, "check_uwsgi", lambda *args, **kwargs: None)
 
     p2 = profiler.Profiler()
     with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
