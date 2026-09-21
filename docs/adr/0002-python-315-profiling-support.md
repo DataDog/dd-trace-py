@@ -10,11 +10,11 @@
 | **Vintage of evidence** | Mon Sep 21 12:19–~13:00 EDT 2026 (−0400); re-verify any live CI/staging claim before citing as current |
 | **Primary reviewers** | Profiling Python team |
 | **Related** | Tracker [#17817](https://github.com/DataDog/dd-trace-py/issues/17817) / parent [#17809](https://github.com/DataDog/dd-trace-py/issues/17809); asyncio monitoring [#19272](https://github.com/DataDog/dd-trace-py/pull/19272); Jira [PROF-14084](https://datadoghq.atlassian.net/browse/PROF-14084) |
-| **Confluence mirror** | [ADR: Python 3.15 profiling support](https://datadoghq.atlassian.net/wiki/spaces/PROF/pages/7230194825/ADR+Python+3.15+profiling+support+dd-trace-py) (page id `7230194825`) |
+| **Confluence mirror** | [[PRIVATE DRAFT] ADR page](https://datadoghq.atlassian.net/wiki/spaces/PROF/pages/7230194825/PRIVATE+DRAFT+ADR+Python+3.15+profiling+support+dd-trace-py) (id `7230194825`; still published in PROF — apply UI **Restrictions → Only you**) |
 
 ### Publication
 
-This ADR records a **data-backed declaration** that dd-trace-py continuous profiling **works on Python 3.15** for functional collection, with explicit separation from memory-parity and marketing-ready claims. It does **not** approve GA advertising of “zero RSS delta vs 3.14” or staging-grade overhead until the open risks below are closed.
+This ADR records a **data-backed declaration** that dd-trace-py continuous profiling **works on Python 3.15** for functional collection, with explicit separation from memory-parity and marketing-ready claims. It does **not** approve GA advertising of “zero RSS delta vs 3.14” or staging-grade overhead until the open risks below are closed. The Confluence page is a **working draft**, not a team-published announcement; prefer this git copy as canonical until restrictions are confirmed.
 
 ## Decision
 
