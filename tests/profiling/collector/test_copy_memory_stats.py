@@ -203,23 +203,22 @@ def test_foreign_handler_after_warmup_fallback_and_oneshot_drain() -> None:
         signal.signal(signal.SIGSEGV, signal.SIG_DFL)
         assert _stack.segv_handler_installed() is False
 
-        saw_fallback: bool = False
-        fallback_deadline: float = time.monotonic() + 10
-        while time.monotonic() < fallback_deadline:
-            if _stack.fast_copy_memory_active() is False:
-                saw_fallback = True
+        # Fallback flips before record_foreign_segv_handler(), so poll the notice.
+        notice: Optional[tuple[bool, str, bool]] = None
+        notice_deadline: float = time.monotonic() + 10
+        while time.monotonic() < notice_deadline:
+            notice = stack.take_foreign_segv_handler()
+            if notice is not None:
                 break
             time.sleep(0.05)
-        assert saw_fallback, "sampler never fell back after the foreign SIGSEGV takeover"
-
-        notice: Optional[tuple[bool, str, bool]] = stack.take_foreign_segv_handler()
-        assert notice is not None
+        assert notice is not None, "sampler never recorded the foreign SIGSEGV notice"
         already_owned: bool = notice[0]
         owner: str = notice[1]
         sampling_stopped: bool = notice[2]
         assert already_owned is False
         assert "SIGSEGV=SIG_DFL" in owner
         assert sampling_stopped is False
+        assert _stack.fast_copy_memory_active() is False
         assert stack.take_foreign_segv_handler() is None
     finally:
         stack.stop()
