@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from types import CodeType
 from types import ModuleType
 
 from ddtrace.internal.module import ModuleHookType
@@ -8,6 +9,20 @@ from ddtrace.internal.module import ModuleWatchdog
 
 class DebuggerModuleWatchdog(ModuleWatchdog):
     _locations: set[str] = set()
+
+    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
+        # FunctionDiscovery memoizes itself on the module as
+        # __function_discovery__. Its presence means some earlier compilation
+        # of this exact module object already had a discovery built for it, so
+        # this compile must be a recompile (e.g. importlib.reload()) and that
+        # cache is now stale. Unconditional: a module being compiled for the
+        # first time never has the attribute yet, so this is a cheap no-op in
+        # the common case.
+        try:
+            del module.__function_discovery__
+        except AttributeError:
+            pass
+        return code
 
     @classmethod
     def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:

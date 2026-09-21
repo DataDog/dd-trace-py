@@ -3,6 +3,7 @@ from types import FunctionType
 from typing import Any
 from typing import Callable
 from typing import cast
+import weakref
 
 from ddtrace.debugging._function.discovery import FullyNamed
 from ddtrace.internal.bytecode_injection import HookInfoType
@@ -34,11 +35,16 @@ class FunctionStore:
 
     If extra attributes are defined during the patching process, they will get
     removed when the functions are restored.
+
+    The maps are keyed by weak reference to the function so that a function
+    orphaned by a module recompile (e.g. importlib.reload()) doesn't keep
+    piling up here forever: once nothing else references it, its entry is
+    dropped automatically instead of leaking for the lifetime of the process.
     """
 
     def __init__(self) -> None:
-        self._code_map: dict[FunctionType, CodeType] = {}
-        self._wrapper_map: dict[FunctionType, WrappingContext] = {}
+        self._code_map: weakref.WeakKeyDictionary[FunctionType, CodeType] = weakref.WeakKeyDictionary()
+        self._wrapper_map: weakref.WeakKeyDictionary[FunctionType, WrappingContext] = weakref.WeakKeyDictionary()
 
     def __enter__(self) -> "FunctionStore":
         return self
@@ -98,7 +104,7 @@ class FunctionStore:
         for function, wrapping_context in list(self._wrapper_map.items()):
             wrapping_context.unwrap()
 
-        for function, code in self._code_map.items():
+        for function, code in list(self._code_map.items()):
             # Restoring __code__ alone would leave 3.15+ line hooks (keyed by
             # code object) still firing.
             eject_all_hooks(function)

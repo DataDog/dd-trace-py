@@ -203,6 +203,21 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
         """Get the currently pending probes by location."""
         return self._pending[location].copy()
 
+    def reset_pending(self, location: str) -> None:
+        """Move any installed probes at the given location back to pending.
+
+        Called when the module backing a location has been recompiled (e.g.
+        via ``importlib.reload()``), which orphans whatever function or code
+        object an installed probe was previously attached to and requires a
+        fresh installation pass.
+        """
+        with self._lock:
+            pending_probes = self._pending[location]
+            for entry in self.values():
+                if entry.installed and _get_probe_location(entry.probe) == location:
+                    entry.installed = False
+                    pending_probes.append(entry.probe)
+
     def __contains__(self, probe: object) -> bool:
         """Check if a probe is in the registry."""
         assert isinstance(probe, Probe), probe  # nosec
