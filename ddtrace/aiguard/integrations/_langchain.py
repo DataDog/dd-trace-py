@@ -194,6 +194,77 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
     return result
 
 
+def _convert_generations(generations: Sequence[Any]) -> list[Message]:
+    """Convert one prompt's generations into AI Guard assistant messages.
+
+    Handles both ChatGeneration (carries a message) and the plain Generation a
+    non-chat LLM returns (carries only text).
+
+    Tool calls are deliberately left out. LangChain already evaluates a tool call
+    where it is decided or executed -- Agent.plan on langchain < 1.0 and
+    ToolNode._run_one on >= 1.0 -- so emitting them here would scan the same call
+    twice and bill two evaluations for it. This mirrors the Strands integration,
+    whose after-model-call hook is likewise text-only.
+    """
+    result: list[Message] = []
+    for generation in generations:
+        try:
+            message = getattr(generation, "message", None)
+            if message is not None:
+                text = _get_message_text(message)
+            else:
+                text = getattr(generation, "text", "") or ""
+            if isinstance(text, str) and text:
+                result.append(Message(role="assistant", content=text))
+        except Exception:
+            logger.debug("Failed to convert langchain generation", exc_info=True)
+    return result
+
+
+def _evaluate_langchain_response(
+    client: AIGuardClient, request_messages: list[Message], response_messages: list[Message]
+) -> None:
+    """Evaluate a completed model call, re-raising AIGuardAbortError on a block.
+
+    The abort propagates out of the contrib's after dispatch and replaces the
+    model's return value, so blocked output never reaches the caller.
+    """
+    try:
+        evaluate_auto(client, request_messages + response_messages, AI_GUARD.INTEGRATION_LANGCHAIN)
+    except AIGuardAbortError:
+        raise
+    except Exception:
+        logger.debug("Failed to evaluate chat model response", exc_info=True)
+
+
+def _langchain_chatmodel_generate_after(client: AIGuardClient, message_lists: Any, result: Any) -> None:
+    """Listener for langchain.chatmodel.generate.after and its async twin.
+
+    Provider integrations (OpenAI, Anthropic) skip their own response evaluation
+    while the LangChain context counter is active, so without this listener the
+    model response reached the caller unevaluated.
+
+    generations[i] holds the candidates produced for message_lists[i]; zip pairs
+    them and tolerates a provider returning fewer of either.
+    """
+    generations = getattr(result, "generations", None) or []
+    for messages, prompt_generations in zip(message_lists, generations):
+        response_messages = _convert_generations(prompt_generations)
+        if response_messages:
+            _evaluate_langchain_response(client, _convert_messages(messages), response_messages)
+
+
+def _langchain_llm_generate_after(client: AIGuardClient, prompts: Any, result: Any) -> None:
+    """Listener for langchain.llm.generate.after and its async twin -- see the chatmodel variant."""
+    from langchain_core.messages import HumanMessage
+
+    generations = getattr(result, "generations", None) or []
+    for prompt, prompt_generations in zip(prompts, generations):
+        response_messages = _convert_generations(prompt_generations)
+        if response_messages:
+            _evaluate_langchain_response(client, _convert_messages([HumanMessage(content=prompt)]), response_messages)
+
+
 def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, kwargs: Any) -> Any:
     try:
         from langchain_core.agents import AgentAction

@@ -75,6 +75,22 @@ def _mock_openai_tool_call_response(tool: str, args: Any) -> ChatResult:
     )
 
 
+def _evaluated_messages(mock_execute_request, index: int) -> list:
+    """Messages sent to AI Guard by the index-th evaluate call."""
+    return mock_execute_request.call_args_list[index][0][1]["data"]["attributes"]["messages"]
+
+
+def _assert_evaluated_response(mock_execute_request, content: str) -> None:
+    """Assert the second evaluation carried the model's answer back to AI Guard.
+
+    A LangChain call makes two evaluations: the request, then request + response.
+    """
+    assert mock_execute_request.call_count == 2
+    response_eval = _evaluated_messages(mock_execute_request, 1)
+    assert response_eval[-1]["role"] == "assistant"
+    assert content in response_eval[-1]["content"]
+
+
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_openai_chat_sync_allow(mock_execute_request, langchain_openai, openai_url):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -82,7 +98,7 @@ def test_openai_chat_sync_allow(mock_execute_request, langchain_openai, openai_u
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
     chat.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
-    mock_execute_request.assert_called_once()
+    _assert_evaluated_response(mock_execute_request, "'Whom' is used as the object of a verb")
 
 
 @pytest.mark.asyncio
@@ -93,7 +109,7 @@ async def test_openai_chat_async_allow(mock_execute_request, langchain_openai, o
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
     await chat.ainvoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
-    mock_execute_request.assert_called_once()
+    _assert_evaluated_response(mock_execute_request, "'Whom' is used as the object of a verb")
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
@@ -135,7 +151,8 @@ def test_openai_chat_sync_block_config_disabled(mock_execute_request, langchain_
         chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
         # Should NOT raise because local config passes Options(block=False) which overrides server response
         chat.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
-        mock_execute_request.assert_called_once()
+        # Both the request and the response evaluation run: neither can block.
+        assert mock_execute_request.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -150,7 +167,8 @@ async def test_openai_chat_async_block_config_disabled(mock_execute_request, lan
     with override_ai_guard_config(dict(_ai_guard_block=False)):
         chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
         await chat.ainvoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
-        mock_execute_request.assert_called_once()
+        # Both the request and the response evaluation run: neither can block.
+        assert mock_execute_request.call_count == 2
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
@@ -160,7 +178,7 @@ def test_openai_llm_sync_allow(mock_execute_request, langchain_openai, openai_ur
     llm = langchain_openai.OpenAI(base_url=openai_url)
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
-    mock_execute_request.assert_called_once()
+    _assert_evaluated_response(mock_execute_request, "Cogito, ergo sum")
 
 
 @pytest.mark.asyncio
@@ -171,7 +189,7 @@ async def test_openai_llm_async_allow(mock_execute_request, langchain_openai, op
     llm = langchain_openai.OpenAI(base_url=openai_url)
     await llm.ainvoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
-    mock_execute_request.assert_called_once()
+    _assert_evaluated_response(mock_execute_request, "Cogito, ergo sum")
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
@@ -199,6 +217,88 @@ async def test_openai_llm_async_block(mock_execute_request, langchain_openai, op
         await llm.ainvoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     mock_execute_request.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Response-side evaluation (APPSEC-70274)
+#
+# LangChain marks the AI Guard context active for the whole model call, so the
+# OpenAI / Anthropic listeners skip their own response evaluation. These tests
+# pin the replacement: the response is evaluated, and a block on it aborts the
+# call instead of handing the answer back.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_openai_chat_sync_response_block(mock_execute_request, langchain_openai, openai_url, decision):
+    """An allowed prompt whose response is blocked aborts rather than returning the answer."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        chat.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    assert mock_execute_request.call_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_openai_chat_async_response_block(mock_execute_request, langchain_openai, openai_url, decision):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        await chat.ainvoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    assert mock_execute_request.call_count == 2
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_openai_llm_sync_response_block(mock_execute_request, langchain_openai, openai_url):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    assert mock_execute_request.call_count == 2
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_chat_response_evaluation_carries_request_context(mock_execute_request, langchain_openai, openai_url):
+    """The response evaluation sends the prompt alongside the answer, not the answer alone."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    chat.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    messages = _evaluated_messages(mock_execute_request, 1)
+    assert messages[0] == {"role": "user", "content": "When do you use 'whom' instead of 'who'?"}
+    assert messages[-1]["role"] == "assistant"
+
+
+def test_convert_generations_excludes_tool_calls():
+    """Tool calls are evaluated where they execute, so the response converter drops them.
+
+    Without this a create_agent loop would evaluate every tool call twice.
+    """
+    from langchain_core.outputs import Generation
+
+    from ddtrace.aiguard.integrations._langchain import _convert_generations
+
+    tool_only = ChatGeneration(message=AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})]))
+    assert _convert_generations([tool_only]) == []
+
+    with_text = ChatGeneration(message=AIMessage(content="hello", tool_calls=[ToolCall(id="c1", name="add", args={})]))
+    assert _convert_generations([with_text]) == [{"role": "assistant", "content": "hello"}]
+
+    # Non-chat LLMs return a plain Generation carrying only text.
+    assert _convert_generations([Generation(text="plain")]) == [{"role": "assistant", "content": "plain"}]
+
+    # A converter failure on one generation must not lose the others.
+    assert _convert_generations([object(), Generation(text="kept")]) == [{"role": "assistant", "content": "kept"}]
 
 
 @requires_legacy_agents
@@ -481,18 +581,25 @@ def test_create_agent_action_sync_allow(mock_execute_request, mock_openai_reques
 
     result = agent.invoke({"messages": [HumanMessage(content="1 + 1")]})
 
-    # Three evaluations across the agent loop:
+    # Four evaluations across the agent loop:
     #   1. before model (user prompt)
     #   2. before tool (the ``add`` tool call)
     #   3. before the second model turn, whose trailing message is the tool
     #      result -> AI Guard evaluates the tool output in context.
-    assert mock_execute_request.call_count == 3
+    #   4. after the second model turn -> the agent's final text answer.
+    # The first model turn adds no after-evaluation: its response is a bare
+    # tool call, and tool calls are evaluated at step 2 rather than twice.
+    assert mock_execute_request.call_count == 4
     assert any(getattr(m, "content", None) == "The answer is 2" for m in result["messages"])
 
     # The third evaluation must carry the tool result (role="tool") so AI Guard
     # sees the tool output, not just the original prompt.
-    tool_result_eval_messages = mock_execute_request.call_args_list[2][0][1]["data"]["attributes"]["messages"]
+    tool_result_eval_messages = _evaluated_messages(mock_execute_request, 2)
     assert any(m.get("role") == "tool" and m.get("content") == "2" for m in tool_result_eval_messages)
+
+    # The final evaluation carries the agent's answer, which nothing scanned before.
+    final_eval_messages = _evaluated_messages(mock_execute_request, 3)
+    assert final_eval_messages[-1] == {"role": "assistant", "content": "The answer is 2"}
 
 
 @requires_create_agent

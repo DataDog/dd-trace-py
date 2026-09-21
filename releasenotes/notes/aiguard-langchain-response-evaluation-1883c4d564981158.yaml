@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where model responses were never evaluated for LangChain chat model
+    and LLM calls, leaving unsafe model output neither reported nor blocked. Such calls now run a
+    second evaluation covering the model's answer, which raises ``AIGuardAbortError`` when the
+    verdict is ``DENY`` or ``ABORT``. Tool calls are unaffected: they continue to be evaluated
+    where they execute. Streamed LangChain responses are still not evaluated.
