@@ -16,8 +16,12 @@ variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
-  BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
+  # TEMPORARY - REVERT BEFORE MERGE. Points at the benchmarking-platform branch
+  # carrying the other half of this fix, so CI exercises both halves together.
+  # Restore to `dd-trace-py` / dbe21f0dd0f8274c31a006d0482f6836e86446c4 once
+  # https://github.com/DataDog/benchmarking-platform/pull/308 has merged.
+  BENCHMARKING_BRANCH: augusto/dd-trace-py/share-cpu-cores
+  BENCHMARKING_COMMIT_SHA: 0e37fb3145dd54c419d5cddba5da4ccc588499c3
   # Known flaky benchmarks
   FLAKY_BENCHMARKS_REGEX: "^iastaspects-(casefold_aspect|casefold_noaspect|lower_aspect|upper_noaspect|ljust_noaspect|swapcase_aspect|translate_aspect|translate_noaspect|index_aspect|replace_aspect|title_noaspect|rstrip_aspect)$|^httppropagationinject-ids_only$|^iastaspectsospath-ospathbasename_aspect$|^iastaspectssplit-rsplit_aspect$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^span-start$|^telemetryaddmetric-1-count-metric-1-times$|^telemetryaddmetric-record-100-metrics$|^tracer-small$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
 
