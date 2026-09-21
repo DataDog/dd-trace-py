@@ -2,8 +2,8 @@ from inspect import currentframe
 from inspect import getframeinfo
 from pathlib import Path
 import traceback
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace.appsec._common_module_patches as cmp

@@ -1676,7 +1676,7 @@ class TestSpanEventJSONSafety:
             self.value = value
 
         def __str__(self):
-            return "RawObject({})".format(self.value)
+            return f"RawObject({self.value})"
 
     def test_agent_version_tag_is_stringified(self, llmobs):
         """annotate(agent=...) is not type-validated, and the version is written into tags at finish,
