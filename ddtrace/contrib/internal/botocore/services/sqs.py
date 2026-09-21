@@ -1,6 +1,6 @@
 import json
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Optional
 
 import botocore.client  # noqa: F401
 import botocore.exceptions

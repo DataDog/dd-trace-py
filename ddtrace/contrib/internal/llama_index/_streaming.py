@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import inspect
 from typing import TYPE_CHECKING
 from typing import Any
@@ -27,7 +29,7 @@ class _BaseLlamaIndexStreamHandler:
     """
 
     integration: LlamaIndexIntegration
-    primary_span: "Span"
+    primary_span: Span
     request_args: tuple
     request_kwargs: dict[str, Any]
     chunks: list[Any]
