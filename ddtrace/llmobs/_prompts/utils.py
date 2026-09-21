@@ -1,7 +1,7 @@
+from collections.abc import Mapping
 import json
 import re
 from typing import Any
-from typing import Mapping
 from typing import Optional
 from typing import Union
 
