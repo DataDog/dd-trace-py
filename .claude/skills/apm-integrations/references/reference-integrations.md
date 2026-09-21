@@ -32,7 +32,11 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 ### Gateway callback attribution
 
 LiteLLM's opt-in `ddtrace.contrib.litellm.gateway_attribution` callback emits
-content-free APM usage spans, separate from SDK tracing and LLMObs.
+content-free DogStatsD usage counters, independent of SDK tracing and LLMObs.
+Request/response IDs are omitted; other values follow metric tag normalization
+and length limits. Keep counters additive, including fractional media seconds.
+Context-length buckets are global, include caches, and have inclusive upper bounds;
+do not add provider/model mappings or treat missing usage as zero.
 
 - **Identity:** Prefer gateway authentication. Keep the end-user fallback unverified;
   never recover it from raw request fields. Preserve privacy opt-outs; invalid

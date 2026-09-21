@@ -18,7 +18,6 @@ import uuid
 
 from litellm.integrations.custom_logger import CustomLogger
 
-from ddtrace import tracer
 from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import common_route_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
@@ -27,13 +26,13 @@ from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
 from ddtrace.contrib.internal.litellm._gateway_usage import Usage
 from ddtrace.contrib.internal.litellm._gateway_usage import UsageRecord
+from ddtrace.contrib.internal.litellm._gateway_usage import context_tokens_bucket
 from ddtrace.contrib.internal.litellm._gateway_usage import get
 from ddtrace.contrib.internal.litellm._gateway_usage import label
 from ddtrace.contrib.internal.litellm._gateway_usage import normalize_usage
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.env import dd_environ
-from ddtrace.trace import Context
 
 
 log = get_logger(__name__)
@@ -54,13 +53,13 @@ SUPPORTED_CALLS = {
 
 @dataclass
 class Pending:
-    start: float
     created: float
     tags: dict[str, str]
-    parent: Optional[Context]
     multimodal: bool = False
     deployment: Optional[str] = None
     attempts: int = 0
+    retries: Optional[int] = None
+    fallbacks: Optional[int] = None
     route: dict[str, str] = field(default_factory=dict)
     effective: dict[str, str] = field(default_factory=dict)
 
@@ -96,7 +95,7 @@ def _has_nontext_input(data: dict[str, Any]) -> bool:
 
 # LiteLLM is optional and not installed in the lint environment.
 class GatewayAttribution(CustomLogger):  # type: ignore[misc]
-    """Record gateway users and usage in APM, without prompt or response text.
+    """Record gateway users and usage as metrics, without prompt or response text.
 
     :param capture_email: Include authenticated user email. Defaults to ``True``.
     :param capture_end_user: Include LiteLLM's end-user ID as unverified context
@@ -163,13 +162,14 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         for key in METADATA:
             if isinstance(data.get(key), dict):
                 data[key].pop(CORRELATION_FIELD, None)
+                data[key].pop("attempted_retries", None)
+                data[key].pop("attempted_fallbacks", None)
         if call_type not in SUPPORTED_CALLS:
             return None
         tags = {
             "ai.gateway": "litellm",
             "ai.attribution.schema": "1",
             "ai.attribution.coverage": "logical_request",
-            "ai.request.id": uuid.uuid4().hex,
             "ai.operation": call_type,
             "ai.timezone": "UTC",
         }
@@ -200,10 +200,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             if value := label(get(get(user_api_key_dict, "metadata"), key)):
                 tags[f"ai.enrichment.{key}"] = value
         state = Pending(
-            time.time(),
             time.monotonic(),
             tags,
-            tracer.current_trace_context(),
             multimodal=_has_nontext_input(data),
         )
         token = uuid.uuid4().hex
@@ -253,6 +251,20 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
                 if state:
                     state.deployment = label(get(kwargs.get("model_info"), "id"))
                     state.attempts += 1
+                    # Count selected Router attempts, not hidden HTTP/SDK retries.
+                    markers = {}
+                    for name in ("attempted_retries", "attempted_fallbacks"):
+                        for key in METADATA:
+                            value = get(kwargs.get(key), name)
+                            if type(value) is int and 0 <= value <= 2**53:
+                                markers[name] = value
+                                break
+                    retry = markers.get("attempted_retries")
+                    fallback = markers.get("attempted_fallbacks")
+                    if retry is not None:
+                        state.retries = (state.retries or 0) + int(retry > 0)
+                        if fallback is not None:
+                            state.fallbacks = (state.fallbacks or 0) + int(fallback > 0 and retry == 0)
                     state.route = route
                     state.effective = {}  # Do not reuse an earlier failed deployment's settings.
         except Exception:
@@ -301,6 +313,9 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
 
     def _emit(self, record: UsageRecord) -> None:
         try:
+            record = UsageRecord(
+                {**record.tags, "ai.context_tokens.bucket": context_tokens_bucket(record.usage)}, record.usage
+            )
             if (
                 "ai.route.api_key_id" not in record.tags
                 and record.tags.get("ai.request.outcome") != "gateway_cache_hit"
@@ -314,7 +329,16 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             self._sink(record)
         except Exception:
             # Do not log exception strings or payloads: they can contain credentials/content.
-            log.warning("Gateway attribution span export failed; usage coverage is incomplete")
+            log.warning("Gateway attribution metrics export failed; usage coverage is incomplete")
+
+    @staticmethod
+    def _attempt_usage(state: Pending) -> Usage:
+        usage = Usage(diagnostics={"attempts": state.attempts})
+        if state.retries is not None:
+            usage.diagnostics["retries"] = state.retries
+        if state.fallbacks is not None:
+            usage.diagnostics["fallbacks"] = state.fallbacks
+        return usage
 
     def _incomplete(self, state: Pending, reason: str) -> None:
         tags = dict(
@@ -328,7 +352,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         )
         tags.update(state.route)
         tags.update(state.effective)
-        self._emit(UsageRecord(state.start, time.time(), tags, Usage(), state.parent))
+        self._emit(UsageRecord(tags, self._attempt_usage(state)))
 
     async def async_log_success_event(
         self, kwargs: dict[str, Any], response_obj: Any, start_time: Optional[datetime], end_time: Optional[datetime]
@@ -337,11 +361,11 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         if state is None:
             return  # SDK calls without proxy authentication and repeated callbacks are ignored.
         try:
-            self._success(state, kwargs, response_obj, end_time)
+            self._success(state, kwargs, response_obj)
         except Exception:
             self._incomplete(state, "unsupported_callback_shape")
 
-    def _success(self, state: Pending, kwargs: dict[str, Any], response: Any, end_time: Optional[datetime]) -> None:
+    def _success(self, state: Pending, kwargs: dict[str, Any], response: Any) -> None:
         hidden = get(response, "_hidden_params", {})
         standard = kwargs.get("standard_logging_object")
         if not isinstance(standard, Mapping):
@@ -373,7 +397,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             issues.add("selected_route_metadata_mismatch")
         tags["ai.request.outcome"] = "success"
         tags["ai.usage.source"] = "litellm_normalized"
-        usage.diagnostics["attempts"] = state.attempts
+        usage.diagnostics.update(self._attempt_usage(state).diagnostics)
         if state.attempts > 1:
             issues.add("additional_attempt_usage_unknown")
         if standard.get("stream") is True or kwargs.get("stream"):
@@ -396,8 +420,6 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         tags.update(response_tags(response, provider_response=kwargs.get("httpx_response")))
         if provider := label(get(hidden, "custom_llm_provider")):
             tags["ai.model.provider"] = provider
-        if response_id := label(get(response, "id")):
-            tags["ai.response.id"] = response_id
         cache_hit = kwargs.get("cache_hit")
         if cache_hit is None:
             cache_hit = standard.get("cache_hit")
@@ -410,8 +432,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         # 'observed' means dimensions collected, NOT invoice-exact or safe to bill.
         if issues:
             tags["ai.attribution.issues"] = ",".join(sorted(issues))
-        end = end_time.timestamp() if end_time is not None and end_time.tzinfo else time.time()
-        self._emit(UsageRecord(state.start, end, tags, usage, state.parent))
+        self._emit(UsageRecord(tags, usage))
 
     async def async_post_call_failure_hook(
         self,
@@ -433,10 +454,10 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             )
             tags.update(state.route)
             tags.update(state.effective)
-            self._emit(UsageRecord(state.start, time.time(), tags, Usage(), state.parent, error=True))
+            self._emit(UsageRecord(tags, self._attempt_usage(state)))
 
     def close(self) -> None:
-        """Report unfinished requests before calling ``tracer.shutdown()``.
+        """Report unfinished requests during normal gateway shutdown.
 
         The configured callback registers this method at process exit. Call it explicitly
         when managing the callback lifecycle yourself. No background worker is created.
@@ -447,6 +468,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             self._pending.clear()
         for state in pending:
             self._incomplete(state, "callback_missing_at_shutdown")
+        if isinstance(self._sink, DatadogSink):
+            self._sink.close()
 
 
 def configured_callback() -> GatewayAttribution:

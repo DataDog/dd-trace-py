@@ -1,6 +1,7 @@
-"""Real LiteLLM HTTP proxy + real ddtrace encoding; only provider and Agent are fake."""
+"""Real LiteLLM HTTP proxy and DogStatsD datagrams; provider and Agent intake are local fakes."""
 
 import asyncio
+from collections import defaultdict
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 import json
@@ -24,11 +25,65 @@ ROOT = Path(__file__).resolve().parents[4]
 BEDROCK_PROFILE = "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/local-profile"
 
 
+class Metrics:
+    def __init__(self):
+        self.packets = []
+        self.traces = []
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.bind(("127.0.0.1", 0))
+        self.socket.settimeout(0.1)
+        self.stopped = threading.Event()
+        self.thread = threading.Thread(target=self.receive, daemon=True)
+        self.thread.start()
+
+    def receive(self):
+        while not self.stopped.is_set():
+            try:
+                data = self.socket.recv(65535)
+            except socket.timeout:
+                continue
+            for line in data.decode().splitlines():
+                name_value, kind, *fields = line.split("|")
+                name, value = name_value.split(":", 1)
+                if not name.startswith("ai_gateway."):
+                    continue
+                assert kind == "c", line  # Usage must sum, not overwrite a gauge.
+                assert not any(field.startswith("@") for field in fields), line
+                tags = next(field[1:] for field in fields if field.startswith("#"))
+                self.packets.append((name, float(value), tuple(sorted(tags.split(",")))))
+
+    def snapshot(self):
+        return len(self.packets)
+
+    def groups(self, since=0):
+        counters = defaultdict(lambda: defaultdict(float))
+        for name, value, tags in list(self.packets)[since:]:
+            counters[tags][name] += value
+        return [
+            {"tags": dict(tag.split(":", 1) for tag in tags), "counters": dict(values)}
+            for tags, values in counters.items()
+        ]
+
+    async def wait(self, requests, since=0):
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            groups = self.groups(since)
+            if sum(group["counters"].get("ai_gateway.requests", 0) for group in groups) >= requests:
+                return groups
+            await asyncio.sleep(0.1)
+        pytest.fail(f"Missing usage metrics: {self.groups(since)}")
+
+    def close(self):
+        self.stopped.set()
+        self.thread.join(timeout=5)
+        self.socket.close()
+
+
 @pytest.fixture(scope="module")
 def gateway(tmp_path_factory, request):
     temp = tmp_path_factory.mktemp("gateway")
     mode = getattr(request, "param", None)
-    traces = []
+    metrics = Metrics()
     provider_requests = []
 
     class MockHandler(BaseHTTPRequestHandler):
@@ -60,7 +115,7 @@ def gateway(tmp_path_factory, request):
         def do_PUT(self):
             body = self.rfile.read(int(self.headers["Content-Length"]))
             if self.path == "/v0.4/traces":
-                traces.extend(msgpack.unpackb(body, raw=False, strict_map_key=False))
+                metrics.traces.extend(msgpack.unpackb(body, raw=False, strict_map_key=False))
             self.respond({"rate_by_service": {}})
 
         def events(self, events):
@@ -220,7 +275,11 @@ def gateway(tmp_path_factory, request):
                 else:
                     self.respond(response)
                 return
-            if data["model"] == "gpt-4o-failing":
+            retry_failure = (
+                data["model"] == "gpt-4o-retry"
+                and sum(r["model"] == "gpt-4o-retry" for r in provider_requests) % 2 == 1
+            )
+            if data["model"] == "gpt-4o-failing" or retry_failure:
                 self.respond(
                     {"error": {"message": "synthetic upstream failure", "type": "server_error"}},
                     503,
@@ -233,8 +292,16 @@ def gateway(tmp_path_factory, request):
                 "prompt_tokens_details": {"cached_tokens": 40},
                 "completion_tokens_details": {"reasoning_tokens": 5},
             }
+            if mode == "context_buckets":
+                # The synthetic provider reports different usage for a small payload.
+                usage.update(prompt_tokens=data["seed"], total_tokens=data["seed"] + 25)
             if data["model"] == "gpt-4o-modal":
-                usage["prompt_tokens_details"] = {"text_tokens": 70, "image_tokens": 30, "cached_tokens": 5}
+                usage["prompt_tokens_details"] = {
+                    "text_tokens": 70,
+                    "image_tokens": 30,
+                    "cached_tokens": 5,
+                    "audio_length_seconds": 0.25,
+                }
             base = {
                 "id": "chatcmpl-local-test",
                 "model": "gpt-4o-2024-08-06",
@@ -293,6 +360,7 @@ def gateway(tmp_path_factory, request):
         ("fail-model", "gpt-4o-failing", "failed-deployment"),
         ("fallback-model", "gpt-4o", "fallback-deployment"),
         ("error-model", "gpt-4o-failing", "error-deployment"),
+        ("retry-model", "gpt-4o-retry", "retry-deployment"),
         ("embedding-model", "text-embedding-3-small", "embedding-deployment"),
         ("multimodal-model", "gpt-4o-modal", "multimodal-deployment"),
     ]:
@@ -372,6 +440,13 @@ def gateway(tmp_path_factory, request):
     if mode == "missing_key_id":
         for model in models:
             model["model_info"].pop("datadog_provider_api_key_id", None)
+    if mode == "retries":
+        config["router_settings"].update(
+            num_retries=1,
+            retry_after=0,
+            retry_policy={"InternalServerErrorRetries": 1},
+            fallbacks=[{"fail-model": ["retry-model"]}],
+        )
     if mode == "disabled":
         config["litellm_settings"]["callbacks"] = []
     if mode == "gateway_cache":
@@ -384,6 +459,7 @@ def gateway(tmp_path_factory, request):
             "PYTHONPATH": str(ROOT),
             "LITELLM_LOCAL_MODEL_COST_MAP": "True",
             "DD_TRACE_AGENT_URL": local,
+            "DD_DOGSTATSD_URL": f"udp://127.0.0.1:{metrics.socket.getsockname()[1]}",
             "DD_TRACE_API_VERSION": "v0.4",
             "DD_TRACE_ENABLED": "true",
             "DD_SERVICE": "gateway-attribution-test",
@@ -433,6 +509,9 @@ def gateway(tmp_path_factory, request):
         "--port",
         str(port),
     ]
+    if mode in ("metrics_only", "context_buckets"):
+        command.pop(0)
+        env["DD_TRACE_ENABLED"] = "false"
     proc = None
     url = f"http://127.0.0.1:{port}"
     try:
@@ -451,7 +530,7 @@ def gateway(tmp_path_factory, request):
         else:
             output.seek(0)
             pytest.fail("LiteLLM startup timeout:\n" + output.read()[-12000:])
-        yield url, traces, provider_requests, temp / "proxy.log"
+        yield url, metrics, provider_requests, temp / "proxy.log"
     finally:
         if proc is not None:
             proc.terminate()
@@ -464,10 +543,11 @@ def gateway(tmp_path_factory, request):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+        metrics.close()
 
 
-async def test_real_proxy_and_wire_traces(gateway):
-    url, traces, upstream, _ = gateway
+async def test_real_proxy_and_wire_metrics(gateway):
+    url, metrics, upstream, _ = gateway
 
     async def request(user, model="test-model", stream=False):
         data = {
@@ -504,57 +584,54 @@ async def test_real_proxy_and_wire_traces(gateway):
     assert [r.status_code for r in results] == [200, 200, 200, 503], [r.text for r in results]
     denied = await request("invalid")
     assert denied.status_code == 401
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [s for trace in list(traces) for s in trace if s.get("name") == "ai_gateway.usage"]
-        if len(spans) >= 4:
-            break
-        await asyncio.sleep(0.2)
-    assert len(spans) == 4, [(s.get("name"), s.get("meta")) for t in traces for s in t]
-    tags = [s["meta"] for s in spans]
+    groups = await metrics.wait(4)
+    assert len(groups) == 4, groups
+    tags = [s["tags"] for s in groups]
     assert sorted(t["usr.id"] for t in tags) == ["alice", "alice", "bob", "bob"]
-    assert all(t["usr.email"] == f"{t['usr.id']}@example.test" for t in tags)
+    assert all(t["usr.email"] == f"{t['usr.id']}_example.test" for t in tags)
     assert all(t["ai.enrichment.cost_center"] == "test-eng" for t in tags)
-    successful = [s for s in spans if s["meta"]["ai.request.outcome"] == "success"]
+    successful = [s for s in groups if s["tags"]["ai.request.outcome"] == "success"]
     assert len(successful) == 3
-    assert sorted(s["meta"]["ai.gateway.deployment_id"] for s in successful) == [
+    assert sorted(s["tags"]["ai.gateway.deployment_id"] for s in successful) == [
         "fallback-deployment",
         "openai-deployment",
         "openai-deployment",
     ]
-    assert all(not any(key.startswith("ai.billing.") for key in span["meta"]) for span in spans)
-    for span in successful:
+    assert all(not any(key.startswith("ai.billing.") for key in group["tags"]) for group in groups)
+    for group in successful:
         # The OpenAI-shaped mock has no cache-write counter. Preserve totals and
         # cache reads without silently fabricating a complete uncached partition.
-        assert "ai.usage.input_uncached_tokens" not in span["metrics"]
-        assert span["metrics"]["ai.observed.input_tokens"] == 100
-        assert span["metrics"]["ai.observed.input_cache_write_reported"] == 0
-        assert "cache_write_detail_missing" in span["meta"]["ai.attribution.issues"]
-        assert span["metrics"]["ai.usage.input_cache_read_tokens"] == 40
-        assert span["metrics"]["ai.usage.output_tokens"] == 25
-        assert span["metrics"]["ai.observed.context_tokens"] == 100
-        assert span["meta"]["ai.route.provider"] == "openai"
-        assert span["meta"]["ai.route.endpoint_host"] == "127.0.0.1"
-        assert span["meta"]["ai.route.api_key_id"] == f"key_{span['meta']['ai.gateway.deployment_id']}"
-        assert span["meta"]["ai.response.openai_organization"] == "org-openai-response"
-        assert span["meta"]["ai.response.openai_project"] == "proj-openai-response"
-        assert "ai.response.anthropic_workspace_id" not in span["meta"]
-        if span["meta"]["usr.id"] == "alice":
-            assert span["meta"]["ai.response.x_request_id"] == "upstream-request-local"
-            assert span["meta"]["ai.observed.service_tier"] == "Future_Response_Tier"
-        assert span["meta"]["ai.route.organization"] == "org-router"
-        assert span["meta"]["ai.route.project"] == "proj-router"
-        assert span["meta"]["ai.request.service_tier"] == "priority"
-        assert span["meta"]["ai.effective.service_tier"] == "priority"
-    serialized = json.dumps(spans)
-    for span in spans:
-        assert span["meta"]["usr.id"] in ("alice", "bob")
-        assert span["meta"]["ai.identity.source"] == "gateway_auth"
-        assert span["meta"]["ai.end_user.id"] == "claimed-user"
-        assert span["meta"]["ai.end_user.trust"] == "unverified"
+        assert "ai_gateway.usage.input_uncached_tokens" not in group["counters"]
+        assert group["counters"]["ai_gateway.observed.input_tokens"] == 100
+        assert group["counters"]["ai_gateway.observed.input_cache_write_reported"] == 0
+        assert "cache_write_detail_missing" in group["tags"]["ai.attribution.issues"]
+        assert group["counters"]["ai_gateway.usage.input_cache_read_tokens"] == 40
+        assert group["counters"]["ai_gateway.usage.output_tokens"] == 25
+        assert group["counters"]["ai_gateway.observed.context_tokens"] == 100
+        assert group["tags"]["ai.route.provider"] == "openai"
+        assert group["tags"]["ai.route.endpoint_host"] == "127.0.0.1"
+        assert group["tags"]["ai.route.api_key_id"] == f"key_{group['tags']['ai.gateway.deployment_id']}"
+        assert group["tags"]["ai.response.openai_organization"] == "org-openai-response"
+        assert group["tags"]["ai.response.openai_project"] == "proj-openai-response"
+        assert "ai.response.anthropic_workspace_id" not in group["tags"]
+        if group["tags"]["usr.id"] == "alice":
+            assert "ai.response.x_request_id" not in group["tags"]
+            assert group["tags"]["ai.observed.service_tier"] == "Future_Response_Tier"
+        assert group["tags"]["ai.route.organization"] == "org-router"
+        assert group["tags"]["ai.route.project"] == "proj-router"
+        assert group["tags"]["ai.request.service_tier"] == "priority"
+        assert group["tags"]["ai.effective.service_tier"] == "priority"
+    fallback = next(g for g in successful if g["tags"]["ai.gateway.deployment_id"] == "fallback-deployment")
+    assert fallback["counters"]["ai_gateway.observed.fallbacks"] == 1
+    assert fallback["counters"]["ai_gateway.observed.retries"] == 0
+    serialized = json.dumps(groups)
+    for group in groups:
+        assert group["tags"]["usr.id"] in ("alice", "bob")
+        assert group["tags"]["ai.identity.source"] == "gateway_auth"
+        assert group["tags"]["ai.end_user.id"] == "claimed-user"
+        assert group["tags"]["ai.end_user.trust"] == "unverified"
     for secret in (
-        "PRIVATE PROMPT",
+        "PRIVATE",
         "PRIVATE OUTPUT",
         "PRIVATE COOKIE",
         "SYNTHETIC-PROVIDER-SECRET",
@@ -562,15 +639,16 @@ async def test_real_proxy_and_wire_traces(gateway):
         "spoofed",
     ):
         assert secret not in serialized
-    assert all(s["parent_id"] != 0 for s in spans)
+    assert all("ai.request.id" not in s["tags"] and "ai.response.id" not in s["tags"] for s in groups)
+    assert not any(s.get("name") == "ai_gateway.usage" for t in metrics.traces for s in t)
     assert len(upstream) == 5  # 3 successes + initial fallback failure + final error
     assert all(request["observed_project_header"] == "proj-router" for request in upstream)
 
 
 @pytest.mark.parametrize("stream", [False, True])
 async def test_native_coding_agent_endpoints(gateway, stream):
-    url, traces, _, _ = gateway
-    before = {s["span_id"] for t in traces for s in t}
+    url, metrics, _, _ = gateway
+    before = metrics.snapshot()
     async with httpx.AsyncClient(timeout=20) as client:
         claude = await client.post(
             f"{url}/v1/messages",
@@ -600,49 +678,37 @@ async def test_native_coding_agent_endpoints(gateway, stream):
             json={"model": "test-model", "input": "PRIVATE PROMPT", "stream": stream},
         )
         assert codex.status_code == 200, codex.text
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        spans = [
-            s
-            for t in list(traces)
-            for s in t
-            if s.get("name") == "ai_gateway.usage"
-            and s["span_id"] not in before
-            and s["meta"].get("ai.operation") in ("anthropic_messages", "aresponses")
-        ]
-        if len(spans) >= 2:
-            break
-        await asyncio.sleep(0.2)
-    assert len(spans) == 2, spans
-    assert {s["meta"]["ai.gateway.deployment_id"] for s in spans} == {
+    groups = await metrics.wait(2, since=before)
+    assert len(groups) == 2, groups
+    assert {s["tags"]["ai.gateway.deployment_id"] for s in groups} == {
         "openai-deployment",
         "anthropic-deployment",
     }
-    for s in spans:
-        if s["meta"]["ai.operation"] == "anthropic_messages":
-            assert s["metrics"]["ai.usage.input_uncached_tokens"] == 60, s
-            assert s["meta"]["ai.route.api_key_id"] == "apikey_anthropic"
-            assert s["meta"]["ai.response.anthropic_organization_id"] == "org-anthropic-response"
-            assert s["meta"]["ai.response.anthropic_workspace_id"] == "wrkspc-response"
+    for s in groups:
+        if s["tags"]["ai.operation"] == "anthropic_messages":
+            assert s["counters"]["ai_gateway.usage.input_uncached_tokens"] == 60, s
+            assert s["tags"]["ai.route.api_key_id"] == "apikey_anthropic"
+            assert s["tags"]["ai.response.anthropic_organization_id"] == "org-anthropic-response"
+            assert s["tags"]["ai.response.anthropic_workspace_id"] == "wrkspc-response"
         else:
-            assert s["meta"]["ai.route.api_key_id"] == "key_openai-deployment"
-            assert s["meta"]["ai.response.openai_organization"] == "org-openai-response"
-            assert s["meta"]["ai.response.openai_project"] == "proj-openai-response"
-            assert "ai.usage.input_uncached_tokens" not in s["metrics"]
-            assert s["metrics"]["ai.observed.input_tokens"] == 100
-            assert "cache_write_detail_missing" in s["meta"]["ai.attribution.issues"]
-        assert s["metrics"]["ai.usage.input_cache_read_tokens"] == 40
-        assert s["metrics"]["ai.usage.output_tokens"] == 25
-        assert s["meta"]["usr.id"] == ("alice" if s["meta"]["ai.operation"] == "anthropic_messages" else "bob")
-        if s["meta"]["ai.operation"] == "anthropic_messages":
-            assert s["meta"]["ai.request.prompt_cache_ttls"] == "1h"
-            assert s["meta"]["ai.effective.prompt_cache_ttls"] == "1h"
-            assert s["meta"]["ai.effective.max_tokens"] == "100"
+            assert s["tags"]["ai.route.api_key_id"] == "key_openai-deployment"
+            assert s["tags"]["ai.response.openai_organization"] == "org-openai-response"
+            assert s["tags"]["ai.response.openai_project"] == "proj-openai-response"
+            assert "ai_gateway.usage.input_uncached_tokens" not in s["counters"]
+            assert s["counters"]["ai_gateway.observed.input_tokens"] == 100
+            assert "cache_write_detail_missing" in s["tags"]["ai.attribution.issues"]
+        assert s["counters"]["ai_gateway.usage.input_cache_read_tokens"] == 40
+        assert s["counters"]["ai_gateway.usage.output_tokens"] == 25
+        assert s["tags"]["usr.id"] == ("alice" if s["tags"]["ai.operation"] == "anthropic_messages" else "bob")
+        if s["tags"]["ai.operation"] == "anthropic_messages":
+            assert s["tags"]["ai.request.prompt_cache_ttls"] == "1h"
+            assert s["tags"]["ai.effective.prompt_cache_ttls"] == "1h"
+            assert s["tags"]["ai.effective.max_tokens"] == "100"
 
 
 async def test_embeddings_and_multimodal_wire_counters(gateway):
-    url, traces, _, _ = gateway
-    before = {s["span_id"] for t in traces for s in t}
+    url, metrics, _, _ = gateway
+    before = metrics.snapshot()
     async with httpx.AsyncClient(timeout=20) as client:
         embedding = await client.post(
             f"{url}/v1/embeddings",
@@ -664,31 +730,25 @@ async def test_embeddings_and_multimodal_wire_counters(gateway):
             },
         )
         assert modal.status_code == 200, modal.text
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [
-            s for t in list(traces) for s in t if s.get("name") == "ai_gateway.usage" and s["span_id"] not in before
-        ]
-        if len(spans) >= 2:
-            break
-        await asyncio.sleep(0.2)
-    assert len(spans) == 2, spans
-    embedding = next(s for s in spans if s["meta"]["usr.id"] == "alice")
-    assert embedding["meta"]["ai.operation"] in ("embedding", "aembedding")
-    assert embedding["meta"]["ai.effective.dimensions"] == "2"
-    assert embedding["metrics"]["ai.usage.input_uncached_tokens"] == 12
-    modal = next(s for s in spans if s["meta"]["usr.id"] == "bob")
-    assert modal["metrics"]["ai.observed.input_image_tokens"] == 30
-    assert modal["metrics"]["ai.observed.input_text_tokens"] == 70
-    assert modal["metrics"]["ai.observed.input_cache_read_tokens"] == 5
-    assert "ai.usage.input_uncached_tokens" not in modal["metrics"]
-    assert "ai.billing.provider" not in modal["meta"]
-    assert "PRIVATE" not in json.dumps(spans)
+    groups = await metrics.wait(2, since=before)
+    assert len(groups) == 2, groups
+    embedding = next(s for s in groups if s["tags"]["usr.id"] == "alice")
+    assert embedding["tags"]["ai.operation"] in ("embedding", "aembedding")
+    assert embedding["tags"]["ai.effective.dimensions"] == "2"
+    assert embedding["counters"]["ai_gateway.usage.input_uncached_tokens"] == 12
+    modal = next(s for s in groups if s["tags"]["usr.id"] == "bob")
+    assert modal["counters"]["ai_gateway.observed.input_audio_length_seconds"] == 0.25
+    assert modal["counters"]["ai_gateway.observed.input_image_tokens"] == 30
+    assert modal["counters"]["ai_gateway.observed.input_text_tokens"] == 70
+    assert modal["counters"]["ai_gateway.observed.input_cache_read_tokens"] == 5
+    assert "ai_gateway.usage.input_uncached_tokens" not in modal["counters"]
+    assert "ai.billing.provider" not in modal["tags"]
+    assert "PRIVATE" not in json.dumps(groups)
 
 
 async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway):
-    url, traces, upstream, _ = gateway
+    url, metrics, upstream, _ = gateway
+    before = metrics.snapshot()
     async with httpx.AsyncClient(timeout=20) as client:
         result = await client.post(
             f"{url}/chat/completions",
@@ -696,34 +756,22 @@ async def test_bedrock_model_id_survives_real_router_and_provider_hooks(gateway)
             json={"model": "bedrock-profile", "messages": [{"role": "user", "content": "PRIVATE PROMPT"}]},
         )
     assert result.status_code == 200, result.text
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [
-            span
-            for trace in list(traces)
-            for span in trace
-            if span.get("name") == "ai_gateway.usage"
-            and span["meta"].get("ai.gateway.deployment_id") == "bedrock-deployment"
-        ]
-        if spans:
-            break
-        await asyncio.sleep(0.2)
-    assert len(spans) == 1
-    span = spans[0]
-    assert span["meta"]["ai.route.model_id"] == BEDROCK_PROFILE
-    assert span["meta"]["ai.route.aws_region_name"] == "us-east-1"
-    assert "ai.billing.account_id" not in span["meta"]
-    assert "ai.billing.provider" not in span["meta"]
+    groups = await metrics.wait(1, since=before)
+    assert len(groups) == 1
+    group = groups[0]
+    assert group["tags"]["ai.route.model_id"] == BEDROCK_PROFILE
+    assert group["tags"]["ai.route.aws_region_name"] == "us-east-1"
+    assert "ai.billing.account_id" not in group["tags"]
+    assert "ai.billing.provider" not in group["tags"]
     assert any(BEDROCK_PROFILE in unquote(request["observed_path"]) for request in upstream)
     for private in ("PRIVATE", "SYNTHETIC-AWS-ACCESS", "SYNTHETIC-AWS-SECRET"):
-        assert private not in json.dumps(spans)
+        assert private not in json.dumps(groups)
 
 
 @pytest.mark.parametrize("stream", [False, True])
 async def test_raw_azure_claude_route_reaches_wire(gateway, stream):
-    url, traces, upstream, _ = gateway
-    before = {span["span_id"] for trace in list(traces) for span in trace}
+    url, metrics, upstream, _ = gateway
+    before = metrics.snapshot()
     async with httpx.AsyncClient(timeout=20) as client:
         result = await client.post(
             f"{url}/chat/completions",
@@ -736,31 +784,18 @@ async def test_raw_azure_claude_route_reaches_wire(gateway, stream):
             },
         )
     assert result.status_code == 200, result.text
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [
-            span
-            for trace in list(traces)
-            for span in trace
-            if span.get("name") == "ai_gateway.usage"
-            and span["span_id"] not in before
-            and span["meta"].get("ai.gateway.deployment_id") == "azure-ai-deployment"
-        ]
-        if spans:
-            break
-        await asyncio.sleep(0.2)
-    assert len(spans) == 1
-    span = spans[0]
-    assert span["meta"]["usr.id"] == "alice"
-    assert span["meta"]["ai.route.provider"] == "azure_ai"
-    assert not any(key.startswith("ai.billing.") for key in span["meta"])
-    assert span["metrics"]["ai.observed.context_tokens"] == 100
-    assert span["metrics"]["ai.usage.input_cache_read_tokens"] == 40
-    assert span["metrics"]["ai.usage.output_tokens"] == 25
+    groups = await metrics.wait(1, since=before)
+    assert len(groups) == 1
+    group = groups[0]
+    assert group["tags"]["usr.id"] == "alice"
+    assert group["tags"]["ai.route.provider"] == "azure_ai"
+    assert not any(key.startswith("ai.billing.") for key in group["tags"])
+    assert group["counters"]["ai_gateway.observed.context_tokens"] == 100
+    assert group["counters"]["ai_gateway.usage.input_cache_read_tokens"] == 40
+    assert group["counters"]["ai_gateway.usage.output_tokens"] == 25
     assert any(request["observed_path"] == "/anthropic/v1/messages" for request in upstream)
-    assert "PRIVATE" not in json.dumps(spans)
-    assert "SYNTHETIC-AZURE-SECRET" not in json.dumps(spans)
+    assert "PRIVATE" not in json.dumps(groups)
+    assert "SYNTHETIC-AZURE-SECRET" not in json.dumps(groups)
 
 
 @pytest.mark.parametrize(
@@ -782,8 +817,8 @@ async def test_raw_azure_claude_route_reaches_wire(gateway, stream):
     ],
 )
 async def test_end_user_fallback_through_real_proxy(gateway, endpoint, fields, headers, expected):
-    url, traces, _, _ = gateway
-    before = {s["span_id"] for t in traces for s in t}
+    url, metrics, _, _ = gateway
+    before = metrics.snapshot()
     data = {"model": "test-model", "messages": [{"role": "user", "content": "PRIVATE PROMPT"}]}
     if endpoint == "messages":
         data.update(model="test-claude", max_tokens=100)
@@ -798,30 +833,22 @@ async def test_end_user_fallback_through_real_proxy(gateway, endpoint, fields, h
             headers={"Authorization": "Bearer test-unassigned", "anthropic-version": "2023-06-01", **headers},
         )
     assert result.status_code == 200, result.text
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [
-            s for t in list(traces) for s in t if s.get("name") == "ai_gateway.usage" and s["span_id"] not in before
-        ]
-        if spans:
-            break
-        await asyncio.sleep(0.2)
-    assert len(spans) == 1, spans
-    tags = spans[0]["meta"]
+    groups = await metrics.wait(1, since=before)
+    assert len(groups) == 1, groups
+    tags = groups[0]["tags"]
     assert tags.get("usr.id") == expected
     assert tags.get("ai.end_user.id") == expected
     assert tags["ai.identity.source"] == ("litellm_end_user" if expected else "unknown")
     assert tags.get("ai.end_user.trust") == ("unverified" if expected else None)
     assert tags["ai.attribution.status"] == "incomplete"
     assert "authenticated_user_unknown" in tags["ai.attribution.issues"]
-    assert spans[0]["metrics"]["ai.usage.output_tokens"] == 25
-    assert not any(value in json.dumps(spans) for value in ("PRIVATE", "SYNTHETIC", "ignored-", "test-unassigned"))
+    assert groups[0]["counters"]["ai_gateway.usage.output_tokens"] == 25
+    assert not any(value in json.dumps(groups) for value in ("PRIVATE", "SYNTHETIC", "ignored-", "test-unassigned"))
 
 
 @pytest.mark.parametrize("gateway", ["missing_key_id"], indirect=True)
 async def test_missing_key_id_warns_but_real_proxy_still_exports_usage(gateway):
-    url, traces, _, log_path = gateway
+    url, metrics, _, log_path = gateway
     async with httpx.AsyncClient(timeout=20) as client:
         for model in ("test-model", "fail-model"):
             result = await client.post(
@@ -830,18 +857,12 @@ async def test_missing_key_id_warns_but_real_proxy_still_exports_usage(gateway):
                 headers={"Authorization": "Bearer test-alice"},
             )
             assert result.status_code == 200, result.text
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [s for trace in list(traces) for s in trace if s.get("name") == "ai_gateway.usage"]
-        if len(spans) == 2:
-            break
-        await asyncio.sleep(0.1)
-    assert len(spans) == 2
-    for span in spans:
-        assert "ai.route.api_key_id" not in span["meta"]
-        assert span["meta"]["usr.id"] == "alice"
-        assert span["metrics"]["ai.observed.context_tokens"] > 0
+    groups = await metrics.wait(2)
+    assert len(groups) == 2
+    for group in groups:
+        assert "ai.route.api_key_id" not in group["tags"]
+        assert group["tags"]["usr.id"] == "alice"
+        assert group["counters"]["ai_gateway.observed.context_tokens"] > 0
     warnings = [line for line in log_path.read_text().splitlines() if "LiteLLM gateway usage is missing" in line]
     assert len(warnings) == 1
     assert "model_info.datadog_provider_api_key_id" in warnings[0]
@@ -851,7 +872,7 @@ async def test_missing_key_id_warns_but_real_proxy_still_exports_usage(gateway):
 
 @pytest.mark.parametrize("gateway", ["default_setup"], indirect=True)
 async def test_documented_setup_with_sdk_tracing_and_concurrent_requests(gateway):
-    url, traces, upstream, _ = gateway
+    url, metrics, upstream, _ = gateway
     expected = {}
     semaphore = asyncio.Semaphore(8)
     async with httpx.AsyncClient(timeout=40) as client:
@@ -873,7 +894,7 @@ async def test_documented_setup_with_sdk_tracing_and_concurrent_requests(gateway
                     data["user"] = end_user
                     if stream:
                         data["stream_options"] = {"include_usage": True}
-            expected[trace_id] = (user, end_user, "anthropic" if endpoint == "messages" else "openai")
+            expected[end_user] = (user, end_user, "anthropic" if endpoint == "messages" else "openai")
             async with semaphore:
                 result = await client.post(
                     f"{url}/v1/{endpoint}",
@@ -890,27 +911,20 @@ async def test_documented_setup_with_sdk_tracing_and_concurrent_requests(gateway
                 assert result.status_code == 200, result.text
 
         await asyncio.gather(*(send(index) for index in range(24)))
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [s for t in list(traces) for s in t if s.get("name") == "ai_gateway.usage"]
-        if len(spans) >= len(expected):
-            break
-        await asyncio.sleep(0.1)
-    # Wait another writer cycle to catch duplicate terminal callbacks.
-    await asyncio.sleep(0.5)
-    all_spans = [s for t in list(traces) for s in t]
-    spans = [s for s in all_spans if s.get("name") == "ai_gateway.usage"]
-    assert len(spans) == len(expected) == len(upstream)
-    assert {s["trace_id"] for s in spans} == set(expected)
-    assert len({s["meta"]["ai.request.id"] for s in spans}) == len(expected)
+    groups = await metrics.wait(len(expected))
+    await asyncio.sleep(1)  # Also catch duplicate terminal callbacks and SDK trace delivery.
+    groups = metrics.groups()
+    all_spans = [s for t in list(metrics.traces) for s in t]
+    assert len(groups) == len(expected) == len(upstream)
+    assert sum(g["counters"]["ai_gateway.requests"] for g in groups) == len(expected)
     assert any(s["name"].startswith("litellm.") for s in all_spans)
     assert any(s["name"].startswith("openai.") for s in all_spans)
-    for span in spans:
-        user, end_user, provider = expected[span["trace_id"]]
-        tags = span["meta"]
+    assert not any(s["name"] == "ai_gateway.usage" for s in all_spans)
+    for group in groups:
+        user, end_user, provider = expected[group["tags"]["ai.end_user.id"]]
+        tags = group["tags"]
         assert tags["usr.id"] == user
-        assert tags["usr.email"] == f"{user}@example.test"
+        assert tags["usr.email"] == f"{user}_example.test"
         assert tags["ai.identity.source"] == "gateway_auth"
         assert tags["ai.end_user.id"] == end_user
         assert tags["ai.end_user.trust"] == "unverified"
@@ -919,14 +933,13 @@ async def test_documented_setup_with_sdk_tracing_and_concurrent_requests(gateway
             "apikey_anthropic" if provider == "anthropic" else "key_openai-deployment"
         )
         assert not any(key.startswith("ai.enrichment.") for key in tags)
-        assert span["metrics"]["ai.usage.output_tokens"] == 25
-        assert span["parent_id"] in {s["span_id"] for s in all_spans if s["trace_id"] == span["trace_id"]}
-    assert not any(value in json.dumps(spans) for value in ("PRIVATE", "SYNTHETIC", "Bearer test-"))
+        assert group["counters"]["ai_gateway.usage.output_tokens"] == 25
+    assert not any(value in json.dumps(groups) for value in ("PRIVATE", "SYNTHETIC", "Bearer test-"))
 
 
 @pytest.mark.parametrize("gateway", ["disabled"], indirect=True)
-async def test_upgrade_without_callback_does_not_emit_gateway_spans(gateway):
-    url, traces, upstream, _ = gateway
+async def test_upgrade_without_callback_does_not_emit_gateway_metrics(gateway):
+    url, metrics, upstream, _ = gateway
     async with httpx.AsyncClient(timeout=20) as client:
         result = await client.post(
             f"{url}/v1/chat/completions",
@@ -936,19 +949,20 @@ async def test_upgrade_without_callback_does_not_emit_gateway_spans(gateway):
     assert result.status_code == 200, result.text
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
-        if any(s["name"].startswith("litellm.") for t in list(traces) for s in t):
+        if any(s["name"].startswith("litellm.") for t in list(metrics.traces) for s in t):
             break
         await asyncio.sleep(0.1)
     await asyncio.sleep(0.5)
-    spans = [s for t in list(traces) for s in t]
+    groups = [s for t in list(metrics.traces) for s in t]
+    assert not metrics.packets
     assert len(upstream) == 1
-    assert any(s["name"].startswith("litellm.") for s in spans)
-    assert not any(s["name"] == "ai_gateway.usage" for s in spans)
+    assert any(s["name"].startswith("litellm.") for s in groups)
+    assert not any(s["name"] == "ai_gateway.usage" for s in groups)
 
 
 @pytest.mark.parametrize("gateway", ["privacy_opt_out", "invalid_config", "unreadable_config"], indirect=True)
 async def test_privacy_settings_through_real_proxy(gateway):
-    url, traces, upstream, _ = gateway
+    url, metrics, upstream, _ = gateway
     async with httpx.AsyncClient(timeout=20) as client:
         for user in ("alice", "unassigned"):
             result = await client.post(
@@ -961,27 +975,21 @@ async def test_privacy_settings_through_real_proxy(gateway):
                 headers={"Authorization": f"Bearer test-{user}"},
             )
             assert result.status_code == 200, result.text
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [s for t in list(traces) for s in t if s["name"] == "ai_gateway.usage"]
-        if len(spans) >= 2:
-            break
-        await asyncio.sleep(0.1)
-    assert len(spans) == len(upstream) == 2
-    assert {s["meta"].get("usr.id") for s in spans} == {"alice", None}
-    for span in spans:
-        tags = span["meta"]
+    groups = await metrics.wait(2)
+    assert len(groups) == len(upstream) == 2
+    assert {s["tags"].get("usr.id") for s in groups} == {"alice", None}
+    for group in groups:
+        tags = group["tags"]
         assert "usr.email" not in tags
         assert "ai.end_user.id" not in tags
         assert not any(key.startswith("ai.enrichment.") for key in tags)
-        assert span["metrics"]["ai.usage.output_tokens"] == 25
-    assert "opted-out-user" not in json.dumps(spans)
+        assert group["counters"]["ai_gateway.usage.output_tokens"] == 25
+    assert "opted-out-user" not in json.dumps(groups)
 
 
 @pytest.mark.parametrize("gateway", ["gateway_cache"], indirect=True)
 async def test_gateway_cache_hit_preserves_current_user_without_new_provider_usage(gateway):
-    url, traces, upstream, _ = gateway
+    url, metrics, upstream, _ = gateway
     async with httpx.AsyncClient(timeout=20) as client:
         for user in ("alice", "bob"):
             result = await client.post(
@@ -990,19 +998,118 @@ async def test_gateway_cache_hit_preserves_current_user_without_new_provider_usa
                 headers={"Authorization": f"Bearer test-{user}"},
             )
             assert result.status_code == 200, result.text
-    deadline = time.monotonic() + 15
-    spans = []
-    while time.monotonic() < deadline:
-        spans = [s for t in list(traces) for s in t if s["name"] == "ai_gateway.usage"]
-        if len(spans) >= 2:
-            break
-        await asyncio.sleep(0.1)
-    assert len(spans) == 2
+    groups = await metrics.wait(2)
+    assert len(groups) == 2
     assert len(upstream) == 1
-    by_user = {s["meta"]["usr.id"]: s for s in spans}
+    by_user = {s["tags"]["usr.id"]: s for s in groups}
     assert set(by_user) == {"alice", "bob"}
-    assert by_user["alice"]["meta"]["ai.request.outcome"] == "success"
+    assert by_user["alice"]["tags"]["ai.request.outcome"] == "success"
     cached = by_user["bob"]
-    assert cached["meta"]["ai.request.outcome"] == "gateway_cache_hit"
-    assert cached["meta"]["ai.usage.source"] == "gateway_cache"
-    assert not any(key.startswith("ai.usage.") for key in cached["metrics"])
+    assert cached["tags"]["ai.request.outcome"] == "gateway_cache_hit"
+    assert cached["tags"]["ai.usage.source"] == "gateway_cache"
+    assert cached["tags"]["ai.context_tokens.bucket"] == "unknown"
+    assert not any(key.startswith("ai_gateway.usage.") for key in cached["counters"])
+
+
+@pytest.mark.parametrize("gateway", ["metrics_only"], indirect=True)
+async def test_metrics_without_tracing_aggregate_identical_attribution(gateway):
+    url, metrics, upstream, _ = gateway
+    async with httpx.AsyncClient(timeout=40) as client:
+        results = await asyncio.gather(
+            *[
+                client.post(
+                    f"{url}/v1/chat/completions",
+                    json={"model": "test-model", "messages": [{"role": "user", "content": "PRIVATE"}]},
+                    headers={"Authorization": "Bearer test-alice"},
+                )
+                for _ in range(12)
+            ]
+        )
+    assert all(r.status_code == 200 for r in results)
+    groups = await metrics.wait(12)
+    await asyncio.sleep(0.5)
+    assert groups == metrics.groups()
+    assert len(groups) == 1  # No request-specific tags split the metric series.
+    group = groups[0]
+    assert group["tags"]["usr.id"] == "alice"
+    assert group["tags"]["usr.email"] == "alice_example.test"
+    assert group["tags"]["service"] == "gateway-attribution-test"
+    assert group["tags"]["env"] == "local-test"
+    assert group["tags"]["version"] == "test"
+    assert group["tags"]["ai.context_tokens.bucket"] == "0_32000"
+    assert group["counters"]["ai_gateway.requests"] == len(upstream) == 12
+    assert group["counters"]["ai_gateway.usage.output_tokens"] == 12 * 25
+    assert group["counters"]["ai_gateway.observed.retries"] == 0
+    assert group["counters"]["ai_gateway.observed.fallbacks"] == 0
+    assert not metrics.traces
+    assert not any("cost" in name or "duration" in name for name in group["counters"])
+
+
+@pytest.mark.parametrize("gateway", ["context_buckets"], indirect=True)
+async def test_context_buckets_separate_metric_totals_without_model_rules(gateway):
+    url, metrics, upstream, _ = gateway
+    cases = [
+        (31_999, "0_32000"),
+        (32_000, "0_32000"),
+        (32_001, "32001_128000"),
+        (128_000, "32001_128000"),
+        (128_001, "128001_200000"),
+        (200_000, "128001_200000"),
+        (200_001, "200001_256000"),
+        (256_000, "200001_256000"),
+        (256_001, "256001_272000"),
+        (272_000, "256001_272000"),
+        (272_001, "272001_512000"),
+        (512_000, "272001_512000"),
+        (512_001, "512001_plus"),
+    ]
+    async with httpx.AsyncClient(timeout=40) as client:
+        for tokens, _ in cases:
+            result = await client.post(
+                f"{url}/v1/chat/completions",
+                json={"model": "test-model", "seed": tokens, "messages": [{"role": "user", "content": "PRIVATE"}]},
+                headers={"Authorization": "Bearer test-alice"},
+            )
+            assert result.status_code == 200
+    groups = await metrics.wait(len(cases))
+    assert len(groups) == 7
+    assert len(upstream) == len(cases)
+    assert not metrics.traces
+    for group in groups:
+        reported = [tokens for tokens, bucket in cases if bucket == group["tags"]["ai.context_tokens.bucket"]]
+        assert group["counters"]["ai_gateway.requests"] == len(reported)
+        assert group["counters"]["ai_gateway.observed.context_tokens"] == sum(reported)
+        assert group["counters"]["ai_gateway.usage.output_tokens"] == 25 * len(reported)
+
+
+@pytest.mark.parametrize("gateway", ["retries"], indirect=True)
+@pytest.mark.parametrize("stream", [False, True])
+async def test_observed_retries_across_fallbacks_and_terminal_failure(gateway, stream):
+    url, metrics, upstream, _ = gateway
+    before = metrics.snapshot()
+    upstream_before = len(upstream)
+    async with httpx.AsyncClient(timeout=40) as client:
+        for model, status in (("fail-model", 200), ("error-model", 503)):
+            result = await client.post(
+                f"{url}/v1/chat/completions",
+                json={
+                    "model": model,
+                    "stream": stream,
+                    "stream_options": {"include_usage": True},
+                    "messages": [{"role": "user", "content": "PRIVATE"}],
+                },
+                headers={"Authorization": "Bearer test-alice"},
+            )
+            assert result.status_code == status, result.text
+    groups = await metrics.wait(2, since=before)
+    assert len(upstream) - upstream_before == 6  # Two failed primary + two fallback + two final failures.
+    success = next(g for g in groups if g["tags"]["ai.request.outcome"] == "success")
+    failure = next(g for g in groups if g["tags"]["ai.request.outcome"] == "error")
+    assert success["counters"]["ai_gateway.observed.retries"] == 2
+    assert success["counters"]["ai_gateway.observed.fallbacks"] == 1
+    assert success["counters"]["ai_gateway.observed.attempts"] == 4
+    assert success["counters"]["ai_gateway.usage.output_tokens"] == 25
+    assert failure["counters"]["ai_gateway.observed.retries"] == 1
+    assert failure["counters"]["ai_gateway.observed.fallbacks"] == 0
+    assert failure["counters"]["ai_gateway.observed.attempts"] == 2
+    assert not any(key.startswith("ai_gateway.usage.") for key in failure["counters"])

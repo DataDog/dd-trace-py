@@ -4,8 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from datetime import timezone
 import logging
-import time
+import socket
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import httpx
 from litellm import ModelResponse
@@ -17,12 +18,15 @@ from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import response_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
+from ddtrace.contrib.internal.litellm._gateway_usage import Usage as RecordedUsage
 from ddtrace.contrib.internal.litellm._gateway_usage import UsageRecord
+from ddtrace.contrib.internal.litellm._gateway_usage import context_tokens_bucket
 from ddtrace.contrib.internal.litellm._gateway_usage import normalize_usage
 from ddtrace.contrib.internal.litellm.gateway import CORRELATION_FIELD
 from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution
 from ddtrace.contrib.internal.litellm.gateway import configured_callback
 from ddtrace.internal import logger as internal_logger
+from ddtrace.vendor.dogstatsd import DogStatsd
 
 
 def make_callback(*, sink=None, max_pending=10000, pending_ttl=3600, **kwargs):
@@ -74,6 +78,76 @@ def test_partition_cache_ttl_and_reasoning():
     assert result.quantities["input_uncached_tokens"] == 300
     assert result.diagnostics["context_tokens"] == 1000
     assert result.diagnostics["reasoning_output_tokens"] == 70
+
+
+@pytest.mark.parametrize(
+    "lower,upper,bucket,next_bucket",
+    [
+        (0, 32_000, "0_32000", "32001_128000"),
+        (32_001, 128_000, "32001_128000", "128001_200000"),
+        (128_001, 200_000, "128001_200000", "200001_256000"),
+        (200_001, 256_000, "200001_256000", "256001_272000"),
+        (256_001, 272_000, "256001_272000", "272001_512000"),
+        (272_001, 512_000, "272001_512000", "512001_plus"),
+    ],
+)
+def test_global_context_bucket_boundaries(lower, upper, bucket, next_bucket):
+    for tokens in (lower, upper - 1, upper):
+        usage = normalize_usage({"prompt_tokens": tokens, "completion_tokens": 999_999})
+        assert context_tokens_bucket(usage) == bucket
+    usage = normalize_usage({"prompt_tokens": upper + 1, "completion_tokens": 0})
+    assert context_tokens_bucket(usage) == next_bucket
+
+
+@pytest.mark.parametrize("tokens", [None, True, -1, 1.5, float("nan"), float("inf"), "32000", 2**53 + 1])
+def test_context_bucket_unknown_for_missing_or_invalid_input(tokens):
+    usage = normalize_usage({"prompt_tokens": tokens, "completion_tokens": 0})
+    assert context_tokens_bucket(usage) == "unknown"
+
+
+@pytest.mark.parametrize("issue", ["invalid_usage", "inconsistent_usage", "inconsistent_cache_ttl"])
+def test_context_bucket_unknown_for_inconsistent_usage(issue):
+    usage = RecordedUsage(diagnostics={"context_tokens": 32_000}, issues={issue})
+    assert context_tokens_bucket(usage) == "unknown"
+
+
+def test_context_bucket_includes_native_anthropic_caches_without_double_counting():
+    usage = normalize_usage(
+        {
+            "input_tokens": 30_000,
+            "cache_read_input_tokens": 1_000,
+            "cache_creation_input_tokens": 1_001,
+            "output_tokens": 3,
+        },
+        "anthropic_messages",
+    )
+    assert context_tokens_bucket(usage) == "32001_128000"
+    normalized = normalize_usage(
+        {"prompt_tokens": 32_000, "cache_read_input_tokens": 20_000, "completion_tokens": 30_000}
+    )
+    assert context_tokens_bucket(normalized) == "0_32000"
+    assert context_tokens_bucket(RecordedUsage(diagnostics={"context_tokens": 2**53})) == "512001_plus"
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic", "vertex_ai", "new-provider"])
+async def test_context_bucket_is_global_and_cannot_be_set_by_client(provider):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback, data={"metadata": {"ai.context_tokens.bucket": "forged"}})
+    result = response(Usage(prompt_tokens=128_001, completion_tokens=1))
+    result._hidden_params["custom_llm_provider"] = provider
+    await finish(callback, data, result)
+    assert records[0].tags["ai.context_tokens.bucket"] == "128001_200000"
+
+
+async def test_unknown_context_bucket_for_failure_and_missing_usage():
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await callback.async_post_call_failure_hook(data, RuntimeError("PRIVATE"), None)
+    data = await start(callback)
+    await finish(callback, data, SimpleNamespace(model="unknown-model"))
+    assert [record.tags["ai.context_tokens.bucket"] for record in records] == ["unknown", "unknown"]
 
 
 @pytest.mark.parametrize(
@@ -290,6 +364,7 @@ async def test_stream_final_only_duplicates_and_cached_response():
     await finish(callback, data, response(Usage(prompt_tokens=9, completion_tokens=4)), cache_hit=True)
     assert records[-1].usage.quantities == {}
     assert records[-1].tags["ai.request.outcome"] == "gateway_cache_hit"
+    assert records[-1].tags["ai.context_tokens.bucket"] == "unknown"
 
 
 async def test_concurrent_users_failure_and_missing_identity():
@@ -306,7 +381,7 @@ async def test_concurrent_users_failure_and_missing_identity():
     assert all(int(r.tags["usr.id"]) == r.usage.diagnostics["input_tokens"] for r in records)
     data = await start(callback, user=None)
     await callback.async_post_call_failure_hook(data, Exception("sk-secret PROMPT"), None)
-    assert records[-1].error
+    assert records[-1].tags["ai.request.outcome"] == "error"
     assert "usr.id" not in records[-1].tags
     assert "sk-secret" not in repr(records)
     assert not callback._pending
@@ -348,7 +423,7 @@ def test_threaded_hooks_keep_user_usage_and_route_together():
         list(executor.map(complete, list(range(199, -1, -1)) * 2))
 
     assert len(records) == 200
-    assert len({record.tags["ai.request.id"] for record in records}) == 200
+    assert all("ai.request.id" not in record.tags and "ai.response.id" not in record.tags for record in records)
     assert {record.tags["usr.id"] for record in records} == {str(index) for index in range(200)}
     for record in records:
         index = int(record.tags["usr.id"])
@@ -390,37 +465,25 @@ def test_bad_configuration(kwargs):
         make_callback(**kwargs)
 
 
-def test_real_tracer_span_api(tracer):
-    test_tracer = tracer
-    captured = []
-    original = test_tracer.start_span
-
-    def capture(*args, **kwargs):
-        span = original(*args, **kwargs)
-        captured.append(span)
-        return span
-
-    sink = DatadogSink(SimpleNamespace(start_span=capture))
-    now = time.time()
-    sink(
-        UsageRecord(
-            now - 2,
-            now,
-            {"usr.id": "u"},
-            normalize_usage(
-                {
-                    "prompt_tokens": 4,
-                    "completion_tokens": 2,
-                    "cache_read_input_tokens": 0,
-                    "cache_creation_input_tokens": 0,
-                }
-            ),
-        )
+def test_metrics_are_additive_include_tags_and_preserve_fractional_seconds():
+    client = Mock(spec=DogStatsd)
+    sink = DatadogSink(client)
+    record = UsageRecord(
+        {"usr.id": "u", "ai.route.api_key_id": "key_123"},
+        RecordedUsage(quantities={"output_tokens": 2}, diagnostics={"input_audio_length_seconds": 0.25}),
     )
-    span = captured[0]
-    assert span.finished and span.duration == pytest.approx(2)
-    assert span.get_tag("usr.id") == "u"
-    assert span.get_metric("ai.usage.input_uncached_tokens") == 4
+    sink(record)
+    sink(record)
+    totals = defaultdict(float)
+    for call in client.increment.call_args_list:
+        name = call.args[0]
+        totals[name] += call.args[1] if len(call.args) > 1 else 1
+        assert call.kwargs["tags"] == ["ai.route.api_key_id:key_123", "usr.id:u"]
+    assert dict(totals) == {
+        "ai_gateway.usage.output_tokens": 4,
+        "ai_gateway.observed.input_audio_length_seconds": 0.5,
+        "ai_gateway.requests": 2,
+    }
 
 
 @pytest.mark.parametrize(
@@ -588,19 +651,44 @@ async def test_hook_error_does_not_fail_gateway(monkeypatch, caplog):
     assert "sk-secret" not in caplog.text
 
 
-async def test_selected_route_attempts_and_parent_context(tracer, monkeypatch):
+async def test_selected_route_attempts_and_explicit_retry_fallback_counts():
     records = []
     callback = make_callback(sink=records.append)
-    monkeypatch.setattr("ddtrace.contrib.internal.litellm.gateway.tracer", tracer)
-    with tracer.trace("gateway.request") as parent:
-        data = await start(callback)
-        await callback.async_pre_call_deployment_hook({**data, "model_info": {"id": "failed"}}, "completion")
+    data = await start(callback)
+    for fallback, retry in ((0, 0), (0, 1), (1, 0), (1, 1)):
+        data["metadata"].update(attempted_fallbacks=fallback, attempted_retries=retry)
         await callback.async_pre_call_deployment_hook({**data, "model_info": {"id": "dep-1"}}, "completion")
     await finish(callback, data, response(Usage(prompt_tokens=4, completion_tokens=2), deployment=None))
     assert records[0].tags["ai.gateway.deployment_id"] == "dep-1"
-    assert records[0].usage.diagnostics["attempts"] == 2
+    assert records[0].usage.diagnostics["attempts"] == 4
+    assert records[0].usage.diagnostics["retries"] == 2
+    assert records[0].usage.diagnostics["fallbacks"] == 1
     assert "additional_attempt_usage_unknown" in records[0].tags["ai.attribution.issues"]
-    assert records[0].parent.span_id == parent.span_id
+
+
+@pytest.mark.parametrize("retry,fallback", [(None, None), (True, True), (-1, 1), ("1", "1")])
+async def test_missing_or_invalid_retry_markers_are_not_guessed(retry, fallback):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    data["metadata"].update(attempted_retries=retry, attempted_fallbacks=fallback)
+    await callback.async_pre_call_deployment_hook({**data, "model_info": {"id": "dep-1"}}, "completion")
+    await finish(callback, data)
+    assert "retries" not in records[0].usage.diagnostics
+    assert "fallbacks" not in records[0].usage.diagnostics
+
+
+async def test_failure_keeps_observed_retry_counts_and_ingress_markers_are_not_trusted():
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback, data={"metadata": {"attempted_retries": 99, "attempted_fallbacks": 99}})
+    assert "attempted_retries" not in data["metadata"]
+    assert "attempted_fallbacks" not in data["metadata"]
+    data["metadata"].update(attempted_retries=1, attempted_fallbacks=0)
+    await callback.async_pre_call_deployment_hook(data, "completion")
+    await callback.async_post_call_failure_hook(data, RuntimeError("PRIVATE"), None)
+    assert records[0].usage.diagnostics == {"attempts": 1, "retries": 1, "fallbacks": 0}
+    assert not records[0].usage.quantities
 
 
 def test_public_constructor_does_not_accept_billing_overrides():
@@ -885,10 +973,9 @@ def test_callback_disables_both_legacy_and_current_message_logging():
 
 @pytest.mark.parametrize("parsed", [False, True])
 @pytest.mark.parametrize("sdk_options", [False, True])
-async def test_outgoing_endpoint_and_scope_override_route_defaults_and_reach_apm(
-    tracer, test_spans, parsed, sdk_options
-):
-    callback = make_callback(sink=DatadogSink(tracer))
+async def test_outgoing_endpoint_and_scope_override_route_defaults_and_reach_record(parsed, sdk_options):
+    records = []
+    callback = make_callback(sink=records.append)
     data = await start(callback, data={"headers": {"OpenAI-Project": "spoofed"}, "project": "spoofed"})
     await callback.async_pre_call_deployment_hook(
         {**data, "model": "openai/gpt-4o", "organization": "org-default", "model_info": {"id": "dep-1"}}, "completion"
@@ -913,13 +1000,13 @@ async def test_outgoing_endpoint_and_scope_override_route_defaults_and_reach_apm
         },
     )
     await finish(callback, data, response(Usage(prompt_tokens=200001, completion_tokens=2)))
-    span = test_spans.pop()[0]
-    assert span.get_tag("ai.route.endpoint_host") == "eu.api.openai.com"
-    assert span.get_tag("ai.route.organization") == "org-outgoing"
-    assert span.get_tag("ai.route.project") == "proj-outgoing"
-    assert span.get_metric("ai.observed.context_tokens") == 200001
-    assert "PRIVATE" not in repr(span)
-    assert "spoofed" not in repr(span)
+    record = records[0]
+    assert record.tags.get("ai.route.endpoint_host") == "eu.api.openai.com"
+    assert record.tags.get("ai.route.organization") == "org-outgoing"
+    assert record.tags.get("ai.route.project") == "proj-outgoing"
+    assert record.usage.diagnostics["context_tokens"] == 200001
+    assert "PRIVATE" not in repr(record)
+    assert "spoofed" not in repr(record)
 
 
 @pytest.mark.parametrize(
@@ -973,24 +1060,25 @@ def test_arbitrary_endpoint_objects_are_not_stringified():
 
 @pytest.mark.parametrize("resource_type", ["application-inference-profile", "future-resource-type"])
 @pytest.mark.parametrize("in_model", [False, True])
-async def test_bedrock_identifiers_reach_apm_without_parsing(tracer, test_spans, in_model, resource_type):
+async def test_bedrock_identifiers_reach_record_without_parsing(in_model, resource_type):
     arn = f"arn:aws:bedrock:us-east-1:123456789012:{resource_type}/profile-1"
     route = {"model": "bedrock/anthropic.claude", "model_id": arn}
     if in_model:
         route = {"model": "bedrock/" + arn}
-    callback = make_callback(sink=DatadogSink(tracer))
+    records = []
+    callback = make_callback(sink=records.append)
     data = await start(callback, data={"metadata": {"model_id": "spoofed"}})
     await callback.async_pre_call_deployment_hook({**data, **route, "model_info": {"id": "dep-1"}}, "completion")
     callback.log_pre_api_call(None, None, {"litellm_params": data, "additional_args": {}})
     await finish(callback, data, response(Usage(prompt_tokens=10, completion_tokens=1)))
-    span = test_spans.pop()[0]
-    assert span.get_tag("ai.route.model" if in_model else "ai.route.model_id") == (
+    record = records[0]
+    assert record.tags.get("ai.route.model" if in_model else "ai.route.model_id") == (
         "bedrock/" + arn if in_model else arn
     )
-    assert span.get_tag("ai.gateway.deployment_id") == "dep-1"
-    assert span.get_tag("ai.billing.account_id") is None
-    assert span.get_tag("ai.billing.geography") is None
-    assert "spoofed" not in repr(span)
+    assert record.tags.get("ai.gateway.deployment_id") == "dep-1"
+    assert record.tags.get("ai.billing.account_id") is None
+    assert record.tags.get("ai.billing.geography") is None
+    assert "spoofed" not in repr(record)
 
 
 def test_provider_model_id_overrides_bedrock_profile_and_is_not_a_gateway_deployment():
@@ -1068,8 +1156,9 @@ async def test_ingress_oci_fields_are_not_exported_as_route_evidence(key):
         "Future_Traffic",
     ],
 )
-async def test_raw_traffic_type_reaches_apm_without_mapping(tracer, test_spans, traffic):
-    callback = make_callback(sink=DatadogSink(tracer))
+async def test_raw_traffic_type_reaches_record_without_mapping(traffic):
+    records = []
+    callback = make_callback(sink=records.append)
     data = await start(callback, data={"metadata": {"traffic_type": "spoofed"}})
     await callback.async_pre_call_deployment_hook(
         {**data, "model": "vertex_ai/gemini-2.5-pro", "model_info": {"id": "dep-1"}}, "completion"
@@ -1077,12 +1166,12 @@ async def test_raw_traffic_type_reaches_apm_without_mapping(tracer, test_spans, 
     result = response(Usage(prompt_tokens=10, completion_tokens=1), service_tier="default")
     result._hidden_params["provider_specific_fields"] = {"traffic_type": traffic, "thought_signature": "PRIVATE"}
     await finish(callback, data, result)
-    span = test_spans.pop()[0]
-    assert span.get_tag("ai.observed.traffic_type") == traffic
-    assert span.get_tag("ai.observed.service_tier") == "default"
-    assert span.get_tag("ai.billing.mode") is None
-    assert "PRIVATE" not in repr(span)
-    assert "spoofed" not in repr(span)
+    record = records[0]
+    assert record.tags.get("ai.observed.traffic_type") == traffic
+    assert record.tags.get("ai.observed.service_tier") == "default"
+    assert record.tags.get("ai.billing.mode") is None
+    assert "PRIVATE" not in repr(record)
+    assert "spoofed" not in repr(record)
 
 
 @pytest.mark.parametrize(
@@ -1121,28 +1210,11 @@ def test_new_native_pricing_and_cache_values_are_retained():
     }
 
 
-def test_response_request_ids_are_bounded_selected_and_unambiguous():
-    headers = {
-        "llm_provider-X-Request-ID": "request-openai",
-        "llm_provider-request-id": "request-anthropic",
-        "llm_provider-x-amzn-requestid": "request-bedrock",
-        "llm_provider-apim-request-id": "request-azure",
-        "llm_provider-opc-request-id": "request-oci",
-        "authorization": "Bearer PRIVATE",
-        "llm_provider-set-cookie": "PRIVATE",
-        "llm_provider-PRIVATE": "PRIVATE",
-    }
-    tags = response_tags({"_hidden_params": {"additional_headers": headers}})
-    assert len(tags) == 5
-    assert tags["ai.response.x_request_id"] == "request-openai"
-    assert tags["ai.response.x_amzn_requestid"] == "request-bedrock"
-    assert "PRIVATE" not in repr(tags)
-    headers["llm_provider-x-request-id"] = "different"
-    headers["llm_provider-request-id"] = "sk-PRIVATE"
-    headers["llm_provider-apim-request-id"] = "x" * 257
-    headers["llm_provider-opc-request-id"] = {"PRIVATE": "PRIVATE"}
-    tags = response_tags({"_hidden_params": {"additional_headers": headers}})
-    assert tags == {"ai.response.x_amzn_requestid": "request-bedrock"}
+def test_unique_response_request_ids_are_not_metric_tags():
+    headers = dict.fromkeys(
+        ("x-request-id", "request-id", "x-amzn-requestid", "apim-request-id", "opc-request-id"), "unique-id"
+    )
+    assert not response_tags({"id": "response-id", "_hidden_params": {"additional_headers": headers}})
     assert not response_tags({"_hidden_params": {"additional_headers": dict.fromkeys(map(str, range(129)))}})
 
 
@@ -1451,3 +1523,67 @@ async def test_standard_logging_deployment_mismatch_does_not_reuse_old_scope(res
     else:
         assert tags["ai.route.provider"] == "future_provider"
     assert tags["ai.gateway.deployment_id"] == (response_deployment or "dep-standard")
+
+
+def test_sink_initializes_lazily_and_recreates_client_after_fork(monkeypatch):
+    from ddtrace.contrib.internal.litellm import _gateway_usage
+
+    parent, child = Mock(spec=DogStatsd), Mock(spec=DogStatsd)
+    factory = Mock(return_value=parent)
+    monkeypatch.setattr(_gateway_usage, "get_dogstatsd_client", factory)
+    monkeypatch.setattr(_gateway_usage.os, "getpid", lambda: 10)
+    sink = DatadogSink()
+    factory.assert_not_called()
+    record = UsageRecord({}, RecordedUsage())
+    sink(record)
+    factory.assert_called_once()
+    factory.return_value = child
+    monkeypatch.setattr(_gateway_usage.os, "getpid", lambda: 11)
+    sink(record)
+    assert factory.call_count == 2
+    parent.increment.assert_called_once()
+    child.increment.assert_called_once()
+    sink.close()
+    child.close_socket.assert_called_once()
+    parent.close_socket.assert_not_called()
+
+
+async def test_invalid_metrics_endpoint_never_breaks_gateway(monkeypatch):
+    from ddtrace.contrib.internal.litellm import _gateway_usage
+
+    monkeypatch.setattr(_gateway_usage, "get_dogstatsd_client", Mock(side_effect=ValueError("PRIVATE")))
+    callback = GatewayAttribution()
+    await finish(callback, await start(callback))
+    assert not callback._pending
+
+
+@pytest.mark.parametrize("transport", ["udp", "unix"])
+def test_real_dogstatsd_wire_preserves_fractions_and_escapes_tag_delimiters(tmp_path, transport):
+    family = socket.AF_INET if transport == "udp" else socket.AF_UNIX
+    with socket.socket(family, socket.SOCK_DGRAM) as receiver:
+        receiver.settimeout(2)
+        if transport == "udp":
+            receiver.bind(("127.0.0.1", 0))
+            client = DogStatsd(host="127.0.0.1", port=receiver.getsockname()[1], disable_telemetry=True)
+        else:
+            path = str(tmp_path / "dogstatsd.sock")
+            receiver.bind(path)
+            client = DogStatsd(socket_path=path, disable_telemetry=True)
+        sink = DatadogSink(client)
+        try:
+            sink(
+                UsageRecord(
+                    {"usr.id": "alice|#forged:true,extra:true", "usr.email": "alice@example.test"},
+                    RecordedUsage(diagnostics={"input_audio_length_seconds": 0.25}),
+                )
+            )
+            lines = [receiver.recv(65535).decode() for _ in range(2)]
+            assert lines[0].startswith("ai_gateway.observed.input_audio_length_seconds:0.25|c|#")
+            assert lines[1].startswith("ai_gateway.requests:1|c|#")
+            for line in lines:
+                tags = line.split("|#", 1)[1].split("|", 1)[0].split(",")
+                assert "usr.email:alice_example.test" in tags
+                assert "usr.id:alice__forged:true_extra:true" in tags
+                assert not any(t.startswith(("forged:", "extra:")) for t in tags)
+        finally:
+            sink.close()

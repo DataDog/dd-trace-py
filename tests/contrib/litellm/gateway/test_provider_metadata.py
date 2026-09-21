@@ -14,6 +14,17 @@ import pytest
 
 from ddtrace.contrib.internal.litellm._gateway_usage import DatadogSink
 from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution
+from ddtrace.vendor.dogstatsd import DogStatsd
+from tests.contrib.litellm.gateway.test_proxy import Metrics
+
+
+@pytest.fixture
+def metrics():
+    collector = Metrics()
+    try:
+        yield collector
+    finally:
+        collector.close()
 
 
 @pytest.mark.parametrize(
@@ -27,7 +38,7 @@ from ddtrace.contrib.internal.litellm.gateway import GatewayAttribution
         "FUTURE_TRAFFIC_TYPE",
     ],
 )
-async def test_vertex_native_traffic_metadata_survives_litellm_and_apm(tracer, test_spans, traffic):
+async def test_vertex_native_traffic_metadata_survives_litellm_and_metrics(metrics, traffic):
     raw = httpx.Response(
         200,
         request=httpx.Request("POST", "https://us-central1-aiplatform.googleapis.com"),
@@ -56,7 +67,7 @@ async def test_vertex_native_traffic_metadata_survives_litellm_and_apm(tracer, t
         encoding=None,
     )
     callback = GatewayAttribution()
-    callback._sink = DatadogSink(tracer)
+    callback._sink = DatadogSink(DogStatsd(host="127.0.0.1", port=metrics.socket.getsockname()[1]))
     data = {}
     await callback.async_pre_call_hook(SimpleNamespace(user_id="user-1"), None, data, "completion")
     await callback.async_pre_call_deployment_hook(
@@ -64,16 +75,16 @@ async def test_vertex_native_traffic_metadata_survives_litellm_and_apm(tracer, t
         "completion",
     )
     await callback.async_log_success_event({"litellm_params": data}, result, None, None)
-    span = test_spans.pop()[0]
-    assert span.get_tag("ai.observed.traffic_type") == traffic
-    assert span.get_tag("ai.billing.mode") is None
-    assert span.get_tag("ai.route.vertex_project") == "project-1"
-    assert span.get_metric("ai.observed.input_tokens") == 100
-    assert span.get_metric("ai.usage.input_cache_read_tokens") == 40
-    assert "PRIVATE" not in repr(span)
+    group = (await metrics.wait(1))[0]
+    assert group["tags"].get("ai.observed.traffic_type") == traffic
+    assert group["tags"].get("ai.billing.mode") is None
+    assert group["tags"].get("ai.route.vertex_project") == "project-1"
+    assert group["counters"].get("ai_gateway.observed.input_tokens") == 100
+    assert group["counters"].get("ai_gateway.usage.input_cache_read_tokens") == 40
+    assert "PRIVATE" not in repr(group)
 
 
-async def test_real_standard_logging_payload_supplies_common_fields(tracer, test_spans):
+async def test_real_standard_logging_payload_supplies_common_fields(metrics):
     now = datetime.now(timezone.utc)
     messages = [{"role": "user", "content": "PRIVATE PROMPT"}]
     logging_obj = Logging("gpt-4o", messages, False, "completion", now, "local-call", "local-function")
@@ -97,17 +108,17 @@ async def test_real_standard_logging_payload_supplies_common_fields(tracer, test
     )
     assert payload is not None
     callback = GatewayAttribution()
-    callback._sink = DatadogSink(tracer)
+    callback._sink = DatadogSink(DogStatsd(host="127.0.0.1", port=metrics.socket.getsockname()[1]))
     data = {}
     await callback.async_pre_call_hook(SimpleNamespace(user_id="user-1"), None, data, "completion")
     await callback.async_log_success_event(
         {"litellm_params": data, "standard_logging_object": payload}, result, now, now
     )
-    span = test_spans.pop()[0]
-    assert span.get_tag("ai.route.model") == payload["model"]
-    assert span.get_tag("ai.route.provider") == "openai"
-    assert span.get_tag("ai.route.endpoint_host") == "provider.example"
-    assert span.get_tag("ai.gateway.deployment_id") == "dep-1"
-    assert span.get_tag("ai.route.model_id") is None
-    assert span.get_metric("ai.observed.input_tokens") == 12
-    assert "PRIVATE" not in repr(span)
+    group = (await metrics.wait(1))[0]
+    assert group["tags"].get("ai.route.model") == payload["model"]
+    assert group["tags"].get("ai.route.provider") == "openai"
+    assert group["tags"].get("ai.route.endpoint_host") == "provider.example"
+    assert group["tags"].get("ai.gateway.deployment_id") == "dep-1"
+    assert group["tags"].get("ai.route.model_id") is None
+    assert group["counters"].get("ai_gateway.observed.input_tokens") == 12
+    assert "PRIVATE" not in repr(group)

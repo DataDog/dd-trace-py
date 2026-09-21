@@ -27,11 +27,6 @@ _PROVIDER_ROUTE_FIELDS = (
 )
 _PROVIDER_RESPONSE_HEADERS = frozenset(
     (
-        "x-request-id",
-        "request-id",
-        "x-amzn-requestid",
-        "apim-request-id",
-        "opc-request-id",
         "openai-organization",
         "openai-project",
         "anthropic-organization-id",

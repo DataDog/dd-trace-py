@@ -1,6 +1,6 @@
 features:
   - |
-    litellm: Adds optional per-user usage attribution for LiteLLM gateways in
-    Datadog Application Performance Monitoring (APM). Captures available user
-    identity, model and provider details, token and cache usage, and pricing-related
-    metadata without recording prompt or response text.
+    litellm: Adds opt-in per-user usage metrics for LiteLLM gateways through the
+    gateway attribution callback. Captures available user, model, and provider
+    details alongside token/cache usage and observed retry/fallback counts,
+    without recording prompt or response text.

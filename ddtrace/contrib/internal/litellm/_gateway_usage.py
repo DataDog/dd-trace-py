@@ -4,12 +4,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 import math
+import os
 from typing import Any
 from typing import Optional
 
-from ddtrace import tracer as default_tracer
-from ddtrace.trace import Context
-from ddtrace.trace import Tracer
+from ddtrace.internal.dogstatsd import get_dogstatsd_client
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.vendor.dogstatsd import DogStatsd
 
 
 def get(obj: Any, key: str, default: Any = None) -> Any:
@@ -32,6 +33,31 @@ class Usage:
     quantities: dict[str, int] = field(default_factory=dict)
     diagnostics: dict[str, float] = field(default_factory=dict)
     issues: set[str] = field(default_factory=set)
+
+
+# Shared across providers, not a model/pricing lookup. Decimal token boundaries:
+# https://www.alibabacloud.com/help/en/model-studio/model-pricing (32k/128k/256k)
+# https://ai.google.dev/gemini-api/docs/pricing (200k)
+# https://developers.openai.com/api/docs/models/gpt-5.4-pro (272k)
+# Keep 512k as an additional long-context boundary. Reviewed September 2026.
+_CONTEXT_TOKEN_BOUNDARIES = (32_000, 128_000, 200_000, 256_000, 272_000, 512_000)
+
+
+def context_tokens_bucket(usage: Usage) -> str:
+    tokens = usage.diagnostics.get("context_tokens")
+    if (
+        tokens is None
+        or type(tokens) is not int
+        or not 0 <= tokens <= 2**53
+        or usage.issues.intersection(("invalid_usage", "inconsistent_usage", "inconsistent_cache_ttl"))
+    ):
+        return "unknown"
+    lower = 0
+    for boundary in _CONTEXT_TOKEN_BOUNDARIES:
+        if tokens <= boundary:
+            return f"{lower}_{boundary}"
+        lower = boundary + 1
+    return f"{lower}_plus"
 
 
 class _UsageError(Exception):
@@ -193,31 +219,35 @@ def normalize_usage(raw: Any, operation: str = "completion") -> Usage:
 
 @dataclass(frozen=True)
 class UsageRecord:
-    start: float
-    end: float
     tags: dict[str, str]
     usage: Usage
-    parent: Optional[Context] = None
-    error: bool = False
 
 
 class DatadogSink:
-    """Emit one content-free span, retaining the gateway request's APM parent."""
+    """Send additive usage counters through the Agent's DogStatsD listener."""
 
-    def __init__(self, tracer: Tracer = default_tracer) -> None:
-        self.tracer = tracer
+    def __init__(self, client: Optional[DogStatsd] = None) -> None:
+        self._client = client
+        self._pid = os.getpid()
 
     def __call__(self, record: UsageRecord) -> None:
-        span = self.tracer.start_span(
-            "ai_gateway.usage", child_of=record.parent, resource="ai_gateway.usage", activate=False
-        )
-        span.start = record.start
-        span.error = int(record.error)
-        try:
-            span.set_tags(record.tags)
-            for key, value in record.usage.quantities.items():
-                span._set_attribute(f"ai.usage.{key}", value)
-            for key, observation in record.usage.diagnostics.items():
-                span._set_attribute(f"ai.observed.{key}", observation)
-        finally:
-            span.finish(finish_time=max(record.start, record.end))
+        if self._pid != os.getpid():
+            # Do not reuse a parent's socket or potentially locked client locks.
+            self._client = None
+            self._pid = os.getpid()
+        if self._client is None:
+            # Delay configuration/socket setup until export so a bad endpoint never
+            # prevents the gateway from starting. The callback handles export errors.
+            self._client = get_dogstatsd_client(agent_config.dogstatsd_url)
+        tags = [f"{key}:{value}" for key, value in sorted(record.tags.items())]
+        # Use the vendored client directly: the shared metrics wrapper rounds
+        # counters to integers, losing reported fractional audio/video seconds.
+        for prefix, values in (("usage", record.usage.quantities), ("observed", record.usage.diagnostics)):
+            for key, value in values.items():
+                self._client.increment(f"ai_gateway.{prefix}.{key}", value, tags=tags)
+        self._client.increment("ai_gateway.requests", tags=tags)
+
+    def close(self) -> None:
+        if self._client is not None and self._pid == os.getpid():
+            self._client.close_socket()  # type: ignore[no-untyped-call]
+        self._client = None
