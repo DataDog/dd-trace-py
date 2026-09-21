@@ -59,7 +59,7 @@ def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
 
 
-class _DDWSGIMiddlewareBase(object):
+class _DDWSGIMiddlewareBase:
     """Base WSGI middleware class.
 
     :param application: The WSGI application to apply the middleware to.
@@ -377,7 +377,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         span_modifier: Callable[["Span", dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,
     ) -> None:
-        super(DDWSGIMiddleware, self).__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
+        super().__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):

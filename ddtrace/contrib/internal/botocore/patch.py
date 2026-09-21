@@ -285,7 +285,7 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     with (
         core.context_with_data(
             "botocore.instrumented_lib_function",
-            span_name="{}.{}".format(original_func.__module__, original_func.__name__),
+            span_name=f"{original_func.__module__}.{original_func.__name__}",
             tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
             pin=pin,
         ) as ctx,
@@ -315,7 +315,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     trace_operation = schematize_cloud_api_operation(
-        "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name
     )
 
     operation = get_argument_value(args, kwargs, 0, "operation_name", True)
@@ -406,9 +406,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             params=params,
             endpoint_name=endpoint_name,
             operation=operation,
-            service=schematize_service_name(
-                "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
-            ),
+            service=schematize_service_name(f"{ext_service(pin, int_config=config.botocore)}.{endpoint_name}"),
             pin=pin,
             span_name=function_vars.get("trace_operation"),
             span_type=SpanTypes.HTTP,

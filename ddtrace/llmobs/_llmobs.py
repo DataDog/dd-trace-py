@@ -296,7 +296,7 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _EVALUATOR_REQUIRED_PARAMS):
-        raise TypeError("Evaluator function must have parameters {}.".format(tuple(_EVALUATOR_REQUIRED_PARAMS)))
+        raise TypeError(f"Evaluator function must have parameters {tuple(_EVALUATOR_REQUIRED_PARAMS)}.")
 
 
 def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> None:
@@ -320,9 +320,7 @@ def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> Non
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _SUMMARY_EVALUATOR_REQUIRED_PARAMS):
-        raise TypeError(
-            "Summary evaluator function must have parameters {}.".format(tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS))
-        )
+        raise TypeError(f"Summary evaluator function must have parameters {tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS)}.")
 
 
 class LLMObsExportSpanError(Exception):
@@ -357,7 +355,7 @@ class LLMObsActivateDistributedHeadersError(Exception):
 
 def _deprecate_prompt_label(method: str) -> None:
     deprecate(
-        prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
+        prefix=f"The 'label' parameter of LLMObs.{method}() is deprecated",
         message="Set DD_ENV instead; the prompt version is resolved for that environment.",
         category=DDTraceDeprecationWarning,
     )
@@ -577,7 +575,7 @@ class LLMObs(Service):
         tracer: Optional[Tracer] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
     ) -> None:
-        super(LLMObs, self).__init__()
+        super().__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
@@ -835,7 +833,7 @@ class LLMObs(Service):
             if err_type:
                 tags["error_type"] = err_type
 
-        return sorted("{}:{}".format(k, v) for k, v in tags.items())
+        return sorted(f"{k}:{v}" for k, v in tags.items())
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
@@ -1288,12 +1286,12 @@ class LLMObs(Service):
             # Listing without a project_id would silently widen the query to every project in the
             # org, which a CI/CD comparison would then read as the baseline. Fail instead.
             raise ValueError(
-                "Failed to resolve project {!r} for list_experiments()".format(project_name or cls._project_name)
+                f"Failed to resolve project {project_name or cls._project_name!r} for list_experiments()"
             ) from e
         project_id = project.get("_id")
         if not project_id:
             raise ValueError(
-                "Got no project ID for project {!r} in list_experiments()".format(project_name or cls._project_name)
+                f"Got no project ID for project {project_name or cls._project_name!r} in list_experiments()"
             )
         return cls._instance._dne_client.experiment_list(
             experiment_name=experiment_name,
@@ -1391,7 +1389,7 @@ class LLMObs(Service):
 
         records = []
         try:
-            with open(csv_path, mode="r") as csvfile:
+            with open(csv_path) as csvfile:
                 content = csvfile.readline().strip()
                 if not content:
                     raise ValueError("CSV file appears to be empty or header is missing.")
@@ -3488,10 +3486,10 @@ class LLMObs(Service):
         }
         for key, val in optional_filters:
             if val is not None:
-                base_params["filter[{}]".format(key)] = val
+                base_params[f"filter[{key}]"] = val
 
         for k, v in (tags or {}).items():
-            base_params["filter[tag][{}]".format(k)] = v
+            base_params[f"filter[tag][{k}]"] = v
 
         return cls._instance._api_client.get_spans(base_params)
 

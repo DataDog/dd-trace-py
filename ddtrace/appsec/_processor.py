@@ -117,7 +117,7 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             with open(self.rule_filename, "br") as f:
                 self._rules = f.read()
-        except EnvironmentError as err:
+        except OSError as err:
             if err.errno == errno.ENOENT:
                 log.error(
                     "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist",

@@ -50,7 +50,7 @@ class _IdentityWeakValueDictionary:
     __slots__ = ("_data",)
 
     def __init__(self) -> None:
-        self._data: dict[int, tuple[CodeType, "weakref.ref[FunctionType]"]] = {}
+        self._data: dict[int, tuple[CodeType, weakref.ref[FunctionType]]] = {}
 
     def _make_remove(self, code_id: int) -> Any:
         def remove(_ref: "weakref.ref[FunctionType]") -> None:

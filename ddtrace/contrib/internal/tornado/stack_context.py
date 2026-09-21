@@ -74,7 +74,7 @@ if _USE_STACK_CONTEXT:
         def _has_active_context(self):
             """Helper to determine if we have an active context or not"""
             if not self._has_io_loop():
-                return super(TracerStackContext, self)._has_active_context()
+                return super()._has_active_context()
             else:
                 # we're inside a Tornado loop so the TracerStackContext is used
                 return self._get_state_active_context() is not None
@@ -101,7 +101,7 @@ if _USE_STACK_CONTEXT:
                 # if a Tornado loop is not available, it means that this method
                 # has been called from a synchronous code, so we can rely in a
                 # thread-local storage
-                return super(TracerStackContext, self).active()
+                return super().active()
             else:
                 # we're inside a Tornado loop so the TracerStackContext is used
                 return self._get_state_active_context()
@@ -116,7 +116,7 @@ if _USE_STACK_CONTEXT:
             if not self._has_io_loop():
                 # because we're outside of an asynchronous execution, we store
                 # the current context in a thread-local storage
-                super(TracerStackContext, self).activate(ctx)
+                super().activate(ctx)
             else:
                 # we're inside a Tornado loop so the TracerStackContext is used
                 for stack_ctx in reversed(_state.contexts[0]):

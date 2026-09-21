@@ -107,7 +107,7 @@ def validate_dataset_split(dataset_split, test_dataset):
     if not all(isinstance(v, (int, float)) and 0 < v < 1 for v in dataset_split):
         raise ValueError("dataset_split ratios must be floats between 0 and 1 (exclusive).")
     if not (0.99 <= sum(dataset_split) <= 1.01):
-        raise ValueError("dataset_split ratios must sum to 1.0, got {:.4f}.".format(sum(dataset_split)))
+        raise ValueError(f"dataset_split ratios must sum to 1.0, got {sum(dataset_split):.4f}.")
     if len(dataset_split) == 3 and test_dataset is not None:
         raise ValueError(
             "Cannot use a 3-tuple dataset_split with test_dataset. "
@@ -139,7 +139,7 @@ def validate_evaluators(evaluators):
         params = sig.parameters
         evaluator_required_params = ("input_data", "output_data", "expected_output")
         if not all(param in params for param in evaluator_required_params):
-            raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+            raise TypeError(f"Evaluator function must have parameters {evaluator_required_params}.")
 
 
 TIPS = {

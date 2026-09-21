@@ -12,7 +12,6 @@ from typing import Any
 from typing import Callable
 from typing import Iterator
 from typing import Optional
-from typing import Text
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
@@ -452,7 +451,7 @@ def format_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
     if not args:
         return orig_function(*args, **kwargs)
 
-    candidate_text: Text = args[0]
+    candidate_text: str = args[0]
     args = args[flag_added_args:]
 
     result = candidate_text.format(*args, **kwargs)
@@ -480,7 +479,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
 
         return orig_function(*args, **kwargs)
 
-    candidate_text: Text = args[0]
+    candidate_text: str = args[0]
     args = args[flag_added_args:]
 
     result = candidate_text.format_map(*args, **kwargs)

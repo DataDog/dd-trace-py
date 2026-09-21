@@ -222,7 +222,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent_config.trace_agent_timeout_seconds
-        super(HTTPWriter, self).__init__(interval=processing_interval, autorestart=False)
+        super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._intake_accepts_gzip = use_gzip
         self._buffer_size = buffer_size
@@ -236,7 +236,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional["HTTPConnection"] = None
+        self._conn: Optional[HTTPConnection] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
@@ -253,7 +253,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         )
 
     def _intake_endpoint(self, client=None):
-        return "{}/{}".format(self._intake_url(client), client.ENDPOINT if client else self._endpoint)
+        return f"{self._intake_url(client)}/{client.ENDPOINT if client else self._endpoint}"
 
     @property
     def _endpoint(self):
@@ -581,7 +581,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         timeout: Optional[float] = None,
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
-        super(HTTPWriter, self)._stop_service()
+        super()._stop_service()
         self.join(timeout=timeout)
 
     def on_shutdown(self):
@@ -825,7 +825,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        super(NativeWriter, self).__init__(interval=processing_interval, autorestart=False)
+        super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
@@ -1060,7 +1060,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _intake_endpoint(self, client=None):
         if self._otlp_endpoint is not None:
             return self._otlp_endpoint
-        return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
+        return f"{self.intake_url}/{client.ENDPOINT if client else self._endpoint}"
 
     @property
     def _endpoint(self):
@@ -1250,7 +1250,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         timeout: Optional[float] = None,
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
-        super(NativeWriter, self)._stop_service()
+        super()._stop_service()
         self.join(timeout=timeout)
 
     def on_shutdown(self):

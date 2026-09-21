@@ -131,9 +131,9 @@ def set_query_metadata(span, cmd):
         else:
             tag_query = json_util.dumps(cmd.query)
         span.set_tag("mongodb.query", tag_query)
-        span.resource = "{} {} {}".format(cmd.name, cmd.coll, resource_str)
+        span.resource = f"{cmd.name} {cmd.coll} {resource_str}"
     else:
-        span.resource = "{} {}".format(cmd.name, cmd.coll)
+        span.resource = f"{cmd.name} {cmd.coll}"
 
 
 def set_query_rowcount(docs, span):

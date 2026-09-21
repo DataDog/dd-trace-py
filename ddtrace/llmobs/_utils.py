@@ -266,7 +266,7 @@ def _unserializable_default_repr(obj):
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return "[Unserializable object: {}]".format(repr(obj))
+        return f"[Unserializable object: {repr(obj)}]"
 
 
 _MAX_NESTED_META_DEPTH = 12
@@ -311,7 +311,7 @@ def _sanitize_span_event_data(obj: Any) -> Any:
             try:
                 return str(node)
             except Exception:
-                return "[Unserializable object of type {}]".format(type(node).__name__)
+                return f"[Unserializable object of type {type(node).__name__}]"
         return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")

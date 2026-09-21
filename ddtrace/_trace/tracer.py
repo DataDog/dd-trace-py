@@ -128,7 +128,7 @@ def _default_span_processors_factory(
     return span_processors
 
 
-class Tracer(object):
+class Tracer:
     """
     Tracer is used to create, sample and submit spans that measure the
     execution time of sections of code.

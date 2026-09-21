@@ -44,14 +44,14 @@ class _ContextRecord:
     __slots__ = ("_uwc_ref", "lazy_contexts")
 
     def __init__(self) -> None:
-        self._uwc_ref: t.Optional[weakref.ref["_UniversalWrappingContext"]] = None
+        self._uwc_ref: t.Optional[weakref.ref[_UniversalWrappingContext]] = None
         # WeakSet so that LazyWrappingContext instances (which also hold
         # __wrapped__ = f) do not prevent the function from being collected.
-        self.lazy_contexts: weakref.WeakSet["LazyWrappingContext"] = weakref.WeakSet()
+        self.lazy_contexts: weakref.WeakSet[LazyWrappingContext] = weakref.WeakSet()
 
     @property
     def uwc(self) -> t.Optional["_UniversalWrappingContext"]:
-        ref: t.Optional[weakref.ref["_UniversalWrappingContext"]] = self._uwc_ref
+        ref: t.Optional[weakref.ref[_UniversalWrappingContext]] = self._uwc_ref
         return ref() if ref is not None else None
 
     @uwc.setter
@@ -60,7 +60,7 @@ class _ContextRecord:
 
     @classmethod
     def get_or_create(cls, f: FunctionType) -> "_ContextRecord":
-        record: t.Optional["_ContextRecord"] = _registry.get(f)
+        record: t.Optional[_ContextRecord] = _registry.get(f)
         if record is None:
             with _registry_lock:
                 record = _registry.get(f)
@@ -911,7 +911,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         @classmethod
         def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
-            ctx: t.Optional["_UniversalWrappingContext"] = _ctx_registry.get(get_function_code(f))
+            ctx: t.Optional[_UniversalWrappingContext] = _ctx_registry.get(get_function_code(f))
             if ctx is None:
                 raise ValueError("Function is not wrapped")
             # Monitoring dispatches per code object, so a fresh function instance
@@ -929,7 +929,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             original_code: CodeType = get_function_code(f)
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
-                    existing: "_UniversalWrappingContext" = _ctx_registry[original_code]
+                    existing: _UniversalWrappingContext = _ctx_registry[original_code]
                     if _fn_registry.get(f) is existing:
                         raise ValueError("Function already wrapped")
                     # Only replace a registry entry when the prior wrapped function
@@ -1308,7 +1308,7 @@ if sys.version_info >= (3, 15):
         of self.__wrapped__) cannot be used here. Clean up via the cloned monitor code
         object instead, which the finalizer callback captures directly.
         """
-        self: t.Optional["_UniversalWrappingContext"] = self_ref()
+        self: t.Optional[_UniversalWrappingContext] = self_ref()
         if self is None:
             return
         try:

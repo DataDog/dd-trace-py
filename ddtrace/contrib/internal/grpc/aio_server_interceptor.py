@@ -198,7 +198,7 @@ def _create_span(method: str, invocation_metadata: grpc.HandlerCallDetails, meth
 
 class _TracedCoroRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, handler_call_details: grpc.HandlerCallDetails, wrapped: grpc.RpcMethodHandler) -> None:
-        super(_TracedCoroRpcMethodHandler, self).__init__(wrapped)
+        super().__init__(wrapped)
         self.method = handler_call_details.method
 
     async def unary_unary(self, request: RequestType, context: aio.ServicerContext) -> ResponseType:
@@ -232,7 +232,7 @@ class _TracedCoroRpcMethodHandler(wrapt.ObjectProxy):
 
 class _TracedAsyncGenRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, handler_call_details: grpc.HandlerCallDetails, wrapped: grpc.RpcMethodHandler) -> None:
-        super(_TracedAsyncGenRpcMethodHandler, self).__init__(wrapped)
+        super().__init__(wrapped)
         self.method = handler_call_details.method
 
     async def unary_stream(self, request: RequestType, context: aio.ServicerContext) -> ResponseIterableType:
@@ -260,7 +260,7 @@ class _TracedAsyncGenRpcMethodHandler(wrapt.ObjectProxy):
 
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, handler_call_details: grpc.HandlerCallDetails, wrapped: grpc.RpcMethodHandler) -> None:
-        super(_TracedRpcMethodHandler, self).__init__(wrapped)
+        super().__init__(wrapped)
         self.method = handler_call_details.method
 
     def unary_unary(self, request: Any, context: grpc.ServicerContext) -> Any:

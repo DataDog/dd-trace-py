@@ -74,7 +74,7 @@ def _filter_by_env_and_version(f: Callable[..., Iterable[Probe]]) -> Callable[..
     return _wrapper
 
 
-class ProbeFactory(object):
+class ProbeFactory:
     __line_class__: Optional[type[LineProbe]] = None
     __function_class__: Optional[type[FunctionProbe]] = None
 

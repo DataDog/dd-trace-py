@@ -678,7 +678,7 @@ def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:
 
     # Relative URLs don't have a netloc, so we force them
     if not parse_result.netloc:
-        parse_result = parse.urlparse("//{url}".format(url=url))
+        parse_result = parse.urlparse(f"//{url}")
 
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information

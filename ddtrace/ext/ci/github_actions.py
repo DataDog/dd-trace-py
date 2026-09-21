@@ -96,7 +96,7 @@ def _try_extract_job_id_from_file(file_path: str) -> Optional[str]:
             log.debug("Skipping oversized diagnostics file %s (%d bytes)", file_path, file_stat.st_size)
             return None
 
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
 
         # Try JSON parsing first
@@ -184,11 +184,7 @@ def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optio
     github_run_id = environ.get("GITHUB_RUN_ID")
     run_attempt = environ.get("GITHUB_RUN_ATTEMPT")
 
-    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
-        github_server_url,
-        github_repository,
-        github_run_id,
-    )
+    pipeline_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"
 
     git_commit_head_sha = None
     git_pr_base_branch_head_sha = None
@@ -212,7 +208,7 @@ def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optio
     }
     if run_attempt:
         env_vars["GITHUB_RUN_ATTEMPT"] = run_attempt
-        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
+        pipeline_url = f"{pipeline_url}/attempts/{run_attempt}"
 
     # Resolve job ID and URL
     # Priority: JOB_CHECK_RUN_ID env var > diagnostics files
@@ -223,7 +219,7 @@ def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optio
         git.BRANCH: environ.get("GITHUB_HEAD_REF") or environ.get("GITHUB_REF"),
         git.COMMIT_SHA: git_commit_sha,
         git.PULL_REQUEST_BASE_BRANCH: environ.get("GITHUB_BASE_REF"),
-        git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
+        git.REPOSITORY_URL: f"{github_server_url}/{github_repository}.git",
         git.COMMIT_HEAD_SHA: git_commit_head_sha,
         git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: git_pr_base_branch_head_sha,
         _PIPELINE_ID: github_run_id,
@@ -239,12 +235,10 @@ def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optio
     if numeric_job_id and github_run_id:
         # Use numeric job ID to build direct job URL
         tags[_JOB_ID] = numeric_job_id
-        tags[_JOB_URL] = "{0}/{1}/actions/runs/{2}/job/{3}".format(
-            github_server_url, github_repository, github_run_id, numeric_job_id
-        )
+        tags[_JOB_URL] = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}/job/{numeric_job_id}"
         log.debug("GitHub Actions job URL with numeric job ID: %s", tags[_JOB_URL])
     else:
         # Fallback: use commit-based URL and omit ci.job.id
-        tags[_JOB_URL] = "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha)
+        tags[_JOB_URL] = f"{github_server_url}/{github_repository}/commit/{git_commit_sha}/checks"
 
     return tags

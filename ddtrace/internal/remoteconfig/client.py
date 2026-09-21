@@ -102,9 +102,9 @@ class RemoteConfigClient:
         self.agent_url = agent_config.trace_agent_url
 
         # Product callbacks for single subscriber architecture
-        self._product_callbacks: "dict[RemoteConfigProduct, RCCallback]" = {}
+        self._product_callbacks: dict[RemoteConfigProduct, RCCallback] = {}
         # Track which products are enabled (reported to the agent each poll)
-        self._enabled_products: "set[RemoteConfigProduct]" = set()
+        self._enabled_products: set[RemoteConfigProduct] = set()
         self._capability_values: list = []
 
         # Native client (created lazily on the master process) and the

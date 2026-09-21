@@ -66,7 +66,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 removal_version="5.0.0",
             )
 
-        super(TracedCursor, self).__init__(cursor)
+        super().__init__(cursor)
 
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
@@ -77,7 +77,7 @@ class TracedCursor(wrapt.ObjectProxy):
         span_name = (
             cfg["_dbapi_span_operation_name"]
             if cfg and "_dbapi_span_operation_name" in cfg
-            else "{}.query".format(span_name_prefix)
+            else f"{span_name_prefix}.query"
         )
         self._self_datadog_name = span_name
         self._self_dbapi_span_name_prefix = span_name_prefix
@@ -268,9 +268,9 @@ class TracedConnection(wrapt.ObjectProxy):
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedCursor if cfg.trace_fetch_methods else TracedCursor
 
-        super(TracedConnection, self).__init__(conn)
+        super().__init__(conn)
         name = _get_vendor(conn)
-        self._self_datadog_name = "{}.connection".format(name)
+        self._self_datadog_name = f"{name}.connection"
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls

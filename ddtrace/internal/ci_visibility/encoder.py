@@ -70,7 +70,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def __init__(self, *args: Any) -> None:
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
-        super(CIVisibilityEncoderV01, self).__init__()  # type: ignore[call-arg]
+        super().__init__()  # type: ignore[call-arg]
         self._metadata: dict[str, dict[str, str]] = {}
         self._lock = RLock()
         self._is_xdist_worker = env.get("PYTEST_XDIST_WORKER") is not None
@@ -307,7 +307,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
         if not spans_with_coverage:
             raise NoEncodableSpansError()
-        return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
+        return super().put(spans_with_coverage)
 
     def _build_coverage_attachment(self, data: bytes) -> list[bytes]:
         return [

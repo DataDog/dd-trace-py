@@ -79,7 +79,7 @@ _PARAM_NAME_RESERVED = frozenset("/?#+{}")
 
 
 def _percent_encode(ch: str) -> str:
-    return "".join("%{:02X}".format(b) for b in ch.encode("utf-8"))
+    return "".join(f"%{b:02X}" for b in ch.encode("utf-8"))
 
 
 def _encode_static(segment: str) -> str:
@@ -376,7 +376,7 @@ def _parse_django_segment(
                 return None
             num = _assign_paramN()
             _flush_static()
-            atoms.append((_KIND_PARAM, "param{}".format(num), this_args_idx))
+            atoms.append((_KIND_PARAM, f"param{num}", this_args_idx))
             i = j
             # Optional ``?`` / lazy ``??`` quantifier makes the whole capture optional — filtered via ``args[idx]``.
             if i < n and segment[i] == "?":
@@ -984,7 +984,7 @@ def _normalize_route_tornado_cached(
     if param_names is not None:
         names_list = list(param_names)
     else:
-        names_list = ["param{}".format(i) for i in range(1, total_pct_s + 1)]
+        names_list = [f"param{i}" for i in range(1, total_pct_s + 1)]
 
     # Anonymous-param numbering for bare dynamic segments (count == 0 but regex syntax present).
     # These do not correspond to any ``%s`` placeholder or ``path_params`` entry; they are
@@ -1000,7 +1000,7 @@ def _normalize_route_tornado_cached(
         n = anon_next
         anon_used.add(n)
         anon_next += 1
-        return "param{}".format(n)
+        return f"param{n}"
 
     name_idx = 0
     out_segments: list[str] = []

@@ -7,7 +7,6 @@ from typing import Any
 from typing import Callable
 from typing import Mapping
 from typing import Optional
-from typing import Text
 from typing import Union
 from typing import cast
 
@@ -123,7 +122,7 @@ class Span(SpanData):
             for link in links:
                 self._set_link(link.trace_id, link.span_id, link.tracestate, link.flags, link.attributes)
 
-        self._parent: Optional["Span"] = None
+        self._parent: Optional[Span] = None
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
         self._store: Optional[dict[str, Any]] = None
 
@@ -232,7 +231,7 @@ class Span(SpanData):
     def _set_sampling_decision_maker(
         self,
         sampling_mechanism: int,
-    ) -> Optional[Text]:
+    ) -> Optional[str]:
         value = "-%d" % sampling_mechanism
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
@@ -574,7 +573,7 @@ class Span(SpanData):
         This method is useful if a sudden program shutdown is required and finishing
         the trace is desired.
         """
-        span: Optional["Span"] = self
+        span: Optional[Span] = self
         while span is not None:
             span.finish()
             span = span._parent

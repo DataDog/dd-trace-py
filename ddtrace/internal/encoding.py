@@ -30,7 +30,7 @@ def _json_dumps_bytes(obj: object) -> bytes:
     return json.dumps(obj).encode("utf-8", errors="backslashreplace")
 
 
-class _EncoderBase(object):
+class _EncoderBase:
     """
     Encoder interface that provides the logic to encode traces and service.
     """

@@ -1419,7 +1419,7 @@ def patch_realtime() -> None:
             if cls is None or not hasattr(cls, method_name):
                 continue
             try:
-                wrap(module, "{}.{}".format(class_name, method_name), wrapper)
+                wrap(module, f"{class_name}.{method_name}", wrapper)
             except Exception:
                 log.debug("failed to wrap realtime %s.%s", class_name, method_name, exc_info=True)
 
