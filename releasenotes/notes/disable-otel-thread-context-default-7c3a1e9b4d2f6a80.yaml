@@ -1,6 +1,6 @@
 ---
-fixes:
+upgrade:
   - |
-    tracing: Fixes a native memory leak on Linux that increased process RSS over time when
-    OpenTelemetry thread-context publication was enabled. ``DD_TRACE_OTEL_CTX_ENABLED`` now
-    defaults to ``false``. Set it to ``true`` to restore publication.
+    tracing: ``DD_TRACE_OTEL_CTX_ENABLED`` now defaults to ``false``. Setting it to ``true``
+    still enables OpenTelemetry thread-context publication and can still increase process
+    memory on Linux when threads exit.
