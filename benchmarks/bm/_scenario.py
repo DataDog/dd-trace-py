@@ -1,7 +1,7 @@
 import abc
 import cProfile
 import dataclasses
-import os
+from pathlib import Path
 import time
 import typing
 
@@ -42,7 +42,7 @@ def _register(scenario_cls: type["Scenario"]) -> None:
 
     # If requests, generate a cProfile pstats file
     if scenario._cprofile_loops and parsed_args.append:
-        pstats_output = os.path.join(os.path.dirname(parsed_args.append), f"{scenario.scenario_name}.pstats")
+        pstats_output = str(Path(parsed_args.append).parent / f"{scenario.scenario_name}.pstats")
 
         with cProfile.Profile() as pr:
             try:
