@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import functools
 import time
 from typing import Callable
