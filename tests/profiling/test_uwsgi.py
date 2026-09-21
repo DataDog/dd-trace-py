@@ -363,7 +363,7 @@ def _wait_for_profile_samples(
             time.sleep(interval)
             continue
 
-        samples = []
+        samples: list["pprof_pb2.Sample"] = []
         for profile in profiles:
             try:
                 samples.extend(pprof_utils.get_samples_with_value_type(profile, value_type))
@@ -381,9 +381,9 @@ def test_wait_for_profile_samples_retries_missing_sample_type(monkeypatch: pytes
     """Wait for a later profile when an early flush lacks the requested sample type."""
     sample = object()
     profile_polls = iter([["early.pprof"], ["early.pprof", "ready.pprof"]])
-    inspected_profiles = []
+    inspected_profiles: list[str] = []
 
-    def get_samples_with_value_type(profile, _value_type):
+    def get_samples_with_value_type(profile: str, _value_type: str) -> list[object]:
         inspected_profiles.append(profile)
         if profile == "early.pprof":
             raise StopIteration
