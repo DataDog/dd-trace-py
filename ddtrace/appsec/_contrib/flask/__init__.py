@@ -1,10 +1,10 @@
 from collections.abc import Mapping
+from collections.abc import MutableMapping
 import io
 import json
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import MutableMapping
 from typing import Optional
 from typing import cast
 

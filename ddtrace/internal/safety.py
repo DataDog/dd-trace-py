@@ -1,5 +1,5 @@
+from collections.abc import Iterator  # noqa:F401
 from typing import Any  # noqa:F401
-from typing import Iterator  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -59,27 +59,25 @@ class SafeObjectProxy(wrapt.ObjectProxy):
             if not IS_312_OR_NEWER:
                 raise AttributeError("Access denied")
             else:
-                return super(SafeObjectProxy, self).__wrapped__
-        return super(SafeObjectProxy, self).__getattribute__(name)
+                return super().__wrapped__
+        return super().__getattribute__(name)
 
     def __getattr__(self, name: str) -> Any:
         if name == "__wrapped__":
             if IS_312_OR_NEWER:
                 raise AttributeError("Access denied")
             else:
-                return super(SafeObjectProxy, self).__wrapped__
-        return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
+                return super().__wrapped__
+        return type(self).safe(super().__getattr__(name))
 
     def __getitem__(self, item: Any) -> Any:
-        return type(self).safe(super(SafeObjectProxy, self).__getitem__(item))
+        return type(self).safe(super().__getitem__(item))
 
     def __iter__(self) -> Any:
-        return iter(type(self).safe(_) for _ in super(SafeObjectProxy, self).__iter__())
+        return iter(type(self).safe(_) for _ in super().__iter__())
 
     def items(self) -> Iterator[tuple[Any, Any]]:
-        return (
-            (type(self).safe(k), type(self).safe(v)) for k, v in super(SafeObjectProxy, self).__getattr__("items")()
-        )
+        return ((type(self).safe(k), type(self).safe(v)) for k, v in super().__getattr__("items")())
 
     # Custom object representations might cause side-effects
     def __str__(self):

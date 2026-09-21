@@ -5,7 +5,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 
 
-class PeerServiceConfig(object):
+class PeerServiceConfig:
     # TODO: Migrate PeerServiceConfig to envier
     remap_tag_name = "_dd.peer.service.remapped_from"
     source_tag_name = "_dd.peer.service.source"

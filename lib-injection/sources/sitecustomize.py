@@ -77,7 +77,7 @@ BOOTSTRAP_MARKER = "bootstrap"
 def get_oci_ddtrace_version():
     version_path = os.path.join(SCRIPT_DIR, "version")
     try:
-        with open(version_path, "r") as version_file:
+        with open(version_path) as version_file:
             return version_file.read().strip()
     except Exception:
         _log("Failed to read version file %s" % (version_path,), level="debug")
@@ -122,7 +122,7 @@ def build_requirements(current_python_version_str):
     try:
         for location in REQUIREMENTS_FILE_LOCATIONS:
             if os.path.exists(location):
-                with open(location, "r") as csvfile:
+                with open(location) as csvfile:
                     csv_reader = csv.reader(csvfile, delimiter=",")
                     next(csv_reader)  # Skip header
                     for row in csv_reader:
@@ -140,7 +140,7 @@ def build_denied_executables():
     _log("Checking denied-executables list", level="debug")
     try:
         if os.path.exists(EXECUTABLE_DENY_LOCATION):
-            with open(EXECUTABLE_DENY_LOCATION, "r") as denyfile:
+            with open(EXECUTABLE_DENY_LOCATION) as denyfile:
                 _log("Found deny-list file", level="debug")
                 for line in denyfile.readlines():
                     cleaned = line.strip("\n")
@@ -157,7 +157,7 @@ def build_denied_executable_modules():
     _log("Checking denied-executable-modules list", level="debug")
     try:
         if os.path.exists(EXECUTABLE_MODULES_DENY_LOCATION):
-            with open(EXECUTABLE_MODULES_DENY_LOCATION, "r") as denyfile:
+            with open(EXECUTABLE_MODULES_DENY_LOCATION) as denyfile:
                 _log("Found modules deny-list file", level="debug")
                 for line in denyfile.readlines():
                     cleaned = line.strip("\n").strip()

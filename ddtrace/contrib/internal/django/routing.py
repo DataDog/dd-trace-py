@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -34,7 +36,7 @@ def extract_request_method_list(view):
 # collection by _collect_routes_once(). A WeakSet lets entries auto-drop when
 # Django releases a resolver (e.g. after clear_url_caches()), which removes any
 # id-reuse risk that a plain set[int] would carry.
-_collected_resolvers: "weakref.WeakSet[URLResolver]" = weakref.WeakSet()
+_collected_resolvers: weakref.WeakSet[URLResolver] = weakref.WeakSet()
 
 
 def _collect_pattern_methods(callback: Optional[Callable[..., Any]]) -> list[str]:
@@ -53,7 +55,7 @@ def _collect_pattern_methods(callback: Optional[Callable[..., Any]]) -> list[str
     return list(request_method_list) or ["*"]
 
 
-def _collect_django_routes(patterns: "Iterable[Union[URLPattern, URLResolver]]", prefix: str = "") -> None:
+def _collect_django_routes(patterns: Iterable[Union[URLPattern, URLResolver]], prefix: str = "") -> None:
     """Walk URLPattern / URLResolver nodes and register endpoints in endpoint_collection.
 
     Joins parent and child route segments with the same semantics Django
@@ -84,7 +86,7 @@ def _collect_django_routes(patterns: "Iterable[Union[URLPattern, URLResolver]]",
                 endpoint_collection.add_endpoint(method, full_path, operation_name="django.request")
 
 
-def _collect_routes_once(resolver: "Optional[URLResolver]") -> None:
+def _collect_routes_once(resolver: Optional[URLResolver]) -> None:
     """Populate endpoint_collection by walking resolver.url_patterns once per resolver.
 
     Called from traced_load_middleware when a request handler is built, and from traced_get_response /
