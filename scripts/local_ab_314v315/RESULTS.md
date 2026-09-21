@@ -10,9 +10,12 @@ From a checkout of this branch (or any tip that contains `scripts/local_ab_314v3
 ./scripts/local_ab_314v315/run.sh
 DURATION=90 DDTRACE_SRC=$PWD ./scripts/local_ab_314v315/run.sh
 REUSE_VENV=/tmp/local314v315_.../venvs DURATION=90 ./scripts/local_ab_314v315/run.sh
+# Runtime-only control (profiling off, same tip/workload):
+PROFILING=0 DURATION=90 DDTRACE_SRC=$PWD ./scripts/local_ab_314v315/run.sh
 ```
 
 Requires `PY314_BIN` (default Homebrew `python3.14`) and `PY315_BIN` (default pyenv `3.15.0a7`).
+`PROFILING=0` sets `DD_PROFILING_ENABLED=false`, skips lock/memory/pprof env, and exits 0 when both sides serve traffic without starting the profiler.
 
 ## Run identity (verified from artifacts)
 
@@ -127,13 +130,64 @@ Window: one 90 s concurrent drive; CPU/RSS from 89 `ps` rows/side over ~91 s wal
 | …split by allocator domain | **`mem` domain carries it** | Same command. Domain means: `mem` A **3.02** → B **6.84 MB** (Δ **+3.82 MB**, ~27% of the RSS gap); `obj` A **5.55** → B **4.93 MB** (Δ **−0.62 MB**). So the tracked increase is raw-`PyMem` domain, not object domain. Caveat: A’s `obj` is pinned at exactly **5.55 MB** in all 7 profiles (**suspicious** — possible sampler artifact, **unverified**). |
 | `alloc-space` cumulative | **Not usable for RSS** | Totals are TB-scale sampled allocation volume per 15 s window (workload churn via `alloc_pressure` / `pure_mem`), not resident set. |
 | 3.15 allocator / pymalloc behavior | **Plausible, unproven** | Profiles show `mem` and `obj` domains on both sides with `memory.mem_domain_enabled=true`, but **no** controlled allocator A/B and **no** memray. Cannot attribute X MiB of the +14.9% to pymalloc vs interpreter vs profiler. |
-| Profiler overhead vs app | **Unknown split** | Single PID RSS; no profiler-off control run. |
+| Profiler overhead vs app | **Split below (profiler-off control)** | See § Profiler-off control |
 
 **Bottom line:** The +~15% RSS is a **real process-RSS difference** on this soak (**verified** `proc_metrics.csv`).
 
-- **Verified:** ~**23%** of the gap (**+3.21 MB** of **14.25 MB**) shows up as profiler-tracked live heap, and that increase sits in the **`mem` (raw `PyMem`) domain**, not `obj`.
-- **Unknown:** the remaining **~77%**. No artifact in this run accounts for it — candidates (interpreter/arena behavior, profiler buffers, fragmentation) are **untested** here.
-- Do **not** cite “3.15 allocator” or “profiler sample volume” as *the* cause. The `mem`-domain signal is a **lead worth a controlled follow-up** (profiler-off control + memray), not a conclusion.
+- **Verified (profiler on only):** ~**23%** of the gap (**+3.21 MB** of **14.25 MB**) shows up as profiler-tracked live heap, and that increase sits in the **`mem` (raw `PyMem`) domain**, not `obj`.
+- **Verified (profiler off):** ~**53%** of the on-gap is present with profiling **disabled** (runtime 3.15). ~**47%** is profiler-on × 3.15 interaction.
+- **Unknown residual:** ~**3.2 MiB** (~**23.5%** of the on-gap) after subtracting runtime gap + heap-space — candidates (profiler buffers, fragmentation, untracked arenas) untested.
+- Do **not** cite “3.15 allocator” or “profiler sample volume” as *the* sole cause. Runtime tax is first-order; memalloc is still the wrong first product lever for advertising.
+
+---
+
+## Profiler-off control (runtime-only)
+
+Matched control: same tip `822dd5a3fa…`, same interpreters, 90 s, concurrency 2, `PROFILING=0`.
+
+| Field | Value |
+| --- | --- |
+| `RUN_DIR` | `/tmp/local314v315_profoff_20260921T162409Z` |
+| In-repo copy | `runs/20260921T162409Z_profoff/` |
+| Tip | `822dd5a3fa158883b368965f081c97ccaa32c617` (pinned worktree `/tmp/dd-trace-py-822dd5a-profoff`) |
+| Vintage | 2026-09-21 12:24–12:31 EDT (−0400) |
+| `profiler_started` | **false** / **false** |
+| `.pprof` count | **0** / **0** |
+| Drive | A 473 ok · B 472 ok · 0 errors |
+
+### Metric table (off)
+
+| Metric | A 3.14.6 | B 3.15.0a7 | Δ | Δ% | Status |
+| --- | --- | --- | --- | --- | --- |
+| req total (90 s) | 473 | 472 | −1 | −0.2% | verified |
+| CPU% mean | 42.7% | 39.2% | −3.5 pp | −8.3% | verified |
+| CPU% p95 | 78.6% | 77.7% | −0.9 pp | −1.1% | verified |
+| RSS mean | **52.7 MiB** | **59.9 MiB** | **+7.19 MiB** | **+13.6%** | verified |
+| RSS p95 | 54.9 MiB | 63.9 MiB | +9.0 MiB | +16.5% | verified |
+
+### On vs off comparison + attribution
+
+| Quantity | Value | Status |
+| --- | --- | --- |
+| \(G_{on}\) RSS mean (B−A, profiling on) | **+13.59 MiB** (+14.9%) | verified prior |
+| \(G_{off}\) RSS mean (B−A, profiling off) | **+7.19 MiB** (+13.6%) | verified |
+| Runtime 3.15 share of \(G_{on}\) | **+7.19 MiB = 52.9%** | verified / inferred |
+| Profiler-on interaction \(G_{on}-G_{off}\) | **+6.40 MiB = 47.1%** | inferred |
+| Profiler cost A (on−off) | +38.24 MiB | inferred |
+| Profiler cost B (on−off) | +44.64 MiB | inferred |
+| Extra profiler cost on 3.15 | +6.40 MiB | inferred |
+| Tracked heap-space (on-run) | +3.21 MiB = 23.6% of \(G_{on}\) | verified |
+| Residual unknown (\(G_{on}-G_{off}-\)heap) | **+3.19 MiB ≈ 23.5% of \(G_{on}\)** | inferred |
+
+**Verdict labels**
+
+| Label | Share of +14.9% on-gap | Artifact |
+| --- | --- | --- |
+| **Runtime 3.15** | **~53%** | `.../profoff_.../proc_metrics.csv` |
+| **Profiler-on interaction** | **~47%** | on vs off delta |
+| **Still unknown** | **~23.5%** of on-gap (after runtime + heap) | residual |
+
+Relative off-gap (+13.6%) is similar in percent to on-gap (+14.9%) but on a lower absolute baseline; absolute MiB gap shrinks when profiling is off.
 
 ---
 
@@ -218,20 +272,21 @@ Twin **exists** at `~/go/src/github.com/DataDog/experimental/teams/profiling-pyt
 | Does memalloc explain the +14.9% RSS? | **No.** Tracked live heap is only ~23% of the gap; **alloc-space is lower on 3.15 (−16.5%)**, opposite of a “memalloc is blowing up” story. | verified |
 | Is advertising “profiling works on 3.15” blocked by this RSS delta? | **No for functional claim.** Profiler starts, sample types populate, asyncio meta OK, 0 errors, req parity. | verified functional signals |
 | Must shipping wait on a memalloc fix? | **No.** Wrong lever for the observed RSS. | inferred from verified totals |
-| Is this a known 3.15 runtime cost unrelated to our memalloc path? | **Plausible, unproven.** Remaining ~77% of RSS has no attribution here (no profiler-off control, no memray). | guess / unknown |
-| Correctness vs performance readiness | **Correctness/functional: ready to advertise with caveats.** **Performance/memory parity: not ready to claim** — caveat the RSS until profiler-off + repeats. | judgment on verified data |
+| Is this a known 3.15 runtime cost unrelated to our memalloc path? | **Partly yes.** Profiler-off shows **+13.6% / +7.19 MiB** runtime gap (~53% of the on-gap). Remaining interaction + residual still open. | verified off control |
+| Correctness vs performance readiness | **Correctness/functional: ready to advertise with caveats.** **Performance/memory parity: not ready to claim** — caveat the RSS (runtime + profiler interaction). | judgment on verified data |
 
 **Disagree early:** Treating “prioritize memalloc” as the gate confuses a real process-RSS surprise with a sample type that does **not** show elevated allocation volume on B.
 
 ### Still unknown (would settle it)
 
-1. Profiler-**off** A/B on both Pythons (splits runtime vs profiler RSS).
-2. Memray / allocator RSS breakdown for the ~77% outside `heap-space`.
-3. Repeated soaks / staging load (single 90s laptop).
+1. ~~Profiler-**off** A/B on both Pythons~~ — **done** (`PROFILING=0`, RUN_DIR above).
+2. Memray / allocator RSS breakdown for the ~3.2 MiB residual outside runtime + `heap-space`.
+3. Repeated soaks / staging load (single 90s laptop ×2).
 4. Lock-contended workload (current lock types empty).
 5. Latency p50/p95 (never recorded).
 
 Canvas (side-panel artifact): workspace `canvases/local-314v315-smoke-ab.canvas.tsx`.
+ADR: `docs/adr/0002-python-315-profiling-support.md` on branch `vlad/adr-py315-profiling`.
 
 ---
 

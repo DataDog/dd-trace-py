@@ -1,0 +1,141 @@
+{
+  "tip": "822dd5a3fa158883b368965f081c97ccaa32c617",
+  "duration_s": 90,
+  "profiling_enabled": false,
+  "metrics_run": "/tmp/local314v315_profoff_20260921T162409Z",
+  "table": [
+    {
+      "metric": "req total (90s)",
+      "A": "473",
+      "B": "472",
+      "delta": "-1",
+      "delta_pct": "-0.2%"
+    },
+    {
+      "metric": "req/s",
+      "A": "5.26",
+      "B": "5.24",
+      "delta": "-0.01",
+      "delta_pct": "-0.2%"
+    },
+    {
+      "metric": "errors",
+      "A": "0",
+      "B": "0",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "error rate",
+      "A": "0.000%",
+      "B": "0.000%",
+      "delta": "+0.000%",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "CPU% mean (ps 1Hz)",
+      "A": "42.7%",
+      "B": "39.2%",
+      "delta": "-3.5%",
+      "delta_pct": "-8.3%"
+    },
+    {
+      "metric": "CPU% p95",
+      "A": "78.6%",
+      "B": "77.7%",
+      "delta": "-0.9%",
+      "delta_pct": "-1.1%"
+    },
+    {
+      "metric": "CPU% max",
+      "A": "81.1%",
+      "B": "85.5%",
+      "delta": "+4.4%",
+      "delta_pct": "+5.4%"
+    },
+    {
+      "metric": "RSS mean",
+      "A": "52.7 MiB",
+      "B": "59.9 MiB",
+      "delta": "+7.2 MiB",
+      "delta_pct": "+13.6%"
+    },
+    {
+      "metric": "RSS p95",
+      "A": "54.9 MiB",
+      "B": "63.9 MiB",
+      "delta": "+9.0 MiB",
+      "delta_pct": "+16.5%"
+    },
+    {
+      "metric": "RSS max",
+      "A": "54.9 MiB",
+      "B": "63.9 MiB",
+      "delta": "+9.0 MiB",
+      "delta_pct": "+16.5%"
+    },
+    {
+      "metric": "asyncio_burst hits (server log)",
+      "A": "53",
+      "B": "53",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "asyncio_task_count mean (pprof meta)",
+      "A": "0.00",
+      "B": "0.00",
+      "delta": "+0.00",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "pprof .pprof files",
+      "A": "0",
+      "B": "0",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "pprof bytes (all artifacts)",
+      "A": "0.0 MB",
+      "B": "0.0 MB",
+      "delta": "+0.0 MB",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "profiler sample_capture_cpu_time_us sum",
+      "A": "0",
+      "B": "0",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "profiler sample_count sum",
+      "A": "0",
+      "B": "0",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    }
+  ],
+  "proc_raw": {
+    "A314": {
+      "n": 88,
+      "cpu_mean": 42.70113636363636,
+      "cpu_p95": 78.6,
+      "cpu_max": 81.1,
+      "rss_mean_mb": 52.70774147727273,
+      "rss_p95_mb": 54.890625,
+      "rss_max_mb": 54.890625
+    },
+    "B315": {
+      "n": 88,
+      "cpu_mean": 39.17045454545455,
+      "cpu_p95": 77.7,
+      "cpu_max": 85.5,
+      "rss_mean_mb": 59.89666193181818,
+      "rss_p95_mb": 63.9375,
+      "rss_max_mb": 63.9375
+    }
+  },
+  "caveat": "single 90s laptop soak, concurrency=2/side, not staging-grade; profiling_enabled=False; CPU% from ps 1Hz; RSS process RSS"
+}

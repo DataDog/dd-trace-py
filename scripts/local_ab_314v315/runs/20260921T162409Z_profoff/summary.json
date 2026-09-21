@@ -1,0 +1,85 @@
+{
+  "run_dir": "/tmp/local314v315_profoff_20260921T162409Z",
+  "ddtrace_src": "/tmp/dd-trace-py-822dd5a-profoff",
+  "ddtrace_sha": "822dd5a3fa158883b368965f081c97ccaa32c617",
+  "duration_s": 90,
+  "profiling_enabled": false,
+  "ports": {
+    "A": 18400,
+    "B": 18401
+  },
+  "sides": {
+    "A": {
+      "label": "A314",
+      "python_bin": "/opt/homebrew/bin/python3.14",
+      "profiler_started": false,
+      "server_log_tail": [
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/http HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/pure_mem?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/asyncio_burst?seconds=0.2 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/factorial?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/pure_mem?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/alloc_pressure?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/asyncio_burst?seconds=0.2 HTTP/1.1\" 200 -"
+      ],
+      "asyncio_burst_hits": 53,
+      "drive": {
+        "total": 473,
+        "ok": 473,
+        "err": 0,
+        "codes": {}
+      },
+      "proc": {
+        "n": 88,
+        "cpu_mean": 42.70113636363636,
+        "cpu_p95": 78.6,
+        "cpu_max": 81.1,
+        "rss_mean_mb": 52.70774147727273,
+        "rss_p95_mb": 54.890625,
+        "rss_max_mb": 54.890625
+      },
+      "pprof_count": 0,
+      "pprof_bytes": 0,
+      "sample_capture_cpu_time_us": 0,
+      "sample_count": 0,
+      "asyncio_task_count_mean": 0.0
+    },
+    "B": {
+      "label": "B315",
+      "python_bin": "/Users/vlad.scherbich/.pyenv/versions/3.15.0a7/bin/python",
+      "profiler_started": false,
+      "server_log_tail": [
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/dynamic_code_generation?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/http HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/pure_mem?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/asyncio_burst?seconds=0.2 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/factorial?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/alloc_pressure?duration=0.5 HTTP/1.1\" 200 -",
+        "127.0.0.1 - \"GET /internal/rapid_python_http_smoke_test/asyncio_burst?seconds=0.2 HTTP/1.1\" 200 -"
+      ],
+      "asyncio_burst_hits": 53,
+      "drive": {
+        "total": 472,
+        "ok": 472,
+        "err": 0,
+        "codes": {}
+      },
+      "proc": {
+        "n": 88,
+        "cpu_mean": 39.17045454545455,
+        "cpu_p95": 77.7,
+        "cpu_max": 85.5,
+        "rss_mean_mb": 59.89666193181818,
+        "rss_p95_mb": 63.9375,
+        "rss_max_mb": 63.9375
+      },
+      "pprof_count": 0,
+      "pprof_bytes": 0,
+      "sample_capture_cpu_time_us": 0,
+      "sample_count": 0,
+      "asyncio_task_count_mean": 0.0
+    }
+  }
+}
