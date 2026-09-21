@@ -106,7 +106,7 @@ def finish_request_span(request, response):
             resource = res_info.get("prefix")
 
         # prefix the resource name by the http method
-        resource = "{} {}".format(request.method, resource)
+        resource = f"{request.method} {resource}"
 
     event: WebFrameworkRequestEvent = ctx.event
     event.resource = resource

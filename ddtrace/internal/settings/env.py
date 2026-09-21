@@ -14,10 +14,10 @@ is unset. Aliases registered here must be pure renames (same value space) —
 translations like OTEL→DD belong in ``_otel_remapper.py`` instead.
 """
 
+from collections.abc import Iterator
 from collections.abc import MutableMapping
 import logging
 import os
-from typing import Iterator
 from typing import Optional
 
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES

@@ -146,7 +146,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert span.get_metric("db.row_count") == 2
 
 
-class TestInnerFunctionCalls(object):
+class TestInnerFunctionCalls:
     def single_cache(self, x):
         return x * 2
 
@@ -205,7 +205,7 @@ def test_get_or_create_kwarg_only(region):
 )
 def test_schematization(ddtrace_run_python_code_in_subprocess, schema_tuples):
     service_override, schema_version, expected_service, expected_operation = schema_tuples
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -229,12 +229,12 @@ def test(tracer, single_cache, test_spans):
     spans = traces[0]
     span = spans[0]
 
-    assert str(span.service) == "{}"
-    assert str(span.name) == "{}"
+    assert str(span.service) == "{expected_service}"
+    assert str(span.name) == "{expected_operation}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service, expected_operation)
+    """
     env = os.environ.copy()
     if service_override:
         env["DD_SERVICE"] = service_override

@@ -1,6 +1,6 @@
 import json
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING

@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 from ipaddress import ip_network
+from unittest import mock
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -10,7 +10,6 @@ from hypothesis.strategies import none
 from hypothesis.strategies import recursive
 from hypothesis.strategies import text
 from hypothesis.strategies import tuples
-import mock
 import pytest
 
 from ddtrace import config
@@ -74,7 +73,7 @@ def test_copy_trace_level_tags_preserves_inherited_otel_fields():
     assert target.context._tracestate == "dd=s:1,ot=rv:1234567890abcd;th:e6666666666668;future:value"
 
 
-class TestHeaders(object):
+class TestHeaders:
     @pytest.fixture()
     def span(self):
         yield Span("some_span")

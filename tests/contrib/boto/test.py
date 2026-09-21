@@ -28,7 +28,7 @@ class BotoTest(TracerTestCase):
     """Botocore integration testsuite"""
 
     def setUp(self):
-        super(BotoTest, self).setUp()
+        super().setUp()
         patch()
 
     @mock_ec2

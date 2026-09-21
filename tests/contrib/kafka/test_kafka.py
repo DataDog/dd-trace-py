@@ -395,7 +395,7 @@ def _generate_in_subprocess(random_topic):
 
 @pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=SNAPSHOT_IGNORES)
 def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
-    code = """
+    code = f"""
 import sys
 import pytest
 from tests.contrib.kafka.test_kafka import _generate_in_subprocess
@@ -403,11 +403,11 @@ from tests.contrib.kafka.conftest import kafka_topic
 
 
 def test():
-    _generate_in_subprocess("{}")
+    _generate_in_subprocess("{kafka_topic}")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(kafka_topic)
+    """
     env = os.environ.copy()
     env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
@@ -420,17 +420,17 @@ if __name__ == "__main__":
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
 def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
-    code = """
+    code = f"""
 import sys
 import pytest
 from tests.contrib.kafka.test_kafka import _generate_in_subprocess
 
 def test():
-    _generate_in_subprocess("{}")
+    _generate_in_subprocess("{kafka_topic}")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(kafka_topic)
+    """
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service
