@@ -162,7 +162,9 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
 
 
 @pytest.mark.parametrize("print_samples_on_failure", (False, True))
-def test_missing_sample_diagnostic_precedes_profile_dump(capsys, monkeypatch, print_samples_on_failure):
+def test_missing_sample_diagnostic_precedes_profile_dump(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, print_samples_on_failure: bool
+) -> None:
     from tests.profiling.collector import pprof_utils
 
     profile = pprof_utils.pprof_pb2.Profile()
