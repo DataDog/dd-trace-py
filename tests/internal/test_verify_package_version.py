@@ -37,6 +37,12 @@ def verify_mod() -> ModuleType:
         ("4.16.0rc1+identify_foreign_segv", True, "4.16.0rc1+identify.foreign.segv"),
         ("4.1.0.dev0", True, "4.1.0.dev0"),
         ("4.1.0.dev", False, "4.1.0.dev0"),
+        # Noncanonical public version must still fail even with a local label.
+        ("4.1.0.dev+foo-bar", False, "4.1.0.dev0+foo.bar"),
+        ("4.1.0.dev+identify_foreign_segv", False, "4.1.0.dev0+identify.foreign.segv"),
+        ("1.2.3rc+local", False, "1.2.3rc0+local"),
+        ("4.1.0a+bar-baz", False, "4.1.0a0+bar.baz"),
+        ("4.16.0RC1+identify-foreign-segv", False, "4.16.0rc1+identify.foreign.segv"),
         ("not-a-version", False, ""),
         ("1.0+", False, ""),
     ],
