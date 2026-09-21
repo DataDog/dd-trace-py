@@ -309,6 +309,9 @@ lint.unfixable =[
 "tests/profiling/collector/test_memalloc.py" = ["UP037"]
 # Test asserts exact open() call args including mode="r"
 "ddtrace/internal/runtime/container.py" = ["UP015"]
+# IAST leak harness: str.format() calls exercise the format_aspect taint
+# propagation path. Converting to f-strings removes that coverage.
+"scripts/iast/mod_leak_functions.py" = ["UP032"]
 
 [tool.ruff.format]
 # Formatter-specific settings

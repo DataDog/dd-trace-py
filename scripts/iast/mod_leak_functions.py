@@ -128,16 +128,16 @@ def add_variants(string_tainted, string_no_tainted) -> str:
 
 
 def format_variants(string_tainted, string_no_tainted) -> str:
-    string_tainted_2 = f"My name is {string_tainted} and I am {30} years old."
-    string_tainted_3 = f"My name is {string_tainted_2} and I am {25} years old."
-    string_tainted_4 = f"{string_tainted_3} is {35} years old. {string_tainted_3} lives in {string_no_tainted}."
-    string_tainted_5 = f"|{string_tainted_4:<10}|{string_no_tainted:^10}|{string_tainted_4:>10}|"
-    string_tainted_6 = f"|{string_no_tainted:-<10}|{string_tainted_5:*^10}|{string_no_tainted:.>10}|"
-    string_tainted_7 = f"{string_tainted_6} is approximately {3.1415926535:.3f}"
-    string_tainted_8 = f"The {string_tainted_7} is {1000000:,}"
-    string_tainted_9 = f"{string_tainted_8} Hex: {255:x}, Bin: {255:b}, Oct: {255:o}"
-    string_tainted_10 = f"{string_tainted_9} Success rate: {0.8765:.2%}"
-    string_tainted_11 = f"{string_tainted_10} {42:+d}, {-42:+d}"
+    string_tainted_2 = "My name is {} and I am {} years old.".format(string_tainted, 30)
+    string_tainted_3 = "My name is {name} and I am {age} years old.".format(name=string_tainted_2, age=25)
+    string_tainted_4 = "{0} is {1} years old. {0} lives in {2}.".format(string_tainted_3, 35, string_no_tainted)
+    string_tainted_5 = "|{:<10}|{:^10}|{:>10}|".format(string_tainted_4, string_no_tainted, string_tainted_4)
+    string_tainted_6 = "|{:-<10}|{:*^10}|{:.>10}|".format(string_no_tainted, string_tainted_5, string_no_tainted)
+    string_tainted_7 = "{} is approximately {:.3f}".format(string_tainted_6, 3.1415926535)
+    string_tainted_8 = "The {} is {:,}".format(string_tainted_7, 1000000)
+    string_tainted_9 = "{1} Hex: {0:x}, Bin: {0:b}, Oct: {0:o}".format(255, string_tainted_8)
+    string_tainted_10 = "{} Success rate: {:.2%}".format(string_tainted_9, 0.8765)
+    string_tainted_11 = "{} {:+d}, {:+d}".format(string_tainted_10, 42, -42)
     return string_tainted_11
 
 
@@ -310,7 +310,7 @@ async def test_doit():
 
     string8_6 = string8_5[25:150]
 
-    string9 = f"notainted#{string8_6}"
+    string9 = "notainted#{}".format(string8_6)
     string9_2 = f"{string9}_notainted"
     string9_3 = f"{string9_2:=^30}_notainted"
     string10 = "nottainted\n" + string9_3
