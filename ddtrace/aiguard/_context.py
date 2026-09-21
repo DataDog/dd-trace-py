@@ -1,77 +1,112 @@
-"""Active-flag tracking for AI Guard collision avoidance.
+"""Phase-scoped collision avoidance for AI Guard.
 
-When a framework integration (e.g. LangChain, Strands) is already evaluating
-messages through AI Guard, provider-level integrations (e.g. OpenAI) must
-skip their own evaluation to avoid double-scanning. The framework calls
-``set_aiguard_context_active()`` around its dispatch + LLM call block and
-the provider listener calls ``is_aiguard_context_active()`` to decide
-whether to short-circuit
+A framework integration (LangChain, Strands) and a provider integration (OpenAI,
+Anthropic) can both fire for the same call. The framework marks the phases it
+evaluates itself, and a provider listener skips only the phase it is asked about
+-- so a framework that covers the request but not the response leaves the
+provider's response protection in place.
+
+The phases are tracked independently because the split is what the coverage
+depends on. LangChain streaming evaluates the request itself but has no
+after-event to evaluate the response on, so it claims REQUEST only and the
+provider's buffered stream still scans the response (APPSEC-70286). A single
+all-or-nothing flag suppressed both and left streamed responses unevaluated.
+
+Who claims what:
+
+- LangChain generate / agenerate: REQUEST and RESPONSE (it evaluates both).
+- LangChain streaming: REQUEST only.
+- Strands: REQUEST and RESPONSE (before- and after-model-call hooks).
 """
 
 from collections.abc import Iterator
 import contextlib
 import contextvars
+from enum import Enum
 from typing import Optional
 
 
-_AI_GUARD_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar("ai_guard_active_depth", default=0)
+class Phase(Enum):
+    """Half of a model call a framework may take responsibility for."""
+
+    REQUEST = "request"
+    RESPONSE = "response"
 
 
-def is_aiguard_context_active() -> bool:
-    """Return ``True`` if a framework-level AI Guard evaluation is in progress."""
-    return _AI_GUARD_DEPTH.get() > 0
+ALL_PHASES: tuple[Phase, ...] = (Phase.REQUEST, Phase.RESPONSE)
+
+_DEPTHS = {
+    Phase.REQUEST: contextvars.ContextVar("ai_guard_request_depth", default=0),
+    Phase.RESPONSE: contextvars.ContextVar("ai_guard_response_depth", default=0),
+}
+
+# Opaque pairing handle returned by set / consumed by reset.
+PhaseTokens = tuple[tuple[Phase, contextvars.Token[int]], ...]
 
 
-def set_aiguard_context_active() -> contextvars.Token[int]:
-    """Mark the current execution context as already under AI Guard evaluation.
+def is_aiguard_context_active(phase: Optional[Phase] = None) -> bool:
+    """Return whether a framework already covers phase.
 
-    Returns an opaque :class:`contextvars.Token` to pair with
-    :func:`reset_aiguard_context_active`. Nested set / reset pairs increment
-    and decrement the same depth counter, so reads return ``True`` until every
-    set is matched by a reset.
+    Omitting phase asks whether any phase is covered. Callers that guard a
+    specific evaluation should always name their phase; the phase-less form
+    exists for callers that only need to know an evaluation is in flight.
     """
-    return _AI_GUARD_DEPTH.set(_AI_GUARD_DEPTH.get() + 1)
+    if phase is None:
+        return any(var.get() > 0 for var in _DEPTHS.values())
+    return _DEPTHS[phase].get() > 0
 
 
-def reset_aiguard_context_active(token: Optional[contextvars.Token[int]]) -> None:
-    """Restore the depth counter to its value before the matching ``set``.
+def set_aiguard_context_active(*phases: Phase) -> PhaseTokens:
+    """Claim phases for the current execution context.
 
-    A ``None`` token is a defensive no-op (e.g. cleanup paths that may run
-    without a prior ``set``).
+    No arguments claims every phase. Returns a handle to pair with
+    reset_aiguard_context_active; nested claims increment the same counters, so
+    reads stay true until every claim is released.
     """
-    if token is None:
-        return
-    _AI_GUARD_DEPTH.reset(token)
+    return tuple((phase, _DEPTHS[phase].set(_DEPTHS[phase].get() + 1)) for phase in (phases or ALL_PHASES))
 
 
-def reset_aiguard_context_active_current() -> None:
-    """Tokenless companion to :func:`reset_aiguard_context_active`.
-
-    Decrements the depth counter for the current context. Used when the
-    original token is not accessible — e.g. a framework's ``.after``
-    listener releasing the counter that the matching ``.before`` listener
-    bumped, since the dispatch infrastructure does not thread the token
-    through to the after-event.
-
-    Safe to call when the counter is already zero (no-op): the ``.after``
-    event may fire without a matching ``.before`` if dispatch is
-    reconfigured at runtime.
-    """
-    depth = _AI_GUARD_DEPTH.get()
+def _decrement(phase: Phase) -> None:
+    """Lower one phase's counter, never below zero."""
+    var = _DEPTHS[phase]
+    depth = var.get()
     if depth > 0:
-        _AI_GUARD_DEPTH.set(depth - 1)
+        var.set(depth - 1)
+
+
+def reset_aiguard_context_active(tokens: Optional[PhaseTokens]) -> None:
+    """Release the claims recorded in tokens. A falsy handle is a no-op."""
+    if not tokens:
+        return
+    for phase, token in reversed(tokens):
+        try:
+            _DEPTHS[phase].reset(token)
+        except ValueError:
+            # The token was created in a different Context -- a framework whose
+            # before- and after-hooks landed in different asyncio tasks. Raising
+            # here would escape into the framework's cleanup path, so fall back
+            # to a plain decrement, which is correct whether this context
+            # inherited the claim or never saw it (APPSEC-70282).
+            _decrement(phase)
+
+
+def reset_aiguard_context_active_current(*phases: Phase) -> None:
+    """Tokenless release, for callers that cannot hold a token.
+
+    A framework's after-event listener releasing what its before-event listener
+    claimed has no way to thread the token through the dispatch. Safe to call
+    when nothing is claimed: the counters never go below zero, so an after-event
+    firing without a matching before-event cannot corrupt the state.
+    """
+    for phase in phases or ALL_PHASES:
+        _decrement(phase)
 
 
 @contextlib.contextmanager
-def aiguard_context() -> Iterator[None]:
-    """Mark the current task as under AI Guard evaluation for the block's duration.
-
-    Framework integrations (LangChain, Strands) wrap their dispatch + LLM
-    call block with this so nested provider-level integrations (e.g. OpenAI)
-    skip their own evaluation.
-    """
-    token = set_aiguard_context_active()
+def aiguard_context(*phases: Phase) -> Iterator[None]:
+    """Claim phases for the duration of the block. No arguments claims every phase."""
+    tokens = set_aiguard_context_active(*phases)
     try:
         yield
     finally:
-        reset_aiguard_context_active(token)
+        reset_aiguard_context_active(tokens)

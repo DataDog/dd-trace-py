@@ -75,6 +75,7 @@ from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._api_client import new_ai_guard_client
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
@@ -264,8 +265,11 @@ class AIGuardStrandsIntegration:
         own evaluation while Strands owns the lifecycle. The token is stored
         on ``invocation_state`` so it is per-invocation and survives nested or
         concurrent agent calls that share a single plugin/hook instance.
+
+        Both phases: Strands evaluates the request in before-model-call and the
+        response in after-model-call, so the provider has nothing left to cover.
         """
-        event.invocation_state[_INVOCATION_CTX_KEY] = set_aiguard_context_active()
+        event.invocation_state[_INVOCATION_CTX_KEY] = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
 
     def _on_after_invocation_base(self, event: _AfterInvocationEvent) -> None:
         """Reset the AI Guard context at the end of the agent invocation.
@@ -273,6 +277,10 @@ class AIGuardStrandsIntegration:
         Paired with ``_on_before_invocation_base``. Strands fires this in a
         ``finally`` block so it runs even when the model or tool hooks raised
         ``AIGuardAbortError``.
+
+        reset_aiguard_context_active tolerates a token created in a different
+        asyncio context, so a before/after pair split across tasks degrades to a
+        plain decrement instead of raising into this cleanup path.
         """
         token = event.invocation_state.pop(_INVOCATION_CTX_KEY, None)
         if token is not None:

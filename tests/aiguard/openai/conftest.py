@@ -5,6 +5,7 @@ import json
 import httpx
 import pytest
 
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard._initialization import load_ai_guard
@@ -22,6 +23,20 @@ def aiguard_active_context():
     do not observe a leaked active counter.
     """
     token = set_aiguard_context_active()
+    try:
+        yield
+    finally:
+        reset_aiguard_context_active(token)
+
+
+@pytest.fixture
+def aiguard_request_phase_context():
+    """Claim only the request phase, the way LangChain streaming does.
+
+    The framework evaluates the request itself but has no after-event for the
+    response, so the provider must still buffer and evaluate it (APPSEC-70286).
+    """
+    token = set_aiguard_context_active(Phase.REQUEST)
     try:
         yield
     finally:

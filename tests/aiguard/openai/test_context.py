@@ -1,21 +1,24 @@
 """Validation of ``ddtrace.aiguard._context``.
 
-The ``_context`` module owns AI-Guard collision avoidance: framework
-integrations (LangChain, Strands) flip an "evaluation in progress" flag
-so provider-level integrations (OpenAI) skip their own evaluation. The
-flag is tracked by a single ``contextvars.ContextVar[int]`` depth counter,
-matching the IAST request-context pattern. Isolation across threads and
-asyncio tasks is provided by Python's standard Context propagation.
+The _context module owns AI-Guard collision avoidance: a framework
+integration (LangChain, Strands) claims the phases of a model call it
+evaluates itself, and provider-level integrations (OpenAI, Anthropic) skip
+only the phase they are asked about. Each phase has its own
+contextvars.ContextVar[int] depth counter, matching the IAST
+request-context pattern. Isolation across threads and asyncio tasks is
+provided by Python's standard Context propagation.
 
 Coverage:
 
 * Owner isolation — threads and asyncio sibling tasks don't see each
-  other's flag, courtesy of ``ContextVar``'s per-thread / per-task
+  other's claims, courtesy of ContextVar's per-thread / per-task
   inheritance via ``copy_context()``.
 * Counter nesting — set/reset pairs increment/decrement the same
   counter; LIFO inner reset restores the outer state.
 * ``aiguard_context()`` — set/reset around a block, including exception
   paths.
+* Phase scoping — claiming one phase leaves the other free, and a token
+  released in a foreign Context degrades instead of raising.
 """
 
 import asyncio
@@ -23,6 +26,7 @@ import threading
 
 import pytest
 
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import aiguard_context
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
@@ -219,4 +223,86 @@ class TestAIGuardContextManager:
         with aiguard_context():
             await asyncio.sleep(0)
             assert is_aiguard_context_active() is True
+        assert is_aiguard_context_active() is False
+
+
+# ---------------------------------------------------------------------------
+# Phase scoping (APPSEC-70286)
+#
+# A framework claims only the phases it evaluates itself. The all-or-nothing
+# flag this replaced made LangChain streaming suppress the provider's
+# buffered-stream evaluation without providing one, so a streamed response was
+# scanned by nobody.
+# ---------------------------------------------------------------------------
+
+
+class TestPhases:
+    def test_claiming_one_phase_leaves_the_other_free(self):
+        token = set_aiguard_context_active(Phase.REQUEST)
+        try:
+            assert is_aiguard_context_active(Phase.REQUEST) is True
+            assert is_aiguard_context_active(Phase.RESPONSE) is False
+            # The phase-less form still reports that *something* is in flight.
+            assert is_aiguard_context_active() is True
+        finally:
+            reset_aiguard_context_active(token)
+        assert is_aiguard_context_active() is False
+
+    def test_no_argument_claims_every_phase(self):
+        token = set_aiguard_context_active()
+        try:
+            assert is_aiguard_context_active(Phase.REQUEST) is True
+            assert is_aiguard_context_active(Phase.RESPONSE) is True
+        finally:
+            reset_aiguard_context_active(token)
+        assert is_aiguard_context_active(Phase.REQUEST) is False
+        assert is_aiguard_context_active(Phase.RESPONSE) is False
+
+    def test_reset_releases_only_what_was_claimed(self):
+        """Releasing a request-phase claim MUST NOT disturb a separate response claim."""
+        response_token = set_aiguard_context_active(Phase.RESPONSE)
+        request_token = set_aiguard_context_active(Phase.REQUEST)
+        try:
+            reset_aiguard_context_active(request_token)
+            assert is_aiguard_context_active(Phase.REQUEST) is False
+            assert is_aiguard_context_active(Phase.RESPONSE) is True
+        finally:
+            reset_aiguard_context_active(response_token)
+        assert is_aiguard_context_active() is False
+
+    def test_tokenless_reset_is_phase_scoped(self):
+        set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+        try:
+            reset_aiguard_context_active_current(Phase.REQUEST)
+            assert is_aiguard_context_active(Phase.REQUEST) is False
+            assert is_aiguard_context_active(Phase.RESPONSE) is True
+        finally:
+            reset_aiguard_context_active_current(Phase.RESPONSE)
+        assert is_aiguard_context_active() is False
+
+    def test_context_manager_is_phase_scoped(self):
+        with aiguard_context(Phase.RESPONSE):
+            assert is_aiguard_context_active(Phase.RESPONSE) is True
+            assert is_aiguard_context_active(Phase.REQUEST) is False
+        assert is_aiguard_context_active() is False
+
+    @pytest.mark.asyncio
+    async def test_cross_context_token_reset_does_not_raise(self):
+        """A token released in a different Context MUST degrade, not raise (APPSEC-70282).
+
+        Strands stores the before-invocation token on invocation_state and
+        releases it in after-invocation. When those hooks land in different
+        asyncio tasks, ContextVar.reset would raise ValueError straight
+        into the framework's cleanup path.
+        """
+        box = {}
+
+        async def _before():
+            box["token"] = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+
+        async def _after():
+            reset_aiguard_context_active(box["token"])
+
+        await asyncio.create_task(_before())
+        await asyncio.create_task(_after())  # must not raise
         assert is_aiguard_context_active() is False
