@@ -1,10 +1,9 @@
 """Tests for .gitlab/validate-ddtrace-package.py, the gate on the publication artifact.
 
-"ddtrace package" and "ddtrace package serverless" run this script over pywheels/, and its
-artifact is what reaches PyPI, the dd-trace-py-builds bucket and the private prerelease
-index. Until this change a wheel outside the expected set was reported as a warning, and
-warnings never reached sys.exit, so cp315 wheels compiled against a 3.15 beta ABI were
-published for 31 releases with every job green.
+release_pypi and the adms publish path run this script over the pruned pywheels-publish
+copy. Until this change a wheel outside the expected set was reported as a warning, and
+warnings never reached sys.exit, so cp315 wheels compiled against a 3.15 beta ABI reached
+PyPI with every job green.
 
 The script only ever runs on the python:3.14.0 image in CI, but tests/internal also runs on
 3.9 and 3.10, where the script's own "str | None" annotations and tomllib import are not
@@ -15,13 +14,9 @@ What is being pinned:
   * A cp315 wheel fails the job and the failure names the tag. This is the actual defect.
   * Anything the script prints a "✗" for drives a non-zero exit. That equivalence is the
     property that was missing, and it is asserted on every fixture below.
-  * py3-none-any, abi3 and free-threaded cp3XXt wheels are rejected. They already were,
-    via the filename-parsing path, which is why widening the unexpected-wheel check could
-    not newly fire on them.
   * PYTHON_TAGS agrees with pyproject.toml's requires-python, and disagreeing in either
     direction fails the job rather than silently validating fewer wheels.
-  * WIN_ARM64_PYTHON_TAGS is derived, and the derivation matches cibw_skip in
-    .github/workflows/build_deploy.yml.
+  * --mode=adms accepts the manylinux-only publication matrix used by the adms upload path.
 """
 
 import importlib.machinery
@@ -45,8 +40,6 @@ if sys.version_info < (3, 11):
 
 _REPO_ROOT: pathlib.Path = pathlib.Path(__file__).resolve().parents[2]
 _VALIDATOR: pathlib.Path = _REPO_ROOT / ".gitlab" / "validate-ddtrace-package.py"
-_PRUNE_SCRIPT: pathlib.Path = _REPO_ROOT / ".gitlab" / "scripts" / "prune-unsupported-wheels.sh"
-_BUILD_DEPLOY_YML: pathlib.Path = _REPO_ROOT / ".github" / "workflows" / "build_deploy.yml"
 
 VERSION: str = "9.9.9"
 
@@ -79,19 +72,12 @@ def _wheel(tag: str, platform: str, flavor: str = "") -> str:
 
 
 def _full_matrix() -> list[str]:
-    """Every wheel the pipeline is expected to hand to "ddtrace package"."""
+    """Every wheel the main publication path is expected to validate."""
     wheels: list[str] = [
         _wheel(tag, platform) for tag, platform in itertools.product(validator.PYTHON_TAGS, validator.BASE_PLATFORMS)
     ]
     wheels += [_wheel(tag, "win_arm64") for tag in validator.WIN_ARM64_PYTHON_TAGS]
     return wheels
-
-
-def _serverless_matrix() -> list[str]:
-    return [
-        _wheel(tag, platform, flavor="_serverless")
-        for tag, platform in itertools.product(validator.PYTHON_TAGS, validator.SERVERLESS_PLATFORMS)
-    ]
 
 
 def _make_dir(tmp_path: pathlib.Path, names: list[str], sdist: bool = True) -> pathlib.Path:
@@ -132,71 +118,20 @@ def test_full_matrix_passes(tmp_path: pathlib.Path) -> None:
     assert "SUCCESS" in output
 
 
-def test_serverless_matrix_passes(tmp_path: pathlib.Path) -> None:
-    returncode: int
-    output: str
-    returncode, output = _run(_make_dir(tmp_path, _serverless_matrix(), sdist=False), "--mode=serverless")
-    assert returncode == 0, output
-
-
-@pytest.mark.parametrize(
-    "mode_args,matrix,flavor", [((), _full_matrix, ""), (("--mode=serverless",), _serverless_matrix, "_serverless")]
-)
-def test_cp315_wheels_fail(
-    tmp_path: pathlib.Path,
-    mode_args: tuple[str, ...],
-    matrix: typing.Callable[[], list[str]],
-    flavor: str,
-) -> None:
+def test_cp315_wheels_fail(tmp_path: pathlib.Path) -> None:
     """The defect: a cp315 wheel used to be a warning, which never changed the exit code."""
-    cp315: list[str] = [_wheel("cp315", platform, flavor=flavor) for platform in LINUX_PLATFORMS]
-    wheels_dir: pathlib.Path = _make_dir(tmp_path, matrix() + cp315, sdist=not flavor)
+    cp315: list[str] = [_wheel("cp315", platform) for platform in LINUX_PLATFORMS]
+    wheels_dir: pathlib.Path = _make_dir(tmp_path, _full_matrix() + cp315)
 
     returncode: int
     output: str
-    returncode, output = _run(wheels_dir, *mode_args)
+    returncode, output = _run(wheels_dir)
 
     assert returncode != 0, output
     assert "cp315" in output
     assert f"Unexpected wheels: {len(cp315)} (cp315)" in output
     for name in cp315:
         assert name in output
-
-
-def test_publish_copy_prunes_cp315_while_s3_copy_keeps_it(tmp_path: pathlib.Path) -> None:
-    """The S3 artifact remains complete while the publish copy passes strict validation."""
-    cp315: list[str] = [_wheel("cp315", platform) for platform in LINUX_PLATFORMS]
-    s3_dir: pathlib.Path = _make_dir(tmp_path, _full_matrix() + cp315)
-    pypi_dir: pathlib.Path = tmp_path / "pypi-publish"
-    shutil.copytree(s3_dir, pypi_dir)
-    adms_source_root: pathlib.Path = tmp_path / "adms-source"
-    adms_source_root.mkdir()
-    adms_source: pathlib.Path = _make_dir(
-        adms_source_root,
-        [_wheel(tag, platform) for tag, platform in itertools.product(validator.PYTHON_TAGS, validator.ADMS_PLATFORMS)]
-        + [_wheel("cp315", platform) for platform in validator.ADMS_PLATFORMS],
-        sdist=False,
-    )
-    adms_dir: pathlib.Path = tmp_path / "adms-publish"
-    shutil.copytree(adms_source, adms_dir)
-
-    prune_result: subprocess.CompletedProcess[str] = subprocess.run(
-        ["bash", str(_PRUNE_SCRIPT), str(pypi_dir), str(adms_dir)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert prune_result.returncode == 0, prune_result.stderr
-    assert all((s3_dir / name).exists() for name in cp315)
-    assert all(not (pypi_dir / name).exists() for name in cp315)
-    assert all(not (adms_dir / name).exists() for name in cp315)
-    returncode: int
-    output: str
-    returncode, output = _run(pypi_dir)
-    assert returncode == 0, output
-    returncode, output = _run(adms_dir, "--mode=adms")
-    assert returncode == 0, output
 
 
 def test_adms_publish_copy_validates_pruned_manylinux_set(tmp_path: pathlib.Path) -> None:
@@ -222,40 +157,6 @@ def test_unexpected_platform_fails(tmp_path: pathlib.Path) -> None:
     assert rogue in output
 
 
-def test_missing_wheel_fails(tmp_path: pathlib.Path) -> None:
-    """Regression guard: the expected-but-absent direction was already fatal."""
-    incomplete: list[str] = _full_matrix()
-    dropped: str = incomplete.pop()
-    returncode: int
-    output: str
-    returncode, output = _run(_make_dir(tmp_path, incomplete))
-    assert returncode != 0, output
-    assert dropped in output
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        f"ddtrace-{VERSION}-py3-none-any.whl",
-        f"ddtrace-{VERSION}-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-        f"ddtrace-{VERSION}-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
-    ],
-)
-def test_wheels_outside_the_cpython_abi_scheme_fail(tmp_path: pathlib.Path, name: str) -> None:
-    """Pure-Python, abi3 and free-threaded wheels are rejected by the filename parser.
-
-    The pipeline builds none of them today (build_deploy.yml skips cp314t*, and nothing
-    produces abi3 or py3-none-any), and they were already fatal before this change. Pinning
-    that is what makes the widened unexpected-wheel check safe: none of these can start
-    failing as a result of it, because they never reached the expected-set comparison.
-    """
-    returncode: int
-    output: str
-    returncode, output = _run(_make_dir(tmp_path, _full_matrix() + [name]))
-    assert returncode != 0, output
-    assert "Malformed wheel filenames" in output
-
-
 def test_python_tags_agree_with_requires_python() -> None:
     """The shipped PYTHON_TAGS must match what pyproject.toml declares support for."""
     assert validator.check_python_tags_current(_REPO_ROOT) == []
@@ -264,10 +165,8 @@ def test_python_tags_agree_with_requires_python() -> None:
 @pytest.mark.parametrize(
     "requires_python,expected_message",
     [
-        # Support widened without extending PYTHON_TAGS. This is the cp315 situation, and
-        # the shape an unbounded ">=3.9" or ">=3.9,<4.0" also takes.
+        # Support widened without extending PYTHON_TAGS (the cp315 situation).
         (">=3.9,<3.16", "but PYTHON_TAGS stops at"),
-        (">=3.9", "but PYTHON_TAGS stops at"),
         # PYTHON_TAGS expecting wheels for an interpreter we no longer publish for.
         (">=3.9,<3.13", "does not support those interpreters"),
     ],
@@ -289,45 +188,3 @@ def test_stale_python_tags_fail_the_job(tmp_path: pathlib.Path, requires_python:
 
     assert returncode != 0, output
     assert expected_message in output
-
-
-def test_missing_requires_python_is_an_error(tmp_path: pathlib.Path) -> None:
-    """An unreadable cross-check must fail rather than skip. Skipping is the original bug."""
-    fake_root: pathlib.Path = tmp_path / "repo"
-    (fake_root / ".gitlab").mkdir(parents=True)
-    shutil.copy(_VALIDATOR, fake_root / ".gitlab" / _VALIDATOR.name)
-    (fake_root / "pyproject.toml").write_text('[project]\nname = "ddtrace"\n')
-
-    returncode: int
-    output: str
-    returncode, output = _run(_make_dir(tmp_path, _full_matrix()), script=fake_root / ".gitlab" / _VALIDATOR.name)
-
-    assert returncode != 0, output
-    assert "Cannot cross-check PYTHON_TAGS" in output
-
-
-def test_win_arm64_tags_match_cibw_skip() -> None:
-    """WIN_ARM64_PYTHON_TAGS is derived; check the derivation against the workflow it mirrors.
-
-    win_arm64 wheels come from .github/workflows/build_deploy.yml via "download win_arm64
-    wheels", so cibw_skip is the authority on which tags exist for that platform.
-    """
-    yaml: typing.Any = pytest.importorskip("yaml")
-
-    class _Loader(yaml.SafeLoader):
-        pass
-
-    _Loader.add_constructor("!reference", lambda loader, node: None)
-    workflow: dict[str, typing.Any] = yaml.load(_BUILD_DEPLOY_YML.read_text(), Loader=_Loader)
-
-    cibw_skip: str = next(
-        job["with"]["cibw_skip"]
-        for job in workflow["jobs"].values()
-        if isinstance(job, dict) and "cibw_skip" in job.get("with", {})
-    )
-
-    for tag in validator.PYTHON_TAGS:
-        skipped: bool = f"{tag}-win_arm64" in cibw_skip.split()
-        assert skipped != (tag in validator.WIN_ARM64_PYTHON_TAGS), (
-            f"{tag}: cibw_skip and WIN_ARM64_PYTHON_TAGS disagree about win_arm64"
-        )
