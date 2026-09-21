@@ -25,7 +25,7 @@ class ResponseStatusHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, status_code):
         self.set_status(int(status_code))
-        self.write("status_code: {}".format(status_code))
+        self.write(f"status_code: {status_code}")
 
 
 class NestedHandler(tornado.web.RequestHandler):

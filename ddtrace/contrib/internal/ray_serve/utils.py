@@ -1,6 +1,6 @@
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Mapping
 from typing import Optional
 
 from ray.serve._private.proxy_request_response import ProxyRequest

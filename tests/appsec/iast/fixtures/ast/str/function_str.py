@@ -2,4 +2,4 @@
 
 
 def fixture_function_str():
-    return str("test")
+    return "test"

@@ -1,6 +1,6 @@
+from collections.abc import Awaitable
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Awaitable
 from typing import Callable
 from typing import Optional
 

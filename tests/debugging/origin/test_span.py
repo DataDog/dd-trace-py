@@ -34,7 +34,7 @@ class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
 
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
-        super(SpanProbeTestCase, self).setUp()
+        super().setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
 
@@ -45,7 +45,7 @@ class SpanProbeTestCase(TracerTestCase):
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
-        super(SpanProbeTestCase, self).tearDown()
+        super().tearDown()
 
         MockSpanCodeOriginProcessorEntry.disable()
 

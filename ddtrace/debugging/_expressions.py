@@ -24,6 +24,8 @@ Full grammar:
     arg_op_type             =>  filter | substring | getmember | index
 """  # noqa
 
+from collections.abc import Collection
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import chain
@@ -32,8 +34,6 @@ import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Collection
-from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 from typing import Union

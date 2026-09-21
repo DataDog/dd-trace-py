@@ -6,8 +6,8 @@ from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
+from unittest import mock
 
-import mock
 from mock.mock import call
 import pytest
 
@@ -984,7 +984,7 @@ def test_debugger_function_probe_eval_on_exit(stuff):
 
 
 def test_debugger_lambda_fuction_access_locals(stuff):
-    class Person(object):
+    class Person:
         def __init__(self, age, name):
             self.age = age
             self.name = name
@@ -1244,13 +1244,13 @@ def test_debugger_capture_expressions_max_fields(stuff):
 
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
-        super(SpanProbeTestCase, self).setUp()
+        super().setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
-        super(SpanProbeTestCase, self).tearDown()
+        super().tearDown()
 
     def test_debugger_span_probe(self):
         from tests.submod.stuff import mutator
@@ -1558,9 +1558,9 @@ def test_debugger_redacted_identifiers():
         )
 
         assert msg_line["debugger"]["snapshot"]["captures"]["lines"]["169"] == {
-            "arguments": {"pwd": redacted_value(str())},
+            "arguments": {"pwd": redacted_value("")},
             "locals": {
-                "token": redacted_value(str()),
+                "token": redacted_value(""),
                 "answer": {"type": "int", "value": "42"},
                 "data": {
                     "type": "SensitiveData",
@@ -1569,10 +1569,10 @@ def test_debugger_redacted_identifiers():
                 "pii_dict": {
                     "type": "dict",
                     "entries": [
-                        [{"type": "str", "value": "'jwt'"}, redacted_value(str())],
-                        [{"type": "str", "value": "'password'"}, redacted_value(str())],
+                        [{"type": "str", "value": "'jwt'"}, redacted_value("")],
+                        [{"type": "str", "value": "'password'"}, redacted_value("")],
                         [{"type": "str", "value": "'username'"}, {"type": "str", "value": "'admin'"}],
-                        [{"type": "bytes", "value": "b'authorization'"}, redacted_value(str())],
+                        [{"type": "bytes", "value": "b'authorization'"}, redacted_value("")],
                     ],
                     "size": 4,
                 },

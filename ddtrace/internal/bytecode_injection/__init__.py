@@ -42,7 +42,7 @@ if PY >= (3, 15):
             self._hooks: dict[int, list[tuple[HookType, Any]]] = {}
 
         def on_py_line(self, code: Any, line_number: int) -> Any:
-            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line_number)
+            hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line_number)
             if not hooks:
                 return _monitoring._DISABLE  # type: ignore[has-type]
             for hook, arg in hooks:
@@ -53,7 +53,7 @@ if PY >= (3, 15):
             self._hooks.setdefault(line, []).append((hook, arg))
 
         def remove(self, line: int, hook: HookType, arg: Any) -> None:
-            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line)
+            hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line)
             if hooks is not None:
                 try:
                     hooks.remove((hook, arg))

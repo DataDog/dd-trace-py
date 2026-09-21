@@ -1,6 +1,7 @@
 # ruff: noqa: E402
 import ast
 import base64
+from collections.abc import Generator
 import contextlib
 import copy
 import functools
@@ -23,7 +24,6 @@ from tempfile import mkdtemp
 import time
 from typing import Any
 from typing import Callable
-from typing import Generator
 from typing import Optional
 from typing import Union
 from unittest import TestCase
@@ -375,12 +375,12 @@ def unwind_params(params):
 
 class FunctionDefFinder(ast.NodeVisitor):
     def __init__(self, func_name):
-        super(FunctionDefFinder, self).__init__()
+        super().__init__()
         self.func_name = func_name
         self._body = None
 
     def generic_visit(self, node):
-        return self._body or super(FunctionDefFinder, self).generic_visit(node)
+        return self._body or super().generic_visit(node)
 
     def visit_FunctionDef(self, node):
         if node.name == self.func_name:
@@ -599,7 +599,7 @@ def create_package(directory, pyproject, setup):
     _ = os.path.join(package_dir, "mypackage")
     os.mkdir(_)
     with open(os.path.join(_, "__init__.py"), "wb") as f:
-        f.write('"0.0.1"'.encode("utf-8"))
+        f.write(b'"0.0.1"')
 
     cwd = os.getcwd()
     os.chdir(package_dir)
@@ -737,7 +737,7 @@ def telemetry_writer():
         ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
 
-class TelemetryTestSession(object):
+class TelemetryTestSession:
     def __init__(self, token, telemetry_writer) -> None:
         self.token = token
         self.telemetry_writer = telemetry_writer

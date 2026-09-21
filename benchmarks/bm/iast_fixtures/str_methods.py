@@ -1,5 +1,8 @@
 import _io
 from collections import namedtuple
+from collections.abc import Generator
+from collections.abc import Iterable
+from collections.abc import Sequence
 from enum import Enum
 import functools
 from http.client import HTTPConnection
@@ -13,11 +16,7 @@ import random
 import re
 import threading
 from typing import Callable
-from typing import Generator
-from typing import Iterable
 from typing import Optional
-from typing import Sequence
-from typing import Text
 import urllib.parse
 
 
@@ -30,7 +29,7 @@ class WebServerHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write("OK".encode(encoding="utf_8"))
+        self.wfile.write(b"OK")
         return
 
 
@@ -66,7 +65,7 @@ def do_operator_add_inplace_dict_key_from_function(a, key, b):
     return a[key]
 
 
-class MyClassWithDict(object):
+class MyClassWithDict:
     data = {}
 
     def __init__(self, my_cool_dict):
@@ -111,7 +110,7 @@ def do_tuple_string_assignment(a):
 
 
 def uppercase_decorator(function: Callable) -> Callable:
-    def wrapper(a: str, b: str) -> Text:
+    def wrapper(a: str, b: str) -> str:
         func = function(a, b)
         return func.upper()
 
@@ -119,7 +118,7 @@ def uppercase_decorator(function: Callable) -> Callable:
 
 
 @uppercase_decorator
-def do_add_and_uppercase(a: Text, b: Text) -> Text:
+def do_add_and_uppercase(a: str, b: str) -> str:
     return a + b
 
 
@@ -145,7 +144,7 @@ def get_full_path_methods(path, META, force_append_slash=False):
 
 
 def do_upper_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def upper(string: str) -> str:
             return "output"
@@ -155,7 +154,7 @@ def do_upper_not_str(s: str) -> str:
 
 
 def do_lower_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def lower(string: str) -> str:
             return "output"
@@ -169,7 +168,7 @@ def do_swapcase(s: str) -> str:
 
 
 def do_swapcase_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def swapcase(string: str) -> str:
             return "output"
@@ -183,7 +182,7 @@ def do_title(s: str) -> str:
 
 
 def do_title_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def title(string: str) -> str:
             return "output"
@@ -197,7 +196,7 @@ def do_capitalize(s: str) -> str:
 
 
 def do_capitalize_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def capitalize(string: str) -> str:
             return "output"
@@ -258,11 +257,11 @@ def do_bytearray_extend(ba: bytearray, b: bytearray) -> bytearray:
     return ba
 
 
-def do_repr(b) -> Text:
+def do_repr(b) -> str:
     return repr(b)
 
 
-def do_str(b) -> Text:
+def do_str(b) -> str:
     return str(b)
 
 
@@ -289,7 +288,7 @@ def do_bytes_to_iter_bytearray(b: bytes) -> bytearray:
 
 
 def do_encode_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def encode(string: str) -> str:
             return "output"
@@ -303,7 +302,7 @@ def do_expandtabs(s: str) -> str:
 
 
 def do_expandtabs_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def expandtabs(string: str) -> str:
             return "output"
@@ -317,7 +316,7 @@ def do_casefold(s: str) -> str:
 
 
 def do_casefold_not_str(s: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def casefold(string: str) -> str:
             return "output"
@@ -331,7 +330,7 @@ def do_center(c: str, i: int) -> str:
 
 
 def do_center_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def center(string: str) -> str:
             return "output"
@@ -341,7 +340,7 @@ def do_center_not_str(c: str) -> str:
 
 
 def do_ljust_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def ljust(string1: str, string2: str) -> str:
             return "output"
@@ -359,7 +358,7 @@ def do_ljust_2(s: str, width: int, fill_char: str) -> str:
 
 
 def do_lstrip_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def lstrip(string1: str, string2: str) -> str:
             return "output"
@@ -373,7 +372,7 @@ def do_lstrip(s: str) -> str:
 
 
 def do_rstrip_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def rstrip(string1: str, string2: str) -> str:
             return "output"
@@ -383,7 +382,7 @@ def do_rstrip_not_str(c: str) -> str:
 
 
 def do_split_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def split(string1: str, string2: str, string3: str) -> str:
             return "output"
@@ -393,7 +392,7 @@ def do_split_not_str(c: str) -> str:
 
 
 def do_rsplit_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def rsplit(string1: str, string2: str, string3: str) -> str:
             return "output"
@@ -403,7 +402,7 @@ def do_rsplit_not_str(c: str) -> str:
 
 
 def do_splitlines_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def splitlines(string1: str, string2: str, string3: str) -> str:
             return "output"
@@ -413,7 +412,7 @@ def do_splitlines_not_str(c: str) -> str:
 
 
 def do_partition_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def partition(string1: str, string2: str, string3: str) -> str:
             return "output"
@@ -423,7 +422,7 @@ def do_partition_not_str(c: str) -> str:
 
 
 def do_rpartition_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def rpartition(string1: str, string2: str, string3: str) -> str:
             return "output"
@@ -433,7 +432,7 @@ def do_rpartition_not_str(c: str) -> str:
 
 
 def do_replace_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def replace(string1: str) -> str:
             return "output"
@@ -442,12 +441,12 @@ def do_replace_not_str(c: str) -> str:
     return my_str.replace(c)
 
 
-def do_format(a: Text, *args: Text) -> Text:
+def do_format(a: str, *args: str) -> str:
     return a.format(*args)
 
 
 def do_format_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def format(string1: str) -> str:
             return "output"
@@ -456,12 +455,12 @@ def do_format_not_str(c: str) -> str:
     return my_str.format(c)
 
 
-def do_format_map(a: Text, *args: Text) -> Text:
+def do_format_map(a: str, *args: str) -> str:
     return a.format_map(*args)
 
 
 def do_format_map_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def format_map(string1: str) -> str:
             return "output"
@@ -471,7 +470,7 @@ def do_format_map_not_str(c: str) -> str:
 
 
 def do_zfill_not_str(c: str) -> str:
-    class MyStr(object):
+    class MyStr:
         @staticmethod
         def zfill(string1: str) -> str:
             return "output"
@@ -650,7 +649,7 @@ def someother_function() -> None:
     print("Im some other function that should not be replaced")
 
 
-class NestedEncoderClass0(object):
+class NestedEncoderClass0:
     base = dict()
 
     @staticmethod
@@ -662,7 +661,7 @@ class NestedEncoderClass0(object):
         return str(j) + "11111"
 
 
-class NestedEncoderClass1(object):
+class NestedEncoderClass1:
     base = NestedEncoderClass0()
 
     @staticmethod
@@ -712,19 +711,19 @@ def do_decorated_function():
     return "decorated function"
 
 
-def do_join_tuple_unpack_with_call_for_mock() -> Text:
+def do_join_tuple_unpack_with_call_for_mock() -> str:
     return os.path.join("UTC", *("A", "B"))
 
 
-def do_join_tuple_unpack_with_call() -> Text:
+def do_join_tuple_unpack_with_call() -> str:
     return os.path.join("UTC", *("A", "B"))
 
 
-class SampleClass(object):
+class SampleClass:
     TIME_ZONE = "UTC/UTM"
 
     @staticmethod
-    def commonprefix(first: Text, *args: list) -> Sequence:
+    def commonprefix(first: str, *args: list) -> Sequence:
         return os.path.commonprefix(list([first]) + list(args))
 
 
@@ -737,13 +736,13 @@ def do_join_tuple_unpack_with_call_with_methods(zoneinfo_root: str) -> bool:
     return os.path.exists(os.path.join(zoneinfo_root, *(simple.TIME_ZONE.split("/"))))
 
 
-class MapJoin(object):
+class MapJoin:
     @staticmethod
-    def join(arg0: Text, foo: Text = "a", baz: Text = "x") -> Text:
+    def join(arg0: str, foo: str = "a", baz: str = "x") -> str:
         return os.path.join(arg0, foo, baz)
 
 
-def do_join_map_unpack_with_call() -> Text:
+def do_join_map_unpack_with_call() -> str:
     return MapJoin.join(arg0="/", **{"foo": "bar", "baz": "qux"})
 
 
@@ -824,7 +823,7 @@ def get_random_string_module_encode(allowed_chars: str) -> list[str]:
     return [allowed_chars for i in result]
 
 
-def get_random_string_join(mystring: str) -> Text:
+def get_random_string_join(mystring: str) -> str:
     return "".join(mystring for i in ["1", "2"])
 
 
@@ -842,11 +841,11 @@ def get_random_string_seed(
     return "".join(random.choice(allowed_chars) for i in range(length))
 
 
-def mark_safe(a: str) -> Text:
+def mark_safe(a: str) -> str:
     return a
 
 
-def conditional_escape(a: str) -> Text:
+def conditional_escape(a: str) -> str:
     return a
 
 
@@ -882,23 +881,23 @@ def do_format_with_named_parameter(
     return template.format(key=value)
 
 
-def mapper(taint_range) -> Text:
+def mapper(taint_range) -> str:
     return taint_range.origin.parameter_name
 
 
-def do_args_kwargs_1(format_string, *args_safe, **kwargs_safe) -> Text:
+def do_args_kwargs_1(format_string, *args_safe, **kwargs_safe) -> str:
     return format_string.format(*args_safe, **kwargs_safe)
 
 
-def do_args_kwargs_2(format_string, *args_safe, **kwargs_safe) -> Text:
+def do_args_kwargs_2(format_string, *args_safe, **kwargs_safe) -> str:
     return format_string.format("1", *args_safe, **kwargs_safe)
 
 
-def do_args_kwargs_3(format_string, *args_safe, **kwargs_safe) -> Text:
+def do_args_kwargs_3(format_string, *args_safe, **kwargs_safe) -> str:
     return format_string.format("1", "2", *args_safe, **kwargs_safe)
 
 
-def do_args_kwargs_4(format_string, *args_safe, **kwargs_safe) -> Text:
+def do_args_kwargs_4(format_string, *args_safe, **kwargs_safe) -> str:
     return format_string.format("1", "2", test_kwarg=3, *args_safe, **kwargs_safe)
 
 
@@ -917,41 +916,41 @@ def psycopg_queries_dump_bytearray(args: tuple) -> bytes:
     return template % args
 
 
-def do_format_key_error(param1: str) -> Text:
+def do_format_key_error(param1: str) -> str:
     return "Test {param1}, {param2}".format(param1=param1)  # noqa:F524
 
 
-def do_join(s, iterable: Iterable) -> Text:
+def do_join(s, iterable: Iterable) -> str:
     return s.join(iterable)
 
 
-def do_join_args_kwargs(s, *args, **kwargs) -> Text:
+def do_join_args_kwargs(s, *args, **kwargs) -> str:
     return s.join(*args, **kwargs)
 
 
-def do_join_tuple(mystring: str) -> Text:
+def do_join_tuple(mystring: str) -> str:
     mystring = mystring
     gen = tuple(mystring + _ for _ in ["1", "2", "3"])
     return "".join(gen)
 
 
-def do_join_set(mystring: str) -> Text:
+def do_join_set(mystring: str) -> str:
     mystring = mystring
     gen = {mystring + _ for _ in ["1", "2", "3"]}
     return "".join(gen)
 
 
-def do_join_generator(mystring: str) -> Text:
+def do_join_generator(mystring: str) -> str:
     mystring = mystring
     gen = (mystring for _ in ["1", "2", "3"])
     return "".join(gen)
 
 
-def do_join_generator_as_argument(mystring: str, gen: Generator[str, None, None]) -> Text:
+def do_join_generator_as_argument(mystring: str, gen: Generator[str, None, None]) -> str:
     return mystring.join(gen)
 
 
-def do_join_generator_2(mystring: str) -> Text:
+def do_join_generator_2(mystring: str) -> str:
     def parts() -> Generator:
         for i in ["x", "y", "z"]:
             yield i
@@ -959,21 +958,21 @@ def do_join_generator_2(mystring: str) -> Text:
     return mystring.join(parts())
 
 
-def do_join_generator_and_title(mystring: str) -> Text:
+def do_join_generator_and_title(mystring: str) -> str:
     mystring = mystring.title()
     gen = (mystring for _ in ["1", "2", "3"])
     return "".join(gen)
 
 
-def do_modulo(template: Text, parameter) -> Text:
+def do_modulo(template: str, parameter) -> str:
     return template % parameter
 
 
-def do_modulo_function(template: Text, parameter_function) -> Text:
+def do_modulo_function(template: str, parameter_function) -> str:
     return template % parameter_function()
 
 
-def do_replace(text: Text, old: Text, new: Text, count=-1) -> Text:
+def do_replace(text: str, old: str, new: str, count=-1) -> str:
     return text.replace(old, new, count)
 
 
@@ -982,7 +981,7 @@ def do_slice(
     first: Optional[int],
     second: Optional[int],
     third: Optional[int],
-) -> Text:
+) -> str:
     # CAVEAT: the following code is duplicate on purpose (also present in production code),
     # because it needs to expose the slicing in order to be patched correctly.
 
@@ -1024,7 +1023,7 @@ def do_slice_negative(s: str):
     return s[-16:]
 
 
-class MyObject(object):
+class MyObject:
     def __init__(self, str_param: str) -> None:
         self.str_param = str_param
 
@@ -1032,17 +1031,17 @@ class MyObject(object):
         return self.str_param + " a"
 
 
-def do_format_fill(a) -> Text:
-    return "{:10}".format(a)
+def do_format_fill(a) -> str:
+    return f"{a:10}"
 
 
 def do_slice_2_and_two_strings(
-    s1: Text, s2: Text, first: Optional[int], second: Optional[int], third: Optional[int]
-) -> Text:
+    s1: str, s2: str, first: Optional[int], second: Optional[int], third: Optional[int]
+) -> str:
     return (s1 + s2)[first:second:third]
 
 
-def do_slice_2(s: Text, first: Optional[int], second: Optional[int], third: Optional[int]) -> Text:
+def do_slice_2(s: str, first: Optional[int], second: Optional[int], third: Optional[int]) -> str:
     return s[first:second:third]
 
 
@@ -1050,7 +1049,7 @@ def do_slice_condition(s: str, first, second):
     return s[first : second or 0]
 
 
-def do_namedtuple(s: Text):
+def do_namedtuple(s: str):
     PathInfo = namedtuple("PathInfo", "name surname")
     my_string = PathInfo(name=s, surname=None)
     return my_string
@@ -1108,11 +1107,11 @@ def do_rsplit(s, sep, maxsplit=-1):
     return s.rsplit(sep, maxsplit)
 
 
-def do_rstrip_2(s) -> Text:
+def do_rstrip_2(s) -> str:
     return s.rstrip()
 
 
-def do_index(c: str, i: int) -> Text:
+def do_index(c: str, i: int) -> str:
     return c[i]
 
 

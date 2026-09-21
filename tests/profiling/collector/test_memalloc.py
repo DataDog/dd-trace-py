@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 import gc
 import inspect
 import os
@@ -11,7 +12,6 @@ from tracemalloc import Statistic
 from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -1440,7 +1440,7 @@ def _make_mem_domain_object(size_bytes: int) -> object:
 
 
 def _count_heap_samples_with_function(
-    profile: "pprof_pb2.Profile", samples: Sequence["pprof_pb2.Sample"], function_name: str
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], function_name: str
 ) -> int:
     """Count heap-space samples whose stacktrace contains the given function name.
 
@@ -1770,8 +1770,8 @@ def test_mem_domain_enabled_by_default_on_profiler() -> None:
 
     # Quoted: this body is exec'd as a subprocess module without
     # `from __future__ import annotations`, and pprof_pb2 is pyi-only.
-    profile: "pprof_pb2.Profile" = pprof_utils.parse_newest_profile(output_filename)
-    samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
     assert samples, "Expected alloc-space samples"
     mem_frame_values: list[str] = pprof_utils.get_label_str_values_for_function(
         profile, samples, ALLOCATOR_DOMAIN_KEY, "_make_mem_domain_object"

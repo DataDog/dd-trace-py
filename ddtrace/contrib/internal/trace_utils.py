@@ -3,17 +3,17 @@ This module contains utility functions for writing ddtrace integrations.
 """
 
 from collections import deque
+from collections.abc import Generator  # noqa:F401
+from collections.abc import Iterator  # noqa:F401
+from collections.abc import Mapping  # noqa:F401
+from collections.abc import MutableMapping  # noqa:F401
+from collections.abc import Sequence  # noqa:F401
 import ipaddress
 import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
-from typing import Generator  # noqa:F401
-from typing import Iterator  # noqa:F401
-from typing import Mapping  # noqa:F401
-from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Sequence  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 from urllib import parse
@@ -678,7 +678,7 @@ def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:
 
     # Relative URLs don't have a netloc, so we force them
     if not parse_result.netloc:
-        parse_result = parse.urlparse("//{url}".format(url=url))
+        parse_result = parse.urlparse(f"//{url}")
 
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information

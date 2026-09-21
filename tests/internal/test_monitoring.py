@@ -1,10 +1,10 @@
 """Tests for the multiplexed sys.monitoring layer on Python 3.12+."""
 
+from collections.abc import Iterator
 import sys
 from types import CodeType
 from typing import Any
 from typing import Callable
-from typing import Iterator
 from typing import Protocol
 from typing import cast
 

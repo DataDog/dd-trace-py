@@ -1,4 +1,4 @@
-class ShellGlobals(object):
+class ShellGlobals:
     def __setattr__(self, name, value):
         self.__dict__[name] = value
 

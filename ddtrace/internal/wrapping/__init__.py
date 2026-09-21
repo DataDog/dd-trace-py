@@ -1,9 +1,9 @@
+from collections.abc import Iterator
 import sys
 from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Iterator
 from typing import Optional
 from typing import Protocol
 from typing import cast
@@ -50,7 +50,7 @@ class _IdentityWeakValueDictionary:
     __slots__ = ("_data",)
 
     def __init__(self) -> None:
-        self._data: dict[int, tuple[CodeType, "weakref.ref[FunctionType]"]] = {}
+        self._data: dict[int, tuple[CodeType, weakref.ref[FunctionType]]] = {}
 
     def _make_remove(self, code_id: int) -> Any:
         def remove(_ref: "weakref.ref[FunctionType]") -> None:

@@ -56,7 +56,6 @@ is passed to header-setting APIs without proper sanitization.
 """  # noqa: D301
 
 import typing
-from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -92,7 +91,7 @@ HEADER_INJECTION_EXCLUSIONS = {
 }
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 

@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.contrib.dbapi import FetchTracedCursor
@@ -17,7 +18,7 @@ from tests.utils import assert_is_not_measured
 
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
-        super(TestTracedCursor, self).setUp()
+        super().setUp()
         self.cursor = mock.Mock()
 
     def test_execute_wrapped_is_called_and_returned(self):
@@ -220,7 +221,7 @@ class TestTracedCursor(TracerTestCase):
 
 class TestFetchTracedCursor(TracerTestCase):
     def setUp(self):
-        super(TestFetchTracedCursor, self).setUp()
+        super().setUp()
         self.cursor = mock.Mock()
         self.config = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
 
@@ -334,7 +335,7 @@ class TestFetchTracedCursor(TracerTestCase):
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
     def test_unknown_rowcount(self):
-        class Unknown(object):
+        class Unknown:
             pass
 
         cursor = self.cursor
@@ -409,7 +410,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
 class TestTracedConnection(TracerTestCase):
     def setUp(self):
-        super(TestTracedConnection, self).setUp()
+        super().setUp()
         self.connection = mock.Mock()
 
     def test_cursor_class(self):
@@ -444,7 +445,7 @@ class TestTracedConnection(TracerTestCase):
         connection.rollback.assert_called_with()
 
     def test_connection_context_manager(self):
-        class Cursor(object):
+        class Cursor:
             rowcount = 0
 
             def execute(self, *args, **kwargs):
@@ -465,7 +466,7 @@ class TestTracedConnection(TracerTestCase):
         # When a connection is returned from a context manager the object proxy
         # should be returned so that tracing works.
 
-        class ConnectionConnection(object):
+        class ConnectionConnection:
             def __enter__(self):
                 return self
 
@@ -495,7 +496,7 @@ class TestTracedConnection(TracerTestCase):
         # If a cursor is returned from the context manager
         # then it should be instrumented.
 
-        class ConnectionCursor(object):
+        class ConnectionCursor:
             def __enter__(self):
                 return Cursor()
 
@@ -514,7 +515,7 @@ class TestTracedConnection(TracerTestCase):
         # If a traced cursor is returned then it should not
         # be double instrumented.
 
-        class ConnectionTracedCursor(object):
+        class ConnectionTracedCursor:
             def __enter__(self):
                 return self.cursor()
 
@@ -539,7 +540,7 @@ class TestTracedConnection(TracerTestCase):
 
         other_conn = ConnectionConnection()
 
-        class ConnectionDifferentConnection(object):
+        class ConnectionDifferentConnection:
             def __enter__(self):
                 return other_conn
 
@@ -569,7 +570,7 @@ class TestTracedConnection(TracerTestCase):
         # When some unexpected value is returned from the context manager
         # it should be handled gracefully.
 
-        class ConnectionUnknown(object):
+        class ConnectionUnknown:
             def __enter__(self):
                 return 123456
 
@@ -598,7 +599,7 @@ class TestTracedConnection(TracerTestCase):
 
         # Errors should be the same when no context management is defined.
 
-        class ConnectionNoCtx(object):
+        class ConnectionNoCtx:
             def cursor(self):
                 return Cursor()
 

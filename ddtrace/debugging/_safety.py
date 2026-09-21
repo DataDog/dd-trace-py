@@ -1,9 +1,9 @@
+from collections.abc import Iterator
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from itertools import chain
 from types import FrameType
 from typing import Any
-from typing import Iterator
 from typing import Optional
 
 from ddtrace.internal.safety import get_slots

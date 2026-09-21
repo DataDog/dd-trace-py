@@ -1,6 +1,6 @@
 from collections import defaultdict
-from typing import AsyncGenerator
-from typing import Generator
+from collections.abc import AsyncGenerator
+from collections.abc import Generator
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler

@@ -1,7 +1,7 @@
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import Iterable
 from typing import Optional
 from typing import Union
 import weakref

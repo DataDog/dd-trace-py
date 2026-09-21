@@ -248,6 +248,14 @@ lint.ignore = [
     "E231",
     "E721",
     "G201",
+    "UP007",  # non-pep604-annotation-union (requires py3.10+ for X|Y syntax)
+    "UP022",  # replace-stdout-stderr (needs manual review for subprocess semantics)
+    "UP028",  # yield-in-for-loop (needs manual review for generator semantics)
+    "UP030",  # format-literals (needs manual review for format string semantics)
+    "UP031",  # printf-string-formatting (needs manual conversion to f-strings)
+    "UP035",  # deprecated-import (needs manual import path updates)
+    "UP036",  # outdated-version-block (needs manual version-block review)
+    "UP045",  # non-pep604-annotation-optional (requires py3.10+ for X|None syntax)
 ]
 line-length = 120
 
@@ -263,7 +271,7 @@ lint.select = [
     "G",
     "I",
     "PLW0244",  # redefined-slots-in-subclass
-    "UP006",  # non-pep585-annotation (use builtin generics like list instead of typing.List)
+    "UP",  # pyupgrade rules (targets py39 based on requires-python)
     "W",
 ]
 lint.unfixable =[
