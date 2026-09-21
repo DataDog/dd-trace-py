@@ -52,7 +52,7 @@ Nothing matching under `prof-correctness`.
 | Server access log path counts | **Yes** (asyncio_burst hits only) | Regex `asyncio_burst` in `server_*.log`. |
 | pprof `*.internal_metadata.json` | **Yes** (`sample_count`, `asyncio_task_count`) | Summed all metas present at summary time (**7** files/side). |
 | Field `sample_capture_cpu_us` | **Looked up, always 0** | **Wrong key.** Real field is `sample_capture_cpu_time_us` (see `profiler_stats.cpp` on this tip). Pre-fix published sum = 0 is a **harness bug**, not zero profiler CPU. Fixed in `run.sh` after this run; published zeros below are from the **pre-fix** artifacts. |
-| pprof sample types (`cpu-time`, `alloc-space`, `heap-space`, domains `mem`/`obj`) | **Not** in harness table | Present on disk; used only in this note’s RSS attribution check. |
+| pprof sample types (`cpu-time`, `alloc-space`, `heap-space`, domains `mem`/`obj`) | **Not** in harness table | Present on disk; decoded **post-hoc for this note only** (`zstd -d` + `go tool pprof -tags -sample_index=heap-space`). A future harness revision should fold `heap-space` by domain into the delta table. |
 | Memray | **No** | Not installed / not run. |
 | Agent / Datadog metrics API | **No** | Local pprof files only. |
 | GC / allocator RSS from CPython | **No** | Only process RSS. |
@@ -123,12 +123,17 @@ Window: one 90 s concurrent drive; CPU/RSS from 89 `ps` rows/side over ~91 s wal
 | Measurement / warmup-only artifact | **Unlikely** | `proc_metrics.csv`: Δ appears by t≈3 s and stays; mean after dropping first 15 s still **+14.7%**; after 30 s **+15.9%**. Median paired Δ ≈ **13.5 MiB**. |
 | More HTTP load on B | **Does not explain** | Only +1.6% requests; both sides same corpus / seed / concurrency. |
 | Profiler sample volume alone | **Insufficient / unsupported as sole cause** | Meta `sample_count` +10.2% and capture CPU +6.9%, but **pprof on-disk bytes are smaller on B** (−15.7%). No harness metric maps sample_count → RSS bytes. |
-| Live heap tracked by profiler (`heap-space`) | **Partial, weak** | `go tool pprof -sample_index=heap-space` on profiles 1–7: A ~7.6–10.6 MB; B ~7.5–19.8 MB (one spike on B #2). Domain split exists (`allocator domain: mem` vs `obj` via `-tags`). Order of magnitude of tracked live heap (~8–20 MB) is **smaller than** the ~14 MiB process RSS gap and is **not** a full process RSS accounting. |
+| Live heap tracked by profiler (`heap-space`) | **Partial — bounds the cause at ~¼** | `go tool pprof -tags -sample_index=heap-space` on all 7 profiles/side. Mean tracked live heap A **8.56 MB** (range 7.63–10.64), B **11.77 MB** (range 7.48–19.80), Δ **+3.21 MB (+37.5%)**. That is **~23% of the 14.25 MB process-RSS gap** — the other ~77% is **not** visible in these profiles. |
+| …split by allocator domain | **`mem` domain carries it** | Same command. Domain means: `mem` A **3.02** → B **6.84 MB** (Δ **+3.82 MB**, ~27% of the RSS gap); `obj` A **5.55** → B **4.93 MB** (Δ **−0.62 MB**). So the tracked increase is raw-`PyMem` domain, not object domain. Caveat: A’s `obj` is pinned at exactly **5.55 MB** in all 7 profiles (**suspicious** — possible sampler artifact, **unverified**). |
 | `alloc-space` cumulative | **Not usable for RSS** | Totals are TB-scale sampled allocation volume per 15 s window (workload churn via `alloc_pressure` / `pure_mem`), not resident set. |
 | 3.15 allocator / pymalloc behavior | **Plausible, unproven** | Profiles show `mem` and `obj` domains on both sides with `memory.mem_domain_enabled=true`, but **no** controlled allocator A/B and **no** memray. Cannot attribute X MiB of the +14.9% to pymalloc vs interpreter vs profiler. |
 | Profiler overhead vs app | **Unknown split** | Single PID RSS; no profiler-off control run. |
 
-**Bottom line:** The +~15% RSS is a **real process-RSS difference** on this soak (**verified** `proc_metrics.csv`). Profiles **cannot** support a concrete fraction attributed to allocator vs profiler vs live objects (**verified** gap between `heap-space` totals and process RSS; **unknown** causal split). Do not cite “3.15 allocator” or “profiler samples” as the cause from this run alone.
+**Bottom line:** The +~15% RSS is a **real process-RSS difference** on this soak (**verified** `proc_metrics.csv`).
+
+- **Verified:** ~**23%** of the gap (**+3.21 MB** of **14.25 MB**) shows up as profiler-tracked live heap, and that increase sits in the **`mem` (raw `PyMem`) domain**, not `obj`.
+- **Unknown:** the remaining **~77%**. No artifact in this run accounts for it — candidates (interpreter/arena behavior, profiler buffers, fragmentation) are **untested** here.
+- Do **not** cite “3.15 allocator” or “profiler sample volume” as *the* cause. The `mem`-domain signal is a **lead worth a controlled follow-up** (profiler-off control + memray), not a conclusion.
 
 ---
 
