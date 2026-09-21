@@ -1,12 +1,11 @@
 import dis
+import sys
 from types import CodeType
 import typing as t
 
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
-from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
@@ -15,13 +14,13 @@ from .callbacks import _default_bytecode_exc_callback
 
 log = get_logger(__name__)
 
-if is_at_least_py(3, 10) and is_at_most_py(3, 10):
+if sys.version_info[:2] == (3, 10):
 
     def get_offsets_3_10(_s):
         return [o for o in _find_except_bytecode_indexes_3_10(_s.original_code)]
 
     offsets_callback = get_offsets_3_10
-elif is_at_least_py(3, 11) and is_at_most_py(3, 11):
+elif sys.version_info[:2] == (3, 11):
 
     def get_offsets_3_11(_s):
         return [o for o in _find_except_bytecode_indexes_3_11(_s.original_code)]
