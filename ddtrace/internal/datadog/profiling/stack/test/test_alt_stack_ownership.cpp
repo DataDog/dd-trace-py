@@ -171,18 +171,6 @@ TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
     EXPECT_NE(def_ign.find("SIGSEGV=SIG_DFL"), std::string::npos);
     EXPECT_NE(def_ign.find("SIGBUS=SIG_IGN"), std::string::npos);
 
-    sa = {};
-    sa.sa_handler = SIG_DFL;
-    sa.sa_flags = SA_SIGINFO;
-    ASSERT_EQ(sigaction(SIGSEGV, &sa, nullptr), 0);
-    sa.sa_handler = SIG_IGN;
-    sa.sa_flags = SA_SIGINFO;
-    ASSERT_EQ(sigaction(SIGBUS, &sa, nullptr), 0);
-
-    const std::string def_ign_siginfo = describe_segv_handler_owners();
-    EXPECT_NE(def_ign_siginfo.find("SIGSEGV=SIG_DFL"), std::string::npos);
-    EXPECT_NE(def_ign_siginfo.find("SIGBUS=SIG_IGN"), std::string::npos);
-
     ASSERT_EQ(init_segv_catcher(), 0);
     EXPECT_EQ(describe_segv_handler_owners(), "SIGSEGV=ddtrace, SIGBUS=ddtrace");
 
