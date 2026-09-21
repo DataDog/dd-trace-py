@@ -392,17 +392,16 @@ event, so the multiplexer rejects handlers that request it.
 A `DISABLE` returned from a local event callback is sticky in CPython until
 the local event set changes or `sys.monitoring.restart_events()` resets it. The
 multiplexer forwards `DISABLE` only when every handler for that event requests
-it. A handler must therefore tolerate repeated delivery when a sibling still needs
-the event.
+it. A handler must therefore tolerate repeated delivery when a sibling still
+needs the event.
 
 Because `sys.monitoring.restart_events()` is global and would clear other tools'
 disabled state, the multiplexer re-arms only requested event bits by toggling
 those bits off and back on. It tracks events for which the aggregate callback
 has returned `DISABLE`, so a rejected request does not cause a physical re-arm.
-`register()`
-does this automatically when a new handler shares an event that may already be
-disabled. Call `monitoring.refresh(code, events)` when a handler becomes
-interested in those event bits again.
+`register()` does this automatically when a new handler shares an event that may
+already be disabled. Call `monitoring.refresh(code, events)` when a handler
+becomes interested in those event bits again.
 
 `restart_events(handler)` provides a best-effort global shortcut when `handler`
 is the sole ddtrace subscriber and no external monitoring tool is visible. The
@@ -410,6 +409,12 @@ handler argument is an ownership check, not a scope: the underlying restart is
 still global. If either condition fails, callers must use the selective refresh
 path above, which only toggles ddtrace's tool ID for the requested code and event
 bits. Passing `force=True` bypasses those safeguards.
+
+On success, `restart_events()` returns a subscriber version. The version changes
+only when the set of distinct subscribers changes, not when an existing
+subscriber registers more code objects. Callers can retain it and use
+`subscriber_version_is_current()` to re-check sole ownership without scanning
+all registered code objects after ordinary imports.
 
 ### Error Isolation
 

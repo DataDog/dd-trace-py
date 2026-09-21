@@ -45,7 +45,7 @@ if is_at_least_py(3, 15):
         def on_py_line(self, code: Any, line_number: int) -> Any:
             hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line_number)
             if not hooks:
-                return _monitoring._DISABLE
+                return _monitoring.DISABLE
             for hook, arg in hooks:
                 hook(arg)
             return None
@@ -71,7 +71,7 @@ if is_at_least_py(3, 15):
     # Distinct code objects can compare structurally equal (e.g. repeated identical
     # compiles, or CodeType.replace() clones), so a plain WeakKeyDictionary would let
     # a hook registered for one code object be looked up under another.
-    _line_hook_registry: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+    _line_hook_registry: "_monitoring.IdentityWeakKeyDictionary" = _monitoring.IdentityWeakKeyDictionary()
     _line_hook_lock = Lock()
 
     def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:

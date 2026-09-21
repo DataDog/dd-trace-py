@@ -38,7 +38,7 @@ class _MonitoringEvents(Protocol):
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
 # source module under a pre-3.15 Python version.
 _E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)
-_DISABLE: object = cast(object, monitoring._DISABLE)
+_DISABLE: object = cast(object, monitoring.DISABLE)
 _LOCAL_EVENTS: int = cast(int, monitoring._LOCAL_EVENTS)
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
@@ -157,14 +157,14 @@ def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
     version = monitoring.restart_events(first)
     assert version == forced_version
     assert version is not None
-    assert monitoring.registry_version_is_current(version)
+    assert monitoring.subscriber_version_is_current(version)
 
     # Registering more code for the same subscriber must keep the ownership version valid.
     # Coverage instruments many code objects between contexts; invalidating here would make
     # each restart rescan the entire registry and turn that workload quadratic.
     same_subscriber_code = compile("pass", "<same-subscriber>", "exec")
     monitoring.register(same_subscriber_code, first)
-    assert monitoring.registry_version_is_current(version)
+    assert monitoring.subscriber_version_is_current(version)
     assert monitoring.restart_events(first) == version
 
     own_tool = monitoring.ensure_tool()
@@ -183,7 +183,71 @@ def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
     monitoring.register(second_code, second)
     assert monitoring.restart_events(first) is None
     assert monitoring.restart_events(second) is None
-    assert not monitoring.registry_version_is_current(version)
+    assert not monitoring.subscriber_version_is_current(version)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_subscriber_version_tracks_distinct_subscribers() -> None:
+    """The version changes only when the set of distinct subscribers changes."""
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    sole = Handler()
+    codes = [compile("pass", f"<code{index}>", "exec") for index in range(3)]
+
+    monitoring.register(codes[0], sole)
+    version = monitoring.restart_events(sole)
+    assert version is not None
+
+    for code in codes[1:]:
+        monitoring.register(code, sole)
+    monitoring.register(codes[0], sole)
+    assert monitoring.subscriber_version_is_current(version)
+    assert monitoring.restart_events(sole) == version
+
+    for code in codes[1:]:
+        monitoring.unregister(code, sole)
+    assert monitoring.subscriber_version_is_current(version)
+
+    monitoring.unregister(codes[0], sole)
+    assert not monitoring.subscriber_version_is_current(version)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_sole_subscriber_survives_collected_code_objects() -> None:
+    """Collected code must not permanently hide the remaining sole subscriber."""
+    import gc
+    from types import CodeType
+    import weakref
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    sole = Handler()
+    sole_code = compile("pass", "<sole>", "exec")
+    monitoring.register(sole_code, sole)
+
+    ghost = Handler()
+    ghost_code = compile("pass", "<ghost>", "exec")
+    monitoring.register(ghost_code, ghost)
+    assert monitoring.restart_events(sole) is None
+
+    collected = weakref.ref(ghost_code)
+    del ghost_code
+    gc.collect()
+    if collected() is None:
+        version = monitoring.restart_events(sole)
+        assert version is not None
+        assert monitoring.restart_events(sole) == version
+    assert ghost is not None
 
 
 @_py315

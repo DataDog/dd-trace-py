@@ -33,7 +33,7 @@ log = get_logger(__name__)
 
 _sys_monitoring: Any = sys.monitoring  # type: ignore[attr-defined]
 _E: Any = _sys_monitoring.events
-_DISABLE: object = _sys_monitoring.DISABLE
+DISABLE: object = _sys_monitoring.DISABLE
 
 # PY_UNWIND became a per-code "other" event only in Python 3.15 (its event bit even
 # moved, 0x1000 -> 0x2000). On 3.12-3.14 it is a global-only event that
@@ -63,7 +63,7 @@ _tool_lock = Lock()
 _registry_lock = Lock()
 
 
-class _IdentityWeakKeyDictionary:
+class IdentityWeakKeyDictionary:
     """Weak mapping keyed by object identity (not equality).
 
     Unlike ``weakref.WeakKeyDictionary``, lookups use ``is`` rather than
@@ -138,18 +138,18 @@ class _IdentityWeakKeyDictionary:
         self._data.clear()
 
 
-_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
-_registry_version: int = 0
+_registry: IdentityWeakKeyDictionary = IdentityWeakKeyDictionary()
+_subscriber_version: int = 0
 # NOTE: Event mutations use an odd generation while they are in progress and an
 # even generation when stable. Aggregate callbacks may return DISABLE only when
 # their original even generation is still current, so stale results cannot cross
 # a global restart, selective refresh, registration, or unregistration.
 _event_generation: int = 0
-# NOTE: Registry versions track distinct subscriber identities, not per-code
+# NOTE: Subscriber versions track distinct subscriber identities, not per-code
 # registrations. Coverage adds many code objects for one handler between restarts;
 # invalidating for each object would make ownership checks quadratic. The code sets
 # are weak for the same reason as _registry.
-_subscriber_codes: "dict[int, tuple[weakref.ReferenceType[MonitoringEventHandler], _IdentityWeakKeyDictionary]]" = {}
+_subscriber_codes: "dict[int, tuple[weakref.ReferenceType[MonitoringEventHandler], IdentityWeakKeyDictionary]]" = {}
 
 
 class MonitoringEventHandler(ABC):
@@ -255,7 +255,7 @@ def _events_for(handlers: _CodeHandlers) -> int:
 
 def _prune_subscribers() -> None:
     """Remove subscriber identities that no longer have live code registrations."""
-    global _registry_version
+    global _subscriber_version
 
     stale = [
         handler_id
@@ -265,19 +265,19 @@ def _prune_subscribers() -> None:
     if stale:
         for handler_id in stale:
             del _subscriber_codes[handler_id]
-        _registry_version += 1
+        _subscriber_version += 1
 
 
 def _add_subscriber_code(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Record a new code registration, invalidating only for a new subscriber."""
-    global _registry_version
+    global _subscriber_version
 
     handler_id = id(handler)
     registration = _subscriber_codes.get(handler_id)
     if registration is None or registration[0]() is not handler:
-        codes = _IdentityWeakKeyDictionary()
+        codes = IdentityWeakKeyDictionary()
         _subscriber_codes[handler_id] = (weakref.ref(handler), codes)
-        _registry_version += 1
+        _subscriber_version += 1
     else:
         codes = registration[1]
     codes[code] = None
@@ -285,7 +285,7 @@ def _add_subscriber_code(code: CodeType, handler: MonitoringEventHandler) -> Non
 
 def _remove_subscriber_code(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Remove a code registration, invalidating when its subscriber disappears."""
-    global _registry_version
+    global _subscriber_version
 
     registration = _subscriber_codes.get(id(handler))
     if registration is None or registration[0]() is not handler:
@@ -294,7 +294,7 @@ def _remove_subscriber_code(code: CodeType, handler: MonitoringEventHandler) -> 
     codes.pop(code, None)
     if not len(codes):
         del _subscriber_codes[id(handler)]
-        _registry_version += 1
+        _subscriber_version += 1
 
 
 def _setup() -> int:
@@ -343,7 +343,7 @@ def get_tool_id() -> int:
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     generation = _event_generation
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     # DISABLE is forwarded only when every PY_START handler for this code object
@@ -352,18 +352,18 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
-            if e.handler.on_py_start(code, instruction_offset) is not _DISABLE:
+            if e.handler.on_py_start(code, instruction_offset) is not DISABLE:
                 disable = False
     if disable and generation == _event_generation and not (generation & 1):
         handlers.disabled_events |= _E.PY_START
-        return _DISABLE
+        return DISABLE
     return None
 
 
 def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_RETURN:
@@ -374,7 +374,7 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_UNWIND:
@@ -385,20 +385,20 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
 def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     generation = _event_generation
     disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.LINE:
             try:
-                if e.handler.on_py_line(code, line_number) is not _DISABLE:
+                if e.handler.on_py_line(code, line_number) is not DISABLE:
                     disable = False
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
                 disable = False
     if disable and generation == _event_generation and not (generation & 1):
         handlers.disabled_events |= _E.LINE
-        return _DISABLE
+        return DISABLE
     return None
 
 
@@ -505,7 +505,7 @@ def refresh(code: CodeType, events: int) -> None:
 
 
 def restart_events(handler: MonitoringEventHandler, *, force: bool = False) -> Optional[int]:
-    """Restart events and return the registry version on success.
+    """Restart events and return the subscriber version on success.
 
     By default, handler must be the sole ddtrace subscriber and no external tool
     may be visible. force bypasses those safeguards. The handler argument is an
@@ -532,12 +532,12 @@ def restart_events(handler: MonitoringEventHandler, *, force: bool = False) -> O
             _sys_monitoring.restart_events()
         finally:
             _end_event_mutation()
-        return _registry_version
+        return _subscriber_version
 
 
-def registry_version_is_current(version: int) -> bool:
-    """Return whether the local subscriber registry still has version."""
-    return version == _registry_version
+def subscriber_version_is_current(version: int) -> bool:
+    """Return whether the local subscriber set still has version."""
+    return version == _subscriber_version
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:

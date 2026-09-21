@@ -89,12 +89,12 @@ def test_inflight_dispatch_does_not_disable_after_rearm(handler_name, shared, mo
         def on_py_start(self, code, instruction_offset):
             started.set()
             release.wait()
-            return monitoring._DISABLE
+            return monitoring.DISABLE
 
         def on_py_line(self, code, line_number):
             started.set()
             release.wait()
-            return monitoring._DISABLE
+            return monitoring.DISABLE
 
     def hook(_info):
         if not shared:
@@ -373,7 +373,7 @@ def test_claim_event_skips_software_deduplication_for_single_subscriber(monkeypa
     from ddtrace.internal import monitoring
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    monkeypatch.setattr(monitoring, "registry_version_is_current", lambda version: version == 42)
+    monkeypatch.setattr(monitoring, "subscriber_version_is_current", lambda version: version == 42)
     m._single_subscriber_version = 42
     code_obj = compile("a = 1", "<a>", "exec")
 

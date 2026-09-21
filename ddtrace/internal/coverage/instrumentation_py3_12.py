@@ -93,7 +93,7 @@ ImportHookType = t.Optional[t.Callable[[str, ImportName], None]]  # noqa: UP006
 CodeHookData = t.Tuple[HookType, str, ImportNamesByLine, LineHookType, FileHookType, ImportHookType]  # noqa: UP006
 # Code objects compare structurally, so this registry must use identity keys. It is weak to avoid
 # retaining dynamically compiled code after the application drops it.
-_CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+_CODE_HOOKS: "_monitoring.IdentityWeakKeyDictionary" = _monitoring.IdentityWeakKeyDictionary()
 
 # NOTE: Coverage handlers return DISABLE after reporting a location to avoid redundant callbacks
 # in loops. _rearm_disabled() restores those callbacks at each context or session start: it uses a
@@ -104,7 +104,7 @@ _CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWea
 # when another multiplexer handler keeps an event enabled, the keys identify code objects whose
 # DISABLE marks need to be refreshed for the next context. Identity keys are required because equal
 # code objects still have independent monitoring state.
-_seen_event_locations: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+_seen_event_locations: "_monitoring.IdentityWeakKeyDictionary" = _monitoring.IdentityWeakKeyDictionary()
 _rearm_lock = Lock()
 _rearm_generation: int = 0
 _single_subscriber_version: t.Optional[int] = None
@@ -117,7 +117,7 @@ _warned_tool_unavailable: bool = False
 
 def _claim_event(code: CodeType, location: int) -> tuple[bool, int]:
     """Return whether coverage should report this location and its claim generation."""
-    if _single_subscriber_version is not None and _monitoring.registry_version_is_current(_single_subscriber_version):
+    if _single_subscriber_version is not None and _monitoring.subscriber_version_is_current(_single_subscriber_version):
         return True, _rearm_generation
 
     with _rearm_lock:
@@ -151,10 +151,10 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
     def on_py_start(self, code: CodeType, instruction_offset: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
         if hook_data is None:
-            return _monitoring._DISABLE
+            return _monitoring.DISABLE
         claimed, generation = _claim_event(code, _FILE_EVENT_LOCATION)
         if not claimed:
-            return _monitoring._DISABLE
+            return _monitoring.DISABLE
         hook, path, import_names, _line_hook, file_hook, import_hook = hook_data
 
         try:
@@ -174,7 +174,7 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
             _release_event(code, _FILE_EVENT_LOCATION, generation)
             raise
 
-        return _monitoring._DISABLE
+        return _monitoring.DISABLE
 
 
 class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
@@ -183,10 +183,10 @@ class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
     def on_py_line(self, code: CodeType, line_number: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
         if hook_data is None:
-            return _monitoring._DISABLE
+            return _monitoring.DISABLE
         claimed, generation = _claim_event(code, line_number)
         if not claimed:
-            return _monitoring._DISABLE
+            return _monitoring.DISABLE
         hook, path, import_names, line_hook, _file_hook, import_hook = hook_data
 
         try:
@@ -204,7 +204,7 @@ class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
             _release_event(code, line_number, generation)
             raise
 
-        return _monitoring._DISABLE
+        return _monitoring.DISABLE
 
 
 # A single shared handler instance is registered for every instrumented code object; it dispatches
