@@ -13,6 +13,12 @@ DDTRACE_SRC=/tmp/dd-trace-py-822dd5a-profoff \  # or: git worktree add … faae7
 
 REUSE_VENV=/tmp/local314v315_async_…/venvs DURATION=90 DDTRACE_SRC=… \
   ./scripts/local_ab_314v315/run_async.sh
+
+# Monitoring-vs-wrap only (~2s after servers up; no soak):
+DDTRACE_SRC=/tmp/dd-trace-py-822dd5a-profoff \
+  REUSE_VENV=/tmp/local314v315_async_20260921T173604Z/venvs \
+  PROBE_ONLY=1 PROFILING=1 \
+  ./scripts/local_ab_314v315/run_async.sh
 ```
 
 Ports default **18500 / 18501**. Requires `PY314_BIN` / `PY315_BIN` (same defaults as `run.sh`).
@@ -85,16 +91,36 @@ CPU top (illustrative, one window): A dominated by `sleep` / `SimpleQueue.get` /
 
 ---
 
+## Monitoring vs wrap probe (covered)
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `GET /hook_path` on `async_app.py` |
+| Gate | `run_async.sh` asserts A=`wrap`, B=`monitoring` when `PROFILING=1` (before soak) |
+| Fast path | `PROBE_ONLY=1` exits after assert |
+| Verified run | `/tmp/local314v315_async_20260921T174853Z` |
+| In-repo copy | `runs/20260921T174853Z_async_probe/logs/hook_path_{A314,B315}.json` |
+| Tip under test | `822dd5a3fa` (`faae7e3b2b` = #19272 HEAD parent at prior async soak) |
+
+| Side | `observed_path` | `create_task_wrapped` | `monitoring_tool_id` | handlers | Status |
+| --- | --- | --- | --- | --- | --- |
+| A 3.14.6 | **wrap** | true | null | none | verified PASS |
+| B 3.15.0a7 | **monitoring** | false | 3 | create_task + TaskGroup.create_task | verified PASS |
+
+Meaning: on 3.15, `asyncio.tasks.create_task` / `TaskGroup.create_task` use `sys.monitoring` `PY_RETURN` (not `wrap()`); on 3.14 they stay `wrap()`'d. Other asyncio hooks remain wrap on both (by design in #19272).
+
+Also covered in-PR by `tests/profiling/collector/test_asyncio_wrap_path.py` (unit). This harness probe is the soak-adjacent live check.
+
 ## Still missing for #19272
 
-1. Assert / diff that **3.15 uses sys.monitoring** and **3.14 uses wrap** (harness does not probe registration path).
+1. ~~Assert / diff that **3.15 uses sys.monitoring** and **3.14 uses wrap**~~ — **done** (`/hook_path` + `PROBE_ONLY`).
 2. Parent/child **link** correctness under TaskGroup/gather (labels prove names; not link graph).
 3. Staging / multi-repeat load; latency p50/p95.
 4. Whether an `asyncio` **sample type** is ever expected (product schema) — still absent here.
 
 ## Harness files
 
-- `async_app.py` — long-lived loop + churn
+- `async_app.py` — long-lived loop + churn + `/hook_path` probe
 - `async_corpus.txt` — drive paths
-- `run_async.sh` — venv/install/drive/ps/pprof summary (mirrors `run.sh`, `PROFILING=0` supported)
+- `run_async.sh` — venv/install/drive/ps/pprof summary (mirrors `run.sh`, `PROFILING=0` supported; `PROBE_ONLY=1` for path assert only)
 - Reuses `drive.py`

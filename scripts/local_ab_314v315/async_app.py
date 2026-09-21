@@ -166,11 +166,93 @@ async def _stats_snapshot() -> dict[str, Any]:
     return snap
 
 
+def _hook_path_probe() -> dict[str, Any]:
+    """Report whether create_task uses wrap() (<3.15) or sys.monitoring (3.15+).
+
+    Mirrors tests/profiling/collector/test_asyncio_wrap_path.py expectations so the
+    long-lived async A/B harness can assert registration path without a 90s soak.
+    """
+    expected: str = "monitoring" if sys.version_info >= (3, 15) else "wrap"
+    out: dict[str, Any] = {
+        "python": sys.version.split()[0],
+        "hexversion": hex(sys.hexversion),
+        "expected_path": expected,
+        "profiling_env": os.environ.get("DD_PROFILING_ENABLED", ""),
+        "asyncio_imported": False,
+        "create_task_wrapped": None,
+        "tg_create_task_wrapped": None,
+        "monitoring_tool_id": None,
+        "create_task_handler_registered": False,
+        "tg_create_task_handler_registered": False,
+        "observed_path": "unknown",
+        "ok": False,
+        "error": None,
+    }
+    try:
+        from types import FunctionType
+        from typing import cast
+
+        from ddtrace.internal.wrapping import is_wrapped
+        from ddtrace.profiling import _asyncio
+
+        # Private registration state is not in stubs; probe via getattr.
+        aio_mod: Any = _asyncio
+        handlers: dict[int, Any] = dict(getattr(aio_mod, "_py_return_handlers", {}) or {})
+        tool_id_raw: Any = getattr(aio_mod, "_monitoring_tool_id", None)
+        tool_id: int | None = int(tool_id_raw) if tool_id_raw is not None else None
+
+        create_task_fn: FunctionType = cast(FunctionType, asyncio.tasks.create_task)
+        create_wrapped: bool = bool(is_wrapped(create_task_fn))
+        create_handler: bool = id(create_task_fn.__code__) in handlers
+
+        tg_wrapped: bool | None = None
+        tg_handler: bool = False
+        taskgroups: Any = sys.modules.get("asyncio.taskgroups")
+        if taskgroups is not None and hasattr(taskgroups.TaskGroup, "create_task"):
+            tg_fn: FunctionType = cast(FunctionType, taskgroups.TaskGroup.create_task)
+            tg_wrapped = bool(is_wrapped(tg_fn))
+            tg_handler = id(tg_fn.__code__) in handlers
+
+        observed: str
+        if create_wrapped and tool_id is None and not create_handler:
+            observed = "wrap"
+        elif (not create_wrapped) and tool_id is not None and create_handler:
+            observed = "monitoring"
+        else:
+            observed = "unknown"
+
+        ok: bool = observed == expected
+        if expected == "wrap" and tg_wrapped is False:
+            ok = False
+        if expected == "monitoring" and (tg_wrapped is True or not tg_handler):
+            ok = False
+
+        out.update(
+            {
+                "asyncio_imported": bool(aio_mod.ASYNCIO_IMPORTED),
+                "create_task_wrapped": create_wrapped,
+                "tg_create_task_wrapped": tg_wrapped,
+                "monitoring_tool_id": tool_id,
+                "create_task_handler_registered": create_handler,
+                "tg_create_task_handler_registered": tg_handler,
+                "observed_path": observed,
+                "ok": ok,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 — probe must always return JSON
+        out["error"] = f"{type(exc).__name__}: {exc}"
+        out["ok"] = False
+    return out
+
+
 async def _dispatch(path: str) -> tuple[int, dict[str, Any]]:
     global _stats_lock
     route: str = path.split("?", 1)[0].rstrip("/") or "/"
     if route == "/healthz":
         return 200, {"ok": True, "python": sys.version, "tasks": _task_count()}
+    if route == "/hook_path":
+        probe: dict[str, Any] = _hook_path_probe()
+        return (200 if probe.get("ok") else 500), probe
     if route == "/stats":
         return 200, await _stats_snapshot()
     if route == "/work":

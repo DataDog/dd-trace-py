@@ -9,10 +9,12 @@
 #   DDTRACE_SRC=/path/to/#19272-tip ./scripts/local_ab_314v315/run_async.sh
 #   DURATION=90 REUSE_VENV=/tmp/local314v315_.../venvs ./scripts/local_ab_314v315/run_async.sh
 #   PROFILING=0 DURATION=90 DDTRACE_SRC=... ./scripts/local_ab_314v315/run_async.sh
+#   PROBE_ONLY=1 PROFILING=1 DDTRACE_SRC=... ./scripts/local_ab_314v315/run_async.sh
 #
 # Tip: install the #19272 tip (faae7e3 or current PR head) for both arms — only
 # the Python interpreter differs. Do not point DDTRACE_SRC at a chore-only branch
 # that lacks the asyncio monitoring changes.
+# PROBE_ONLY=1 asserts /hook_path (wrap on 3.14, sys.monitoring on 3.15) then exits.
 #
 set -euo pipefail
 
@@ -52,6 +54,17 @@ case "${PROFILING}" in
   1|true|True|TRUE|on|ON|yes|YES) PROFILING_ENABLED=true ;;
   *)
     echo "ERROR: PROFILING must be 0/1 (got '${PROFILING}')" >&2
+    exit 1
+    ;;
+esac
+
+# PROBE_ONLY=1: assert wrap vs sys.monitoring via /hook_path, then exit (no soak).
+PROBE_ONLY="${PROBE_ONLY:-0}"
+case "${PROBE_ONLY}" in
+  0|false|False|FALSE|off|OFF|no|NO) PROBE_ONLY=0 ;;
+  1|true|True|TRUE|on|ON|yes|YES) PROBE_ONLY=1 ;;
+  *)
+    echo "ERROR: PROBE_ONLY must be 0/1 (got '${PROBE_ONLY}')" >&2
     exit 1
     ;;
 esac
@@ -180,6 +193,54 @@ for port in "${PORT_A}" "${PORT_B}"; do
   fi
 done
 echo ">>> both sides up"
+
+# Assert wrap (3.14) vs sys.monitoring (3.15) registration path (#19272).
+# Skipped when PROFILING=0 because stack asyncio hooks are not installed.
+_probe_hook_path() {
+  local fail=0
+  echo ">>> /hook_path probe (wrap vs sys.monitoring)"
+  for port_label in "A314:${PORT_A}:wrap" "B315:${PORT_B}:monitoring"; do
+    local label="${port_label%%:*}"
+    local rest="${port_label#*:}"
+    local port="${rest%%:*}"
+    local expect="${rest##*:}"
+    local out="${RUN_DIR}/logs/hook_path_${label}.json"
+    if ! curl -sf "http://127.0.0.1:${port}/hook_path" >"${out}"; then
+      echo "ERROR: [${label}] /hook_path HTTP failure; body:" >&2
+      cat "${out}" >&2 || true
+      fail=1
+      continue
+    fi
+    local observed
+    observed="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('observed_path',''))" "${out}")"
+    local ok
+    ok="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('ok', False))" "${out}")"
+    echo ">>> [${label}] expected=${expect} observed=${observed} ok=${ok}"
+    python3 -m json.tool "${out}" | head -40
+    if [[ "${ok}" != "True" || "${observed}" != "${expect}" ]]; then
+      echo "ERROR: [${label}] hook path mismatch (want ${expect})" >&2
+      fail=1
+    fi
+  done
+  if [[ "${fail}" != 0 ]]; then
+    echo "ERROR: monitoring-vs-wrap probe failed" >&2
+    exit 1
+  fi
+  echo ">>> hook_path probe PASS (A=wrap, B=monitoring)"
+}
+
+if [[ "${PROFILING_ENABLED}" == "true" ]]; then
+  _probe_hook_path
+else
+  echo ">>> skip /hook_path probe (PROFILING=0 — asyncio stack hooks not installed)"
+fi
+
+if [[ "${PROBE_ONLY}" == "1" ]]; then
+  echo "=== PROBE_ONLY done; skipping soak ==="
+  echo "RUN_DIR=${RUN_DIR}"
+  echo "hook_path logs: ${RUN_DIR}/logs/hook_path_A314.json ${RUN_DIR}/logs/hook_path_B315.json"
+  exit 0
+fi
 
 # Snapshot /stats mid-soak helper (written after drive too).
 _snap_stats() {
