@@ -9,6 +9,7 @@
 #   ./scripts/local_ab_314v315/run.sh
 #   DURATION=90 DDTRACE_SRC=$PWD ./scripts/local_ab_314v315/run.sh
 #   REUSE_VENV=/tmp/local314v315_.../venvs DURATION=90 ./scripts/local_ab_314v315/run.sh
+#   PROFILING=0 DURATION=90 REUSE_VENV=... ./scripts/local_ab_314v315/run.sh  # runtime-only control
 #
 set -euo pipefail
 
@@ -42,6 +43,17 @@ DURATION="${DURATION:-90}"
 CONCURRENCY="${CONCURRENCY:-2}"
 UPLOAD_INTERVAL="${DD_PROFILING_UPLOAD_INTERVAL:-15}"
 REUSE_VENV="${REUSE_VENV:-}"
+# PROFILING=1 (default): DD_PROFILING_ENABLED=true + lock/memory on, expect pprof.
+# PROFILING=0: same tip/wheels/workload with profiling off (runtime-only RSS/CPU control).
+PROFILING="${PROFILING:-1}"
+case "${PROFILING}" in
+  0|false|False|FALSE|off|OFF|no|NO) PROFILING_ENABLED=false ;;
+  1|true|True|TRUE|on|ON|yes|YES) PROFILING_ENABLED=true ;;
+  *)
+    echo "ERROR: PROFILING must be 0/1 (got '${PROFILING}')" >&2
+    exit 1
+    ;;
+esac
 
 CORPUS="${SCRIPT_DIR}/corpus.txt"
 DRIVE_PY="${SCRIPT_DIR}/drive.py"
@@ -57,6 +69,7 @@ done
 echo "=== local 314v315 smoke (dd-trace-py) ==="
 echo "RUN_DIR=${RUN_DIR}"
 echo "DDTRACE_SRC=${DDTRACE_SRC}"
+echo "PROFILING=${PROFILING} (DD_PROFILING_ENABLED=${PROFILING_ENABLED})"
 echo "A: ${PY314_BIN} ($("${PY314_BIN}" -V 2>&1)) port=${PORT_A}"
 echo "B: ${PY315_BIN} ($("${PY315_BIN}" -V 2>&1)) port=${PORT_B}"
 if [[ -n "${DDTRACE_REF}" ]]; then
@@ -109,23 +122,29 @@ _start() {
   mkdir -p "${pprof_prefix}"
   # shellcheck disable=SC1091
   source "${venv}/bin/activate"
-  env \
-    PORT="${port}" \
-    DD_ENV=local-314v315 \
-    DD_SERVICE="local-smoke-${side}" \
-    DD_VERSION="$(git -C "${DDTRACE_SRC}" rev-parse --short HEAD)" \
-    DD_PROFILING_ENABLED=true \
-    DD_PROFILING_LOCK_ENABLED=true \
-    DD_PROFILING_MEMORY_ENABLED=true \
-    DD_PROFILING_UPLOAD_INTERVAL="${UPLOAD_INTERVAL}" \
-    DD_PROFILING_OUTPUT_PPROF="${pprof_prefix}/profile" \
-    DD_PROFILING_TAGS="ab_side:${side},experiment:local_smoke_314v315,py:${label}" \
-    DD_TRACE_ENABLED=false \
+  local -a env_args=(
+    "PORT=${port}"
+    "DD_ENV=local-314v315"
+    "DD_SERVICE=local-smoke-${side}"
+    "DD_VERSION=$(git -C "${DDTRACE_SRC}" rev-parse --short HEAD)"
+    "DD_PROFILING_ENABLED=${PROFILING_ENABLED}"
+    "DD_TRACE_ENABLED=false"
+  )
+  if [[ "${PROFILING_ENABLED}" == "true" ]]; then
+    env_args+=(
+      "DD_PROFILING_LOCK_ENABLED=true"
+      "DD_PROFILING_MEMORY_ENABLED=true"
+      "DD_PROFILING_UPLOAD_INTERVAL=${UPLOAD_INTERVAL}"
+      "DD_PROFILING_OUTPUT_PPROF=${pprof_prefix}/profile"
+      "DD_PROFILING_TAGS=ab_side:${side},experiment:local_smoke_314v315,py:${label}"
+    )
+  fi
+  env "${env_args[@]}" \
     python "${APP_PY}" \
     >"${RUN_DIR}/logs/server_${label}.log" 2>&1 &
   echo $! >"${RUN_DIR}/logs/server_${label}.pid"
   deactivate
-  echo ">>> [${label}] pid=$(cat "${RUN_DIR}/logs/server_${label}.pid") port=${port}"
+  echo ">>> [${label}] pid=$(cat "${RUN_DIR}/logs/server_${label}.pid") port=${port} profiling=${PROFILING_ENABLED}"
 }
 
 _start "${RUN_DIR}/venvs/a314" "${PORT_A}" "A314" "A"
@@ -207,10 +226,15 @@ for port in "${PORT_A}" "${PORT_B}"; do
   echo "  port ${port} asyncio_burst -> ${code}"
 done
 
-sleep $((UPLOAD_INTERVAL + 5))
+if [[ "${PROFILING_ENABLED}" == "true" ]]; then
+  sleep $((UPLOAD_INTERVAL + 5))
+else
+  # No profiler flush; brief settle only.
+  sleep 2
+fi
 
 echo "=== summary + delta table ==="
-python3 - <<'PY' "${RUN_DIR}" "${DDTRACE_SRC}" "${DURATION}" "${PORT_A}" "${PORT_B}" "${PY314_BIN}" "${PY315_BIN}"
+python3 - <<'PY' "${RUN_DIR}" "${DDTRACE_SRC}" "${DURATION}" "${PORT_A}" "${PORT_B}" "${PY314_BIN}" "${PY315_BIN}" "${PROFILING_ENABLED}"
 from __future__ import annotations
 
 import json
@@ -227,6 +251,7 @@ port_a: int = int(sys.argv[4])
 port_b: int = int(sys.argv[5])
 py314: str = sys.argv[6]
 py315: str = sys.argv[7]
+profiling_enabled: bool = sys.argv[8].lower() in ("1", "true", "yes", "on")
 
 import subprocess
 
@@ -316,6 +341,7 @@ summary: dict[str, Any] = {
     "ddtrace_src": ddtrace_src,
     "ddtrace_sha": ddtrace_sha,
     "duration_s": duration_s,
+    "profiling_enabled": profiling_enabled,
     "ports": {"A": port_a, "B": port_b},
     "sides": {},
 }
@@ -414,19 +440,28 @@ for name, a, b, kind in rows_spec:
 delta: dict[str, Any] = {
     "tip": ddtrace_sha,
     "duration_s": duration_s,
+    "profiling_enabled": profiling_enabled,
     "metrics_run": str(run),
     "table": table,
     "proc_raw": {"A314": pa, "B315": pb},
     "caveat": (
         f"single {duration_s}s laptop soak, concurrency=2/side, not staging-grade; "
+        f"profiling_enabled={profiling_enabled}; "
         "CPU% from ps 1Hz; RSS process RSS"
     ),
 }
 (run / "delta_table.json").write_text(json.dumps(delta, indent=2) + "\n")
 
-ok: bool = all(
-    s["profiler_started"] and s["pprof_count"] > 0 for s in summary["sides"].values()
-)
+if profiling_enabled:
+    ok: bool = all(
+        s["profiler_started"] and s["pprof_count"] > 0 for s in summary["sides"].values()
+    )
+else:
+    # Profiler-off control: both sides must serve traffic with profiler not started.
+    ok = all(
+        (not s["profiler_started"]) and int((s.get("drive") or {}).get("ok", 0) or 0) > 0
+        for s in summary["sides"].values()
+    )
 sys.exit(0 if ok else 2)
 PY
 
