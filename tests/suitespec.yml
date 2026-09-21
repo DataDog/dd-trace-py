@@ -258,20 +258,11 @@ suites:
         AGENT_VERSION: latest
       variants:
         - name: integration-latest
-          ddtest_batch: "integration-{python}-{node}"
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
+          command: pytest -vv --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}/
           env:
             DDTEST_SUITE_PATH: tests/integration
             DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
-            DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
-        - name: integration-latest-civisibility
-          ddtest_batch: "integration-{python}-{node}"
-          dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
-          env:
-            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
-            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
   integration_testagent:
     ddtest_nodes: 2
     ddtest: true
@@ -295,20 +286,11 @@ suites:
         AGENT_VERSION: testagent
       variants:
         - name: integration-snapshot
-          ddtest_batch: "integration-{python}-{node}"
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
+          command: pytest -vv --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}/
           env:
             DDTEST_SUITE_PATH: tests/integration
             DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
-            DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
-        - name: integration-snapshot-civisibility
-          ddtest_batch: "integration-{python}-{node}"
-          dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
-          env:
-            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
-            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
   internal:
     retry: 2
     venvs_per_job: 2

@@ -94,6 +94,20 @@ def test_uv_suitespec_matches_riot():
     assert not missing_lockfiles, f"Missing suitespec lock files: {missing_lockfiles}"
 
 
+def test_integration_ddtest_suites_include_civisibility_in_the_shared_environment():
+    suitespec_module = _load_suitespec()
+    environments = suitespec_module.get_test_environments(nightly=False)
+
+    for suite in ("integration_agent", "integration_testagent"):
+        suite_environments = environments[suite]
+        assert len(suite_environments) == len(suitespec_module.DEFAULT_PYTHON_VERSIONS)
+        for environment in suite_environments:
+            assert len(environment.runs) == 1
+            run = environment.runs[0]
+            assert "--ignore-glob='*civisibility*'" not in run.command
+            assert dict(run.environment)["DDTEST_TESTS_LOCATION"] == "tests/integration/**/test*.py"
+
+
 def test_integrations_have_riot_envs(
     integration_dir_names: set[str],
     riot_venv_names: set[str],

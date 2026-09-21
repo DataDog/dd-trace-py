@@ -528,11 +528,9 @@ venv = Venv(
             env={
                 "DDTEST_SUITE_PATH": "tests/integration",
                 "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
-                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
             },
-            # Enabling coverage for integration tests breaks certain tests in CI
-            # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/",
+            # Enabling coverage for integration tests breaks certain tests in CI.
+            command="pytest -vv --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -544,32 +542,6 @@ venv = Venv(
                 ),
                 Venv(
                     name="integration-snapshot",
-                    env={
-                        "AGENT_VERSION": "testagent",
-                    },
-                ),
-            ],
-        ),
-        Venv(
-            name="integration-civisibility",
-            env={
-                "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
-                "DDTEST_TESTS_LOCATION": "tests/integration/test_integration_civisibility.py",
-            },
-            # Enabling coverage for integration tests breaks certain tests in CI
-            # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}",
-            pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
-            pys=select_pys(),
-            venvs=[
-                Venv(
-                    name="integration-latest-civisibility",
-                    env={
-                        "AGENT_VERSION": "latest",
-                    },
-                ),
-                Venv(
-                    name="integration-snapshot-civisibility",
                     env={
                         "AGENT_VERSION": "testagent",
                     },
