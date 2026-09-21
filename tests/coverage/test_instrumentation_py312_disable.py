@@ -279,7 +279,7 @@ def test_claim_event_skips_software_deduplication_for_single_subscriber(monkeypa
     from ddtrace.internal import monitoring
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    monkeypatch.setattr(monitoring, "registry_version_is_current", lambda version: version == 42)
+    monkeypatch.setattr(monitoring, "subscriber_version_is_current", lambda version: version == 42)
     m._single_subscriber_version = 42
     code_obj = compile("a = 1", "<a>", "exec")
 

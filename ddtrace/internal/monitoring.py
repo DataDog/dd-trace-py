@@ -33,7 +33,7 @@ log = get_logger(__name__)
 
 _sys_monitoring: Any = sys.monitoring  # type: ignore[attr-defined]
 _E: Any = _sys_monitoring.events
-_DISABLE: object = _sys_monitoring.DISABLE
+DISABLE: object = _sys_monitoring.DISABLE
 
 # PY_UNWIND became a per-code "other" event only in Python 3.15 (its event bit even
 # moved, 0x1000 -> 0x2000). On 3.12-3.14 it is a global-only event that
@@ -53,8 +53,9 @@ class MonitoringToolUnavailable(RuntimeError):
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
 # for debugger/coverage/profiler/optimizer; 3 and 4 are the only undefined
-# slots for custom tools (see CPython docs). Prefer 4 first, consistent with
-# coverage's _DD_CANDIDATE_SLOTS, and fall back to 3 if another tool claimed it.
+# slots for custom tools (see CPython docs). Prefer 4 and fall back to 3 if
+# another tool claimed it. COVERAGE_ID (1) is deliberately never claimed, so
+# ddtrace cannot lock coverage.py out of its conventional slot.
 _CANDIDATE_TOOL_IDS = (4, 3)
 
 _tool_id: Optional[int] = None
@@ -63,7 +64,7 @@ _tool_lock = Lock()
 _registry_lock = Lock()
 
 
-class _IdentityWeakKeyDictionary:
+class IdentityWeakKeyDictionary:
     """Weak mapping keyed by object identity (not equality).
 
     Unlike ``weakref.WeakKeyDictionary``, lookups use ``is`` rather than
@@ -138,10 +139,16 @@ class _IdentityWeakKeyDictionary:
         self._data.clear()
 
 
-_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
-_registry_version: int = 0
-_single_subscriber_cache_version: int = -1
-_single_subscriber_cache_handler: "Optional[weakref.ReferenceType[MonitoringEventHandler]]" = None
+_registry: IdentityWeakKeyDictionary = IdentityWeakKeyDictionary()
+
+# id(handler) -> (weak reference to the handler, number of code objects it is registered for).
+_subscribers: "dict[int, tuple[weakref.ReferenceType[MonitoringEventHandler], int]]" = {}
+# Bumped only when the set of distinct subscribers changes, so it stays stable while one
+# subscriber keeps registering more code objects. Callers hold on to a value to detect
+# whether their view of the subscriber set is still accurate.
+_subscriber_version: int = 0
+_sole_subscriber_cache_version: int = -1
+_sole_subscriber_cache_handler: "Optional[weakref.ReferenceType[MonitoringEventHandler]]" = None
 
 
 class MonitoringEventHandler(ABC):
@@ -245,6 +252,93 @@ def _events_for(handlers: _CodeHandlers) -> int:
     return events
 
 
+def _add_subscriber(handler: MonitoringEventHandler) -> None:
+    """Record one more code object registered for handler. Caller holds _registry_lock."""
+    global _subscriber_version
+
+    handler_id = id(handler)
+    existing = _subscribers.get(handler_id)
+    # A dead entry means CPython reused the id of a collected handler, so this is a
+    # different subscriber and must not inherit the old one's count.
+    if existing is not None and existing[0]() is handler:
+        ref, count = existing
+        _subscribers[handler_id] = (ref, count + 1)
+        return
+
+    _subscribers[handler_id] = (weakref.ref(handler), 1)
+    _subscriber_version += 1
+
+
+def _remove_subscriber(handler: MonitoringEventHandler) -> None:
+    """Drop one code object registered for handler. Caller holds _registry_lock."""
+    global _subscriber_version
+
+    handler_id = id(handler)
+    existing = _subscribers.get(handler_id)
+    if existing is None:
+        return
+
+    ref, count = existing
+    if count > 1:
+        _subscribers[handler_id] = (ref, count - 1)
+        return
+
+    del _subscribers[handler_id]
+    _subscriber_version += 1
+
+
+def _scan_sole_subscriber() -> Optional[MonitoringEventHandler]:
+    """Walk the live registry and return its only subscriber, or None. Holds _registry_lock."""
+    sole: Optional[MonitoringEventHandler] = None
+    for code in _registry:
+        handlers: Optional[_CodeHandlers] = _registry.get(code)
+        if handlers is None:
+            continue
+        for entry in handlers.snapshot:
+            if sole is None:
+                sole = entry.handler
+            elif entry.handler is not sole:
+                return None
+    return sole
+
+
+def _sole_subscriber() -> Optional[MonitoringEventHandler]:
+    """Return the only subscriber registered with the multiplexer, or None.
+
+    _subscribers over-counts when a code object is garbage collected, because the weak
+    registry entry disappears without a matching unregister(). Over-counting can hide a
+    sole subscriber but can never invent one, so a single recorded handler is
+    authoritative and anything else falls back to a walk of the live registry. That walk
+    is O(registered code objects), so its result is cached against _subscriber_version --
+    which, unlike the registration count, does not change as one subscriber instruments
+    more modules.
+
+    Caller holds _registry_lock.
+    """
+    global _sole_subscriber_cache_handler
+    global _sole_subscriber_cache_version
+
+    recorded: Optional[MonitoringEventHandler] = None
+    several: bool = False
+    for ref, _count in _subscribers.values():
+        handler = ref()
+        if handler is None:
+            continue
+        if recorded is None:
+            recorded = handler
+        elif handler is not recorded:
+            several = True
+            break
+    if not several:
+        return recorded
+
+    if _sole_subscriber_cache_version != _subscriber_version:
+        scanned = _scan_sole_subscriber()
+        _sole_subscriber_cache_handler = weakref.ref(scanned) if scanned is not None else None
+        _sole_subscriber_cache_version = _subscriber_version
+    return _sole_subscriber_cache_handler() if _sole_subscriber_cache_handler is not None else None
+
+
 def _setup() -> int:
     """Claim a free tool ID and install the global callbacks (idempotent)."""
     global _tool_id
@@ -287,7 +381,7 @@ def _setup() -> int:
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     # DISABLE is forwarded only when every PY_START handler for this code object
     # returns it, mirroring on_py_line. Existing handlers (the wrapping context)
@@ -295,18 +389,18 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
-            if e.handler.on_py_start(code, instruction_offset) is not _DISABLE:
+            if e.handler.on_py_start(code, instruction_offset) is not DISABLE:
                 disable = False
     if disable:
         handlers.disabled_events |= _E.PY_START
-        return _DISABLE
+        return DISABLE
     return None
 
 
 def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_RETURN:
@@ -317,7 +411,7 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_UNWIND:
@@ -328,19 +422,19 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
 def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        return DISABLE
     disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.LINE:
             try:
-                if e.handler.on_py_line(code, line_number) is not _DISABLE:
+                if e.handler.on_py_line(code, line_number) is not DISABLE:
                     disable = False
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
                 disable = False
     if disable:
         handlers.disabled_events |= _E.LINE
-        return _DISABLE
+        return DISABLE
     return None
 
 
@@ -384,8 +478,6 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
-        global _registry_version
-
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers is None:
             _registry[code] = handlers = _CodeHandlers()
@@ -397,8 +489,8 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         # previous LINE-only re-arm to every local event.
         existing_events: int = _events_for(handlers)
         previous = handlers.set_handler(id(handler), entry)
-        if previous is None or previous.events != entry.events:
-            _registry_version += 1
+        if previous is None:
+            _add_subscriber(handler)
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
         handlers.disabled_events &= local_events
 
@@ -421,61 +513,36 @@ def refresh(code: CodeType, events: int) -> None:
 
 
 def restart_events(handler: MonitoringEventHandler, *, force: bool = False) -> Optional[int]:
-    """Restart events and return the registry version on success.
+    """Restart events and return the subscriber version on success.
 
     By default, handler must be the sole ddtrace subscriber and no external tool
     may be visible. force bypasses those safeguards. The handler argument is an
     ownership check only; the underlying sys.monitoring restart remains global.
     """
-    global _single_subscriber_cache_handler
-    global _single_subscriber_cache_version
-
     with _registry_lock:
         if not force:
-            if _single_subscriber_cache_version != _registry_version:
-                subscriber: Optional[MonitoringEventHandler] = None
-                for code in _registry:
-                    handlers: Optional[_CodeHandlers] = _registry.get(code)
-                    if handlers is None:
-                        continue
-                    for entry in handlers.snapshot:
-                        if subscriber is None:
-                            subscriber = entry.handler
-                        elif entry.handler is not subscriber:
-                            subscriber = None
-                            break
-                    if subscriber is None and handlers.snapshot:
-                        break
-                _single_subscriber_cache_handler = weakref.ref(subscriber) if subscriber is not None else None
-                _single_subscriber_cache_version = _registry_version
-
-            sole_subscriber = (
-                _single_subscriber_cache_handler() if _single_subscriber_cache_handler is not None else None
-            )
-            if sole_subscriber is not handler or _tool_id is None:
+            if _sole_subscriber() is not handler or _tool_id is None:
                 return None
             for tool_id in range(6):
-                if tool_id != _tool_id and sys.monitoring.get_tool(tool_id) is not None:
+                if tool_id != _tool_id and _sys_monitoring.get_tool(tool_id) is not None:
                     return None
 
         # AIDEV-NOTE: The external-tool scan and restart are not atomic because
         # sys.monitoring exposes no shared lock or tool-scoped restart. This narrow
         # registration race is intentional parity with the previous coverage
         # implementation; visible external tools always use selective re-arming.
-        sys.monitoring.restart_events()
-        return _registry_version
+        _sys_monitoring.restart_events()
+        return _subscriber_version
 
 
-def registry_version_is_current(version: int) -> bool:
-    """Return whether the local subscriber registry still has version."""
-    return version == _registry_version
+def subscriber_version_is_current(version: int) -> bool:
+    """Return whether the set of registered subscribers still matches version."""
+    return version == _subscriber_version
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Remove *handler* from the handlers registered for *code*."""
     with _registry_lock:
-        global _registry_version
-
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers is None:
             return
@@ -483,7 +550,7 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
         entry = handlers.pop_handler(id(handler))
         if entry is None:
             return
-        _registry_version += 1
+        _remove_subscriber(handler)
 
         if not handlers:
             del _registry[code]

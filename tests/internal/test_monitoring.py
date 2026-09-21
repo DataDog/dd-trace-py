@@ -37,7 +37,7 @@ class _MonitoringEvents(Protocol):
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
 # source module under a pre-3.15 Python version.
 _E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)
-_DISABLE: object = cast(object, monitoring._DISABLE)
+DISABLE: object = cast(object, monitoring.DISABLE)
 _LOCAL_EVENTS: int = cast(int, monitoring._LOCAL_EVENTS)
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
@@ -57,7 +57,7 @@ class LineHandler(monitoring.MonitoringEventHandler):
 
     def on_py_line(self, code: CodeType, line_number: int) -> object | None:
         self.lines.append(line_number)
-        return _DISABLE if self._disable else None
+        return DISABLE if self._disable else None
 
 
 class RaisingLineHandler(monitoring.MonitoringEventHandler):
@@ -156,7 +156,7 @@ def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
     version = monitoring.restart_events(first)
     assert version == forced_version
     assert version is not None
-    assert monitoring.registry_version_is_current(version)
+    assert monitoring.subscriber_version_is_current(version)
 
     own_tool = monitoring.ensure_tool()
     external_tool = next(
@@ -174,7 +174,90 @@ def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
     monitoring.register(second_code, second)
     assert monitoring.restart_events(first) is None
     assert monitoring.restart_events(second) is None
-    assert not monitoring.registry_version_is_current(version)
+    assert not monitoring.subscriber_version_is_current(version)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_subscriber_version_ignores_additional_code_objects() -> None:
+    """Instrumenting more modules must not invalidate a sole subscriber's version.
+
+    The version exists so a caller can cache "I am alone" across test contexts. If it
+    tracked registrations rather than the set of distinct subscribers, every import
+    would revoke that answer and force a fresh walk of the whole registry.
+    """
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    sole = Handler()
+    codes = [compile("pass", f"<code{index}>", "exec") for index in range(10)]
+
+    monitoring.register(codes[0], sole)
+    version = monitoring.restart_events(sole)
+    assert version is not None
+
+    for code in codes[1:]:
+        monitoring.register(code, sole)
+    # Re-registering an existing pair must not shift the version either.
+    monitoring.register(codes[0], sole)
+
+    assert monitoring.subscriber_version_is_current(version)
+    assert monitoring.restart_events(sole) == version
+
+    # Dropping all but one registration still leaves the same sole subscriber.
+    for code in codes[1:]:
+        monitoring.unregister(code, sole)
+    assert monitoring.subscriber_version_is_current(version)
+
+    # Only losing the subscriber itself changes the version.
+    monitoring.unregister(codes[0], sole)
+    assert not monitoring.subscriber_version_is_current(version)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_sole_subscriber_survives_collected_code_objects() -> None:
+    """A code object collected without unregister() must not permanently revoke the shortcut.
+
+    The weak registry entry disappears on its own, so the per-handler registration count
+    over-counts. Over-counting may hide a sole subscriber but must never invent one, so
+    the shortcut has to fall back to the live registry and still be granted.
+    """
+    import gc
+    from types import CodeType
+    import weakref
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    sole = Handler()
+    sole_code = compile("pass", "<sole>", "exec")
+    monitoring.register(sole_code, sole)
+
+    # `ghost` stays alive on purpose: the registration count still remembers it even
+    # though the code object it was registered for is gone.
+    ghost = Handler()
+    ghost_code = compile("pass", "<ghost>", "exec")
+    monitoring.register(ghost_code, ghost)
+    assert monitoring.restart_events(sole) is None
+
+    collected = weakref.ref(ghost_code)
+    del ghost_code
+    gc.collect()
+    if collected() is not None:
+        # Nothing to assert if the interpreter still holds the instrumented code object.
+        return
+
+    version = monitoring.restart_events(sole)
+    assert version is not None, "a collected code object must not keep the shortcut disabled"
+    assert monitoring.restart_events(sole) == version
+    assert ghost is not None
 
 
 @_py315
@@ -217,7 +300,7 @@ def test_on_py_unwind_disables_unregistered_code() -> None:
         pass
 
     result: object | None = monitoring._on_py_unwind(unrelated.__code__, 0, ValueError("x"))
-    assert result is _DISABLE
+    assert result is DISABLE
 
 
 @_py315
@@ -297,7 +380,7 @@ def test_on_py_line_disables_when_all_handlers_return_disable(
     registered(fn.__code__, LineHandler(disable=True))
 
     result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
-    assert result is _DISABLE
+    assert result is DISABLE
 
 
 def test_on_py_line_continues_when_any_handler_declines_disable(
@@ -312,7 +395,7 @@ def test_on_py_line_continues_when_any_handler_declines_disable(
     registered(fn.__code__, LineHandler(disable=False))
 
     result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
-    assert result is not _DISABLE
+    assert result is not DISABLE
 
 
 def test_line_disable_request_is_only_advisory_while_a_sibling_needs_events(
@@ -372,7 +455,7 @@ def test_unrelated_handler_does_not_vote_on_line_disable(
 
     result = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
 
-    assert result is _DISABLE
+    assert result is DISABLE
     assert line_handler.lines
     assert not start_handler.started
 
@@ -435,7 +518,7 @@ def test_on_py_line_does_not_disable_when_handler_raises(
     registered(fn.__code__, RaisingLineHandler())
 
     result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
-    assert result is not _DISABLE
+    assert result is not DISABLE
 
 
 def test_on_py_start_propagates_exception(
@@ -570,7 +653,7 @@ def test_py_start_disable_forwarded_when_all_handlers_return_disable(
 
         def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
             self.count += 1
-            return _DISABLE
+            return DISABLE
 
     def fn() -> None:
         pass
@@ -600,11 +683,11 @@ def test_refresh_rearms_only_requested_event_kind(
 
         def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
             self.starts += 1
-            return _DISABLE
+            return DISABLE
 
         def on_py_line(self, code: CodeType, line_number: int) -> object | None:
             self.lines.append(line_number)
-            return _DISABLE
+            return DISABLE
 
     def fn() -> None:
         value = 1
@@ -645,7 +728,7 @@ def test_register_rearms_disabled_py_start_for_new_handler(
 
         def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
             self.count += 1
-            return _DISABLE
+            return DISABLE
 
     class PassiveStartHandler(monitoring.MonitoringEventHandler):
         def __init__(self) -> None:
@@ -677,7 +760,7 @@ def test_py_start_continues_when_any_handler_declines_disable(
 
     class DisablingStartHandler(monitoring.MonitoringEventHandler):
         def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
-            return _DISABLE
+            return DISABLE
 
     class PassiveStartHandler(monitoring.MonitoringEventHandler):
         def __init__(self) -> None:
@@ -694,7 +777,7 @@ def test_py_start_continues_when_any_handler_declines_disable(
     registered(fn.__code__, DisablingStartHandler())
 
     result: object | None = monitoring._on_py_start(fn.__code__, 0)
-    assert result is not _DISABLE, "a None-returning handler must keep PY_START events firing"
+    assert result is not DISABLE, "a None-returning handler must keep PY_START events firing"
     assert passive.count == 1
 
 

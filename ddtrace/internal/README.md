@@ -399,10 +399,9 @@ Because `sys.monitoring.restart_events()` is global and would clear other tools'
 disabled state, the multiplexer re-arms only requested event bits by toggling
 those bits off and back on. It tracks events for which the aggregate callback
 has returned `DISABLE`, so a rejected request does not cause a physical re-arm.
-`register()`
-does this automatically when a new handler shares an event that may already be
-disabled. Call `monitoring.refresh(code, events)` when a handler becomes
-interested in those event bits again.
+`register()` does this automatically when a new handler shares an event that may
+already be disabled. Call `monitoring.refresh(code, events)` when a handler
+becomes interested in those event bits again.
 
 `restart_events(handler)` provides a best-effort global shortcut when `handler`
 is the sole ddtrace subscriber and no external monitoring tool is visible. The
@@ -410,6 +409,12 @@ handler argument is an ownership check, not a scope: the underlying restart is
 still global. If either condition fails, callers must use the selective refresh
 path above, which only toggles ddtrace's tool ID for the requested code and event
 bits. Passing `force=True` bypasses those safeguards.
+
+On success it returns the *subscriber version*, which changes only when the set
+of distinct subscribers changes -- not when an existing subscriber registers more
+code objects. A caller can therefore hold on to the returned value and use
+`subscriber_version_is_current()` to cheaply re-check whether it is still alone,
+without that answer being invalidated by ordinary imports.
 
 ### Error Isolation
 
