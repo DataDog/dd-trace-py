@@ -419,7 +419,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py ${{DDTEST_SUITE_PATH}}",
+            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py $DDTEST_SUITE_PATH",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -518,7 +518,7 @@ venv = Venv(
             },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} $DDTEST_SUITE_PATH/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -544,7 +544,7 @@ venv = Venv(
             },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest --no-cov {cmdargs} $DDTEST_SUITE_PATH",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -652,7 +652,7 @@ venv = Venv(
             name="internal",
             env={
                 # DDTEST_SUITE_PATH is the single source of truth for this suite's
-                # test location. The command references it via ${DDTEST_SUITE_PATH} so
+                # test location. The command references it via $DDTEST_SUITE_PATH so
                 # the path stays data (queryable by Riot's environment) rather than a
                 # literal baked into the pytest invocation. Local `riot run` works
                 # unchanged whether or not ddtest is installed; ddtest reads this env
@@ -663,7 +663,7 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
-            command="pytest -v -n auto --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} $DDTEST_SUITE_PATH/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
@@ -938,7 +938,7 @@ venv = Venv(
         ),
         Venv(
             name="celery",
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} $DDTEST_SUITE_PATH",
             pkgs={
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
@@ -1787,7 +1787,7 @@ venv = Venv(
                 "DDTEST_SUITE_PATH": "tests/contrib/botocore",
                 "DDTEST_TESTS_LOCATION": "tests/contrib/botocore/**/test*.py",
             },
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} $DDTEST_SUITE_PATH",
             pkgs={
                 "moto[all]": "<5.0",
                 "pytest-randomly": latest,
@@ -2887,7 +2887,7 @@ venv = Venv(
         ),
         Venv(
             name="opentelemetry",
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} $DDTEST_SUITE_PATH",
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
@@ -3271,7 +3271,7 @@ venv = Venv(
         ),
         Venv(
             name="pytorch",
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} $DDTEST_SUITE_PATH",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/pytorch",
                 "DDTEST_TESTS_LOCATION": "tests/contrib/pytorch/**/test*.py",

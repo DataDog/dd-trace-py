@@ -541,8 +541,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   botocore:
-    ddtest_nodes: 2
-    ddtest: true
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.botocore
     retry: 2
@@ -573,8 +571,6 @@ suites:
       - tests/contrib/bottle/*
     snapshot: true
   celery:
-    ddtest: true
-    ddtest_nodes: 2
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.celery
       DD_DISABLE_ERROR_RESPONSES: true
@@ -1050,8 +1046,6 @@ suites:
     services:
       - mysql
   opentelemetry:
-    ddtest_nodes: 2
-    ddtest: true
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.opentelemetry
     parallelism: 4
@@ -1153,8 +1147,6 @@ suites:
       - tests/contrib/pynamodb/*
     snapshot: true
   pytorch:
-    ddtest: true
-    ddtest_nodes: 2
     venvs_per_job: 1
     skip_pip_cache: true
     paths:
