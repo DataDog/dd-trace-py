@@ -49,7 +49,7 @@ def stats_tracer(tracer):
         tracer.shutdown()
 
 
-class consistent_end_trace(object):
+class consistent_end_trace:
     """
     This class wraps tracer.trace() in order to ensure that the span is finished with consistent end time and duration
     """

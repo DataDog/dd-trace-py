@@ -145,7 +145,7 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
         self.metrics.update(metrics)
 
 
-def _itr_test_skipping_enabled_tag_value(session: "TestSession") -> str:
+def _itr_test_skipping_enabled_tag_value(session: TestSession) -> str:
     return TAG_TRUE if session.itr_skipping_enabled else "false"
 
 

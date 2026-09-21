@@ -98,6 +98,12 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 
 ## Troubleshooting
 
+OpenFeature tests use the checked-in canonical fixture snapshot under
+`tests/openfeature/ffe-system-test-data/`; no submodule setup is required. Change shared
+cases in `DataDog/ffe-system-test-data` first, then refresh with
+`python scripts/update-ffe-fixtures.py --ref <upstream-commit>`. See the OpenFeature
+fixtures section in `docs/contributing-testing.rst` for the update workflow.
+
 See `docs/troubleshooting.rst`. Covers common issues including:
 
 - Installation failures and missing native extensions

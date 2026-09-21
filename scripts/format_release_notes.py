@@ -222,7 +222,7 @@ def main():
     args = parser.parse_args()
 
     if args.input_file is not None:
-        with open(args.input_file, "r") as f:
+        with open(args.input_file) as f:
             raw_text = f.read()
     elif not sys.stdin.isatty():
         raw_text = sys.stdin.read()

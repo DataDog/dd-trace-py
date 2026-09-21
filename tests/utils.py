@@ -441,7 +441,7 @@ class BaseTestCase(SubprocessTestCase):
     assert_is_not_measured = staticmethod(assert_is_not_measured)
 
 
-class TestSpanContainer(object):
+class TestSpanContainer:
     """
     Helper class for a container of Spans.
 
@@ -510,11 +510,11 @@ class TestSpanContainer(object):
     def assert_trace_count(self, count):
         """Assert the number of unique trace ids this container has"""
         trace_count = len(self.get_root_spans())
-        assert trace_count == count, "Trace count {0} != {1}".format(trace_count, count)
+        assert trace_count == count, f"Trace count {trace_count} != {count}"
 
     def assert_span_count(self, count):
         """Assert this container has the expected number of spans"""
-        assert len(self.spans) == count, "Span count {0} != {1}".format(len(self.spans), count)
+        assert len(self.spans) == count, f"Span count {len(self.spans)} != {count}"
 
     def assert_has_spans(self):
         """Assert this container has spans"""
@@ -522,7 +522,7 @@ class TestSpanContainer(object):
 
     def assert_has_no_spans(self):
         """Assert this container does not have any spans"""
-        assert len(self.spans) == 0, "Span count {0}".format(len(self.spans))
+        assert len(self.spans) == 0, f"Span count {len(self.spans)}"
 
     def filter_spans(self, *args, **kwargs):
         """
@@ -559,9 +559,7 @@ class TestSpanContainer(object):
         :rtype: :class:`tests.TestSpan`
         """
         span = next(self.filter_spans(*args, **kwargs), None)
-        assert span is not None, "No span found for filter {0!r} {1!r}, have {2} spans".format(
-            args, kwargs, len(self.spans)
-        )
+        assert span is not None, f"No span found for filter {args!r} {kwargs!r}, have {len(self.spans)} spans"
         return span
 
 
@@ -575,12 +573,12 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Before each test case, configure the global tracer with a DummyWriter"""
         self.scoped_tracer = scoped_tracer()
         self.tracer = self.scoped_tracer.__enter__()
-        super(TracerTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
         """After each test case, reset the tracer state"""
         try:
-            super(TracerTestCase, self).tearDown()
+            super().tearDown()
         finally:
             self.scoped_tracer.__exit__(None, None, None)
             self.reset()
@@ -902,10 +900,8 @@ class TestSpan(Span):
             elif name == "metrics":
                 self.assert_metrics(value)
             else:
-                assert hasattr(self, name), "{0!r} does not have property {1!r}".format(self, name)
-                assert getattr(self, name) == value, "{0!r} property {1}: {2!r} != {3!r}".format(
-                    self, name, getattr(self, name), value
-                )
+                assert hasattr(self, name), f"{self!r} does not have property {name!r}"
+                assert getattr(self, name) == value, f"{self!r} property {name}: {getattr(self, name)!r} != {value!r}"
 
     def assert_meta(self, meta, exact=False):
         """
@@ -926,10 +922,8 @@ class TestSpan(Span):
             assert self.get_tags() == meta
         else:
             for key, value in meta.items():
-                assert self._has_attribute(key), "{0} meta does not have property {1!r}".format(self, key)
-                assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self.get_tag(key), value
-                )
+                assert self._has_attribute(key), f"{self} meta does not have property {key!r}"
+                assert self.get_tag(key) == value, f"{self} meta property {key!r}: {self.get_tag(key)!r} != {value!r}"
 
     def assert_metrics(self, metrics, exact=False):
         """
@@ -950,14 +944,14 @@ class TestSpan(Span):
             assert self._get_numeric_attributes() == metrics
         else:
             for key, value in metrics.items():
-                assert self._has_attribute(key), "{0} metrics does not have property {1!r}".format(self, key)
-                assert self._get_numeric_attribute(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self._get_numeric_attribute(key), value
+                assert self._has_attribute(key), f"{self} metrics does not have property {key!r}"
+                assert self._get_numeric_attribute(key) == value, (
+                    f"{self} metrics property {key!r}: {self._get_numeric_attribute(key)!r} != {value!r}"
                 )
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._get_events()) == count, "Span event count {0} != {1}".format(len(self._get_events()), count)
+        assert len(self._get_events()) == count, f"Span event count {len(self._get_events())} != {count}"
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
@@ -973,9 +967,9 @@ class TestSpan(Span):
         """
         span_event_attrs = self._get_events()[event_idx].attributes
         for name, value in attrs.items():
-            assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
-            assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
-                span_event_attrs, name, span_event_attrs[name], value
+            assert name in span_event_attrs, f"{span_event_attrs!r} does not have property {name!r}"
+            assert span_event_attrs[name] == value, (
+                f"{span_event_attrs!r} property {name}: {span_event_attrs[name]!r} != {value!r}"
             )
 
 
@@ -989,7 +983,7 @@ class TracerSpanContainer(TestSpanContainer):
         if not isinstance(tracer._span_aggregator.writer, DummyWriter):
             raise ValueError("Tracer must have a DummyWriter")
         self.tracer = tracer
-        super(TracerSpanContainer, self).__init__()
+        super().__init__()
 
     @property
     def writer(self):
@@ -1039,7 +1033,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     """
 
     def __init__(self, root, children=None):
-        super(TestSpanNode, self).__init__(root)
+        super().__init__(root)
         object.__setattr__(self, "_children", children or [])
 
     def get_spans(self):
@@ -1139,16 +1133,16 @@ def get_root_span(
     for span in spans:
         if span.parent_id is None:
             if root is not None:
-                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
+                raise AssertionError(f"Multiple root spans found {root!r} {span!r}")
             root = span
 
-    assert root, "No root span found in {0!r}".format(spans)
+    assert root, f"No root span found in {spans!r}"
 
     return _build_tree(spans, root)
 
 
 def assert_dict_issuperset(a, b):
-    assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
+    assert set(a.items()).issuperset(set(b.items())), f"{a} is not a superset of {b}"
 
 
 @contextmanager
@@ -1282,7 +1276,7 @@ def snapshot_context(
         applicable_variant_ids = [k for (k, v) in variants.items() if v]
         assert len(applicable_variant_ids) == 1
         variant_id = applicable_variant_ids[0]
-        token = "{}_{}".format(token, variant_id) if variant_id else token
+        token = f"{token}_{variant_id}" if variant_id else token
 
     ignores = list(ignores or [])
     if not token.startswith("tests.internal.test_process_tags."):
@@ -1447,22 +1441,22 @@ def snapshot(
     return wrapper
 
 
-class AnyStr(object):
+class AnyStr:
     def __eq__(self, other):
         return isinstance(other, str)
 
 
-class AnyInt(object):
+class AnyInt:
     def __eq__(self, other):
         return isinstance(other, int)
 
 
-class AnyExc(object):
+class AnyExc:
     def __eq__(self, other):
         return isinstance(other, Exception)
 
 
-class AnyFloat(object):
+class AnyFloat:
     def __eq__(self, other):
         return isinstance(other, float)
 

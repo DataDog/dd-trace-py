@@ -36,7 +36,7 @@ _OPENAI_AUDIO_MIME_TYPES = {
 def audio_mime_type_from_format(fmt: str) -> str:
     """Map an OpenAI audio ``format`` (e.g. "wav", "mp3") to a MIME type."""
     fmt = (fmt or "").strip().lower()
-    return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
+    return _OPENAI_AUDIO_MIME_TYPES.get(fmt, f"audio/{fmt}" if fmt else "audio/wav")
 
 
 # Raw audio formats the UI cannot render as a player. For these we keep the transcript as the
@@ -91,7 +91,7 @@ def realtime_audio_format_to_mime(fmt: Any) -> str:
         return ""
     if normalized.startswith("audio/"):
         return normalized
-    return _REALTIME_AUDIO_FORMAT_MIME_TYPES.get(normalized, "audio/{}".format(normalized))
+    return _REALTIME_AUDIO_FORMAT_MIME_TYPES.get(normalized, f"audio/{normalized}")
 
 
 def is_renderable_audio_mime(mime_type: str) -> bool:
