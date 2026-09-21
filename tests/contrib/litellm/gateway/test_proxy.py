@@ -27,6 +27,7 @@ BEDROCK_PROFILE = "arn:aws:bedrock:us-east-1:123456789012:application-inference-
 @pytest.fixture(scope="module")
 def gateway(tmp_path_factory, request):
     temp = tmp_path_factory.mktemp("gateway")
+    mode = getattr(request, "param", None)
     traces = []
     provider_requests = []
 
@@ -368,9 +369,13 @@ def gateway(tmp_path_factory, request):
             "model_info": {"id": "bedrock-deployment"},
         }
     )
-    if getattr(request, "param", None) == "missing_key_id":
+    if mode == "missing_key_id":
         for model in models:
             model["model_info"].pop("datadog_provider_api_key_id", None)
+    if mode == "disabled":
+        config["litellm_settings"]["callbacks"] = []
+    if mode == "gateway_cache":
+        config["litellm_settings"].update(cache=True, cache_params={"type": "local"})
     config_path.write_text(yaml.safe_dump(config))
     # Inherit only OS/runtime necessities, never real cloud/API/Datadog credentials.
     env = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR", "SYSTEMROOT") if key in os.environ}
@@ -405,6 +410,18 @@ def gateway(tmp_path_factory, request):
         )
     )
     env["DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG"] = str(attribution_config)
+    if mode not in (None, "missing_key_id"):
+        # Exercise the documented ddtrace-run setup alongside normal SDK tracing.
+        for integration in ("LITELLM", "OPENAI", "ANTHROPIC"):
+            env.pop(f"DD_TRACE_{integration}_ENABLED")
+        if mode in ("default_setup", "disabled", "gateway_cache"):
+            env.pop("DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG")
+        elif mode == "privacy_opt_out":
+            attribution_config.write_text(json.dumps({"capture_email": False, "capture_end_user": False}))
+        elif mode == "invalid_config":
+            attribution_config.write_text('{"capture_email": false,')
+        elif mode == "unreadable_config":
+            attribution_config.unlink()
     output = (temp / "proxy.log").open("w+")
     command = [
         str(Path(sys.executable).parent / "ddtrace-run"),
@@ -830,3 +847,162 @@ async def test_missing_key_id_warns_but_real_proxy_still_exports_usage(gateway):
     assert "model_info.datadog_provider_api_key_id" in warnings[0]
     assert "non-secret key ID" in warnings[0]
     assert "PRIVATE" not in warnings[0] and "SYNTHETIC" not in warnings[0]
+
+
+@pytest.mark.parametrize("gateway", ["default_setup"], indirect=True)
+async def test_documented_setup_with_sdk_tracing_and_concurrent_requests(gateway):
+    url, traces, upstream, _ = gateway
+    expected = {}
+    semaphore = asyncio.Semaphore(8)
+    async with httpx.AsyncClient(timeout=40) as client:
+
+        async def send(index):
+            user = "alice" if (index // 3) % 2 else "bob"
+            trace_id = 700000 + index
+            end_user = f"end-user-{index}"
+            endpoint = ("chat/completions", "messages", "responses")[index % 3]
+            stream = bool((index // 6) % 2)
+            data = {"model": "test-model", "stream": stream}
+            if endpoint == "responses":
+                data.update(input="PRIVATE PROMPT", safety_identifier=end_user)
+            else:
+                data["messages"] = [{"role": "user", "content": "PRIVATE PROMPT"}]
+                if endpoint == "messages":
+                    data.update(model="test-claude", max_tokens=100)
+                else:
+                    data["user"] = end_user
+                    if stream:
+                        data["stream_options"] = {"include_usage": True}
+            expected[trace_id] = (user, end_user, "anthropic" if endpoint == "messages" else "openai")
+            async with semaphore:
+                result = await client.post(
+                    f"{url}/v1/{endpoint}",
+                    json=data,
+                    headers={
+                        "Authorization": f"Bearer test-{user}",
+                        "anthropic-version": "2023-06-01",
+                        "x-litellm-end-user-id": end_user,
+                        "x-datadog-trace-id": str(trace_id),
+                        "x-datadog-parent-id": str(800000 + index),
+                        "x-datadog-sampling-priority": "2",
+                    },
+                )
+                assert result.status_code == 200, result.text
+
+        await asyncio.gather(*(send(index) for index in range(24)))
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [s for t in list(traces) for s in t if s.get("name") == "ai_gateway.usage"]
+        if len(spans) >= len(expected):
+            break
+        await asyncio.sleep(0.1)
+    # Wait another writer cycle to catch duplicate terminal callbacks.
+    await asyncio.sleep(0.5)
+    all_spans = [s for t in list(traces) for s in t]
+    spans = [s for s in all_spans if s.get("name") == "ai_gateway.usage"]
+    assert len(spans) == len(expected) == len(upstream)
+    assert {s["trace_id"] for s in spans} == set(expected)
+    assert len({s["meta"]["ai.request.id"] for s in spans}) == len(expected)
+    assert any(s["name"].startswith("litellm.") for s in all_spans)
+    assert any(s["name"].startswith("openai.") for s in all_spans)
+    for span in spans:
+        user, end_user, provider = expected[span["trace_id"]]
+        tags = span["meta"]
+        assert tags["usr.id"] == user
+        assert tags["usr.email"] == f"{user}@example.test"
+        assert tags["ai.identity.source"] == "gateway_auth"
+        assert tags["ai.end_user.id"] == end_user
+        assert tags["ai.end_user.trust"] == "unverified"
+        assert tags["ai.route.provider"] == provider
+        assert tags["ai.route.api_key_id"] == (
+            "apikey_anthropic" if provider == "anthropic" else "key_openai-deployment"
+        )
+        assert not any(key.startswith("ai.enrichment.") for key in tags)
+        assert span["metrics"]["ai.usage.output_tokens"] == 25
+        assert span["parent_id"] in {s["span_id"] for s in all_spans if s["trace_id"] == span["trace_id"]}
+    assert not any(value in json.dumps(spans) for value in ("PRIVATE", "SYNTHETIC", "Bearer test-"))
+
+
+@pytest.mark.parametrize("gateway", ["disabled"], indirect=True)
+async def test_upgrade_without_callback_does_not_emit_gateway_spans(gateway):
+    url, traces, upstream, _ = gateway
+    async with httpx.AsyncClient(timeout=20) as client:
+        result = await client.post(
+            f"{url}/v1/chat/completions",
+            json={"model": "test-model", "messages": [{"role": "user", "content": "PRIVATE PROMPT"}]},
+            headers={"Authorization": "Bearer test-alice"},
+        )
+    assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if any(s["name"].startswith("litellm.") for t in list(traces) for s in t):
+            break
+        await asyncio.sleep(0.1)
+    await asyncio.sleep(0.5)
+    spans = [s for t in list(traces) for s in t]
+    assert len(upstream) == 1
+    assert any(s["name"].startswith("litellm.") for s in spans)
+    assert not any(s["name"] == "ai_gateway.usage" for s in spans)
+
+
+@pytest.mark.parametrize("gateway", ["privacy_opt_out", "invalid_config", "unreadable_config"], indirect=True)
+async def test_privacy_settings_through_real_proxy(gateway):
+    url, traces, upstream, _ = gateway
+    async with httpx.AsyncClient(timeout=20) as client:
+        for user in ("alice", "unassigned"):
+            result = await client.post(
+                f"{url}/v1/chat/completions",
+                json={
+                    "model": "test-model",
+                    "messages": [{"role": "user", "content": "PRIVATE"}],
+                    "user": "opted-out-user",
+                },
+                headers={"Authorization": f"Bearer test-{user}"},
+            )
+            assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [s for t in list(traces) for s in t if s["name"] == "ai_gateway.usage"]
+        if len(spans) >= 2:
+            break
+        await asyncio.sleep(0.1)
+    assert len(spans) == len(upstream) == 2
+    assert {s["meta"].get("usr.id") for s in spans} == {"alice", None}
+    for span in spans:
+        tags = span["meta"]
+        assert "usr.email" not in tags
+        assert "ai.end_user.id" not in tags
+        assert not any(key.startswith("ai.enrichment.") for key in tags)
+        assert span["metrics"]["ai.usage.output_tokens"] == 25
+    assert "opted-out-user" not in json.dumps(spans)
+
+
+@pytest.mark.parametrize("gateway", ["gateway_cache"], indirect=True)
+async def test_gateway_cache_hit_preserves_current_user_without_new_provider_usage(gateway):
+    url, traces, upstream, _ = gateway
+    async with httpx.AsyncClient(timeout=20) as client:
+        for user in ("alice", "bob"):
+            result = await client.post(
+                f"{url}/v1/chat/completions",
+                json={"model": "test-model", "messages": [{"role": "user", "content": "CACHE TEST"}]},
+                headers={"Authorization": f"Bearer test-{user}"},
+            )
+            assert result.status_code == 200, result.text
+    deadline = time.monotonic() + 15
+    spans = []
+    while time.monotonic() < deadline:
+        spans = [s for t in list(traces) for s in t if s["name"] == "ai_gateway.usage"]
+        if len(spans) >= 2:
+            break
+        await asyncio.sleep(0.1)
+    assert len(spans) == 2
+    assert len(upstream) == 1
+    by_user = {s["meta"]["usr.id"]: s for s in spans}
+    assert set(by_user) == {"alice", "bob"}
+    assert by_user["alice"]["meta"]["ai.request.outcome"] == "success"
+    cached = by_user["bob"]
+    assert cached["meta"]["ai.request.outcome"] == "gateway_cache_hit"
+    assert cached["meta"]["ai.usage.source"] == "gateway_cache"
+    assert not any(key.startswith("ai.usage.") for key in cached["metrics"])
