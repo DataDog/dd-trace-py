@@ -617,3 +617,18 @@ def test_trace_native_span_events_not_forced_when_protocol_version_overrides_otl
     from ddtrace.internal.settings._agent import config
 
     assert config.trace_native_span_events is False
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "OTEL_TRACES_EXPORTER": "none",
+        "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+        "DD_TRACE_NATIVE_SPAN_EVENTS": None,
+    }
+)
+def test_trace_native_span_events_otel_semantics_override_agent_protocol():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_otlp_export_enabled is True
+    assert config.trace_native_span_events is True
