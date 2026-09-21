@@ -1,5 +1,4 @@
-from unittest import mock
-
+import mock
 import pytest
 
 from ddtrace.contrib._events.dbapi import DbQueryEvent
@@ -20,7 +19,7 @@ from tests.utils import assert_is_not_measured
 
 class TestTracedAsyncCursor(AsyncioTestCase):
     def setUp(self):
-        super().setUp()
+        super(TestTracedAsyncCursor, self).setUp()
         self.cursor = mock.AsyncMock()
 
     @mark_asyncio
@@ -260,7 +259,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
 
 class TestFetchTracedAsyncCursor(AsyncioTestCase):
     def setUp(self):
-        super().setUp()
+        super(TestFetchTracedAsyncCursor, self).setUp()
         self.cursor = mock.AsyncMock()
         self.config = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
 
@@ -380,7 +379,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
 
     @mark_asyncio
     async def test_unknown_rowcount(self):
-        class Unknown:
+        class Unknown(object):
             pass
 
         cursor = self.cursor
@@ -457,7 +456,7 @@ class TestFetchTracedAsyncCursor(AsyncioTestCase):
 
 class TestTracedAsyncConnection(AsyncioTestCase):
     def setUp(self):
-        super().setUp()
+        super(TestTracedAsyncConnection, self).setUp()
         self.connection = mock.AsyncMock()
 
     @mark_asyncio
@@ -496,7 +495,7 @@ class TestTracedAsyncConnection(AsyncioTestCase):
 
     @mark_asyncio
     async def test_connection_context_manager(self):
-        class Cursor:
+        class Cursor(object):
             rowcount = 0
 
             async def execute(self, *args, **kwargs):
@@ -517,7 +516,7 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         # When a connection is returned from a context manager the object proxy
         # should be returned so that tracing works.
 
-        class ConnectionConnection:
+        class ConnectionConnection(object):
             async def __aenter__(self):
                 return self
 
@@ -547,7 +546,7 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         # If a cursor is returned from the context manager
         # then it should be instrumented.
 
-        class ConnectionCursor:
+        class ConnectionCursor(object):
             async def __aenter__(self):
                 return Cursor()
 
@@ -566,7 +565,7 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         # If a traced cursor is returned then it should not
         # be double instrumented.
 
-        class ConnectionTracedAsyncCursor:
+        class ConnectionTracedAsyncCursor(object):
             async def __aenter__(self):
                 return self.cursor()
 
@@ -591,7 +590,7 @@ class TestTracedAsyncConnection(AsyncioTestCase):
 
         other_conn = ConnectionConnection()
 
-        class ConnectionDifferentConnection:
+        class ConnectionDifferentConnection(object):
             async def __aenter__(self):
                 return other_conn
 
@@ -621,7 +620,7 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         # When some unexpected value is returned from the context manager
         # it should be handled gracefully.
 
-        class ConnectionUnknown:
+        class ConnectionUnknown(object):
             async def __aenter__(self):
                 return 123456
 
@@ -650,7 +649,7 @@ class TestTracedAsyncConnection(AsyncioTestCase):
 
         # Errors should be the same when no context management is defined.
 
-        class ConnectionNoCtx:
+        class ConnectionNoCtx(object):
             async def cursor(self):
                 return Cursor()
 
@@ -671,13 +670,13 @@ class TestTracedAsyncConnection(AsyncioTestCase):
 
     @mark_asyncio
     async def test_cursor_wraps_awaitable_cursor(self):
-        class Cursor:
+        class Cursor(object):
             rowcount = 0
 
             async def execute(self, *args, **kwargs):
                 pass
 
-        class ConnectionAwaitableCursor:
+        class ConnectionAwaitableCursor(object):
             async def cursor(self):
                 return Cursor()
 

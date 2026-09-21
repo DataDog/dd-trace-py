@@ -300,6 +300,7 @@ lint.unfixable =[
 [tool.ruff.lint.per-file-ignores]
 # Test depends on mock.Mock().__class__.__module__ being "mock" (not "unittest.mock")
 "tests/contrib/dbapi/test_dbapi.py" = ["UP004", "UP008", "UP026"]
+"tests/contrib/dbapi_async/test_dbapi_async.py" = ["UP004", "UP008", "UP026"]
 
 # Line numbers referenced by debugger span decoration probes
 "tests/submod/traced_stuff.py" = ["UP009"]
