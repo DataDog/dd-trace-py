@@ -18,6 +18,7 @@
     # Keep the unpruned artifact for S3's SHA index; validate the separate PyPI copy.
     - cp -a pywheels pywheels-publish
     - .gitlab/scripts/prune-unsupported-wheels.sh pywheels-publish
+    - pip install 'packaging>=24.0,<26'  # ci-deps: allow
     - python3 .gitlab/validate-ddtrace-package.py pywheels-publish
     - uvx --with="twine>=5.0,<7" twine check --strict pywheels-publish/*
     - uvx --with="twine>=5.0,<7" twine upload --repository ${PYPI_REPOSITORY} pywheels-publish/ddtrace-*
