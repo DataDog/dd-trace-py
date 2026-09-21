@@ -1997,6 +1997,83 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
+    def test_chat_completion_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A stream that errors part-way still reports the chunks it did receive.
+
+        Throwing into the traced stream's generator reproduces a consumer-side abort (a client
+        disconnect or cancellation surfacing at the `yield`). The span must be tagged as an error
+        *and* carry the input messages plus whatever output arrived before the abort.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+                stream_options={"include_usage": False},
+            )
+            stream = iter(resp)
+            partial = ""
+            for _ in range(3):
+                chunk = next(stream)
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == input_messages
+        # The partial text survives the abort rather than being discarded wholesale.
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        # Token counts fall back to the estimate computed from the partial text.
+        metrics = get_llmobs_metrics(span)
+        assert metrics["output_tokens"] == _est_tokens(partial)
+        assert metrics["input_tokens"] > 0
+        # The abort is still recorded as an error on the span.
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+
+    async def test_chat_completion_async_stream_aborted_keeps_partial_response(
+        self, openai, openai_llmobs, test_spans
+    ):
+        """Async mirror of the sync partial-response-on-abort case."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+                stream_options={"include_usage": False},
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(ValueError):
+                await stream.athrow(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert span.error == 1
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
