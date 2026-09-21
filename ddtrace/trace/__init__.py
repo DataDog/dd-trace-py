@@ -1,5 +1,3 @@
-import sys
-
 from ddtrace._trace.context import Context
 from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.provider import BaseContextProvider
@@ -11,11 +9,6 @@ from ddtrace.internal import core
 # a global tracer instance with integration settings
 tracer = Tracer()
 core.root.set_item("tracer", tracer)
-
-if sys.platform == "linux":
-    from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
-
-    register_otel_thread_context_listener(tracer)
 
 
 __all__ = [

@@ -1,0 +1,307 @@
+{
+    "sortedStacktracesWithValues": [
+      {
+        "stacktrace": [
+          "(standard library) java.lang:Thread.run():1474",
+          "(standard library) java.lang:Thread.runWith(Object, Runnable):1487",
+          "(standard library) java.util.concurrent:ThreadPoolExecutor$Worker.run():614",
+          "(standard library) java.util.concurrent:ThreadPoolExecutor.runWorker(ThreadPoolExecutor$Worker):1090",
+          "(my-code) crossng.framework.common.filter.context:ContextAwareRunnable.run():47"
+        ],
+        "value": {
+          "value": 737.8979357203181,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 55.62,
+        "percentOfTotal": 15.77,
+        "topCallees": [
+          {
+            "frame": "(my-code) crossng.communicator.client.service:DistributionProcessStartService.lambda$startProcessing$0(StartProcessingPDTO, Delegate):49",
+            "percent": 92.95
+          },
+          {
+            "frame": "(standard library) sun.security.ssl:SSLSocketImpl.startHandshake(boolean):49",
+            "percent": 5.35
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(standard library) java.util.concurrent:ThreadPoolExecutor$Worker.run():614",
+          "(standard library) java.util.concurrent:ThreadPoolExecutor.runWorker(ThreadPoolExecutor$Worker):1090",
+          "(my-code) crossng.framework.common.filter.context:ContextAwareRunnable.run():47",
+          "(my-code) crossng.communicator.client.service:DistributionProcessStartService.lambda$startProcessing$0(StartProcessingPDTO, Delegate):49",
+          "(my-code) crossng.communicator.client.service:DistributionProcessStartService.process(StartProcessingPDTO, Delegate, ZoneId):136,122,119"
+        ],
+        "value": {
+          "value": 575.5742672569983,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 43.38,
+        "percentOfTotal": 12.3,
+        "topCallees": [
+          {
+            "frame": "(my-code) crossng.communicator.client.delegate:AbstractDelegate.run():83,113",
+            "percent": 99.49
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(my-code) crossng.communicator.client.processor.payload:AbstractFragmentingPayloadProcessor.processFragments(Iterator):211,187",
+          "(my-code) crossng.communicator.client.processor.payload:AbstractFragmentingPayloadProcessor.processFragment(Object):269",
+          "(my-code) crossng.communicator.client.processor.payload:AbstractFragmentingPayloadProcessor.processFragmentSingle(Object, SingleFragmentProcessor):288",
+          "(my-code) crossng.sfo.integration.omd.orderdata.processor:OMDSfoOrderDataPayloadProcessor.process(Object):70",
+          "(my-code) crossng.sfo.integration.omd.orderdata.processor:OMDSfoOrderDataPayloadProcessor.process(CarlosVehicle):153,152,140"
+        ],
+        "value": {
+          "value": 508.519807469052,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 38.33,
+        "percentOfTotal": 10.87,
+        "topCallees": [
+          {
+            "frame": "(library) oracle.jdbc.diagnostics:Diagnosable.tracep(Level, SecurityLabel, String, String, String, String, Throwable, Supplier):344,337",
+            "percent": 59.39
+          },
+          {
+            "frame": "(my-code) crossng.sfo.integration.omd.orderdata.processor:OMDSfoOrderDataPayloadProcessor.handleCarlosFunctionTypesWithDetailsDTO(CarlosVehicle, OMDOrderDataFunctionType, String, OMDHashDTO):344,337",
+            "percent": 35.15
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(my-code) com.azure.messaging.servicebus.implementation.instrumentation:ServiceBusReceiverInstrumentation.instrumentProcess(ServiceBusReceivedMessage, ReceiverKind, Function):106",
+          "(my-code) com.azure.messaging.servicebus.implementation.instrumentation:ServiceBusReceiverInstrumentation.wrap(Context, Object, Function):176",
+          "(my-code) com.azure.messaging.servicebus:MessagePump.lambda$handleMessage$0(ServiceBusReceivedMessage, ServiceBusReceivedMessage):148",
+          "(my-code) com.azure.messaging.servicebus:MessagePump.notifyMessage(ServiceBusReceivedMessage):163",
+          "(my-code) at.porscheinformatik.retail.framework.servicebus.handler:DefaultProcessorClientMessageHandler.receiveMessage(ServiceBusReceivedMessageContext):57,58"
+        ],
+        "value": {
+          "value": 340.86830612883574,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 25.69,
+        "percentOfTotal": 7.28,
+        "topCallees": [
+          {
+            "frame": "(library) org.springframework.aop.framework:JdkDynamicAopProxy.invoke(Object, Method, Object[]):216",
+            "percent": 78.27
+          },
+          {
+            "frame": "(my-code) feign:SynchronousMethodHandler.executeAndDecode(RequestTemplate, Request$Options):216",
+            "percent": 12.97
+          },
+          {
+            "frame": "(my-code) org.redisson.client:RedisConnection.async(long, Codec, RedisCommand, Object[]):216",
+            "percent": 7.09
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(library) jdk.internal.reflect:DirectMethodHandleAccessor.invokeImpl(Object, Object[]):155",
+          "(my-code) at.porscheinformatik.retail.framework.servicebus.processor:AzureMessageProcessorDelegate.processMessage(ServiceBusReceivedMessage):81,74",
+          "(my-code) at.porscheinformatik.retail.framework.servicebus.processor:AzureMessageProcessorDelegate.executeMessageProcessors(ServiceBusReceivedMessage, String, List):101",
+          "(my-code) at.porscheinformatik.retail.framework.servicebus.processor:BaseAzureMessageProcessor.processMessage(ServiceBusReceivedMessage):42,34",
+          "(my-code) vu3.azure.utils:DefaultMessageProcessor.handleMessage(String, Map):91,81,79"
+        ],
+        "value": {
+          "value": 223.38500332612372,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 16.84,
+        "percentOfTotal": 4.77,
+        "topCallees": [
+          {
+            "frame": "(library) reactor.core.publisher:Operators$MonoSubscriber.complete(Object):28",
+            "percent": 56.22
+          },
+          {
+            "frame": "(my-code) crossng.sfo.integration.carhub.vehicle.impl.v4.messaging.receiver.processor:VehicleStockMessageProcessor.handleMessage(Object):28",
+            "percent": 24.04
+          },
+          {
+            "frame": "(my-code) org.redisson.client.protocol:CommandData.isSuccess():28",
+            "percent": 18.89
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(my-code) crossng.communicator.client.processor.payload:AbstractFragmentingPayloadProcessor.processFragmentSingle(Object, SingleFragmentProcessor):288",
+          "(my-code) crossng.sfo.integration.omd.orderdata.processor:OMDSfoOrderDataPayloadProcessor.process(Object):70",
+          "(my-code) crossng.sfo.integration.omd.orderdata.processor:OMDSfoOrderDataPayloadProcessor.process(CarlosVehicle):153,152,140",
+          "(my-code) crossng.sfo.integration.omd.orderdata.processor:OMDSfoOrderDataPayloadProcessor.handleCarlosFunctionTypesWithDetailsDTO(CarlosVehicle, OMDOrderDataFunctionType, String, OMDHashDTO):344,337",
+          "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosEventFacadeImpl.handleOMD(OMDDataDTO, OMDOrderDataFunctionType):65,61"
+        ],
+        "value": {
+          "value": 169.54715610870596,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 12.78,
+        "percentOfTotal": 3.62,
+        "topCallees": [
+          {
+            "frame": "(library) org.springframework.aop.framework:CglibAopProxy$DynamicAdvisedInterceptor.intercept(Object, Method, Object[], MethodProxy):728",
+            "percent": 76.73
+          },
+          {
+            "frame": "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosEventFacadeImpl.validatePrerequisitesForDocumentTypes(OMDDataDTO, OMDOrderDataFunctionType):84",
+            "percent": 19.44
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(library) jdk.internal.reflect:DirectMethodHandleAccessor.invoke(Object, Object[]):104",
+          "(library) jdk.internal.reflect:DirectMethodHandleAccessor.invokeImpl(Object, Object[]):156",
+          "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.handleOMD(OMDDataDTO, OMDOrderDataFunctionType):108,103,105",
+          "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.doPersistOMDData(OMDDataDTO, OMDContextDTO):370",
+          "(my-code) crossng.sfo.integration.omd.impl.service:OMDService.doPersistOMDData(OMDDataDTO, OMDContextDTO):371,370,372"
+        ],
+        "value": {
+          "value": 143.40750218646048,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 10.81,
+        "percentOfTotal": 3.06,
+        "topCallees": [
+          {
+            "frame": "(standard library) java.util.concurrent:CompletableFuture$Signaller.isReleasable():1701,1726,1703",
+            "percent": 99.32
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(library) org.springframework.aop.support:AopUtils.invokeJoinpointUsingReflection(Object, Method, Object[]):360",
+          "(library) java.lang.reflect:Method.invoke(Object, Object[]):565",
+          "(library) jdk.internal.reflect:DirectMethodHandleAccessor.invoke(Object, Object[]):104",
+          "(library) jdk.internal.reflect:DirectMethodHandleAccessor.invokeImpl(Object, Object[]):156",
+          "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.handleOMD(OMDDataDTO, OMDOrderDataFunctionType):108,103,105"
+        ],
+        "value": {
+          "value": 82.22264103567495,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 6.2,
+        "percentOfTotal": 1.76,
+        "topCallees": [
+          {
+            "frame": "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.doPersistOMDData(OMDDataDTO, OMDContextDTO):370",
+            "percent": 68.67
+          },
+          {
+            "frame": "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.findOrCreateAndLockSalesVehicle(OMDDataDTO, OMDOrderDataFunctionType):227",
+            "percent": 30.01
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(library) org.springframework.aop.support:AopUtils.invokeJoinpointUsingReflection(Object, Method, Object[]):360",
+          "(library) java.lang.reflect:Method.invoke(Object, Object[]):565",
+          "(library) jdk.internal.reflect:DirectMethodHandleAccessor.invoke(Object, Object[]):104",
+          "(library) jdk.internal.reflect:DirectMethodHandleAccessor.invokeImpl(Object, Object[]):156",
+          "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.handleOMD(OMDDataDTO, OMDOrderDataFunctionType):108,103,105"
+        ],
+        "value": {
+          "value": 70.0440288706062,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 5.28,
+        "percentOfTotal": 1.5,
+        "topCallees": [
+          {
+            "frame": "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.doPersistOMDData(OMDDataDTO, OMDContextDTO):370",
+            "percent": 68.48
+          },
+          {
+            "frame": "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.findOrCreateAndLockSalesVehicle(OMDDataDTO, OMDOrderDataFunctionType):227",
+            "percent": 20.79
+          },
+          {
+            "frame": "(my-code) crossng.sfo.integration.omd.impl.facade:CarlosFacadeImpl.handleRecordTypes(OMDDataDTO, OMDOrderDataFunctionType, SyncOrderResultDTO):145",
+            "percent": 10.74
+          }
+        ]
+      },
+      {
+        "stacktrace": [
+          "(my-code) crossng.sfo.integration.cnvss.impl.v4.service:CNVSSToSolrUpdatingService.updateSalesVehicleAndLogException(Vehicle):51",
+          "(my-code) crossng.sfo.integration.cnvss.impl.v4.service:CNVSSToSolrUpdatingService.updateSalesVehicleInternal(Vehicle):118,122,116",
+          "(library) reactor.core.publisher:FluxFlatMap.trySubscribeScalarMap(Publisher, CoreSubscriber, Function, boolean, boolean):145,203,158",
+          "(my-code) crossng.sfo.integration.carhub.vehicle.impl.v4.facade:VehicleBrokerVehicleDetailsTransformerFacadeImpl.transform(Vehicle):27",
+          "(my-code) crossng.sfo.integration.carhub.vehicle.impl.v4.service:VehicleBrokerTransformerService.transformToCarHubVehicleDetails(Vehicle):27"
+        ],
+        "value": {
+          "value": 67.25249313478423,
+          "unit": "MiB",
+          "isPerMinute": true
+        },
+        "percentOfMatching": 5.07,
+        "percentOfTotal": 1.44,
+        "topCallees": [
+          {
+            "frame": "(library) reactor.core.publisher:FluxFilterFuseable$FilterFuseableSubscriber.onSubscribe(Subscription):154,207,122",
+            "percent": 100.0
+          }
+        ]
+      }
+    ],
+    "totalMatchingValue": {
+      "value": 1.2956087818288493,
+      "unit": "GiB",
+      "isPerMinute": true
+    },
+    "totalValue": {
+      "value": 4.570322676866115,
+      "unit": "GiB",
+      "isPerMinute": true
+    },
+    "duration": 6.000012E+12,
+    "topEndpoints": {
+      "DefaultProcessorClientMessageHandler.receiveMessage": {
+        "value": 1.2956087818288493,
+        "unit": "GiB",
+        "isPerMinute": true
+      }
+    },
+    "topAttributeValues": {},
+    "visualizationLink": {
+      "title": "Flame graph: alloc-size",
+      "url": "https://app.datadoghq.eu/api/v2/switch_to_user/82b21290-8a31-11f0-a8b7-e608811f8923?next=%2Fprofiling%2Fexplorer%3Fquery%3Denv%253Aprod%2Bservice%253Avu3-sfo%26profile_type%3Dalloc-size%26endpoint%3D%257B%2522incl%2522%253A%255B%2522DefaultProcessorClientMessageHandler.receiveMessage%2522%255D%257D%26start%3D1789393495351%26end%3D1789479895351%26viz%3Dflame_graph%26my_code%3Denabled%26paused%3Dtrue&flow=org_switch"
+    },
+    "availableProfileTypes": [
+      "alloc-samples",
+      "socket-read-time",
+      "socket-write-size",
+      "file-io-read-size",
+      "socket-read-size",
+      "file-io-write-size",
+      "exception-samples",
+      "socket-write-time",
+      "cpu-samples",
+      "lock-acquire-time",
+      "cpu-time",
+      "heap-live-samples",
+      "thread-creation",
+      "lock-acquire-samples",
+      "alloc-size",
+      "file-io-time",
+      "wall-time"
+    ]
+  }
+  
