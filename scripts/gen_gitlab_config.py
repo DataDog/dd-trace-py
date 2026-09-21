@@ -35,6 +35,7 @@ FABRIC_NO_PROXY_ADDITIONS = (
     "us-central1-aiplatform.googleapis.com",
     "github.com",
     "api.github.com",
+    ".amazonaws.com",
 )
 
 

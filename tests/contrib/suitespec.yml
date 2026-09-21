@@ -842,6 +842,7 @@ suites:
       - tests/snapshots/tests.contrib.botocore*
     pattern: ^botocore$
     snapshot: true
+    fabric_no_proxy: true
     services:
       - localstack
     matrix:
