@@ -49,6 +49,8 @@ if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# Worker-termination status from uwsgi.h in uWSGI 2.0.29 and 2.0.31.
+UWSGI_END_CODE = 30
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
@@ -251,7 +253,8 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
         proc.terminate()
         exit_code = proc.wait()
 
-    assert exit_code == 30
+    # Without --master, SIGTERM terminates a worker via uWSGI's end_me() handler.
+    assert exit_code == UWSGI_END_CODE
 
 
 def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
