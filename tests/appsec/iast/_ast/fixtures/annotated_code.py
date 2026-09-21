@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 
-from collections.abc import Sequence
 from typing import Any
 from typing import Optional
+from typing import Sequence
 from typing import TypeVar  # noqa:F401
 
 

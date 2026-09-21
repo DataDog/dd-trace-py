@@ -1,2 +1,2 @@
 def print_str():
-    print("hi")
+    print(str("hi"))

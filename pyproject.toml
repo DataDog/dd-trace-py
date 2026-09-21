@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.15.0rc2"
+version = "4.16.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -210,6 +210,25 @@ exclude = [
     "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
+    # IAST fixture files: these exist specifically to test AST patching of
+    # str() calls, __future__ imports, and encoding declarations. UP rules
+    # must not modify them.
+    "tests/appsec/iast/fixtures/ast/str/function_str.py",
+    "tests/appsec/iast/fixtures/ast/str/class_no_str.py",
+    "tests/appsec/iast/fixtures/ast/str/future_import_class_str.py",
+    "tests/appsec/iast/fixtures/ast/str/future_import_function_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/function_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/class_no_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/future_import_class_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/future_import_function_str.py",
+    "tests/appsec/iast/fixtures/integration/print_str.py",
+    "tests/appsec/iast/fixtures/non_re_module.py",
+    "tests/appsec/iast/fixtures/propagation_path.py",
+    "tests/appsec/iast/_ast/fixtures/annotated_code.py",
+    "tests/appsec/iast/_ast/fixtures/del_variables_at_runtime.py",
+    # IAST benchmark fixture: used by IAST aspects tests. UP032 (f-string)
+    # converts .format() calls that IAST taint tracking intercepts.
+    "benchmarks/bm/iast_fixtures/str_methods.py",
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
     "tests/appsec/iast/aspects/test_template_string_aspect.py",  # Python 3.14+ syntax (t-strings)
     "benchmarks/bm/iast_fixtures/template_strings.py",  # Python 3.14+ syntax (t-strings)
@@ -278,6 +297,12 @@ lint.unfixable =[
   "F401",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Test depends on mock.Mock().__class__.__module__ being "mock" (not "unittest.mock")
+"tests/contrib/dbapi/test_dbapi.py" = ["UP004", "UP008", "UP026"]
+
+# Line numbers referenced by debugger span decoration probes
+"tests/submod/traced_stuff.py" = ["UP009"]
 
 [tool.ruff.format]
 # Formatter-specific settings

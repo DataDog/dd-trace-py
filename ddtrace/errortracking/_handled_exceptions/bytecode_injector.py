@@ -14,14 +14,13 @@ from .callbacks import _default_bytecode_exc_callback
 
 log = get_logger(__name__)
 
-py_version = sys.version_info[:2]
-if py_version == (3, 10):
+if sys.version_info[:2] == (3, 10):
 
     def get_offsets_3_10(_s):
         return [o for o in _find_except_bytecode_indexes_3_10(_s.original_code)]
 
     offsets_callback = get_offsets_3_10
-elif py_version == (3, 11):
+elif sys.version_info[:2] == (3, 11):
 
     def get_offsets_3_11(_s):
         return [o for o in _find_except_bytecode_indexes_3_11(_s.original_code)]

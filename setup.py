@@ -457,7 +457,7 @@ class CustomBuildRust(build_rust):
         """Run the build process with additional post-processing."""
 
         has_profiling_feature = False
-        for ext in self.distribution.rust_extensions:  # type: ignore[attr-defined]
+        for ext in self.distribution.rust_extensions:
             if ext.features and "profiling" in ext.features:
                 has_profiling_feature = True
                 break

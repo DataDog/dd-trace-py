@@ -7,7 +7,7 @@ class ReMatch:
         self.orig_string = string
 
     def group(self, index):
-        return f"fake_group_{index}"
+        return "fake_group_{}".format(index)
 
     def groups(self):
         return ("fake_group_0", "fake_group_1", "fake_group_2")

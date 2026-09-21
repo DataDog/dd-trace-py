@@ -30,7 +30,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from itertools import chain
 import re
-import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
@@ -47,7 +46,7 @@ from bytecode import Label
 
 from ddtrace.debugging._safety import safe_getitem
 from ddtrace.debugging._safety import safe_qualname
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
 
@@ -126,9 +125,9 @@ def _is_identifier(name: str) -> bool:
 
 def short_circuit_instrs(op: str, label: Label) -> list[Instr]:
     value = "FALSE" if op == "and" else "TRUE"
-    if PY >= (3, 13):
+    if is_at_least_py(3, 13):
         return [Instr("COPY", 1), Instr("TO_BOOL"), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
-    elif PY >= (3, 12):
+    elif is_at_least_py(3, 12):
         return [Instr("COPY", 1), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
 
     return [Instr(f"JUMP_IF_{value}_OR_POP", label)]
@@ -193,7 +192,7 @@ class DDCompiler:
         abstract_code.argnames = list(args)
         abstract_code.name = name
 
-        if sys.version_info >= (3, 11):
+        if is_at_least_py(3, 11):
             abstract_code.insert(0, Instr("RESUME", 0))
 
         return FunctionType(abstract_code.to_code(), {}, name, (), None)
@@ -233,7 +232,7 @@ class DDCompiler:
         elif _type == "isEmpty":
             value = self._call_function(_safe_is_empty, value)
         else:  # "not"
-            if PY >= (3, 13):
+            if is_at_least_py(3, 13):
                 # UNARY_NOT requires a boolean value
                 value.append(Instr("TO_BOOL"))
             value.append(Instr("UNARY_NOT"))
@@ -350,11 +349,11 @@ class DDCompiler:
 
     def _call_function(self, func: Callable[..., Any], *args: list[Instr]) -> list[Instr]:
         _func: Any = func  # Instr does not accept a Callable
-        if PY >= (3, 13):
+        if is_at_least_py(3, 13):
             return [Instr("LOAD_CONST", _func), Instr("PUSH_NULL")] + list(chain(*args)) + [Instr("CALL", len(args))]
-        if PY >= (3, 12):
+        if is_at_least_py(3, 12):
             return [Instr("PUSH_NULL"), Instr("LOAD_CONST", _func)] + list(chain(*args)) + [Instr("CALL", len(args))]
-        if PY >= (3, 11):
+        if is_at_least_py(3, 11):
             return (
                 [Instr("PUSH_NULL"), Instr("LOAD_CONST", _func)]
                 + list(chain(*args))
@@ -384,7 +383,7 @@ class DDCompiler:
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
 
-            if PY >= (3, 14):
+            if is_at_least_py(3, 14):
                 subscr_instruction = Instr("BINARY_OP", BinaryOp.SUBSCR)
             else:
                 subscr_instruction = Instr("BINARY_SUBSCR")

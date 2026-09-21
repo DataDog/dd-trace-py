@@ -148,11 +148,11 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE
     string8 = "%s_notainted" % string7
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
-    string9 = f"notainted#{string8}"
+    string9 = "notainted#{}".format(string8)
     # notainted#TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string10 = string9.split("#")[1]
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
-    string11 = f"notainted#{string10}"
+    string11 = "notainted#{}".format(string10)
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string12 = string11.rsplit("#")[1]
     string13_pre = string12 + "\n"

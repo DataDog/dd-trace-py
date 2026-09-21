@@ -497,22 +497,22 @@ def run_function_from_file(item, params=None):
                 if not status_ok:
                     raise AssertionError(
                         "Expected status %s, got %s."
-                        "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                        "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                        "\n=== Captured STDOUT ===\n%r=== End of captured STDOUT ==="
+                        "\n=== Captured STDERR ===\n%r=== End of captured STDERR ==="
                         % (expected_status, status, out, err)
                     )
 
                 if not is_stream_ok(out, expected_out):
                     if check_logs:
-                        raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                        raise AssertionError("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
                     else:
-                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                        pytest.xfail("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
 
                 if not is_stream_ok(err, expected_err):
                     if check_logs:
-                        raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
+                        raise AssertionError("STDERR: Expected [%r] got [%r]" % (expected_err, err))
                     else:
-                        pytest.xfail("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+                        pytest.xfail("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
 
             return _subprocess_wrapper()
     finally:
