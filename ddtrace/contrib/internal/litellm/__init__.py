@@ -282,6 +282,8 @@ Limitations and privacy
   missing callbacks can lose data.
 * Metrics are independent of APM sampling. DogStatsD delivery is best-effort,
   not a durable billing ledger; network loss or gateway crashes can lose counts.
+  For busy gateways, follow the `DogStatsD throughput guide
+  <https://docs.datadoghq.com/extend/dogstatsd/high_throughput/>`_ to size socket queues.
   No dollar costs, streaming-speed measurements, or per-attempt token estimates
   are emitted.
 * End-user IDs can contain personal information, including email, even with
