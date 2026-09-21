@@ -46,6 +46,10 @@ variables:
     # image is rebuilt and BENCHMARKING_COMMIT_SHA is bumped, this block can be
     # replaced with a simple `pyenv global 3.12.10`.
     if ! pyenv versions | grep -q '3\.12\.'; then
+      # The CI image is missing liblzma-dev (installed in the Dockerfile
+      # build stage but not carried into the final image), which is needed
+      # to compile Python's _lzma module.
+      apt-get update && apt-get install -y --no-install-recommends liblzma-dev
       (cd /pyenv && git pull --ff-only)
       PYTHON312=$(pyenv install --list | grep -E '^\s+3\.12\.[0-9]+$' | tail -1 | tr -d ' ')
       pyenv install "$PYTHON312"
