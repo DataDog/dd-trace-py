@@ -1,6 +1,7 @@
 """Tests for the gen_ai.* attributes emitted onto APM spans."""
 
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.llmobs._constants import GEN_AI_APPLICATION_NAME_TAG_KEY
