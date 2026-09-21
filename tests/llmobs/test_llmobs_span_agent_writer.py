@@ -1,6 +1,5 @@
 import time
-
-import mock
+from unittest import mock
 
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.settings._agent import config as agent_config
@@ -16,9 +15,9 @@ from tests.utils import override_global_config
 
 
 INTAKE_ENDPOINT = agent_config.trace_agent_url
-AGENT_PROXY_URL = "{}{}{}".format(INTAKE_ENDPOINT, EVP_PROXY_AGENT_BASE_PATH, SPAN_ENDPOINT)
+AGENT_PROXY_URL = f"{INTAKE_ENDPOINT}{EVP_PROXY_AGENT_BASE_PATH}{SPAN_ENDPOINT}"
 UNIX_AGENT_INTAKE = "unix:///var/run/datadog/apm.sock"
-UNIX_AGENT_PROXY_URL = "{}{}{}".format(UNIX_AGENT_INTAKE, EVP_PROXY_AGENT_BASE_PATH, SPAN_ENDPOINT)
+UNIX_AGENT_PROXY_URL = f"{UNIX_AGENT_INTAKE}{EVP_PROXY_AGENT_BASE_PATH}{SPAN_ENDPOINT}"
 
 
 def test_writer_start(mock_writer_logs):

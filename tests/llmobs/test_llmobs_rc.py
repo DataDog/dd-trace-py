@@ -4,7 +4,7 @@ import pytest
 @pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
 def test_rc_enables_llmobs_and_sets_ml_app():
     """RC payload with llmobs.enabled=true sets config and calls LLMObs.enable()."""
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs
@@ -25,7 +25,7 @@ def test_rc_enables_llmobs_and_sets_ml_app():
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_REMOTE_CONFIGURATION_ENABLED": "false", "DD_LLMOBS_ENABLED": "true"})
 def test_rc_disables_llmobs():
     """RC payload with llmobs.enabled=false calls LLMObs.disable() when LLMObs is running."""
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs
@@ -44,7 +44,7 @@ def test_rc_disables_llmobs():
 )
 def test_rc_missing_llmobs_is_noop():
     """Payloads missing llmobs.enabled do not affect LLMObs state."""
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs
@@ -62,7 +62,7 @@ def test_rc_missing_llmobs_is_noop():
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_REMOTE_CONFIGURATION_ENABLED": "false", "DD_LLMOBS_ENABLED": "true"})
 def test_rc_missing_llmobs_does_not_disable_enabled_llmobs():
     """A payload without an llmobs.enabled directive must not disable already-enabled LLMObs."""
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs
@@ -83,7 +83,7 @@ def test_rc_directive_removal_clears_rc_override():
     (e.g. the upstream RC config was removed), the handler must clear the stale
     _rc_value so _ConfigItem.value() falls back through env/code/default.
     """
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs
@@ -111,7 +111,7 @@ def test_rc_missing_llmobs_does_not_disable_programmatically_enabled_llmobs():
     The fix relies on LLMObs.enable() writing _code_value=True so value() reflects
     the effective state.
     """
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs
