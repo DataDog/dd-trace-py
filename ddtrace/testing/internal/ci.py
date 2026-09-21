@@ -205,7 +205,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
             key = env_variable.replace(buildkite_agent_meta_data_prefix, "").lower()
             value = env.get(env_variable)
-            node_label_list.append("{}:{}".format(key, value))
+            node_label_list.append(f"{key}:{value}")
     return {
         GitTag.BRANCH: env.get("BUILDKITE_BRANCH"),
         GitTag.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
@@ -346,9 +346,9 @@ def extract_jenkins(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str
     branch = env.get("GIT_BRANCH", "")
     name = env.get("JOB_NAME")
     if name and branch:
-        name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
+        name = re.sub(f"/{git.normalize_ref(branch)}", "", name)
     if name:
-        name = "/".join((v for v in name.split("/") if v and "=" not in v))
+        name = "/".join(v for v in name.split("/") if v and "=" not in v)
     node_labels_list: list[str] = []
     node_labels_env = env.get("NODE_LABELS")
     if node_labels_env:

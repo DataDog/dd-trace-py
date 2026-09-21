@@ -1,7 +1,7 @@
 import asyncio
 import os
+from unittest import mock
 
-import mock
 import openai as openai_module
 import pytest
 

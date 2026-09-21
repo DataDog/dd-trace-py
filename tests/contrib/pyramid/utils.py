@@ -18,7 +18,7 @@ class PyramidBase(TracerTestCase):
     """Base Pyramid test application"""
 
     def setUp(self):
-        super(PyramidBase, self).setUp()
+        super().setUp()
         self.create_app()
 
     def create_app(self, settings=None):

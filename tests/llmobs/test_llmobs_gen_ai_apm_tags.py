@@ -1,6 +1,7 @@
 """Tests for the gen_ai.* attributes emitted onto APM spans."""
 
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.llmobs._constants import GEN_AI_APPLICATION_NAME_TAG_KEY
@@ -14,6 +15,7 @@ from ddtrace.llmobs._constants import GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -116,7 +118,7 @@ def test_tags_survive_user_processor_drop(llmobs, test_spans):
 
 
 def test_emission_failure_does_not_break_llmobs_event(llmobs, test_spans, mock_llmobs_logs):
-    with mock.patch("ddtrace.llmobs._llmobs.set_gen_ai_apm_tags_from_llmobs_data", side_effect=ValueError("boom")):
+    with mock.patch("ddtrace.llmobs._llmobs.set_gen_ai_apm_tags", side_effect=ValueError("boom")):
         with llmobs.llm(model_name="gpt-4"):
             pass
     span = test_spans.pop()[0]
@@ -135,9 +137,10 @@ def test_emission_failure_does_not_break_llmobs_event(llmobs, test_spans, mock_l
     ],
 )
 def test_set_gen_ai_apm_tags_model_defaults(tracer, span_kind, expected_model, expected_provider):
-    """The LLMObs-disabled path goes through this helper directly, with no meta_struct."""
+    """Model field defaults, for a span whose LLMObs data carries no model fields."""
+    llmobs_data = {LLMOBS_STRUCT.META: {}, LLMOBS_STRUCT.METRICS: ALL_TOKEN_METRICS}
     with tracer.trace("test") as span:
-        set_gen_ai_apm_tags(span, span_kind=span_kind, metrics=ALL_TOKEN_METRICS)
+        set_gen_ai_apm_tags(span, llmobs_data, span_kind)
 
         assert span.get_tag(GEN_AI_OPERATION_NAME_TAG_KEY) == span_kind
         assert span.get_tag(GEN_AI_REQUEST_MODEL_TAG_KEY) == expected_model

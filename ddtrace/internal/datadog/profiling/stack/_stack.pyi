@@ -1,10 +1,10 @@
 """Type stubs for the native `_stack` C extension module."""
 
 import asyncio
+from collections.abc import Sequence
 from types import FrameType
 from typing import Any
 from typing import Optional
-from typing import Sequence
 from typing import Union
 
 # Core stack v2 functions

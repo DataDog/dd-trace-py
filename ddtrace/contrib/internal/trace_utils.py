@@ -2,20 +2,22 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 
+from __future__ import annotations
+
 from collections import deque
 import ipaddress
 import re
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Generator  # noqa:F401
-from typing import Iterator  # noqa:F401
-from typing import Mapping  # noqa:F401
-from typing import MutableMapping  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Sequence  # noqa:F401
-from typing import Union  # noqa:F401
-from typing import cast  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
+from typing import Generator
+from typing import Iterator
+from typing import Mapping
+from typing import MutableMapping
+from typing import Optional
+from typing import Sequence
+from typing import Union
+from typing import cast
 from urllib import parse
 
 import wrapt
@@ -51,9 +53,8 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
-    from ddtrace.trace import Span  # noqa:F401
-    from ddtrace.trace import Tracer  # noqa:F401
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -84,7 +85,7 @@ IP_PATTERNS = (
 
 
 def _store_headers(
-    headers: Mapping[str, str], span: Span, integration_config: "IntegrationConfig", request_or_response: str
+    headers: Mapping[str, str], span: Span, integration_config: IntegrationConfig, request_or_response: str
 ) -> None:
     """
     :param headers: A dict of http headers to be stored in the span
@@ -233,7 +234,7 @@ def _get_request_header_client_ip(
     return private_ip_from_headers
 
 
-def _store_request_headers(headers: dict[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
+def _store_request_headers(headers: dict[str, str], span: Span, integration_config: IntegrationConfig) -> None:
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -246,7 +247,7 @@ def _store_request_headers(headers: dict[str, str], span: Span, integration_conf
     _store_headers(headers, span, integration_config, REQUEST)
 
 
-def _store_response_headers(headers: Mapping[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
+def _store_response_headers(headers: Mapping[str, str], span: Span, integration_config: IntegrationConfig) -> None:
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -325,7 +326,7 @@ def is_tracing_enabled() -> bool:
     return tracer is not None and (tracer.enabled or standalone_config.apm_opt_out)
 
 
-def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
+def distributed_tracing_enabled(int_config: IntegrationConfig, default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
         return int_config.distributed_tracing_enabled
@@ -334,7 +335,7 @@ def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool =
     return default
 
 
-def int_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
+def int_service(pin: Optional[Pin], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -371,7 +372,7 @@ def int_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     return default
 
 
-def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
+def ext_service(pin: Optional[Pin], int_config: IntegrationConfig, default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
@@ -394,7 +395,7 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
 def set_service_and_source(
     span: Span,
     service: str,
-    int_config: Union["IntegrationConfig", dict],
+    int_config: Union[IntegrationConfig, dict],
     default_service_key: str = "_default_service",
 ) -> None:
     service_source = ""
@@ -421,7 +422,7 @@ def set_service_and_source(
 
 def set_http_meta(
     span: Span,
-    integration_config: "IntegrationConfig",
+    integration_config: IntegrationConfig,
     method: Optional[str] = None,
     url: Optional[str] = None,
     target_host: Optional[str] = None,
@@ -556,8 +557,8 @@ def set_http_meta(
 
 
 def activate_distributed_headers(
-    tracer: "Tracer",
-    int_config: Optional["IntegrationConfig"] = None,
+    tracer: Tracer,
+    int_config: Optional[IntegrationConfig] = None,
     request_headers: Optional[MutableMapping[str, str]] = None,
     override: Optional[bool] = None,
 ) -> None:
@@ -678,7 +679,7 @@ def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:
 
     # Relative URLs don't have a netloc, so we force them
     if not parse_result.netloc:
-        parse_result = parse.urlparse("//{url}".format(url=url))
+        parse_result = parse.urlparse(f"//{url}")
 
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information
