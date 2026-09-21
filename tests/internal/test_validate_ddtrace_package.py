@@ -209,3 +209,14 @@ def test_stale_python_tags_fail_the_job(tmp_path: pathlib.Path, requires_python:
 
     assert returncode != 0, output
     assert expected_message in output
+
+
+def test_gapped_python_tags_fail_the_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A hole in the middle of PYTHON_TAGS must fail, not silently skip that interpreter."""
+    gapped: list[str] = ["cp39", "cp310", "cp311", "cp312", "cp314"]
+    monkeypatch.setattr(validator, "PYTHON_TAGS", gapped)
+
+    problems: list[str] = validator.check_python_tags_current(_REPO_ROOT)
+
+    assert problems, "a gapped PYTHON_TAGS list must be reported"
+    assert any("cp313" in problem and "gapped" in problem for problem in problems)

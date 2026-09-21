@@ -103,13 +103,14 @@ def _assert_prunes_before_publishing(body: str, publish_command: str) -> None:
     assert prune_at < publish_at, f"the prune call must come before {publish_command!r}"
 
 
-def _assert_validates_pruned_copy(body: str) -> None:
-    """Publish paths validate the pruned pywheels-publish copy, not the S3 artifact."""
+def _assert_validates_pruned_copy(body: str, wheels_dir: str) -> None:
+    """Publish paths validate the pruned publish/patched copy, not the S3 artifact."""
     prune_at: int = body.find("prune-unsupported-wheels.sh")
-    validate_at: int = body.find("validate-ddtrace-package.py")
+    validate_needle: str = f"validate-ddtrace-package.py {wheels_dir}"
+    validate_at: int = body.find(validate_needle)
     assert prune_at != -1, "prune-unsupported-wheels.sh is missing from the publish path"
-    assert validate_at != -1, "validate-ddtrace-package.py is missing from the publish path"
-    assert prune_at < validate_at, "validation must run on the pruned publish copy"
+    assert validate_at != -1, f"{validate_needle!r} is missing from the publish path"
+    assert prune_at < validate_at, f"validation must run on the pruned {wheels_dir} copy"
 
 
 @pytest.fixture()
@@ -239,7 +240,7 @@ def test_release_pypi_prunes_before_twine() -> None:
 
     _assert_prunes_before_publishing(body, "twine check")
     _assert_prunes_before_publishing(body, "twine upload")
-    _assert_validates_pruned_copy(body)
+    _assert_validates_pruned_copy(body, "pywheels-publish")
 
 
 def test_s3_upload_does_not_prune() -> None:
@@ -262,4 +263,11 @@ def test_patch_wheel_versions_prunes_before_the_prerelease_upload() -> None:
 
     _assert_prunes_before_publishing(body, "patch-wheel-versions.py")
     _assert_prunes_before_publishing(body, "adms first-party python upload")
-    _assert_validates_pruned_copy(body)
+    _assert_validates_pruned_copy(body, "pywheels-patched")
+    # patch-wheel-versions rewrites public.dev$CI_PIPELINE_ID+local.$CI_COMMIT_SHA;
+    # validation must load that form, not the pre-patch PACKAGE_VERSION.
+    patch_at: int = body.find("patch-wheel-versions.py")
+    export_at: int = body.find('PACKAGE_VERSION="$(cat pywheels-patched/.patched-version)"')
+    validate_at: int = body.find("validate-ddtrace-package.py pywheels-patched")
+    assert export_at != -1, "patched PACKAGE_VERSION export is missing"
+    assert patch_at < export_at < validate_at, "PACKAGE_VERSION must be aligned after patch, before validate"

@@ -187,6 +187,9 @@ def main() -> None:
     src_dir = Path(args.src_dir)
     dest_dir = Path(args.dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
+    # CI sources this so validate-ddtrace-package.py expects the rewritten filenames
+    # (public.dev$CI_PIPELINE_ID+local.$CI_COMMIT_SHA), not the pre-patch PACKAGE_VERSION.
+    (dest_dir / ".patched-version").write_text(new_version + "\n", encoding="utf-8")
 
     wheels = sorted(src_dir.glob("*.whl"))
     if not wheels:

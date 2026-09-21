@@ -110,7 +110,17 @@ def check_python_tags_current(repo_root: Path) -> list[str]:
             f"({requires_python}) does not support those interpreters"
         )
 
-    next_minor: int = max(python_tag_minor(t) for t in PYTHON_TAGS) + 1
+    present_minors: set[int] = {python_tag_minor(t) for t in PYTHON_TAGS}
+    gap_tags: list[str] = [
+        f"cp3{m}" for m in range(min(present_minors), max(present_minors) + 1) if m not in present_minors
+    ]
+    if gap_tags:
+        problems.append(
+            f"PYTHON_TAGS is missing {', '.join(gap_tags)} between {PYTHON_TAGS[0]} and "
+            f"{PYTHON_TAGS[-1]}; a gapped list silently skips those wheels"
+        )
+
+    next_minor: int = max(present_minors) + 1
     if specifier.contains(f"3.{next_minor}"):
         problems.append(
             f"requires-python ({requires_python}) supports 3.{next_minor}, but PYTHON_TAGS stops at "

@@ -236,11 +236,13 @@ variables:
         exit 0
       fi
     # Keep the unpruned artifact for S3's SHA index; validate the patched adms copy.
-    # Validate after patch-wheel-versions.py so PACKAGE_VERSION (with local segment)
-    # matches the rewritten filenames — pre-patch wheels still carry the source version.
+    # Validate after patch-wheel-versions.py, with PACKAGE_VERSION aligned to the rewritten
+    # form (public.dev$CI_PIPELINE_ID+local.$CI_COMMIT_SHA) — pre-patch wheels and the
+    # raw PACKAGE_VERSION local segment alone do not match those filenames.
     - cp -a pywheels pywheels-publish
     - .gitlab/scripts/prune-unsupported-wheels.sh pywheels-publish
     - python3 .gitlab/scripts/patch-wheel-versions.py pywheels-publish pywheels-patched
+    - export PACKAGE_VERSION="$(cat pywheels-patched/.patched-version)"
     - python3 .gitlab/validate-ddtrace-package.py pywheels-patched --mode=${ADMS_VALIDATE_MODE}
     - |
       set -euo pipefail
