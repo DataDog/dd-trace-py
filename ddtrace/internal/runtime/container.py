@@ -140,7 +140,7 @@ def get_container_info(pid: Union[Literal["self"], int] = "self") -> Optional[CG
     The results of calling this function are cached.
     """
     try:
-        with open(f"/proc/{pid}/cgroup") as fp:
+        with open(f"/proc/{pid}/cgroup", mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
                 if info and (info.container_id or info.node_inode):

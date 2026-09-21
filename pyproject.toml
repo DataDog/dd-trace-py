@@ -307,6 +307,8 @@ lint.unfixable =[
 # Subprocess test body uses quoted annotations because it's exec'd without
 # `from __future__ import annotations` and pprof_pb2 is pyi-only
 "tests/profiling/collector/test_memalloc.py" = ["UP037"]
+# Test asserts exact open() call args including mode="r"
+"ddtrace/internal/runtime/container.py" = ["UP015"]
 
 [tool.ruff.format]
 # Formatter-specific settings
