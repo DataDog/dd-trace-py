@@ -208,27 +208,40 @@ def test_task_publication_rolls_back_when_finalizer_allocation_fails() -> None:
     asyncio.run(main())
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(parametrize={"TASK_NAME": ["default", "explicit"]})
 def test_custom_factory_preserves_coroutine_names() -> None:
     import asyncio
+    import os
 
     from ddtrace.profiling import _span_links
-
-    _span_links.start_span_linking()
 
     async def child():
         return 42
 
     async def main():
+        factory_names = []
+
         def naming_factory(loop, coro, **kwargs):
-            return asyncio.Task(coro, loop=loop, name=coro.__qualname__, **kwargs)
+            factory_names.append((coro.__name__, coro.__qualname__))
+            kwargs.setdefault("name", coro.__qualname__)
+            return asyncio.Task(coro, loop=loop, **kwargs)
 
         loop = asyncio.get_running_loop()
         loop.set_task_factory(naming_factory)
+        task_kwargs = {"name": "named-child"} if os.environ["TASK_NAME"] == "explicit" else {}
         try:
-            task = asyncio.create_task(child())
-            assert task.get_name() == child.__qualname__
+            # The event loop can overwrite factory-assigned task names, so compare with an unprofiled task.
+            _span_links.stop_span_linking()
+            baseline = asyncio.create_task(child(), **task_kwargs)
+            expected_task_name = baseline.get_name()
+            assert await baseline == 42
+
+            _span_links.start_span_linking()
+            task = asyncio.create_task(child(), **task_kwargs)
+            assert factory_names == [(child.__name__, child.__qualname__)] * 2
+            assert task.get_name() == expected_task_name
             assert task.get_coro().__name__ == child.__name__
+            assert task.get_coro().__qualname__ == child.__qualname__
             assert await task == 42
         finally:
             loop.set_task_factory(None)
