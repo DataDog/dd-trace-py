@@ -40,25 +40,6 @@ variables:
     (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
-    # Ensure Python 3.12 is the active pyenv version for the cp312 wheels.
-    # The CI image (ci/benchmarking-platform:dd-trace-py) is being updated to
-    # ship Python 3.12 pre-installed (see benchmarking-platform PR). Once that
-    # image is rebuilt and BENCHMARKING_COMMIT_SHA is bumped, this block can be
-    # replaced with a simple `pyenv global 3.12.10`.
-    if ! pyenv versions | grep -q '3\.12\.'; then
-      # The CI image is missing liblzma-dev (installed in the Dockerfile
-      # build stage but not carried into the final image), which is needed
-      # to compile Python's _lzma module.
-      apt-get update && apt-get install -y --no-install-recommends liblzma-dev
-      (cd /pyenv && git pull --ff-only)
-      PYTHON312=$(pyenv install --list | grep -E '^\s+3\.12\.[0-9]+$' | tail -1 | tr -d ' ')
-      pyenv install "$PYTHON312"
-    fi
-    pyenv global $(pyenv versions | grep -oE '3\.12\.[0-9]+' | head -1)
-    # awscli was installed under Python 3.9 in the CI image; reinstall it
-    # under 3.12 so pyenv shims resolve `aws` correctly.
-    pip3 install awscli
-
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
       export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
@@ -97,8 +78,8 @@ variables:
         # from the cache key. This gives a best-effort incremental cache shared
         # across all parallel jobs, keyed only on the base requirements which
         # rarely change.
-        # PYENV_VERSION is included because the pip cache contains version-specific
-        # wheels; mixing cp39 and cp312 caches causes "invalid wheel" errors.
+        # The cp312- prefix isolates the pip cache by Python version; mixing
+        # cp39 and cp312 caches causes "invalid wheel" errors.
         files:
           - benchmarks/base/requirements.txt
           - benchmarks/base/requirements_scenario.txt
@@ -115,6 +96,10 @@ variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+    # Use Python 3.12 for benchmark execution. The CI image ships both 3.9
+    # (global default for BP tooling) and 3.12; PYENV_VERSION makes pyenv
+    # shims resolve python3 to 3.12 for run-benchmarks.sh's venvs.
+    PYENV_VERSION: "3.12.10"
 
 baseline:detect:
   image: ${CI_UTILS_IMAGE}
