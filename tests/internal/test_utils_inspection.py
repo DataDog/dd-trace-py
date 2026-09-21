@@ -1,6 +1,7 @@
 from functools import wraps
 import gc
 from pathlib import Path
+import weakref
 
 import pytest
 
@@ -33,6 +34,7 @@ def test_functions_for_code_gc_does_not_conflate_structurally_identical_code():
 def test_functions_for_code_gc_cache_entry_collected_with_code_object():
     f = _compile_function()
     code = f.__code__
+    code_ref = weakref.ref(code)
 
     inspection.functions_for_code(code)
     assert code in inspection._functions_for_code_gc_cache
@@ -41,9 +43,18 @@ def test_functions_for_code_gc_cache_entry_collected_with_code_object():
     del code
     gc.collect()
 
-    # The finalizer on the code object's weakref should have dropped the
-    # entry entirely, so nothing keeps the now-dead function reachable.
-    assert len(inspection._functions_for_code_gc_cache._data) == 0
+    if code_ref() is None:
+        # The finalizer on the code object's weakref should have dropped
+        # the entry entirely, so nothing keeps the now-dead function
+        # reachable.
+        assert len(inspection._functions_for_code_gc_cache._data) == 0
+    else:
+        # A tracing tool (observed with coverage.py on Python 3.14) can
+        # keep a dynamically-compiled code object alive past its last
+        # real reference -- an environment detail outside our control.
+        # What still must hold: the cache never resolves it back to the
+        # now-dead function.
+        assert inspection.functions_for_code(code_ref()) == []
 
 
 def test_undecorated():
