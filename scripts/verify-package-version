@@ -8,6 +8,7 @@
 
 Performs the following validation:
 - Ensures version in pyproject.toml is PEP 440 compliant (e.g., "4.1.0.dev0" not "4.1.0.dev")
+- Local-label separators '-' / '_' are accepted (PEP 440-equivalent to '.')
 
 Usage:
     scripts/verify-package-version       # Check version compliance (exit 0 if OK, 1 if not compliant)
@@ -26,19 +27,28 @@ except ModuleNotFoundError:
 
 
 def is_pep440_compliant(version_str: str) -> tuple[bool, str]:
-    """Check if a version string is strictly PEP 440 compliant.
+    """Check if a version string is a valid PEP 440 version.
+
+    The public version must match packaging's canonical form (so 4.1.0.dev
+    still fails; the fix is 4.1.0.dev0). Local-label separators '-' / '_'
+    are PEP 440-equivalent to '.', so 1.0+foo-bar is accepted.
 
     Returns:
         Tuple of (is_compliant, normalized_version)
     """
     try:
-        parsed = Version(version_str)
-        normalized = str(parsed)
-
-        # Check if the original matches the normalized form
-        # If they differ, the version had implicit defaults which is not strictly compliant
-        is_compliant = version_str == normalized
-        return is_compliant, normalized
+        parsed: Version = Version(version_str)
+        normalized: str = str(parsed)
+        if version_str == normalized:
+            return True, normalized
+        public: str
+        plus: str
+        _local: str
+        public, plus, _local = version_str.partition("+")
+        # packaging rewrote only the local label (separators or case).
+        if plus and public == normalized.partition("+")[0]:
+            return True, normalized
+        return False, normalized
     except InvalidVersion:
         return False, ""
 
@@ -58,15 +68,16 @@ def main() -> int:
     try:
         pyproject_version = read_pyproject_version(pyproject_path)
 
-        # Check PEP 440 compliance
         is_compliant, normalized_version = is_pep440_compliant(pyproject_version)
         if not is_compliant:
             print(f"✗ Version in pyproject.toml is not PEP 440 compliant: {pyproject_version}", file=sys.stderr)
-            print(f"  PEP 440 requires explicit numbers for pre-release, post, and dev versions", file=sys.stderr)
-            print(f"  Suggested fix: {normalized_version}", file=sys.stderr)
+            if normalized_version:
+                print(f"  Suggested fix: {normalized_version}", file=sys.stderr)
             return 1
 
         print(f"✓ Version {pyproject_version} is PEP 440 compliant")
+        if pyproject_version != normalized_version:
+            print(f"  Canonical form: {normalized_version}")
         return 0
 
     except Exception as e:
