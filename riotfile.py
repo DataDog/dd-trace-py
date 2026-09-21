@@ -74,10 +74,13 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
-# 3.15 is listed so select_pys(max_version="3.15") can opt in. Default stays
+# TODO(py-315): update / remove this when 3.15 is fully GA'd.
+# 3.15 is listed so select_pys(max_version=NEXT_PYTHON_VERSION) can opt in. Default stays
 # 3.14 so uncapped suites do not mix 3.15 hashes into 3.9-3.14 --exitfirst jobs.
 # Wrap-heavy suites stay at the default until wrap() is live on 3.15.
 MAX_PYTHON_VERSION = "3.14"
+# Keep in sync with ddtrace.internal.compat.NEXT_MAX_PY.
+NEXT_PYTHON_VERSION: str = "3.15"
 
 
 def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
@@ -790,7 +793,7 @@ venv = Venv(
         Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
-            pys=select_pys(max_version="3.15"),
+            pys=select_pys(max_version=NEXT_PYTHON_VERSION),
         ),
         Venv(
             name="ddtracerun",
@@ -943,11 +946,27 @@ venv = Venv(
                 ),
                 Venv(
                     command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
+                    pkgs={"bottle": latest},
+                ),
+                Venv(
+                    command=(
                         "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
                     ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
+                ),
+                Venv(
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
+                    env={"DD_SERVICE": "bottle-app"},
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
+                    pkgs={"bottle": latest},
                 ),
             ],
         ),
@@ -1056,6 +1075,8 @@ venv = Venv(
         # 6.0     3.12, 3.13
         # 6.1     3.12, 3.13, 3.14
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
+        # 3.15 isn't in Django's support matrix yet (no CPython 3.15 GA); the 6.x block below
+        # opts in early via select_pys(max_version="3.15") to track dd-trace-py's own py-315 work.
         Venv(
             name="django",
             command="pytest {cmdargs} tests/contrib/django",
@@ -1124,6 +1145,27 @@ venv = Venv(
                     ),
                     pkgs={
                         "django": ["~=5.1"],
+                        "psycopg": latest,
+                        "channels": latest,
+                        "django-q2": latest,
+                    },
+                ),
+                Venv(
+                    # django 6.x (#py-315 coverage). Same skip list as the 5.x block above;
+                    # 6.0 dropped Postgres 12 too and the suite's docker-compose still runs it.
+                    # max_version="3.15" is a forward test only: Django hasn't declared 3.15
+                    # support yet since CPython 3.15 isn't GA (see comment above the table).
+                    pys=select_pys(min_version="3.12", max_version="3.15"),
+                    command=(
+                        "pytest {cmdargs} "
+                        "--ignore=tests/contrib/django/test_django_dbm.py "
+                        "--ignore=tests/contrib/django/test_django_snapshots.py "
+                        "-k 'not test_user_name_included and not test_user_name_excluded "
+                        "and not test_cached_view' "
+                        "tests/contrib/django"
+                    ),
+                    pkgs={
+                        "django": "~=6.1",
                         "psycopg": latest,
                         "channels": latest,
                         "django-q2": latest,
@@ -1236,7 +1278,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.15"),
+                    pys=select_pys(max_version=NEXT_PYTHON_VERSION),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -1472,7 +1514,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pys=select_pys(min_version="3.12", max_version="3.14"),
                     pkgs={
                         "mlflow": [latest],
                         # pkg_resources was removed in v82.0.0
@@ -1582,7 +1624,7 @@ venv = Venv(
         ),
         Venv(
             name="pymemcache",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "pytest-randomly": latest,
                 "pymemcache": [
@@ -1631,6 +1673,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"moto": "==5.2.3"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13", max_version="3.14"),
+                    pkgs={"moto": "==5.2.3", "pynamodb": "<6.0"},
                 ),
             ],
         ),
@@ -1968,6 +2014,16 @@ venv = Venv(
                     pys=select_pys(min_version="3.14"),
                     pkgs={"fastapi": latest, "hypothesis": latest},
                 ),
+            ],
+        ),
+        Venv(
+            name="anyio",
+            command="pytest {cmdargs} tests/contrib/anyio",
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                Venv(pys="3.9", pkgs={"anyio": "==3.4.0", "trio": "<0.22"}),
+                Venv(pys="3.10", pkgs={"anyio": "<4.0", "trio": "<0.22"}),
+                Venv(pys=select_pys(), pkgs={"anyio": latest, "trio": latest}),
             ],
         ),
         Venv(
@@ -2670,6 +2726,7 @@ venv = Venv(
                     pys="3.10",
                     pkgs={"yaaredis": latest},
                 ),
+                Venv(pys=select_pys(min_version="3.11", max_version="3.14"), pkgs={"yaaredis": latest}),
             ],
         ),
         Venv(
@@ -2732,6 +2789,13 @@ venv = Venv(
                     pkgs={
                         "sanic": ["~=23.12"],
                         "sanic-testing": "~=23.12.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13", max_version="3.14"),
+                    pkgs={
+                        "sanic": latest,
+                        "sanic-testing": latest,
                     },
                 ),
             ],
@@ -3135,6 +3199,10 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.13"),
                     pkgs={"openai-agents": ["~=0.14.0", latest]},
                 ),
+                Venv(
+                    pys="3.14",
+                    pkgs={"openai-agents": latest},
+                ),
             ],
         ),
         Venv(
@@ -3246,6 +3314,20 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="litellm",
+            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
+            command="pytest {cmdargs} tests/contrib/litellm",
+            pys="3.14",
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "botocore": latest,
+                "boto3": latest,
+                "litellm": "==1.80.16",
+                "openai": ">=2.8.0",
+            },
+        ),
+        Venv(
             name="llama_index",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -3256,6 +3338,19 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
                 "llama-index-core": ["~=0.11.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
+            name="llama_index",
+            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys="3.14",
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "llama-index-core": latest,
                 "llama-index-llms-openai": latest,
                 "llama-index-embeddings-openai": latest,
             },
@@ -3306,6 +3401,7 @@ venv = Venv(
                         "torch": ["~=2.8.0", "~=2.9.0", "~=2.10.0", "~=2.11.0", "~=2.12.0", latest],
                     },
                 ),
+                Venv(pys=select_pys(min_version="3.13", max_version="3.14"), pkgs={"torch": latest}),
             ],
         ),
         Venv(
@@ -3411,9 +3507,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/ray",
             env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
-            pkgs={
-                "ray[default]": ["~=2.46.0", "~=2.54.1"],
-            },
+            pkgs={"ray[default]": ["~=2.46.0", "~=2.54.1"]},
         ),
         Venv(
             name="ray_serve",
@@ -3499,7 +3593,7 @@ venv = Venv(
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
+                            pys=select_pys(min_version="3.11", max_version="3.14"),
                             pkgs={"confluent-kafka": latest},
                         ),
                     ],
@@ -3516,6 +3610,18 @@ venv = Venv(
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=6.105.0", latest],
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="aws_lambda",
+            env={"DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true"},
+            command="pytest {cmdargs} tests/contrib/aws_lambda",
+            pys="3.14",
+            pkgs={
+                "boto3": latest,
+                "datadog-lambda": latest,
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
@@ -3696,7 +3802,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/sourcecode",
-            pys=select_pys(),
+            pys=select_pys(max_version=NEXT_PYTHON_VERSION),
             pkgs={
                 "setuptools": latest,
                 "pytest-randomly": latest,
@@ -3845,7 +3951,6 @@ venv = Venv(
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
-                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -4663,6 +4768,16 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            # Cross-product tests: a security/AI product in standalone mode alongside another
+            # product. Owned by no single product team, see tests/standalone/.
+            name="standalone",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
+            command="pytest {cmdargs} tests/standalone/",
+            pys=select_pys(),
+        ),
+        Venv(
             name="ai_guard_langchain",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -4744,7 +4859,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
-                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # ``pyyaml`` lets the cassette smoke test parse the
                 # anthropic contrib VCR fixtures. Pinned to a single version
                 # because the suite only uses ``yaml.safe_load``.
                 "pyyaml": latest,

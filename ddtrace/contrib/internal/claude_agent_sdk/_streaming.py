@@ -214,9 +214,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if chunk_type == "ResultMessage":
             if self.instance and self.context is None:
                 self.context = await _retrieve_context(self.instance)
-            # eagerly finish when the result message is received since
-            # the generator may be left open indefinitely
-            self.finalize_stream()
+            # Eagerly finish when the result message is received since
+            # the generator may be left open indefinitely. Go through
+            # close_stream so later iteration/__aexit__ cleanup is a no-op.
+            self.close_stream()
 
         content = getattr(chunk, "content", []) or []
 
@@ -419,7 +420,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
         """Buffer the chunk, deduping by message_id so one model turn maps to one llm span.
 
-        AIDEV-NOTE: The SDK may split one model turn (e.g. a text block plus a tool_use
+        The SDK may split one model turn (e.g. a text block plus a tool_use
         block) into several AssistantMessage chunks that each repeat the same message-level
         usage. Buffering and merging chunks of one message into a single llm span (flushed on
         turn change / UserMessage / ResultMessage) keeps token counts from being

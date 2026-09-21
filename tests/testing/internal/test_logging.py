@@ -7,8 +7,12 @@ from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
+import pytest
+
+from ddtrace.testing.internal.logging import _DDTraceClosedStreamFilter
 from ddtrace.testing.internal.logging import _SafeStreamHandler
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
+from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.logging import testing_logger
 
@@ -236,3 +240,71 @@ class TestSafeStreamHandler:
 
         # The default handleError should have printed the traceback for the TypeError.
         assert "Logging error" in real_stderr.getvalue()
+
+
+class TestDDTraceClosedStreamFilter:
+    @pytest.mark.parametrize("name", ["ddtrace", "ddtrace._trace.tracer", "application", "ddtrace_other"])
+    def test_only_closed_tracer_destination_is_filtered(self, name: str) -> None:
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.addFilter(_DDTraceClosedStreamFilter(handler))
+        record = logging.makeLogRecord({"name": name, "msg": "delivery probe"})
+        handler.handle(record)
+        assert stream.getvalue() == "delivery probe\n"
+        stream.close()
+
+        with patch.object(handler, "handleError") as error:
+            handler.handle(record)
+        assert error.call_count == (0 if name == "ddtrace" or name.startswith("ddtrace.") else 1)
+
+        # A reused handler must not stay muted after replacing its closed stream.
+        handler.stream = io.StringIO()
+        handler.handle(record)
+        assert handler.stream.getvalue() == "delivery probe\n"
+
+    @pytest.mark.parametrize("exception", [ValueError("invalid format"), TypeError("invalid format")])
+    def test_formatter_errors_remain_visible(self, exception: Exception) -> None:
+        handler = logging.StreamHandler(io.StringIO())
+        handler.addFilter(_DDTraceClosedStreamFilter(handler))
+        handler.setFormatter(Mock(format=Mock(side_effect=exception)))
+        record = logging.makeLogRecord({"name": "ddtrace", "msg": "delivery probe"})
+        with patch.object(handler, "handleError") as error:
+            handler.handle(record)
+        error.assert_called_once_with(record)
+
+    def test_scanning_preserves_handlers_and_is_idempotent(self, tmp_path) -> None:
+        root = logging.RootLogger(logging.WARNING)
+        tracer = logging.Logger("ddtrace")
+        child = logging.Logger("ddtrace.child")
+        application = logging.Logger("application")
+        handlers: list[logging.Handler] = [logging.StreamHandler(io.StringIO()) for _ in range(4)]
+        for logger, handler in zip((root, tracer, child, application), handlers):
+            logger.addHandler(handler)
+        existing_filter = logging.Filter()
+        handlers[0].addFilter(existing_filter)
+        file_handler = logging.FileHandler(tmp_path / "reopen.log", delay=True)
+        custom_handler = _SafeStreamHandler(io.StringIO())
+        root.addHandler(file_handler)
+        root.addHandler(custom_handler)
+        before = list(root.handlers)
+        try:
+            with (
+                patch("logging.getLogger", return_value=root),
+                patch.dict(
+                    logging.Logger.manager.loggerDict,
+                    {"ddtrace": tracer, "ddtrace.child": child, "application": application},
+                    clear=True,
+                ),
+            ):
+                protect_ddtrace_stream_handlers()
+                protect_ddtrace_stream_handlers()
+            assert root.handlers == before
+            assert handlers[0].filters[0] is existing_filter
+            for handler in handlers[:3]:
+                assert sum(isinstance(f, _DDTraceClosedStreamFilter) for f in handler.filters) == 1
+            assert handlers[3].filters == []
+            assert file_handler.filters == []
+            assert custom_handler.filters == []
+        finally:
+            for handler in [*handlers, file_handler, custom_handler]:
+                handler.close()
