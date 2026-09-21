@@ -1,0 +1,12 @@
+# GET paths for the long-lived asyncio dummy (async_app.py).
+# Drive hits these while background churn keeps the loop busy.
+/healthz
+/stats
+/work
+/churn
+/fanout
+/work
+/churn
+/work
+/fanout
+/stats

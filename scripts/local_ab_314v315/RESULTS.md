@@ -304,3 +304,7 @@ ADR: `docs/adr/0002-python-315-profiling-support.md` on branch `vlad/adr-py315-p
 ## Harness bug fix (after this run)
 
 `scripts/local_ab_314v315/run.sh` now prefers `sample_capture_cpu_time_us` (falls back to the old name). Saved `runs/20260921T033620Z/delta_table.json` remains the **pre-fix** publish.
+
+## Async follow-up (better #19272 validator)
+
+Smoke’s flat `asyncio_task_count=3` is weak for the asyncio/monitoring path. Long-lived loop A/B: `run_async.sh` / `async_app.py` — results in **`RESULTS_ASYNC.md`** (`RUN_DIR=/tmp/local314v315_async_20260921T173604Z`; meta task_count ~110; named-task labels present; no dedicated asyncio sample type).
