@@ -1,9 +1,7 @@
-# -*- encoding: utf-8 -*-
 from ast import unparse
-from typing import Text
 
 
-def _get_patched_code(module_path: Text, module_name: Text) -> str:
+def _get_patched_code(module_path: str, module_name: str) -> str:
     """
     Print the patched code to stdout, for debugging purposes.
     """

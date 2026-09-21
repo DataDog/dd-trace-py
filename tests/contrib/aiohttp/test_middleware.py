@@ -67,7 +67,7 @@ def test_service_operation_schema(ddtrace_run_python_code_in_subprocess, schema_
         "v1": None,  # causes a fallback in the test to DEFAULT_SPAN_SERVICE_NAME
     }[schema_version]
     expected_span_name = {None: "aiohttp.request", "v0": "aiohttp.request", "v1": "http.server.request"}[schema_version]
-    code = """
+    code = f"""
 import pytest
 import asyncio
 from tests.conftest import *
@@ -87,8 +87,8 @@ def test(app, loop, aiohttp_client, test_spans):
         aiohttp_spans = [s for trace in traces for s in trace if s.get_tag("span.kind") == "server"]
         assert len(aiohttp_spans) == 1
         span = aiohttp_spans[0]
-        assert span.service == "{}" or DEFAULT_SPAN_SERVICE_NAME
-        assert span.name == "{}"
+        assert span.service == "{expected_service_name}" or DEFAULT_SPAN_SERVICE_NAME
+        assert span.name == "{expected_span_name}"
     asyncio.set_event_loop(asyncio.new_event_loop())
     loop.run_until_complete(async_test(app, aiohttp_client, test_spans))
 
@@ -96,7 +96,7 @@ def test(app, loop, aiohttp_client, test_spans):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name, expected_span_name)
+    """
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -351,7 +351,7 @@ async def test_wrapped_coroutine(app, test_spans, aiohttp_client):
     assert "GET /wrapped_coroutine" == span.resource
     span = spans[1]
     assert "nested" == span.name
-    assert span.duration > 0.25, "span.duration={0}".format(span.duration)
+    assert span.duration > 0.25, f"span.duration={span.duration}"
 
 
 async def test_distributed_tracing(app, test_spans, aiohttp_client):

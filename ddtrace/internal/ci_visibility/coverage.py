@@ -1,8 +1,8 @@
+from collections.abc import Iterable
 from itertools import groupby
 import json
 import os
 from pathlib import Path
-from typing import Iterable
 from typing import Optional
 
 import ddtrace

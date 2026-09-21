@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- encoding: utf-8 -*-
 import logging
 import sys
 
@@ -16,7 +15,7 @@ from tests.utils import override_global_config
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
-class TestOperatorJoinReplacement(object):
+class TestOperatorJoinReplacement:
     def test_string_join_tainted_joiner_list(self):  # type: () -> None
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(

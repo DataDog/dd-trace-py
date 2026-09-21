@@ -1,8 +1,8 @@
+from collections.abc import Sequence
 import json
 import typing  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Optional
-from typing import Sequence
 
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
@@ -30,7 +30,7 @@ def _json_dumps_bytes(obj: object) -> bytes:
     return json.dumps(obj).encode("utf-8", errors="backslashreplace")
 
 
-class _EncoderBase(object):
+class _EncoderBase:
     """
     Encoder interface that provides the logic to encode traces and service.
     """
