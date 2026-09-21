@@ -182,9 +182,11 @@ class DatadogSampler:
             sample_rate = matched_rule.sample_rate
         elif not self._rate_limit_always_on:
             key = self._key(span.service, span.get_tag(ENV_KEY))
-            if key in self._agent_based_samplers:
+            agent_sampler = self._agent_based_samplers.get(key)
+            if agent_sampler is None:
+                agent_sampler = self._agent_based_samplers.get(self._default_key)
+            if agent_sampler is not None:
                 # Agent service based sampling
-                agent_sampler = self._agent_based_samplers[key]
                 sampled = agent_sampler.sample(span)
                 sample_rate = agent_sampler.sample_rate
 
