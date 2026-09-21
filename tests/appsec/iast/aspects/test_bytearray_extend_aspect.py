@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import logging
 
 import pytest
@@ -16,7 +15,7 @@ from tests.utils import override_global_config
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
-class TestByteArrayExtendAspect(object):
+class TestByteArrayExtendAspect:
     def test_simple_extend_not_tainted(self):
         ba1 = bytearray(b"123")
         assert not get_tainted_ranges(ba1)

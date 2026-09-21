@@ -92,7 +92,7 @@ class PlatformTagCollectorV2(PlatformTagCollector):
     """
 
     def collect_fn(self, keys):
-        tags = super(PlatformTagCollectorV2, self).collect_fn(keys)
+        tags = super().collect_fn(keys)
         tags.append(("runtime-id", get_runtime_id()))
         return tags
 

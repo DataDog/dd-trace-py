@@ -17,7 +17,7 @@ SHOULD_PROFILE = os.environ.get("PROFILE_BENCHMARKS", "0") == "1"
 
 
 def read_config(path):
-    with open(path, "r") as fp:
+    with open(path) as fp:
         return yaml.load(fp, Loader=yaml.FullLoader)
 
 
@@ -77,7 +77,7 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
         cname,
     ]
     for cvarname, cvarval in cvars.items():
-        cmd.append("--{}".format(cvarname))
+        cmd.append(f"--{cvarname}")
         if isinstance(cvarval, (dict, list)):
             # convert dicts and lists to JSON strings
             cmd.append(json.dumps(cvarval))
@@ -90,11 +90,11 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: {} <output dir>".format(sys.argv[0]))
+        print(f"Usage: {sys.argv[0]} <output dir>")
         sys.exit(1)
 
     output_dir = sys.argv[1]
-    print("Saving results to {}".format(output_dir))
+    print(f"Saving results to {output_dir}")
     config = read_config("config.yaml")
 
     # Filter configs if BENCHMARK_CONFIGS is set

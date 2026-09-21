@@ -47,13 +47,11 @@ def empty_middleware(get_response):
 def index(request):
     # render a large table template
     template = Template(
-        (
-            "<table>\n"
-            "{% for row in table %}\n"
-            "<tr>{% for col in row %}<td>{{ col|escape }}</td>{% endfor %}</tr>\n"
-            "{% endfor %}\n"
-            "</table>"
-        )
+        "<table>\n"
+        "{% for row in table %}\n"
+        "<tr>{% for col in row %}<td>{{ col|escape }}</td>{% endfor %}</tr>\n"
+        "{% endfor %}\n"
+        "</table>"
     )
     table = [range(10) for _ in range(100)]
     context = Context({"table": table})
