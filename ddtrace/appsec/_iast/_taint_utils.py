@@ -36,14 +36,18 @@ def _should_taint(value, source_name, source_origin, override_pyobject_tainted):
             elif isinstance(source_name, OriginType):
                 source_name = origin_to_str(source_name)
             source_value = value.decode("utf-8", errors="ignore") if isinstance(value, bytes) else value
-            if (
-                taint_range.start == 0
-                and taint_range.length == len(value)
-                and source.origin == source_origin
-                and source.name == source_name
-                and source.value == source_value
-            ):
-                return False
+            try:
+                if (
+                    taint_range.start == 0
+                    and taint_range.length == len(value)
+                    and source.origin == source_origin
+                    and source.name == source_name
+                    and source.value == source_value
+                ):
+                    return False
+            except UnicodeDecodeError:
+                # Native source truncation can split a UTF-8 character, so equality is unknown.
+                return True
     return True
 
 

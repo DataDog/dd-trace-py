@@ -318,3 +318,67 @@ def test_taint_structure_source_override(iast_context_defaults, structure_kind, 
             assert actual.length == expected.length
             assert actual.source == expected.source
             assert actual.has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT) == (text_type is not bytearray)
+
+
+@pytest.mark.parametrize("structure_kind", ["eager", "lazy_dict", "lazy_list"])
+@pytest.mark.parametrize("text_type", [str, bytes])
+def test_taint_structure_undecodable_source_value(iast_context_defaults, monkeypatch, structure_kind, text_type):
+    from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
+    from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_utils import taint_structure
+    from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
+
+    # Exercise the native default, instead of the fixture's increased truncation limit.
+    monkeypatch.delenv("DD_IAST_TRUNCATION_MAX_VALUE_LENGTH", raising=False)
+    reset_source_truncation_cache()
+    text = "€" * 84
+    value = taint_pyobject(
+        text if text_type is str else text.encode("utf-8"),
+        source_name="location",
+        source_value=text,
+        source_origin=OriginType.PARAMETER,
+    )
+    with pytest.raises(UnicodeDecodeError):
+        _ = get_tainted_ranges(value)[0].source.value
+    add_secure_mark(value, [VulnerabilityType.UNVALIDATED_REDIRECT])
+    added = "field added after the first callback"
+    assert not is_pyobject_tainted(added)
+
+    if structure_kind == "eager":
+        result = taint_structure(
+            {"location": value, "added": added},
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )
+        first, second = result["location"], result["added"]
+    elif structure_kind == "lazy_dict":
+        result = LazyTaintDict(
+            {"location": value, "added": added},
+            origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+            override_pyobject_tainted=True,
+        )
+        first, second = result["location"], result["added"]
+    else:
+        result = LazyTaintList(
+            [value, added],
+            origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER),
+            override_pyobject_tainted=True,
+            source_name="location",
+        )
+        first, second = result[0], result[1]
+
+    # Traversal must still reach newly added fields after the undecodable source.
+    assert is_pyobject_tainted(second)
+    assert second == added
+    assert first == value
+    assert first is not value
+    for item, name in ((first, "location"), (second, "location" if structure_kind == "lazy_list" else "added")):
+        ranges = get_tainted_ranges(item)
+        assert len(ranges) == 1
+        assert ranges[0].start == 0
+        assert ranges[0].length == len(item)
+        assert ranges[0].source.origin == OriginType.PARAMETER
+        assert ranges[0].source.name == name
+        assert not ranges[0].has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT)
