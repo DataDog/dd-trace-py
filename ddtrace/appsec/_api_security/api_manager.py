@@ -93,7 +93,7 @@ class APIManager(Service):
         log.debug("%s disabled", cls.__name__)
 
     def __init__(self) -> None:
-        super(APIManager, self).__init__()
+        super().__init__()
 
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()

@@ -102,7 +102,7 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
             return func(*args, **kwargs)
 
         with tracer.trace(
-            "celery.beat.{}".format(fn_name),
+            f"celery.beat.{fn_name}",
             span_type=SpanTypes.WORKER,
         ) as span:
             set_service_and_source(span, trace_utils.ext_service(pin, integration_config), integration_config)
