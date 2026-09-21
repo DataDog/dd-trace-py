@@ -56,6 +56,15 @@ including unfamiliar provider names, traffic types, tiers, cache types, and TTLs
 never use enum-value allowlists or billing-value mappings. Type, size, and secret
 checks still apply. Never dump logging kwargs or whole header/provider-specific
 dictionaries. Do not infer billing provider/account/mode/geography.
+Use LiteLLM's terminal `standard_logging_object` for common route fields and
+cache/stream status, with compatibility fallbacks; actual outgoing settings take
+precedence. Its `model_id` identifies a router deployment, not a provider resource.
+Ignore conflicting standard/response deployment metadata and never reuse a prior
+deployment's scope. Keep identity from gateway authentication and usage from the
+original response: standard logging can zero-fill absent usage. Reject an ingress
+`standard_logging_object`; never export its messages, response, arbitrary metadata,
+or model parameters wholesale. Provider scopes and response headers are selected
+separately until LiteLLM exposes a dedicated safe attribution metadata contract.
 Consumers interpret these observations downstream. An optional non-secret
 `model_info.datadog_provider_api_key_id` is read only in the post-routing deployment
 hook and exported as `ai.route.api_key_id`; never read it from ingress or carry it

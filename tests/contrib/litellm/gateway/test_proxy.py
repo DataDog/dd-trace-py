@@ -460,6 +460,7 @@ async def test_real_proxy_and_wire_traces(gateway):
             "service_tier": "priority",
             "user": "claimed-user",
             "model_info": {"datadog_provider_api_key_id": "spoofed-key"},
+            "standard_logging_object": {"model": "SPOOFED MODEL", "cache_hit": True},
             "metadata": {
                 "user_api_key_user_id": "SPOOFED USER",
                 "usr.email": "spoofed@example.test",

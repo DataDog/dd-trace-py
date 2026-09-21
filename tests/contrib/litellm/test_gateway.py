@@ -1301,3 +1301,153 @@ def test_absent_cache_details_remain_unknown_not_explicit_zero(sdk_usage):
     assert usage.diagnostics["input_cache_write_reported"] == 1
     assert usage.quantities["input_uncached_tokens"] == 100
     assert not usage.issues
+
+
+async def test_standard_logging_common_fields_without_exporting_its_content():
+    records = []
+    callback = make_callback(sink=records.append, capture_email=False)
+    data = await start(callback, data={"standard_logging_object": {"model": "SPOOFED"}})
+    assert "standard_logging_object" not in data
+    standard = {
+        "model": "future_provider/model-v2",
+        "custom_llm_provider": "future_provider",
+        "model_id": "deployment-new",
+        "api_base": "https://PRIVATE:PRIVATE@provider.example/PRIVATE?key=PRIVATE",
+        "stream": True,
+        "cache_hit": False,
+        "prompt_tokens": 999,
+        "completion_tokens": 999,
+        "messages": "PRIVATE",
+        "response": "PRIVATE",
+        "model_parameters": {"metadata": "PRIVATE", "api_key": "PRIVATE"},
+        "metadata": {"user_api_key_user_id": "SPOOFED", "user_email": "PRIVATE"},
+        "hidden_params": {"additional_headers": {"openai-project": "SPOOFED"}},
+        "api_key": "PRIVATE",
+        "vertex_credentials": "PRIVATE",
+        "future_field": "PRIVATE",
+    }
+    await finish(
+        callback,
+        data,
+        {"usage": {"prompt_tokens": 12, "completion_tokens": 3}},
+        standard_logging_object=standard,
+    )
+    record = records[0]
+    assert record.tags["ai.route.model"] == "future_provider/model-v2"
+    assert record.tags["ai.route.provider"] == "future_provider"
+    assert "ai.model.provider" not in record.tags  # Do not copy the same standard field into a second tag.
+    assert record.tags["ai.route.endpoint_host"] == "provider.example"
+    assert record.tags["ai.gateway.deployment_id"] == "deployment-new"
+    assert record.tags["ai.model"] == "future_provider/model-v2"
+    assert record.tags["usr.id"] == "user-1"
+    assert record.tags["ai.usage.source"] == "litellm_normalized_may_estimate"
+    assert record.usage.diagnostics["input_tokens"] == 12
+    assert record.usage.quantities["output_tokens"] == 3
+    assert "ai.route.model_id" not in record.tags  # Logging model_id is a deployment, not a provider resource.
+    assert not any(value in repr(record) for value in ("PRIVATE", "SPOOFED", "999"))
+
+
+@pytest.mark.parametrize("standard", [None, [], "PRIVATE", {"model": [], "api_base": 123, "model_id": True}])
+async def test_missing_or_malformed_standard_logging_keeps_legacy_collection(standard):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await finish(callback, data, standard_logging_object=standard)
+    assert records[0].tags["ai.model"] == "gpt-4o-2024-08-06"
+    assert records[0].tags["ai.gateway.deployment_id"] == "dep-1"
+    assert "unsupported_callback_shape" not in records[0].tags.get("ai.attribution.issues", "")
+    assert "PRIVATE" not in repr(records)
+
+
+async def test_standard_logging_does_not_turn_missing_usage_into_zero():
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await finish(
+        callback,
+        data,
+        {},
+        standard_logging_object={
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "metadata": {"usage_object": {"prompt_tokens": 0, "completion_tokens": 0}},
+        },
+    )
+    assert records[0].usage.quantities == {}
+    assert "missing_usage" in records[0].tags["ai.attribution.issues"]
+
+
+@pytest.mark.parametrize("legacy,standard,hit", [(None, True, True), (True, False, True), (False, True, False)])
+async def test_standard_logging_cache_status_is_a_compatibility_fallback(legacy, standard, hit):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await finish(callback, data, cache_hit=legacy, standard_logging_object={"cache_hit": standard})
+    assert records[0].tags["ai.request.outcome"] == ("gateway_cache_hit" if hit else "success")
+
+
+async def test_standard_logging_does_not_replace_outgoing_settings_or_raw_response():
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await callback.async_pre_call_deployment_hook(
+        {
+            **data,
+            "model": "openai/routed-model",
+            "api_base": "https://outgoing.example/v1",
+            "model_info": {"id": "dep-1", "datadog_provider_api_key_id": "key_selected"},
+        },
+        "completion",
+    )
+    await finish(
+        callback,
+        data,
+        standard_logging_object={
+            "model": "logging-alias",
+            "model_id": "dep-1",
+            "api_base": "https://default.example/v1",
+            "custom_llm_provider": "openai",
+        },
+    )
+    tags = records[0].tags
+    assert tags["ai.route.model"] == "openai/routed-model"
+    assert tags["ai.route.endpoint_host"] == "outgoing.example"
+    assert tags["ai.route.provider"] == "openai"  # Filled from the common payload.
+    assert tags["ai.route.api_key_id"] == "key_selected"
+    assert tags["ai.model"] == "gpt-4o-2024-08-06"
+
+
+@pytest.mark.parametrize("response_deployment", [None, "dep-new"])
+async def test_standard_logging_deployment_mismatch_does_not_reuse_old_scope(response_deployment):
+    records = []
+    callback = make_callback(sink=records.append)
+    data = await start(callback)
+    await callback.async_pre_call_deployment_hook(
+        {
+            **data,
+            "model": "old-model",
+            "organization": "old-org",
+            "model_info": {"id": "dep-old", "datadog_provider_api_key_id": "key_old"},
+        },
+        "completion",
+    )
+    await finish(
+        callback,
+        data,
+        response(deployment=response_deployment),
+        standard_logging_object={
+            "model_id": "dep-standard",
+            "model": "standard-model",
+            "custom_llm_provider": "future_provider",
+        },
+    )
+    tags = records[0].tags
+    assert "selected_route_metadata_mismatch" in tags["ai.attribution.issues"]
+    assert "ai.route.api_key_id" not in tags
+    assert "ai.route.organization" not in tags
+    if response_deployment:
+        assert "standard_logging_metadata_mismatch" in tags["ai.attribution.issues"]
+        assert "ai.route.provider" not in tags
+    else:
+        assert tags["ai.route.provider"] == "future_provider"
+    assert tags["ai.gateway.deployment_id"] == (response_deployment or "dep-standard")

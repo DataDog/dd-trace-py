@@ -137,6 +137,10 @@ Field reference
 
 Fields are included only when available. Provider names, pricing settings, and
 response traffic types are kept as reported, including unfamiliar values.
+Common route details and cache/stream status use LiteLLM's standard logging
+payload when available, with compatibility fallbacks. Actual outgoing settings
+take priority over logging defaults. Provider-specific fields and headers remain
+explicitly selected; the full logging payload is never exported.
 
 .. list-table:: Exported data
    :header-rows: 1

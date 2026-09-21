@@ -10,6 +10,36 @@ from ddtrace.contrib.internal.litellm._gateway_usage import get
 from ddtrace.contrib.internal.litellm._gateway_usage import label
 
 
+# AIDEV-NOTE: LiteLLM's standard payload covers common routing fields, not these
+# provider-specific scopes or response headers. Review additions for secrets;
+# neither arbitrary config nor the full logging payload is safe to export.
+_PROVIDER_ROUTE_FIELDS = (
+    "vertex_project",
+    "vertex_location",
+    "region_name",
+    "aws_region_name",
+    "aws_bedrock_project_id",
+    "organization",
+    "api_version",
+    "oci_tenancy",
+    "oci_compartment_id",
+    "oci_region",
+)
+_PROVIDER_RESPONSE_HEADERS = frozenset(
+    (
+        "x-request-id",
+        "request-id",
+        "x-amzn-requestid",
+        "apim-request-id",
+        "opc-request-id",
+        "openai-organization",
+        "openai-project",
+        "anthropic-organization-id",
+        "anthropic-workspace-id",
+    )
+)
+
+
 def request_tags(data: Any, prefix: str) -> dict[str, str]:
     tags: dict[str, str] = {}
     for key in (
@@ -97,7 +127,8 @@ def cache_tags(data: Any, prefix: str) -> dict[str, str]:
     return tags
 
 
-def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers: Any = None) -> dict[str, str]:
+def common_route_tags(data: Any, previous: Optional[dict[str, str]] = None) -> dict[str, str]:
+    """Read common LiteLLM fields from either callback kwargs or its standard payload."""
     tags: dict[str, str] = {}
     previous = previous or {}
     model = label(get(data, "model"), 2048) or previous.get("ai.route.model")
@@ -106,18 +137,32 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
         tags["ai.route.model"] = model
     if provider:
         tags["ai.route.provider"] = provider
-    for key in (
-        "vertex_project",
-        "vertex_location",
-        "region_name",
-        "aws_region_name",
-        "aws_bedrock_project_id",
-        "organization",
-        "api_version",
-        "oci_tenancy",
-        "oci_compartment_id",
-        "oci_region",
-    ):
+    endpoint = get(data, "api_base") or get(data, "base_url") or get(data, "aws_bedrock_runtime_endpoint")
+    if not endpoint and previous.get("ai.route.endpoint_host"):
+        endpoint = "https://" + previous["ai.route.endpoint_host"]
+    host = None
+    if endpoint is not None:
+        try:
+            if isinstance(endpoint, str):
+                parsed = urlsplit(endpoint)
+                if parsed.scheme in ("http", "https"):
+                    host = label(parsed.hostname)
+            elif get(endpoint, "scheme") in ("http", "https"):
+                # LiteLLM's OpenAI adapter also exposes parsed httpx URL objects.
+                # Never stringify them: paths, queries and userinfo can contain secrets.
+                host = label(get(endpoint, "host"))
+        except ValueError:
+            pass
+        if host:
+            host = host.lower()
+            tags["ai.route.endpoint_host"] = host
+    return tags
+
+
+def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers: Any = None) -> dict[str, str]:
+    tags = common_route_tags(data, previous)
+    previous = previous or {}
+    for key in _PROVIDER_ROUTE_FIELDS:
         if value := label(get(data, key)) or previous.get(f"ai.route.{key}"):
             tags[f"ai.route.{key}"] = value
     # Preserve provider model/resource identifiers without interpreting ARN or billing semantics.
@@ -144,25 +189,6 @@ def route_tags(data: Any, previous: Optional[dict[str, str]] = None, *, headers:
                 tags[f"ai.route.{key}"] = value
             else:
                 tags.pop(f"ai.route.{key}", None)
-    endpoint = get(data, "api_base") or get(data, "base_url") or get(data, "aws_bedrock_runtime_endpoint")
-    if not endpoint and previous.get("ai.route.endpoint_host"):
-        endpoint = "https://" + previous["ai.route.endpoint_host"]
-    host = None
-    if endpoint is not None:
-        try:
-            if isinstance(endpoint, str):
-                parsed = urlsplit(endpoint)
-                if parsed.scheme in ("http", "https"):
-                    host = label(parsed.hostname)
-            elif get(endpoint, "scheme") in ("http", "https"):
-                # LiteLLM's OpenAI adapter also exposes parsed httpx URL objects.
-                # Never stringify them: paths, queries and userinfo can contain secrets.
-                host = label(get(endpoint, "host"))
-        except ValueError:
-            pass
-        if host:
-            host = host.lower()
-            tags["ai.route.endpoint_host"] = host
     return tags
 
 
@@ -191,17 +217,7 @@ def response_tags(response: Any, *, provider_response: Any = None) -> dict[str, 
             if not isinstance(header, str):
                 continue
             key = header.lower().removeprefix("llm_provider-")
-            if key in (
-                "x-request-id",
-                "request-id",
-                "x-amzn-requestid",
-                "apim-request-id",
-                "opc-request-id",
-                "openai-organization",
-                "openai-project",
-                "anthropic-organization-id",
-                "anthropic-workspace-id",
-            ):
+            if key in _PROVIDER_RESPONSE_HEADERS:
                 selected.setdefault(key, set()).add(label(raw_value))
     for key, values in selected.items():
         if len(values) == 1 and (value := next(iter(values))) is not None:

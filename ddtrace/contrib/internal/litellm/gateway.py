@@ -2,6 +2,7 @@
 
 from collections import ChainMap
 from collections import OrderedDict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
@@ -19,6 +20,7 @@ from litellm.integrations.custom_logger import CustomLogger
 
 from ddtrace import tracer
 from ddtrace.contrib.internal.litellm._gateway_metadata import cache_tags
+from ddtrace.contrib.internal.litellm._gateway_metadata import common_route_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import request_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import response_tags
 from ddtrace.contrib.internal.litellm._gateway_metadata import route_tags
@@ -155,6 +157,8 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             return None
 
     def _start(self, user_api_key_dict: Any, data: dict[str, Any], call_type: str) -> Optional[dict[str, Any]]:
+        # Only LiteLLM's terminal callback may supply the standard logging payload.
+        data.pop("standard_logging_object", None)
         # Never let client metadata supply our process-local correlation token.
         for key in METADATA:
             if isinstance(data.get(key), dict):
@@ -339,14 +343,30 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
 
     def _success(self, state: Pending, kwargs: dict[str, Any], response: Any, end_time: Optional[datetime]) -> None:
         hidden = get(response, "_hidden_params", {})
-        deployment = label(get(hidden, "model_id")) or state.deployment
+        standard = kwargs.get("standard_logging_object")
+        if not isinstance(standard, Mapping):
+            standard = {}
+        response_deployment = label(get(hidden, "model_id"))
+        standard_deployment = label(standard.get("model_id"))
+        standard_mismatch = bool(
+            response_deployment and standard_deployment and response_deployment != standard_deployment
+        )
+        if standard_mismatch:
+            standard = {}
+        deployment = response_deployment or standard_deployment or state.deployment
+        # The standard payload can zero-fill missing usage. Keep the original
+        # usage and authenticated identity rather than treating those defaults as facts.
         usage = normalize_usage(get(response, "usage"), state.tags["ai.operation"])
         if state.multimodal:
             usage.quantities.clear()
             usage.issues.add("multimodal_partition_unsupported")
         issues = set(usage.issues)
         tags = dict(state.tags)
+        tags.update(common_route_tags(standard))
+        if standard_mismatch:
+            issues.add("standard_logging_metadata_mismatch")
         if not deployment or not state.deployment or deployment == state.deployment:
+            # Actual outgoing settings take precedence over logging/config defaults.
             tags.update(state.route)
             tags.update(state.effective)
         else:
@@ -356,7 +376,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
         usage.diagnostics["attempts"] = state.attempts
         if state.attempts > 1:
             issues.add("additional_attempt_usage_unknown")
-        if kwargs.get("stream"):
+        if standard.get("stream") is True or kwargs.get("stream"):
             tags["ai.usage.source"] = "litellm_normalized_may_estimate"
             issues.add("stream_usage_provenance_unverified")
         if deployment:
@@ -380,7 +400,7 @@ class GatewayAttribution(CustomLogger):  # type: ignore[misc]
             tags["ai.response.id"] = response_id
         cache_hit = kwargs.get("cache_hit")
         if cache_hit is None:
-            cache_hit = get(kwargs.get("standard_logging_object"), "cache_hit")
+            cache_hit = standard.get("cache_hit")
         if cache_hit is True:
             usage = Usage()
             tags["ai.request.outcome"] = "gateway_cache_hit"
