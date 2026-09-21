@@ -548,15 +548,15 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
 def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
     from unittest import mock
 
-    import httpx
+    import httpx2
     from openai import APITimeoutError
 
     chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
-    result = chat_model.stream("Hello, my name is")
-    # Mock httpx.Client.send to raise a ReadTimeout so the test does not depend on
+    # Mock httpx2.Client.send to raise a ReadTimeout so the test does not depend on
     # the testagent's response latency (which varies by cassette format).
-    with mock.patch("httpx.Client.send", side_effect=httpx.ReadTimeout("Request timed out.")):
+    with mock.patch("httpx2.Client.send", side_effect=httpx2.ReadTimeout("Request timed out.")):
+        result = chat_model.stream("Hello, my name is")
         try:
             next(result)
         except Exception as e:
