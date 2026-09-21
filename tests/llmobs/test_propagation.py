@@ -1095,17 +1095,46 @@ def test_inject_writes_llmobs_context_to_baggage(llmobs):
     baggage = _parse_baggage(headers)
     assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
     assert baggage[BAGGAGE_ML_APP_KEY] == "unnamed-ml-app"
-    assert baggage[BAGGAGE_LLMOBS_TRACE_ID_KEY] == str(int(get_llmobs_trace_id(span), 16))
+    assert baggage[BAGGAGE_LLMOBS_TRACE_ID_KEY] == get_llmobs_trace_id(span)
 
 
-def test_injected_baggage_trace_id_matches_tag_carrier(llmobs):
-    """Both carriers must encode the same wire value so a mixed-carrier hop reads one trace."""
+def test_injected_baggage_trace_id_is_canonical_hex(llmobs):
+    """Baggage carries the format the SDK stores and the backend expects; the decimal wire
+    format exists only for older SDKs that parse the tag value with `int(x)`.
+    """
     with llmobs.workflow("w") as span:
         headers = {}
         HTTPPropagator.inject(span.context, headers)
-    assert _parse_baggage(headers)[BAGGAGE_LLMOBS_TRACE_ID_KEY] == span.context._meta.get(
-        PROPAGATED_LLMOBS_TRACE_ID_KEY
-    )
+    baggage_value = _parse_baggage(headers)[BAGGAGE_LLMOBS_TRACE_ID_KEY]
+    tag_value = span.context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+    assert baggage_value == get_llmobs_trace_id(span)
+    assert tag_value.isdigit()
+    # Different encodings of the same ID, so a hop reading either carrier joins one trace.
+    assert int(baggage_value, 16) == int(tag_value)
+
+
+def test_baggage_round_trip_preserves_ambiguous_hex_trace_id(llmobs):
+    """The payoff of a typed carrier: a 32-char hex ID that is all digits with no leading zero
+    is indistinguishable from a decimal serialization, so the tag carrier's format guess
+    mangles it. Baggage is declared hex, so nothing guesses.
+    """
+    ctx = Context(baggage={BAGGAGE_PARENT_ID_KEY: "987654321", BAGGAGE_LLMOBS_TRACE_ID_KEY: _AMBIGUOUS_HEX_TRACE_ID})
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == _AMBIGUOUS_HEX_TRACE_ID
+
+
+def test_reinjecting_baggage_parent_preserves_both_formats(llmobs):
+    """A pass-through hop (no local LLMObs span) must re-emit hex in baggage and decimal in the
+    tag, not whichever format it happened to receive.
+    """
+    ctx = Context(baggage={BAGGAGE_PARENT_ID_KEY: "987654321", BAGGAGE_LLMOBS_TRACE_ID_KEY: _HEX_TRACE_ID})
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs._instance.tracer.trace("non-llmobs") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert _parse_baggage(headers)[BAGGAGE_LLMOBS_TRACE_ID_KEY] == _HEX_TRACE_ID
+    assert span.context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) == _DECIMAL_TRACE_ID
 
 
 def test_inject_does_not_write_llmobs_baggage_onto_context(llmobs):
@@ -1150,7 +1179,7 @@ def test_inject_baggage_carries_full_agent_name_when_tags_truncate(llmobs):
 
 def test_activate_baggage_only_context(llmobs):
     """No APM trace context at all: baggage alone must re-parent the local LLMObs trace."""
-    ctx = _make_baggage_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx = _make_baggage_llmobs_context(_HEX_TRACE_ID)
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w") as span:
         assert get_llmobs_parent_id(span) == "987654321"
@@ -1159,7 +1188,7 @@ def test_activate_baggage_only_context(llmobs):
 
 def test_activate_baggage_only_context_carries_ml_app_and_session(llmobs):
     ctx = _make_baggage_llmobs_context(
-        _DECIMAL_TRACE_ID,
+        _HEX_TRACE_ID,
         **{BAGGAGE_ML_APP_KEY: "upstream-ml-app", BAGGAGE_SESSION_ID_KEY: "upstream-session"},
     )
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
@@ -1170,7 +1199,7 @@ def test_activate_baggage_only_context_carries_ml_app_and_session(llmobs):
 
 def test_activate_baggage_only_context_carries_sampling(llmobs):
     ctx = _make_baggage_llmobs_context(
-        _DECIMAL_TRACE_ID,
+        _HEX_TRACE_ID,
         **{
             BAGGAGE_SAMPLE_RATE_KEY: "0.5",
             BAGGAGE_SAMPLING_DECISION_KEY: LLMObsSamplingDecision.DROPPED.value,
@@ -1184,7 +1213,7 @@ def test_activate_baggage_only_context_carries_sampling(llmobs):
 
 def test_activate_baggage_only_agent_attribution(llmobs, llmobs_events):
     ctx = _make_baggage_llmobs_context(
-        _DECIMAL_TRACE_ID,
+        _HEX_TRACE_ID,
         **{
             BAGGAGE_PARENT_AGENT_ID_KEY: "987654321",
             BAGGAGE_PARENT_AGENT_NAME_KEY: "upstream_agent",

@@ -65,6 +65,12 @@ BAGGAGE_SAMPLING_DECISION_KEY = "llmobs.sampling_decision"
 BAGGAGE_PARENT_AGENT_ID_KEY = "llmobs.parent_agent_span_id"
 BAGGAGE_PARENT_AGENT_NAME_KEY = "llmobs.parent_agent_name"
 
+# Process-local slot for the canonical (hex) LLMObs trace ID on a distributed parent Context,
+# set when the inbound value arrived in baggage and so needed no format guessing. Deliberately
+# NOT `_dd.p.`-prefixed: only that prefix is injected into x-datadog-tags, and this value must
+# stay local (the wire tag carrier is decimal, and the key would also eat the 512-byte budget).
+CANONICAL_LLMOBS_TRACE_ID_CTX_KEY = "_ml_obs.ctx.canonical_llmobs_trace_id"
+
 # Propagating-tag key -> baggage key, for dual-write/dual-read during the migration.
 PROPAGATED_KEY_TO_BAGGAGE_KEY = {
     PROPAGATED_PARENT_ID_KEY: BAGGAGE_PARENT_ID_KEY,
