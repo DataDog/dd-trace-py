@@ -1,14 +1,6 @@
 features:
   - |
-    litellm: Add ``ddtrace.contrib.litellm.gateway_attribution`` to your gateway's
-    callbacks to record users (including authenticated email when available),
-    models, usage, reported pricing settings, and available
-    provider organization/workspace IDs in APM
-    without prompt or response text, with LiteLLM end-user IDs retained as an
-    unverified fallback.
-    Optionally set ``DD_LITELLM_GATEWAY_ATTRIBUTION_CONFIG`` to a JSON file path
-    to select extra user metadata, disable email with ``"capture_email": false``,
-    or disable end-user collection with ``"capture_end_user": false``.
-    Set the provider's non-secret key ID in each LiteLLM deployment's
-    ``model_info.datadog_provider_api_key_id``. Missing or invalid IDs produce
-    a warning without interrupting usage collection.
+    litellm: Adds optional per-user usage attribution for LiteLLM gateways in
+    Datadog Application Performance Monitoring (APM). Captures available user
+    identity, model and provider details, token and cache usage, and pricing-related
+    metadata without recording prompt or response text.
