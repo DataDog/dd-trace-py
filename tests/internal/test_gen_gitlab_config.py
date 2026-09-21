@@ -101,8 +101,8 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
         python_versions={"3.12"},
         environments=(("hash-with-path", "3.12"), ("hash-without-path", "3.12")),
         ddtest_metadata={
-            "hash-with-path": ("first.txt", "tests/internal", "pytest tests/internal", ""),
-            "hash-without-path": ("second.txt", "", "pytest tests/internal", ""),
+            "hash-with-path": ("first.txt", "tests/internal", "pytest tests/internal", "", "with-path", None),
+            "hash-without-path": ("second.txt", "", "pytest tests/internal", "", "without-path", None),
         },
     )
 
@@ -123,6 +123,8 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
             "tests/tracer/**/test*.py",
             "pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
             "PYTHONOPTIMIZE=1",
+            "tracer",
+            None,
         )
     }
 
@@ -143,6 +145,43 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     assert "extends: .ddtest_run" in content
     assert "DDTEST_COMMAND_env123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
     assert "DDTEST_ENV_env123: PYTHONOPTIMIZE=1" in content
+    assert 'DDTEST_WORK_ITEMS: "env123:0:.riot/requirements/env123.txt"' in content
+
+
+def test_ddtest_jobs_coalesce_declared_batches(gen_gitlab_config_mod):
+    output = io.StringIO()
+    ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
+    metadata = {
+        "full": ("full.txt", "tests/full", "pytest tests/full", "", "full", "pair-{python}-{node}"),
+        "fast": ("fast.txt", "tests/fast", "pytest tests/fast", "", "fast", "pair-{python}-{node}"),
+        "legacy": ("legacy.txt", "tests/legacy", "pytest tests/legacy", "", "legacy", "legacy-{python}"),
+        "isolated": ("isolated.txt", "tests/isolated", "pytest tests/isolated", "", "isolated", None),
+    }
+
+    ddtest_jobs.emit_ddtest_jobs(
+        output,
+        suite="suite",
+        stage="core",
+        clean_name="suite",
+        config={"env": {}},
+        environments=[
+            ("full", "3.12"),
+            ("fast", "3.12"),
+            ("legacy", "3.12"),
+            ("isolated", "3.12"),
+        ],
+        k=2,
+        metadata=metadata,
+        wait_lockfile="wait.txt",
+    )
+
+    content = output.getvalue()
+    assert 'DDTEST_WORK_ITEMS: "full:0:full.txt fast:0:fast.txt"' in content
+    assert 'DDTEST_WORK_ITEMS: "full:1:full.txt fast:1:fast.txt"' in content
+    assert 'DDTEST_WORK_ITEMS: "legacy:0:legacy.txt legacy:1:legacy.txt"' in content
+    assert 'DDTEST_WORK_ITEMS: "isolated:0:isolated.txt"' in content
+    assert 'DDTEST_WORK_ITEMS: "isolated:1:isolated.txt"' in content
+    assert content.count("DDTEST_WORK_ITEMS:") == 5
 
 
 def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):

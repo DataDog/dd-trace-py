@@ -35,18 +35,17 @@ def validate_ddtest_venv_test_locations(
         raise ValueError(f"ddtest suite {suite} has venvs without DDTEST_TESTS_LOCATION: {', '.join(missing)}")
 
 
-def ddtest_k(config: dict) -> int:
+def ddtest_k(config: dict[str, t.Any]) -> int:
     """Per-venv CI node count K for a ddtest suite.
 
     K controls file splitting WITHIN a venv (a different axis from the
     legacy parallelism/venvs_per_job, which controlled venv PACKING — how
-    many venvs per CI job). ddtest already fans out one job per venv via the
-    parallel matrix; K further splits each venv's files across K CI
-    nodes.
+    many venvs per CI job). Each venv produces K logical DDTest work items;
+    compatible work items can share a GitLab runner through ddtest_batch.
 
-    K=1 (default): each venv runs all its files in one job (closest to
-    legacy semantics, where each job ran all files for its venv). K=2:
-    each venv's files split into 2 groups → 2x jobs per venv.
+    K=1 (default): each venv runs all its files as one work item. K=2:
+    each venv's files split into two logical work items, whether or not those
+    work items are later coalesced onto shared runners.
 
     A suite can override K with a `ddtest_nodes` suitespec key. If not
     set, K defaults to 1 (no file splitting). The legacy `parallelism`/
@@ -89,23 +88,50 @@ def _ddtest_run_template(snapshot: bool, gpu: bool) -> str:
     return tpl
 
 
+DDTestMetadata = tuple[str, str, str, str, str, t.Optional[str]]
+
+
+def _ddtest_work_item_batches(
+    environments: list[tuple[str, str]], k: int, metadata: dict[str, DDTestMetadata]
+) -> list[str]:
+    """Return shell-ready work-item batches in declaration order."""
+    batches: dict[str, list[str]] = {}
+    for environment_hash, python_version in environments:
+        lockfile, _location, _command, _environment, environment_name, batch_template = metadata[environment_hash]
+        for node in range(k):
+            if batch_template:
+                try:
+                    batch_name = batch_template.format(name=environment_name, python=python_version, node=node)
+                except (KeyError, ValueError) as error:
+                    raise ValueError(
+                        f"invalid ddtest_batch for environment {environment_name}: {batch_template!r}"
+                    ) from error
+            else:
+                batch_name = f"{environment_hash}-{node}"
+            batches.setdefault(batch_name, []).append(f"{environment_hash}:{node}:{lockfile}")
+
+    # AIDEV-NOTE: A batch is a sequence of independent DDTest nodes that shares one
+    # GitLab runner. Keep the logical node indexes intact for DDTest planning and reporting.
+    return [" ".join(work_items) for work_items in batches.values()]
+
+
 def emit_ddtest_jobs(
-    f,
+    f: t.TextIO,
     suite: str,
     stage: str,
     clean_name: str,
-    config: dict,
+    config: dict[str, t.Any],
     environments: list[tuple[str, str]],
     k: int,
-    metadata: dict[str, tuple[str, str, str, str]],
+    metadata: dict[str, DDTestMetadata],
     wait_lockfile: str,
 ) -> None:
     """Emit ddtest-plan and ddtest-run jobs for one suite.
 
     One plan job loops over all suite environments. Run jobs are emitted per Python
-    version, with a parallel matrix over that version's hashes and
-    CI_NODE_INDEX. The plan partitions its artifact by hash so run jobs can
-    restore only their own plan.
+    version, with a parallel matrix over declared batches of environment hashes and
+    DDTest node indexes. The plan partitions its artifact by hash so each work item
+    can restore its own plan.
     """
     snapshot = config.get("snapshot", False)
     gpu = config.get("gpu", False)
@@ -196,9 +222,9 @@ def emit_ddtest_jobs(
         "TEST_ENVIRONMENT_HASH_PYTHON": hash_python,
         "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
     }
-    for hash_, (_lockfile, _location, command, environment) in metadata.items():
+    for hash_, (_lockfile, _location, command, environment_variables, _name, _batch) in metadata.items():
         extra_variables[f"DDTEST_COMMAND_{hash_}"] = command
-        extra_variables[f"DDTEST_ENV_{hash_}"] = environment
+        extra_variables[f"DDTEST_ENV_{hash_}"] = environment_variables
     emit_variables(extra_variables)
     if retry is not None:
         print(f"  retry: {retry}", file=f)
@@ -208,14 +234,14 @@ def emit_ddtest_jobs(
         print("  allow_failure: true", file=f)
     # artifacts (.testoptimization-*/) are declared on the .ddtest_plan template.
 
-    # ---- run jobs: K instances per venv, grouped by Python version ----
+    # ---- run jobs: declared batches of K instances per venv, grouped by Python version ----
     # Matrix expressions are not available on all GitLab versions used by CI,
     # so emit one run job per Python version instead of dynamically matching a
     # need from the run matrix. This keeps each run job's artifact download
     # limited to its own build_base_test_artifacts matrix entry.
     environments_by_python: dict[str, list[tuple[str, str]]] = {}
-    for environment in environments:
-        environments_by_python.setdefault(environment[1], []).append(environment)
+    for environment_spec in environments:
+        environments_by_python.setdefault(environment_spec[1], []).append(environment_spec)
 
     for py, python_environments in environments_by_python.items():
         py_run_name = f"{run_name}-{py}"
@@ -225,25 +251,22 @@ def emit_ddtest_jobs(
         print("  needs:", file=f)
         print("    - prechecks", file=f)
         emit_needs_build_base_test_artifacts(python_environments)
-        # Each run downloads the single plan artifact (which contains all
-        # hashes' plans, partitioned by hash) and restores its own hash's plan.
+        # Each run downloads the single plan artifact, which contains all hashes'
+        # plans partitioned by hash. Every work item restores its own plan copy.
         print("    - job: " + plan_name, file=f)
         print("      artifacts: true", file=f)
         emit_services(plan=False)
         emit_before_script(plan=False)
         run_variables = {"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"}
-        for hash_, (_lockfile, _location, command, environment) in metadata.items():
+        for hash_, (_lockfile, _location, command, environment_variables, _name, _batch) in metadata.items():
             run_variables[f"DDTEST_COMMAND_{hash_}"] = command
-            run_variables[f"DDTEST_ENV_{hash_}"] = environment
+            run_variables[f"DDTEST_ENV_{hash_}"] = environment_variables
         emit_variables(run_variables)
         print("  parallel:", file=f)
         print("    matrix:", file=f)
-        for h, _py in python_environments:
-            for node in range(k):
-                print(f'      - TEST_ENVIRONMENT_HASH: "{h}"', file=f)
-                print(f'        PYTHON_VERSION: "{py}"', file=f)
-                print(f'        TEST_ENVIRONMENT_LOCKFILE: "{metadata[h][0]}"', file=f)
-                print(f"        CI_NODE_INDEX: {node}", file=f)
+        for work_items in _ddtest_work_item_batches(python_environments, k, metadata):
+            print(f'      - DDTEST_WORK_ITEMS: "{work_items}"', file=f)
+            print(f'        PYTHON_VERSION: "{py}"', file=f)
         if retry is not None:
             print(f"  retry: {retry}", file=f)
         if timeout is not None:

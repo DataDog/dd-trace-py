@@ -111,21 +111,25 @@ include:
     - |
       set -euo pipefail
       for metadata in ${TEST_ENVIRONMENT_HASH_PYTHON}; do
-        IFS=: read -r environment_hash python_version lockfile tests_location <<< "${metadata}"
-        command_var="DDTEST_COMMAND_${environment_hash}"
-        env_var="DDTEST_ENV_${environment_hash}"
-        requirements="$(mktemp)"
-        grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
-        wheel="$(find ".cache/ddtrace-test-wheels/${python_version}" -name 'ddtrace-*.whl' -print -quit)"
-        set -f
-        eval "export ${!env_var}"
-        set +f
-        uv run --isolated --no-project --python "python${python_version}" --no-python-downloads \
-          --with-requirements "${requirements}" --with "${wheel}" \
-          ddtest plan --platform python --framework pytest --command "${!command_var}" \
-          --tests-location "${tests_location}" --min-parallelism "${DDTEST_NODES}" --max-parallelism "${DDTEST_NODES}"
-        rm -f "${requirements}"
-        mv .testoptimization ".testoptimization-${environment_hash}"
+        (
+          set -euo pipefail
+          IFS=: read -r environment_hash python_version lockfile tests_location <<< "${metadata}"
+          command_var="DDTEST_COMMAND_${environment_hash}"
+          env_var="DDTEST_ENV_${environment_hash}"
+          requirements="$(mktemp)"
+          trap 'rm -f "${requirements}"' EXIT
+          grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
+          wheel="$(find ".cache/ddtrace-test-wheels/${python_version}" -name 'ddtrace-*.whl' -print -quit)"
+          set -f
+          eval "export ${!env_var}"
+          set +f
+          uv run --isolated --no-project --python "python${python_version}" --no-python-downloads \
+            --with-requirements "${requirements}" --with "${wheel}" \
+            ddtest plan --platform python --framework pytest --command "${!command_var}" \
+            --tests-location "${tests_location}" --min-parallelism "${DDTEST_NODES}" \
+            --max-parallelism "${DDTEST_NODES}"
+          mv .testoptimization ".testoptimization-${environment_hash}"
+        )
       done
   artifacts:
     when: always
@@ -143,29 +147,44 @@ include:
   script:
     - |
       set -euo pipefail
-      rm -rf .testoptimization
-      mv ".testoptimization-${TEST_ENVIRONMENT_HASH}" .testoptimization
-      command_var="DDTEST_COMMAND_${TEST_ENVIRONMENT_HASH}"
-      env_var="DDTEST_ENV_${TEST_ENVIRONMENT_HASH}"
-      requirements="$(mktemp)"
-      grep -vi '^ddtrace==' "${TEST_ENVIRONMENT_LOCKFILE}" > "${requirements}"
-      wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
-      set -f
-      eval "export ${!env_var}"
-      set +f
-      export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
-      # Keep CI Visibility session names tied to the CI job and test command;
-      # ddtest expands {{nodeIndex}}/{{workerIndex}} for each local worker.
-      export DD_TEST_SESSION_NAME="${CI_JOB_NAME}-pytest ${DDTEST_SUITE_PATH} node-{{nodeIndex}}-worker-{{workerIndex}}"
-      uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
-        --with-requirements "${requirements}" --with "${wheel}" \
-        ddtest run --platform python --framework pytest --command "${!command_var}" \
-          --ci-node "${CI_NODE_INDEX}" --ci-node-workers 1
-      rm -f "${requirements}"
+      batch_status=0
+      read -ra work_items <<< "${DDTEST_WORK_ITEMS}"
+      for work_item in "${work_items[@]}"; do
+        set +e
+        (
+          set -euo pipefail
+          IFS=: read -r environment_hash ci_node_index lockfile <<< "${work_item}"
+          rm -rf .testoptimization
+          cp -a ".testoptimization-${environment_hash}" .testoptimization
+          command_var="DDTEST_COMMAND_${environment_hash}"
+          env_var="DDTEST_ENV_${environment_hash}"
+          requirements="$(mktemp)"
+          trap 'rm -f "${requirements}"' EXIT
+          grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
+          wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
+          set -f
+          eval "export ${!env_var}"
+          set +f
+          export COVERAGE_FILE=".coverage.${environment_hash}.${ci_node_index}"
+          # Include the environment hash because one GitLab job can report several sessions.
+          # ddtest expands {{nodeIndex}}/{{workerIndex}} for each local worker.
+          export DD_TEST_SESSION_NAME="${CI_JOB_NAME}-pytest ${DDTEST_SUITE_PATH} env-${environment_hash} node-{{nodeIndex}}-worker-{{workerIndex}}"
+          uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
+            --with-requirements "${requirements}" --with "${wheel}" \
+            ddtest run --platform python --framework pytest --command "${!command_var}" \
+              --ci-node "${ci_node_index}" --ci-node-workers 1
+        )
+        item_status=$?
+        set -e
+        if [[ ${item_status} -ne 0 ]]; then
+          batch_status=${item_status}
+        fi
+      done
       coverage_files=(.coverage.*)
       if [[ ${#coverage_files[@]} -gt 1 ]]; then
         coverage combine
       fi
+      exit "${batch_status}"
 
 .ddtest_run_snapshot:
   extends: .ddtest_run

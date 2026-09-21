@@ -30,7 +30,7 @@ import typing as t
 MAX_BENCHMARKS_PER_GROUP = 2
 
 
-def _ddtest_module():
+def _ddtest_module() -> t.Any:
     """Load the optional ddtest job emitter after scripts/ is on sys.path."""
     return importlib.import_module("ddtest_jobs")
 
@@ -192,7 +192,7 @@ class SuiteVenvInfo:
     environment_hashes: tuple[str, ...]
     python_versions: set[str]
     environments: tuple[tuple[str, str], ...]
-    ddtest_metadata: dict[str, tuple[str, str, str, str]]
+    ddtest_metadata: dict[str, tuple[str, str, str, str, str, t.Optional[str]]]
 
     @property
     def venv_count(self) -> int:
@@ -211,7 +211,7 @@ def _shell_environment(environment: dict[str, str]) -> str:
     return shlex.join(f"{name}={value}" for name, value in environment.items())
 
 
-def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
+def collect_all_suite_venv_info(suite_configs: dict[str, dict[str, t.Any]]) -> dict[str, SuiteVenvInfo]:
     """Collect environment count and Python versions for multiple suites in a single pass.
 
     Args:
@@ -246,6 +246,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
                         test_location,
                         command,
                         _shell_environment(run.environment),
+                        environment.name,
+                        environment.ddtest_batch,
                     )
             result[suite] = SuiteVenvInfo(
                 environment_hashes=tuple(environment.hash for environment in environments),
@@ -325,7 +327,7 @@ def gen_required_suites() -> None:
     _gen_benchmarks(suites, required_suites)
 
 
-def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
+def _gen_benchmarks(suites: dict[str, dict[str, t.Any]], required_suites: list[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
@@ -378,7 +380,7 @@ microbenchmark-noop:
     _filter_benchmarks_slos_file(benchmark_classnames)
 
 
-def _filter_benchmarks_slos_file(classnames: list) -> None:
+def _filter_benchmarks_slos_file(classnames: list[t.Optional[str]]) -> None:
     # Merge the per-team SLO source files under slos/ (each owned by a team via
     # CODEOWNERS) into the single generated file consumed by check-slo-breaches,
     # keeping only scenarios whose benchmark class is in this pipeline.
@@ -414,7 +416,7 @@ def gen_validate_slos() -> None:
     _validate_slos()
 
 
-def _gen_tests(suites: dict, required_suites: list[str]) -> None:
+def _gen_tests(suites: dict[str, dict[str, t.Any]], required_suites: list[str]) -> None:
     global _global_python_versions
     global _needs_base_venvs
 
@@ -472,11 +474,11 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
-        info = suite_venv_info[suite]
+        validated_info = suite_venv_info[suite]
         _ddtest_module().validate_ddtest_venv_test_locations(
             suite,
-            info.environments,
-            {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
+            validated_info.environments,
+            {environment_hash: metadata[1] for environment_hash, metadata in validated_info.ddtest_metadata.items()},
         )
 
     # Populate the module-level global so gen_build_base_test_artifacts can use it
@@ -505,8 +507,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
             if suite_config.get("ddtest"):
-                info = suite_venv_info.get(suite)
-                if info is None:
+                run_info = suite_venv_info.get(suite)
+                if run_info is None:
                     LOGGER.warning("Suite %s opted into ddtest but has no environments; skipping", suite)
                     continue
                 _ddtest_module().emit_ddtest_jobs(
@@ -515,9 +517,9 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                     stage,
                     clean_name,
                     suite_config,
-                    list(info.environments),
+                    list(run_info.environments),
                     _ddtest_module().ddtest_k(suite_config),
-                    info.ddtest_metadata,
+                    run_info.ddtest_metadata,
                     _wait_lockfile(),
                 )
                 continue
@@ -865,7 +867,7 @@ from check_slo_ownership import _get_benchmark_class_name  # noqa: E402
 from check_slo_ownership import iter_slo_scenarios  # noqa: E402
 
 
-def template(name: str, **params):
+def template(name: str, **params: t.Any) -> str:
     """Render a template file with the given parameters."""
     if not (template_path := (GITLAB / "templates" / name).with_suffix(".yml")).exists():
         raise FileNotFoundError(f"Template file {template_path} does not exist")

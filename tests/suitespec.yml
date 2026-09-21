@@ -258,6 +258,7 @@ suites:
         AGENT_VERSION: latest
       variants:
         - name: integration-latest
+          ddtest_batch: "integration-{python}-{node}"
           dependencies: [msgpack, pytest-randomly]
           command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
           env:
@@ -265,6 +266,7 @@ suites:
             DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-latest-civisibility
+          ddtest_batch: "integration-{python}-{node}"
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
           env:
@@ -293,6 +295,7 @@ suites:
         AGENT_VERSION: testagent
       variants:
         - name: integration-snapshot
+          ddtest_batch: "integration-{python}-{node}"
           dependencies: [msgpack, pytest-randomly]
           command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
           env:
@@ -300,6 +303,7 @@ suites:
             DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-snapshot-civisibility
+          ddtest_batch: "integration-{python}-{node}"
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
           env:
@@ -475,12 +479,15 @@ suites:
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
+          ddtest_batch: "tracer-{python}-{node}"
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
         - name: tracer-python-optimize
+          ddtest_batch: "tracer-{python}-{node}"
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
           env:
             PYTHONOPTIMIZE: '1'
         - name: tracer-legacy-attrs
+          ddtest_batch: "tracer-legacy-{python}"
           python: ['3.9']
           dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
         - name: tracer-128-bit-traceid-disabled

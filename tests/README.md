@@ -79,3 +79,10 @@ omitting it runs the suite as one job. Do not set `parallelism` directly.
 
 Suites using `ddtest: true` shard each dependency environment with `ddtest_nodes`
 instead. They must not set `venvs_per_job`.
+
+A DDTest matrix variant can set `ddtest_batch` to run compatible environment/node
+work items sequentially on one GitLab runner. The value is a batch-name template
+supporting `{name}`, `{python}`, and `{node}` placeholders. Work items whose rendered
+names match are coalesced within the same suite and Python-version job; variants that
+omit `ddtest_batch` remain isolated. Keep the combined observed job duration below the
+suite's timeout with enough headroom for setup and runtime variance.

@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 import re
 from typing import Any
+from typing import TypedDict
 
 from ruamel.yaml import YAML  # noqa
 
@@ -49,8 +50,13 @@ class MatrixError(ValueError):
     """Raised when a test matrix declaration is invalid."""
 
 
-def _collect_suitespecs() -> dict:
-    suitespec = {"components": {}, "suites": {}}
+class SuiteSpec(TypedDict):
+    components: dict[str, list[str]]
+    suites: dict[str, dict[str, Any]]
+
+
+def _collect_suitespecs() -> SuiteSpec:
+    suitespec: SuiteSpec = {"components": {}, "suites": {}}
 
     specfiles = []
     for root, ns_prefix in SEARCH_ROOTS:
@@ -72,8 +78,8 @@ def _collect_suitespecs() -> dict:
                         spec["pattern"] = name
                     suites[f"{namespace}::{name}"] = spec
                     del suites[name]
-            for k, v in suitespec.items():
-                v.update(data.get(k, {}))
+            suitespec["components"].update(data.get("components", {}))
+            suitespec["suites"].update(data.get("suites", {}))
 
     return suitespec
 
@@ -105,7 +111,7 @@ def get_patterns(suite: str) -> set[str]:
     for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
         suite_patterns |= set(patterns)
 
-    def resolve(patterns: set) -> set:
+    def resolve(patterns: set[str]) -> set[str]:
         refs = {_ for _ in patterns if _.startswith("@")}
         resolved_patterns = patterns - refs
 
@@ -121,7 +127,7 @@ def get_patterns(suite: str) -> set[str]:
     return {_.format(suite=suite.replace("::", ".")) for _ in resolve(suite_patterns)}
 
 
-def get_suites() -> dict[str, dict]:
+def get_suites() -> dict[str, dict[str, Any]]:
     """Get the list of suites."""
     return SUITESPEC["suites"]
 
@@ -155,6 +161,7 @@ class TestEnvironment:
     # Preserve historical Riot lock hashes when uv requires a different dependency declaration.
     riot_lock_dependencies: tuple[str, ...]
     runs: tuple[TestRun, ...]
+    ddtest_batch: str | None = None
 
     @property
     def lockfile(self) -> Path:
@@ -268,6 +275,9 @@ def _expand_suite_matrix(
             variant,
             nightly,
         )
+        ddtest_batch = variant.get("ddtest_batch", matrix.get("ddtest_batch"))
+        if ddtest_batch is not None and (not isinstance(ddtest_batch, str) or not ddtest_batch.strip()):
+            raise MatrixError(f"ddtest_batch for variant {name} must be a non-empty string")
         for python in python_versions:
             environments.append(
                 TestEnvironment(
@@ -278,6 +288,7 @@ def _expand_suite_matrix(
                     direct_dependencies=dependencies,
                     riot_lock_dependencies=riot_lock_dependencies,
                     runs=runs,
+                    ddtest_batch=ddtest_batch,
                 )
             )
 
