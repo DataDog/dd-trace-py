@@ -131,6 +131,13 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  wsgi_traced_iterable:
+    paths:
+      - ddtrace/_trace/trace_handlers.py
+      - benchmarks/wsgi_traced_iterable/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   encoder_v05:
     paths:
       - '@bootstrap'
@@ -335,6 +342,18 @@ suites:
       - '@vendor'
       - '@flask'
       - benchmarks/flask_simple/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 2
+    type: 'microbenchmark'
+  flask_streaming:
+    paths:
+      - '@bootstrap'
+      - '@tracing'
+      - '@core'
+      - '@vendor'
+      - '@flask'
+      - benchmarks/flask_streaming/*
+      - benchmarks/bm/flask_utils.py
       - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'

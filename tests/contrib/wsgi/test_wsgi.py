@@ -1,9 +1,13 @@
+from collections.abc import Iterator
 import os
+from types import TracebackType
+from typing import Optional
 
 import pytest
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace._trace.trace_handlers import _TracedIterable
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
@@ -338,28 +342,84 @@ def test_distributed_tracing_nested():
     assert resp.status_int == 200
 
 
-# FIXME: this test breaks other tests in this file in an unpredictable pattern
-"""
-def test_wsgi_traced_iterable(tracer, test_spans):
-    # Regression test to ensure wsgi iterable does not define an __len__ attribute
-    middleware = DDWSGIMiddleware(application)
-    environ = {
-        "PATH_INFO": "/chunked",
-        "wsgi.url_scheme": "http",
-        "SERVER_NAME": "localhost",
-        "SERVER_PORT": "80",
-        "REQUEST_METHOD": "GET",
-    }
+class _TestSpan:
+    def __init__(self) -> None:
+        self.finish_count = 0
+        self.exc_info: Optional[tuple[type[BaseException], BaseException, Optional[TracebackType]]] = None
 
-    def start_response(status, headers, exc_info=None):
-        pass
+    def finish(self) -> None:
+        self.finish_count += 1
 
-    resp = middleware(environ, start_response)
-    assert hasattr(resp, "__iter__")
-    assert hasattr(resp, "close")
-    assert hasattr(resp, "next") or hasattr(resp, "__next__")
-    assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
-"""
+    def set_exc_info(
+        self,
+        exc_type: type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.exc_info = (exc_type, exc_val, exc_tb)
+
+
+class _ClosableIterable:
+    def __init__(self, values: list[bytes]) -> None:
+        self.values = values
+        self.closed = False
+        self.custom_attribute = "forwarded"
+
+    def __iter__(self) -> Iterator[bytes]:
+        return iter(self.values)
+
+    def __len__(self) -> int:
+        return len(self.values)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes() -> None:
+    wrapped = _ClosableIterable([b"one", b"two"])
+    span = _TestSpan()
+    parent_span = _TestSpan()
+    iterable = _TracedIterable(wrapped, span, parent_span, wrapped_is_iterator=True)
+
+    assert iterable.__wrapped__ is wrapped
+    assert iterable.__class__ is _ClosableIterable
+    assert isinstance(iterable, _ClosableIterable)
+    assert iterable.custom_attribute == "forwarded"
+    iterable.custom_attribute = "updated"
+    assert wrapped.custom_attribute == "updated"
+    del iterable.custom_attribute
+    assert not hasattr(wrapped, "custom_attribute")
+    assert not hasattr(iterable, "__len__"), "WSGI iterables should not expose __len__"
+    assert list(iterable) == [b"one", b"two"]
+    assert span.finish_count == 1
+    assert parent_span.finish_count == 1
+
+    iterable.close()
+    assert wrapped.closed
+    assert span.finish_count == 1
+    assert parent_span.finish_count == 1
+
+
+def test_wsgi_traced_iterable_finishes_spans_on_error() -> None:
+    error = RuntimeError("test error")
+
+    def raising_iterable() -> Iterator[bytes]:
+        yield b"one"
+        raise error
+
+    span = _TestSpan()
+    parent_span = _TestSpan()
+    iterable = _TracedIterable(raising_iterable(), span, parent_span)
+
+    assert next(iterable) == b"one"
+    with pytest.raises(RuntimeError, match="test error"):
+        next(iterable)
+
+    assert span.exc_info is not None
+    assert span.exc_info[:2] == (RuntimeError, error)
+    assert span.exc_info[2] is not None
+    assert span.finish_count == 1
+    assert parent_span.finish_count == 1
 
 
 @pytest.mark.parametrize(
