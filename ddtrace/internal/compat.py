@@ -31,7 +31,9 @@ MAX_PY: tuple[int, int] = (3, 14)
 # TODO(py-315): bump NEXT_MAX_PY to (3, 16) after 3.15 GAs
 NEXT_MAX_PY: tuple[int, int] = (3, 15)
 
-NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet: {}.{}".format(*sys.version_info[:2])
+NEXT_PY_UNSUPPORTED_MSG: str = (
+    f"This version of CPython is not supported yet: {sys.version_info[0]}.{sys.version_info[1]}"
+)
 
 
 def is_at_least_py(major: int, minor: int, version: Optional[tuple[int, ...]] = None) -> bool:
