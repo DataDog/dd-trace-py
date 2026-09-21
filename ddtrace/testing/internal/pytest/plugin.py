@@ -35,6 +35,9 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_STATE_WORKER_INPUT
+from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -351,6 +354,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         self.manager = session_manager
         self.session = self.manager.session
         self.xdist_manifest: t.Optional[XdistManifest] = None
+        self.xdist_atr_crash_state_path: t.Optional[Path] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -365,6 +369,8 @@ class TestOptPlugin(TestOptPluginProtocol):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
                 self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
+            if crash_state_path := xdist_worker_input.get(_CRASH_RETRY_STATE_WORKER_INPUT):
+                self.xdist_atr_crash_state_path = Path(crash_state_path)
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -837,6 +843,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
     def _do_test_runs(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> None:
         test = self.tests_by_nodeid[item.nodeid]
+        self._sync_xdist_atr_crash_budget(item.nodeid, test)
         retry_handler = self._check_applicable_retry_handlers(test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
@@ -874,6 +881,33 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         if self._osr_enabled and self._is_osr_candidate(test, retry_handler):
             self._osr_candidates.append(item)
+
+    def _sync_xdist_atr_crash_budget(self, nodeid: str, test: Test) -> None:
+        """Apply controller-consumed crash retries to the worker's ATR handler."""
+        if self.xdist_atr_crash_state_path is None:
+            return
+
+        atr_handler = next(
+            (handler for handler in self.manager.retry_handlers if isinstance(handler, AutoTestRetriesHandler)),
+            None,
+        )
+        if atr_handler is None:
+            return
+
+        try:
+            state = read_atr_crash_retry_state(self.xdist_atr_crash_state_path)
+        except (OSError, ValueError):
+            # A crash-requeued attempt still runs, but no further worker retry is safe without the consumed budget.
+            atr_handler.disable_retries()
+            return
+
+        budget = state.get(nodeid)
+        atr_handler.set_external_retry_budget(
+            test,
+            retries=budget.retries if budget is not None else 0,
+            retry_limit=budget.retry_limit if budget is not None else atr_handler.max_retries_per_test,
+            session_retries=len(state),
+        )
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
         status, tags = self._get_test_outcome(item.nodeid)
@@ -1475,29 +1509,6 @@ class RetryReports:
             return self.reports_by_outcome["failed"][0]
 
         return None
-
-
-class XdistTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
-        self.main_plugin = main_plugin
-
-    @pytest.hookimpl
-    def pytest_configure_node(self, node: t.Any) -> None:
-        """
-        Pass test session id from the main process to xdist workers.
-        """
-        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
-
-    @pytest.hookimpl
-    def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
-        """
-        Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
-        """
-        if not hasattr(node, "workeroutput"):
-            return
-
-        if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
