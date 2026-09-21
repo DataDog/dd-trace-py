@@ -4,6 +4,6 @@
 
 #pragma once
 
-// Hard safety bound for physical stack discovery. Reportable sync and task
-// frame materialization is separately bounded by DD_PROFILING_MAX_FRAMES.
-inline constexpr unsigned int MAX_STACK_DISCOVERY_DEPTH = 2048;
+// Internal safety ceiling for stack unwinding and task-aware stitching,
+// separate from the configured per-sample frame limit.
+inline constexpr unsigned int MAX_STACK_UNWIND_SAFETY_LIMIT = 2048;

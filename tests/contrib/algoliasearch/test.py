@@ -14,7 +14,7 @@ V2 = parse_version("2.0")
 
 class AlgoliasearchTest(TracerTestCase):
     def setUp(self):
-        super(AlgoliasearchTest, self).setUp()
+        super().setUp()
 
         # dummy values
         def search(self, query, args=None, request_options=None):
@@ -53,7 +53,7 @@ class AlgoliasearchTest(TracerTestCase):
         patch()
 
     def tearDown(self):
-        super(AlgoliasearchTest, self).tearDown()
+        super().tearDown()
         unpatch()
         if hasattr(self, "tracer"):
             self.reset()

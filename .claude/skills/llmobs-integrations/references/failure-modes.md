@@ -105,14 +105,34 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 3. `span.finish()` called before stream is exhausted
 4. `finalize_stream()` doesn't complete the span lifecycle: event-based integrations must dispatch the ended event; direct-trace integrations must call `integration.llmobs_set_tags()` and `span.finish()`
 5. Token usage not captured from final stream event
+6. Caller uses `with stream:` and does not exhaust the iterator — `TracedStream.__exit__` / `TracedAsyncStream.__aexit__` call `close_stream()` so `finalize_stream()` still runs once; wrapping the raw stream yourself skips that
 
 **Fix:**
 - Subclass `StreamHandler` (sync) or `AsyncStreamHandler` (async)
 - Implement `process_chunk()` to accumulate data without consuming the stream
-- Implement `finalize_stream()` to build the response object and complete the right lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; for direct-trace integrations, call `llmobs_set_tags()` and `span.finish()`.
+- Implement `finalize_stream()` to build the response object and complete the right lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; for direct-trace integrations, call `llmobs_set_tags()` and `span.finish()`. Do not call `finalize_stream()` from the patch wrapper or from `process_chunk`; call `close_stream()` instead so it still runs at most once.
 - Use `make_traced_stream(response, handler)` to wrap the response
 - In patch code: return the traced stream instead of the raw response
 - Capture usage from final chunk type (varies by library)
+
+---
+
+## `orphan_llm_spans` -- Unfinished LLM Spans Leak After Request Ends
+
+**Symptoms:**
+- Long-running web worker RSS grows linearly with traffic
+- One gunicorn/uvicorn worker is much larger than siblings
+- Later requests nest under an old LLM span (one worker's traces all share a parent)
+
+**Causes:**
+1. `LLMObs.llm()` or an integration stream span is finished only from a generator `finally` that never runs on client disconnect or an abandoned pump task
+2. `TracedStream.__next__` / `TracedAsyncStream.__anext__` only finalize on StopIteration, so `next(stream)` then drop leaves the span open
+3. Unfinished LLM spans keep the whole trace in the SpanAggregator until every span in the trace has finished
+
+**Fix:**
+- ASGI `TraceMiddleware` finishes leftover descendant `SpanTypes.LLM` spans after `await self.app()` returns (`_finish_unfinished_llm_spans`). Do not attach this to request-span finish: the last `http.response.body` can precede more annotation. Do not finish enclosing LLM ancestors or non-LLM children
+- `TracedStream` / `TracedAsyncStream` `__exit__`/`__aexit__` and `__del__` call `close_stream()` so unexhausted context-manager use and dropped partial iteration still finalize; `close_stream()` is idempotent with `__iter__`/`__next__`
+- Happy path should still annotate and finish the LLM span from the generator `finally` so teardown is a no-op
 
 ---
 

@@ -179,7 +179,7 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         self,
         wrapped_class: type[_T],
     ) -> None:
-        super(ResetObject, self).__init__(wrapped_class())
+        super().__init__(wrapped_class())
         self._self_wrapped_class = wrapped_class
         _resetable_objects.add(self)
 
@@ -216,6 +216,10 @@ register(_reset_objects)
 
 def Lock() -> _unpatched.threading_Lock:
     return ResetObject(_unpatched.threading_Lock)
+
+
+def RLock() -> _unpatched.threading_RLock:
+    return ResetObject(_unpatched.threading_RLock)
 
 
 def Event() -> _unpatched.threading_Event:

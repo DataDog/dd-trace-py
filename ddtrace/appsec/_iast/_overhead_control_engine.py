@@ -26,7 +26,7 @@ def get_request_sampling_value() -> float:
     return float(asm_config._iast_request_sampling)
 
 
-class OverheadControl(object):
+class OverheadControl:
     """This class is meant to control the overhead introduced by IAST analysis.
     The goal is to do sampling at different levels of the IAST analysis (per process, per request, etc)
     """
