@@ -42,7 +42,7 @@ build_base_test_artifacts:
       scripts/run-tests --all-suites --list |
         jq -r --arg python "$PYTHON_VERSION" '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == $python) | .hash'
     )
-    rm -rf ".cache/uv-test-environments/${{smoke_hash}}-"*
+    rm -rf ".cache/test-environments/${{smoke_hash}}" ".cache/test-environments/${{smoke_hash}}.txt"
     scripts/run-tests --venv "$smoke_hash"
     # Preserve source-tree imports while building editable metadata only once per Python.
     wheel_dir="$(pwd)/.cache/ddtrace-test-wheels/$PYTHON_VERSION"

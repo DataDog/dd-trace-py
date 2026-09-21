@@ -271,8 +271,19 @@ def _expand_suite_matrix(
 @cache
 def get_test_environments(*, nightly: bool) -> dict[str, tuple[TestEnvironment, ...]]:
     """Return every concrete test environment declared by suitespec."""
-    return {
+    environments = {
         suite: _expand_suite_matrix(suite, config, nightly=nightly)
         for suite, config in get_suites().items()
         if "matrix" in config
     }
+    hashes: dict[str, TestEnvironment] = {}
+    for matrix in environments.values():
+        for environment in matrix:
+            if environment.hash in hashes:
+                other = hashes[environment.hash]
+                raise MatrixError(
+                    f"environment hash {environment.hash} is shared by {other.suite}/{other.name} "
+                    f"and {environment.suite}/{environment.name}"
+                )
+            hashes[environment.hash] = environment
+    return environments
