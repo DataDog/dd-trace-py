@@ -483,27 +483,6 @@ def _create_stuff_function_metric_probe(kind, evaluate_at=ProbeEvalTiming.DEFAUL
     )
 
 
-def test_debugger_metric_function_probe_default_fires_on_entry(mock_metrics, stuff):
-    with debugger() as d:
-        d.add_probes(_create_stuff_function_metric_probe(MetricProbeKind.COUNTER))
-        stuff.mutator([])
-        assert mock_metrics.increment.call_count == 1
-
-
-def test_debugger_metric_function_probe_entry_fires_on_entry(mock_metrics, stuff):
-    with debugger() as d:
-        d.add_probes(_create_stuff_function_metric_probe(MetricProbeKind.COUNTER, ProbeEvalTiming.ENTRY))
-        stuff.mutator([])
-        assert mock_metrics.increment.call_count == 1
-
-
-def test_debugger_metric_function_probe_exit_fires_on_exit(mock_metrics, stuff):
-    with debugger() as d:
-        d.add_probes(_create_stuff_function_metric_probe(MetricProbeKind.COUNTER, ProbeEvalTiming.EXIT))
-        stuff.mutator([])
-        assert mock_metrics.increment.call_count == 1
-
-
 def test_debugger_metric_function_probe_fires_once_not_twice(mock_metrics, stuff):
     """Each evaluate_at value must fire exactly once, not on both entry and exit."""
     for timing in (ProbeEvalTiming.DEFAULT, ProbeEvalTiming.ENTRY, ProbeEvalTiming.EXIT):
