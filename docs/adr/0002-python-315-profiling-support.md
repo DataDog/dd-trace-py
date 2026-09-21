@@ -7,10 +7,10 @@
 | **Status** | **Accepted with caveats** — functional profiling on CPython 3.15 is data-backed; memory parity and broad advertising are not |
 | **Authors** | Vlad Scherbich (dd-trace-py profiling) |
 | **Start date** | 2026-09-21 |
-| **Figures vintage** | Evidence runs 2026-09-21 (smoke on ~03:36Z / off 12:24–12:31 EDT / async ~13:36 EDT −0400); this ADR revision Mon Sep 21 13:46 EDT 2026 (−0400). Re-verify live CI/staging before citing as current. |
+| **Figures vintage** | Evidence runs 2026-09-21 (smoke on ~03:36Z / off 12:24–12:31 EDT / async re-soak + wrap-vs-monitoring probe 13:55–13:58 EDT −0400); this ADR revision Mon Sep 21 13:58 EDT 2026 (−0400). Re-verify live CI/staging before citing as current. |
 | **Primary reviewers** | Profiling Python team |
 | **Canonical** | This file on branch `vlad/adr-py315-profiling`. Wiki republish **deferred** until ADRs land (prior draft page deleted; no wiki URL in this ADR). |
-| **Related** | Tracker [#17817](https://github.com/DataDog/dd-trace-py/issues/17817) / [#17809](https://github.com/DataDog/dd-trace-py/issues/17809); Jira [PROF-14084](https://datadoghq.atlassian.net/browse/PROF-14084); PRs [#19272](https://github.com/DataDog/dd-trace-py/pull/19272), [#20450](https://github.com/DataDog/dd-trace-py/pull/20450); harness `vlad/chore-local-ab-314v315` @ `d2d4c29fc7`; this ADR branch `vlad/adr-py315-profiling` |
+| **Related** | Tracker [#17817](https://github.com/DataDog/dd-trace-py/issues/17817) / [#17809](https://github.com/DataDog/dd-trace-py/issues/17809); Jira [PROF-14084](https://datadoghq.atlassian.net/browse/PROF-14084); PRs [#19272](https://github.com/DataDog/dd-trace-py/pull/19272), [#20450](https://github.com/DataDog/dd-trace-py/pull/20450); harness `vlad/chore-local-ab-314v315` @ `049961374f`; this ADR branch `vlad/adr-py315-profiling` |
 
 ### Publication
 
@@ -36,7 +36,7 @@
 
 CPython 3.15 changes monitoring / wrapping (PEP 669, asyncio). Profiling-315 stack ([#19272](https://github.com/DataDog/dd-trace-py/pull/19272) asyncio, earlier natives/CI, [#20450](https://github.com/DataDog/dd-trace-py/pull/20450) smoke-required) keeps continuous profiling viable. Separate **“does it profile?”** from **“is overhead acceptable?”**.
 
-Local smoke is **weak** for asyncio / [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) depth (`asyncio_task_count` meta ≈ 3). A dedicated async long-lived-loop A/B is now on record (see Evidence); still missing a monitoring-vs-wrap registration probe.
+Local smoke is **weak** for asyncio / [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) depth (`asyncio_task_count` meta ≈ 3). Async long-lived-loop A/B plus live **wrap vs `sys.monitoring`** `/hook_path` probe are on record (see Evidence A2–A3).
 
 ## Evidence
 
@@ -61,21 +61,35 @@ Epistemic: **verified** = named artifact; **inferred** = arithmetic on verified;
 
 ### A2. Async long-lived loop A/B (profiler on)
 
-Better [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) validator than smoke (elevated task count + named-task labels). **Not** a staging soak; no monitoring-vs-wrap probe.
+Better [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) validator than smoke (elevated task count + named-task labels). **Not** a staging soak. Latest re-soak below; prior `…T173604Z` retained in RESULTS_ASYNC for Δ.
 
 | Field | Value | Status |
 | :---- | :---- | :----- |
-| Harness | `run_async.sh` on `vlad/chore-local-ab-314v315` @ `d2d4c29fc7` | verified |
-| `RUN_DIR` | `/tmp/local314v315_async_20260921T173604Z` | verified |
-| In-repo copy | `runs/20260921T173604Z_async/` | verified |
+| Harness | `run_async.sh` on `vlad/chore-local-ab-314v315` @ `049961374f` | verified |
+| `RUN_DIR` | `/tmp/local314v315_async_20260921T175559Z` | verified |
+| In-repo copy | `runs/20260921T175559Z_async/` | verified |
 | Tip | `822dd5a3fa…` (parent `faae7e3` / [#19272](https://github.com/DataDog/dd-trace-py/pull/19272)) | verified `summary.json` |
 | Pythons | A 3.14.6 · B 3.15.0a7 · 90 s · concurrency 4 | verified |
-| Req | ~38.9k → ~38.3k (−1.4%), **0** errors | verified `drive_stats.json` |
-| RSS mean | 60.3 → 60.5 MiB (**+0.3%**) | verified |
-| `asyncio_task_count` mean | 112.6 → 109.1 (7 metas) | verified |
+| Req | 37734 → 37775 (+0.1%), **0** errors | verified `drive_stats.json` |
+| RSS mean | 58.7 → 58.0 MiB (**−1.3%**) | verified |
+| CPU mean | 22.7% → 24.0% | verified |
+| `asyncio_task_count` mean | 109.3 → 111.4 (7 metas) | verified |
 | Named tasks | `task name:[long-pool-*]` present both sides | verified mid pprof |
 | Dedicated asyncio sample type | **absent** both | verified |
 | Writeup | `scripts/local_ab_314v315/RESULTS_ASYNC.md` | verified |
+
+### A3. Monitoring vs wrap probe (asyncio registration)
+
+Live assert that **3.14 uses `wrap()`** and **3.15 uses `sys.monitoring`** for `create_task` / `TaskGroup.create_task` (PEP 669 path under [#19272](https://github.com/DataDog/dd-trace-py/pull/19272)).
+
+| Field | Value | Status |
+| :---- | :---- | :----- |
+| Endpoint / gate | `GET /hook_path`; `PROBE_ONLY=1` or pre-soak in `run_async.sh` | verified |
+| Probe-only `RUN_DIR` | `/tmp/local314v315_async_20260921T175546Z` | verified |
+| In-repo copy | `runs/20260921T175546Z_async_probe/logs/hook_path_{A314,B315}.json` | verified |
+| A 3.14.6 | `observed_path=wrap`, `create_task_wrapped=true`, tool_id null | verified **PASS** |
+| B 3.15.0a7 | `observed_path=monitoring`, wrapped=false, `monitoring_tool_id=3`, handlers on both create_task sites | verified **PASS** |
+| Also | asserted again inside soak `…T175559Z` before drive | verified |
 
 ### B. Profiler off — runtime control
 
@@ -147,7 +161,7 @@ Missing cp315 wheels historically blocked staging TDs and prof-correctness Docke
 3. Lock sample types empty on smoke corpus.
 4. Latency never measured locally.
 5. 3.15 still moving (`3.15.0a7` in local AB).
-6. Asyncio / [#19272]: async A/B improves coverage vs smoke; still no monitoring-vs-wrap probe, parent/child link check, or asyncio sample type.
+6. Asyncio / [#19272]: wrap vs monitoring probe **done**; still no parent/child link check or dedicated asyncio sample type.
 
 ## Declaration (copy-paste)
 
