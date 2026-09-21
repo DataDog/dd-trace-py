@@ -41,9 +41,6 @@ def test_copy_memory_error_count_present():
         assert "fast_copy_memory_syscall_fallback" in metadata, (
             f"Missing fast_copy_memory_syscall_fallback in {f}: {metadata}"
         )
-        assert "fast_copy_memory_foreign_takeover" in metadata, (
-            f"Missing fast_copy_memory_foreign_takeover in {f}: {metadata}"
-        )
 
 
 @pytest.mark.subprocess(
@@ -85,7 +82,6 @@ def test_fast_copy_memory_disabled():
             )
             assert metadata["fast_copy_memory_user_disabled"] is True, metadata
             assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
-            assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
 
 
 @pytest.mark.subprocess(
@@ -160,73 +156,6 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
-    assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_foreign_takeover",
-        DD_PROFILING_UPLOAD_INTERVAL="1",
-        _DD_PROFILING_STACK_FAST_COPY="1",
-    ),
-    err=None,
-)
-def test_fast_copy_foreign_handler_takeover_metadata() -> None:
-    import json
-    import os
-    import signal
-    import time
-    from typing import Any
-    from typing import Optional
-
-    from ddtrace.internal.datadog.profiling.stack import _stack
-    from ddtrace.profiling import profiler
-    from ddtrace.trace import tracer
-    from tests.profiling.collector import pprof_utils
-
-    _stack._set_fast_copy_warmup_seconds(2.0)
-
-    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
-    p.start()
-
-    # Wait for warmup, then steal SIGSEGV before the upgrade decision.
-    saw_warmup: bool = False
-    deadline: float = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        active: bool = _stack.fast_copy_memory_active()
-        if active is False:
-            saw_warmup = True
-            break
-        time.sleep(0.05)
-
-    assert saw_warmup, "sampler never dropped to the syscall copy"
-
-    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
-    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
-
-    # Past warmup (2s) plus an upload interval.
-    time.sleep(4)
-    p.stop()
-
-    output_filename: str = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
-    assert files, "Expected at least one internal_metadata.json file"
-
-    metadata: Optional[dict[str, Any]] = None
-    for f in reversed(files):
-        with open(f) as fp:
-            candidate: dict[str, Any] = json.load(fp)
-
-        if candidate.get("sampling_event_count", 0) > 0:
-            metadata = candidate
-            break
-
-    assert metadata is not None, f"Expected an upload window with at least one sampling cycle: {files}"
-
-    assert metadata["fast_copy_memory_foreign_takeover"] is True, metadata
-    assert metadata["fast_copy_memory_syscall_fallback"] is True, metadata
-    assert metadata["fast_copy_memory_enabled"] is False, metadata
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
@@ -291,73 +220,6 @@ def test_foreign_handler_after_warmup_fallback_and_oneshot_drain() -> None:
         assert already_owned is False
         assert "SIGSEGV=SIG_DFL" in owner
         assert sampling_stopped is False
-        assert stack.take_foreign_segv_handler() is None
-    finally:
-        stack.stop()
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
-@pytest.mark.subprocess(
-    env=dict(
-        _DD_PROFILING_STACK_FAST_COPY="1",
-        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
-    ),
-    err=None,
-)
-def test_warmup_handoff_does_not_record_foreign_takeover() -> None:
-    """Warmup clears fast_copy_active but leaves SIGSEGV/SIGBUS handlers installed.
-
-    uninstall/reinstall must still swap so a coordinated crashtracker-style
-    install during warmup is not recorded as a permanent foreign takeover.
-    """
-    import signal
-    import time
-    from typing import Optional
-
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.internal.datadog.profiling.stack import _stack
-
-    assert stack.is_available
-    ddup.config(env="test", service="test", version="0.0.0")
-    ddup.start()
-
-    _stack._set_fast_copy_warmup_seconds(2.0)
-    stack.set_adaptive_sampling(False)
-    assert stack.start()
-
-    try:
-        saw_warmup: bool = False
-        warmup_deadline: float = time.monotonic() + 10
-        while time.monotonic() < warmup_deadline:
-            if _stack.fast_copy_memory_active() is False:
-                saw_warmup = True
-                break
-            time.sleep(0.05)
-        assert saw_warmup, "sampler never dropped to the syscall copy during warmup"
-        assert stack.segv_handler_installed() is True
-
-        pause_result: Optional[bool] = stack.pause_sampling()
-        assert pause_result is not None, "sampler pause timed out during warmup handoff"
-        try:
-            stack.uninstall_segv_handler()
-            assert stack.segv_handler_installed() is False
-            signal.signal(signal.SIGSEGV, signal.SIG_DFL)
-            signal.signal(signal.SIGBUS, signal.SIG_DFL)
-            stack.reinstall_segv_handler()
-            assert stack.segv_handler_installed() is True
-        finally:
-            if pause_result is True:
-                stack.resume_sampling()
-
-        saw_upgrade: bool = False
-        upgrade_deadline: float = time.monotonic() + 10
-        while time.monotonic() < upgrade_deadline:
-            if _stack.fast_copy_memory_active() is True:
-                saw_upgrade = True
-                break
-            time.sleep(0.05)
-        assert saw_upgrade, "sampler never upgraded to safe_memcpy after warmup handoff"
         assert stack.take_foreign_segv_handler() is None
     finally:
         stack.stop()

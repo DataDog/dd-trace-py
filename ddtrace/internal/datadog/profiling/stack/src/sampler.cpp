@@ -34,17 +34,6 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_capable(safe_memcpy_initialized);
     stats.set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
     stats.set_fast_copy_memory_enabled(fast_copy_active);
-    stats.set_fast_copy_memory_foreign_takeover(fast_copy_foreign_takeover.load(std::memory_order_relaxed));
-}
-
-static void
-mark_fast_copy_foreign_takeover(bool syscall_fallback = true)
-{
-    fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
-    if (syscall_fallback) {
-        mark_fast_copy_syscall_fallback();
-    }
-    update_fast_copy_stats(Sample::profile_borrow().stats());
 }
 
 void
@@ -490,7 +479,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // syscall copy (already active from warmup) for the life of
                         // the process.
                         handler_fallback_done = true;
-                        mark_fast_copy_foreign_takeover();
+                        mark_fast_copy_syscall_fallback();
                         const std::string owners = describe_segv_handler_owners();
                         record_foreign_segv_handler(true, owners, false);
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
@@ -505,24 +494,22 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // degrade sample quality (e.g. on asyncio workloads). We still prefer
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
-                // Fall back, then record (same order as the warmup-miss site).
+                mark_fast_copy_syscall_fallback();
                 const std::string owners = describe_segv_handler_owners();
-                const bool fallback_ok = set_fast_copy_enabled(false);
-                record_foreign_segv_handler(false, owners, !fallback_ok);
-                mark_fast_copy_foreign_takeover(fallback_ok);
-                if (!fallback_ok) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
-                    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing. "
-                              << "Handler owners: " << owners << std::endl;
-                    sampler_active_.store(false);
-                    break;
-                }
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing. "
                           << "Handler owners: " << owners << std::endl;
+                if (!set_fast_copy_enabled(false)) {
+                    // No safe fallback available (e.g. process_vm_readv blocked), so
+                    // safe_memcpy is still active; reading under a foreign handler would
+                    // crash - stop sampling instead.
+                    record_foreign_segv_handler(false, owners, true);
+                    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                                 "stopping stack sampling to avoid crashing. "
+                              << "Handler owners: " << owners << std::endl;
+                    break;
+                }
+                record_foreign_segv_handler(false, owners, false);
             }
         }
 
@@ -685,7 +672,7 @@ Sampler::postfork_child()
     new (&sampling_thread_error_mutex_) std::mutex();
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
 
-    // Drop a parent-inherited takeover notice; restart_after_fork() re-records locally.
+    // Drop a parent-inherited takeover notice; the child records its own if needed.
     new (&foreign_segv_handler_mutex_) std::mutex();
     new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
 
@@ -740,16 +727,10 @@ Sampler::restart_after_fork()
     // Restart the sampler if it was running before fork.
     // We use the saved flag because postfork_child() resets the live sampler
     // state (thread_running, etc.) before this runs.
-    if (!was_running_at_fork_) {
-        return false;
+    if (was_running_at_fork_) {
+        return start();
     }
-    // Parent fallback leaves fast_copy_active false; record a child-local notice before start() to avoid a race.
-    if (!fast_copy_user_disabled && !fast_copy_active && safe_memcpy_initialized && !segv_handler_installed()) {
-        const std::string owners = describe_segv_handler_owners();
-        record_foreign_segv_handler(true, owners, false);
-        mark_fast_copy_foreign_takeover();
-    }
-    return start();
+    return false;
 }
 
 static void

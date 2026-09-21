@@ -1017,12 +1017,6 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
-// True between a successful uninstall and the matching reinstall. Warmup
-// clears fast_copy_active while our handlers stay installed; coordinated
-// handoffs (crashtracker, faulthandler) must still swap in that window,
-// but must not reclaim after a real foreign takeover.
-static bool g_segv_uninstalled_for_handoff = false;
-
 static PyObject*
 stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
@@ -1031,12 +1025,8 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // faulthandler) install its own handler so it doesn't record ours as its
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
-    //
-    // Gate on live ownership, not fast_copy_active: warmup clears that
-    // flag while the handlers stay installed.
-    if (segv_handler_installed()) {
+    if (fast_copy_active) {
         uninstall_segv_handler();
-        g_segv_uninstalled_for_handoff = true;
     }
     Py_RETURN_NONE;
 }
@@ -1044,13 +1034,12 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall after a coordinated uninstall (including warmup, when
-    // fast_copy_active is false), or whenever fast_copy is currently active
-    // (faulthandler already-enabled path). Our handler chains to the previous
-    // one for non-recovery faults, so both systems coexist correctly.
-    if (g_segv_uninstalled_for_handoff || fast_copy_active) {
+    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
+    // This is used to reclaim the handler after another component (e.g., Python's
+    // faulthandler module) overwrites it. Our handler chains to the previous one
+    // for non-recovery faults, so both systems coexist correctly.
+    if (fast_copy_active) {
         init_segv_catcher();
-        g_segv_uninstalled_for_handoff = false;
     }
     Py_RETURN_NONE;
 }
