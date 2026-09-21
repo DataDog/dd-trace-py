@@ -75,6 +75,13 @@ def _mock_openai_tool_call_response(tool: str, args: Any) -> ChatResult:
     )
 
 
+def _llm_result(messages):
+    """Wrap assistant messages in the LLMResult shape a chat model returns."""
+    from langchain_core.outputs import LLMResult
+
+    return LLMResult(generations=[[ChatGeneration(message=m) for m in messages]])
+
+
 def _evaluated_messages(mock_execute_request, index: int) -> list:
     """Messages sent to AI Guard by the index-th evaluate call."""
     return mock_execute_request.call_args_list[index][0][1]["data"]["attributes"]["messages"]
@@ -296,10 +303,15 @@ def test_convert_generations_includes_tool_calls():
         {"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "add", "arguments": "{}"}}]}
     ]
 
+    # Text and tool calls stay in one assistant turn, so the trailing message the
+    # evaluator classifies still carries the tool call.
     with_text = ChatGeneration(message=AIMessage(content="hello", tool_calls=[ToolCall(id="c1", name="add", args={})]))
-    assert _convert_generations(with_text and [with_text]) == [
-        {"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "add", "arguments": "{}"}}]},
-        {"role": "assistant", "content": "hello"},
+    assert _convert_generations([with_text]) == [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "tool_calls": [{"id": "c1", "function": {"name": "add", "arguments": "{}"}}],
+        }
     ]
 
     # Non-chat LLMs return a plain Generation carrying only text.
@@ -309,40 +321,110 @@ def test_convert_generations_includes_tool_calls():
     assert _convert_generations([object(), Generation(text="kept")]) == [{"role": "assistant", "content": "kept"}]
 
 
-def test_tool_call_dedup_marker_is_per_message_and_not_provider_bound():
-    """The dedup marker rides on the message, scoped to it and invisible to providers.
+def test_tool_call_dedup_is_bound_to_the_evaluated_payload():
+    """The dedup record must match the call, not just the message.
 
-    It must not live in additional_kwargs, which langchain serializes back into
-    outbound provider requests -- a stray key there would end up in the
-    customer's LLM payload.
+    A graph step or human-in-the-loop update can rewrite a tool's name or
+    arguments after the response was evaluated. A bare "already checked" flag
+    would wave the rewritten call straight through.
     """
     from ddtrace.aiguard.integrations._langchain import _EVALUATED_KEY
     from ddtrace.aiguard.integrations._langchain import _mark_tool_calls_evaluated
-    from ddtrace.aiguard.integrations._langchain import _tool_calls_already_evaluated
+    from ddtrace.aiguard.integrations._langchain import _tool_call_already_evaluated
 
-    msg = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})])
-    other = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})])
-
-    assert _tool_calls_already_evaluated(msg) is False
+    msg = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={"a": 1, "b": 1})])
     _mark_tool_calls_evaluated(msg)
-    assert _tool_calls_already_evaluated(msg) is True
-    # A separate message with identical content is untouched.
-    assert _tool_calls_already_evaluated(other) is False
 
-    assert msg.response_metadata.get(_EVALUATED_KEY) is True
+    # The call as evaluated is skipped...
+    assert _tool_call_already_evaluated(msg, "add", {"a": 1, "b": 1}) is True
+    # ...but an edited argument is NOT.
+    assert _tool_call_already_evaluated(msg, "add", {"a": 1, "b": 99}) is False
+    # ...nor a swapped tool name.
+    assert _tool_call_already_evaluated(msg, "rm_rf", {"a": 1, "b": 1}) is False
+    # An unmarked message never matches.
+    assert _tool_call_already_evaluated(AIMessage(content=""), "add", {"a": 1, "b": 1}) is False
+
+    # Argument ordering is normalised, so a re-serialised identical call matches.
+    assert _tool_call_already_evaluated(msg, "add", {"b": 1, "a": 1}) is True
+
+    # The marker is not visible to providers: additional_kwargs is what langchain
+    # serializes back into outbound requests.
     assert _EVALUATED_KEY not in msg.additional_kwargs
 
 
-def test_tool_call_dedup_marker_survives_a_message_copy():
-    """langgraph copies messages into state; the marker must travel with them."""
+def test_tool_call_dedup_survives_a_copy_but_not_an_edit():
+    """langgraph copies messages into state; the record must travel, the skip must not."""
     from ddtrace.aiguard.integrations._langchain import _mark_tool_calls_evaluated
-    from ddtrace.aiguard.integrations._langchain import _tool_calls_already_evaluated
+    from ddtrace.aiguard.integrations._langchain import _tool_call_already_evaluated
 
-    msg = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})])
+    msg = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={"a": 1})])
     _mark_tool_calls_evaluated(msg)
     # model_copy on pydantic v2 (langchain-core >= 0.2), copy on v1.
-    copy_message = getattr(msg, "model_copy", None) or msg.copy
-    assert _tool_calls_already_evaluated(copy_message()) is True
+    copied = (getattr(msg, "model_copy", None) or msg.copy)()
+
+    assert _tool_call_already_evaluated(copied, "add", {"a": 1}) is True
+    # The copy carries the record, but an edited call still fails to match it.
+    assert _tool_call_already_evaluated(copied, "add", {"a": 2}) is False
+
+
+def test_legacy_function_call_dedup_matches_across_argument_shapes():
+    """The legacy path compares a JSON-string payload against a parsed mapping."""
+    from ddtrace.aiguard.integrations._langchain import _mark_tool_calls_evaluated
+    from ddtrace.aiguard.integrations._langchain import _tool_call_already_evaluated
+
+    msg = AIMessage(
+        content="",
+        additional_kwargs={"function_call": {"name": "add", "arguments": '{"a": 1, "b": 1}'}},
+    )
+    _mark_tool_calls_evaluated(msg)
+
+    # Agent.plan hands over the parsed tool_input, not the raw string.
+    assert _tool_call_already_evaluated(msg, "add", {"a": 1, "b": 1}) is True
+    assert _tool_call_already_evaluated(msg, "add", {"a": 1, "b": 2}) is False
+
+
+def test_failed_evaluation_does_not_mark_tool_calls():
+    """A swallowed transport error must leave the execution-time check available.
+
+    _evaluate_langchain_response fails open so the model call keeps working, but
+    marking the calls anyway would make the agent hooks skip the only remaining
+    check on a call nothing ever evaluated.
+    """
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
+    from ddtrace.aiguard.integrations._langchain import _tool_call_already_evaluated
+
+    message = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={"a": 1})])
+    result = _llm_result([message])
+
+    client = Mock()
+    client.evaluate.side_effect = RuntimeError("ai guard unreachable")
+    _langchain_chatmodel_generate_after(client, [[HumanMessage(content="1 + 1")]], result)
+
+    client.evaluate.assert_called_once()
+    assert _tool_call_already_evaluated(message, "add", {"a": 1}) is False
+
+
+def test_mixed_text_and_tool_call_response_stays_one_turn():
+    """A reply with both text and a tool call must keep them in a single message.
+
+    AIGuardClient reads target / tool_name off the trailing message, so splitting
+    them would classify the tool call as a prompt and drop its name.
+    """
+    from ddtrace.aiguard._api_client import AIGuardClient
+    from ddtrace.aiguard.integrations._langchain import _convert_generations
+
+    generation = ChatGeneration(
+        message=AIMessage(content="calling add", tool_calls=[ToolCall(id="c1", name="add", args={"a": 1})])
+    )
+    converted = _convert_generations([generation])
+
+    assert len(converted) == 1
+    assert converted[0]["content"] == "calling add"
+    assert converted[0]["tool_calls"][0]["function"]["name"] == "add"
+    # The classification AIGuardClient would derive from this trailing message.
+    assert AIGuardClient._get_tool_name(converted[-1], converted) == "add"
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
@@ -1330,3 +1412,30 @@ def test_llm_output_suppressed_on_plain_error():
         span.error = 1
         integration._llmobs_set_tags_from_llm(span, ["1 + 1"], {}, None)
         assert _output_contents(span) == [""]
+
+
+def test_apm_shadow_token_metrics_recorded_when_ai_guard_blocks_response():
+    """The APM span keeps its token metrics when a response block errors the span.
+
+    Driven through the public llmobs_set_tags so the APM shadow path actually
+    runs; the LLMObs assertions above call the private helpers and skip it.
+    """
+    from ddtrace.trace import tracer
+
+    integration = _langchain_integration()
+    with tracer.trace("langchain.request", span_type="llm") as span:
+        span.error = 1
+        integration.llmobs_set_tags(span, [[HumanMessage(content="1 + 1")]], {}, _llm_result_with_usage(), "chat")
+        assert span.get_metric("_dd.llmobs.input_tokens") == 3
+        assert span.get_metric("_dd.llmobs.total_tokens") == 8
+
+
+def test_apm_shadow_token_metrics_absent_without_a_response():
+    """A genuine error leaves no result, so there are no tokens to record."""
+    from ddtrace.trace import tracer
+
+    integration = _langchain_integration()
+    with tracer.trace("langchain.request", span_type="llm") as span:
+        span.error = 1
+        integration.llmobs_set_tags(span, [[HumanMessage(content="1 + 1")]], {}, None, "chat")
+        assert span.get_metric("_dd.llmobs.total_tokens") is None

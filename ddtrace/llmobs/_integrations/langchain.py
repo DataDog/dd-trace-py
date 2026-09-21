@@ -238,7 +238,10 @@ class LangChainIntegration(BaseLLMIntegration):
         }
         span_kind = span_kind_map.get(operation, "workflow")
         metrics = {}
-        if operation in ("llm", "chat") and response is not None and not span.error:
+        # No span.error condition: an AI Guard block on the response errors the
+        # span while a completed result exists, and its tokens were spent, so
+        # gating on the error state would drop them from the APM span too.
+        if operation in ("llm", "chat") and response is not None:
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(response)
             if total_tokens > 0:
                 metrics = {
