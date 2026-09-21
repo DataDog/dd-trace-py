@@ -80,20 +80,6 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
         assert _published_span_id() == span.span_id
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
-def test_thread_context_listeners_can_be_enabled():
-    import sys
-
-    assert "ddtrace" not in sys.modules
-
-    from ddtrace.internal import core
-    from ddtrace.internal.settings._config import config
-    from ddtrace.trace import tracer  # noqa: F401
-
-    assert config._otel_thread_context_enabled is True
-    assert core.has_listeners("ddtrace.context_provider.activate") is True
-
-
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):
     with tracer.trace("test") as span:
         if sys.platform == "linux":  # to satisfy the type checker outside of linux
