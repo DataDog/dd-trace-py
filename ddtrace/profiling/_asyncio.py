@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Publish tracing attribution for asyncio tasks sampled independently from their event-loop thread.
 
 Task-creation hooks seed native task links from inherited profiler ContextVar state, entering eager coroutines before
