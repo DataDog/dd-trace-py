@@ -18,11 +18,6 @@ class BaseOpenAIStreamHandler:
         return defaultdict(list)
 
     def finalize_stream(self, exception=None):
-        # Process the accumulated chunks even when the stream ended in an error. A stream that
-        # was cancelled or failed part-way still produced real output, and skipping this left the
-        # span with no LLMObs input *or* output tags at all. `_process_finished_stream` is
-        # exception-safe and the token-metric extraction falls back to estimating from the partial
-        # text, so a truncated stream still reports input/output and approximate token counts.
         _process_finished_stream(
             self.integration,
             self.primary_span,
