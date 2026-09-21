@@ -1625,9 +1625,12 @@ def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: py
     "component,expected",
     [
         ("ddtrace", "ddtrace"),
+        ("ddtrace+missing_sa_siginfo", "ddtrace+missing_sa_siginfo"),
         ("SIG_DFL", "SIG_DFL"),
+        ("SIG_IGN", "SIG_IGN"),
         ("unresolved@0x1234", "unresolved"),
         ("/lib/libfoo.so+0x7c4 (foo_handler)", "libfoo.so"),
+        ("/lib/libfoo.so+0x7c4 (foo_handler)+missing_sa_siginfo", "libfoo.so+missing_sa_siginfo"),
         ("/opt/libfoo+cuda.so+0x7c4 (foo_handler)", "libfoo+cuda.so"),
         ("/opt/libfoo+cuda.so+0x7c4", "libfoo+cuda.so"),
         ("/usr/lib/x86_64-linux-gnu/libfoo.so.1.0+dfsg+0xabc (bar)", "libfoo.so.1.0+dfsg"),
@@ -1648,6 +1651,16 @@ def test_normalize_foreign_handler_owner_component(component: str, expected: str
         ("SIGSEGV=/opt/libfoo+cuda.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo+cuda.so"),
         ("SIGSEGV=/opt/foo, bar/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo.so"),
         ("SIGSEGV=ddtrace, SIGBUS=/opt/foo, bar/libbar.so+0x1 (bar_handler)", "libbar.so"),
+        ("SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace", "ddtrace+missing_sa_siginfo"),
+        (
+            "SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
+            "libfoo.so",
+        ),
+        (
+            "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler)+missing_sa_siginfo, SIGBUS=ddtrace",
+            "libfoo.so+missing_sa_siginfo",
+        ),
+        ("SIGSEGV=SIG_DFL, SIGBUS=ddtrace+missing_sa_siginfo", "SIG_DFL"),
     ],
 )
 def test_normalize_foreign_handler_owner(owner: str, expected: str) -> None:

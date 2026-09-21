@@ -25,15 +25,30 @@ LOG = logging.getLogger(__name__)
 
 _FOREIGN_HANDLER_OWNER_SYMBOLS: frozenset[str] = frozenset({"ddtrace", "SIG_DFL", "SIG_IGN", "unknown", "none"})
 _HEX_DIGITS: str = "0123456789abcdefABCDEF"
+_MISSING_SA_SIGINFO_TAG: str = "+missing_sa_siginfo"
+
+
+def _split_missing_sa_siginfo_tag(component: str) -> tuple[str, str]:
+    if component.endswith(_MISSING_SA_SIGINFO_TAG):
+        return component[: -len(_MISSING_SA_SIGINFO_TAG)], _MISSING_SA_SIGINFO_TAG
+    return component, ""
+
+
+def _owner_symbol_key(component: str) -> str:
+    path: str
+    path, _ = _split_missing_sa_siginfo_tag(component)
+    return path
 
 
 def _normalize_foreign_handler_owner_component(component: str) -> str:
-    if component in _FOREIGN_HANDLER_OWNER_SYMBOLS:
-        return component
-    if component.startswith("unresolved@"):
-        return "unresolved"
+    path: str
+    why: str
+    path, why = _split_missing_sa_siginfo_tag(component)
+    if path in _FOREIGN_HANDLER_OWNER_SYMBOLS:
+        return path + why
+    if path.startswith("unresolved@"):
+        return "unresolved" + why
     # Strip +0x / (symbol) from the right so a path containing those stays intact.
-    path: str = component
     if path.endswith(")"):
         symbol_sep: int = path.rfind(" (")
         if symbol_sep != -1:
@@ -44,7 +59,7 @@ def _normalize_foreign_handler_owner_component(component: str) -> str:
         if offset and all(ch in _HEX_DIGITS for ch in offset):
             path = path[:offset_sep]
     basename: str = os.path.basename(path)
-    return basename or component
+    return (basename or path) + why
 
 
 def _normalize_foreign_handler_owner(owner: str) -> str:
@@ -60,11 +75,12 @@ def _normalize_foreign_handler_owner(owner: str) -> str:
         if sigsegv_part.startswith("SIGSEGV="):
             sigsegv_owner = _normalize_foreign_handler_owner_component(sigsegv_part[len("SIGSEGV=") :])
     # Concrete library / unresolved, then SIG_DFL/IGN/unknown/none, then ddtrace.
+    # +missing_sa_siginfo is a why-tag; strip it before symbol-priority checks.
     for candidate in (sigsegv_owner, sigbus_owner):
-        if candidate is not None and candidate not in _FOREIGN_HANDLER_OWNER_SYMBOLS:
+        if candidate is not None and _owner_symbol_key(candidate) not in _FOREIGN_HANDLER_OWNER_SYMBOLS:
             return candidate
     for candidate in (sigsegv_owner, sigbus_owner):
-        if candidate is not None and candidate != "ddtrace":
+        if candidate is not None and _owner_symbol_key(candidate) != "ddtrace":
             return candidate
     if sigsegv_owner is not None:
         return sigsegv_owner

@@ -172,40 +172,49 @@ describe_signal_owner(int signo)
     }
 
     // sa_handler aliases sa_sigaction; check DFL/IGN before treating the pointer as a handler.
+    // DFL/IGN are missing SA_SIGINFO by definition; do not tag them.
     if (current.sa_handler == SIG_DFL) {
         return "SIG_DFL";
     }
     if (current.sa_handler == SIG_IGN) {
         return "SIG_IGN";
     }
-    if ((current.sa_flags & SA_SIGINFO) != 0 && current.sa_sigaction == segv_handler) {
-        return "ddtrace";
+
+    const bool has_siginfo = (current.sa_flags & SA_SIGINFO) != 0;
+    // Union: compare sa_sigaction bits even if SA_SIGINFO is off so a stripped
+    // flag still names us instead of our .so+offset (looks foreign).
+    if (current.sa_sigaction == segv_handler) {
+        return has_siginfo ? "ddtrace" : "ddtrace+missing_sa_siginfo";
     }
 
-    void* addr = (current.sa_flags & SA_SIGINFO) != 0 ? reinterpret_cast<void*>(current.sa_sigaction)
-                                                      : reinterpret_cast<void*>(current.sa_handler);
+    void* addr =
+      has_siginfo ? reinterpret_cast<void*>(current.sa_sigaction) : reinterpret_cast<void*>(current.sa_handler);
     if (addr == nullptr) {
         return "none";
     }
 
+    std::string out;
     Dl_info info{};
     if (dladdr(addr, &info) == 0 || info.dli_fname == nullptr) {
         char buf[32];
         snprintf(buf, sizeof(buf), "unresolved@%p", addr);
-        return buf;
+        out = buf;
+    } else {
+        out = info.dli_fname;
+        if (info.dli_fbase != nullptr) {
+            const auto offset = reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(info.dli_fbase);
+            char off[32];
+            snprintf(off, sizeof(off), "+0x%lx", static_cast<unsigned long>(offset));
+            out += off;
+        }
+        if (info.dli_sname != nullptr) {
+            out += " (";
+            out += info.dli_sname;
+            out += ")";
+        }
     }
-
-    std::string out(info.dli_fname);
-    if (info.dli_fbase != nullptr) {
-        const auto offset = reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(info.dli_fbase);
-        char off[32];
-        snprintf(off, sizeof(off), "+0x%lx", static_cast<unsigned long>(offset));
-        out += off;
-    }
-    if (info.dli_sname != nullptr) {
-        out += " (";
-        out += info.dli_sname;
-        out += ")";
+    if (!has_siginfo) {
+        out += "+missing_sa_siginfo";
     }
     return out;
 }
