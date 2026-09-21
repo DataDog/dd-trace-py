@@ -496,7 +496,11 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._llmobs_set_metadata(span, kwargs)
 
-        if span.error:
+        # Gate on a missing response rather than on span.error. A genuine model
+        # error leaves no result, but an AI Guard block on the response errors the
+        # span while a valid completion exists -- and those tokens were spent, so
+        # dropping the output and usage here hides them from cost accounting.
+        if completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
@@ -565,7 +569,9 @@ class LangChainIntegration(BaseLLMIntegration):
             **cast(dict[str, Any], {input_key: input_messages}),
         )
 
-        if span.error:
+        # See the note in _llmobs_set_tags_from_llm: a blocked-but-completed call
+        # still has output and token usage worth recording.
+        if chat_completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 

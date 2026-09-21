@@ -279,26 +279,138 @@ def test_chat_response_evaluation_carries_request_context(mock_execute_request, 
     assert messages[-1]["role"] == "assistant"
 
 
-def test_convert_generations_excludes_tool_calls():
-    """Tool calls are evaluated where they execute, so the response converter drops them.
+def test_convert_generations_includes_tool_calls():
+    """A tool-call-only response must still convert to something evaluable.
 
-    Without this a create_agent loop would evaluate every tool call twice.
+    An application calling bind_tools(...).invoke(...) executes the returned call
+    itself, with no agent hook in the path, so dropping tool calls here let an
+    unsafe call reach user code unevaluated.
     """
     from langchain_core.outputs import Generation
 
     from ddtrace.aiguard.integrations._langchain import _convert_generations
 
     tool_only = ChatGeneration(message=AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})]))
-    assert _convert_generations([tool_only]) == []
+    converted = _convert_generations([tool_only])
+    assert converted == [
+        {"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "add", "arguments": "{}"}}]}
+    ]
 
     with_text = ChatGeneration(message=AIMessage(content="hello", tool_calls=[ToolCall(id="c1", name="add", args={})]))
-    assert _convert_generations([with_text]) == [{"role": "assistant", "content": "hello"}]
+    assert _convert_generations(with_text and [with_text]) == [
+        {"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "add", "arguments": "{}"}}]},
+        {"role": "assistant", "content": "hello"},
+    ]
 
     # Non-chat LLMs return a plain Generation carrying only text.
     assert _convert_generations([Generation(text="plain")]) == [{"role": "assistant", "content": "plain"}]
 
     # A converter failure on one generation must not lose the others.
     assert _convert_generations([object(), Generation(text="kept")]) == [{"role": "assistant", "content": "kept"}]
+
+
+def test_tool_call_dedup_marker_is_per_message_and_not_provider_bound():
+    """The dedup marker rides on the message, scoped to it and invisible to providers.
+
+    It must not live in additional_kwargs, which langchain serializes back into
+    outbound provider requests -- a stray key there would end up in the
+    customer's LLM payload.
+    """
+    from ddtrace.aiguard.integrations._langchain import _EVALUATED_KEY
+    from ddtrace.aiguard.integrations._langchain import _mark_tool_calls_evaluated
+    from ddtrace.aiguard.integrations._langchain import _tool_calls_already_evaluated
+
+    msg = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})])
+    other = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})])
+
+    assert _tool_calls_already_evaluated(msg) is False
+    _mark_tool_calls_evaluated(msg)
+    assert _tool_calls_already_evaluated(msg) is True
+    # A separate message with identical content is untouched.
+    assert _tool_calls_already_evaluated(other) is False
+
+    assert msg.response_metadata.get(_EVALUATED_KEY) is True
+    assert _EVALUATED_KEY not in msg.additional_kwargs
+
+
+def test_tool_call_dedup_marker_survives_a_message_copy():
+    """langgraph copies messages into state; the marker must travel with them."""
+    from ddtrace.aiguard.integrations._langchain import _mark_tool_calls_evaluated
+    from ddtrace.aiguard.integrations._langchain import _tool_calls_already_evaluated
+
+    msg = AIMessage(content="", tool_calls=[ToolCall(id="c1", name="add", args={})])
+    _mark_tool_calls_evaluated(msg)
+    # model_copy on pydantic v2 (langchain-core >= 0.2), copy on v1.
+    copy_message = getattr(msg, "model_copy", None) or msg.copy
+    assert _tool_calls_already_evaluated(copy_message()) is True
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_standalone_tool_call_response_is_blocked(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
+):
+    """bind_tools(...).invoke(...) with no agent: the tool call must still be evaluated.
+
+    Neither Agent.plan nor ToolNode runs here, and the provider listener is
+    suppressed by the LangChain context, so the response listener is the only
+    thing that can catch an unsafe tool call.
+    """
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    mock_openai_request.side_effect = lambda self, messages, *a, **kw: _mock_openai_tool_call_response(
+        "add", {"a": 1, "b": 1}
+    )
+
+    @langchain_core.tools.tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b.
+
+        Args:
+            a: first int
+            b: second int
+        """
+        return a + b
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url).bind_tools([add])
+
+    with pytest.raises(AIGuardAbortError):
+        llm.invoke([HumanMessage(content="1 + 1")])
+
+    assert mock_execute_request.call_count == 2
+    # The blocked evaluation carried the tool call, not an empty assistant turn.
+    evaluated = _evaluated_messages(mock_execute_request, 1)
+    assert evaluated[-1]["tool_calls"][0]["function"]["name"] == "add"
+
+
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_standalone_tool_call_response_is_evaluated_on_allow(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url
+):
+    """Same path, allowed: the call is returned but it was scanned first."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    mock_openai_request.side_effect = lambda self, messages, *a, **kw: _mock_openai_tool_call_response(
+        "add", {"a": 1, "b": 1}
+    )
+
+    @langchain_core.tools.tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b.
+
+        Args:
+            a: first int
+            b: second int
+        """
+        return a + b
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url).bind_tools([add])
+    result = llm.invoke([HumanMessage(content="1 + 1")])
+
+    assert result.tool_calls[0]["name"] == "add"
+    assert mock_execute_request.call_count == 2
+    evaluated = _evaluated_messages(mock_execute_request, 1)
+    assert evaluated[-1]["tool_calls"][0]["function"]["name"] == "add"
 
 
 @requires_legacy_agents
@@ -1135,3 +1247,86 @@ def test_langchain_kill_switch_disabled_skips_listeners():
         with patch.object(_listener.core, "on") as mock_on:
             _listener._langchain_listen(Mock())
             mock_on.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# APPSEC-68147 (LangChain): a response block errors the span, but the model
+# already ran and the tokens were already spent. Output and usage must survive,
+# otherwise blocked calls vanish from cost accounting when LangChain is the only
+# instrumented LLM integration.
+# ---------------------------------------------------------------------------
+
+
+def _langchain_integration():
+    from ddtrace import config as dd_config
+    from ddtrace.llmobs._integrations import LangChainIntegration
+
+    return LangChainIntegration(integration_config=dd_config.langchain)
+
+
+def _llm_result_with_usage(text="blocked body"):
+    from langchain_core.outputs import LLMResult
+
+    return LLMResult(
+        generations=[[ChatGeneration(message=AIMessage(content=text))]],
+        llm_output={"token_usage": {"prompt_tokens": 3, "completion_tokens": 5, "total_tokens": 8}},
+    )
+
+
+def _output_contents(span):
+    from ddtrace.llmobs._utils import get_llmobs_output_messages
+
+    return [m.get("content") for m in (get_llmobs_output_messages(span) or [])]
+
+
+def test_chat_output_and_usage_recorded_when_ai_guard_blocks_response():
+    """Errored span + a real response: output and token metrics are still recorded."""
+    from ddtrace.llmobs._utils import get_llmobs_metrics
+    from ddtrace.trace import tracer
+
+    integration = _langchain_integration()
+    with tracer.trace("langchain.request", span_type="llm") as span:
+        span.error = 1
+        integration._llmobs_set_tags_from_chat_model(
+            span, [[HumanMessage(content="1 + 1")]], {}, _llm_result_with_usage()
+        )
+        assert _output_contents(span) == ["blocked body"]
+        metrics = get_llmobs_metrics(span) or {}
+        assert metrics.get("input_tokens") == 3
+        assert metrics.get("output_tokens") == 5
+        assert metrics.get("total_tokens") == 8
+
+
+def test_chat_output_suppressed_on_plain_error():
+    """A genuine model error leaves no response, so output stays blank."""
+    from ddtrace.trace import tracer
+
+    integration = _langchain_integration()
+    with tracer.trace("langchain.request", span_type="llm") as span:
+        span.error = 1
+        integration._llmobs_set_tags_from_chat_model(span, [[HumanMessage(content="1 + 1")]], {}, None)
+        assert _output_contents(span) == [""]
+
+
+def test_llm_output_and_usage_recorded_when_ai_guard_blocks_response():
+    """Non-chat LLM variant of the same contract."""
+    from ddtrace.llmobs._utils import get_llmobs_metrics
+    from ddtrace.trace import tracer
+
+    integration = _langchain_integration()
+    with tracer.trace("langchain.request", span_type="llm") as span:
+        span.error = 1
+        integration._llmobs_set_tags_from_llm(span, ["1 + 1"], {}, _llm_result_with_usage())
+        assert _output_contents(span) == ["blocked body"]
+        metrics = get_llmobs_metrics(span) or {}
+        assert metrics.get("total_tokens") == 8
+
+
+def test_llm_output_suppressed_on_plain_error():
+    from ddtrace.trace import tracer
+
+    integration = _langchain_integration()
+    with tracer.trace("langchain.request", span_type="llm") as span:
+        span.error = 1
+        integration._llmobs_set_tags_from_llm(span, ["1 + 1"], {}, None)
+        assert _output_contents(span) == [""]

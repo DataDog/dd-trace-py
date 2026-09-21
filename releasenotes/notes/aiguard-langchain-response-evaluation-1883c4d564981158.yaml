@@ -3,6 +3,11 @@ fixes:
   - |
     AI Guard: Fixes an issue where model responses were never evaluated for LangChain chat model
     and LLM calls, leaving unsafe model output neither reported nor blocked. Such calls now run a
-    second evaluation covering the model's answer, which raises ``AIGuardAbortError`` when the
-    verdict is ``DENY`` or ``ABORT``. Tool calls are unaffected: they continue to be evaluated
-    where they execute. Streamed LangChain responses are still not evaluated.
+    second evaluation covering the model's answer, including any tool calls it requested, which
+    raises ``AIGuardAbortError`` when the verdict is ``DENY`` or ``ABORT``. A tool call decided by
+    an instrumented agent is still evaluated only once. Streamed LangChain responses are not
+    covered by this change.
+  - |
+    LangChain: Fixes an issue where a model response blocked by AI Guard was reported to LLM
+    Observability with empty output and no token usage, so blocked calls were missing from usage
+    and cost accounting even though the model had already run and consumed tokens.
