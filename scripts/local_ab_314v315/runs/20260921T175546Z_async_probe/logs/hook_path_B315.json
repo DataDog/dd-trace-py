@@ -1,0 +1,1 @@
+{"python": "3.15.0a7", "hexversion": "0x30f00a7", "expected_path": "monitoring", "profiling_env": "true", "asyncio_imported": true, "create_task_wrapped": false, "tg_create_task_wrapped": false, "monitoring_tool_id": 3, "create_task_handler_registered": true, "tg_create_task_handler_registered": true, "observed_path": "monitoring", "ok": true, "error": null}

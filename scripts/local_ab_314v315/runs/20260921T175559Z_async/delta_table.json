@@ -1,0 +1,200 @@
+{
+  "tip": "822dd5a3fa158883b368965f081c97ccaa32c617",
+  "workload": "async_long_lived_loop",
+  "duration_s": 90,
+  "profiling_enabled": true,
+  "metrics_run": "/tmp/local314v315_async_20260921T175559Z",
+  "table": [
+    {
+      "metric": "req total (90s)",
+      "A": "37734",
+      "B": "37775",
+      "delta": "+41",
+      "delta_pct": "+0.1%"
+    },
+    {
+      "metric": "req/s",
+      "A": "419.27",
+      "B": "419.72",
+      "delta": "+0.46",
+      "delta_pct": "+0.1%"
+    },
+    {
+      "metric": "errors",
+      "A": "0",
+      "B": "0",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "error rate",
+      "A": "0.000%",
+      "B": "0.000%",
+      "delta": "+0.000%",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "CPU% mean (ps 1Hz)",
+      "A": "22.7%",
+      "B": "24.0%",
+      "delta": "+1.3%",
+      "delta_pct": "+5.7%"
+    },
+    {
+      "metric": "CPU% p95",
+      "A": "28.7%",
+      "B": "30.7%",
+      "delta": "+2.0%",
+      "delta_pct": "+7.0%"
+    },
+    {
+      "metric": "CPU% max",
+      "A": "35.0%",
+      "B": "35.8%",
+      "delta": "+0.8%",
+      "delta_pct": "+2.3%"
+    },
+    {
+      "metric": "RSS mean",
+      "A": "58.7 MiB",
+      "B": "58.0 MiB",
+      "delta": "-0.8 MiB",
+      "delta_pct": "-1.3%"
+    },
+    {
+      "metric": "RSS p95",
+      "A": "62.2 MiB",
+      "B": "60.8 MiB",
+      "delta": "-1.4 MiB",
+      "delta_pct": "-2.2%"
+    },
+    {
+      "metric": "RSS max",
+      "A": "62.5 MiB",
+      "B": "61.8 MiB",
+      "delta": "-0.8 MiB",
+      "delta_pct": "-1.2%"
+    },
+    {
+      "metric": "asyncio_task_count mean (pprof meta)",
+      "A": "109.29",
+      "B": "111.43",
+      "delta": "+2.14",
+      "delta_pct": "+2.0%"
+    },
+    {
+      "metric": "asyncio_task_count max (pprof meta)",
+      "A": "116.00",
+      "B": "116.00",
+      "delta": "+0.00",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "http /stats task_count (post)",
+      "A": "27.00",
+      "B": "27.00",
+      "delta": "+0.00",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "http named_tasks_n (post)",
+      "A": "25",
+      "B": "25",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "pprof .pprof files",
+      "A": "7",
+      "B": "7",
+      "delta": "+0",
+      "delta_pct": "+0.0%"
+    },
+    {
+      "metric": "pprof bytes (all artifacts)",
+      "A": "0.8 MB",
+      "B": "0.9 MB",
+      "delta": "+0.1 MB",
+      "delta_pct": "+7.1%"
+    },
+    {
+      "metric": "profiler sample_capture_cpu_time_us sum",
+      "A": "478035",
+      "B": "421772",
+      "delta": "-56263",
+      "delta_pct": "-11.8%"
+    },
+    {
+      "metric": "profiler sample_count sum",
+      "A": "25406",
+      "B": "29233",
+      "delta": "+3827",
+      "delta_pct": "+15.1%"
+    }
+  ],
+  "sample_types": {
+    "A314": [
+      "cpu-time",
+      "cpu-samples",
+      "wall-time",
+      "wall-samples",
+      "exception-samples",
+      "lock-acquire-wait",
+      "lock-acquire",
+      "lock-release-hold",
+      "lock-release",
+      "alloc-space",
+      "alloc-samples",
+      "heap-space",
+      "heap-live-samples",
+      "gpu-time",
+      "gpu-samples",
+      "gpu-space",
+      "gpu-alloc-samples",
+      "gpu-flops",
+      "gpu-flops-samples"
+    ],
+    "B315": [
+      "cpu-time",
+      "cpu-samples",
+      "wall-time",
+      "wall-samples",
+      "exception-samples",
+      "lock-acquire-wait",
+      "lock-acquire",
+      "lock-release-hold",
+      "lock-release",
+      "alloc-space",
+      "alloc-samples",
+      "heap-space",
+      "heap-live-samples",
+      "gpu-time",
+      "gpu-samples",
+      "gpu-space",
+      "gpu-alloc-samples",
+      "gpu-flops",
+      "gpu-flops-samples"
+    ]
+  },
+  "proc_raw": {
+    "A314": {
+      "n": 88,
+      "cpu_mean": 22.717045454545453,
+      "cpu_p95": 28.7,
+      "cpu_max": 35.0,
+      "rss_mean_mb": 58.70365767045455,
+      "rss_p95_mb": 62.171875,
+      "rss_max_mb": 62.515625
+    },
+    "B315": {
+      "n": 88,
+      "cpu_mean": 24.00795454545454,
+      "cpu_p95": 30.7,
+      "cpu_max": 35.8,
+      "rss_mean_mb": 57.95134943181818,
+      "rss_p95_mb": 60.796875,
+      "rss_max_mb": 61.765625
+    }
+  },
+  "caveat": "single 90s laptop asyncio soak, concurrency per side; profiling_enabled=True; CPU% from ps 1Hz; RSS process RSS; long-lived event loop (not per-request asyncio.run)"
+}

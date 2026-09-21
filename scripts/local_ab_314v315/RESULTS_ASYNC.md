@@ -2,6 +2,8 @@
 
 Long-lived event-loop soak (not the ThreadingHTTPServer + per-request `asyncio.run` smoke). **Not** staging load, **not** multi-repeat.
 
+Vintage (machine clock): **Mon Sep 21 13:55–13:58 EDT 2026 (−0400)** — probe `…T175546Z`, soak `…T175559Z`.
+
 ## How to re-run
 
 ```bash
@@ -23,12 +25,12 @@ DDTRACE_SRC=/tmp/dd-trace-py-822dd5a-profoff \
 
 Ports default **18500 / 18501**. Requires `PY314_BIN` / `PY315_BIN` (same defaults as `run.sh`).
 
-## Run identity (verified)
+## Run identity (verified) — latest soak
 
 | Field | Value |
 | --- | --- |
-| `RUN_DIR` | `/tmp/local314v315_async_20260921T173604Z` |
-| In-repo copy | `runs/20260921T173604Z_async/` (summary, delta, proc, drive, `/stats` JSON, metadata — **no** `.pprof`) |
+| `RUN_DIR` | `/tmp/local314v315_async_20260921T175559Z` |
+| In-repo copy | `runs/20260921T175559Z_async/` (summary, delta, proc, drive, `/stats` JSON, metadata — **no** `.pprof`) |
 | Editable install tip | `822dd5a3fa158883b368965f081c97ccaa32c617` (`822dd5a^` = **`faae7e3b2b`** = GitHub #19272 HEAD when run) |
 | A Python | `/opt/homebrew/bin/python3.14` → **3.14.6** |
 | B Python | `~/.pyenv/versions/3.15.0a7/bin/python` → **3.15.0a7** |
@@ -36,46 +38,58 @@ Ports default **18500 / 18501**. Requires `PY314_BIN` / `PY315_BIN` (same defaul
 | Concurrency | **4 workers / side** |
 | Profiling | on (lock+memory, upload 15 s, local `OUTPUT_PPROF`) |
 | Workload | `async_app.py`: one `asyncio.run` for process life; long-pool=24; continuous create_task / nest / TaskGroup churn; HTTP `/work` `/churn` `/fanout` |
+| Prior soak (kept) | `/tmp/local314v315_async_20260921T173604Z` → `runs/20260921T173604Z_async/` |
 
 ---
 
 ## Comparison to smoke (`RESULTS.md`)
 
-| Signal | Smoke (`app.py`) | Async (`async_app.py`) | Status |
+| Signal | Smoke (`app.py`) | Async latest (`…T175559Z`) | Status |
 | --- | --- | --- | --- |
 | Event loop | Per-request `asyncio.run` on ThreadingHTTPServer | **One loop for soak** | verified design |
-| `asyncio_task_count` mean (pprof meta) | **3.00 / 3.00** | **112.57 / 109.14** (7 metas @ summary) | verified |
+| `asyncio_task_count` mean (pprof meta) | **3.00 / 3.00** | **109.29 / 111.43** (7 metas @ summary) | verified |
 | Task names on stacks | Not exercised | **`task name:[long-pool-*]`** labels present both sides | verified `go tool pprof -raw` mid profile |
 | Dedicated `asyncio` sample type | **absent** | **absent** | verified sample-type list |
-| RSS mean Δ (B−A) | **+14.9%** | **+0.3%** (~parity) | verified |
+| RSS mean Δ (B−A) | **+14.9%** | **−1.3%** (~parity) | verified |
 | Errors | 0 | 0 | verified |
 
-**Verdict:** this is a **better #19272 asyncio/monitoring validator than smoke**. Smoke only proved boot + flat meta `asyncio_task_count=3`. Async keeps task count elevated (~110) and emits named-task labels on CPU/wall samples on both 3.14 (wrap path) and 3.15 (sys.monitoring path).
+**Verdict:** this is a **better #19272 asyncio/monitoring validator than smoke**. Smoke only proved boot + flat meta `asyncio_task_count=3`. Async keeps task count elevated (~110) and emits named-task labels on CPU/wall samples on both 3.14 (wrap path) and 3.15 (sys.monitoring path). Soft gate `/hook_path` asserts wrap vs monitoring before soak.
 
 ---
 
-## Verified metric table
+## Verified metric table (latest soak)
 
-Window: one 90 s concurrent drive; CPU/RSS from **n=88** `ps` rows/side; profiles every 15 s; table matches `delta_table.json` / `summary.json` at summary time (**7** `.pprof` / side; tree later grew to 8).
+Window: one 90 s concurrent drive; CPU/RSS from **n=88** `ps` rows/side; profiles every 15 s; table matches `delta_table.json` / `summary.json` at summary time (**7** `.pprof` / side; tree later grew to 8). **PASS** (0 errors; probe PASS before soak).
 
 | Metric | A 3.14.6 | B 3.15.0a7 | Δ | Δ% | Status |
 | --- | ---: | ---: | ---: | ---: | --- |
-| req total (90 s) | 38902 | 38339 | −563 | −1.4% | verified `drive_stats.json` |
-| req/s | 432.2 | 426.0 | −6.3 | −1.4% | inferred |
+| req total (90 s) | 37734 | 37775 | +41 | +0.1% | verified `drive_stats.json` |
+| req/s | 419.3 | 419.7 | +0.5 | +0.1% | inferred |
 | errors | 0 | 0 | 0 | 0% | verified |
-| CPU% mean (`ps` 1 Hz) | 23.9% | 23.2% | −0.7 pp | −3.0% | verified |
-| CPU% p95 | 30.3% | 29.9% | −0.4 pp | −1.3% | verified |
-| RSS mean | 60.3 MiB | 60.5 MiB | +0.2 MiB | +0.3% | verified |
-| RSS p95 | 63.7 MiB | 62.7 MiB | −1.0 MiB | −1.6% | verified |
-| `asyncio_task_count` mean (7 metas) | **112.57** | **109.14** | −3.43 | −3.0% | verified metadata |
-| `asyncio_task_count` max | 116 | 114 | −2 | −1.7% | verified |
-| HTTP `/stats` task_count (post) | 27 | 27 | 0 | 0% | verified (pool+churn quiescent moment) |
+| CPU% mean (`ps` 1 Hz) | 22.7% | 24.0% | +1.3 pp | +5.7% | verified |
+| CPU% p95 | 28.7% | 30.7% | +2.0 pp | +7.0% | verified |
+| RSS mean | 58.7 MiB | 58.0 MiB | −0.8 MiB | −1.3% | verified |
+| RSS p95 | 62.2 MiB | 60.8 MiB | −1.4 MiB | −2.2% | verified |
+| `asyncio_task_count` mean (7 metas) | **109.29** | **111.43** | +2.14 | +2.0% | verified metadata |
+| `asyncio_task_count` max | 116 | 116 | 0 | 0% | verified |
+| HTTP `/stats` task_count (post) | 27 | 27 | 0 | 0% | verified |
 | HTTP named_tasks_n (post) | 25 | 25 | 0 | 0% | verified |
 | `.pprof` @ summary | 7 | 7 | 0 | 0% | verified |
-| `sample_count` sum | 25876 | 28312 | +2436 | +9.4% | verified |
-| `sample_capture_cpu_time_us` sum | 464641 | 396290 | −68351 | −14.7% | verified |
+| `sample_count` sum | 25406 | 29233 | +3827 | +15.1% | verified |
+| `sample_capture_cpu_time_us` sum | 478035 | 421772 | −56263 | −11.8% | verified |
 
-Full 8-meta series (incl. post-kill): A `[112,112,114,112,116,114,108,82]` · B `[112,114,114,114,114,114,82,82]`.
+Full 8-meta series (incl. post-kill): A `[114,114,113,116,116,110,82,82]` · B `[116,114,114,116,112,114,94,82]`.
+
+### Δ vs prior soak (`…T173604Z`)
+
+Same tip / interpreters / duration / concurrency. Single-run noise; not a regression claim.
+
+| Metric | Prior A→B | Latest A→B | Note |
+| --- | --- | --- | --- |
+| req total | 38902 → 38339 (−1.4%) | 37734 → 37775 (+0.1%) | both ~0 errors |
+| RSS mean | 60.3 → 60.5 (+0.3%) | 58.7 → 58.0 (−1.3%) | still ~parity |
+| CPU% mean | 23.9 → 23.2 (−3.0%) | 22.7 → 24.0 (+5.7%) | sign flips; single-run |
+| `asyncio_task_count` mean | 112.57 → 109.14 (−3.0%) | 109.29 → 111.43 (+2.0%) | both ~110 |
 
 ### Sample types (mid profile `.3`, zstd → `go tool pprof -raw`)
 
@@ -85,27 +99,26 @@ Present on **both** A and B (same list as smoke — no dedicated asyncio type):
 
 ### Task-name labels (mid profile `.3`)
 
-Both sides: hundreds of samples labeled `task name:[long-pool-N]` (N=0…23). Also `thread name:[asyncio_N]` for `to_thread` workers.
-
-CPU top (illustrative, one window): A dominated by `sleep` / `SimpleQueue.get` / `_leaf_work`; B by `_long_lived_task` / `SimpleQueue.get` / `_leaf_work` / `_nested_await` / `create_task`. Frame-shape Δ is **observed**, not attributed to monitoring vs wrap without a controlled microbench.
+Both sides: thousands of samples labeled `task name:[long-pool-N]` (A mid count **3714**, B **4308**). Also `thread name:[asyncio_N]` for `to_thread` workers.
 
 ---
 
-## Monitoring vs wrap probe (covered)
+## Monitoring vs wrap probe (covered) — rerun PASS
 
 | Field | Value |
 | --- | --- |
 | Endpoint | `GET /hook_path` on `async_app.py` |
 | Gate | `run_async.sh` asserts A=`wrap`, B=`monitoring` when `PROFILING=1` (before soak) |
 | Fast path | `PROBE_ONLY=1` exits after assert |
-| Verified run | `/tmp/local314v315_async_20260921T174853Z` |
-| In-repo copy | `runs/20260921T174853Z_async_probe/logs/hook_path_{A314,B315}.json` |
-| Tip under test | `822dd5a3fa` (`faae7e3b2b` = #19272 HEAD parent at prior async soak) |
+| Verified probe-only | `/tmp/local314v315_async_20260921T175546Z` → `runs/20260921T175546Z_async_probe/` |
+| Also asserted | inside soak `…T175559Z` before drive |
+| Prior probe (kept) | `/tmp/local314v315_async_20260921T174853Z` |
+| Tip under test | `822dd5a3fa` (`faae7e3b2b` = #19272 HEAD parent) |
 
 | Side | `observed_path` | `create_task_wrapped` | `monitoring_tool_id` | handlers | Status |
 | --- | --- | --- | --- | --- | --- |
-| A 3.14.6 | **wrap** | true | null | none | verified PASS |
-| B 3.15.0a7 | **monitoring** | false | 3 | create_task + TaskGroup.create_task | verified PASS |
+| A 3.14.6 | **wrap** | true | null | none | verified **PASS** |
+| B 3.15.0a7 | **monitoring** | false | 3 | create_task + TaskGroup.create_task | verified **PASS** |
 
 Meaning: on 3.15, `asyncio.tasks.create_task` / `TaskGroup.create_task` use `sys.monitoring` `PY_RETURN` (not `wrap()`); on 3.14 they stay `wrap()`'d. Other asyncio hooks remain wrap on both (by design in #19272).
 
