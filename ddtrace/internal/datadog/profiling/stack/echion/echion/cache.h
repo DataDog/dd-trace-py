@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <functional>
 #include <list>
 #include <memory>
@@ -12,29 +11,20 @@
 
 #include <echion/errors.h>
 
+#define CACHE_MAX_ENTRIES 2048
+
 template<typename K, typename V>
 class LRUCache
 {
   public:
     LRUCache(size_t capacity)
-      : capacity_(std::max<size_t>(capacity, 1))
+      : capacity(capacity)
     {
     }
 
     Result<std::reference_wrapper<V>> lookup(const K& k);
 
     void store(const K& k, std::unique_ptr<V> v);
-
-    void set_capacity(size_t capacity)
-    {
-        capacity_ = std::max<size_t>(capacity, 1);
-        while (items.size() > capacity_) {
-            index.erase(items.back().first);
-            items.pop_back();
-        }
-    }
-
-    [[nodiscard]] size_t capacity() const { return capacity_; }
 
     void clear()
     {
@@ -54,7 +44,7 @@ class LRUCache
     }
 
   private:
-    size_t capacity_;
+    size_t capacity;
     std::list<std::pair<K, std::unique_ptr<V>>> items;
     std::unordered_map<K, typename std::list<std::pair<K, std::unique_ptr<V>>>::iterator> index;
 };
@@ -64,7 +54,7 @@ void
 LRUCache<K, V>::store(const K& k, std::unique_ptr<V> v)
 {
     // Check if cache is full
-    if (items.size() >= capacity_) {
+    if (items.size() >= capacity) {
         index.erase(items.back().first);
         items.pop_back();
     }
