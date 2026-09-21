@@ -6,6 +6,7 @@
 
 #include "dd_wrapper/include/defer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cerrno>
@@ -25,7 +26,7 @@
 #include <unistd.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
-#include <mach-o/getsect.h>
+#include <mach-o/loader.h>
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 #endif
@@ -61,6 +62,12 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
 namespace {
 
 bool
+contains_span(uint64_t size, uint64_t offset, uint64_t length)
+{
+    return offset <= size && length <= size - offset;
+}
+
+bool
 read_loaded_memory(const void* address, void* buffer, size_t size)
 {
     // Discovery runs without the GIL on an initialization thread. Use process_vm_readv directly (and
@@ -93,6 +100,8 @@ read_asyncio_debug_table(const PyAsyncioDebugOffsets* debug_offsets)
     return read_loaded_memory(debug_offsets, &table, sizeof(table)) ? parse_asyncio_debug_offsets(table) : std::nullopt;
 }
 
+#if defined(__linux__)
+
 bool
 is_asyncio_binary(const char* path)
 {
@@ -105,15 +114,7 @@ is_asyncio_binary(const char* path)
            std::strncmp(filename, "python", 6) == 0 || std::strncmp(filename, "Python", 6) == 0;
 }
 
-#if defined(__linux__)
-
 constexpr size_t max_program_headers = 256;
-
-bool
-contains_span(uint64_t size, uint64_t offset, uint64_t length)
-{
-    return offset <= size && length <= size - offset;
-}
 
 bool
 read_at(int fd, uint64_t file_size, uint64_t offset, void* buffer, size_t size)
@@ -489,6 +490,100 @@ snapshot_asyncio_binary(dl_phdr_info* binary, size_t, void* data)
     return 0;
 }
 
+#elif defined(__APPLE__)
+
+struct MachOSnapshot
+{
+    mach_header_64 header;
+    std::array<unsigned char, 64 * 1024> commands;
+};
+
+static_assert(offsetof(MachOSnapshot, commands) == sizeof(mach_header_64));
+
+std::optional<AsyncioOffsets>
+read_asyncio_debug_offsets_from_macho(const mach_header* binary, MachOSnapshot& snapshot)
+{
+    // dyld's indexed enumeration does not retain images. Never dereference its pointers, including image names:
+    // another thread may dlclose an image between any two calls. Snapshot all metadata with guarded syscalls and
+    // validate command bounds before parsing owned bytes. Unloading during a read must only lose attribution.
+    mach_header_64 header;
+    if (binary == nullptr || !read_loaded_memory(binary, &header, sizeof(header)) || header.magic != MH_MAGIC_64 ||
+        (header.filetype != MH_EXECUTE && header.filetype != MH_DYLIB && header.filetype != MH_BUNDLE) ||
+        header.ncmds == 0 || header.ncmds > 256 || header.sizeofcmds > snapshot.commands.size()) {
+        return std::nullopt;
+    }
+    const size_t metadata_size = sizeof(header) + header.sizeofcmds;
+    if (!read_loaded_memory(binary, &snapshot, metadata_size) ||
+        std::memcmp(&header, &snapshot.header, sizeof(header)) != 0) {
+        return std::nullopt;
+    }
+
+    std::optional<uint64_t> header_vmaddr;
+    std::optional<uint64_t> debug_vmaddr;
+    size_t offset = 0;
+    for (uint32_t i = 0; i < header.ncmds; ++i) {
+        load_command command;
+        if (!contains_span(header.sizeofcmds, offset, sizeof(command))) {
+            return std::nullopt;
+        }
+        std::memcpy(&command, snapshot.commands.data() + offset, sizeof(command));
+        if (command.cmdsize < sizeof(command) || command.cmdsize % 8 != 0 ||
+            !contains_span(header.sizeofcmds, offset, command.cmdsize)) {
+            return std::nullopt;
+        }
+        if (command.cmd == LC_SEGMENT_64) {
+            segment_command_64 segment;
+            if (command.cmdsize < sizeof(segment)) {
+                return std::nullopt;
+            }
+            std::memcpy(&segment, snapshot.commands.data() + offset, sizeof(segment));
+            if (segment.nsects > (command.cmdsize - sizeof(segment)) / sizeof(section_64)) {
+                return std::nullopt;
+            }
+            if ((segment.initprot & VM_PROT_READ) != 0) {
+                // The segment containing the file header determines the slide, without another racy dyld lookup.
+                if (segment.fileoff == 0 && segment.filesize >= metadata_size && segment.vmsize >= metadata_size) {
+                    if (header_vmaddr) {
+                        return std::nullopt;
+                    }
+                    header_vmaddr = segment.vmaddr;
+                }
+                if (std::strncmp(segment.segname, SEG_DATA, sizeof(segment.segname)) == 0) {
+                    for (uint32_t j = 0; j < segment.nsects; ++j) {
+                        section_64 section;
+                        std::memcpy(&section,
+                                    snapshot.commands.data() + offset + sizeof(segment) + j * sizeof(section),
+                                    sizeof(section));
+                        if (std::strncmp(section.sectname, "AsyncioDebug", sizeof(section.sectname)) == 0 &&
+                            std::strncmp(section.segname, SEG_DATA, sizeof(section.segname)) == 0 &&
+                            (section.flags & SECTION_TYPE) == S_REGULAR &&
+                            section.size >= sizeof(PyAsyncioDebugOffsets) && section.addr >= segment.vmaddr &&
+                            contains_span(segment.vmsize, section.addr - segment.vmaddr, section.size)) {
+                            if (debug_vmaddr) {
+                                return std::nullopt;
+                            }
+                            debug_vmaddr = section.addr;
+                        }
+                    }
+                }
+            }
+        }
+        offset += command.cmdsize;
+    }
+
+    if (offset != header.sizeofcmds || !header_vmaddr || !debug_vmaddr || *debug_vmaddr < *header_vmaddr) {
+        return std::nullopt;
+    }
+    const uintptr_t base = reinterpret_cast<uintptr_t>(binary);
+    const uint64_t debug_offset = *debug_vmaddr - *header_vmaddr;
+    if (debug_offset > std::numeric_limits<uintptr_t>::max() - base) {
+        return std::nullopt;
+    }
+    // The address refers to the loaded image, not the metadata snapshot. This final read is guarded too.
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    return read_asyncio_debug_table(reinterpret_cast<const PyAsyncioDebugOffsets*>(base + debug_offset));
+}
+
 #endif
 
 } // namespace
@@ -548,18 +643,16 @@ find_asyncio_debug_offsets()
     }
     return std::nullopt;
 #elif defined(__APPLE__)
-    for (uint32_t index = 0; index < _dyld_image_count(); ++index) {
-        const mach_header* binary = _dyld_get_image_header(index);
-        if (!is_asyncio_binary(_dyld_get_image_name(index)) || binary == nullptr || binary->magic != MH_MAGIC_64) {
-            continue;
-        }
-        unsigned long size = 0;
-        const auto* section =
-          getsectiondata(reinterpret_cast<const mach_header_64*>(binary), SEG_DATA, "AsyncioDebug", &size);
-        if (size >= sizeof(PyAsyncioDebugOffsets)) {
-            if (auto offsets = read_asyncio_debug_table(reinterpret_cast<const PyAsyncioDebugOffsets*>(section))) {
-                return offsets;
-            }
+    auto snapshot = std::unique_ptr<MachOSnapshot>(new (std::nothrow) MachOSnapshot);
+    if (!snapshot) {
+        return std::nullopt;
+    }
+    // A bounded pass may miss an image when another thread changes the list; later initialization can retry.
+    // Scan by section rather than filename so no borrowed dyld string needs to be dereferenced.
+    const uint32_t count = std::min(_dyld_image_count(), uint32_t{ 4096 });
+    for (uint32_t index = 0; index < count; ++index) {
+        if (auto offsets = read_asyncio_debug_offsets_from_macho(_dyld_get_image_header(index), *snapshot)) {
+            return offsets;
         }
     }
     return std::nullopt;

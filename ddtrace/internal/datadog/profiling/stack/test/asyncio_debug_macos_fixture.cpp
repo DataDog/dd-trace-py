@@ -1,6 +1,6 @@
 #include <echion/cpython/asyncio_debug.h>
 
-// Build real Mach-O images so getsectiondata sees loader-produced metadata, not a mock section pointer.
+// Build real Mach-O images so discovery parses loader-produced metadata, not a mock section pointer.
 #if defined(ASYNCIO_FIXTURE_UNDERSIZED)
 __attribute__((section("__DATA,AsyncioDebug"), used)) static uint64_t debug_table = 0;
 #elif defined(ASYNCIO_FIXTURE_INVALID)
