@@ -6,16 +6,31 @@ factory function along with the stream to wrap.
 
 from abc import ABC
 from abc import abstractmethod
+from asyncio import CancelledError
 import sys
 from typing import Optional
 from typing import Union
 
 import wrapt
 
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+# Record these on the LLM span. CancelledError and DDBlockException
+# (AI Guard abort) are BaseException, so an Exception-only check misses them.
+# Do not use BaseException here: KeyboardInterrupt/SystemExit/GeneratorExit
+# should not be tagged as stream errors.
+_RECORDED_STREAM_ERRORS = (Exception, CancelledError, DDBlockException)
+
+
+def _safe_close_from_context_exit(handler, exception, message):
+    try:
+        handler._close_from_context_exit(exception)
+    except Exception:
+        log.debug(message, exc_info=True)
 
 
 def _bind_entered_stream(parent, traced_stream):
@@ -26,12 +41,12 @@ def _bind_entered_stream(parent, traced_stream):
         callback = parent._self_on_stream_created
         if callback is not None:
             callback(traced_stream)
-    except Exception as e:
-        try:
-            parent._self_handler.handle_exception(e)
-            parent._self_handler.close_stream(e)
-        except Exception:
-            log.debug("Failed to finalize traced stream after on_stream_created", exc_info=True)
+    except _RECORDED_STREAM_ERRORS as e:
+        _safe_close_from_context_exit(
+            parent._self_handler,
+            e,
+            "Failed to finalize traced stream after on_stream_created",
+        )
         raise
     parent._self_entered_stream = traced_stream
     return traced_stream
@@ -47,8 +62,8 @@ class BaseStreamHandler(ABC):
 
         self.spans = [(span, kwargs)]
         self.chunks = self.initialize_chunk_storage()
-        # NOTE: iteration (`__iter__`/`__next__`) and GC (`__del__`) both try
-        # to finish the span. Only the first call may run.
+        # NOTE: iteration (`__iter__`/`__next__`), context-manager `__exit__`,
+        # and GC (`__del__`) all try to finish the span. Only the first call may run.
         self._finalized = False
         self._stream_started = False
 
@@ -110,14 +125,25 @@ class BaseStreamHandler(ABC):
     def close_stream(self, exception=None):
         """Call finalize_stream at most once.
 
-        TracedStream finishes from __iter__/__next__ and from __del__ when a
-        caller pulls chunks with next() and then drops the stream. Without
-        this guard, span tags and span.finish() would fire twice.
+        TracedStream finishes from __iter__/__next__, from __exit__, and from
+        __del__ when a caller pulls chunks with next() and then drops the stream.
+        Without this guard, span tags and span.finish() would fire twice.
         """
         if getattr(self, "_finalized", False):
             return
         self._finalized = True
         self.finalize_stream(exception)
+
+    def _close_from_context_exit(self, exception=None):
+        # A raise inside `with stream:` never hits __iter__/__next__'s except
+        # block. Record it on the span before finishing, but only if iteration
+        # has not already finalized: an error after a completed stream belongs
+        # to the caller, not the LLM span.
+        # CancelledError and DDBlockException are BaseException, so an
+        # Exception-only check would finish an abort/cancel as success.
+        if isinstance(exception, _RECORDED_STREAM_ERRORS) and not getattr(self, "_finalized", False):
+            self.handle_exception(exception)
+        self.close_stream(exception)
 
 
 class StreamHandler(BaseStreamHandler):
@@ -214,7 +240,7 @@ class TracedStream(wrapt.ObjectProxy):
                 self._self_handler.process_chunk(chunk, self._self_stream_iter)
                 if self._self_handler.should_yield_chunk(chunk):
                     yield chunk
-        except Exception as e:
+        except _RECORDED_STREAM_ERRORS as e:
             exc = e
             self._self_handler.handle_exception(e)
             raise
@@ -230,7 +256,7 @@ class TracedStream(wrapt.ObjectProxy):
             except StopIteration:
                 self._self_handler.close_stream()
                 raise
-            except Exception as e:
+            except _RECORDED_STREAM_ERRORS as e:
                 self._self_handler.handle_exception(e)
                 self._self_handler.close_stream(e)
                 raise
@@ -265,7 +291,31 @@ class TracedStream(wrapt.ObjectProxy):
         return _bind_entered_stream(self, traced_stream)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        # NOTE: callers that open the stream as a context manager and
+        # do not iterate it to completion never hit `__iter__`/`__next__`
+        # StopIteration, so the span would stay open and later requests on
+        # this worker would nest under it. Close the wrapped stream first so a
+        # cleanup failure is recorded before finalize; close_stream is a
+        # no-op if iteration already finalized. Catch BaseException so
+        # asyncio.CancelledError from wrapped cleanup still finalizes
+        # instead of leaving the span open until __del__.
+        close_exc = exc_val
+        suppress = False
+        try:
+            suppress = self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        except BaseException as e:
+            if exc_val is None:
+                close_exc = e
+                raise
+            raise exc_val from e
+        finally:
+            _safe_close_from_context_exit(
+                self._self_handler,
+                close_exc,
+                "Failed to finalize traced stream on context-manager exit",
+            )
+            self._self_entered_stream = None
+        return suppress
 
     @property
     def handler(self):
@@ -310,7 +360,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
                 await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
                 if self._self_handler.should_yield_chunk(chunk):
                     yield chunk
-        except Exception as e:
+        except _RECORDED_STREAM_ERRORS as e:
             exc = e
             self._self_handler.handle_exception(e)
             raise
@@ -326,7 +376,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
             except StopAsyncIteration:
                 self._self_handler.close_stream()
                 raise
-            except Exception as e:
+            except _RECORDED_STREAM_ERRORS as e:
                 self._self_handler.handle_exception(e)
                 self._self_handler.close_stream(e)
                 raise
@@ -360,7 +410,23 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         return _bind_entered_stream(self, traced_stream)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        close_exc = exc_val
+        suppress = False
+        try:
+            suppress = await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseException as e:
+            if exc_val is None:
+                close_exc = e
+                raise
+            raise exc_val from e
+        finally:
+            _safe_close_from_context_exit(
+                self._self_handler,
+                close_exc,
+                "Failed to finalize traced async stream on context-manager exit",
+            )
+            self._self_entered_stream = None
+        return suppress
 
     @property
     def handler(self):
