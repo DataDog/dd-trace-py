@@ -73,6 +73,7 @@ class SpanLinks
     void reset();
 
     // These lifecycle methods run with the GIL held, before or after a native map mutation that releases it.
+    // Both thread and task publications must use them so a concurrent finish waits for every pending write.
     void on_link_start(uint64_t span_id);
     bool on_link_end(uint64_t span_id);
     bool on_span_finish(uint64_t span_id);

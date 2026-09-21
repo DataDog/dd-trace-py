@@ -82,6 +82,7 @@ class StackRenderer
     SampleHandle sample;
     ThreadState thread_state = {};
     SpanAttribution thread_span;
+    // Set iff the current sample's span attribution is finalized, including an explicit no-span result.
     bool span_attribution_resolved = false;
 
     // Render attribution captured for the physical thread being sampled.

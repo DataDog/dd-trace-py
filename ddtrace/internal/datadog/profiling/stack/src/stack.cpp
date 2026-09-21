@@ -17,8 +17,6 @@
 #include "echion/vm.h"
 
 #include <cmath>
-#include <exception>
-#include <new>
 #include <string_view>
 #include <utility>
 
@@ -266,14 +264,17 @@ stack_link_task_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         return nullptr;
     }
 
-    try {
-        SpanLinks::get_instance().link_task_span(
-          task_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
-    } catch (const std::bad_alloc&) {
-        return PyErr_NoMemory();
-    } catch (const std::exception& e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-        return nullptr;
+    auto& links = SpanLinks::get_instance();
+    links.on_link_start(span_id);
+
+    Py_BEGIN_ALLOW_THREADS;
+    links.link_task_span(task_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
+    Py_END_ALLOW_THREADS;
+
+    if (links.on_link_end(span_id)) {
+        Py_BEGIN_ALLOW_THREADS;
+        links.unlink_finished_span(span_id);
+        Py_END_ALLOW_THREADS;
     }
 
     Py_RETURN_NONE;
@@ -291,7 +292,9 @@ stack_clear_task_span(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+    Py_BEGIN_ALLOW_THREADS;
     SpanLinks::get_instance().unlink_task_span(task_id);
+    Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
 }
@@ -305,7 +308,9 @@ stack_unlink_task_span(PyObject* self, PyObject* args)
     if (!PyArg_ParseTuple(args, "KK", &task_id, &expected_span_id)) {
         return nullptr;
     }
+    Py_BEGIN_ALLOW_THREADS;
     SpanLinks::get_instance().unlink_task_span(task_id, expected_span_id);
+    Py_END_ALLOW_THREADS;
     Py_RETURN_NONE;
 }
 
@@ -334,7 +339,10 @@ stack_reset_span_links(PyObject* self, PyObject* args)
 {
     (void)self;
     (void)args;
+    Py_BEGIN_ALLOW_THREADS;
     SpanLinks::get_instance().reset();
+    Py_END_ALLOW_THREADS;
+
     Py_RETURN_NONE;
 }
 

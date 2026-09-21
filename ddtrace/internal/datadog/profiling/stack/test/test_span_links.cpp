@@ -252,6 +252,28 @@ TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
     EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
 }
 
+TEST(SpanLinks, FinishingWhileThreadAndTaskLinkingWaitsForBoth)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    constexpr uint64_t thread_id = 302;
+    constexpr uint64_t task_id = 303;
+    constexpr uint64_t span_id = 3002;
+    links.reset();
+
+    links.on_link_start(span_id);
+    links.on_link_start(span_id);
+    EXPECT_FALSE(links.on_span_finish(span_id));
+
+    links.link_span(thread_id, span_id, span_id, "web");
+    EXPECT_FALSE(links.on_link_end(span_id));
+    links.link_task_span(task_id, span_id, span_id, "web");
+    EXPECT_TRUE(links.on_link_end(span_id));
+
+    links.unlink_finished_span(span_id);
+    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span_from_task_id(task_id), std::nullopt);
+}
+
 int
 main(int argc, char** argv)
 {
