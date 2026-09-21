@@ -736,7 +736,7 @@ class Config(object):
             )
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
-        # AIDEV-NOTE: Default false. The Linux TLS publisher from PR 19118 leaks a 640-byte
+        # NOTE: Default false. The Linux TLS publisher from PR 19118 leaks a 640-byte
         # native record for every OS thread that dies with a context still attached.
         self._otel_thread_context_enabled = _get_config("DD_TRACE_OTEL_CTX_ENABLED", False, asbool)
 
