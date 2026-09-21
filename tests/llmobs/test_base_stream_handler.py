@@ -3,6 +3,10 @@ and ``TracedStream`` / ``TracedAsyncStream``. The hook is consumed by every
 LLM contrib, so a regression here surfaces as silent breakage downstream.
 """
 
+import gc
+from unittest.mock import Mock
+from unittest.mock import patch
+
 import pytest
 
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -153,3 +157,161 @@ def test_traced_stream_start_stream_fires_before_first_chunk():
     traced = make_traced_stream(_sync_chunks(2), handler)
     list(traced)
     assert handler.events == ["start", ("chunk", 0), ("chunk", 1)]
+
+
+def test_traced_stream_finalizes_when_dropped_after_partial_next():
+    """A caller that pulls chunks with next() and then drops the stream never
+    hits StopIteration, so finalize must run from GC. Otherwise the LLM span
+    stays open and later requests on the same worker nest under it.
+    """
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks(5), handler)
+    assert next(traced) == 0
+    assert next(traced) == 1
+    assert handler.finalize_stream_calls == 0
+    del traced
+    gc.collect()
+    assert handler.finalize_stream_calls == 1
+
+
+def test_traced_stream_gc_does_not_double_finalize_after_exhaust():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks(3), handler)
+    assert list(traced) == [0, 1, 2]
+    assert handler.finalize_stream_calls == 1
+    del traced
+    gc.collect()
+    assert handler.finalize_stream_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_finalizes_when_dropped_after_partial_anext():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_async_chunks(5), handler)
+    assert await traced.__anext__() == 0
+    assert handler.finalize_stream_calls == 0
+    del traced
+    gc.collect()
+    assert handler.finalize_stream_calls == 1
+
+
+class _CtxStream:
+    def __init__(self, n):
+        self._it = iter(range(n))
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._it)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _AsyncCtxStream:
+    def __init__(self, n):
+        self._it = iter(range(n))
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._it)
+        except StopIteration:
+            raise StopAsyncIteration
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _StreamManager:
+    def __init__(self, n):
+        self._n = n
+
+    def __enter__(self):
+        return _CtxStream(self._n)
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _AsyncStreamManager:
+    def __init__(self, n):
+        self._n = n
+
+    async def __aenter__(self):
+        return _AsyncCtxStream(self._n)
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def test_traced_stream_manager_without_as_does_not_finalize_on_enter():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_StreamManager(3), handler)
+    with traced:
+        gc.collect()
+        assert handler.finalize_stream_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_manager_without_as_does_not_finalize_on_enter():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_AsyncStreamManager(3), handler)
+    async with traced:
+        gc.collect()
+        assert handler.finalize_stream_calls == 0
+
+
+def test_traced_stream_finalizes_when_on_stream_created_raises():
+    handler = _SyncRecordingHandler()
+
+    def boom(_stream):
+        raise RuntimeError("callback failed")
+
+    traced = make_traced_stream(_StreamManager(3), handler, on_stream_created=boom)
+    with pytest.raises(RuntimeError, match="callback failed"):
+        with traced:
+            pass
+    assert handler.finalize_stream_calls == 1
+    assert traced._self_entered_stream is None
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_finalizes_when_on_stream_created_raises():
+    handler = _AsyncRecordingHandler()
+
+    def boom(_stream):
+        raise RuntimeError("callback failed")
+
+    traced = make_traced_stream(_AsyncStreamManager(3), handler, on_stream_created=boom)
+    with pytest.raises(RuntimeError, match="callback failed"):
+        async with traced:
+            pass
+    assert handler.finalize_stream_calls == 1
+    assert traced._self_entered_stream is None
+
+
+def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
+    from ddtrace.contrib.internal.langchain.utils import LangchainStreamHandler
+
+    span = Mock()
+    handler = LangchainStreamHandler(None, span, (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
+        handler.finalize_stream()
+    dispatch.assert_not_called()
+    span.finish.assert_called_once()
+
+    started = LangchainStreamHandler(None, Mock(), (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    started._stream_started = True
+    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
+        started.finalize_stream()
+    dispatch.assert_called_once_with("langchain.llm.stream.finally", ())
