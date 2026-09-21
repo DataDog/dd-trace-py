@@ -9,10 +9,10 @@ concerns from the transport/batching layer.  The writer delegates to a
 single DependencyTracker instance.
 """
 
+from collections.abc import Iterable
 from importlib.metadata import PackageNotFoundError
 import re
 from typing import Any
-from typing import Iterable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger

@@ -731,7 +731,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             on_new_test=_on_new_test,
         )
 
-    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+    def _apply_test_management_markers(self, item: pytest.Item, test: Test) -> None:
         """Apply test management markers for the base plugin (used when an external rerun plugin drives execution).
 
         ATF retries are not supported in this mode — the external plugin controls the protocol and we cannot intercept
@@ -1338,7 +1338,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
     span bookkeeping.
     """
 
-    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+    def _apply_test_management_markers(self, item: pytest.Item, test: Test) -> None:
         """Apply test management markers for the plugin that drives retries itself.
 
         ATF tests must NOT use skip or xfail here: ATF takes precedence over quarantine/disable markers, and any
@@ -1775,7 +1775,7 @@ def _get_test_command(config: pytest.Config) -> str:
     if invocation_params := getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(invocation_params.args))
     if addopts := env.get("PYTEST_ADDOPTS"):
-        command += " {}".format(addopts)
+        command += f" {addopts}"
     return command
 
 

@@ -1,8 +1,8 @@
+from collections.abc import Iterable
 import io
 import json
 from types import TracebackType
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 from urllib.parse import urlsplit
@@ -402,7 +402,7 @@ def _parse_headers_urllib3(headers):
 def _urllib3_absolute_url(instance, path: str) -> str:
     try:
         port = getattr(instance, "port", None)
-        netloc = "{}:{}".format(instance.host, port) if port and port not in (80, 443) else str(instance.host)
+        netloc = f"{instance.host}:{port}" if port and port not in (80, 443) else str(instance.host)
         return urlunparse((instance.scheme, netloc, path, "", "", ""))
     except Exception:  # nosec
         return path

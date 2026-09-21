@@ -19,7 +19,7 @@ def _register(scenario_cls: type["Scenario"]) -> None:
     def add_cmdline_args(cmd, args):
         for _field in dataclasses.fields(scenario_cls):
             if hasattr(args, _field.name):
-                cmd.extend(("--{}".format(_field.name), str(getattr(args, _field.name))))
+                cmd.extend((f"--{_field.name}", str(getattr(args, _field.name))))
 
     runner = pyperf.Runner(add_cmdline_args=add_cmdline_args)
     cmd = runner.argparser
@@ -28,7 +28,7 @@ def _register(scenario_cls: type["Scenario"]) -> None:
         if _field.name == "cprofile_loops":
             continue
 
-        cmd.add_argument("--{}".format(_field.name), type=_field.type if _field.type is not bool else str_to_bool)
+        cmd.add_argument(f"--{_field.name}", type=_field.type if _field.type is not bool else str_to_bool)
 
     parsed_args = runner.parse_args()
 
@@ -42,7 +42,7 @@ def _register(scenario_cls: type["Scenario"]) -> None:
 
     # If requests, generate a cProfile pstats file
     if scenario._cprofile_loops and parsed_args.append:
-        pstats_output = os.path.join(os.path.dirname(parsed_args.append), "{}.pstats".format(scenario.scenario_name))
+        pstats_output = os.path.join(os.path.dirname(parsed_args.append), f"{scenario.scenario_name}.pstats")
 
         with cProfile.Profile() as pr:
             try:
@@ -66,7 +66,7 @@ class Scenario:
 
     @property
     def scenario_name(self):
-        return "{}-{}".format(self.__class__.__name__.lower(), self.name)
+        return f"{self.__class__.__name__.lower()}-{self.name}"
 
     @property
     def _cprofile_loops(self) -> int:

@@ -21,22 +21,24 @@ from typing import NamedTuple
 from typing import Optional
 import weakref
 
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if sys.version_info < (3, 12):
+if not is_at_least_py(3, 12):
     raise ImportError("ddtrace.internal.monitoring requires Python 3.12+")
 
 log = get_logger(__name__)
 
-_E = sys.monitoring.events
-_DISABLE = sys.monitoring.DISABLE
+_sys_monitoring: Any = sys.monitoring  # type: ignore[attr-defined]
+_E: Any = _sys_monitoring.events
+_DISABLE: object = _sys_monitoring.DISABLE
 
 # PY_UNWIND became a per-code "other" event only in Python 3.15 (its event bit even
 # moved, 0x1000 -> 0x2000). On 3.12-3.14 it is a global-only event that
 # set_local_events() rejects. The only PY_UNWIND consumer is itself 3.15+-gated.
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
     _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
     _SUPPORTS_LOCAL_PY_UNWIND = True
 else:
@@ -255,12 +257,12 @@ def _setup() -> int:
             return _tool_id
 
         for tid in _CANDIDATE_TOOL_IDS:
-            existing = sys.monitoring.get_tool(tid)
+            existing = _sys_monitoring.get_tool(tid)
             if existing is not None and existing != _MULTIPLEXER_TOOL_NAME:
                 continue
             try:
                 if existing is None:
-                    sys.monitoring.use_tool_id(tid, _MULTIPLEXER_TOOL_NAME)
+                    _sys_monitoring.use_tool_id(tid, _MULTIPLEXER_TOOL_NAME)
                 _tool_id = tid
                 break
             except ValueError:
@@ -268,11 +270,11 @@ def _setup() -> int:
         else:
             raise MonitoringToolUnavailable("No free sys.monitoring tool ID available for ddtrace")
 
-        sys.monitoring.register_callback(_tool_id, _E.PY_START, _on_py_start)
-        sys.monitoring.register_callback(_tool_id, _E.PY_RETURN, _on_py_return)
+        _sys_monitoring.register_callback(_tool_id, _E.PY_START, _on_py_start)
+        _sys_monitoring.register_callback(_tool_id, _E.PY_RETURN, _on_py_return)
         if _SUPPORTS_LOCAL_PY_UNWIND:
-            sys.monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
-        sys.monitoring.register_callback(_tool_id, _E.LINE, _on_py_line)
+            _sys_monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
+        _sys_monitoring.register_callback(_tool_id, _E.LINE, _on_py_line)
 
     return _tool_id
 
@@ -348,7 +350,7 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 
 
 def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
-    sys.monitoring.set_local_events(tool_id, code, events)
+    _sys_monitoring.set_local_events(tool_id, code, events)
 
 
 def _rearm_local_events(tool_id: int, code: CodeType, events: int, rearm_events: int) -> None:

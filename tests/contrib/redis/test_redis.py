@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from unittest import mock
 
 import pytest
@@ -17,7 +16,7 @@ class TestRedisPatch(TracerTestCase):
     TEST_PORT = REDIS_CONFIG["port"]
 
     def setUp(self):
-        super(TestRedisPatch, self).setUp()
+        super().setUp()
         patch()
         r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
@@ -25,7 +24,7 @@ class TestRedisPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestRedisPatch, self).tearDown()
+        super().tearDown()
 
     def command_test_rowcount(self, raw_command, row_count, expect_result=True, **kwargs):
         command_args_as_list = raw_command.split(" ")
@@ -413,14 +412,14 @@ class TestRedisPatchSnapshot(TracerTestCase):
     TEST_PORT = REDIS_CONFIG["port"]
 
     def setUp(self):
-        super(TestRedisPatchSnapshot, self).setUp()
+        super().setUp()
         patch()
         r = redis.Redis(port=self.TEST_PORT)
         self.r = r
 
     def tearDown(self):
         unpatch()
-        super(TestRedisPatchSnapshot, self).tearDown()
+        super().tearDown()
         self.r.flushall()
 
     @snapshot()
