@@ -208,7 +208,7 @@ def patch():
         flask_hooks.append("before_first_request")
 
     for hook in flask_hooks:
-        _w("flask", "Flask.{}".format(hook), patched_flask_hook)
+        _w("flask", f"Flask.{hook}", patched_flask_hook)
     _w("flask", "after_this_request", patched_flask_hook)
 
     flask_app_traces = [
@@ -224,7 +224,7 @@ def patch():
         flask_app_traces.append("try_trigger_before_first_request_functions")
 
     for name in flask_app_traces:
-        _w("flask", "Flask.{}".format(name), simple_call_wrapper("flask.{}".format(name)))
+        _w("flask", f"Flask.{name}", simple_call_wrapper(f"flask.{name}"))
     # flask static file helpers
     _w("flask", "send_file", simple_call_wrapper("flask.send_file"))
 
@@ -257,7 +257,7 @@ def patch():
         bp_hooks.append("before_app_first_request")
 
     for hook in bp_hooks:
-        _w("flask", "Blueprint.{}".format(hook), patched_flask_hook)
+        _w("flask", f"Blueprint.{hook}", patched_flask_hook)
 
     if config.flask["trace_signals"]:
         signals = [
@@ -289,7 +289,7 @@ def patch():
                 module = "flask.signals"
 
             # DEV: Patch `receivers_for` instead of `connect` to ensure we don't mess with `disconnect`
-            _w(module, "{}.receivers_for".format(signal), patched_signal_receivers_for(signal))
+            _w(module, f"{signal}.receivers_for", patched_signal_receivers_for(signal))
 
 
 def unpatch():

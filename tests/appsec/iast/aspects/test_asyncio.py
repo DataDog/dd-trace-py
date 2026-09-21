@@ -1,6 +1,6 @@
+from collections.abc import AsyncIterable
+from collections.abc import Coroutine
 import sys
-from typing import AsyncIterable
-from typing import Coroutine
 
 import pytest
 

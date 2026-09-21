@@ -113,7 +113,7 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         # Import-time coverage data
         self._import_time_covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
-        self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
+        self._import_time_contexts: dict[str, ModuleCodeCollector.CollectInContext] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
         # Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage

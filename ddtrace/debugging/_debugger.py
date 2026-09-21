@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+from collections.abc import Iterable
 from itertools import chain
 import json
 import linecache
@@ -12,7 +13,6 @@ from types import FunctionType
 from types import ModuleType
 from types import TracebackType
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import TypeVar
 from typing import cast

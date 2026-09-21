@@ -9,8 +9,8 @@ import tempfile
 import threading
 import time
 from typing import Any
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
@@ -1214,7 +1214,7 @@ def test_trace_with_128bit_trace_ids():
         spans = TracerSpanContainer(tracer).pop()
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(parent.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == f"{parent.trace_id >> 64:016x}"
 
 
 @pytest.mark.parametrize(
@@ -1933,7 +1933,7 @@ def test_native_writer_sets_otlp_trace_context_on_every_span():
     for span in (root, child):
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
-        assert "p:{:016x}".format(span.span_id) in span.get_tag("tracestate")
+        assert f"p:{span.span_id:016x}" in span.get_tag("tracestate")
 
 
 def test_native_writer_forwards_inherited_otel_trace_context():

@@ -77,7 +77,7 @@ def _get_connection_tags(conn: asyncpg.Connection) -> dict[str, str]:
 
 class _TracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin):
-        super(_TracedConnection, self).__init__(conn)
+        super().__init__(conn)
         tags = _get_connection_tags(conn)
         tags[db.SYSTEM] = DBMS_NAME
         conn_pin = pin.clone(tags=tags)
