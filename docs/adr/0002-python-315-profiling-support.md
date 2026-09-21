@@ -4,41 +4,42 @@
 
 ## Summary
 
-**Functional profiling on CPython 3.15 works.** Memory parity with 3.14 is **not** claimed; GA / broad advertise is **not yet**.
+**Functional profiling on CPython 3.15.0a7 works.** Memory parity with 3.14 is **not** claimed; GA / broad advertise is **not yet**. Evidence below is **a7-only** — [3.15.0rc2](https://peps.python.org/pep-0790/) shipped 2026-09-01; local re-soak on rc2 **not done**.
 
-| Claim | Result (local AB, 2026-09-21, tip `822dd5a3fa…`) |
+| Claim | Result (local AB, 2026-09-21, harness tip [`049961374f`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315)) |
 | :---- | :---- |
-| Smoke ON RSS (3.15 vs 3.14, 90 s) | **+14.9%** (90.9 → 104.5 MiB); req parity, 0 errors |
-| `alloc-space` | **−16.5%** on 3.15; locks empty both sides |
+| Smoke ON RSS (3.15.0a7 vs 3.14, 90 s) | **+14.9%** (90.9 → 104.5 MiB); req parity, 0 errors |
+| `alloc-space` | **−16.5%** on 3.15.0a7; locks empty both sides |
 | ON-gap attribution | **~53%** runtime / **~47%** profiler interaction (~24% tracked heap-space; ~24% residual) |
 | Async AB | RSS **~parity** (−1.3%); `asyncio_task_count` **~110**; 0 errors |
-| Wrap vs monitoring | 3.14 `wrap` / 3.15 `sys.monitoring` — **PASS** |
+| Wrap vs monitoring | 3.14 `wrap` / 3.15.0a7 `sys.monitoring` — **PASS** |
 
-Harness: `scripts/local_ab_314v315/` on `vlad/chore-local-ab-314v315`. Staging soak incomplete — do not cite staging RSS/CPU parity.
+Harness + writeups + `runs/`: branch `vlad/chore-local-ab-314v315` @ [`049961374f`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315) — [`RESULTS.md`](https://github.com/DataDog/dd-trace-py/blob/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315/RESULTS.md), [`RESULTS_ASYNC.md`](https://github.com/DataDog/dd-trace-py/blob/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315/RESULTS_ASYNC.md). Staging soak incomplete — do not cite staging RSS/CPU parity.
 
 ## Decision
 
-1. **Declare functional support** on 3.15.0a7: profiler starts, pprof written, sample types present.
+1. **Declare functional support on 3.15.0a7** (not rc2): profiler starts, pprof written, sample types present.
 2. **Do not gate** that claim on memalloc — `alloc-space` already **−16.5%**; heap-space is only ~23% of the RSS gap.
 3. **Caveat process RSS** (+14.9% smoke ON); attribute before optimizing.
-4. Staging / DoE / Rapid remain open — not completed gates.
+4. Staging / DoE / Rapid remain open — not completed gates. Re-soak on rc2 before broadening the claim.
 
 ## Status
 
 | Claim | Status |
 | :---- | :----- |
-| Functional profiling on 3.15 | **Works** |
+| Functional profiling on 3.15.0a7 | **Works** |
+| Same claim on 3.15.0rc2 | **Not re-soaked** |
 | Memory parity vs 3.14 | **Not claimed** |
 | Broad advertise (docs/marketing) | **Not yet** |
 | Gate on memalloc before functional claim | **Rejected** |
 
 ## Evidence
 
-Verified = named artifact; inferred = arithmetic on verified. Writeups: `RESULTS.md`, `RESULTS_ASYNC.md`.
+Verified = named artifact on harness tip [`049961374f`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315); inferred = arithmetic on verified. `/tmp/...` paths below are the original laptop run dirs; durable copies live under `scripts/local_ab_314v315/runs/` on that tip.
 
 ### A. Profiler on — smoke A/B
 
-`/tmp/local314v315_ddtracepy_20260921T033620Z` · A 3.14.6 / B 3.15.0a7 · 90 s · concurrency 2
+[`runs/20260921T033620Z`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315/runs/20260921T033620Z) · A 3.14.6 / B 3.15.0a7 · 90 s · concurrency 2
 
 | Metric | A → B |
 | :----- | :---- |
@@ -50,7 +51,7 @@ Verified = named artifact; inferred = arithmetic on verified. Writeups: `RESULTS
 
 ### A2. Async long-lived loop A/B
 
-`/tmp/local314v315_async_20260921T175559Z` · concurrency 4 · harness `049961374f`
+[`runs/20260921T175559Z_async`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315/runs/20260921T175559Z_async) · concurrency 4 · harness `049961374f`
 
 | Metric | A → B |
 | :----- | :---- |
@@ -61,7 +62,7 @@ Verified = named artifact; inferred = arithmetic on verified. Writeups: `RESULTS
 
 ### A3. Wrap vs `sys.monitoring` probe
 
-`GET /hook_path` · probe `…T175546Z` · also asserted in soak A2.
+`GET /hook_path` · [`runs/20260921T175546Z_async_probe`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315/runs/20260921T175546Z_async_probe) · also asserted in soak A2.
 
 | Python | Result |
 | :----- | :----- |
@@ -70,7 +71,7 @@ Verified = named artifact; inferred = arithmetic on verified. Writeups: `RESULTS
 
 ### B. Profiler off + attribution
 
-`PROFILING=0` · `/tmp/local314v315_profoff_20260921T162409Z` · RSS 52.7 → 59.9 MiB (**+13.6%** / +7.19 MiB).
+`PROFILING=0` · [`runs/20260921T162409Z_profoff`](https://github.com/DataDog/dd-trace-py/tree/049961374ff3701957fc77ac6d94f6785649ffa7/scripts/local_ab_314v315/runs/20260921T162409Z_profoff) · RSS 52.7 → 59.9 MiB (**+13.6%** / +7.19 MiB).
 
 | Bucket of \(G_{on}=+13.59\) MiB | MiB | % |
 | :---- | --: | --: |
@@ -88,5 +89,5 @@ Verified = named artifact; inferred = arithmetic on verified. Writeups: `RESULTS
 ## Consequences / open risks
 
 * Docs may say profiling **functions** on 3.15 with an **RSS caveat** once packaging lands; priority is RSS attribution + staging clear, not a memalloc rewrite.
-* Single-run laptop soaks; no local latency; 3.15 still moving (a7); asyncio parent/child link and dedicated sample type still open.
+* Single-run laptop soaks; no local latency; evidence is **3.15.0a7** (rc2 exists, not re-soaked); asyncio parent/child link and dedicated sample type still open.
 * Track [PEP 790](https://peps.python.org/pep-0790/) — land engraver images within days of each RC/final.

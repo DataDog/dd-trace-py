@@ -27,10 +27,17 @@ Use this skill when:
 
 ## Before comparing: track the release schedule
 
-CPython pre-releases move on a published calendar (e.g. [PEP 790](https://peps.python.org/pep-0790/) for 3.15). **Integrate each RC/final into Datadog images within days, not weeks** — see personal skill `track-cpython-release-schedule`.
+CPython pre-releases move on a published calendar (e.g. [PEP 790](https://peps.python.org/pep-0790/) for 3.15). **Integrate each RC/final into Datadog images within days, not weeks.**
 
 1. Read the schedule PEP; confirm the tag shipped (`python.org` / CPython tags).
-2. Verify local clock (`verify-local-clock`) before claiming lag.
+2. Before claiming lag ("N days since rcN"), check the local clock:
+
+   ```bash
+   date
+   date +'%Z %z'
+   ```
+
+   State vintage (local datetime + TZ + offset) next to the PEP date you compared to.
 3. Open/merge `ddoghq/images` engraver `python/<tag>` (+fips) promptly; do not sit on `rc1` after `rc2` exists.
 4. "Integrated" means **merged to images master + engraver digests**, not a draft PR.
 
@@ -181,4 +188,4 @@ After running this skill, you should have:
 ## Related
 
 - **find-cpython-usage skill**: Use to identify what to compare
-- **track-cpython-release-schedule** (personal `~/.cursor/skills/`): calendar → images → engraver digests → language-tools
+- Release calendar → images engraver `python/<tag>` → digests → language-tools pins (checklist above)
