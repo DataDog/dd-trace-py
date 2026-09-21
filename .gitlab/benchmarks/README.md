@@ -79,9 +79,14 @@ via `include:project:`. Both pipelines currently override the template's image w
 `benchmarking-platform-tools-ubuntu` tag; the override is temporary and marked as such in the
 YAML.
 
-**Competitor benchmarks.** The root `.gitlab-ci.yml` triggers
+**`apm-sdks-benchmarks` framework.** The root `.gitlab-ci.yml` triggers
 [DataDog/apm-reliability/apm-sdks-benchmarks](https://gitlab.ddbuild.io/DataDog/apm-reliability/apm-sdks-benchmarks)
 separately from anything in this directory. Its scenarios and thresholds are maintained there.
+
+The `apm-sdks-benchmarks` job runs automatically on nightly builds, release tags and release
+branches, and on `performance/flaky-benchmarks-monitoring` when the pipeline source is
+`pipeline` — that is, only when a parent pipeline triggered it, not on a push to that branch.
+Everywhere else it is a manual job.
 
 **Generation.** `scripts/gen_gitlab_config.py` produces `microbenchmarks-gen.yml` and the
 filtered SLO file. Neither is committed; both are `tests-gen` artifacts.
