@@ -11,6 +11,7 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
@@ -36,9 +37,9 @@ _original_exec = exec
 # Compiled at import time so it matches the running Python version.
 _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
-_PY_GE_312 = sys.version_info >= (3, 12)
-_PY_GE_313 = sys.version_info >= (3, 13)
-_PY_GE_314 = sys.version_info >= (3, 14)
+_PY_GE_312 = is_at_least_py(3, 12)
+_PY_GE_313 = is_at_least_py(3, 13)
+_PY_GE_314 = is_at_least_py(3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
 _SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
 
