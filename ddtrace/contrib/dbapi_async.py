@@ -23,8 +23,7 @@ from .internal.trace_utils import iswrapped
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
