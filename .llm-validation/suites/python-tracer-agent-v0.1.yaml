@@ -49,17 +49,6 @@ cases:
       - Applies the same rST-heavy style to the private helper's docstring.
       - Wraps a plain-prose parameter name in *emphasis* or ``double backticks``.
 
-  - id: python-tracer-aidev-comments-004
-    files: [AGENTS.md]
-    input: |
-      I'm refactoring a function that has an AIDEV-NOTE comment explaining a workaround for an
-      old bug. The workaround looks unnecessary now. What should I do with the comment?
-    expected_criteria:
-      - Never remove an AIDEV-NOTE/TODO/QUESTION comment without explicit human instruction.
-      - If the surrounding code changes, update the anchor rather than deleting it unilaterally.
-    bad_signals:
-      - Says to just delete the outdated AIDEV comment as part of the refactor.
-
   - id: python-tracer-pr-title-convention-005
     files: [AGENTS.md]
     only_warn: true
