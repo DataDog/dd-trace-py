@@ -2199,6 +2199,35 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
+    def test_response_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
+        """A Responses API stream that errors part-way still produces an annotated LLM span.
+
+        The Responses path salvages the most recent whole `response` snapshot rather than
+        accumulating `output_text.delta` events, so a mid-stream abort recovers the request input
+        but not the partial output text. Before this was fixed the span had no annotations at all:
+        the token-estimation fallback tried to iterate the pydantic snapshot and raised, taking
+        every tag with it.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(model="gpt-4.1", input="Hello world", stream=True)
+            stream = iter(resp)
+            for _ in range(5):
+                next(stream)
+            with pytest.raises(ValueError):
+                stream.throw(ValueError("client went away"))
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_span_kind(span) == "llm"
+        assert get_llmobs_input_messages(span) == [{"content": "Hello world", "role": "user"}]
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
     def test_response_stream_incomplete(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI()
         request_args = {
