@@ -78,15 +78,14 @@ class BaseStreamHandler(ABC):
         self.spans.append((span, kwargs))
 
     def handle_exception(self, exception):
-        """
-        Handle exceptions that occur during streaming.
-
-        Default implementation sets exception info on the primary span.
-
-        Args:
-            exception: The exception that occurred
-        """
-        if self.primary_span:
+        if not self.primary_span:
+            return
+        # Use the passed exception, not sys.exc_info(). During __exit__,
+        # sys.exc_info() can be a wrapped-cleanup error while exception is
+        # the original body error we want on the span.
+        if exception is not None:
+            self.primary_span.set_exc_info(type(exception), exception, exception.__traceback__)
+        else:
             self.primary_span.set_exc_info(*sys.exc_info())
 
     def start_stream(self):
@@ -306,8 +305,7 @@ class TracedStream(wrapt.ObjectProxy):
         except BaseException as e:
             if exc_val is None:
                 close_exc = e
-                raise
-            raise exc_val from e
+            raise
         finally:
             _safe_close_from_context_exit(
                 self._self_handler,
@@ -417,8 +415,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         except BaseException as e:
             if exc_val is None:
                 close_exc = e
-                raise
-            raise exc_val from e
+            raise
         finally:
             _safe_close_from_context_exit(
                 self._self_handler,
