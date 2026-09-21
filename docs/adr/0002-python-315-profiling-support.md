@@ -160,7 +160,7 @@ Missing cp315 wheels historically blocked staging TDs and prof-correctness Docke
 2. Staging 3.14-vs-3.15 soak incomplete (`BUILD_WEDGED` / wheels / Rapid / auth).
 3. Lock sample types empty on smoke corpus.
 4. Latency never measured locally.
-5. 3.15 still moving (`3.15.0a7` in local AB).
+5. 3.15 still moving (`3.15.0a7` in local AB). Track the [PEP 790](https://peps.python.org/pep-0790/) calendar and land engraver images within days of each RC/final — do not sit weeks behind (e.g. rc2 2026-09-01 vs images draft-only ~20 days later; see `track-cpython-release-schedule` / `compare-cpython-versions`).
 6. Asyncio / [#19272]: wrap vs monitoring probe **done**; still no parent/child link check or dedicated asyncio sample type.
 
 ## Declaration (copy-paste)

@@ -25,12 +25,24 @@ Use this skill when:
 - Investigating compatibility issues
 - Have a list of headers/structs from `find-cpython-usage` skill
 
+## Before comparing: track the release schedule
+
+CPython pre-releases move on a published calendar (e.g. [PEP 790](https://peps.python.org/pep-0790/) for 3.15). **Integrate each RC/final into Datadog images within days, not weeks** — see personal skill `track-cpython-release-schedule`.
+
+1. Read the schedule PEP; confirm the tag shipped (`python.org` / CPython tags).
+2. Verify local clock (`verify-local-clock`) before claiming lag.
+3. Open/merge `ddoghq/images` engraver `python/<tag>` (+fips) promptly; do not sit on `rc1` after `rc2` exists.
+4. "Integrated" means **merged to images master + engraver digests**, not a draft PR.
+
+**Caution (verified Mon Sep 21 14:14 EDT 2026 −0400):** 3.15.0rc2 published 2026-09-01 (PEP 790); ~20 days later images master still had no `python/3.15*` — rc2 only on draft images#11732. Do not repeat that lag.
+
 ## Key Principles
 
 1. **Compare systematically** - Focus on headers and structs identified in Step 1
 2. **Use multiple methods** - Git diff, manual diff, or AI-assisted comparison
 3. **Document changes** - Note all breaking changes and API modifications
 4. **Check context** - Understand why changes were made (PEPs, GitHub issues)
+5. **Pin the current published tag** - Prefer the latest RC/final from the schedule PEP over a stale pre-release when comparing or wiring CI
 
 ## How This Skill Works
 
@@ -169,3 +181,4 @@ After running this skill, you should have:
 ## Related
 
 - **find-cpython-usage skill**: Use to identify what to compare
+- **track-cpython-release-schedule** (personal `~/.cursor/skills/`): calendar → images → engraver digests → language-tools
