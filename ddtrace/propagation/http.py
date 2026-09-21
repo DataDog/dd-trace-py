@@ -942,9 +942,18 @@ class _BaggageHeader:
         exists so products can attach their own distributed state to an outbound request
         without writing it onto the (trace-shared, concurrently-injected) Context — see
         ``LLMObs._inject_llmobs_context``.
+
+        They are also ordered first, and win on a key collision. Unlike x-datadog-tags — which
+        is dropped whole when it overflows — baggage truncates item by item, so position decides
+        what survives an over-budget header. ``extra_items`` carry product state that a caller
+        cannot re-derive downstream (a parent span ID, say), whereas dropping one user baggage
+        item loses one tag, so the product state is placed where truncation reaches it last.
         """
         if extra_items:
-            baggage_items = {**span_context._baggage, **extra_items}.items()
+            merged = dict(extra_items)
+            for key, value in span_context._baggage.items():
+                merged.setdefault(key, value)
+            baggage_items = merged.items()
         else:
             baggage_items = span_context._baggage.items()
         if not baggage_items:

@@ -9,7 +9,9 @@ from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import BAGGAGE_AGENT_NAME_MAX_LENGTH
 from ddtrace.llmobs._constants import BAGGAGE_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import BAGGAGE_ML_APP_KEY
 from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_ID_KEY
@@ -1163,11 +1165,46 @@ def test_inject_baggage_carries_session_id(llmobs):
     assert _parse_baggage(headers)[BAGGAGE_SESSION_ID_KEY] == "test-session"
 
 
+def test_inject_baggage_survives_oversized_user_baggage(llmobs):
+    """Baggage truncates item by item (unlike x-datadog-tags, which drops whole), so the LLMObs
+    identity keys must be ordered where truncation reaches them last.
+    """
+    with llmobs.workflow("w") as span:
+        for i in range(8):
+            span.context.set_baggage_item(f"user.filler.{i}", "x" * 1024)
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _parse_baggage(headers)
+    assert len(headers["baggage"].encode("utf-8")) <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+    assert baggage[BAGGAGE_LLMOBS_TRACE_ID_KEY] == get_llmobs_trace_id(span)
+
+
+def test_inject_llmobs_baggage_wins_key_collision(llmobs):
+    """A user setting a reserved `llmobs.*` key must not redirect the parent span."""
+    with llmobs.workflow("w") as span:
+        span.context.set_baggage_item(BAGGAGE_PARENT_ID_KEY, "666666666")
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert _parse_baggage(headers)[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+
+
+def test_inject_baggage_caps_agent_name(llmobs):
+    """The agent name is the only arbitrary-length value in the set; it cannot be unbounded."""
+    long_name = "a" * (BAGGAGE_AGENT_NAME_MAX_LENGTH + 500)
+    with llmobs.agent(name=long_name) as agent_span:
+        headers = {}
+        HTTPPropagator.inject(agent_span.context, headers)
+    baggage = _parse_baggage(headers)
+    assert baggage[BAGGAGE_PARENT_AGENT_NAME_KEY] == "a" * BAGGAGE_AGENT_NAME_MAX_LENGTH
+    assert baggage[BAGGAGE_PARENT_AGENT_ID_KEY] == str(agent_span.span_id)
+
+
 def test_inject_baggage_carries_full_agent_name_when_tags_truncate(llmobs):
     """Agent attribution degrades in x-datadog-tags to protect the 512-byte budget; baggage has
     its own, far larger budget, so it keeps the untruncated name.
     """
-    long_name = "a" * 600
+    long_name = "a" * 500
     with llmobs.agent(name=long_name) as agent_span:
         headers = {}
         HTTPPropagator.inject(agent_span.context, headers)

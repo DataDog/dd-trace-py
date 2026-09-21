@@ -65,6 +65,11 @@ BAGGAGE_SAMPLING_DECISION_KEY = "llmobs.sampling_decision"
 BAGGAGE_PARENT_AGENT_ID_KEY = "llmobs.parent_agent_span_id"
 BAGGAGE_PARENT_AGENT_NAME_KEY = "llmobs.parent_agent_name"
 
+# Cap on the agent name in baggage. The name is an arbitrary user string, and baggage truncates
+# item by item, so an unbounded one could displace the rest of the LLMObs context (or overflow
+# the 8192-byte header by itself). Far more generous than the x-datadog-tags budget allows.
+BAGGAGE_AGENT_NAME_MAX_LENGTH = 512
+
 # Process-local slot for the canonical (hex) LLMObs trace ID on a distributed parent Context,
 # set when the inbound value arrived in baggage and so needed no format guessing. Deliberately
 # NOT `_dd.p.`-prefixed: only that prefix is injected into x-datadog-tags, and this value must

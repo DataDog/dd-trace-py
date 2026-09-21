@@ -53,6 +53,7 @@ from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_ANNOTATION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import BAGGAGE_AGENT_NAME_MAX_LENGTH
 from ddtrace.llmobs._constants import BAGGAGE_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import BAGGAGE_ML_APP_KEY
 from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_ID_KEY
@@ -3578,7 +3579,12 @@ class LLMObs(Service):
                 sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
             ),
             BAGGAGE_PARENT_AGENT_ID_KEY: parent_agent_span_id,
-            BAGGAGE_PARENT_AGENT_NAME_KEY: parent_agent_name,
+            # Last, and length-capped: the name is the only arbitrary-length value here, and
+            # baggage truncation drops trailing items, so an oversized one costs its own entry
+            # rather than the identity keys above it.
+            BAGGAGE_PARENT_AGENT_NAME_KEY: (
+                parent_agent_name[:BAGGAGE_AGENT_NAME_MAX_LENGTH] if parent_agent_name is not None else None
+            ),
         }
         for baggage_key, value in baggage_values.items():
             if value is not None:
