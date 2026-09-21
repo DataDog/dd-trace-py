@@ -158,6 +158,9 @@ include:
           cp -a ".testoptimization-${environment_hash}" .testoptimization
           command_var="DDTEST_COMMAND_${environment_hash}"
           env_var="DDTEST_ENV_${environment_hash}"
+          # AIDEV-NOTE: setup.cfg defaults to one fixed JUnit path, so every work
+          # item needs an override to preserve all reports from a packed job.
+          work_item_command="${!command_var} --junitxml=test-results/junit.${environment_hash}.${ci_node_index}.xml"
           requirements="$(mktemp)"
           trap 'rm -f "${requirements}"' EXIT
           grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
@@ -171,7 +174,7 @@ include:
           export DD_TEST_SESSION_NAME="${CI_JOB_NAME}-pytest ${DDTEST_SUITE_PATH} env-${environment_hash} node-{{nodeIndex}}-worker-{{workerIndex}}"
           uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
             --with-requirements "${requirements}" --with "${wheel}" \
-            ddtest run --platform python --framework pytest --command "${!command_var}" \
+            ddtest run --platform python --framework pytest --command "${work_item_command}" \
               --ci-node "${ci_node_index}" --ci-node-workers 1
         )
         item_status=$?
