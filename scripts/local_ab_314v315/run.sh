@@ -3,6 +3,7 @@
 #
 # Self-contained port of experimental smoke_ab/local_314v315: stdlib HTTP app,
 # smoke corpus, byte-identical drive, profiling on, RSS/CPU sampling, delta table.
+# Verified 90s numbers from the 20260921T033620Z run: RESULTS.md.
 #
 # Usage (from repo root or this dir):
 #   ./scripts/local_ab_314v315/run.sh
@@ -292,7 +293,9 @@ def pprof_meta(label: str) -> dict[str, Any]:
             data: dict[str, Any] = json.loads(mp.read_text())
         except Exception:
             continue
-        sample_cpu += int(data.get("sample_capture_cpu_us", 0) or 0)
+        # Metadata key is sample_capture_cpu_time_us. The old name summed to 0.
+        raw_cpu: object = data.get("sample_capture_cpu_time_us", data.get("sample_capture_cpu_us", 0))
+        sample_cpu += int(raw_cpu or 0)
         sample_count += int(data.get("sample_count", 0) or 0)
         if "asyncio_task_count" in data:
             task_counts.append(float(data["asyncio_task_count"]))
@@ -302,7 +305,7 @@ def pprof_meta(label: str) -> dict[str, Any]:
     return {
         "pprof_count": len(pprofs),
         "pprof_bytes": all_bytes,
-        "sample_capture_cpu_us": sample_cpu,
+        "sample_capture_cpu_time_us": sample_cpu,
         "sample_count": sample_count,
         "asyncio_task_count_mean": statistics.fmean(task_counts) if task_counts else 0.0,
     }
@@ -393,9 +396,9 @@ rows_spec: list[tuple[str, float, float, str]] = [
     ("pprof .pprof files", float(sa["pprof_count"]), float(sb["pprof_count"]), "int"),
     ("pprof bytes (all artifacts)", float(sa["pprof_bytes"]), float(sb["pprof_bytes"]), "mb"),
     (
-        "profiler sample_capture_cpu_us sum",
-        float(sa["sample_capture_cpu_us"]),
-        float(sb["sample_capture_cpu_us"]),
+        "profiler sample_capture_cpu_time_us sum",
+        float(sa["sample_capture_cpu_time_us"]),
+        float(sb["sample_capture_cpu_time_us"]),
         "int",
     ),
     ("profiler sample_count sum", float(sa["sample_count"]), float(sb["sample_count"]), "int"),

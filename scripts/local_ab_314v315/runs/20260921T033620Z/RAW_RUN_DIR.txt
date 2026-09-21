@@ -1,0 +1,5 @@
+Primary run directory (may still be on this laptop):
+  /tmp/local314v315_ddtracepy_20260921T033620Z
+
+This in-repo copy keeps only small JSON/CSV/log artifacts and
+pprof *.internal_metadata.json (no .pprof binaries).
