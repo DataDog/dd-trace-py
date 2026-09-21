@@ -17,6 +17,8 @@ What is being pinned:
   * PYTHON_TAGS agrees with pyproject.toml's requires-python, and disagreeing in either
     direction fails the job rather than silently validating fewer wheels.
   * --mode=adms accepts the manylinux-only publication matrix used by the adms upload path.
+  * --mode=adms-macos accepts the macOS-only matrix used by the macOS adms patch job.
+  * Phase 4 summary lines are mode-specific (no unconditional base/win_arm64/serverless counts).
 """
 
 import importlib.machinery
@@ -145,6 +147,25 @@ def test_adms_publish_copy_validates_pruned_manylinux_set(tmp_path: pathlib.Path
     output: str
     returncode, output = _run(wheels_dir, "--mode=adms")
     assert returncode == 0, output
+    assert "manylinux2014 platforms" in output
+    assert "base platforms" not in output
+    assert "win_arm64" not in output
+
+
+def test_adms_macos_publish_copy_validates_macos_set(tmp_path: pathlib.Path) -> None:
+    """The macOS adms patch job validates only macosx wheels, not the manylinux matrix."""
+    wheels: list[str] = [
+        _wheel(tag, platform)
+        for tag, platform in itertools.product(validator.PYTHON_TAGS, validator.ADMS_MACOS_PLATFORMS)
+    ]
+    wheels_dir: pathlib.Path = _make_dir(tmp_path, wheels, sdist=False)
+
+    returncode: int
+    output: str
+    returncode, output = _run(wheels_dir, "--mode=adms-macos")
+    assert returncode == 0, output
+    assert "macOS platforms" in output
+    assert "manylinux2014 platforms" not in output
 
 
 def test_unexpected_platform_fails(tmp_path: pathlib.Path) -> None:

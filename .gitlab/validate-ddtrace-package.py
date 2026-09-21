@@ -74,6 +74,7 @@ BASE_PLATFORMS: list[str] = [
 ]
 SERVERLESS_PLATFORMS: list[str] = [p for p in BASE_PLATFORMS if "linux" in p]
 ADMS_PLATFORMS: list[str] = [p for p in BASE_PLATFORMS if "manylinux2014" in p]
+ADMS_MACOS_PLATFORMS: list[str] = [p for p in BASE_PLATFORMS if "macosx" in p]
 
 
 def check_python_tags_current(repo_root: Path) -> list[str]:
@@ -128,6 +129,9 @@ def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str,
             flavor: str = "_serverless"
         elif args.mode == "adms":
             platforms = ADMS_PLATFORMS
+            flavor = ""
+        elif args.mode == "adms-macos":
+            platforms = ADMS_MACOS_PLATFORMS
             flavor = ""
         else:
             platforms = BASE_PLATFORMS
@@ -304,9 +308,15 @@ def main(args: argparse.Namespace) -> None:
     expected_set = build_expected_set(package_version, args)
     print(f"Expected {len(expected_set)} wheels:")
     print(f"  - {len(PYTHON_TAGS)} Python versions ({PYTHON_TAGS[0]}-{PYTHON_TAGS[-1]})")
-    print(f"  - {len(BASE_PLATFORMS)} base platforms")
-    print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
-    print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
+    if args.mode == "serverless":
+        print(f"  - {len(SERVERLESS_PLATFORMS)} serverless platforms")
+    elif args.mode == "adms":
+        print(f"  - {len(ADMS_PLATFORMS)} manylinux2014 platforms")
+    elif args.mode == "adms-macos":
+        print(f"  - {len(ADMS_MACOS_PLATFORMS)} macOS platforms")
+    else:
+        print(f"  - {len(BASE_PLATFORMS)} base platforms")
+        print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
     print()
 
     # Phase 5: Set Comparison
@@ -379,7 +389,7 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="Validate DDTrace Package")
-    parser.add_argument("--mode", choices=["main", "serverless", "adms"], default="main")
+    parser.add_argument("--mode", choices=["main", "serverless", "adms", "adms-macos"], default="main")
     parser.add_argument("wheels_dir", nargs="?", default="pywheels")
     args = parser.parse_args()
     main(args)

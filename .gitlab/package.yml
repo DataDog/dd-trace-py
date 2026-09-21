@@ -217,6 +217,9 @@ variables:
   image: ${TESTRUNNER_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
+  # Overridden by the macOS job: manylinux vs macOS publication matrices differ.
+  variables:
+    ADMS_VALIDATE_MODE: "adms"
   script:
     - |
       set -euo pipefail
@@ -232,11 +235,13 @@ variables:
         echo "Version '${PACKAGE_VERSION:-}' has no local segment (+...) -- nothing to patch, exiting."
         exit 0
       fi
-    # Keep the unpruned artifact for S3's SHA index; validate the separate adms copy.
+    # Keep the unpruned artifact for S3's SHA index; validate the patched adms copy.
+    # Validate after patch-wheel-versions.py so PACKAGE_VERSION (with local segment)
+    # matches the rewritten filenames — pre-patch wheels still carry the source version.
     - cp -a pywheels pywheels-publish
     - .gitlab/scripts/prune-unsupported-wheels.sh pywheels-publish
-    - python3 .gitlab/validate-ddtrace-package.py pywheels-publish --mode=adms
     - python3 .gitlab/scripts/patch-wheel-versions.py pywheels-publish pywheels-patched
+    - python3 .gitlab/validate-ddtrace-package.py pywheels-patched --mode=${ADMS_VALIDATE_MODE}
     - |
       set -euo pipefail
       shopt -s nullglob
@@ -269,6 +274,8 @@ variables:
 
 "patch macos wheel versions":
   extends: .patch_wheel_versions_base
+  variables:
+    ADMS_VALIDATE_MODE: "adms-macos"
   needs:
     - job: "build macos amd64"
       artifacts: true
