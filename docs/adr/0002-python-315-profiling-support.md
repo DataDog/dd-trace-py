@@ -7,10 +7,10 @@
 | **Status** | **Accepted with caveats** — functional profiling on CPython 3.15 is data-backed; memory parity and broad advertising are not |
 | **Authors** | Vlad Scherbich (dd-trace-py profiling) |
 | **Start date** | 2026-09-21 |
-| **Figures vintage** | Evidence runs 2026-09-21 (on ~03:36Z / off 12:24–12:31 EDT −0400); this ADR revision Mon Sep 21 13:11 EDT 2026 (−0400). Re-verify live CI/staging before citing as current. |
+| **Figures vintage** | Evidence runs 2026-09-21 (smoke on ~03:36Z / off 12:24–12:31 EDT / async ~13:36 EDT −0400); this ADR revision Mon Sep 21 13:46 EDT 2026 (−0400). Re-verify live CI/staging before citing as current. |
 | **Primary reviewers** | Profiling Python team |
 | **Canonical** | This file on branch `vlad/adr-py315-profiling`. Wiki republish **deferred** until ADRs land (prior draft page deleted; no wiki URL in this ADR). |
-| **Related** | Tracker [#17817](https://github.com/DataDog/dd-trace-py/issues/17817) / [#17809](https://github.com/DataDog/dd-trace-py/issues/17809); Jira [PROF-14084](https://datadoghq.atlassian.net/browse/PROF-14084); PRs [#19272](https://github.com/DataDog/dd-trace-py/pull/19272), [#20450](https://github.com/DataDog/dd-trace-py/pull/20450); harness branch `vlad/chore-local-ab-314v315`; this ADR branch `vlad/adr-py315-profiling` |
+| **Related** | Tracker [#17817](https://github.com/DataDog/dd-trace-py/issues/17817) / [#17809](https://github.com/DataDog/dd-trace-py/issues/17809); Jira [PROF-14084](https://datadoghq.atlassian.net/browse/PROF-14084); PRs [#19272](https://github.com/DataDog/dd-trace-py/pull/19272), [#20450](https://github.com/DataDog/dd-trace-py/pull/20450); harness `vlad/chore-local-ab-314v315` @ `d2d4c29fc7`; this ADR branch `vlad/adr-py315-profiling` |
 
 ### Publication
 
@@ -36,7 +36,7 @@
 
 CPython 3.15 changes monitoring / wrapping (PEP 669, asyncio). Profiling-315 stack ([#19272](https://github.com/DataDog/dd-trace-py/pull/19272) asyncio, earlier natives/CI, [#20450](https://github.com/DataDog/dd-trace-py/pull/20450) smoke-required) keeps continuous profiling viable. Separate **“does it profile?”** from **“is overhead acceptable?”**.
 
-Local smoke is **weak** for asyncio / [#19272] depth (`asyncio_task_count` meta only; no asyncio sample type). A dedicated async dummy is recommended later — **not** an ADR blocker.
+Local smoke is **weak** for asyncio / [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) depth (`asyncio_task_count` meta ≈ 3). A dedicated async long-lived-loop A/B is now on record (see Evidence); still missing a monitoring-vs-wrap registration probe.
 
 ## Evidence
 
@@ -58,6 +58,24 @@ Epistemic: **verified** = named artifact; **inferred** = arithmetic on verified;
 | `alloc-space` | **−16.5%** on B | verified |
 | Locks | types present, **0 / 0** both sides | verified |
 | Writeup | `scripts/local_ab_314v315/RESULTS.md` | verified |
+
+### A2. Async long-lived loop A/B (profiler on)
+
+Better [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) validator than smoke (elevated task count + named-task labels). **Not** a staging soak; no monitoring-vs-wrap probe.
+
+| Field | Value | Status |
+| :---- | :---- | :----- |
+| Harness | `run_async.sh` on `vlad/chore-local-ab-314v315` @ `d2d4c29fc7` | verified |
+| `RUN_DIR` | `/tmp/local314v315_async_20260921T173604Z` | verified |
+| In-repo copy | `runs/20260921T173604Z_async/` | verified |
+| Tip | `822dd5a3fa…` (parent `faae7e3` / [#19272](https://github.com/DataDog/dd-trace-py/pull/19272)) | verified `summary.json` |
+| Pythons | A 3.14.6 · B 3.15.0a7 · 90 s · concurrency 4 | verified |
+| Req | ~38.9k → ~38.3k (−1.4%), **0** errors | verified `drive_stats.json` |
+| RSS mean | 60.3 → 60.5 MiB (**+0.3%**) | verified |
+| `asyncio_task_count` mean | 112.6 → 109.1 (7 metas) | verified |
+| Named tasks | `task name:[long-pool-*]` present both sides | verified mid pprof |
+| Dedicated asyncio sample type | **absent** both | verified |
+| Writeup | `scripts/local_ab_314v315/RESULTS_ASYNC.md` | verified |
 
 ### B. Profiler off — runtime control
 
@@ -129,7 +147,7 @@ Missing cp315 wheels historically blocked staging TDs and prof-correctness Docke
 3. Lock sample types empty on smoke corpus.
 4. Latency never measured locally.
 5. 3.15 still moving (`3.15.0a7` in local AB).
-6. Asyncio / [#19272] under-exercised by smoke corpus.
+6. Asyncio / [#19272]: async A/B improves coverage vs smoke; still no monitoring-vs-wrap probe, parent/child link check, or asyncio sample type.
 
 ## Declaration (copy-paste)
 
