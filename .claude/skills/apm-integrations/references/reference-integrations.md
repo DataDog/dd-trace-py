@@ -35,6 +35,9 @@ LiteLLM's opt-in `ddtrace.contrib.litellm.gateway_attribution` callback emits
 content-free DogStatsD usage counters, independent of SDK tracing and LLMObs.
 Request/response IDs are omitted; other values follow metric tag normalization
 and length limits. Keep counters additive, including fractional media seconds.
+Usage partitioning, label validation, and context buckets live in libdatadog's
+`libdd-ai-usage` crate, called through `src/native/ai_usage.rs`. Keep LiteLLM field
+selection in Python; do not duplicate accounting rules there.
 Context-length buckets double from 32k, with extra 200k/272k boundaries. They are
 global, include caches, and have inclusive upper bounds; do not add provider/model
 mappings or treat missing usage as zero.

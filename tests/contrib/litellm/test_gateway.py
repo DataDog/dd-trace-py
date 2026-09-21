@@ -1599,3 +1599,64 @@ def test_real_dogstatsd_wire_preserves_fractions_and_escapes_tag_delimiters(tmp_
                 assert not any(t.startswith(("forged:", "extra:")) for t in tags)
         finally:
             sink.close()
+
+
+def test_usage_accounting_uses_compiled_shared_core():
+    # This must exercise the installed extension, not a Python fallback or local shim.
+    from inspect import isbuiltin
+
+    from ddtrace.internal.native._native import _ai_usage_context_bucket
+    from ddtrace.internal.native._native import _normalize_ai_usage
+
+    assert isbuiltin(_normalize_ai_usage)
+    assert isbuiltin(_ai_usage_context_bucket)
+    quantities, observed, issues = _normalize_ai_usage({"input": 2**53, "output": 0, "cache_read": 0, "cache_write": 0})
+    assert not issues
+    assert quantities["input_uncached_tokens"] == 2**53
+    assert type(observed["context_tokens"]) is int
+    assert _ai_usage_context_bucket(observed["context_tokens"], True) != "unknown"
+
+
+def test_native_usage_never_coerces_objects_or_integer_subclasses():
+    class Hostile:
+        def __int__(self):
+            raise AssertionError("must not coerce")
+
+        def __float__(self):
+            raise AssertionError("must not coerce")
+
+        def __str__(self):
+            raise AssertionError("must not stringify")
+
+    class IntSubclass(int):
+        pass
+
+    for value in (Hostile(), IntSubclass(1), True, 2**64, -1, "1", 1.0):
+        result = normalize_usage({"prompt_tokens": value, "completion_tokens": 1})
+        assert result.issues == {"invalid_usage"}
+        assert not result.quantities
+
+
+def test_native_label_unicode_limits_and_unencodable_values():
+    from ddtrace.contrib.internal.litellm._gateway_usage import label
+
+    assert label("你好", 2) == "你好"
+    assert label("你好", 1) is None
+    assert label("\ud800") is None
+    assert label("id", -1) is None
+    for value in ("", " sk-secret", "Sk-secret", "BEARER secret", "id\x00", "id\x7f", "id\u00a0"):
+        assert label(value) is None
+
+
+def test_native_adapter_preserves_sdk_aliases_and_attribute_objects():
+    raw = SimpleNamespace(
+        input_tokens=100,
+        output_tokens=20,
+        input_tokens_details=SimpleNamespace(cached_tokens=40, cache_write_tokens=10),
+        output_tokens_details=SimpleNamespace(reasoning_tokens=5),
+    )
+    result = normalize_usage(raw, "responses")
+    assert result.quantities["input_uncached_tokens"] == 50
+    assert result.quantities["input_cache_write_unknown_ttl_tokens"] == 10
+    assert result.quantities["output_tokens"] == 20
+    assert result.diagnostics["reasoning_output_tokens"] == 5
