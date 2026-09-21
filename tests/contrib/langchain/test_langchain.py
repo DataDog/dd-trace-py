@@ -544,18 +544,21 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
     calculator.invoke("2", config={"unserializable": object()})
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message", "meta.error.type"])
 def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
     from unittest import mock
 
-    import httpx2
+    try:
+        import httpx2 as http_client
+    except ImportError:
+        import httpx as http_client
+
     from openai import APITimeoutError
 
     chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
-    # Mock httpx2.Client.send to raise a ReadTimeout so the test does not depend on
-    # the testagent's response latency (which varies by cassette format).
-    with mock.patch("httpx2.Client.send", side_effect=httpx2.ReadTimeout("Request timed out.")):
+    # Mock the installed OpenAI HTTP client to avoid testagent response-latency variance.
+    with mock.patch.object(http_client.Client, "send", side_effect=http_client.ReadTimeout("Request timed out.")):
         result = chat_model.stream("Hello, my name is")
         try:
             next(result)
