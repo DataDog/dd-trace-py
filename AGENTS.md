@@ -62,15 +62,6 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## AIDEV Anchor Comments
-
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
-
-- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
-- **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
-
 ## PR Guidelines
 
 Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
@@ -146,3 +137,14 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+
+## AIDEV Anchor Comments
+
+The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
+Existing anchors were removed from the repository (#20143).
+
+- Do not add new `AIDEV-*` anchor comments. Use plain inline comments when
+  context is needed (see Docstrings and Comments above).
+- CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
+  lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
+  its tests are excluded because they document or exercise the deprecation.
