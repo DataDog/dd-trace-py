@@ -1,4 +1,3 @@
-import sys
 from typing import Any  # noqa:F401
 from typing import Iterator  # noqa:F401
 from typing import Optional  # noqa:F401
@@ -6,13 +5,12 @@ from typing import Union  # noqa:F401
 
 import wrapt
 
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
 
 
 NoneType = type(None)
-
-PY = sys.version_info
 
 
 def _maybe_slots(obj: Any) -> Union[tuple[str], list[str]]:
@@ -41,7 +39,7 @@ def _isinstance(obj: Any, types: Union[type, tuple[Union[type, tuple[Any, ...]],
     return issubclass(type(obj), types)
 
 
-IS_312_OR_NEWER = PY >= (3, 12)
+IS_312_OR_NEWER = is_at_least_py(3, 12)
 
 
 class SafeObjectProxy(wrapt.ObjectProxy):
