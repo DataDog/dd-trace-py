@@ -974,7 +974,7 @@ class _RealtimeState:
         )
 
     def _build_message(
-        self, role: str, content: str, audio: "_AudioAccumulator", mime_type: str, sample_rate: int
+        self, role: str, content: str, audio: _AudioAccumulator, mime_type: str, sample_rate: int
     ) -> Optional[Message]:
         audio_part = None
         if audio.chunks:
@@ -1187,7 +1187,7 @@ def _as_float(value: Any) -> Optional[float]:
         return None
 
 
-def _segment_format(audio: "_AudioAccumulator", mime: str, rate: int) -> tuple[str, int]:
+def _segment_format(audio: _AudioAccumulator, mime: str, rate: int) -> tuple[str, int]:
     """The audio format to interpret `audio` with: the one recorded when its first chunk arrived,
     falling back to the session's current format.
 
@@ -1249,7 +1249,7 @@ def patched_connect(func: Callable[..., Any], instance: Any, args: tuple[Any, ..
     return manager
 
 
-def _finish_session_on_gc(state: "_RealtimeState") -> None:
+def _finish_session_on_gc(state: _RealtimeState) -> None:
     """Last-resort finalizer: submit whatever the session still holds when the connection is dropped.
 
     Runs from a `weakref.finalize` callback (garbage collection, or interpreter exit), so it must

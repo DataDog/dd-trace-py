@@ -1,7 +1,7 @@
-from collections.abc import Mapping
 import inspect
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Mapping
+from typing import Optional
 
 import starlette
 from starlette import requests as starlette_requests
@@ -29,7 +29,7 @@ from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.trace import Span  # noqa:F401
+from ddtrace.trace import Span
 from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
 

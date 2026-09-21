@@ -2,6 +2,8 @@
 Datadog trace code for flask_cache
 """
 
+from __future__ import annotations
+
 import logging
 import typing
 
@@ -23,7 +25,7 @@ from .utils import _resource_from_cache_prefix
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Span
 
 
 log = logging.Logger(__name__)
@@ -86,7 +88,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self: str, cmd: bool) -> "Span":
+        def __trace(self: str, cmd: bool) -> Span:
             """
             Start a tracing with default attributes and tags
             """

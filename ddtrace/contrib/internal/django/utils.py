@@ -1,9 +1,8 @@
-from collections.abc import Mapping  # noqa:F401
 import io
 import json
-from typing import Any  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Mapping
+from typing import Union
 import uuid
 
 import django

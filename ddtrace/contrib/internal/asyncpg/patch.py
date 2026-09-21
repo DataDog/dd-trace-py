@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa:I001
+from typing import TYPE_CHECKING
 from typing import Union
 
 import asyncpg
@@ -30,7 +32,7 @@ from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
+    from asyncpg.prepared_stmt import PreparedStatement
 
 
 DBMS_NAME = "postgresql"

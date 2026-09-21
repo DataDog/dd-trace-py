@@ -4,7 +4,7 @@ Trace queries to aws api done via botocore client
 
 import collections
 import json
-from typing import Union  # noqa:F401
+from typing import Union
 
 from botocore import __version__
 import botocore.client

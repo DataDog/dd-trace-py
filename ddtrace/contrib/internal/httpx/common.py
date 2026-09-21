@@ -1,6 +1,8 @@
-from collections.abc import Awaitable
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Awaitable
 from typing import Callable
 from typing import Optional
 
@@ -27,7 +29,7 @@ class HttpxPatcher:
     def __init__(
         self,
         module: Any,
-        integration_config: "IntegrationConfig",
+        integration_config: IntegrationConfig,
     ) -> None:
         self._module = module
         self._integration_config = integration_config
@@ -183,7 +185,7 @@ def httpx_url_to_str(url: Any) -> str:
     return ensure_text(url)
 
 
-def httpx_get_service_name(request: Any, integration_config: "IntegrationConfig") -> Optional[str]:
+def httpx_get_service_name(request: Any, integration_config: IntegrationConfig) -> Optional[str]:
     if integration_config.split_by_domain:
         if hasattr(request.url, "netloc"):
             return ensure_text(request.url.netloc, errors="backslashreplace")

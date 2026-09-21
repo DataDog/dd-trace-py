@@ -399,7 +399,7 @@ def patched_wsgi_app(wrapped, instance, args, kwargs):
     return middleware(environ, start_response)
 
 
-_collected_scripts_by_app: "weakref.WeakKeyDictionary[flask.Flask, set[str]]" = weakref.WeakKeyDictionary()
+_collected_scripts_by_app: weakref.WeakKeyDictionary[flask.Flask, set[str]] = weakref.WeakKeyDictionary()
 
 
 def _collect_flask_routes(app, script_name):

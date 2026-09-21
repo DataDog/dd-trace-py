@@ -119,8 +119,7 @@ def set_user(
     span: Optional[SpanData] = None,
     may_block: bool = True,
     mode: str = "sdk",
-):
-    # type: (...) -> None
+) -> None:
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
