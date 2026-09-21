@@ -85,6 +85,7 @@ from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
+from ddtrace.llmobs._constants import PARTIAL_STREAM_RESPONSE
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.trace import tracer
@@ -867,7 +868,9 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     model_name = ctx.get_item("model_name")
     integration = ctx.get_item("bedrock_integration")
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
+        # A stream that ended early leaves the partial response here; tagging it keeps the span
+        # from being annotated with nothing at all. Absent for non-streamed failures.
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=ctx.get_item(PARTIAL_STREAM_RESPONSE))
     span.finish()
 
 
@@ -899,14 +902,18 @@ def _on_end_of_traced_method_in_fork(ctx):
 def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
     result: list[dict[str, Any]],
+    exc_info=None,
 ):
+    span = span_from_context(ctx)
+    if exc_info is not None:
+        span.set_exc_info(*exc_info)
     ctx.get_item("bedrock_integration").llmobs_set_tags(
-        span_from_context(ctx),
+        span,
         args=[ctx],
         kwargs={},
         response=result,
     )
-    span_from_context(ctx).finish()
+    span.finish()
 
 
 def _on_botocore_bedrock_process_response(
