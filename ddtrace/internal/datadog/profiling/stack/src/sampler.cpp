@@ -507,6 +507,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
                                  "stopping stack sampling to avoid crashing. "
                               << "Handler owners: " << owners << std::endl;
+                    // Same as the unexpected-exception path: do not restart after fork.
+                    sampler_active_.store(false);
                     break;
                 }
                 record_foreign_segv_handler(false, owners, false);
