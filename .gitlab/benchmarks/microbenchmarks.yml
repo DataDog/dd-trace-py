@@ -51,6 +51,9 @@ variables:
       pyenv install "$PYTHON312"
     fi
     pyenv global $(pyenv versions | grep -oE '3\.12\.[0-9]+' | head -1)
+    # awscli was installed under Python 3.9 in the CI image; reinstall it
+    # under 3.12 so pyenv shims resolve `aws` correctly.
+    pip3 install awscli
 
     for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
     do
