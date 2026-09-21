@@ -15,6 +15,7 @@ from typing import TextIO
 from typing import cast
 from urllib.parse import urlparse as _urlparse
 
+from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -23,7 +24,6 @@ from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.native_runtime import get_native_runtime
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -42,6 +42,7 @@ from ddtrace.version import __version__
 from ...constants import _KEEP_SPANS_RATE_KEY
 from ...constants import _SAMPLING_PRIORITY_KEY
 from .. import compat
+from .. import forksafe
 from .. import periodic
 from .. import process_tags
 from .. import service
@@ -847,6 +848,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._stats_opt_out = stats_opt_out
 
         self._owner_pid = os.getpid()
+
+        # Native exporter methods require exclusive access because PyO3 rejects
+        # overlapping mutable borrows.
+        self._exporter_lock = forksafe.RLock()
         self._exporter = self._create_exporter()
 
     def __del__(self) -> None:
@@ -857,7 +862,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 return
             exporter = getattr(self, "_exporter", None)
             if exporter is not None:
-                exporter.shutdown(3_000_000_000)
+                self._shutdown_exporter(exporter)
         except Exception:  # nosec B110 - destructors must not raise
             pass
 
@@ -952,26 +957,27 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
         try:
-            self._exporter.set_telemetry_handle(worker)
+            with self._exporter_lock:
+                self._exporter.set_telemetry_handle(worker)
         except Exception:
             log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
-    @staticmethod
-    def _shutdown_exporter(exporter: native.TraceExporter) -> None:
+    def _shutdown_exporter(self, exporter: native.TraceExporter) -> None:
         """Shut down a native exporter, swallowing a Rust panic from its tokio I/O driver.
 
         The exporter can panic here after a fork; since the exporter is always
         being discarded right after this call, treat that specific panic as
         non-fatal too. Anything else still propagates.
         """
-        try:
-            exporter.shutdown(3_000_000_000)
-        except Exception:
-            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
-        except BaseException as e:
-            if not is_panic_exception(e):
-                raise
-            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+        with self._exporter_lock:
+            try:
+                exporter.shutdown(3_000_000_000)
+            except Exception:
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+            except BaseException as e:
+                if not is_panic_exception(e):
+                    raise
+                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -1089,7 +1095,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
-            response_body = self._exporter.send(payload)
+            with self._exporter_lock:
+                response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
