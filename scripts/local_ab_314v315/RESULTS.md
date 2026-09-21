@@ -203,7 +203,7 @@ RSS vs heap-space: shapes **diverge** (B heap spikes at profile 2 then varies; R
 
 ### Experimental twin
 
-`experimental/.../smoke_ab/local_314v315/` (when present upstream): boot + pprof presence only — **no** `ps` series, **no** sample-type table. This harness already exceeds that. Nothing matching under `prof-correctness` (**verified** listing at analysis time; twin path absent from this worktree / main checkout).
+Twin **exists** at `~/go/src/github.com/DataDog/experimental/teams/profiling-python/ddtrace-upgrade/smoke_ab/local_314v315/` (`run.sh`, `app.py`, `corpus.txt` — separate `DataDog/experimental` repo, not in `dd-trace-py`). **Verified** by reading its `run.sh`: its `summary.json` records only `profiler_started`, `pprof_count`, `pprof_files`, `pprof_bytes`, and a server-log tail; it exits non-zero unless both sides started the profiler and wrote ≥1 pprof. **No** `ps` RSS/CPU series, **no** delta table, **no** metadata sums, **no** sample-type totals. Same corpus/drive shape (`offcpu_ab/drive.py`, seed 1337, concurrency 2) and same profiling env, so the two runs are methodologically comparable; this harness strictly extends it. Nothing matching under `prof-correctness` (**verified** listing).
 
 ---
 
