@@ -31,59 +31,21 @@ streaming, and test transport guidance, use the `llmobs-integrations` skill.
 
 ### Gateway callback attribution
 
-LiteLLM's optional `gateway.py` is not SDK auto-instrumentation. It binds verified
-proxy authentication to terminal callbacks using opaque process-local tokens and
-emits content-free APM usage spans. Do not turn these into LLMObs request spans
-with prompt/response extraction, trust client metadata as authenticated identity, or infer a
-billing account from the model provider. The public opt-in entry point is
-`ddtrace.contrib.litellm.gateway_attribution`; its proxy tests live under
-`tests/contrib/litellm/gateway/`.
+LiteLLM's opt-in `ddtrace.contrib.litellm.gateway_attribution` callback emits
+content-free APM usage spans, separate from SDK tracing and LLMObs.
 
-The callback also collects LiteLLM's normalized `end_user_id` by default as
-`ai.end_user.id` with unverified trust. Only when authenticated `user_id` is absent
-may this fill `usr.id`, with source `litellm_end_user`; keep the
-`authenticated_user_unknown` issue. Never re-read raw headers/body to recover an ID
-LiteLLM omitted, copy JSON-shaped identity payloads, or use end-user claims for
-authenticated enrichment or billing scope. `capture_end_user=false` opts out;
-invalid configuration disables end-user capture too. Authenticated user email is
-collected by default when available; `capture_email=false` opts out. Invalid or
-unreadable configuration explicitly disables email capture as well, rather than
-falling back to the default and losing a possible privacy opt-out.
+- **Identity:** Prefer gateway authentication. Keep the end-user fallback unverified;
+  never recover it from raw request fields. Preserve privacy opt-outs; invalid
+  configuration disables optional identity capture.
+- **Metadata:** Export selected, non-secret fields with raw values. Never dump
+  payloads, guess billing details, or carry route metadata across fallback deployments.
+- **Sources:** Use standard logging to supplement route/cache metadata, preserving
+  outgoing/callback precedence. Read usage from the original response, not logging
+  defaults. Missing usage, cache counts, and cache lifetimes remain unknown.
+- **Key IDs:** Read `model_info.datadog_provider_api_key_id` only from the selected
+  deployment. No automatic lookup. Rate-limit missing/invalid-ID warnings without
+  logging values; skip these warnings for gateway cache hits.
 
-`_gateway_metadata.py` selects route and pricing fields for privacy, distinguishing
-ingress from provider-transformed outgoing settings. Keep valid values verbatim,
-including unfamiliar provider names, traffic types, tiers, cache types, and TTLs;
-never use enum-value allowlists or billing-value mappings. Type, size, and secret
-checks still apply. Never dump logging kwargs or whole header/provider-specific
-dictionaries. Do not infer billing provider/account/mode/geography.
-Use LiteLLM's terminal `standard_logging_object` for common route fields and
-cache/stream status, with compatibility fallbacks; actual outgoing settings take
-precedence. Its `model_id` identifies a router deployment, not a provider resource.
-Ignore conflicting standard/response deployment metadata and never reuse a prior
-deployment's scope. Keep identity from gateway authentication and usage from the
-original response: standard logging can zero-fill absent usage. Reject an ingress
-`standard_logging_object`; never export its messages, response, arbitrary metadata,
-or model parameters wholesale. Provider scopes and response headers are selected
-separately until LiteLLM exposes a dedicated safe attribution metadata contract.
-Consumers interpret these observations downstream. An optional non-secret
-`model_info.datadog_provider_api_key_id` is read only in the post-routing deployment
-hook and exported as `ai.route.api_key_id`; never read it from ingress or carry it
-across fallback deployments. It is operator-configured, not automatically verified.
-The key ID is configured manually in Quick setup; no provider management APIs
-or secret-key discovery are used. Missing/invalid IDs on emitted provider usage
-produce an actionable warning without values; use the existing tracer logger's
-rate limit rather than new warning caches. Do not warn for gateway cache hits.
-Outgoing provider headers may supply non-secret OpenAI organization/project IDs;
-selected response headers preserve OpenAI organization/project and Anthropic
-organization/workspace IDs under `ai.response.*`. Do not read ingress headers or
-stringify endpoint objects. Native Anthropic streaming also exposes headers on
-the callback's `httpx_response`; inspect only its headers, never read the body.
-Conflicting header copies must not pick an arbitrary scope. Keep provider
-model_id/resource_id intact without parsing ARNs; they are not the router's hidden
-model_id. OCI scope uses explicit route IDs, not credential-file inspection.
-Missing cache-control TTL stays unspecified, not an assumed default. Preserve
-cache-counter presence; absent cache detail cannot establish an uncached-input partition.
-Explicit modality counters stay diagnostic when their overlap
-with caching is unknown. Cache-control TTLs are not per-TTL token quantities.
-The constructor keeps both legacy and current LiteLLM message-logging flags off;
-the ordinary SDK matrix also imports/tests the callback against older LiteLLM.
+See `ddtrace/contrib/internal/litellm/__init__.py` for fields and configuration,
+the implementation in the same directory, and `tests/contrib/litellm/gateway/`
+for real-proxy tests.
