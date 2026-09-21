@@ -2041,9 +2041,7 @@ MUL: "*"
         assert span.error == 1
         assert span.get_tag("error.type") == "builtins.ValueError"
 
-    async def test_chat_completion_async_stream_aborted_keeps_partial_response(
-        self, openai, openai_llmobs, test_spans
-    ):
+    async def test_chat_completion_async_stream_aborted_keeps_partial_response(self, openai, openai_llmobs, test_spans):
         """Async mirror of the sync partial-response-on-abort case."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
             model = "gpt-3.5-turbo"
