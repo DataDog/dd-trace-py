@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: ``gen_ai.*`` attributes are emitted on APM spans again even when LLM
+    Observability is disabled, now marked so the backend can distinguish them from a real LLM
+    Observability span and avoid creating a duplicate one.
