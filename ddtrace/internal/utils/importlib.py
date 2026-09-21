@@ -5,7 +5,7 @@ from typing import Callable  # noqa:F401
 from typing import Optional
 
 
-class require_modules(object):
+class require_modules:
     """Context manager to check the availability of required modules."""
 
     def __init__(self, modules: list[str]) -> None:

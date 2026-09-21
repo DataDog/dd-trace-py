@@ -1,6 +1,5 @@
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Optional
 
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
@@ -11,7 +10,7 @@ from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
-    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Span
 
 
 class TraceCiVisibilityFilter(TraceFilter):

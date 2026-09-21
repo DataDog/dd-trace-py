@@ -18,7 +18,7 @@ components:
     - ddtrace/testing/*
 suites:
   ci_visibility:
-    parallelism: 4
+    venvs_per_job: 3
     paths:
       - '@ci_visibility'
       - '@ci'
@@ -42,7 +42,6 @@ suites:
         - name: ci_visibility
           dependencies: [msgpack, pytest-randomly, pytest-xdist, gevent]
   ci_visibility:snapshot:
-    parallelism: 4
     paths:
       - '@ci_visibility'
       - '@ci'
@@ -67,7 +66,7 @@ suites:
         - name: ci_visibility:snapshot
           dependencies: [msgpack, pytest-randomly, gevent]
   dd_coverage:
-    parallelism: 6
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -122,7 +121,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest:snapshot:
-    venvs_per_job: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -160,7 +159,6 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest_benchmark:
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -211,7 +209,6 @@ suites:
         - name: pytest_bdd
           dependencies: ['pytest==7.4.4', msgpack, 'more_itertools<8.11.0', pytest-randomly, 'pytest-bdd>=6.0,<6.1']
   pytest_flaky:
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -238,7 +235,7 @@ suites:
           dependencies: [flaky, pytest-randomly]
   testing:
     retry: 2
-    venvs_per_job: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -279,7 +276,6 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, pytest-benchmark, pytest-bdd, pytest-timeout, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   selenium:
-    parallelism: 2
     env:
       SELENIUM_GRID_URL: http://selenium-chrome:4444
     paths:
@@ -306,7 +302,7 @@ suites:
           dependencies: ['selenium~=4.0', webdriver-manager]
           python: ['3.10', '3.12']
   unittest:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@contrib'
       - '@unittest'

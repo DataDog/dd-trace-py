@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import ctypes
 from enum import Enum
 import glob
@@ -5,7 +6,6 @@ import os
 import re
 from typing import TYPE_CHECKING
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -483,15 +483,11 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     lock_name_label = get_label_with_key(profile.string_table, sample, "lock name")
     assert lock_name_label is not None, "Lock name label not found in sample"
     if expected_event.lock_name is None:
-        expected_lock_name = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
+        expected_lock_name = f"{expected_event.filename}:{expected_event.linenos.create}"
     else:
-        expected_lock_name = "{}:{}:{}".format(
-            expected_event.filename, expected_event.linenos.create, expected_event.lock_name
-        )
+        expected_lock_name = f"{expected_event.filename}:{expected_event.linenos.create}:{expected_event.lock_name}"
     actual_lock_name = profile.string_table[lock_name_label.str]
-    assert actual_lock_name == expected_lock_name, "Expected lock name {} got {}".format(
-        expected_lock_name, actual_lock_name
-    )
+    assert actual_lock_name == expected_lock_name, f"Expected lock name {expected_lock_name} got {actual_lock_name}"
     # location_id[0] is the 'leaf' location
     location_id = sample.location_id[0]
     location = get_location_with_id(profile, location_id)
@@ -499,16 +495,16 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     line = location.line[0]
     # We expect the function name to be the caller's name
     function = get_function_with_id(profile, line.function_id)
-    assert profile.string_table[function.name] == expected_event.caller_name, "Expected caller {} got {}".format(
-        expected_event.caller_name, profile.string_table[function.name]
+    assert profile.string_table[function.name] == expected_event.caller_name, (
+        f"Expected caller {expected_event.caller_name} got {profile.string_table[function.name]}"
     )
     if expected_event.event_type == LockEventType.ACQUIRE:
-        assert line.line == expected_event.linenos.acquire, "Expected line {} got {}".format(
-            expected_event.linenos.acquire, line.line
+        assert line.line == expected_event.linenos.acquire, (
+            f"Expected line {expected_event.linenos.acquire} got {line.line}"
         )
     elif expected_event.event_type == LockEventType.RELEASE:
-        assert line.line == expected_event.linenos.release, "Expected line {} got {}".format(
-            expected_event.linenos.release, line.line
+        assert line.line == expected_event.linenos.release, (
+            f"Expected line {expected_event.linenos.release} got {line.line}"
         )
 
     assert_base_event(profile.string_table, sample, expected_event)

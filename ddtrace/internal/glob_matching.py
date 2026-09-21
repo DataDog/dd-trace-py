@@ -1,7 +1,7 @@
 from .utils.cache import cachedmethod
 
 
-class GlobMatcher(object):
+class GlobMatcher:
     """This is a backtracking implementation of the glob matching algorithm.
     The glob pattern language supports `*` as a multiple character wildcard which includes matches on `""`
     and `?` as a single character wildcard, but no escape sequences.

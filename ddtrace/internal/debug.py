@@ -213,7 +213,7 @@ def pretty_collect(tracer: Any, color=True):
         end=bcolors.ENDC,
     )
 
-    summary = "{0}{1}Summary{2}".format(bcolors.OKCYAN, bcolors.BOLD, bcolors.ENDC)
+    summary = f"{bcolors.OKCYAN}{bcolors.BOLD}Summary{bcolors.ENDC}"
 
     if info.get("agent_error"):
         summary += (
@@ -228,24 +228,24 @@ def pretty_collect(tracer: Any, color=True):
 
     if not info.get("service"):
         summary += (
-            "\n\n{warning}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced"
+            f"\n\n{bcolors.WARNING}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced"
             " applications. For more information please see"
-            " https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
-        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
+            f" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{bcolors.ENDC}"
+        )
 
     if not info.get("env"):
         summary += (
-            "\n\n{warning}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced"
+            f"\n\n{bcolors.WARNING}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced"
             " applications. For more information please see "
-            "https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
-        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
+            f"https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{bcolors.ENDC}"
+        )
 
     if not info.get("dd_version"):
         summary += (
-            "\n\n{warning}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced"
+            f"\n\n{bcolors.WARNING}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced"
             " applications. For more information please see"
-            " https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
-        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
+            f" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{bcolors.ENDC}"
+        )
 
     info_pretty += "\n\n" + summary
 

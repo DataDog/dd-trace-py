@@ -61,7 +61,7 @@ def generate_module(data: dict) -> str:
     supported = "\n".join(f'        "{n}",' for n in all_names)
 
     def _format_alias_entry(name: str, vals: list[str], max_len: int = 120) -> str:
-        single = '    "{}": [{}],'.format(name, ", ".join('"{}"'.format(a) for a in vals))
+        single = '    "{}": [{}],'.format(name, ", ".join(f'"{a}"' for a in vals))
         if len(single) <= max_len:
             return single
         return '    "{}": [\n{}\n    ],'.format(name, "\n".join(f'        "{a}",' for a in vals))

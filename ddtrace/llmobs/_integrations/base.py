@@ -34,7 +34,6 @@ from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_tracked_prompt
-from ddtrace.llmobs._utils import set_gen_ai_apm_tags
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -69,7 +68,7 @@ class BaseLLMIntegration:
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
         Eventually those should also be internal service spans once peer.service is implemented.
         """
-        span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
+        span_name = kwargs.get("span_name", None) or f"{self._integration_name}.request"
         span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
         parent_context = kwargs.get("parent_context") or tracer.context_provider.active()
 
@@ -209,16 +208,6 @@ class BaseLLMIntegration:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
         if model_provider:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
-        # Only when LLMObs is off; otherwise _prepare_llmobs_span_data emits these at span finish
-        # with better values.
-        if not self.llmobs_enabled:
-            set_gen_ai_apm_tags(
-                span,
-                span_kind=span_kind,
-                model_name=model_name,
-                model_provider=model_provider,
-                metrics=metrics,
-            )
         if span_kind in ("llm", "embedding") and metrics:
             for llmobs_key, shadow_key in (
                 (INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY),

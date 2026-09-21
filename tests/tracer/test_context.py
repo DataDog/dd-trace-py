@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pickle
 from typing import Optional  # noqa:F401
 
@@ -58,10 +57,10 @@ def test_traceparent_basic():
         assert version_hex == "00"
 
         assert len(traceid_hex) == 32
-        assert traceid_hex == "{:032x}".format(context.trace_id)
+        assert traceid_hex == f"{context.trace_id:032x}"
 
         assert len(spanid_hex) == 16
-        assert spanid_hex == "{:016x}".format(context.span_id)
+        assert spanid_hex == f"{context.span_id:016x}"
 
         assert len(sampled_hex) == 2
         assert sampled_hex == sampled_expected
@@ -193,7 +192,7 @@ def test_traceparent_preserves_inherited_random_trace_id_flag(sampling_priority,
         meta={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03"},
     )
 
-    assert context._traceparent == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{}".format(expected_flags))
+    assert context._traceparent == (f"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{expected_flags}")
 
 
 @pytest.mark.parametrize(

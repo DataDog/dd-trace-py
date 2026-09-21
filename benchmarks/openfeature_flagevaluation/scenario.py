@@ -72,9 +72,9 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         if mode == "hook_enqueue_adversarial":
             attrs = {"discarded": ["x" * 257 for _ in range(num_fields)]}
         else:
-            attrs = {"attr_{}".format(i): "value_{}".format(i) for i in range(num_fields)}
-        flag_keys = ["flag-{}".format(i) for i in range(num_flags)]
-        targeting_keys = ["user-{}".format(i) for i in range(num_users)]
+            attrs = {f"attr_{i}": f"value_{i}" for i in range(num_fields)}
+        flag_keys = [f"flag-{i}" for i in range(num_flags)]
+        targeting_keys = [f"user-{i}" for i in range(num_users)]
         hook_contexts = [
             _make_hook_context(
                 flag_key=flag_keys[i % num_flags],
@@ -86,8 +86,8 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         details_list = [
             _make_details(
                 flag_key=flag_keys[i % num_flags],
-                variant="variant-{}".format(i % 4),
-                allocation_key="alloc-{}".format(i % num_flags),
+                variant=f"variant-{i % 4}",
+                allocation_key=f"alloc-{i % num_flags}",
             )
             for i in range(cycle_count)
         ]
@@ -116,8 +116,8 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
             events = [
                 _EvalEvent(
                     flag_key=flag_keys[i % num_flags],
-                    variant="variant-{}".format(i % 4),
-                    allocation_key="alloc-{}".format(i % num_flags),
+                    variant=f"variant-{i % 4}",
+                    allocation_key=f"alloc-{i % num_flags}",
                     targeting_key=targeting_keys[i % num_users],
                     attrs=bounded_attrs,
                     runtime_default=False,
@@ -167,4 +167,4 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
             yield _
 
         else:
-            raise ValueError("unknown mode: {}".format(mode))
+            raise ValueError(f"unknown mode: {mode}")

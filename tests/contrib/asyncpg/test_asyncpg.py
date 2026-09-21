@@ -1,9 +1,9 @@
+from collections.abc import AsyncGenerator
+from collections.abc import Generator
 import os
-from typing import AsyncGenerator
-from typing import Generator
+from unittest import mock
 
 import asyncpg
-import mock
 import pytest
 
 from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS

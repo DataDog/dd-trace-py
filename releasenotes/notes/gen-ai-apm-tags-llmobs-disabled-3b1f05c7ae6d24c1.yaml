@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where ``gen_ai.*`` attributes were added to APM spans when
+    LLM Observability was disabled. These attributes are now only emitted when LLM Observability is
+    enabled.

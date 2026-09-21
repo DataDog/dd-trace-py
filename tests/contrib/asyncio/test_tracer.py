@@ -175,7 +175,7 @@ async def test_wrapped_coroutine(tracer, test_spans):
     spans = traces[0]
     assert 1 == len(spans)
     span = spans[0]
-    assert span.duration > 0.25, "span.duration={}".format(span.duration)
+    assert span.duration > 0.25, f"span.duration={span.duration}"
 
 
 def test_asyncio_scheduled_tasks_parenting(tracer, test_spans):

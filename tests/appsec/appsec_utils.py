@@ -427,7 +427,7 @@ def appsec_application_server(
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
-        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
+        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = f"X-Datadog-Test-Session-Token:{token}"
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
     else:
@@ -456,8 +456,8 @@ def appsec_application_server(
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
     env["PYTHONFAULTHANDLER"] = "1"
-    env["MALLOC_PERTURB_"] = "glibc.malloc.tcache_max=0"
-    env["GLIBC_TUNABLES"] = "255"
+    env["MALLOC_PERTURB_"] = "255"
+    env["GLIBC_TUNABLES"] = "glibc.malloc.tcache_max=0"
     env["MALLOC_CHECK_"] = "3"
 
     subprocess_kwargs = {
@@ -512,12 +512,15 @@ def appsec_application_server(
             print("Server started in %.3fs" % (time.monotonic() - startup_started))
         except Exception as exc:
             # Elapsed time separates a slow contended start from a server that died on import.
+            diagnostics = _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+            # Still running means it stalled rather than died, and its stacks are the only record
+            # of where. A server that died has none, and signalling it would only add noise.
+            if _process_exit_code(server_process) is None:
+                diagnostics += "\n" + _dump_server_stacks(server_process)
             raise AssertionError(
                 "Server failed to start within %.3fs (of a %.1fs budget, override with "
                 "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
-                "above.\n"
-                % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT)
-                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+                "above.\n" % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT) + diagnostics
             ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py

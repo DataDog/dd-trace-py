@@ -1,8 +1,8 @@
+from collections.abc import Sequence
 import json
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Sequence
 import uuid
 
 from ddtrace.aiguard import AIGuardAbortError

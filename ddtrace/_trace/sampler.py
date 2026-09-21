@@ -3,9 +3,9 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 
+from collections.abc import Mapping
 import json
 from json.decoder import JSONDecodeError
-from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.span import Span

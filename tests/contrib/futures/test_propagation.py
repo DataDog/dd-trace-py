@@ -25,7 +25,7 @@ class PropagationTestCase(TracerTestCase):
     """
 
     def setUp(self):
-        super(PropagationTestCase, self).setUp()
+        super().setUp()
 
         # instrument ``concurrent``
         patch()
@@ -34,7 +34,7 @@ class PropagationTestCase(TracerTestCase):
         # remove instrumentation
         unpatch()
 
-        super(PropagationTestCase, self).tearDown()
+        super().tearDown()
 
     def test_propagation(self):
         # it must propagate the tracing context if available

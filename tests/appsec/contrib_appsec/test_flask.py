@@ -20,7 +20,7 @@ _SUBAPP_APP = "tests.appsec.contrib_appsec.flask_app.app_subapps"
 
 class DDFlaskTestClient(FlaskClient):
     def __init__(self, *args, **kwargs):
-        super(DDFlaskTestClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def open(self, *args, **kwargs):
         # From pep-333: If an iterable returned by the application has a close() method,
@@ -28,7 +28,7 @@ class DDFlaskTestClient(FlaskClient):
         # FlaskClient does not align with this specification so we must do this manually.
         # Closing the application iterable will finish the flask.request and flask.response
         # spans.
-        res = super(DDFlaskTestClient, self).open(*args, **kwargs)
+        res = super().open(*args, **kwargs)
         res.make_sequence()
         if hasattr(res, "close"):
             # Note - werkzeug>=2.0 (used in flask>=2.0) calls response.close() for non streamed responses:
@@ -41,7 +41,7 @@ class BaseFlaskTestCase(TracerTestCase):
     app_module = _FLAT_APP
 
     def setUp(self):
-        super(BaseFlaskTestCase, self).setUp()
+        super().setUp()
         # Reload so DM.__init__ re-fires under the currently-patched werkzeug.
         endpoint_collection.reset()
         module = importlib.reload(importlib.import_module(self.app_module))
@@ -51,7 +51,7 @@ class BaseFlaskTestCase(TracerTestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
-        super(BaseFlaskTestCase, self).tearDown()
+        super().tearDown()
 
 
 class _Test_Flask_Base:

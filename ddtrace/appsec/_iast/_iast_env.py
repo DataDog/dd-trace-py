@@ -21,7 +21,7 @@ class IASTEnvironment:
     def __init__(self, span: Optional[SpanProtocol] = None):
         self.span = span or span_bus.get_span()
 
-        self.iast_reporter: Optional["IastSpanReporter"] = None
+        self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: dict[str, int] = {}
         self.iast_hash_object_tracking: dict[int, bool] = {}
         self.iast_stack_trace_reported: bool = False

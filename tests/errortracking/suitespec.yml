@@ -5,7 +5,6 @@ components:
     - ddtrace/internal/settings/errortracking.py
 suites:
   errortracker:
-    parallelism: 1
     paths:
       - '@errortracking'
       - '@bootstrap'

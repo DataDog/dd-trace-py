@@ -13,7 +13,7 @@ def unsafe_function():
     raise BadError("Bad side-effect")
 
 
-class UnsafeObject(object):
+class UnsafeObject:
     def __init__(self):
         self.safe_attr = 42
 

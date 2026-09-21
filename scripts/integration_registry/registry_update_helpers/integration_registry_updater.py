@@ -53,7 +53,7 @@ class IntegrationRegistryUpdater:
             if not self.registry_yaml_path.exists():
                 self.raw_registry_data = {}
                 return
-            with open(self.registry_yaml_path, "r", encoding="utf-8") as f:
+            with open(self.registry_yaml_path, encoding="utf-8") as f:
                 self.raw_registry_data = yaml.safe_load(f)
                 if self.raw_registry_data:
                     self._load_integrations()
@@ -65,7 +65,7 @@ class IntegrationRegistryUpdater:
         """Loads the JSON data from the specified input file."""
         input_file_path = pathlib.Path(input_file_path_str)
         try:
-            with open(input_file_path, "r", encoding="utf-8") as f:
+            with open(input_file_path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}

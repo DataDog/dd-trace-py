@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 from enum import Enum
 import logging
 import math
@@ -23,12 +22,15 @@ from tests.utils import override_global_config
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
-EscapeContext = NamedTuple("EscapeContext", [("id", Any), ("position", int)])
+
+class EscapeContext(NamedTuple):
+    id: Any
+    position: int
 
 
 @given(text())
 def test_format_aspect_str(text):
-    assert ddtrace_aspects.format_aspect("t-{}-t".format, 1, "t-{}-t", text) == "t-{}-t".format(text)
+    assert ddtrace_aspects.format_aspect("t-{}-t".format, 1, "t-{}-t", text) == f"t-{text}-t"
 
 
 class TestOperatorFormatReplacement(BaseReplacement):

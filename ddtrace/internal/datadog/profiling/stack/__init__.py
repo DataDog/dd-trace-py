@@ -5,24 +5,11 @@ failure_msg = ""
 
 
 try:
-    from . import _stack
     from ._stack import *  # noqa: F403, F401  # type: ignore[assignment]
     from ._stack import _cpu_timer_debug_set_fault_injection  # noqa: F401
     from ._stack import _cpu_timer_debug_stats  # noqa: F401
 
     is_available = True
-
-    def link_origin_task(task_id: int, task_name: str) -> None:
-        """
-        Record, for the current thread, the asyncio task that submitted the work now running on it.
-        """
-        _stack.link_origin_task(task_id, task_name)
-
-    def unlink_origin_task() -> None:
-        """
-        Clear the originating asyncio task for the current thread.
-        """
-        _stack.unlink_origin_task()
 
 except Exception as e:
     failure_msg = str(e)

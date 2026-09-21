@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
@@ -7,10 +10,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Iterator
-from typing import Mapping
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -266,7 +266,7 @@ def _unserializable_default_repr(obj):
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return "[Unserializable object: {}]".format(repr(obj))
+        return f"[Unserializable object: {repr(obj)}]"
 
 
 _MAX_NESTED_META_DEPTH = 12
@@ -311,7 +311,7 @@ def _sanitize_span_event_data(obj: Any) -> Any:
             try:
                 return str(node)
             except Exception:
-                return "[Unserializable object of type {}]".format(type(node).__name__)
+                return f"[Unserializable object of type {type(node).__name__}]"
         return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
@@ -530,8 +530,15 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
       4. neither when even the id would exceed the budget.
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
+
+    Both keys describe the span being injected, but meta is trace-scoped and shared by every
+    span in the trace, so a value written by an earlier span outlives it. Whatever does not apply
+    to this span is cleared, or it would be propagated as if it did.
     """
+    if agent_name is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_NAME_KEY, None)
     if agent_span_id is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
         return
     meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
     if agent_name is not None:
@@ -1093,20 +1100,20 @@ _TOKEN_METRIC_KEYS = (
 )
 
 
-def set_gen_ai_apm_tags(
-    span: Span,
-    span_kind: Optional[str],
-    model_name: Optional[str] = None,
-    model_provider: Optional[str] = None,
-    metrics: Optional[dict[str, Any]] = None,
-    ml_app: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> None:
-    """Write the scalar gen_ai.* attributes onto the APM span.
+def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
+    """Write the scalar gen_ai.* attributes onto the APM span from its LLMObs meta_struct.
 
-    Normalization happens here, not in the caller, so the LLMObs-disabled and finish-time paths
-    agree on a facet value instead of splitting it.
+    Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every
+    kind other than llm/embedding. span_kind is passed in because normalization is also what
+    writes meta.span.kind.
     """
+    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
+    model_name = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME)
+    model_provider = llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER)
+    metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS)
+    ml_app = llmobs_data.get(LLMOBS_STRUCT.ML_APP)
+    session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID)
+
     if span_kind:
         span.set_tag(GEN_AI_OPERATION_NAME_TAG_KEY, span_kind)
     if span_kind in _TOKEN_METRIC_SPAN_KINDS:
@@ -1127,22 +1134,3 @@ def set_gen_ai_apm_tags(
             value = metrics.get(llmobs_key)
             if value is not None:
                 span._set_attribute(gen_ai_key, value)
-
-
-def set_gen_ai_apm_tags_from_llmobs_data(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
-    """Write gen_ai.* attributes from a span's LLMObs meta_struct.
-
-    Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every
-    kind other than llm/embedding. span_kind is passed in because normalization is also what
-    writes meta.span.kind.
-    """
-    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
-    set_gen_ai_apm_tags(
-        span,
-        span_kind=span_kind,
-        model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME),
-        model_provider=llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER),
-        metrics=llmobs_data.get(LLMOBS_STRUCT.METRICS),
-        ml_app=llmobs_data.get(LLMOBS_STRUCT.ML_APP),
-        session_id=llmobs_data.get(LLMOBS_STRUCT.SESSION_ID),
-    )

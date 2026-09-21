@@ -31,12 +31,12 @@ class BaseLangchainStreamHandler:
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
-        # dispatch the AI Guard ``.finally`` event before finishing
-        # the span so the active-context counter set by ``start_stream`` is
-        # released on every iteration-exit path — success, exception, early
-        # ``break``, or ``aclose()`` — since ``finalize_stream`` is called
-        # from ``TracedStream.__iter__`` / ``__aiter__``'s ``finally`` block.
-        # Use ``core.dispatch`` (non-raising) because cleanup must not throw.
+        # Dispatch the AI Guard finally event before finishing the span so
+        # the active-context counter set by start_stream is released on every
+        # exit path: success, exception, early break, aclose, or
+        # context-manager exit. close_stream calls finalize_stream at most
+        # once from TracedStream iteration cleanup and from context-manager
+        # exit. Use core.dispatch (non-raising) because cleanup must not throw.
         finally_event = self.options.get("aiguard_finally_event")
         if finally_event:
             core.dispatch(finally_event, ())

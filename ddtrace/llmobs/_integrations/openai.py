@@ -113,7 +113,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         provider = span.get_tag("openai.request.provider") or "OpenAI"
-        span_name = "{}.{}".format(provider, span.resource) if span.resource else None
+        span_name = f"{provider}.{span.resource}" if span.resource else None
         # Set kind before helpers so that input/output messages are routed correctly
         _annotate_llmobs_span_data(
             span,
@@ -153,9 +153,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
-            output_value = "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+            output_value = f"[{len(resp.data)} embedding(s) returned with size {embedding_dim}]"
         else:
-            output_value = "[{} embedding(s) returned]".format(len(resp.data))
+            output_value = f"[{len(resp.data)} embedding(s) returned]"
         _annotate_llmobs_span_data(span, output_value=output_value)
 
     @staticmethod
@@ -165,7 +165,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         tool_name = kwargs.get("name", "unknown_tool")
         tool_arguments = kwargs.get("arguments")
 
-        span_name = "MCP Client Tool Call: {}".format(tool_name)
+        span_name = f"MCP Client Tool Call: {tool_name}"
         span.name = span_name
 
         _annotate_llmobs_span_data(
@@ -205,7 +205,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
         _annotate_llmobs_span_data(
             span,
-            name="{}.{}".format(provider, span.resource) if span.resource else None,
+            name=f"{provider}.{span.resource}" if span.resource else None,
             kind="llm",
             model_name=model_name or "unknown_model",
             model_provider=model_provider,

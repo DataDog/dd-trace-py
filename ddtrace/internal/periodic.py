@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import typing
 
 from ddtrace.internal import forksafe
@@ -48,7 +47,7 @@ class PeriodicService(service.Service):
         """Stop the periodic collector."""
         if self._worker:
             self._worker.stop()
-        super(PeriodicService, self)._stop_service(*args, **kwargs)  # type: ignore[safe-super]
+        super()._stop_service(*args, **kwargs)  # type: ignore[safe-super]
 
     def join(
         self,

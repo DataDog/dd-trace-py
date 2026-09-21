@@ -54,7 +54,7 @@ def _wrap_create_engine(func, module, args, kwargs):
     return engine
 
 
-class EngineTracer(object):
+class EngineTracer:
     __datadog_tracer_attr__ = "_datadog_sqlalchemy_engine_tracer"
 
     @classmethod

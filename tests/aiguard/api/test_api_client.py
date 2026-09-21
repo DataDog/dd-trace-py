@@ -275,7 +275,9 @@ def test_evaluate_transport_failure(mock_execute_request, telemetry_mock, ai_gua
     with pytest.raises(AIGuardClientError) as exc_info:
         ai_guard_client.evaluate(TOOL_CALL)
 
-    assert str(exc_info.value) == "Unexpected error calling AI Guard service: Connection refused"
+    assert str(exc_info.value) == (
+        "Unexpected error calling AI Guard service (ConnectionFailedError): Connection refused"
+    )
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
     assert_telemetry(telemetry_mock, "error", (("type", AI_GUARD.ERROR_CONNECTION),))
 

@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 from copy import copy
 
 import pytest
@@ -639,7 +638,7 @@ def test_string_operator_add_inplace_list_plus_tuple_3_times() -> None:
 
 
 def test_string_operator_add_inplace_object_3_times() -> None:
-    class MyObject(object):
+    class MyObject:
         attr_inplace = "attr_inplace"
 
         def __init__(self, attr_inplace):

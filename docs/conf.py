@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # ddtrace documentation build configuration file, created by
 # sphinx-quickstart on Thu Jul  7 17:25:05 2016.
@@ -96,7 +95,7 @@ master_doc = "index"
 # General information about the project.
 year = datetime.now().year
 project = "ddtrace"
-copyright = "2016-{}, Datadog, Inc.".format(year)  # noqa: A001
+copyright = f"2016-{year}, Datadog, Inc."  # noqa: A001
 author = "Datadog, Inc."
 
 # document in order of source
@@ -436,29 +435,29 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
             var_version_added = value.get("version_added")
 
             if not skip_label:
-                results.append(".. _`{}`:".format(var_label), "", 0)
+                results.append(f".. _`{var_label}`:", "", 0)
                 results.append("", "", 0)
-            results.append(".. py:data:: {}".format(var_name), "", 0)
+            results.append(f".. py:data:: {var_name}", "", 0)
             results.append("", "", 0)
             for line in var_description.splitlines():
                 results.append("    " + line.lstrip(), "", 0)
 
             results.append("", "", 0)
-            results.append("    **Type**: {}".format(var_type), "", 0)
+            results.append(f"    **Type**: {var_type}", "", 0)
             results.append("", "", 0)
-            results.append("    **Default**: {}".format(var_default), "", 0)
+            results.append(f"    **Default**: {var_default}", "", 0)
             results.append("", "", 0)
 
             if var_version_added:
                 for version, note in var_version_added.items():
                     if note:
                         results.append(
-                            "    *Changed in version {}*: {}".format(version, note),
+                            f"    *Changed in version {version}*: {note}",
                             "",
                             0,
                         )
                     else:
-                        results.append("    *New in version {}.*".format(version), "", 0)
+                        results.append(f"    *New in version {version}.*", "", 0)
                     results.append("", "", 0)
 
         # Generate the RST nodes to return for rendering
@@ -489,7 +488,7 @@ class DDEnvierConfigurationDirective(rst.Directive):
         for part in config_class.split("."):
             config_spec = getattr(module, part)
         if config_spec is None:
-            raise ValueError("Could not find configuration spec class {} from {}".format(config_class, module_name))
+            raise ValueError(f"Could not find configuration spec class {config_class} from {module_name}")
 
         recursive = self.options.get("recursive", False)
 
@@ -500,18 +499,18 @@ class DDEnvierConfigurationDirective(rst.Directive):
 
             var_label = var_name.lower().replace("_", "-")
 
-            results.append(".. _`{}`:".format(var_label), "", 0)
+            results.append(f".. _`{var_label}`:", "", 0)
             results.append("", "", 0)
 
-            results.append(".. py:data:: {}".format(var_name), "", 0)
+            results.append(f".. py:data:: {var_name}", "", 0)
             results.append("", "", 0)
             for line in var_description.splitlines():
                 results.append("    " + line.lstrip(), "", 0)
 
             results.append("", "", 0)
-            results.append("    **Type**: {}".format(var_type), "", 0)
+            results.append(f"    **Type**: {var_type}", "", 0)
             results.append("", "", 0)
-            results.append("    **Default**: {}".format(var_default), "", 0)
+            results.append(f"    **Default**: {var_default}", "", 0)
             results.append("", "", 0)
 
         # Generate the RST nodes to return for rendering

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pytest
 import rediscluster
 
@@ -39,7 +38,7 @@ def _get_test_client():
 
 class TestGrokzenRedisClusterPatch(TracerTestCase):
     def setUp(self):
-        super(TestGrokzenRedisClusterPatch, self).setUp()
+        super().setUp()
         patch()
         r = _get_test_client()
         r.flushall()
@@ -47,7 +46,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestGrokzenRedisClusterPatch, self).tearDown()
+        super().tearDown()
 
     def test_basics(self):
         us = self.r.get("cheese")

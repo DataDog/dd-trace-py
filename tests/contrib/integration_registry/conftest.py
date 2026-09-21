@@ -43,7 +43,7 @@ def registry_content(registry_yaml_path: Path) -> dict:
     if not registry_yaml_path.is_file():
         pytest.fail(f"Registry YAML file not found: {registry_yaml_path}")
     try:
-        with open(registry_yaml_path, "r", encoding="utf-8") as f:
+        with open(registry_yaml_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
             if not isinstance(data, dict):
                 pytest.fail(f"Invalid structure in {registry_yaml_path}: Expected root object.")
@@ -72,7 +72,7 @@ def registry_schema(registry_schema_path: Path) -> dict:
     if not registry_schema_path.is_file():
         pytest.fail(f"Schema JSON file not found: {registry_schema_path}")
     try:
-        with open(registry_schema_path, "r", encoding="utf-8") as f:
+        with open(registry_schema_path, encoding="utf-8") as f:
             schema = json.load(f)
         return schema
     except json.JSONDecodeError as e:
@@ -193,7 +193,7 @@ def documented_versions(docs_index_path: Path, dependency_to_integration_mapping
     if not docs_index_path.exists():
         pytest.fail(f"Documentation file not found: {docs_index_path}")
 
-    with open(docs_index_path, "r", encoding="utf-8") as f:
+    with open(docs_index_path, encoding="utf-8") as f:
         content = f.read()
 
     versions = {}

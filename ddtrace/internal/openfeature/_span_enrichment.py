@@ -259,7 +259,7 @@ class SpanEnrichmentHook(Hook):
 
     def __init__(self) -> None:
         # Keyed by span: state is GC'd with the span (zero idle leak, DG-005).
-        self._span_states: "WeakKeyDictionary[typing.Any, SpanEnrichmentState]" = WeakKeyDictionary()
+        self._span_states: WeakKeyDictionary[typing.Any, SpanEnrichmentState] = WeakKeyDictionary()
         # Guards _span_states get/create/pop so concurrent evaluations and the
         # root-span-finish callback never race on the dict (a WeakKeyDictionary
         # is not thread-safe, and free-threaded CPython drops the GIL atomicity

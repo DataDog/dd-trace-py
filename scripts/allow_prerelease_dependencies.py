@@ -70,7 +70,7 @@ def update_dependencies_to_allow_prereleases():
     """
     updated_specifiers: list[str] = []
 
-    with open(PROJECT_FILENAME, "r") as f:
+    with open(PROJECT_FILENAME) as f:
         project_file_lines: list[str] = f.readlines()
 
     with open(PROJECT_FILENAME, "rb") as f:

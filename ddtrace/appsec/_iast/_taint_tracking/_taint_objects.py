@@ -1,6 +1,6 @@
+from collections.abc import Sequence
 import itertools
 from typing import Any
-from typing import Sequence
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import contextlib
 import json
 import random
@@ -120,7 +119,7 @@ class RefMsgpackEncoderV04(RefMsgpackEncoder):
 
 class RefMsgpackEncoderV05(RefMsgpackEncoder):
     def __init__(self, *args, **kwargs):
-        super(RefMsgpackEncoderV05, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.string_table = ListStringTable()
         self.string_table.index(ORIGIN_KEY)
 
@@ -141,7 +140,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
 
     def encode(self, obj):
         try:
-            return super(RefMsgpackEncoderV05, self).encode([list(self.string_table), obj])
+            return super().encode([list(self.string_table), obj])
         finally:
             self.string_table = ListStringTable()
             self.string_table.index(ORIGIN_KEY)
@@ -805,7 +804,7 @@ def test_encoder_propagates_dd_origin(tracer, Encoder, item):
     assert decoded_trace[0]
 
     # Ensure encoded trace contains dd_origin tag in all spans
-    assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
+    assert all(_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0])
 
 
 @allencodings
@@ -1028,11 +1027,8 @@ def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_v
 def test_custom_msgpack_encode_thread_safe(encoding):
     class TracingThread(threading.Thread):
         def __init__(self, encoder, span_count, trace_count):
-            super(TracingThread, self).__init__()
-            trace = [
-                Span(name="span-{}-{}".format(self.name, _), service="threads", resource="TEST")
-                for _ in range(span_count)
-            ]
+            super().__init__()
+            trace = [Span(name=f"span-{self.name}-{_}", service="threads", resource="TEST") for _ in range(span_count)]
             self._encoder = encoder
             self._trace = trace
             self._trace_count = trace_count

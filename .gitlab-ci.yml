@@ -14,11 +14,14 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  # Build OpenTelemetry Operator-compatible Python images through one-pipeline.
+  CI_OTEL_OPERATOR_IMAGES_ENABLED: "true"
+  CI_OTEL_OPERATOR_LANGUAGE: python
   # VPA Template configuration
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "de534bc7bcba4f217cb6444e22d7890b52cf64da"
+  SYSTEM_TESTS_REF: "7826911341b566032de160372974ada85830df22"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -58,8 +61,8 @@ workflow:
     - when: always
 
 include:
-  - project: 'DataDog/llm-validation-platform'
-    ref: 0f48ca35f0b3dfd19d5c0dc9f92aa977c99bebbf
+  - project: 'ddoghq/llm-validation-platform'
+    ref: c331696647a78672101002ba48ccebbd41b0fae8  # v0.1.3
     file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/retry-policies.yml"
@@ -415,11 +418,10 @@ detect_circular_imports:
     - cat cycles-pr.json
     - |
       cd dd-trace-py
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
+      # resolve-base-branch.sh mints its own token only if it hits the API,
+      # so don't acquire one unconditionally here.
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
+      git fetch origin -- "${BASE_BRANCH}"
       MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
       git checkout "${MERGE_BASE}"
       cd ..
@@ -509,6 +511,20 @@ check_added_file_size:
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
+
+# Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
+# tests stub git/curl (no network), so we skip the heavier .testrunner setup.
+test_resolve_base_branch:
+  stage: tests
+  needs: []
+  image:
+    name: ${TESTRUNNER_IMAGE}
+    docker:
+      user: bits
+  tags: [ "arch:amd64" ]
+  timeout: 5m
+  script:
+    - .gitlab/scripts/resolve-base-branch.test.sh
 
 
 "summarize failures":
@@ -780,5 +796,6 @@ publishing-gate:
 
 "llm validation":
   variables:
+    LLMVAL_PLATFORM_PROJECT: "ddoghq/llm-validation-platform"  # canonical mirror; the DataDog/ mirror is stale (frozen ~v0.1.1)
     LLMVAL_BASE_REF: "main"
-    LLMVAL_PLATFORM_REF: "0f48ca35f0b3dfd19d5c0dc9f92aa977c99bebbf"  # keep identical to the include ref above
+    LLMVAL_PLATFORM_REF: "c331696647a78672101002ba48ccebbd41b0fae8"  # v0.1.3 (keep identical to the include ref above)

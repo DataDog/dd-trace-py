@@ -40,7 +40,7 @@ _REAL_SOCKET_ATTRS = {
 
 class MockSignalUploader(SignalUploader):
     def __init__(self, *args, **kwargs):
-        super(MockSignalUploader, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.queue = Queue()
         self._state = self._online
 
@@ -54,7 +54,7 @@ class MockSignalUploader(SignalUploader):
 
 class ActiveBatchJsonEncoder(MockSignalUploader):
     def __init__(self, size=1 << 10, interval=1):
-        super(ActiveBatchJsonEncoder, self).__init__(interval)
+        super().__init__(interval)
 
         # Override the signal queue
         for track in self._tracks.values():
@@ -68,8 +68,8 @@ def test_uploader_batching():
     with ActiveBatchJsonEncoder(interval=LONG_INTERVAL) as uploader:
         queue = uploader._tracks.values().__iter__().__next__().queue
         for _ in range(5):
-            queue.put_encoded(None, "hello".encode("utf-8"))
-            queue.put_encoded(None, "world".encode("utf-8"))
+            queue.put_encoded(None, b"hello")
+            queue.put_encoded(None, b"world")
             uploader.periodic()
 
         for _ in range(5):

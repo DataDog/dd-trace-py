@@ -128,7 +128,7 @@ class ThreadInfo
     };
 
   private:
-    using TaskAddressCallback = std::function<void(TaskObj*)>;
+    using TaskAddressCallback = std::function<Result<void>(TaskObj*)>;
 
     friend class ThreadInfoTaskTraversalTest;
 
@@ -137,24 +137,14 @@ class ThreadInfo
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
     void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long, microsecond_t wall_time_us);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
-    // The output vector allows malformed linked-list sources to roll back their snapshots without deferring reads.
-    template<class T>
     [[nodiscard]] Result<void> for_each_task_address(EchionSampler&,
                                                      PyThreadState* tstate,
-                                                     std::vector<T>& tasks,
                                                      const TaskAddressCallback& callback);
 #if PY_VERSION_HEX >= 0x030e0000
-    template<class T>
-    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(std::vector<T>& tasks,
-                                                                 const TaskAddressCallback& callback);
-    template<class T>
-    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(PyThreadState* tstate,
-                                                                      std::vector<T>& tasks,
-                                                                      const TaskAddressCallback& callback);
-    template<class T>
-    [[nodiscard]] Result<void> get_tasks_from_linked_list(uintptr_t head_addr,
-                                                          std::vector<T>& tasks,
-                                                          const TaskAddressCallback& callback);
+    [[nodiscard]] Result<void> for_each_task_address_from_thread_list(const TaskAddressCallback& callback);
+    [[nodiscard]] Result<void> for_each_task_address_from_interpreter_list(PyThreadState* tstate,
+                                                                           const TaskAddressCallback& callback);
+    [[nodiscard]] Result<std::vector<TaskObj*>> get_task_addresses_from_linked_list(uintptr_t head_addr);
 #endif
 };
 

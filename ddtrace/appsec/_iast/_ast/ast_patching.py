@@ -4,7 +4,6 @@ import sys
 import textwrap
 from types import ModuleType
 from typing import Optional
-from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
@@ -145,8 +144,8 @@ def _should_iast_patch(module_name: str) -> bool:
 
 def visit_ast(
     source_text: bytes,
-    module_path: Text,
-    module_name: Text = "",
+    module_path: str,
+    module_name: str = "",
 ) -> Optional[ast.Module]:
     """Visits and modifies a module's AST for IAST instrumentation.
 

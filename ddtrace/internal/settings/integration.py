@@ -41,7 +41,7 @@ class IntegrationConfig(AttrDict):
         :param args:
         :param kwargs:
         """
-        super(IntegrationConfig, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # Set internal properties for this `IntegrationConfig`
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties

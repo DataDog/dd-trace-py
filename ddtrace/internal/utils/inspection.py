@@ -1,4 +1,5 @@
 from collections import deque
+from collections.abc import Iterator
 from dis import findlinestarts
 from functools import lru_cache
 from functools import partial
@@ -7,7 +8,6 @@ from pathlib import Path
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
-from typing import Iterator
 from typing import Optional
 from typing import cast
 import weakref

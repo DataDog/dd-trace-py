@@ -4,9 +4,9 @@ Sanitizers are functions that clean/escape their inputs to prevent security issu
 If a sanitizer returns a value, we mark that value as secure for specific vulnerability types.
 """
 
+from collections.abc import Sequence
 from typing import Any
 from typing import Callable
-from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
