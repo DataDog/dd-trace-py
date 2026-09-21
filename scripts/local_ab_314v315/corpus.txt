@@ -1,0 +1,10 @@
+# Local smoke corpus (Rapid GET paths) + asyncio burst for tip-feature signal.
+/internal/rapid_python_http_smoke_test
+/internal/rapid_python_http_smoke_test/factorial?duration=0.5
+/internal/rapid_python_http_smoke_test/wait?seconds=0.5
+/internal/rapid_python_http_smoke_test/alloc_pressure?duration=0.5
+/internal/rapid_python_http_smoke_test/pure_mem?duration=0.5
+/internal/rapid_python_http_smoke_test/dynamic_code_generation?duration=0.5
+/internal/rapid_python_http_smoke_test/file-io
+/internal/rapid_python_http_smoke_test/http
+/internal/rapid_python_http_smoke_test/asyncio_burst?seconds=0.2

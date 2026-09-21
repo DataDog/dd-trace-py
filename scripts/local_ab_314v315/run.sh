@@ -1,0 +1,430 @@
+#!/usr/bin/env bash
+# scripts/local_ab_314v315/run.sh — laptop local 3.14 vs 3.15 smoke A/B.
+#
+# Self-contained port of experimental smoke_ab/local_314v315: stdlib HTTP app,
+# smoke corpus, byte-identical drive, profiling on, RSS/CPU sampling, delta table.
+#
+# Usage (from repo root or this dir):
+#   ./scripts/local_ab_314v315/run.sh
+#   DURATION=90 DDTRACE_SRC=$PWD ./scripts/local_ab_314v315/run.sh
+#   REUSE_VENV=/tmp/local314v315_.../venvs DURATION=90 ./scripts/local_ab_314v315/run.sh
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+RUN_ID="${RUN_ID:-local314v315_$(date -u +%Y%m%dT%H%M%SZ)}"
+RUN_DIR="${RUN_DIR:-/tmp/${RUN_ID}}"
+mkdir -p "${RUN_DIR}"/{venvs,pprof,logs}
+
+PY314_BIN="${PY314_BIN:-/opt/homebrew/bin/python3.14}"
+PY315_BIN="${PY315_BIN:-}"
+if [[ -z "${PY315_BIN}" ]]; then
+  for cand in \
+    "${HOME}/.pyenv/versions/3.15.0a7/bin/python" \
+    "${HOME}/.local/share/uv/python/cpython-3.15-macos-aarch64-none/bin/python3.15"; do
+    if [[ -x "${cand}" ]]; then
+      PY315_BIN="${cand}"
+      break
+    fi
+  done
+fi
+: "${PY315_BIN:?set PY315_BIN to a Python 3.15 interpreter}"
+
+DDTRACE_SRC="${DDTRACE_SRC:-${REPO_ROOT}}"
+: "${DDTRACE_SRC:?set DDTRACE_SRC to a dd-trace-py checkout}"
+
+DDTRACE_REF="${DDTRACE_REF:-}"
+PORT_A="${PORT_A:-18400}"
+PORT_B="${PORT_B:-18401}"
+DURATION="${DURATION:-90}"
+CONCURRENCY="${CONCURRENCY:-2}"
+UPLOAD_INTERVAL="${DD_PROFILING_UPLOAD_INTERVAL:-15}"
+REUSE_VENV="${REUSE_VENV:-}"
+
+CORPUS="${SCRIPT_DIR}/corpus.txt"
+DRIVE_PY="${SCRIPT_DIR}/drive.py"
+APP_PY="${SCRIPT_DIR}/app.py"
+
+for bin in "${PY314_BIN}" "${PY315_BIN}"; do
+  if [[ ! -x "${bin}" ]]; then
+    echo "ERROR: missing interpreter ${bin}" >&2
+    exit 1
+  fi
+done
+
+echo "=== local 314v315 smoke (dd-trace-py) ==="
+echo "RUN_DIR=${RUN_DIR}"
+echo "DDTRACE_SRC=${DDTRACE_SRC}"
+echo "A: ${PY314_BIN} ($("${PY314_BIN}" -V 2>&1)) port=${PORT_A}"
+echo "B: ${PY315_BIN} ($("${PY315_BIN}" -V 2>&1)) port=${PORT_B}"
+if [[ -n "${DDTRACE_REF}" ]]; then
+  echo "checkout ${DDTRACE_REF} in ${DDTRACE_SRC}"
+  git -C "${DDTRACE_SRC}" checkout --detach "${DDTRACE_REF}"
+fi
+echo "ddtrace HEAD: $(git -C "${DDTRACE_SRC}" rev-parse --short HEAD) $(git -C "${DDTRACE_SRC}" log -1 --oneline)"
+
+_install() {
+  local py="$1" venv="$2" label="$3"
+  if [[ -n "${REUSE_VENV}" ]]; then
+    # labels are A314/B315; reuse tree uses a314/b315
+    local src_venv=""
+    case "${label}" in
+      A314) src_venv="${REUSE_VENV}/a314" ;;
+      B315) src_venv="${REUSE_VENV}/b315" ;;
+    esac
+    if [[ -x "${src_venv}/bin/python" ]]; then
+      echo ">>> [${label}] symlink reuse ${src_venv} -> ${venv}"
+      rm -rf "${venv}"
+      ln -s "${src_venv}" "${venv}"
+      "${venv}/bin/python" -c "import ddtrace, sys; print('[${label}] ddtrace=' + ddtrace.__version__ + ' py=' + sys.version.split()[0])"
+      return 0
+    fi
+  fi
+  if [[ -x "${venv}/bin/python" ]] && "${venv}/bin/python" -c "import ddtrace" 2>/dev/null; then
+    echo ">>> [${label}] reuse existing venv ${venv}"
+    "${venv}/bin/python" -c "import ddtrace, sys; print('[${label}] ddtrace=' + ddtrace.__version__ + ' py=' + sys.version.split()[0])"
+    return 0
+  fi
+  echo ">>> [${label}] venv ${venv}"
+  "${py}" -m venv "${venv}"
+  # shellcheck disable=SC1091
+  source "${venv}/bin/activate"
+  pip install -U pip setuptools wheel >/dev/null
+  echo ">>> [${label}] pip install -e ${DDTRACE_SRC} (may take several minutes)"
+  PIP_IGNORE_REQUIRES_PYTHON=1 pip install --ignore-requires-python --no-binary=wrapt \
+    -e "${DDTRACE_SRC}" \
+    2>&1 | tee "${RUN_DIR}/logs/pip_${label}.log" | tail -20
+  python -c "import ddtrace, sys; print('[${label}] ddtrace=' + ddtrace.__version__ + ' py=' + sys.version.split()[0])"
+  deactivate
+}
+
+_install "${PY314_BIN}" "${RUN_DIR}/venvs/a314" "A314"
+_install "${PY315_BIN}" "${RUN_DIR}/venvs/b315" "B315"
+
+_start() {
+  local venv="$1" port="$2" label="$3" side="$4"
+  local pprof_prefix="${RUN_DIR}/pprof/${label}"
+  mkdir -p "${pprof_prefix}"
+  # shellcheck disable=SC1091
+  source "${venv}/bin/activate"
+  env \
+    PORT="${port}" \
+    DD_ENV=local-314v315 \
+    DD_SERVICE="local-smoke-${side}" \
+    DD_VERSION="$(git -C "${DDTRACE_SRC}" rev-parse --short HEAD)" \
+    DD_PROFILING_ENABLED=true \
+    DD_PROFILING_LOCK_ENABLED=true \
+    DD_PROFILING_MEMORY_ENABLED=true \
+    DD_PROFILING_UPLOAD_INTERVAL="${UPLOAD_INTERVAL}" \
+    DD_PROFILING_OUTPUT_PPROF="${pprof_prefix}/profile" \
+    DD_PROFILING_TAGS="ab_side:${side},experiment:local_smoke_314v315,py:${label}" \
+    DD_TRACE_ENABLED=false \
+    python "${APP_PY}" \
+    >"${RUN_DIR}/logs/server_${label}.log" 2>&1 &
+  echo $! >"${RUN_DIR}/logs/server_${label}.pid"
+  deactivate
+  echo ">>> [${label}] pid=$(cat "${RUN_DIR}/logs/server_${label}.pid") port=${port}"
+}
+
+_start "${RUN_DIR}/venvs/a314" "${PORT_A}" "A314" "A"
+_start "${RUN_DIR}/venvs/b315" "${PORT_B}" "B315" "B"
+
+cleanup() {
+  if [[ -n "${METRICS_PID:-}" ]]; then
+    kill "${METRICS_PID}" 2>/dev/null || true
+  fi
+  for label in A314 B315; do
+    if [[ -f "${RUN_DIR}/logs/server_${label}.pid" ]]; then
+      kill "$(cat "${RUN_DIR}/logs/server_${label}.pid")" 2>/dev/null || true
+    fi
+  done
+}
+trap cleanup EXIT
+
+echo ">>> waiting for /healthz..."
+for port in "${PORT_A}" "${PORT_B}"; do
+  ok=0
+  for _ in $(seq 1 60); do
+    if curl -sf "http://127.0.0.1:${port}/healthz" >/dev/null; then
+      ok=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "${ok}" != 1 ]]; then
+    echo "ERROR: port ${port} never became ready; logs:" >&2
+    ls -la "${RUN_DIR}/logs/" >&2
+    tail -50 "${RUN_DIR}/logs/"*.log >&2 || true
+    exit 1
+  fi
+done
+echo ">>> both sides up"
+
+# 1Hz RSS/CPU sample via macOS/Linux ps while the drive runs.
+METRICS_CSV="${RUN_DIR}/logs/proc_metrics.csv"
+echo "t_s,label,pid,pcpu,rss_kb" >"${METRICS_CSV}"
+(
+  t0="$(date +%s)"
+  while true; do
+    now="$(date +%s)"
+    t_s="$((now - t0))"
+    for label in A314 B315; do
+      pid_file="${RUN_DIR}/logs/server_${label}.pid"
+      [[ -f "${pid_file}" ]] || continue
+      pid="$(cat "${pid_file}")"
+      # macOS ps: %cpu and rss (KB). Linux: same with -o.
+      line="$(ps -p "${pid}" -o %cpu=,rss= 2>/dev/null | awk '{print $1","$2}')"
+      if [[ -n "${line}" ]]; then
+        echo "${t_s}.0,${label},${pid},${line}" >>"${METRICS_CSV}"
+      fi
+    done
+    sleep 1
+  done
+) &
+METRICS_PID=$!
+
+echo ">>> drive ${DURATION}s concurrency=${CONCURRENCY}"
+python3 "${DRIVE_PY}" \
+  --auth "Bearer unused" \
+  --sides "A=${PORT_A},B=${PORT_B}" \
+  --requests-file "${CORPUS}" \
+  --concurrency "${CONCURRENCY}" \
+  --duration "${DURATION}" \
+  --shuffle-seed 1337 \
+  --stats-out "${RUN_DIR}/logs/drive_stats.json" \
+  2>&1 | tee "${RUN_DIR}/logs/drive.log"
+touch "${RUN_DIR}/logs/drive_done.flag"
+
+kill "${METRICS_PID}" 2>/dev/null || true
+METRICS_PID=""
+
+echo ">>> asyncio_burst probe"
+for port in "${PORT_A}" "${PORT_B}"; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' \
+    "http://127.0.0.1:${port}/internal/rapid_python_http_smoke_test/asyncio_burst?seconds=0.2" || true)
+  echo "  port ${port} asyncio_burst -> ${code}"
+done
+
+sleep $((UPLOAD_INTERVAL + 5))
+
+echo "=== summary + delta table ==="
+python3 - <<'PY' "${RUN_DIR}" "${DDTRACE_SRC}" "${DURATION}" "${PORT_A}" "${PORT_B}" "${PY314_BIN}" "${PY315_BIN}"
+from __future__ import annotations
+
+import json
+import pathlib
+import re
+import statistics
+import sys
+from typing import Any
+
+run: pathlib.Path = pathlib.Path(sys.argv[1])
+ddtrace_src: str = sys.argv[2]
+duration_s: int = int(sys.argv[3])
+port_a: int = int(sys.argv[4])
+port_b: int = int(sys.argv[5])
+py314: str = sys.argv[6]
+py315: str = sys.argv[7]
+
+import subprocess
+
+ddtrace_sha: str = subprocess.check_output(
+    ["git", "-C", ddtrace_src, "rev-parse", "HEAD"], text=True
+).strip()
+
+drive_stats: dict[str, Any] = {}
+drive_path: pathlib.Path = run / "logs" / "drive_stats.json"
+if drive_path.exists():
+    drive_stats = json.loads(drive_path.read_text())
+
+# Parse drive.log FINAL lines as fallback.
+if not drive_stats:
+    drive_log: str = (run / "logs" / "drive.log").read_text(errors="replace")
+    for m in re.finditer(r"^(A|B): total=(\d+) ok=(\d+) err=(\d+)", drive_log, re.M):
+        drive_stats[m.group(1)] = {
+            "total": int(m.group(2)),
+            "ok": int(m.group(3)),
+            "err": int(m.group(4)),
+            "codes": {},
+        }
+
+
+def pctile(xs: list[float], p: float) -> float:
+    if not xs:
+        return 0.0
+    ys: list[float] = sorted(xs)
+    idx: int = min(len(ys) - 1, max(0, int(round((p / 100.0) * (len(ys) - 1)))))
+    return ys[idx]
+
+
+def load_proc(label: str) -> dict[str, Any]:
+    csv_path: pathlib.Path = run / "logs" / "proc_metrics.csv"
+    cpus: list[float] = []
+    rss_mibs: list[float] = []
+    if csv_path.exists():
+        for ln in csv_path.read_text().splitlines()[1:]:
+            parts: list[str] = ln.split(",")
+            if len(parts) < 5 or parts[1] != label:
+                continue
+            cpus.append(float(parts[3]))
+            rss_mibs.append(float(parts[4]) / 1024.0)
+    return {
+        "n": len(cpus),
+        "cpu_mean": statistics.fmean(cpus) if cpus else 0.0,
+        "cpu_p95": pctile(cpus, 95),
+        "cpu_max": max(cpus) if cpus else 0.0,
+        "rss_mean_mb": statistics.fmean(rss_mibs) if rss_mibs else 0.0,
+        "rss_p95_mb": pctile(rss_mibs, 95),
+        "rss_max_mb": max(rss_mibs) if rss_mibs else 0.0,
+    }
+
+
+def pprof_meta(label: str) -> dict[str, Any]:
+    pdir: pathlib.Path = run / "pprof" / label
+    pprofs: list[pathlib.Path] = sorted(pdir.glob("profile*.pprof")) if pdir.exists() else []
+    metas: list[pathlib.Path] = sorted(pdir.glob("profile*.internal_metadata.json")) if pdir.exists() else []
+    sample_cpu: int = 0
+    sample_count: int = 0
+    task_counts: list[float] = []
+    for mp in metas:
+        try:
+            data: dict[str, Any] = json.loads(mp.read_text())
+        except Exception:
+            continue
+        sample_cpu += int(data.get("sample_capture_cpu_us", 0) or 0)
+        sample_count += int(data.get("sample_count", 0) or 0)
+        if "asyncio_task_count" in data:
+            task_counts.append(float(data["asyncio_task_count"]))
+        elif "task_count" in data:
+            task_counts.append(float(data["task_count"]))
+    all_bytes: int = sum(p.stat().st_size for p in pdir.iterdir()) if pdir.exists() else 0
+    return {
+        "pprof_count": len(pprofs),
+        "pprof_bytes": all_bytes,
+        "sample_capture_cpu_us": sample_cpu,
+        "sample_count": sample_count,
+        "asyncio_task_count_mean": statistics.fmean(task_counts) if task_counts else 0.0,
+    }
+
+
+summary: dict[str, Any] = {
+    "run_dir": str(run),
+    "ddtrace_src": ddtrace_src,
+    "ddtrace_sha": ddtrace_sha,
+    "duration_s": duration_s,
+    "ports": {"A": port_a, "B": port_b},
+    "sides": {},
+}
+for label, side, pybin in [("A314", "A", py314), ("B315", "B", py315)]:
+    log: str = (run / "logs" / f"server_{label}.log").read_text(errors="replace")
+    burst_hits: int = len(re.findall(r"asyncio_burst", log))
+    meta: dict[str, Any] = pprof_meta(label)
+    proc: dict[str, Any] = load_proc(label)
+    summary["sides"][side] = {
+        "label": label,
+        "python_bin": pybin,
+        "profiler_started": "profiler started" in log,
+        "server_log_tail": log.strip().splitlines()[-8:],
+        "asyncio_burst_hits": burst_hits,
+        "drive": drive_stats.get(side, {}),
+        "proc": proc,
+        **meta,
+    }
+
+(out := run / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+print(out.read_text())
+
+
+def fmt_delta(a: float, b: float, kind: str) -> tuple[str, str, str, str]:
+    d: float = b - a
+    if kind == "int":
+        a_s, b_s, d_s = str(int(a)), str(int(b)), f"{d:+.0f}"
+    elif kind == "float":
+        a_s, b_s, d_s = f"{a:.2f}", f"{b:.2f}", f"{d:+.2f}"
+    elif kind == "pct":
+        a_s, b_s, d_s = f"{a:.1f}%", f"{b:.1f}%", f"{d:+.1f}%"
+    elif kind == "mib":
+        a_s, b_s, d_s = f"{a:.1f} MiB", f"{b:.1f} MiB", f"{d:+.1f} MiB"
+    elif kind == "mb":
+        a_s, b_s, d_s = f"{a / 1e6:.1f} MB", f"{b / 1e6:.1f} MB", f"{(d) / 1e6:+.1f} MB"
+    elif kind == "err_pct":
+        a_s, b_s, d_s = f"{a:.3f}%", f"{b:.3f}%", f"{d:+.3f}%"
+    else:
+        a_s, b_s, d_s = str(a), str(b), f"{d:+}"
+    pct: str
+    if a == 0:
+        pct = "+inf%" if d != 0 else "+0.0%"
+    else:
+        pct = f"{(d / a) * 100:+.1f}%"
+    return a_s, b_s, d_s, pct
+
+
+sa: dict[str, Any] = summary["sides"]["A"]
+sb: dict[str, Any] = summary["sides"]["B"]
+da: dict[str, Any] = sa.get("drive") or {}
+db: dict[str, Any] = sb.get("drive") or {}
+pa: dict[str, Any] = sa["proc"]
+pb: dict[str, Any] = sb["proc"]
+
+rows_spec: list[tuple[str, float, float, str]] = [
+    ("req total ({}s)".format(duration_s), float(da.get("total", 0)), float(db.get("total", 0)), "int"),
+    ("req/s", float(da.get("total", 0)) / duration_s, float(db.get("total", 0)) / duration_s, "float"),
+    ("errors", float(da.get("err", 0)), float(db.get("err", 0)), "int"),
+    (
+        "error rate",
+        (100.0 * float(da.get("err", 0)) / float(da["total"])) if da.get("total") else 0.0,
+        (100.0 * float(db.get("err", 0)) / float(db["total"])) if db.get("total") else 0.0,
+        "err_pct",
+    ),
+    ("CPU% mean (ps 1Hz)", pa["cpu_mean"], pb["cpu_mean"], "pct"),
+    ("CPU% p95", pa["cpu_p95"], pb["cpu_p95"], "pct"),
+    ("CPU% max", pa["cpu_max"], pb["cpu_max"], "pct"),
+    ("RSS mean", pa["rss_mean_mb"], pb["rss_mean_mb"], "mib"),
+    ("RSS p95", pa["rss_p95_mb"], pb["rss_p95_mb"], "mib"),
+    ("RSS max", pa["rss_max_mb"], pb["rss_max_mb"], "mib"),
+    ("asyncio_burst hits (server log)", float(sa["asyncio_burst_hits"]), float(sb["asyncio_burst_hits"]), "int"),
+    (
+        "asyncio_task_count mean (pprof meta)",
+        float(sa["asyncio_task_count_mean"]),
+        float(sb["asyncio_task_count_mean"]),
+        "float",
+    ),
+    ("pprof .pprof files", float(sa["pprof_count"]), float(sb["pprof_count"]), "int"),
+    ("pprof bytes (all artifacts)", float(sa["pprof_bytes"]), float(sb["pprof_bytes"]), "mb"),
+    (
+        "profiler sample_capture_cpu_us sum",
+        float(sa["sample_capture_cpu_us"]),
+        float(sb["sample_capture_cpu_us"]),
+        "int",
+    ),
+    ("profiler sample_count sum", float(sa["sample_count"]), float(sb["sample_count"]), "int"),
+]
+
+table: list[dict[str, str]] = []
+print(f"{'metric':<42} {'A':>14} {'B':>14} {'delta':>12} {'delta%':>10}")
+for name, a, b, kind in rows_spec:
+    a_s, b_s, d_s, pct = fmt_delta(a, b, kind)
+    table.append({"metric": name, "A": a_s, "B": b_s, "delta": d_s, "delta_pct": pct})
+    print(f"{name:<42} {a_s:>14} {b_s:>14} {d_s:>12} {pct:>10}")
+
+delta: dict[str, Any] = {
+    "tip": ddtrace_sha,
+    "duration_s": duration_s,
+    "metrics_run": str(run),
+    "table": table,
+    "proc_raw": {"A314": pa, "B315": pb},
+    "caveat": (
+        f"single {duration_s}s laptop soak, concurrency=2/side, not staging-grade; "
+        "CPU% from ps 1Hz; RSS process RSS"
+    ),
+}
+(run / "delta_table.json").write_text(json.dumps(delta, indent=2) + "\n")
+
+ok: bool = all(
+    s["profiler_started"] and s["pprof_count"] > 0 for s in summary["sides"].values()
+)
+sys.exit(0 if ok else 2)
+PY
+
+echo "DONE RUN_DIR=${RUN_DIR}"
