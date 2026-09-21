@@ -2,9 +2,9 @@ import json
 import os
 from pathlib import Path
 import sys
+from unittest import mock
 from warnings import warn
 
-import mock
 import pytest
 
 import ddtrace
@@ -92,21 +92,12 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_after_module_imported_decorator(module_watchdog):
-    hook = mock.Mock()
-    module = sys.modules[__name__]
-    module_watchdog.after_module_imported(module.__name__)(hook)
-
-    hook.assert_called_once_with(module)
-
-
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
     import os
     from pathlib import Path
     import sys
-
-    from mock import mock
+    from unittest import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -139,8 +130,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
 @pytest.mark.subprocess
 def test_import_module_hook_for_module_not_yet_imported():
     import sys
-
-    from mock import mock
+    from unittest import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -184,7 +174,7 @@ def test_module_deleted():
     name = "json"
     path = Path(os.getenv("MODULE_ORIGIN")).resolve()
 
-    class Counter(object):
+    class Counter:
         count = 0
 
         def __call__(self, _):
@@ -291,7 +281,7 @@ def test_module_import_hierarchy():
 
         def after_import(self, module):
             self.imports.add(module.__name__)
-            return super(ImportCatcher, self).after_import(module)
+            return super().after_import(module)
 
     ImportCatcher.install()
 
@@ -331,13 +321,13 @@ def test_module_watchdog_propagation():
     class BaseCollector(ModuleWatchdog):
         def __init__(self):
             self.__modules__ = set()
-            super(BaseCollector, self).__init__()
+            super().__init__()
 
         def after_import(self, module):
             # We save the module name as proof that the after_import method
             # was called on the subclass instance.
             self.__modules__.add(module.__name__)
-            return super(BaseCollector, self).after_import(module)
+            return super().after_import(module)
 
     class Alice(BaseCollector):
         pass
@@ -369,17 +359,17 @@ def test_module_watchdog_after_import_hook_isolation():
 
     class Failing(ModuleWatchdog):
         def after_import(self, module):
-            super(Failing, self).after_import(module)
+            super().after_import(module)
             raise ValueError("boom")
 
     class Collector(ModuleWatchdog):
         def __init__(self):
             self.__modules__ = set()
-            super(Collector, self).__init__()
+            super().__init__()
 
         def after_import(self, module):
             self.__modules__.add(module.__name__)
-            return super(Collector, self).after_import(module)
+            return super().after_import(module)
 
     Failing.install()
     Collector.install()

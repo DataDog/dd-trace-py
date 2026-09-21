@@ -8,7 +8,8 @@ from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
@@ -29,7 +30,7 @@ class InvalidLine(Exception):
     """
 
 
-if PY >= (3, 15):
+if is_at_least_py(3, 15):
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos
@@ -42,9 +43,9 @@ if PY >= (3, 15):
             self._hooks: dict[int, list[tuple[HookType, Any]]] = {}
 
         def on_py_line(self, code: Any, line_number: int) -> Any:
-            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line_number)
+            hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line_number)
             if not hooks:
-                return _monitoring._DISABLE  # type: ignore[has-type]
+                return _monitoring._DISABLE
             for hook, arg in hooks:
                 hook(arg)
             return None
@@ -53,7 +54,7 @@ if PY >= (3, 15):
             self._hooks.setdefault(line, []).append((hook, arg))
 
         def remove(self, line: int, hook: HookType, arg: Any) -> None:
-            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line)
+            hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line)
             if hooks is not None:
                 try:
                     hooks.remove((hook, arg))
@@ -105,7 +106,7 @@ if PY >= (3, 15):
                     _monitoring.register(code, handler)
                 else:
                     # Reset any lines that were DISABLE'd so newly added hooks fire.
-                    _monitoring.refresh(code, _monitoring._E.LINE)  # type: ignore[has-type]
+                    _monitoring.refresh(code, _monitoring._E.LINE)
 
         return failed
 
@@ -183,7 +184,7 @@ else:
     # the stack to the state prior to the call.
 
     INJECTION_ASSEMBLY = Assembly()
-    if PY >= (3, 13):
+    if is_at_least_py(3, 13):
         INJECTION_ASSEMBLY.parse(
             r"""
             load_const      {hook}
@@ -193,7 +194,7 @@ else:
             pop_top
             """
         )
-    elif PY >= (3, 12):
+    elif is_at_least_py(3, 12):
         INJECTION_ASSEMBLY.parse(
             r"""
             push_null
@@ -203,7 +204,7 @@ else:
             pop_top
             """
         )
-    elif PY >= (3, 11):
+    elif is_at_least_py(3, 11):
         INJECTION_ASSEMBLY.parse(
             r"""
             push_null
@@ -276,8 +277,8 @@ else:
                 continue
             code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
-    _INJECT_HOOK_OPCODE_POS = 1 if (3, 11) <= PY < (3, 13) else 0
-    _INJECT_ARG_OPCODE_POS = 1 if PY < (3, 11) else 2
+    _INJECT_HOOK_OPCODE_POS: int = 1 if is_at_least_py(3, 11) and is_at_most_py(3, 12) else 0
+    _INJECT_ARG_OPCODE_POS: int = 1 if is_at_most_py(3, 10) else 2
 
     def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
         """Eject a hook from the abstract code object at the given line number.
