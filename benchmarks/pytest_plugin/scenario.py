@@ -96,9 +96,7 @@ class PytestPlugin(bm.Scenario):
                     stderr=subprocess.PIPE,
                 )
                 if result.returncode != 0:
-                    raise RuntimeError(
-                        "pytest exited {}:\n{}".format(result.returncode, result.stderr.decode()[-1000:])
-                    )
+                    raise RuntimeError(f"pytest exited {result.returncode}:\n{result.stderr.decode()[-1000:]}")
 
         try:
             yield _
