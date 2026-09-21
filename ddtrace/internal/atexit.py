@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """
 An API to provide atexit functionalities
 """

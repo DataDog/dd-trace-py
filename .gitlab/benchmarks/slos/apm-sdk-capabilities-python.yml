@@ -298,3 +298,10 @@ experiments:
           - name: tracer-small
             thresholds:
               - execution_time < 0.42 ms
+          # msgpackencoderscenario
+          - name: msgpackencoderscenario-simple_one_span
+            thresholds:
+              - execution_time < 0.005 ms
+          - name: msgpackencoderscenario-flask_trace
+            thresholds:
+              - execution_time < 0.055 ms

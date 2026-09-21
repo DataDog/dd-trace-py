@@ -315,6 +315,11 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # Feature Flags
+.github/workflows/check-ffe-fixtures.yml  @DataDog/feature-flagging-and-experimentation-sdk
+.github/workflows/update-ffe-fixtures.yml @DataDog/feature-flagging-and-experimentation-sdk
+scripts/update-ffe-fixtures.py            @DataDog/feature-flagging-and-experimentation-sdk
+src/native/ffe.rs                        @DataDog/feature-flagging-and-experimentation-sdk
+tests/internal/test_update_ffe_fixtures.py @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/openfeature/                      @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/internal/openfeature/             @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/internal/settings/openfeature.py  @DataDog/feature-flagging-and-experimentation-sdk
@@ -373,6 +378,9 @@ ddtrace/contrib/internal/azure_functions                  @DataDog/apm-serverles
 ddtrace/contrib/internal/azure_servicebus                 @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
 tests/contrib/azure_functions*                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
 tests/snapshots/tests.contrib.azure_functions*            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+ddtrace/contrib/internal/azure_durable_functions          @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/contrib/azure_durable_functions                     @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/snapshots/tests.contrib.azure_durable_functions*    @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
 
 # Azure SDK
 ddtrace/ext/azure_eventhubs.py                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python

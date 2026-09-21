@@ -3,8 +3,8 @@ import json
 from operator import itemgetter
 import os
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -1123,7 +1123,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
         LLMObsSpanWriterMock = patcher.start()
         LLMObsSpanWriterMock.return_value = mock.MagicMock()
-        super(TestTraceStructureWithLLMIntegrations, self).setUp()
+        super().setUp()
 
     def tearDown(self):
         LLMObs.disable()

@@ -28,7 +28,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     // Asyncio stitching needs the root-side event-loop boundary and overlap
     // metadata, so preserve Echion's existing discovery depth for task-aware
     // stacks. Non-task thread stacks can stop at the configured reporting limit.
-    const size_t max_frames = asyncio_loop ? MAX_TASK_FRAMES : echion.stack_max_frames();
+    const size_t max_frames = asyncio_loop ? MAX_STACK_UNWIND_SAFETY_LIMIT : echion.stack_max_frames();
     python_stack_unwind_result = UnwindResult::Unknown();
     auto frame_unwind_result = unwind_python_stack(echion, tstate, python_stack, max_frames);
     if (!frame_unwind_result) {
@@ -334,8 +334,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
                 task_stack = &it->second;
                 task_stack_size = task_stack->size();
-                if (stack.size() < MAX_TASK_FRAMES) {
-                    task_frames_to_push = std::min(task_stack_size, MAX_TASK_FRAMES - stack.size());
+                if (stack.size() < MAX_STACK_UNWIND_SAFETY_LIMIT) {
+                    task_frames_to_push = std::min(task_stack_size, MAX_STACK_UNWIND_SAFETY_LIMIT - stack.size());
                 }
             }
             if (task.is_on_cpu) {

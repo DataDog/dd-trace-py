@@ -14,7 +14,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 7. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
 8. **Test before committing** — Run relevant tests to validate changes before committing.
 9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-10. **Update docs** — Add/update documentation when changing internal or public APIs.
+10. **Update docs** — Add/update documentation when changing internal or public APIs, configuration schemas, or contributor workflows.
 11. **No stray prints** — Check for and remove unexpected `print()` calls.
 12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
@@ -97,6 +97,12 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
+
+OpenFeature tests use the checked-in canonical fixture snapshot under
+`tests/openfeature/ffe-system-test-data/`; no submodule setup is required. Change shared
+cases in `DataDog/ffe-system-test-data` first, then refresh with
+`python scripts/update-ffe-fixtures.py --ref <upstream-commit>`. See the OpenFeature
+fixtures section in `docs/contributing-testing.rst` for the update workflow.
 
 See `docs/troubleshooting.rst`. Covers common issues including:
 
