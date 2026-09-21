@@ -217,6 +217,12 @@ class SessionManagerMockBuilder:
                 "1" if self._itr_skipping_level == ITRSkippingLevel.SUITE else "0"
             )
 
+        from ddtrace.internal.settings._agentless import config as agentless_config
+
+        # NOTE: Preserve the exact singleton state: callers may have applied runtime or stable-config
+        # overrides that cannot be reconstructed from the ambient environment.
+        original_agentless_config_state = agentless_config.__dict__
+
         with patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
             # Configure API client mock
             mock_client = Mock()
@@ -251,9 +257,9 @@ class SessionManagerMockBuilder:
 
                     return session_manager
             finally:
-                # patch.dict has put os.environ back; resync the singleton with it so the next test
-                # does not inherit this one's agentless settings.
-                reinitialize_agentless_config()
+                # patch.dict has put os.environ back. Restore the exact object state that preceded
+                # this helper rather than re-reading process-global configuration.
+                agentless_config.__dict__ = original_agentless_config_state
 
 
 class TestMockBuilder:

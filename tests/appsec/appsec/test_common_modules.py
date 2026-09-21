@@ -1,6 +1,7 @@
 import builtins
 import contextlib
 import copy
+import pathlib
 import types
 
 import mock
@@ -8,17 +9,19 @@ import pytest
 from wrapt import FunctionWrapper
 
 import ddtrace.appsec._common_module_patches as cmp
+from ddtrace.appsec._common_module_patches import _RaspContext
 from ddtrace.appsec._common_module_patches import _ScopedRaspContext
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionGetresponse
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionRequest
 from ddtrace.appsec._common_module_patches import _SsrfOpenerDirectorOpen
+from ddtrace.appsec._common_module_patches import _SsrfUrllib3MakeRequest
+from ddtrace.appsec._common_module_patches import _SsrfUrllib3Urlopen
 from ddtrace.appsec._common_module_patches import patch_common_modules
-from ddtrace.appsec._common_module_patches import try_unwrap
-from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
-from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
+from ddtrace.appsec._patch_utils import try_unwrap
+from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
@@ -738,28 +741,33 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    # Stand in for HTTPConnectionPool._make_request: record the inspected URL then release it,
-    # exactly as the real RASP wrapper does, so the set/discard flow across redirects is faithful.
+    # Stand in for the real _make_request hook: record the inspected URL then release it, so the
+    # set/discard flow across redirects is faithful. Drives the shipped urlopen context above it.
     inspected = []
 
-    def _make_request_recorder(func, instance, args, kwargs):
-        inspected.append(core.find_item("full_url"))
-        core.discard_item("full_url")
-        return func(*args, **kwargs)
+    class _MakeRequestRecorder(_RaspContext):
+        def __enter__(self):
+            super().__enter__()
+            inspected.append(core.find_item("full_url"))
+            core.discard_item("full_url")
+            return self
 
     core.discard_item("full_url")
-    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
-    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request_recorder)
+    try_wrap_context("urllib3.connectionpool", "HTTPConnectionPool.urlopen", _SsrfUrllib3Urlopen)
+    try_wrap_context("urllib3.connectionpool", "HTTPConnectionPool._make_request", _MakeRequestRecorder)
     try:
-        pool_manager = urllib3.PoolManager(num_pools=1)
-        try:
-            response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
-            assert response.status == 200
-        finally:
-            pool_manager.clear()
+        # The context gates on the capability, where the old wrapt wrapper published the URL
+        # unconditionally, so this has to be on for the URL to be published at all.
+        with mock.patch.object(cmp, "get_rasp_capability", return_value=True):
+            pool_manager = urllib3.PoolManager(num_pools=1)
+            try:
+                response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
+                assert response.status == 200
+            finally:
+                pool_manager.clear()
     finally:
-        try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
-        try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
+        try_unwrap_context("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
+        try_unwrap_context("urllib3.connectionpool", "HTTPConnectionPool._make_request")
         core.discard_item("full_url")
         server.shutdown()
         server.server_close()
@@ -1177,3 +1185,125 @@ def test_a_redirect_publishes_the_redirected_url():
 
     assert "http://127.0.0.1:{}/source".format(port) in published, published
     assert any(url and url.endswith("/target") for url in published), published
+
+
+def _v1_make_request(self, conn, method, url, timeout=None, chunked=False, **httplib_request_kw):
+    """urllib3 v1: body and headers arrive in the **kwargs bag, not as named parameters."""
+    return "called"
+
+
+def _v2_make_request(self, conn, method, url, body=None, headers=None, retries=None, chunked=False):
+    """urllib3 v2: named parameters."""
+    return "called"
+
+
+@pytest.mark.parametrize("target", [_v1_make_request, _v2_make_request])
+def test_arg_reads_body_and_headers_on_both_urllib3_versions(target):
+    """v1 declares _make_request with **httplib_request_kw, so a plain locals read finds nothing.
+
+    Getting this wrong means DOWN_REQ_HEADERS and DOWN_REQ_BODY are silently empty on urllib3 1.x,
+    which is still in the CI matrix.
+    """
+    seen = []
+
+    class _Probe(_RaspContext):
+        def __enter__(self):
+            super().__enter__()
+            seen.append((self._arg("method"), self._arg("body"), self._arg("headers", {})))
+            return self
+
+    context = _Probe(target)
+    context.wrap()
+    try:
+        target(None, None, "POST", "/p", body='{"a": 1}', headers={"Content-Type": "application/json"})
+    finally:
+        context.unwrap()
+
+    assert seen == [("POST", '{"a": 1}', {"Content-Type": "application/json"})]
+
+
+def test_urllib3_hooks_are_wrapping_contexts_not_wrapt():
+    """A wrapt wrapper would leave its frame in the traceback of any urllib3 error passing through."""
+    pytest.importorskip("urllib3")
+    import urllib3.connectionpool
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        pool = urllib3.connectionpool.HTTPConnectionPool
+        assert _SsrfUrllib3Urlopen.is_wrapped(pool.urlopen)
+        assert _SsrfUrllib3MakeRequest.is_wrapped(pool._make_request)
+        assert not isinstance(pool.urlopen, FunctionWrapper)
+        assert not isinstance(pool._make_request, FunctionWrapper)
+    finally:
+        unpatch_common_modules()
+
+    assert not _SsrfUrllib3Urlopen.is_wrapped(urllib3.connectionpool.HTTPConnectionPool.urlopen)
+
+
+def test_the_urllib3_contrib_no_longer_installs_the_appsec_wrappers():
+    """Both used to register the same wrappers on the same targets.
+
+    wrapt deduplicated that by identity; a wrapping context lives in the bytecode and cannot be
+    seen by that guard, so leaving the contrib install in place would call the WAF twice.
+    """
+    pytest.importorskip("urllib3")
+    import urllib3.connectionpool
+
+    from ddtrace.contrib.internal.urllib3 import patch as urllib3_contrib
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        urllib3_contrib.patch()
+
+        # The contrib still owns its tracing wrapper on urlopen, over our context.
+        assert _SsrfUrllib3MakeRequest.is_wrapped(urllib3.connectionpool.HTTPConnectionPool._make_request)
+        assert not isinstance(urllib3.connectionpool.HTTPConnectionPool._make_request, FunctionWrapper)
+    finally:
+        with contextlib.suppress(Exception):
+            urllib3_contrib.unpatch()
+        unpatch_common_modules()
+
+    assert "appsec" not in pathlib.Path(urllib3_contrib.__file__).read_text()
+
+
+def test_urllib3_traceback_frames_come_only_from_the_tracing_contrib():
+    """The RASP hooks leave no frame of their own; urllib3 APM tracing still does.
+
+    urllib3 APM tracing is off by default, so the default configuration is clean. This pins
+    which side owns the residual frame so the release note cannot overstate the fix.
+    """
+    pytest.importorskip("urllib3")
+    import traceback
+
+    import urllib3
+
+    from ddtrace.contrib.internal.urllib3 import patch as urllib3_contrib
+
+    def failing_request():
+        # Nothing listens on port 1, so this fails below our hooks. retries=False keeps the
+        # original traceback instead of urllib3 re-raising a MaxRetryError.
+        pool = urllib3.PoolManager(num_pools=1, retries=False)
+        try:
+            with pytest.raises(Exception) as raised:
+                pool.request("GET", "http://127.0.0.1:1/", timeout=1)
+        finally:
+            pool.clear()
+        return traceback.extract_tb(raised.value.__traceback__)
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        frames = failing_request()
+        assert not [f.filename for f in frames if "ddtrace" in f.filename]
+
+        urllib3_contrib.patch()
+        ours = [f for f in failing_request() if "ddtrace" in f.filename]
+        assert ours, "expected the tracing contrib to own a frame"
+        assert all("appsec" not in f.filename for f in ours), [f.filename for f in ours]
+        assert "_wrap_urlopen" in [f.name for f in ours], [(f.filename, f.name) for f in ours]
+    finally:
+        with contextlib.suppress(Exception):
+            urllib3_contrib.unpatch()
+        unpatch_common_modules()

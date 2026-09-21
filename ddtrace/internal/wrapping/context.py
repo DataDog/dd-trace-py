@@ -16,6 +16,9 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
+from ddtrace.internal.compat import is_supported_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -222,13 +225,13 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 16):
+if not is_supported_python_version():
     raise NotImplementedError("This version of Python is not supported yet")
-elif sys.version_info >= (3, 15):
+elif is_at_least_py(3, 15):
     # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
     # needed.
     pass
-elif sys.version_info >= (3, 13):
+elif is_at_least_py(3, 13):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context_enter}
@@ -274,7 +277,7 @@ elif sys.version_info >= (3, 13):
         """
     )
 
-elif sys.version_info >= (3, 12):
+elif is_at_least_py(3, 12):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -322,7 +325,7 @@ elif sys.version_info >= (3, 12):
     )
 
 
-elif sys.version_info >= (3, 11):
+elif is_at_least_py(3, 11):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -373,7 +376,7 @@ elif sys.version_info >= (3, 11):
         """
     )
 
-elif sys.version_info >= (3, 10):
+elif is_at_least_py(3, 10):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -404,7 +407,7 @@ elif sys.version_info >= (3, 10):
         """
     )
 
-elif sys.version_info >= (3, 9):
+elif is_at_least_py(3, 9):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -441,9 +444,9 @@ elif sys.version_info >= (3, 9):
 # (3.15+) the stack is:
 #   monitored function → monitoring._on_py_start → uwc.on_py_start → __enter__
 # so the monitored frame is three levels up.
-_ENTER_FRAME_DEPTH = 3 if sys.version_info >= (3, 15) else 1
+_ENTER_FRAME_DEPTH: int = 3 if is_at_least_py(3, 15) else 1
 
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
     # Keyed by code object: drives sys.monitoring dispatch and is_wrapped/extract lookup.
@@ -606,7 +609,7 @@ class WrappingContext(BaseWrappingContext):
             pass
 
 
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
     # Monitoring-based instrumentation has negligible per-function overhead, so
     # there is no benefit to deferring wrapping until first call. On Python 3.15+
     # this is a transparent alias for WrappingContext kept only for API compatibility.
@@ -614,7 +617,7 @@ if sys.version_info >= (3, 15):
 
 else:
 
-    class LazyWrappingContext(WrappingContext):
+    class LazyWrappingContext(WrappingContext):  # type: ignore[no-redef]
         def __init__(self, f: FunctionType):
             super().__init__(f)
 
@@ -701,7 +704,7 @@ class ContextWrappedFunction(Protocol):
 
 # On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
 # it can be registered directly with the multiplexer via register(code, self).
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
     from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
 
     _UWC_BASES: tuple[type, ...] = (BaseWrappingContext, _MonitoringEventHandler)
@@ -712,7 +715,7 @@ else:
 # Below 3.11 the wrapped function enters through a real `with` statement, and Python does not call
 # __exit__ when __enter__ raises, so a propagating __enter__ is the only place left to clean up.
 # From 3.11 the injected exception handler reaches _exit() instead, which does it.
-_ENTER_MUST_RELEASE_ON_RAISE = sys.version_info < (3, 11)
+_ENTER_MUST_RELEASE_ON_RAISE: bool = is_at_most_py(3, 10)
 
 
 def _held_storage(contexts: "list[WrappingContext]") -> dict[int, t.Any]:
@@ -866,7 +869,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         return t.cast(T, super().__return__(value))
 
-    if sys.version_info >= (3, 15):
+    if is_at_least_py(3, 15):
         # Exceptions here are deliberately left uncaught (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
         # with-statement semantics -- safe because this is the only handler
@@ -968,7 +971,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         def unwrap(self) -> None:
             f: FunctionType = self.__wrapped__
-            finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)
+            finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)  # type: ignore[type-arg]
             if finalize is not None:
                 finalize.detach()
                 del self._finalize
@@ -1295,7 +1298,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             _registry.pop(f, None)
 
 
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
 
     def _finalize_monitoring_wrap(
         self_ref: "weakref.ref[_UniversalWrappingContext]",

@@ -105,7 +105,7 @@ _cpu_count = getattr(os, "process_cpu_count", os.cpu_count)() or 1
 if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
     os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(_cpu_count)
 
-# Retry configuration for downloads (handles GitHub API failures like 503, 429)
+# Retry configuration for downloads (handles GitHub failures like 429 and 5xx)
 DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
 DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
 DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
@@ -127,7 +127,14 @@ IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
 VENDOR_DIR = DDTRACE_DIR / "vendor"
-CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
+# Windows CI overrides this to keep lock-prone Rust DLLs out of the
+# Git checkout.
+CARGO_TARGET_DIR = Path(
+    os.getenv(
+        "_DD_NATIVE_CARGO_TARGET_DIR",
+        NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}",
+    )
+).absolute()
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 # TODO(py-315): locked pyo3 is 0.28.3 (ABI3_MAX_MINOR = 14). Native 3.15
@@ -170,7 +177,7 @@ CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "2.0.1"
+LIBDDWAF_VERSION = "2.1.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -220,8 +227,8 @@ def retry_download(
 ):
     """
     Decorator to retry downloads with exponential backoff.
-    Handles HTTP 503, 429, network errors from GitHub API, and cargo install failures.
-    Retriable errors: HTTP 429 (rate limit), 502, 503, 504, network timeouts, and subprocess errors.
+    Handles HTTP 429 and server errors, network errors from GitHub, and cargo install failures.
+    Retriable errors: HTTP 429, 500, 502, 503, 504, network timeouts, and subprocess errors.
     """
 
     def decorator(func):
@@ -233,9 +240,10 @@ def retry_download(
                 except (HTTPError, URLError, TimeoutError, OSError, subprocess.CalledProcessError) as e:
                     # Check if it's a retriable error
                     is_retriable = False
+                    error_code: t.Optional[str] = None
                     if isinstance(e, HTTPError):
-                        # Retry on 429 (rate limit), 502/503/504 (server errors)
-                        is_retriable = e.code in (429, 502, 503, 504)
+                        # Retry on 429 (rate limit) and transient server errors
+                        is_retriable = e.code in (429, 500, 502, 503, 504)
                         error_code = f"HTTP {e.code}"
                     elif isinstance(e, (URLError, TimeoutError)):
                         # Retry on network errors and timeouts

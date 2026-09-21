@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import base64
 import json
-from typing import Any  # noqa:F401
-from typing import List  # noqa:F401
+from typing import Any
+from typing import Optional
+from typing import cast
 from urllib import parse
 
 from ddtrace import config
@@ -14,8 +17,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def get_queue_name(params):
-    # type: (dict) -> str
+def get_queue_name(params: dict[str, Any]) -> str:
     """
     :params: contains the params for the current botocore action
 
@@ -26,8 +28,7 @@ def get_queue_name(params):
     return url.path.rsplit("/", 1)[-1]
 
 
-def get_topic_arn(params):
-    # type: (dict) -> str
+def get_topic_arn(params: dict[str, Any]) -> str:
     """
     :params: contains the params for the current botocore action
 
@@ -37,8 +38,7 @@ def get_topic_arn(params):
     return sns_arn
 
 
-def get_stream(params):
-    # type: (dict) -> str
+def get_stream(params: dict[str, Any]) -> str:
     """
     :params: contains the params for the current botocore action
 
@@ -48,8 +48,7 @@ def get_stream(params):
     return stream
 
 
-def get_eventbridge_bus_name(event_entry):
-    # type: (dict) -> str
+def get_eventbridge_bus_name(event_entry: dict[str, Any]) -> str:
     """
     :event_entry: contains the EventBridge entry for the current botocore action
 
@@ -58,8 +57,7 @@ def get_eventbridge_bus_name(event_entry):
     return event_entry.get("EventBusName", "default")
 
 
-def get_eventbridge_detail_type(event_entry):
-    # type: (dict) -> str
+def get_eventbridge_detail_type(event_entry: dict[str, Any]) -> str:
     """
     :event_entry: contains the EventBridge entry for the current botocore action
 
@@ -68,8 +66,7 @@ def get_eventbridge_detail_type(event_entry):
     return event_entry.get("DetailType", "")
 
 
-def eventbridge_edge_tags(event_entry):
-    # type: (dict) -> List[str]
+def eventbridge_edge_tags(event_entry: dict[str, Any]) -> list[str]:
     """
     :event_entry: contains the EventBridge entry for the current botocore action
 
@@ -83,16 +80,17 @@ def eventbridge_edge_tags(event_entry):
     ]
 
 
-def set_produce_checkpoint(trace_data, pathway_tags, payload_size):
-    # type: (dict, List[str], int) -> None
+def set_produce_checkpoint(trace_data: dict[str, Any], pathway_tags: list[str], payload_size: int) -> None:
     from . import data_streams_processor as processor
 
-    ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size)
-    DsmPathwayCodec.encode(ctx, trace_data)
+    if (p := processor()) is not None:
+        ctx = p.set_checkpoint(pathway_tags, payload_size=payload_size)
+        DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def inject_context(trace_data, endpoint_service, dsm_identifier, message):
-    # type: (dict, str, str, Any) -> None
+def inject_context(
+    trace_data: dict[str, Any], endpoint_service: str, dsm_identifier: Optional[str], message: dict[str, Any]
+) -> None:
     """
     :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
     :dsm_identifier: the identifier for the topic/queue/stream/etc
@@ -120,7 +118,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     )
 
 
-def calculate_sqs_payload_size(message, trace_data=None):
+def calculate_sqs_payload_size(message: dict[str, Any], trace_data: Optional[Any] = None) -> int:
     payload_size = _calculate_byte_size(message.get("MessageBody", ""))
     payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
     if trace_data:
@@ -131,7 +129,7 @@ def calculate_sqs_payload_size(message, trace_data=None):
     return payload_size
 
 
-def calculate_sns_payload_size(message, trace_data):
+def calculate_sns_payload_size(message: dict[str, Any], trace_data: Any) -> int:
     payload_size = _calculate_byte_size(message.get("Message", ""))
     payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
     # we should count datadog message attributes which aren't yet added to the message
@@ -141,7 +139,7 @@ def calculate_sns_payload_size(message, trace_data):
     return payload_size
 
 
-def calculate_kinesis_payload_size(message, trace_data=None):
+def calculate_kinesis_payload_size(message: dict[str, Any], trace_data: Optional[Any] = None) -> int:
     payload_size = _calculate_byte_size(message.get("Data", ""))
     payload_size += _calculate_byte_size(message.get("ExplicitHashKey", ""))
     payload_size += _calculate_byte_size(message.get("PartitionKey", ""))
@@ -152,7 +150,7 @@ def calculate_kinesis_payload_size(message, trace_data=None):
     return payload_size
 
 
-def calculate_eventbridge_payload_size(message, trace_data=None):
+def calculate_eventbridge_payload_size(message: dict[str, Any], trace_data: Optional[Any] = None) -> int:
     payload_size = _calculate_byte_size(message)
     if trace_data:
         # we should count datadog detail fields which aren't yet added to the serialized Detail payload
@@ -160,7 +158,9 @@ def calculate_eventbridge_payload_size(message, trace_data=None):
     return payload_size
 
 
-def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
+def handle_kinesis_produce(
+    ctx: Any, stream: str, dd_ctx_json: dict[str, Any], record: dict[str, Any], *args: Any
+) -> None:
     if config._data_streams_enabled:
         if "_datadog" not in dd_ctx_json:
             dd_ctx_json["_datadog"] = {}
@@ -168,7 +168,14 @@ def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
             inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
 
 
-def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, request_params, event_entry=None):
+def handle_eventbridge_produce(
+    ctx: Any,
+    span: Any,
+    endpoint_service: str,
+    trace_data: dict[str, Any],
+    request_params: dict[str, Any],
+    event_entry: Optional[dict[str, Any]] = None,
+) -> None:
     # EventBridge DSM injection is normally dispatched once per PutEvents entry, so
     # `event_entry` is the specific event being mutated while `request_params` is the
     # full PutEvents payload. Fall back to `request_params` for any caller that only
@@ -179,7 +186,14 @@ def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, request_
     set_produce_checkpoint(trace_data, eventbridge_edge_tags(event_entry), payload_size)
 
 
-def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, message=None):
+def handle_sqs_sns_produce(
+    ctx: Any,
+    span: Any,
+    endpoint_service: str,
+    trace_data: dict[str, Any],
+    params: dict[str, Any],
+    message: Optional[dict[str, Any]] = None,
+) -> None:
     # if a message wasn't included, that means that the message is in the params object
     if not message:
         message = params
@@ -191,14 +205,14 @@ def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, mess
     inject_context(trace_data, endpoint_service, dsm_identifier, message)
 
 
-def handle_sqs_prepare(params):
+def handle_sqs_prepare(params: dict[str, Any]) -> None:
     if "MessageAttributeNames" not in params:
         params.update({"MessageAttributeNames": ["_datadog"]})
     elif "_datadog" not in params["MessageAttributeNames"]:
         params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
 
-def get_datastreams_context(message):
+def get_datastreams_context(message: dict[str, Any]) -> Optional[dict[str, Any]]:
     """
     Formats we're aware of:
         - message.MessageAttributes._datadog.StringValue (SQS)
@@ -245,7 +259,7 @@ def get_datastreams_context(message):
     return context_json
 
 
-def handle_sqs_receive(_, params, result, *args):
+def handle_sqs_receive(_, params: dict[str, Any], result: dict[str, Any], *args: Any) -> None:
     from . import data_streams_processor as processor
 
     queue_name = get_queue_name(params)
@@ -254,8 +268,10 @@ def handle_sqs_receive(_, params, result, *args):
         try:
             context_json = get_datastreams_context(message)
             payload_size = calculate_sqs_payload_size(message)
-            ctx = DsmPathwayCodec.decode(context_json, processor())
-            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
+
+            if (p := processor()) is not None:
+                ctx = DsmPathwayCodec.decode(cast(dict[Any, Any], context_json), p)
+                ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
@@ -264,7 +280,9 @@ class StreamMetadataNotFound(Exception):
     pass
 
 
-def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record):
+def record_data_streams_path_for_kinesis_stream(
+    params: dict[str, Any], time_estimate: float, context_json: Any, record: dict[str, Any]
+) -> None:
     from . import data_streams_processor as processor
 
     stream = get_stream(params)
@@ -274,16 +292,24 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
         raise StreamMetadataNotFound()
 
     payload_size = calculate_kinesis_payload_size(record)
-    ctx = DsmPathwayCodec.decode(context_json, processor())
-    ctx.set_checkpoint(
-        ["direction:in", "topic:" + stream, "type:kinesis"],
-        edge_start_sec_override=time_estimate,
-        pathway_start_sec_override=time_estimate,
-        payload_size=payload_size,
-    )
+    if (p := processor()) is not None:
+        ctx = DsmPathwayCodec.decode(context_json, p)
+        ctx.set_checkpoint(
+            ["direction:in", "topic:" + stream, "type:kinesis"],
+            edge_start_sec_override=time_estimate,
+            pathway_start_sec_override=time_estimate,
+            payload_size=payload_size,
+        )
 
 
-def handle_kinesis_receive(_, params, time_estimate, context_json, record, *args):
+def handle_kinesis_receive(
+    _,
+    params: dict[str, Any],
+    time_estimate: float,
+    context_json: Any,
+    record: dict[str, Any],
+    *args: Any,
+) -> None:
     try:
         record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record)
     except Exception:
