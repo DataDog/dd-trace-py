@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: MCP intent capture now requires the injected ``telemetry`` object in tool input
+    schemas instead of a top-level ``intent`` property that the schema does not define, so arguments
+    carrying ``telemetry.intent`` validate against the schema.
