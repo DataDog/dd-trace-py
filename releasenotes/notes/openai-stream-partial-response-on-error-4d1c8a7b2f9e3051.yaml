@@ -1,8 +1,7 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where an OpenAI streamed request that ended in an
-    error or was cancelled part-way produced an LLM span with no input or output annotations at all.
-    The chunks received before the failure are now processed, so the span carries the request's input
-    messages, whatever output arrived before the stream ended, and estimated token metrics. For the
-    Responses API the span recovers its input messages, but not the partial output text.
+    LLM Observability: This fix resolves an issue where cancelled or failed OpenAI streamed requests
+    produced no LLM Observability span at all. These requests now produce an LLM span carrying the
+    input messages, whatever output arrived before the stream ended, and estimated token metrics.
+    Partial output text is not recovered for the Responses API.
