@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -37,16 +38,16 @@ class PytestPlugin(bm.Scenario):
         # Build a fresh corpus for this measurement. Setup runs before the yield, so
         # it is outside the pyperf-timed region (only the yielded callable is timed).
         workdir = tempfile.mkdtemp(prefix="ddbench_pytest_")
-        corpus = os.path.join(workdir, "tests")
-        os.makedirs(corpus, exist_ok=True)
+        corpus = Path(workdir) / "tests"
+        corpus.mkdir(parents=True, exist_ok=True)
         per_module = max(1, self.ntests // max(1, self.nmodules))
         for m in range(self.nmodules):
-            with open(os.path.join(corpus, f"test_mod_{m}.py"), "w") as f:
+            with open(corpus / f"test_mod_{m}.py", "w") as f:
                 for i in range(per_module):
                     f.write(f"def test_{i:04d}():\n    assert True\n\n")
 
-        payload_dir = os.path.join(workdir, "payloads")
-        os.makedirs(payload_dir, exist_ok=True)
+        payload_dir = Path(workdir) / "payloads"
+        payload_dir.mkdir(parents=True, exist_ok=True)
 
         env = os.environ.copy()
         # Hermetic offline mode: NoOp backend connector (all features off), payloads to
@@ -55,7 +56,7 @@ class PytestPlugin(bm.Scenario):
         env.update(
             {
                 "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES": "true",
-                "TEST_UNDECLARED_OUTPUTS_DIR": payload_dir,
+                "TEST_UNDECLARED_OUTPUTS_DIR": str(payload_dir),
                 # Provide static git metadata so session start does not attempt to discover
                 # or upload a real repository (which would also touch the network).
                 "DD_GIT_REPOSITORY_URL": "https://github.com/example/ddbench",
@@ -68,14 +69,14 @@ class PytestPlugin(bm.Scenario):
             sys.executable,
             "-m",
             "pytest",
-            corpus,
+            str(corpus),
             "-q",
             # pytest-randomly (if installed) asserts config.cache is not None,
             # so we disable it rather than disabling the cache provider.
             "-p",
             "no:randomly",
             "--rootdir",
-            corpus,
+            str(corpus),
         ]
         if self.ddtrace:
             args.append("--ddtrace")
