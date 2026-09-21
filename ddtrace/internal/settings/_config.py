@@ -673,12 +673,7 @@ class Config:
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        trace_compute_stats_default = (
-            in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14) or agentless.enabled
-        )
-        self._trace_compute_stats = _get_config(
-            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool)
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
         self._trace_stats_additional_tags = _get_config(
             "DD_TRACE_STATS_ADDITIONAL_TAGS",
