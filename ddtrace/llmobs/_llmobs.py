@@ -569,18 +569,18 @@ def _normalize_llmobs_meta(
 
 def _on_set_http_meta_for_llmobs(
     span: Any,
-    request_ip: Optional[str],
-    raw_uri: Optional[str],
-    route: Optional[str],
-    method: Optional[str],
+    _request_ip: Optional[str],
+    _raw_uri: Optional[str],
+    _route: Optional[str],
+    _method: Optional[str],
     request_headers: Optional[Any],
-    request_cookies: Optional[Any],
-    parsed_query: Optional[Any],
-    request_path_params: Optional[Any],
-    request_body: Any,
-    status_code: Optional[Any],
-    response_headers: Optional[Any],
-    response_cookies: Optional[Any],
+    _request_cookies: Optional[Any],
+    _parsed_query: Optional[Any],
+    _request_path_params: Optional[Any],
+    _request_body: Any,
+    _status_code: Optional[Any],
+    _response_headers: Optional[Any],
+    _response_cookies: Optional[Any],
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
@@ -675,9 +675,11 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
+        # Enrich before resolving sampling so rules that match on http.client_ip /
+        # network.client.ip see the tags when the decision is frozen.
+        self._enrich_with_http_client_ip(span)
         # Before _prepare_llmobs_span_data, which rewrites dotted tag keys in APM_AGENTLESS mode.
         self._sampling_resolver.resolve_if_root(span)
-        self._enrich_with_http_client_ip(span)
 
         span_event = None
         try:
