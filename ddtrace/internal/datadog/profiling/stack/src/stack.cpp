@@ -20,10 +20,6 @@
 #include <string_view>
 #include <utility>
 
-#ifdef __GLIBC__
-#include <cxxabi.h>
-#endif
-
 using namespace Datadog;
 
 static PyObject*
@@ -440,19 +436,10 @@ stack_is_asyncio_loop_registered(PyObject* self, PyObject* args)
     }
 
     bool registered;
-#ifdef __GLIBC__
-    try {
-#endif
-        // Sampling holds the thread-map mutex throughout an unwind. Do not stall every Python thread while waiting.
-        Py_BEGIN_ALLOW_THREADS;
-        registered = Sampler::get().is_asyncio_loop_registered(static_cast<uintptr_t>(thread_id));
-        Py_END_ALLOW_THREADS;
-#ifdef __GLIBC__
-    } catch (const abi::__forced_unwind&) {
-        // Finalization can race the check above on Python versions whose GIL restore exits the native thread.
-        throw;
-    }
-#endif
+    // Sampling holds the thread-map mutex throughout an unwind. Do not stall every Python thread while waiting.
+    Py_BEGIN_ALLOW_THREADS;
+    registered = Sampler::get().is_asyncio_loop_registered(static_cast<uintptr_t>(thread_id));
+    Py_END_ALLOW_THREADS;
     return PyBool_FromLong(registered);
 }
 
