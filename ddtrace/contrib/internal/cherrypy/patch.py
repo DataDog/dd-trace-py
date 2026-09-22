@@ -84,6 +84,7 @@ class TraceTool(cherrypy.Tool):
             request_url=url,
             request_headers=cherrypy.request.headers,
             query="",
+            trace_query_string=False,
             request_route=None,
             activate_distributed_headers=True,
             headers_case_sensitive=True,
