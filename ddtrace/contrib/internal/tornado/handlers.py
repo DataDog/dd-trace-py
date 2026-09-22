@@ -260,6 +260,7 @@ def on_finish(func, handler, args, kwargs):
 
             event = ctx.event
             event.response_status_code = handler.get_status()
+            event.response_headers = handler._headers
             ctx.dispatch_ended_event()
         finally:
             setattr(request, REQUEST_CONTEXT_KEY, None)
