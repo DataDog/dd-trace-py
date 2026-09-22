@@ -13,7 +13,7 @@ class InstanceConfigTestCase(TestCase):
     """
 
     def setUp(self):
-        class Klass(object):
+        class Klass:
             """Helper class where a Pin is always attached"""
 
             pass

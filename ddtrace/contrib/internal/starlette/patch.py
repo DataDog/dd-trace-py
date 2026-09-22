@@ -148,7 +148,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
 
     path, is_route = route_match
     method = scope.get("method")
-    span.resource = "{} {}".format(method, path) if method else path
+    span.resource = f"{method} {path}" if method else path
     if is_route:
         span._set_attribute(http.ROUTE, path)
 

@@ -23,7 +23,7 @@ from ddtrace.trace import tracer as ddtracer
 
 
 if TYPE_CHECKING:
-    from typing import Mapping  # noqa:F401
+    from collections.abc import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 

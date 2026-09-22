@@ -37,8 +37,8 @@ DATA_GET = dict(
     request_headers=utils.COMMON_DJANGO_META,
     response_headers=utils.COMMON_DJANGO_META,
     retries_remain=0,
-    raw_uri="http://localhost:8888{}?key1=value1&key2=value2&token="
-    "cR8TVoVebF2afssCR16pQeqHcxAlA3867P6zkkUBYDL5Q92kjSGtqptAry1htdlL".format(utils.PATH),
+    raw_uri=f"http://localhost:8888{utils.PATH}?key1=value1&key2=value2&token="
+    "cR8TVoVebF2afssCR16pQeqHcxAlA3867P6zkkUBYDL5Q92kjSGtqptAry1htdlL",
     request_cookies=COOKIES,
     request_path_params={"id": 1},
 )
@@ -79,8 +79,8 @@ class SetHttpMeta(Scenario):
         if self.ip_header:
             data["request_headers"][self.ip_header] = "8.8.8.8"
 
-        span = utils.gen_span(str("test"))
-        span._local_root = utils.gen_span(str("root"))
+        span = utils.gen_span("test")
+        span._local_root = utils.gen_span("root")
 
         def bm(loops):
             with utils.override_env(

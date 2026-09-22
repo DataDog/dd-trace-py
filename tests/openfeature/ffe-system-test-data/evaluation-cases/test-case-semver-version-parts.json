@@ -1,0 +1,118 @@
+[
+  {
+    "description": "A one-part version is normalized with missing minor and patch parts: \"18\" compares equal to \"18.0.0\".",
+    "attributes": {
+      "scenario": "one-part-input",
+      "app_version": "18"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-input-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "one-part-input"
+    },
+    "targetingKey": "one-part-input",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A one-part configured comparand is valid and normalized: \"18.0.0\" compares equal to configured \"18\".",
+    "attributes": {
+      "app_version": "18.0.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-one-part-comparand-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "one-part-comparand"
+    },
+    "targetingKey": "one-part-comparand",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A two-part version is normalized with a missing patch part: \"18.0\" compares equal to \"18.0.0\".",
+    "attributes": {
+      "scenario": "two-part-input",
+      "app_version": "18.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-input-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "two-part-input"
+    },
+    "targetingKey": "two-part-input",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A two-part configured comparand is valid and normalized: \"18.0.0\" compares equal to configured \"18.0\".",
+    "attributes": {
+      "app_version": "18.0.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-two-part-comparand-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "two-part-comparand"
+    },
+    "targetingKey": "two-part-comparand",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A four-part version is accepted as an attribute and compares above a canonical three-part lower version.",
+    "attributes": {
+      "scenario": "four-part-input",
+      "app_version": "18.0.0.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-input-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "four-part-input"
+    },
+    "targetingKey": "four-part-input",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A four-part configured comparand is accepted and compares below a canonical three-part higher version.",
+    "attributes": {
+      "app_version": "19.0.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-four-part-comparand-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "four-part-comparand"
+    },
+    "targetingKey": "four-part-comparand",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A five-part version is accepted as an attribute and compares above a canonical three-part lower version.",
+    "attributes": {
+      "scenario": "five-part-input",
+      "app_version": "18.0.0.0.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-input-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "five-part-input"
+    },
+    "targetingKey": "five-part-input",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A five-part configured comparand is accepted and compares below a canonical three-part higher version.",
+    "attributes": {
+      "app_version": "19.0.0"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-version-parts-five-part-comparand-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "five-part-comparand"
+    },
+    "targetingKey": "five-part-comparand",
+    "variationType": "STRING"
+  }
+]

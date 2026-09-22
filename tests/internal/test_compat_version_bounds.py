@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+from importlib import resources
 from pathlib import Path
 import re
 from types import CoroutineType
@@ -21,10 +22,19 @@ import pytest
 
 from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.compat import is_supported_python_version
+
+
+_RUNNING_VERSION: str = f"{PYTHON_VERSION_INFO[0]}.{PYTHON_VERSION_INFO[1]}"
+_UNSUPPORTED_MSG: str = f"This version of CPython is not supported yet: {_RUNNING_VERSION}"
+
+
+def test_unsupported_msg_includes_running_version() -> None:
+    assert NEXT_PY_UNSUPPORTED_MSG == _UNSUPPORTED_MSG
 
 
 # wrap() is live on 3.15+ while wrap is supported through NEXT_MAX_PY.
@@ -45,6 +55,10 @@ _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
     r'^requires-python\s*=\s*"[^"]*<(\d+)\.(\d+)"',
     re.MULTILINE,
 )
+
+
+def _ddtrace_source(path: str) -> str:
+    return resources.files("ddtrace").joinpath(path.removeprefix("ddtrace/")).read_text()
 
 
 def _riotfile_simple_str_assignment(source: str, name: str) -> str | None:
@@ -145,7 +159,7 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
         "is_wrap_supported",
     }
     for relpath in _FEATURE_GATE_MODULES:
-        source: str = (_REPO_ROOT / relpath).read_text()
+        source: str = _ddtrace_source(relpath)
         tree: ast.Module = ast.parse(source)
         found_315_gate: bool = False
         for node in ast.walk(tree):
