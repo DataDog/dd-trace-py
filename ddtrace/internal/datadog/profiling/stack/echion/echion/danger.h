@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -43,6 +44,10 @@ consume_segv_handler_chained_back();
 // any other cause of split ownership, so a genuine foreign owner is never reclaimed.
 bool
 reclaim_after_chain_back();
+
+// Not async-signal-safe; allocation failure returns "unknown".
+std::string
+describe_segv_handler_owners() noexcept;
 
 #if defined PL_LINUX
 ssize_t
