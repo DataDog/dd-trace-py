@@ -314,6 +314,11 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # Feature Flags
+.github/workflows/check-ffe-fixtures.yml  @DataDog/feature-flagging-and-experimentation-sdk
+.github/workflows/update-ffe-fixtures.yml @DataDog/feature-flagging-and-experimentation-sdk
+scripts/update-ffe-fixtures.py            @DataDog/feature-flagging-and-experimentation-sdk
+src/native/ffe.rs                        @DataDog/feature-flagging-and-experimentation-sdk
+tests/internal/test_update_ffe_fixtures.py @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/openfeature/                      @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/internal/openfeature/             @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/internal/settings/openfeature.py  @DataDog/feature-flagging-and-experimentation-sdk

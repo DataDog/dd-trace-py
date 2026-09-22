@@ -472,7 +472,7 @@ def test_load_data_value_pydantic_model_with_unserializable_nested_field():
             self.value = value
 
         def __str__(self):
-            return "RawObject({})".format(self.value)
+            return f"RawObject({self.value})"
 
     class Model(BaseModel):
         class Config:
@@ -497,7 +497,7 @@ def test_load_data_value_dataclass_with_unserializable_nested_field():
             self.value = value
 
         def __str__(self):
-            return "RawObject({})".format(self.value)
+            return f"RawObject({self.value})"
 
     @dataclass
     class Model:
@@ -627,7 +627,7 @@ class TestSanitizeSpanEventData:
                 self.threshold = threshold
 
             def __str__(self):
-                return "SafetySetting({})".format(self.threshold)
+                return f"SafetySetting({self.threshold})"
 
         sanitized = _sanitize_span_event_data(
             {

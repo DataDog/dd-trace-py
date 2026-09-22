@@ -18,8 +18,6 @@ file. The function will be called automatically when this script is run.
 
 from collections import defaultdict
 from dataclasses import dataclass
-import datetime
-import hashlib
 import importlib
 import os
 import re
@@ -86,7 +84,6 @@ class JobSpec:
     skip_pip_cache: bool = False  # ignored
     suite: t.Optional[str] = None
 
-    python_versions: t.Optional[set[str]] = None
     environment_hashes: t.Optional[tuple[str, ...]] = None
 
     def __str__(self) -> str:
@@ -103,19 +100,10 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Base environment artifacts provide the native extensions for test jobs.
         lines.append("  needs:")
         lines.append("    - prechecks")
-        if self.python_versions:
-            lines.append("    - job: build_base_test_artifacts")
-            lines.append("      artifacts: true")
-            lines.append("      parallel:")
-            lines.append("        matrix:")
-            for pv in sorted(self.python_versions):
-                lines.append(f'          - PYTHON_VERSION: "{pv}"')
-        else:
-            lines.append("    - job: build_base_test_artifacts")
-            lines.append("      artifacts: true")
+        lines.append("    - job: extract_test_artifacts")
+        lines.append("      artifacts: true")
 
         # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
         # some services depend on others being ready first (e.g. azureeventhubsemulator
@@ -135,8 +123,7 @@ class JobSpec:
         if self.snapshot:
             wait_for.append("testagent")
 
-        # Bake NIGHTLY_BUILD into script (same approach as build_base_test_artifacts template)
-        # so the value is set when tests-gen runs and is present in the child job.
+        # Bake NIGHTLY_BUILD into the generated script so child jobs inherit it.
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
@@ -190,21 +177,12 @@ class JobSpec:
 @dataclass
 class SuiteVenvInfo:
     environment_hashes: tuple[str, ...]
-    python_versions: set[str]
     environments: tuple[tuple[str, str], ...]
     ddtest_metadata: dict[str, tuple[str, str, str, str]]
 
     @property
     def venv_count(self) -> int:
         return len(self.environment_hashes)
-
-
-# Module-level state: populated by gen_required_suites, consumed by gen_build_base_test_artifacts
-_global_python_versions: set[str] = set()
-_needs_base_venvs = True
-
-# All supported Python versions (fallback when no venv info is available)
-ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
 def _shell_environment(environment: dict[str, str]) -> str:
@@ -249,9 +227,6 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
                     )
             result[suite] = SuiteVenvInfo(
                 environment_hashes=tuple(environment.hash for environment in environments),
-                python_versions={
-                    environment.python for environment in environments if re.match(r"^3\.\d+$", environment.python)
-                },
                 environments=tuple((environment.hash, environment.python) for environment in environments),
                 ddtest_metadata=ddtest_metadata,
             )
@@ -415,9 +390,6 @@ def gen_validate_slos() -> None:
 
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
-    global _global_python_versions
-    global _needs_base_venvs
-
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     explicit_parallelism = sorted(name for name, config in suites.items() if "parallelism" in config)
     if explicit_parallelism:
@@ -467,8 +439,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
     suite_configs = {s: suites[s] for s in non_skipped}
     suite_venv_info = collect_all_suite_venv_info(suite_configs)
-    _needs_base_venvs = bool(non_skipped)
-
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
@@ -478,11 +448,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             info.environments,
             {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
         )
-
-    # Populate the module-level global so gen_build_base_test_artifacts can use it
-    _global_python_versions = set()
-    for info in suite_venv_info.values():
-        _global_python_versions.update(info.python_versions)
 
     final_jobs: dict[str, int] = {}
     for suite in non_skipped:
@@ -503,7 +468,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config.pop("integration", None)
             suite_config["suite"] = suite
 
-            py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
             if suite_config.get("ddtest"):
                 info = suite_venv_info.get(suite)
                 if info is None:
@@ -526,7 +490,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             jobspec = JobSpec(
                 clean_name,
                 stage=stage,
-                python_versions=py_versions,
                 environment_hashes=environment_hashes,
                 **suite_config,
             )
@@ -548,8 +511,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
-    global _needs_base_venvs
-
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -563,21 +524,14 @@ def gen_build_docs() -> None:
             ".readthedocs.yml",
         }
     ):
-        # build_docs uses Python 3.10; ensure it is included in build_base_test_artifacts
-        _global_python_versions.add("3.10")
-        _needs_base_venvs = True
-
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print("    - job: build_base_test_artifacts", file=f)
+            print("    - job: extract_test_artifacts", file=f)
             print("      artifacts: true", file=f)
-            print("      parallel:", file=f)
-            print("        matrix:", file=f)
-            print('          - PYTHON_VERSION: "3.10"', file=f)
             print("  script:", file=f)
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
@@ -743,51 +697,6 @@ prechecks:
         )
 
 
-def gen_cached_testrunner() -> None:
-    """Generate the cached testrunner job."""
-    with TESTS_GEN.open("a") as f:
-        f.write(
-            template(
-                "cached-testrunner",
-                current_week=datetime.datetime.now().isocalendar().week,
-                testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
-            )
-        )
-
-
-def gen_build_base_test_artifacts() -> None:
-    """Generate the list of base jobs for building virtual environments.
-
-    We need to generate this dynamically from a template because it depends
-    on the cached testrunner job, which is also generated dynamically.
-
-    Only builds venvs for the Python versions actually needed by the required suites,
-    falling back to all supported versions when no venv info is available.
-    """
-    if not _needs_base_venvs:
-        LOGGER.info("Skipping base environments because no test suites were selected")
-        return
-
-    if _global_python_versions:
-        py_versions = sorted(_global_python_versions)
-        LOGGER.info("Building base venvs for Python versions: %s", py_versions)
-    else:
-        py_versions = ALL_PYTHON_VERSIONS
-        LOGGER.info("No suite venv info available, building all Python versions: %s", py_versions)
-
-    python_versions_str = ", ".join(f'"{v}"' for v in py_versions)
-
-    with TESTS_GEN.open("a") as f:
-        f.write(
-            template(
-                "build-base-test-artifacts",
-                python_versions=python_versions_str,
-                unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
-                nightly_build=_get_bool_env("NIGHTLY_BUILD"),
-            )
-        )
-
-
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
@@ -847,13 +756,6 @@ MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-br
 # the single generated MICROBENCHMARKS_SLOS file consumed by check-slo-breaches.
 MICROBENCHMARKS_SLOS_DIR = GITLAB / "benchmarks" / "slos"
 
-# Compute a short hash of the testrunner image so cache keys are automatically
-# invalidated whenever the image changes (e.g. Python patch version bumps).
-import ruamel.yaml as _ruamel_yaml  # noqa: E402
-
-
-_testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
-TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
 # Make the project root and scripts folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))

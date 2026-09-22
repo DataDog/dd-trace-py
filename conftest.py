@@ -233,7 +233,7 @@ def pytest_configure(config):
     if config.option.xmlpath:
         fname, ext = os.path.splitext(config.option.xmlpath)
         # DEV: `ext` will contain the `.`, e.g. `.xml`
-        config.option.xmlpath = "{0}.{1}{2}".format(fname, os.getpid(), ext)
+        config.option.xmlpath = f"{fname}.{os.getpid()}{ext}"
 
     # Save per-interpreter benchmark results.
     if config.pluginmanager.hasplugin("benchmark"):

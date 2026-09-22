@@ -605,7 +605,7 @@ class TestRunner:
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
-                if self.in_ci and environment.suite != "smoke_test":
+                if self.in_ci:
                     if not skip_ddtrace_install:
                         raise TestEnvironmentError(
                             "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"

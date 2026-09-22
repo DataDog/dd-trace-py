@@ -2,8 +2,18 @@ import fnmatch
 
 from mappings import EXCLUDED_FROM_TESTING
 
+from ddtrace.internal.compat import MAX_PY
+from ddtrace.internal.compat import NEXT_MAX_PY
+from tests.suitespec import DEFAULT_PYTHON_VERSIONS
 from tests.suitespec import get_patterns
 from tests.suitespec import get_test_environments
+
+
+def test_python_versions_follow_compat_bounds():
+    environments = get_test_environments(nightly=False)
+
+    assert DEFAULT_PYTHON_VERSIONS[-1] == f"{MAX_PY[0]}.{MAX_PY[1]}"
+    assert f"{NEXT_MAX_PY[0]}.{NEXT_MAX_PY[1]}" in {environment.python for environment in environments["smoke_test"]}
 
 
 def test_integrations_have_suitespec_environments(

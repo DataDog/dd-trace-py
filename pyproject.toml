@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.15.0rc2"
+version = "4.16.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -181,6 +181,7 @@ exclude_dirs = [
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
   "scripts/ext_cache.py",
+  "scripts/check_no_new_aidev_anchors.py",
   "setup.py",
 ]
 
@@ -205,6 +206,25 @@ exclude = [
     "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
+    # IAST fixture files: these exist specifically to test AST patching of
+    # str() calls, __future__ imports, and encoding declarations. UP rules
+    # must not modify them.
+    "tests/appsec/iast/fixtures/ast/str/function_str.py",
+    "tests/appsec/iast/fixtures/ast/str/class_no_str.py",
+    "tests/appsec/iast/fixtures/ast/str/future_import_class_str.py",
+    "tests/appsec/iast/fixtures/ast/str/future_import_function_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/function_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/class_no_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/future_import_class_str.py",
+    "tests/appsec/iast/fixtures/aspects/str/future_import_function_str.py",
+    "tests/appsec/iast/fixtures/integration/print_str.py",
+    "tests/appsec/iast/fixtures/non_re_module.py",
+    "tests/appsec/iast/fixtures/propagation_path.py",
+    "tests/appsec/iast/_ast/fixtures/annotated_code.py",
+    "tests/appsec/iast/_ast/fixtures/del_variables_at_runtime.py",
+    # IAST benchmark fixture: used by IAST aspects tests. UP032 (f-string)
+    # converts .format() calls that IAST taint tracking intercepts.
+    "benchmarks/bm/iast_fixtures/str_methods.py",
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
     "tests/appsec/iast/aspects/test_template_string_aspect.py",  # Python 3.14+ syntax (t-strings)
     "benchmarks/bm/iast_fixtures/template_strings.py",  # Python 3.14+ syntax (t-strings)
@@ -243,6 +263,14 @@ lint.ignore = [
     "E231",
     "E721",
     "G201",
+    "UP007",  # non-pep604-annotation-union (requires py3.10+ for X|Y syntax)
+    "UP022",  # replace-stdout-stderr (needs manual review for subprocess semantics)
+    "UP028",  # yield-in-for-loop (needs manual review for generator semantics)
+    "UP030",  # format-literals (needs manual review for format string semantics)
+    "UP031",  # printf-string-formatting (needs manual conversion to f-strings)
+    "UP035",  # deprecated-import (needs manual import path updates)
+    "UP036",  # outdated-version-block (needs manual version-block review)
+    "UP045",  # non-pep604-annotation-optional (requires py3.10+ for X|None syntax)
 ]
 line-length = 120
 
@@ -258,13 +286,28 @@ lint.select = [
     "G",
     "I",
     "PLW0244",  # redefined-slots-in-subclass
-    "UP006",  # non-pep585-annotation (use builtin generics like list instead of typing.List)
+    "UP",  # pyupgrade rules (targets py39 based on requires-python)
     "W",
 ]
 lint.unfixable =[
   "F401",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Test depends on mock.Mock().__class__.__module__ being "mock" (not "unittest.mock")
+"tests/contrib/dbapi/test_dbapi.py" = ["UP004", "UP008", "UP026"]
+"tests/contrib/dbapi_async/test_dbapi_async.py" = ["UP004", "UP008", "UP026"]
+
+# Line numbers referenced by debugger span decoration probes
+"tests/submod/traced_stuff.py" = ["UP009"]
+# Subprocess test body uses quoted annotations because it's exec'd without
+# `from __future__ import annotations` and pprof_pb2 is pyi-only
+"tests/profiling/collector/test_memalloc.py" = ["UP037"]
+# Test asserts exact open() call args including mode="r"
+"ddtrace/internal/runtime/container.py" = ["UP015"]
+# IAST leak harness: str.format() calls exercise the format_aspect taint
+# propagation path. Converting to f-strings removes that coverage.
+"scripts/iast/mod_leak_functions.py" = ["UP032"]
 
 [tool.ruff.format]
 # Formatter-specific settings
