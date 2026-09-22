@@ -271,8 +271,9 @@ apm-sdks-benchmarks:
       when: always
     - if: !reference [.is_main]
       when: always
-    # Flaky benchmark monitoring pipelines run this branch unattended from a parent pipeline.
-    - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring" && $CI_PIPELINE_SOURCE == "pipeline"
+    # Flaky benchmark monitoring runs this branch unattended from a parent pipeline,
+    # and pushes to it need the same automatic run while that setup is developed.
+    - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring"
       when: always
     # No $NIGHTLY_BUILD rule here: apm-sdks-benchmarks already runs its own nightly
     # schedule in that project's own CI, independent of dd-trace-py's pipeline.
