@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import builtins
 import json
 import logging
@@ -122,7 +121,7 @@ def test_inject_128bit_trace_id_datadog():
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         # Get the hex representation of the 64 most signicant bits
-        trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
+        trace_id_hob_hex = f"{trace_id:032x}"[:16]
         ctx = Context(trace_id=trace_id, meta={"_dd.t.tid": trace_id_hob_hex})
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -132,7 +131,7 @@ def test_inject_128bit_trace_id_datadog():
             assert headers == {
                 "x-datadog-trace-id": str(span._trace_id_64bits),
                 "x-datadog-parent-id": str(span.span_id),
-                "x-datadog-tags": "{}=-0,".format(SAMPLING_DECISION_TRACE_TAG_KEY)
+                "x-datadog-tags": f"{SAMPLING_DECISION_TRACE_TAG_KEY}=-0,"
                 + "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
                 "x-datadog-sampling-priority": "1",
             }
@@ -153,8 +152,8 @@ def test_inject_128bit_trace_id_b3multi():
             assert span.trace_id == trace_id
             headers = {}
             HTTPPropagator.inject(span.context, headers)
-            trace_id_hex = "{:032x}".format(span.trace_id)
-            span_id_hex = "{:016x}".format(span.span_id)
+            trace_id_hex = f"{span.trace_id:032x}"
+            span_id_hex = f"{span.span_id:016x}"
             assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex, "x-b3-sampled": "1"}
 
 
@@ -173,8 +172,8 @@ def test_inject_128bit_trace_id_b3_single_header():
             assert span.trace_id == trace_id
             headers = {}
             HTTPPropagator.inject(span.context, headers)
-            trace_id_hex = "{:032x}".format(span.trace_id)
-            span_id_hex = "{:016x}".format(span.span_id)
+            trace_id_hex = f"{span.trace_id:032x}"
+            span_id_hex = f"{span.span_id:016x}"
             assert headers == {"b3": "%s-%s-1" % (trace_id_hex, span_id_hex)}
 
 
@@ -193,8 +192,8 @@ def test_inject_128bit_trace_id_tracecontext():
             assert span.trace_id == trace_id
             headers = {}
             HTTPPropagator.inject(span.context, headers)
-            trace_id_hex = "{:032x}".format(span.trace_id)
-            span_id_hex = "{:016x}".format(span.span_id)
+            trace_id_hex = f"{span.trace_id:032x}"
+            span_id_hex = f"{span.span_id:016x}"
             assert headers["traceparent"] == "00-%s-%s-01" % (trace_id_hex, span_id_hex)
 
 
@@ -732,7 +731,7 @@ def test_extract_128bit_trace_ids_datadog():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
         # Get the hex representation of the 64 most signicant bits
         trace_id_64bit = trace_id & 2**64 - 1
@@ -776,7 +775,7 @@ def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
     tracer.context_provider.activate(context)
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == low_64_bits
-        assert span.context._meta.get("_dd.propagation_error") == "malformed_tid {}".format(uppercase_tid)
+        assert span.context._meta.get("_dd.propagation_error") == f"malformed_tid {uppercase_tid}"
         assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
 
 
@@ -788,9 +787,9 @@ def test_extract_128bit_trace_ids_b3multi():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
-        span_id_hex = "{:016x}".format(span_id)
+        span_id_hex = f"{span_id:016x}"
         headers = {
             "x-b3-traceid": trace_id_hex,
             "x-b3-spanid": span_id_hex,
@@ -813,9 +812,9 @@ def test_extract_128bit_trace_ids_b3_single_header():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
-        span_id_hex = "{:016x}".format(span_id)
+        span_id_hex = f"{span_id:016x}"
         headers = {
             "b3": "%s-%s-1" % (trace_id_hex, span_id_hex),
         }
@@ -837,9 +836,9 @@ def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
-        trace_id_hex = "{:032x}".format(trace_id)
+        trace_id_hex = f"{trace_id:032x}"
         span_id = 1
-        span_id_hex = "{:016x}".format(span_id)
+        span_id_hex = f"{span_id:016x}"
         headers = {
             "traceparent": "00-%s-%s-01" % (trace_id_hex, span_id_hex),
         }
@@ -879,7 +878,7 @@ def test_last_dd_span_id():
     for span in (child1, chunk_root, root, local_root):
         headers = {}
         HTTPPropagator.inject(span.context, headers)
-        assert "p:{:016x}".format(span.span_id) in headers["tracestate"]
+        assert f"p:{span.span_id:016x}" in headers["tracestate"]
     # If a Datadog span is not active, `p` value is set to the last datadog span in the trace
     headers = {}
     HTTPPropagator.inject(non_dd_remote_context, headers)
@@ -1378,7 +1377,7 @@ def test_matching_secondary_tracecontext_preserves_random_trace_flag():
 
 
 def test_matching_secondary_tracecontext_uses_validated_tracestate():
-    raw_tracestate = "ot=rv:not-hex;th:8," + ",".join("vendor{}=value".format(i) for i in range(32))
+    raw_tracestate = "ot=rv:not-hex;th:8," + ",".join(f"vendor{i}=value" for i in range(32))
     headers = {
         **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
         _HTTP_HEADER_TRACEPARENT: TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
@@ -2660,19 +2659,16 @@ def test_propagation_extract_env(
     name, styles, extract_behavior, headers, expected_context, run_python_code_in_subprocess
 ):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
 import pickle
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
-context = HTTPPropagator.extract({!r})
-expected_context = Context(**pickle.loads({!r}))
+context = HTTPPropagator.extract({headers!r})
+expected_context = Context(**pickle.loads({pickle.dumps(expected_context)!r}))
 assert context == expected_context, f"Expected {{expected_context}} but got {{context}}"
-    """.format(
-        headers,
-        pickle.dumps(expected_context),
-    )
+    """
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
@@ -2755,38 +2751,42 @@ EXTRACT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_extract,headers,expected_context", EXTRACT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess
+    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
+import os
 
 from ddtrace.propagation.http import HTTPPropagator
 
 
-context = HTTPPropagator.extract({!r})
-if context is None:
-    print("null")
-else:
-    print(json.dumps({{
-      "trace_id": context.trace_id,
-      "span_id": context.span_id,
-      "sampling_priority": context.sampling_priority,
-      "dd_origin": context.dd_origin,
-    }}))
-    """.format(headers)
+context = HTTPPropagator.extract({headers!r})
+result = None if context is None else {{
+  "trace_id": context.trace_id,
+  "span_id": context.span_id,
+  "sampling_priority": context.sampling_priority,
+  "dd_origin": context.dd_origin,
+}}
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(result, f)
+    """
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_extract is not None:
         env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles_extract)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
 
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # The result travels by file, so the subprocess is expected to say nothing at all. Anything
+    # here is a foreign write, which used to corrupt the result when it shared stdout.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_context
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_context
 
 
 FULL_CONTEXT_EXTRACT_FIXTURES = [
@@ -3470,30 +3470,36 @@ INJECT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,context,expected_headers", INJECT_FIXTURES)
-def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess):
+def test_propagation_inject(name, styles, context, expected_headers, run_python_code_in_subprocess, tmp_path):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
+import os
 
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
-context = Context(**{!r})
+context = Context(**{context!r})
 headers = {{}}
 HTTPPropagator.inject(context, headers)
 
-print(json.dumps(headers))
-    """.format(context)
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(headers, f)
+    """
 
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
+
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_headers
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_headers
 
     # Setting via ddtrace.config works as expected too
     # DEV: This also helps us get code coverage reporting
@@ -3534,33 +3540,39 @@ INJECT_OVERRIDE_FIXTURES = [
 
 @pytest.mark.parametrize("name,styles,styles_inject,context,expected_headers", INJECT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
-    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess
+    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess, tmp_path
 ):
     # Execute the test code in isolation to ensure env variables work as expected
-    code = """
+    code = f"""
 import json
+import os
 
 from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
-context = Context(**{!r})
+context = Context(**{context!r})
 headers = {{}}
 HTTPPropagator.inject(context, headers)
 
-print(json.dumps(headers))
-    """.format(context)
+with open(os.environ["TEST_RESULT_PATH"], "w") as f:
+    json.dump(headers, f)
+    """
 
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     if styles_inject is not None:
         env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = ",".join(styles_inject)
+    result_path = tmp_path / "result.json"
+    env["TEST_RESULT_PATH"] = str(result_path)
+
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+    # See the note in test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE.
+    assert (stdout, stderr) == (b"", b"")
 
-    result = json.loads(stdout.decode())
-    assert result == expected_headers
+    assert result_path.exists(), (stdout, stderr)
+    assert json.loads(result_path.read_text()) == expected_headers
 
 
 @pytest.mark.parametrize(

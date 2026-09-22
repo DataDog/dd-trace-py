@@ -8,7 +8,7 @@ from ddtrace.trace import Context
 from ddtrace.trace import TraceFilter
 
 
-class Client(object):
+class Client:
     """HTTP Client for making requests to a local http server."""
 
     def __init__(self, base_url):

@@ -545,6 +545,44 @@ def test_symbols_fork_uploads():
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child {pid} exited with status {status}"
 
 
+def test_symbols_rejected_fork_child_does_not_claim_uploader_slot():
+    from ddtrace.internal.ipc import SharedStringFile
+    from ddtrace.internal.symbol_db import remoteconfig
+
+    # Sibling pytest-xdist workers share the controller-keyed pid file and clear
+    # it on teardown, so this test asserts on a file that no other worker touches.
+    pid_file = SharedStringFile(f"{os.getpid()}-symdb-pids-uploader-slot")
+    pid_file.clear()
+
+    with (
+        mock.patch.object(remoteconfig, "shared_pid_file", pid_file),
+        mock.patch.object(remoteconfig, "get_generation", return_value=1),
+        mock.patch.object(remoteconfig, "get_ancestor_runtime_id", return_value="parent-runtime-id"),
+        mock.patch.object(remoteconfig.SymbolDatabaseUploader, "is_installed", return_value=False),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "unregister_callback"),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "disable_product"),
+    ):
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=200),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=True),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == []
+
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=201),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=False),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == ["201"]
+
+    pid_file.clear()
+
+
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_symbols_fork_forces_reenable_and_install():
     """

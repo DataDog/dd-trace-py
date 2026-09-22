@@ -15,8 +15,13 @@ if the import path doesn't match the actual module structure.
 `patch()` needs a corresponding `unwrap()` in `unpatch()`. Missing unwraps
 produce orphaned spans after `unpatch()`.
 
-**Patching before import completes** -- Deferred/lazy-loaded classes may not
-exist at `patch()` time. The wrap succeeds but wraps a stale reference.
+**Patching only already-imported lazy modules** -- Deferred/lazy-loaded classes
+may not exist at `patch()` time. Register a `ModuleWatchdog` module hook so the
+wrapper is installed after the target module imports. Make hook registration
+idempotent, make the hook avoid wrapping a target twice, and have `unpatch()`
+both unregister every hook and unwrap every target the hook already patched.
+Keep the exact module-name/hook pairs so registration and cleanup are
+symmetric.
 
 ## Configuration
 
@@ -38,6 +43,13 @@ decoupling. Infrastructure: `ddtrace/_trace/events.py`, `ddtrace/_trace/subscrib
 **Not calling `span.set_exc_info()` on exceptions** -- Without this, error spans
 won't have exception details. Always use `span.set_exc_info(*sys.exc_info())`
 in direct span-management except blocks.
+
+**Finishing LLM spans only from a generator finally** -- Client disconnect or
+an abandoned iterator can skip that finally, leaving the span in the aggregator
+so later requests nest under it. ASGI request teardown finishes leftover LLM
+descendants after the app callable returns (not when the last body chunk is
+sent). `TracedStream.__del__` finalizes dropped `next()` iteration. Still
+annotate on the happy path from generator finally.
 
 **Setting items on context after it exits** -- `ctx.set_item()` calls after the
 `with core.context_with_data(...)` block exits are silently dropped.

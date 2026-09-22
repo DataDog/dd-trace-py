@@ -1,0 +1,148 @@
+"""Pin wrap() vs sys.monitoring for profiling asyncio hooks.
+
+These fail if ddtrace.profiling._asyncio does not do proper
+version splitting.
+
+The registration helper is kept outside the version gate so the unwind
+test below can exercise it on every supported interpreter with a stubbed
+monitoring module.
+"""
+
+from __future__ import annotations
+
+import sys
+from types import CodeType
+from typing import Any
+from typing import Callable
+from typing import Iterator
+
+import pytest
+
+
+class _StubMonitoring:
+    """Stand-in for ddtrace.internal.monitoring, which only imports on 3.15+."""
+
+    def __init__(self, register_error: BaseException | None = None) -> None:
+        self.register_error: BaseException | None = register_error
+        self.registered: list[tuple[CodeType, Any]] = []
+        self.unregistered: list[tuple[CodeType, Any]] = []
+
+    def register(self, code: CodeType, handler: Any) -> None:
+        self.registered.append((code, handler))
+        if self.register_error is not None:
+            raise self.register_error
+
+    def unregister(self, code: CodeType, handler: Any) -> None:
+        self.unregistered.append((code, handler))
+
+
+@pytest.fixture
+def asyncio_module() -> Iterator[Any]:
+    """Yield ddtrace.profiling._asyncio with its monitoring globals isolated."""
+    from ddtrace.profiling import _asyncio
+
+    previous_tool_id: int | None = _asyncio._monitoring_tool_id
+    previous_handlers: dict[int, Callable[[object], None]] = _asyncio._py_return_handlers.copy()
+    _asyncio._monitoring_tool_id = None
+    _asyncio._py_return_handlers.clear()
+    try:
+        yield _asyncio
+    finally:
+        _asyncio._monitoring_tool_id = previous_tool_id
+        _asyncio._py_return_handlers.clear()
+        _asyncio._py_return_handlers.update(previous_handlers)
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 15), reason="wrap() is the <3.15 path")
+@pytest.mark.subprocess(err=None)
+def test_asyncio_hooks_use_wrap_below_315() -> None:
+    import asyncio
+    import sys
+    from types import FunctionType
+    from types import ModuleType
+    from typing import Optional
+    from typing import cast
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.wrapping import is_wrapped
+    from ddtrace.profiling import _asyncio
+
+    assert stack.is_available, stack.failure_msg
+    assert _asyncio.ASYNCIO_IMPORTED
+
+    create_task: FunctionType = cast(FunctionType, asyncio.tasks.create_task)
+    assert is_wrapped(create_task), "create_task must be wrap()'d, not monkey-patched"
+    assert create_task.__name__ == "create_task"
+    assert _asyncio._monitoring_tool_id is None
+    assert _asyncio._py_return_handlers == {}
+
+    tasks_mod: ModuleType = sys.modules["asyncio.tasks"]
+    assert is_wrapped(cast(FunctionType, tasks_mod.as_completed))
+    assert is_wrapped(cast(FunctionType, tasks_mod.shield))
+    assert is_wrapped(cast(FunctionType, getattr(tasks_mod, "_wait")))
+    gathering_future: type[object] = getattr(tasks_mod, "_GatheringFuture")
+    assert is_wrapped(cast(FunctionType, gathering_future.__init__))
+
+    events_module: ModuleType = sys.modules["asyncio.events"]
+    policy_class: Optional[type[object]]
+    if sys.hexversion >= 0x030E0000:
+        policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
+    else:
+        policy_class = getattr(events_module, "BaseDefaultEventLoopPolicy", None)
+    assert policy_class is not None
+    assert is_wrapped(cast(FunctionType, policy_class.set_event_loop))
+
+    if sys.hexversion >= 0x030B0000:
+        taskgroups: ModuleType | None = sys.modules.get("asyncio.taskgroups")
+        assert taskgroups is not None
+        assert is_wrapped(cast(FunctionType, taskgroups.TaskGroup.create_task))
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="sys.monitoring is the 3.15+ path")
+@pytest.mark.subprocess(err=None)
+def test_asyncio_task_creation_uses_monitoring_on_315() -> None:
+    import asyncio
+    import sys
+    from types import FunctionType
+    from types import ModuleType
+    from typing import cast
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.wrapping import is_wrapped
+    from ddtrace.profiling import _asyncio
+
+    assert stack.is_available, stack.failure_msg
+    assert _asyncio.ASYNCIO_IMPORTED
+
+    create_task: FunctionType = cast(FunctionType, asyncio.tasks.create_task)
+    # A _register_return_hook that always returns False would skip this store
+    # and fall back to wrap().
+    assert create_task.__name__ == "create_task"
+    assert not is_wrapped(create_task)
+    assert _asyncio._monitoring_tool_id is not None
+    assert id(create_task.__code__) in _asyncio._py_return_handlers
+
+    taskgroups: ModuleType | None = sys.modules.get("asyncio.taskgroups")
+    assert taskgroups is not None
+    tg_create: FunctionType = cast(FunctionType, taskgroups.TaskGroup.create_task)
+    assert tg_create.__name__ == "create_task"
+    assert not is_wrapped(tg_create)
+    assert id(tg_create.__code__) in _asyncio._py_return_handlers
+
+
+def test_register_return_hook_unwinds_a_failed_register(asyncio_module: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed register() leaves no handler entry behind and unregisters the code."""
+    monitoring: _StubMonitoring = _StubMonitoring(register_error=RuntimeError("register exploded"))
+    monkeypatch.setattr(asyncio_module, "_monitoring", monitoring, raising=False)
+    dispatch: Any = asyncio_module._AsyncioReturnHookDispatch()
+
+    def function() -> None:
+        pass
+
+    def callback(return_value: object) -> None:
+        pass
+
+    assert asyncio_module._do_register_return_hook(dispatch, function, callback) is False
+    assert id(function.__code__) not in asyncio_module._py_return_handlers
+    assert monitoring.unregistered == [(function.__code__, dispatch)]
+    assert asyncio_module._monitoring_tool_id is None

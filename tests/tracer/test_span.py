@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 from functools import partial
 import sys
 import time
 import traceback
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace._trace._span_link import SpanLink

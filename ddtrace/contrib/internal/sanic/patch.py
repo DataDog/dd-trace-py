@@ -147,7 +147,7 @@ async def patch_run_request_middleware(wrapped: Callable, instance: sanic.Sanic,
     request = args[0]
     span = _get_request_span(request)
     if span is not None:
-        span.resource = "{} {}".format(request.method, _get_path(request))
+        span.resource = f"{request.method} {_get_path(request)}"
     return await wrapped(*args, **kwargs)
 
 
@@ -273,11 +273,11 @@ async def sanic_http_routing_after(request: "Request", route: "Route", kwargs: d
     pattern = route.raw_path
     # Sanic 21.9.0 and newer strip the leading slash from `route.raw_path`
     if not pattern.startswith("/"):
-        pattern = "/{}".format(pattern)
+        pattern = f"/{pattern}"
     if route.regex:
         pattern = route.pattern
 
-    span.resource = "{} {}".format(request.method, pattern)
+    span.resource = f"{request.method} {pattern}"
     span._set_attribute("sanic.route.name", route.name)
 
 
