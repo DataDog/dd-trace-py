@@ -44,6 +44,18 @@ variables:
     do
       export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
 
+      # Override PYENV_VERSION per scenario when needed. Some scenarios pin
+      # dependencies that are incompatible with Python 3.14 (e.g.
+      # langchain-pinecone requires <3.14). Fall back to 3.12 for those.
+      case "$SCENARIO" in
+        packages_update_imported_dependencies)
+          export PYENV_VERSION="3.12.10"
+          ;;
+        *)
+          export PYENV_VERSION="3.14.4"
+          ;;
+      esac
+
       capture-hardware-software-info.sh
 
       if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
@@ -96,10 +108,6 @@ variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
-    # Use Python 3.12 for benchmark execution. The CI image ships both 3.9
-    # (global default for BP tooling) and 3.14; PYENV_VERSION makes pyenv
-    # shims resolve python3 to 3.14 for run-benchmarks.sh's venvs.
-    PYENV_VERSION: "3.14.4"
 
 baseline:detect:
   image: ${CI_UTILS_IMAGE}
