@@ -9,7 +9,7 @@ from importlib import import_module
 import sys
 from typing import Any
 
-from ddtrace.internal._integration_registry import register_factory
+from ddtrace.internal._component_registry import register_factory
 
 
 _INTEGRATION_MODULES = {

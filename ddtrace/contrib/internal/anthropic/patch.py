@@ -12,8 +12,8 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal._component_registry import get_or_create as get_llmobs_component
 from ddtrace.internal._exceptions import DDBlockException
-from ddtrace.internal._integration_registry import get_or_create as get_llmobs_integration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 
@@ -118,7 +118,7 @@ def patch() -> None:
 
     anthropic._datadog_patch = True
 
-    integration = get_llmobs_integration("anthropic", config.anthropic)
+    integration = get_llmobs_component("anthropic", config.anthropic)
     anthropic._datadog_integration = integration
 
     # AI Guard mirrors this wrap-target list in

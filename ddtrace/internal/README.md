@@ -45,6 +45,128 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Component Registry
+
+`ddtrace.internal._component_registry` (`_component_registry.py`) lets code in a shared zone
+(`ddtrace.contrib` or `ddtrace.internal` itself) obtain a product-owned object by name, instead of
+importing the product package that defines it. It exists to satisfy the dependency-direction rule
+enforced by the `dependency-direction-analysis` skill: `ddtrace.contrib` and `ddtrace.internal` must
+never import from a product zone (e.g. `ddtrace.llmobs`), because contribs are shared foundation
+code that every product may need, and a reverse dependency would make that foundation depend on one
+specific product being installed/importable.
+
+### Two different meanings of "integration" — and why the registry avoids the word
+
+This area of the codebase uses "integration" for two distinct things, and it's easy to conflate
+them:
+
+- A **contrib integration** is the `ddtrace/contrib/internal/<library>/` patch module for a given
+  third-party library (e.g. `ddtrace/contrib/internal/anthropic/patch.py`). It's the thing that
+  calls `wrap()`/`unwrap()` on the library's functions.
+- An **LLMObs integration** is a `BaseLLMIntegration` subclass instance (e.g.
+  `AnthropicIntegration`) owned by `ddtrace.llmobs`, which knows how to turn a request/response
+  into LLMObs spans and tags.
+
+A contrib integration's `patch()` needs a handle to its corresponding LLMObs integration object,
+but importing `ddtrace.llmobs._integrations.AnthropicIntegration` directly from
+`ddtrace/contrib/internal/anthropic/patch.py` is exactly the `contrib -> product:llmobs` violation
+described above. The registry solves this, but if it reused "integration" for its own API
+(`register_integration`, `get_integration`, ...) it would be unclear on either side of the call
+which kind of integration was meant. So the registry's own vocabulary calls what it stores a
+**component handle**: an opaque, product-owned object keyed by a component name (e.g.
+`"anthropic"`). It's still an LLMObs integration under the hood — `_component_registry.py` doesn't
+know or care what LLMObs is — but contrib code only ever deals in strings and duck-typed handles,
+never a concrete class it would have to import.
+
+This is a naming convention for the registry's own module, not a repo-wide rename: existing,
+well-established uses of "integration" elsewhere (the `llmobs_integration` field on
+`LlmRequestEvent` in `ddtrace/contrib/_events/llm.py`, the local `integration` variable inside
+`anthropic/patch.py`, `ddtrace.llmobs._integrations` itself) are legitimate LLMObs domain vocabulary
+and are unaffected.
+
+### API
+
+| Function | Description |
+|----------|-------------|
+| `register_factory(component: str, factory: Callable[[Any], Any]) -> None` | Called by the owning product to register how to build the handle for `component`. |
+| `set_loader(loader: Callable[[], None]) -> None` | Registers a callable that populates the registry (via `register_factory()`) the first time it's needed. See "Lazy loading" below for why this exists. |
+| `get_or_create(component: str, component_config: Any) -> Optional[Any]` | Returns the cached handle for `component`, building and caching it via its factory on first call. Returns `None` if no factory is registered for `component` even after running the loader. |
+
+### Usage walkthrough (anthropic)
+
+1. `ddtrace/llmobs/_integrations/__init__.py` — the product that owns `AnthropicIntegration` —
+   registers a factory for the `"anthropic"` component:
+
+   ```python
+   register_factory(
+       "anthropic",
+       lambda integration_config: getattr(sys.modules[__name__], "AnthropicIntegration")(
+           integration_config=integration_config
+       ),
+   )
+   ```
+
+   The factory looks up `AnthropicIntegration` through this module's own `__getattr__` (rather than
+   a bare name) so that importing `ddtrace.llmobs._integrations` doesn't eagerly import every
+   concrete integration module — only the factory that actually runs does.
+
+2. `ddtrace/contrib/internal/anthropic/patch.py` looks the handle up by name, with no import of
+   `ddtrace.llmobs` anywhere in the file:
+
+   ```python
+   from ddtrace.internal._component_registry import get_or_create as get_llmobs_component
+
+   def patch() -> None:
+       ...
+       integration = get_llmobs_component("anthropic", config.anthropic)
+       anthropic._datadog_integration = integration
+   ```
+
+3. Something has to cause the factory from step 1 to actually be registered — i.e. something has to
+   import `ddtrace.llmobs._integrations` at least once. That's what `set_loader()` is for.
+
+### Lazy loading and why it's needed
+
+`ddtrace._monkey` is one of the few modules classified as unclassified/foundation code rather than
+`internal-core`, which makes it the correct, deliberate bridge point between contrib and products —
+it's exempt from the "no product imports" rule specifically so something can wire the two together.
+Naively, it could just do `import ddtrace.llmobs._integrations` at module scope to populate the
+registry. That fails: `ddtrace._monkey` is itself imported by `ddtrace/__init__.py` before that
+module finishes setting its own `config` attribute, and `ddtrace.llmobs.__init__` transitively does
+`from ddtrace import config` deep in its import chain — so importing it too early raises
+`ImportError: cannot import name 'config' from partially initialized module 'ddtrace'`.
+
+Moving the import into `ddtrace._monkey.patch()`'s body doesn't fully fix it either: tests (and any
+other caller) can call a contrib module's `patch()` function directly, bypassing
+`ddtrace._monkey.patch()` entirely, in which case the registry would never get populated.
+
+The fix is `set_loader()`: `ddtrace._monkey` registers a callback at module scope — just a function
+reference, so no import executes yet:
+
+```python
+def _load_llmobs_integrations() -> None:
+    import ddtrace.llmobs._integrations  # noqa: F401
+
+_set_llmobs_component_loader(_load_llmobs_integrations)
+```
+
+`get_or_create()` invokes that callback lazily, exactly once, the first time any lookup misses —
+which is always after `ddtrace` has finished initializing, regardless of whether the caller reached
+the registry via `ddtrace._monkey.patch()` or a contrib `patch()` called directly. This isn't a
+deferred import used to paper over a real circular import (which AGENTS.md rule 14 bans) — there is
+no cycle here (`ddtrace.llmobs` never imports `ddtrace._monkey`); it's a bootstrap-ordering /
+lazy-activation concern, the same shape as the `wrapt.importer.when_imported` lazy-activation
+pattern already used elsewhere in this file.
+
+### When to reach for this vs. other patterns
+
+Use the component registry when contrib (or `ddtrace.internal`) needs a *product-owned object*, by
+name, and the product should own its own construction. If instead contrib just needs to notify a
+product that something happened (fire-and-forget, no return value needed), prefer the core event
+bus (`ddtrace.internal.core.dispatch`/`core.on`) documented in
+`.cursor/rules/isolated-responsibility.mdc` — that pattern doesn't need a registry at all.
+
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from
