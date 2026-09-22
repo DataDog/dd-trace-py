@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+from unittest import mock
+
 import kombu
-import mock
 import pytest
 
 from ddtrace import config
@@ -24,9 +24,9 @@ class TestKombuPatch(TracerTestCase):
     TEST_PORT = RABBITMQ_CONFIG["port"]
 
     def setUp(self):
-        super(TestKombuPatch, self).setUp()
+        super().setUp()
 
-        conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=self.TEST_PORT))
+        conn = kombu.Connection(f"amqp://guest:guest@127.0.0.1:{self.TEST_PORT}//")
         conn.connect()
         producer = conn.Producer()
 
@@ -38,7 +38,7 @@ class TestKombuPatch(TracerTestCase):
     def tearDown(self):
         unpatch()
 
-        super(TestKombuPatch, self).tearDown()
+        super().tearDown()
 
     def test_basics(self):
         self._publish_consume()
@@ -124,7 +124,7 @@ class TestKombuPatch(TracerTestCase):
 
 class TestKombuSettings(TracerTestCase):
     def setUp(self):
-        super(TestKombuSettings, self).setUp()
+        super().setUp()
 
         conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=RABBITMQ_CONFIG["port"]))
         conn.connect()
@@ -137,16 +137,16 @@ class TestKombuSettings(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestKombuSettings, self).tearDown()
+        super().tearDown()
 
 
 class TestKombuSchematization(TracerTestCase):
     TEST_PORT = RABBITMQ_CONFIG["port"]
 
     def setUp(self):
-        super(TestKombuSchematization, self).setUp()
+        super().setUp()
 
-        conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=self.TEST_PORT))
+        conn = kombu.Connection(f"amqp://guest:guest@127.0.0.1:{self.TEST_PORT}//")
         conn.connect()
         producer = conn.Producer()
 
@@ -158,7 +158,7 @@ class TestKombuSchematization(TracerTestCase):
     def tearDown(self):
         unpatch()
 
-        super(TestKombuSchematization, self).tearDown()
+        super().tearDown()
 
     def _create_schematized_spans(self):
         """
@@ -185,51 +185,51 @@ class TestKombuSchematization(TracerTestCase):
     def test_schematized_service_name_default(self):
         spans = self._create_schematized_spans()
         for span in spans:
-            assert span.service == "mysvc", "Expected mysvc, got {}".format(span.service)
+            assert span.service == "mysvc", f"Expected mysvc, got {span.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
         spans = self._create_schematized_spans()
         for span in spans:
-            assert span.service == "mysvc", "Expected mysvc, got {}".format(span.service)
+            assert span.service == "mysvc", f"Expected mysvc, got {span.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
         spans = self._create_schematized_spans()
         for span in spans:
-            assert span.service == "mysvc", "Expected mysvc, got {}".format(span.service)
+            assert span.service == "mysvc", f"Expected mysvc, got {span.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_name_default(self):
         spans = self._create_schematized_spans()
-        assert spans, "Expected spans, got {}".format(spans)
-        assert spans[0].service == "kombu", "Expected kombu, got {}".format(spans[0].service)
+        assert spans, f"Expected spans, got {spans}"
+        assert spans[0].service == "kombu", f"Expected kombu, got {spans[0].service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
         spans = self._create_schematized_spans()
-        assert spans, "Expected spans, got {}".format(spans)
-        assert spans[0].service == "kombu", "Expected kombu, got {}".format(spans[0].service)
+        assert spans, f"Expected spans, got {spans}"
+        assert spans[0].service == "kombu", f"Expected kombu, got {spans[0].service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
         spans = self._create_schematized_spans()
         for span in spans:
             assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
-                "Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {}".format(span.service)
+                f"Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {span.service}"
             )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
         spans = self._create_schematized_spans()
-        assert spans[0].name == "kombu.publish", "Expected kombu.publish, got {}".format(spans[0].name)
-        assert spans[1].name == "kombu.receive", "Expected kombu.receive, got {}".format(spans[1].name)
+        assert spans[0].name == "kombu.publish", f"Expected kombu.publish, got {spans[0].name}"
+        assert spans[1].name == "kombu.receive", f"Expected kombu.receive, got {spans[1].name}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
         spans = self._create_schematized_spans()
-        assert spans[0].name == "kombu.send", "Expected kombu.send, got {}".format(spans[0].name)
-        assert spans[1].name == "kombu.process", "Expected kombu.process, got {}".format(spans[1].name)
+        assert spans[0].name == "kombu.send", f"Expected kombu.send, got {spans[0].name}"
+        assert spans[1].name == "kombu.process", f"Expected kombu.process, got {spans[1].name}"
 
     @TracerTestCase.run_in_subprocess()
     def test_programmatic_service_config_applied_to_both_pins(self):
@@ -277,7 +277,7 @@ class TestKombuSchematization(TracerTestCase):
 
 class TestKombuDsm(TracerTestCase):
     def setUp(self):
-        super(TestKombuDsm, self).setUp()
+        super().setUp()
 
         self.conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=RABBITMQ_CONFIG["port"]))
         self.conn.connect()
@@ -291,7 +291,7 @@ class TestKombuDsm(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestKombuDsm, self).tearDown()
+        super().tearDown()
 
     def _publish_consume(self, message={"hello": "world"}, exchange="dsm_tests"):
         results = []

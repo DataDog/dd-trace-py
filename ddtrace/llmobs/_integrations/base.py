@@ -68,7 +68,7 @@ class BaseLLMIntegration:
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
         Eventually those should also be internal service spans once peer.service is implemented.
         """
-        span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
+        span_name = kwargs.get("span_name", None) or f"{self._integration_name}.request"
         span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
         parent_context = kwargs.get("parent_context") or tracer.context_provider.active()
 

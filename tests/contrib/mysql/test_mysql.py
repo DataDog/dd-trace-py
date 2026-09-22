@@ -1,6 +1,6 @@
 import asyncio
+from unittest import mock
 
-import mock
 import mysql
 import pytest
 
@@ -25,14 +25,14 @@ def _has_mysql_aio():
         return False
 
 
-class MySQLCore(object):
+class MySQLCore:
     """Base test case for MySQL drivers"""
 
     conn = None
     tracer = None
 
     def tearDown(self):
-        super(MySQLCore, self).tearDown()
+        super().tearDown()
 
         # Reuse the connection across tests
         if self.conn:
@@ -325,11 +325,11 @@ class MySQLCore(object):
 
 class TestMysqlPatch(MySQLCore, TracerTestCase):
     def setUp(self):
-        super(TestMysqlPatch, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
-        super(TestMysqlPatch, self).tearDown()
+        super().tearDown()
         unpatch()
 
     def _get_conn(self):

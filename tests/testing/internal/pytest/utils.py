@@ -11,4 +11,9 @@ def assert_stats(rec, **outcomes):
         actual_count = len(stats.pop(outcome, []))
         assert actual_count == expected_count, f"Expected {expected_count} {outcome} tests, got {actual_count}"
 
+    # NOTE: warnings are terminal-report metadata, not test outcomes. Nested
+    # pytest runs can legitimately warn when an outer retry reuses the same Pytester
+    # fixture, so outcome assertions must not depend on the ambient warning set.
+    stats.pop("warnings", None)
+
     assert not stats, f"Found unexpected stats in test results: {', '.join(stats.keys())}"
