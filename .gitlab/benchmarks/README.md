@@ -83,10 +83,11 @@ YAML.
 [DataDog/apm-reliability/apm-sdks-benchmarks](https://gitlab.ddbuild.io/DataDog/apm-reliability/apm-sdks-benchmarks)
 separately from anything in this directory. Its scenarios and thresholds are maintained there.
 
-The `apm-sdks-benchmarks` job runs automatically on nightly builds, release tags and release
-branches, and on `performance/flaky-benchmarks-monitoring` when the pipeline source is
-`pipeline` — that is, only when a parent pipeline triggered it, not on a push to that branch.
-Everywhere else it is a manual job.
+The `apm-sdks-benchmarks` job runs automatically on release tags, release branches, `main`, and
+on `performance/flaky-benchmarks-monitoring` when the pipeline source is `pipeline` — that is,
+only when a parent pipeline triggered it, not on a push to that branch. Everywhere else it is a
+manual job. It does not run on nightly builds; `apm-sdks-benchmarks` already runs its own nightly
+schedule in that project's own CI, independent of dd-trace-py's pipeline.
 
 **Generation.** `scripts/gen_gitlab_config.py` produces `microbenchmarks-gen.yml` and the
 filtered SLO file. Neither is committed; both are `tests-gen` artifacts.
