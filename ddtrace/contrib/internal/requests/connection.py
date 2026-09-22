@@ -1,4 +1,4 @@
-from typing import Optional  # noqa:F401
+from typing import Optional
 from urllib import parse
 
 import requests
@@ -37,7 +37,7 @@ def is_otlp_export(request: requests.models.Request) -> bool:
     return _normalize_otlp_url(request.url) in _OTLP_EXPORT_URLS
 
 
-def _normalize_otlp_url(url: str) -> "Optional[tuple]":
+def _normalize_otlp_url(url: str) -> Optional[tuple]:
     parsed = parse.urlparse(url)
     if not parsed.hostname:
         return None
