@@ -17,6 +17,7 @@ ffe = ["dep:libdd-ffe"]
 stats = ["dep:libdd-ddsketch"]
 
 [dependencies]
+libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "f3e1c77617c36fe4c1026f336cb5282eb8d42ce1" }
 anyhow = { version = "1.0" }
 base64 = "0.22"
 # `bytes 1.10+` is required for `Bytes::from_owner` (used in http_client to

@@ -11,6 +11,10 @@ from tests.contrib.litellm.utils import model_list
 from tests.utils import override_global_config
 
 
+# The proxy-extra suite selects this directory explicitly.
+collect_ignore = ["gateway"]
+
+
 @pytest.fixture
 def litellm(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")

@@ -1,0 +1,6 @@
+features:
+  - |
+    litellm: Adds opt-in per-user usage metrics for LiteLLM gateways through the
+    gateway attribution callback. Captures available user, model, and provider
+    details alongside token/cache usage and observed retry/fallback counts,
+    without recording prompt or response text.

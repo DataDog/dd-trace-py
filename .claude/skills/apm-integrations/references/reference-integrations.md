@@ -28,3 +28,32 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+### Gateway callback attribution
+
+LiteLLM's opt-in `ddtrace.contrib.litellm.gateway_attribution` callback emits
+content-free DogStatsD usage counters, independent of SDK tracing and LLMObs.
+Request/response IDs are omitted; other values follow metric tag normalization
+and length limits. Keep counters additive, including fractional media seconds.
+Usage partitioning, label validation, and context buckets live in libdatadog's
+`libdd-ai-usage` crate, called through `src/native/ai_usage.rs`. Keep LiteLLM field
+selection in Python; do not duplicate accounting rules there.
+Context-length buckets double from 32k, with extra 200k/272k boundaries. They are
+global, include caches, and have inclusive upper bounds; do not add provider/model
+mappings or treat missing usage as zero.
+
+- **Identity:** Prefer gateway authentication. Keep the end-user fallback unverified;
+  never recover it from raw request fields. Preserve privacy opt-outs; invalid
+  configuration disables optional identity capture.
+- **Metadata:** Export selected, non-secret fields with raw values. Never dump
+  payloads, guess billing details, or carry route metadata across fallback deployments.
+- **Sources:** Use standard logging to supplement route/cache metadata, preserving
+  outgoing/callback precedence. Read usage from the original response, not logging
+  defaults. Missing usage, cache counts, and cache lifetimes remain unknown.
+- **Key IDs:** Read `model_info.datadog_provider_api_key_id` only from the selected
+  deployment. No automatic lookup. Rate-limit missing/invalid-ID warnings without
+  logging values; skip these warnings for gateway cache hits.
+
+See `ddtrace/contrib/internal/litellm/__init__.py` for fields and configuration,
+the implementation in the same directory, and `tests/contrib/litellm/gateway/`
+for real-proxy tests.

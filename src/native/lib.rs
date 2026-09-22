@@ -1,3 +1,4 @@
+mod ai_usage;
 #[cfg(feature = "crashtracker")]
 mod crashtracker;
 #[cfg(feature = "profiling")]
@@ -44,6 +45,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     {
         m.add_class::<ddsketch::DDSketchPy>()?;
     }
+
+    m.add_function(wrap_pyfunction!(ai_usage::_normalize_ai_usage, m)?)?;
+    m.add_function(wrap_pyfunction!(ai_usage::_ai_usage_context_bucket, m)?)?;
+    m.add_function(wrap_pyfunction!(ai_usage::_ai_usage_label, m)?)?;
 
     m.add_class::<library_config::PyConfigurator>()?;
 
