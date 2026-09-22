@@ -39,7 +39,7 @@ class HTTPClient(_HTTPClient):
         retry_initial_delay_ms: int = 100,
         retry_jitter: bool = True,
         treat_http_errors_as_errors: bool = True,
-    ) -> "HTTPClient":
+    ) -> HTTPClient:
         return super().__new__(
             cls,
             base_url,

@@ -44,7 +44,7 @@ def _snapshot(state=SignalState.DONE):
 def test_collector_collect_enqueue_only_commit_state():
     class MockLogSignal(LogSignal):
         def __init__(self, *args, **kwargs):
-            super(MockLogSignal, self).__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
             self.exit_call_count = 0
             self.enter_call_count = 0
 

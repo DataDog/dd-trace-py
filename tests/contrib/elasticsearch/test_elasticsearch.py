@@ -40,7 +40,7 @@ for module_name in module_names:
     except ImportError:
         pass
 else:
-    raise ImportError("could not import any of {0!r}".format(module_names))
+    raise ImportError(f"could not import any of {module_names!r}")
 
 
 def wait_for_es(host: str, port: int):
@@ -83,7 +83,7 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def setUp(self):
         """Prepare ES"""
-        super(ElasticsearchPatchTest, self).setUp()
+        super().setUp()
 
         es = self._get_es()
         config = self._get_es_config()
@@ -96,7 +96,7 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def tearDown(self):
         """Clean ES"""
-        super(ElasticsearchPatchTest, self).tearDown()
+        super().tearDown()
 
         unpatch()
         self.delete_index(self.es)
