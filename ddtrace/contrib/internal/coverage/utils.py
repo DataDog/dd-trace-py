@@ -1,10 +1,20 @@
 from pathlib import Path
 import sys
 import tempfile
+from typing import Any
 from typing import Callable
 from typing import Optional
 
+
+try:
+    from coverage import Coverage as _Coverage
+    from coverage.files import PathAliases as _PathAliases
+except ImportError:
+    _Coverage = None  # type: ignore[assignment,misc]
+    _PathAliases = None  # type: ignore[assignment,misc]
+
 from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
+from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import is_coverage_running
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import _get_config
@@ -191,6 +201,119 @@ def _stop_coverage_if_needed(stop_coverage_func, config, is_pytest_cov_enabled_f
         stop_coverage_func(save=True)
 
 
+def _build_path_aliases(cov_instance: Any = None) -> Optional[Any]:
+    """Build a PathAliases object from the ``[paths]`` section of the active coverage config.
+
+    When *cov_instance* is provided, its configuration is used so that custom
+    ``--cov-config`` files or programmatic configurations are respected.
+    Otherwise, a new ``Coverage()`` is created to discover the default config.
+
+    Returns None if coverage.py is not installed or no ``[paths]`` aliases are
+    configured.  The returned object has a ``map(path)`` method that remaps
+    paths according to the ``[paths]`` patterns.
+    """
+    # coverage.py is a test dependency, not a runtime dependency, so it may not
+    # be installed. mypy sees the ImportError branch as dead code because
+    # coverage is in our type-checking environment, but this guard is real.
+    if _Coverage is None or _PathAliases is None:
+        return None  # type: ignore[unreachable]
+
+    try:
+        cov = cov_instance if cov_instance is not None else _Coverage()
+        aliases = cov._make_aliases()
+    except Exception:
+        log.debug("Could not build PathAliases from coverage config", exc_info=True)
+        return None
+
+    if not aliases.aliases:
+        return None
+
+    return aliases
+
+
+def _remap_lcov_paths(tmp_path: Path, cov_instance: Any = None) -> None:
+    """Remap ``SF:`` paths in an LCOV file using ``[paths]`` aliases from the active coverage config.
+
+    When tests run against an installed wheel (e.g. in a uv isolated environment),
+    coverage records paths like::
+
+        .cache/uv-test-environments/<hash>/lib/python3.12/site-packages/ddtrace/__init__.py
+
+    The ``[paths]`` section in the coverage config maps these back to repository paths::
+
+        ddtrace/__init__.py
+
+    ``coverage combine`` applies these aliases, but it runs *after* the LCOV report
+    is already generated and uploaded.  This function applies the same remapping
+    to the LCOV file **before** upload so the intake receives deduplicated paths.
+
+    The file is streamed line-by-line through a temporary file to avoid holding
+    multiple copies of a potentially large LCOV report in memory.  UTF-8 encoding
+    is used explicitly because coverage.py always writes reports as UTF-8.
+    """
+    aliases = _build_path_aliases(cov_instance)
+    if aliases is None:
+        return
+
+    cwd = Path.cwd()
+
+    def _map_path(path: str) -> str:
+        mapped = aliases.map(path)
+        try:
+            mapped = str(Path(mapped).relative_to(cwd))
+        except ValueError:
+            pass  # keep as-is if not relative to cwd
+        return mapped
+
+    # First pass: check whether any SF: line would be remapped.  If not,
+    # return early without creating a temp file, so the no-remap case adds
+    # no extra unlink call that could break existing cleanup assertions.
+    needs_remap = False
+    try:
+        with open(tmp_path, encoding="utf-8", newline="") as fin:
+            for line in fin:
+                if not line.startswith("SF:"):
+                    continue
+                path = line[3:].rstrip("\r\n")
+                if _map_path(path) != path:
+                    needs_remap = True
+                    break
+    except Exception:
+        log.debug("Could not scan LCOV file for path remapping", exc_info=True)
+        return
+
+    if not needs_remap:
+        return
+
+    # Second pass: stream the rewrite through a temp file.
+    tmp_out = tmp_path.with_suffix(".lcov.remap")
+    remapped = 0
+    try:
+        with (
+            open(tmp_path, encoding="utf-8", newline="") as fin,
+            open(tmp_out, "w", encoding="utf-8", newline="") as fout,
+        ):
+            for line in fin:
+                if not line.startswith("SF:"):
+                    fout.write(line)
+                    continue
+
+                path = line[3:].rstrip("\r\n")
+                mapped = _map_path(path)
+
+                if mapped != path:
+                    fout.write(f"SF:{mapped}\n")
+                    remapped += 1
+                else:
+                    fout.write(line)
+
+        tmp_out.replace(tmp_path)
+        log.debug("Remapped %d SF: path(s) in LCOV report", remapped)
+    except Exception:
+        log.debug("Could not remap LCOV paths", exc_info=True)
+        tmp_out.unlink(missing_ok=True)
+
+
 def handle_coverage_report(
     config,
     upload_func: Callable[[bytes, str], bool],
@@ -242,6 +365,15 @@ def handle_coverage_report(
                 log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
             else:
                 log.debug("Generated LCOV coverage report: %s (coverage percentage unavailable)", tmp_path)
+
+            # Remap SF: paths to resolve wheel-installed paths to repo paths.
+            # This applies the same [paths] aliases that coverage combine would,
+            # but before the LCOV report is uploaded.  Use the active coverage
+            # instance so custom --cov-config files are respected.
+            active_cov = get_coverage_instance()
+            if active_cov is None and is_pytest_cov_enabled_func(config):
+                active_cov = _find_pytest_cov_instance(config)
+            _remap_lcov_paths(tmp_path, cov_instance=active_cov)
 
         except Exception as report_error:
             # Handle "No data to report" and other coverage errors
