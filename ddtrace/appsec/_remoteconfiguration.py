@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
+from collections.abc import Sequence
 import os
 from typing import Callable
 from typing import Optional
-from typing import Sequence
 from typing import TypedDict
 from typing import cast
 

@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -11,7 +12,7 @@ PYDANTIC_AI_TAGS = {
 }
 
 
-# pydantic-ai's own defaults for an agent that configures none of these, at the versions riotfile.py
+# pydantic-ai's own defaults for an agent that configures none of these, at the locked suite versions.
 # pins. They are framework defaults rather than caller choices, which is why they are asserted here
 # once instead of being repeated per test. They are NOT a framework invariant: end_strategy defaults
 # to "graceful" at 2.x, so adding a 2.x pin will fail here on purpose.
@@ -135,19 +136,19 @@ def _assert_contains(manifest, expected, path=""):
     Lets a case skip builtin_tools' name, which is "WebSearchTool" below 1.63.0, "web_search" after.
     """
     for key, want in expected.items():
-        assert key in manifest, "manifest is missing {}{}".format(path, key)
+        assert key in manifest, f"manifest is missing {path}{key}"
         got = manifest[key]
         if isinstance(want, dict) and isinstance(got, dict):
-            _assert_contains(got, want, "{}{}.".format(path, key))
+            _assert_contains(got, want, f"{path}{key}.")
         elif isinstance(want, list) and isinstance(got, list):
-            assert len(got) == len(want), "{}{}: expected {} entries, got {}".format(path, key, len(want), len(got))
+            assert len(got) == len(want), f"{path}{key}: expected {len(want)} entries, got {len(got)}"
             for index, (want_entry, got_entry) in enumerate(zip(want, got)):
                 if isinstance(want_entry, dict) and isinstance(got_entry, dict):
-                    _assert_contains(got_entry, want_entry, "{}{}[{}].".format(path, key, index))
+                    _assert_contains(got_entry, want_entry, f"{path}{key}[{index}].")
                 else:
-                    assert got_entry == want_entry, "{}{}[{}]".format(path, key, index)
+                    assert got_entry == want_entry, f"{path}{key}[{index}]"
         else:
-            assert got == want, "{}{}: expected {!r}, got {!r}".format(path, key, want, got)
+            assert got == want, f"{path}{key}: expected {want!r}, got {got!r}"
 
 
 # What must never reach the wire, one case per carrier: (kwargs factory, forbidden substrings,

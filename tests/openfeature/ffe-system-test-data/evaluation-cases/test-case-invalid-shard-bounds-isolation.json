@@ -1,0 +1,40 @@
+[
+  {
+    "description": "The malformed flag has totalShards above the unsigned 32-bit range. SDKs must return a parse error without poisoning the full configuration.",
+    "attributes": {},
+    "defaultValue": "default",
+    "flag": "overflow-total-shards-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  },
+  {
+    "description": "The malformed flag has a negative shard range start. SDKs must return a parse error without poisoning the full configuration.",
+    "attributes": {},
+    "defaultValue": "default",
+    "flag": "negative-shard-range-start-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A valid flag in the same config must still evaluate after invalid shard-bound flags are skipped.",
+    "attributes": {},
+    "defaultValue": "default",
+    "flag": "valid-flag-after-invalid-config",
+    "result": {
+      "reason": "STATIC",
+      "value": "expected"
+    },
+    "targetingKey": "alice",
+    "variationType": "STRING"
+  }
+]

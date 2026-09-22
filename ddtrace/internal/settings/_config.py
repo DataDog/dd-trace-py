@@ -11,6 +11,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -417,17 +418,22 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_SAMPLE_RATE"],
             modifier=float,
         ),
+        "_llmobs_sampling_rules": _ConfigItem(
+            default=lambda: "",
+            envs=["DD_LLMOBS_SAMPLING_RULES"],
+            modifier=str,
+        ),
     }
 
 
-class Config(object):
+class Config:
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
 
-    class _HTTPServerConfig(object):
+    class _HTTPServerConfig:
         _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
@@ -669,7 +675,7 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         trace_compute_stats_default = (
-            in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14) or agentless.enabled
+            in_gcp_function() or in_azure_function() or is_at_least_py(3, 14) or agentless.enabled
         )
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
@@ -680,6 +686,21 @@ class Config(object):
             [],
             lambda value: [tag.strip() for tag in value.split(",") if tag.strip()],
         )
+        # Cardinality limits for stats aggregation keys
+        self._trace_stats_cardinality_limits: dict[str, int] = {}
+        for env_name, field, limit_default in (
+            ("DD_TRACE_STATS_CARDINALITY_LIMIT", "whole_key_limit", 7000),
+            ("DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT", "resource_limit", 1024),
+            ("DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT", "http_endpoint_limit", 512),
+            ("DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT", "peer_tags_limit", 512),
+            ("DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT", "additional_tags_limit", 100),
+        ):
+            limit = _get_config(env_name, limit_default, int)
+            if limit <= 0:
+                log.warning("Invalid value %r provided for %s, only positive values allowed", limit, env_name)
+                limit = limit_default
+            self._trace_stats_cardinality_limits[field] = limit
+
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )

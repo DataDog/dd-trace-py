@@ -152,7 +152,7 @@ if sanic_version >= (21, 9, 0):
         # Create a test client compatible with pytest-sanic test client
         class TestClient(SanicASGITestClient):
             async def request(self, *args, **kwargs):
-                request, response = await super(TestClient, self).request(*args, **kwargs)
+                request, response = await super().request(*args, **kwargs)
                 return response
 
         test_client = TestClient(app)
@@ -447,7 +447,7 @@ def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, sche
         "v0": service_name or "sanic",
         "v1": service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import asyncio
 import pytest
 import sys
@@ -472,11 +472,11 @@ async def test(patch_sanic, client, integration_config, integration_http_config,
     # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
     sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
     assert len(sanic_spans) == 1
-    assert sanic_spans[0].service == "{}"
+    assert sanic_spans[0].service == "{expected_service_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -495,7 +495,7 @@ def test_operation_name_schematization(ddtrace_run_python_code_in_subprocess, sc
     expected_operation_name = {None: "sanic.request", "v0": "sanic.request", "v1": "http.server.request"}[
         schema_version
     ]
-    code = """
+    code = f"""
 import asyncio
 import pytest
 import sys
@@ -520,11 +520,11 @@ async def test(patch_sanic, client, integration_config, integration_http_config,
     # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
     sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
     assert len(sanic_spans) == 1
-    assert  sanic_spans[0].name == "{}"
+    assert  sanic_spans[0].name == "{expected_operation_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:

@@ -154,10 +154,10 @@ integrations:
   tested_versions_by_dependency:
     datadog-lambda:
       min: 6.105.0
-      max: 6.105.0
+      max: 8.127.0
     datadog_lambda:
       min: 6.105.0
-      max: 6.105.0
+      max: 8.127.0
 
 - integration_name: azure_cosmos
   is_external_package: true
@@ -319,7 +319,7 @@ integrations:
   tested_versions_by_dependency:
     django:
       min: 2.2.28
-      max: 5.2.17
+      max: 6.1.1
 
 - integration_name: dogpile_cache
   is_external_package: true
@@ -367,7 +367,7 @@ integrations:
       max: 9.4.2
     elasticsearch:
       min: 7.13.4
-      max: 9.4.1
+      max: 9.5.0
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0
@@ -395,7 +395,7 @@ integrations:
   tested_versions_by_dependency:
     falcon:
       min: 3.0.1
-      max: 4.2.0
+      max: 4.3.1
 
 - integration_name: fastapi
   is_external_package: true
@@ -453,7 +453,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 2.8.0
+      max: 2.9.0
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
@@ -547,7 +547,7 @@ integrations:
   tested_versions_by_dependency:
     confluent-kafka:
       min: 1.9.2
-      max: 2.14.0
+      max: 2.15.1
 
 - integration_name: kombu
   is_external_package: true
@@ -607,13 +607,13 @@ integrations:
   tested_versions_by_dependency:
     llama-index:
       min: 0.11.23
-      max: 0.14.18
+      max: 0.14.24
     llama-index-core:
       min: 0.11.23
-      max: 0.14.18
+      max: 0.14.24
     llama_index:
       min: 0.11.23
-      max: 0.14.18
+      max: 0.14.24
 
 - integration_name: logbook
   is_external_package: true
@@ -745,7 +745,7 @@ integrations:
   tested_versions_by_dependency:
     openai-agents:
       min: 0.0.16
-      max: 0.17.7
+      max: 0.22.0
 
 - integration_name: protobuf
   is_external_package: true
@@ -885,7 +885,7 @@ integrations:
   tested_versions_by_dependency:
     torch:
       min: 2.0.1
-      max: 2.12.0
+      max: 2.14.0
 
 - integration_name: ray
   is_external_package: true
@@ -955,7 +955,7 @@ integrations:
   tested_versions_by_dependency:
     sanic:
       min: 20.12.7
-      max: 23.12.2
+      max: 25.12.1
 
 - integration_name: selenium
   is_external_package: true
