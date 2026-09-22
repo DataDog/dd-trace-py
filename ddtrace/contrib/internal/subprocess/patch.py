@@ -5,9 +5,9 @@ import os
 import re
 import shlex
 from shlex import join
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
-from typing import cast  # noqa:F401
+from typing import Optional
+from typing import Union
+from typing import cast
 
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.subprocess import SubprocessCommandEvent

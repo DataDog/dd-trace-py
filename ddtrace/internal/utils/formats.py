@@ -116,14 +116,14 @@ def get_test_session_token() -> Optional[str]:
     return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
 
 
-def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> Text:
+def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> str:
     """Convert a list of arguments into a space concatenated string
 
     This function is useful to convert a list of cache keys
     into a resource name or tag value with a max size limit.
     """
     length = 0
-    out: list[Text] = []
+    out: list[str] = []
     for arg in args:
         try:
             if isinstance(arg, (bytes, str)):
@@ -150,4 +150,4 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
 
 def format_trace_id(trace_id: int) -> str:
     """Translate a trace ID to a string format supported by the backend."""
-    return "{:032x}".format(trace_id) if trace_id > MAX_UINT_64BITS else str(trace_id)
+    return f"{trace_id:032x}" if trace_id > MAX_UINT_64BITS else str(trace_id)

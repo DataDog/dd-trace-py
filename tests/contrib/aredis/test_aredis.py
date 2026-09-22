@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 
 import aredis
@@ -126,7 +125,7 @@ async def test_pipeline_immediate(snapshot_context):
 )
 def test_schematization_of_service_and_operation(ddtrace_run_python_code_in_subprocess, schema_tuplets):
     service, schema, expected_service, expected_operation = schema_tuplets
-    code = """
+    code = f"""
 import asyncio
 import pytest
 import sys
@@ -142,12 +141,12 @@ async def test(tracer, test_spans):
     await r.get("cheese")
     test_spans.assert_trace_count(1)
     test_spans.assert_span_count(1)
-    assert test_spans.spans[0].service == "{}"
-    assert test_spans.spans[0].name == "{}"
+    assert test_spans.spans[0].service == "{expected_service}"
+    assert test_spans.spans[0].name == "{expected_operation}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service, expected_operation)
+    """
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service

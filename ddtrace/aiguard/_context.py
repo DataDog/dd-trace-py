@@ -8,9 +8,9 @@ the provider listener calls ``is_aiguard_context_active()`` to decide
 whether to short-circuit
 """
 
+from collections.abc import Iterator
 import contextlib
 import contextvars
-from typing import Iterator
 from typing import Optional
 
 

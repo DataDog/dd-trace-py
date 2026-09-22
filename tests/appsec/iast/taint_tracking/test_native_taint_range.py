@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from ast import literal_eval
 import asyncio
 from multiprocessing.pool import ThreadPool

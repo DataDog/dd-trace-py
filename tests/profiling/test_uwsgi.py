@@ -15,6 +15,7 @@ The tests spawn actual uwsgi processes and verify:
 2. Valid configurations produce actual profile samples in each worker
 """
 
+from collections.abc import Generator
 import glob
 from importlib.metadata import version
 import logging
@@ -30,7 +31,6 @@ import time
 from typing import IO
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Generator
 from typing import Optional
 
 import pytest
