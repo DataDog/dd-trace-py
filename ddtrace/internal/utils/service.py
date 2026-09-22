@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
@@ -74,7 +75,7 @@ def ext_service(pin: Optional["Pin"], int_config: "IntegrationConfig", default: 
 def set_service_and_source(
     span: "Span",
     service: str,
-    int_config: Union["IntegrationConfig", dict],
+    int_config: Union["IntegrationConfig", "dict[str, Any]"],
     default_service_key: str = "_default_service",
 ) -> None:
     service_source = ""
