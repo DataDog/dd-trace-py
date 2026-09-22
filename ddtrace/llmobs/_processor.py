@@ -7,6 +7,7 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -33,8 +34,9 @@ class LLMObsProcessor(TraceProcessor):
     Single owner of:
       * per-span LLMObs export routing (mode and event are stamped on the span by
         ``LLMObs._on_span_finish``);
-      * dropping the APM trace when either ``DD_APM_TRACING_ENABLED=false`` or the
-        tracer is disabled at runtime (replaces the legacy ``APMTracingEnabledFilter``).
+      * dropping the APM trace when APM tracing is off or the tracer is disabled at
+        runtime (replaces the legacy APMTracingEnabledFilter), unless a product is
+        running standalone and needs its traces delivered anyway.
     """
 
     def __init__(self, llmobs_span_writer: LLMObsSpanWriter, tracer: "Tracer", keep_meta_struct: bool = False) -> None:
@@ -45,15 +47,19 @@ class LLMObsProcessor(TraceProcessor):
         self._keep_meta_struct = keep_meta_struct
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
-        drop_apm_trace = not self._apm_tracing_enabled or not self._tracer.enabled
+        # AIDEV-NOTE: routing and the trace-drop stay two decisions. Gating both on one flag moves
+        # the event onto the trace in the enable order where _export_mode is stale at APM_*.
+        no_apm_carrier = not self._apm_tracing_enabled or not self._tracer.enabled
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue
             try:
-                self._route_span(span, drop_apm_trace)
+                self._route_span(span, no_apm_carrier)
             except Exception:
                 log.debug("Failed to route LLMObs event for span %s.", span, exc_info=True)
-        if drop_apm_trace:
+        # Standalone products (AI Guard, AppSec, IAST, SCA) run with APM tracing off and the tracer
+        # disabled on purpose, and still need their traces delivered, so never drop them here.
+        if no_apm_carrier and not asm_config._apm_opt_out:
             return None
         return trace
 
@@ -67,7 +73,7 @@ class LLMObsProcessor(TraceProcessor):
         priority = root.context.sampling_priority
         return priority is not None and priority <= 0
 
-    def _route_span(self, span: Span, drop_apm_trace: bool) -> None:
+    def _route_span(self, span: Span, no_apm_carrier: bool) -> None:
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
         if event is None:
             # Half-built payload: scrub so a partial never rides the APM trace.
@@ -80,7 +86,7 @@ class LLMObsProcessor(TraceProcessor):
         # AND the mode keeps it on the trace (agentless = 100%, agent = kept priority).
         rides_trace = (
             not self._keep_meta_struct
-            and not drop_apm_trace
+            and not no_apm_carrier
             and (
                 mode == LLMObsExportMode.APM_AGENTLESS
                 or (mode == LLMObsExportMode.APM_AGENT and not self._predicted_drop(span))
