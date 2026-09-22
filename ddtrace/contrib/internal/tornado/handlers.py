@@ -5,20 +5,17 @@ from tornado.routing import PathMatches
 from tornado.web import HTTPError
 
 from ddtrace import config
-from ddtrace.contrib.internal import trace_utils
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 
 from .constants import CONFIG_KEY
-from .constants import REQUEST_SPAN_KEY
+from .constants import REQUEST_CONTEXT_KEY
 from .stack_context import TracerStackContext
 
 
@@ -34,56 +31,41 @@ async def execute(func, handler, args, kwargs):
     distributed_tracing = settings["distributed_tracing"]
 
     with TracerStackContext():
-        with core.context_with_data(
-            "tornado.request",
-            span_name=schematize_url_operation("tornado.request", protocol="http", direction=SpanDirection.INBOUND),
-            span_type=SpanTypes.WEB,
-            service=service,
-            tags={},
-            distributed_headers=handler.request.headers,
+        request = handler.request
+        method = getattr(request, "method", "")
+        protocol = getattr(request, "protocol", "http")
+        host = getattr(request, "host", "")
+        uri = getattr(request, "uri", "")
+        full_url = f"{protocol}://{host}{uri}"
+        query_string = getattr(request, "query", "")
+        headers = {key.lower(): value for key, value in getattr(request, "headers", {}).items()}
+        headers.pop("cookie", None)  # Remove Cookie from headers to avoid duplication
+
+        http_route, _ = _find_route(handler.application.default_router.rules, request)
+        event = WebFrameworkRequestEvent(
+            http_operation="tornado.request",
+            component=config.tornado.integration_name,
             integration_config=config.tornado,
+            service=service,
+            request_method=method,
+            request_url=full_url,
+            request_headers=headers,
+            query=query_string,
+            request_route=http_route,
             activate_distributed_headers=True,
             distributed_headers_config_override=distributed_tracing,
             headers_case_sensitive=True,
+        )
+        with core.context_with_event(
+            event,
+            dispatch_end_event=False,
         ) as ctx:
             req_span = span_from_context(ctx)
-            request = handler.request
-            method = getattr(request, "method", "")
-            protocol = getattr(request, "protocol", "http")
-            host = getattr(request, "host", "")
-            uri = getattr(request, "uri", "")
-            full_url = f"{protocol}://{host}{uri}"
-            query_string = getattr(request, "query", "")
-            query_parameters = (
-                request.arguments if hasattr(request, "arguments") else getattr(request, "query_arguments", {})
-            )
-            headers = {k.lower(): v for k, v in getattr(request, "headers", {}).items()}
-            cookies = {k: handler.get_cookie(k) for k in handler.cookies.keys()}
-
-            headers.pop("cookie", None)  # Remove Cookie from headers to avoid duplication
 
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.tornado))
 
-            http_route, path_params = _find_route(handler.application.default_router.rules, handler.request)
-            if http_route is not None and isinstance(http_route, str):
-                req_span._set_attribute("http.route", http_route)
-            setattr(request, REQUEST_SPAN_KEY, req_span)
-            trace_utils.set_http_meta(
-                req_span,
-                config.tornado,
-                method=method,
-                url=full_url,
-                query=query_string,
-                request_headers=headers,
-                raw_uri=full_url,
-                parsed_query=query_parameters,
-                peer_ip=request.remote_ip,
-                route=http_route,
-                headers_are_case_sensitive=True,
-                request_cookies=cookies,
-                request_path_params=path_params,
-            )
+            setattr(request, REQUEST_CONTEXT_KEY, ctx)
             dispatch_res = core.dispatch_with_results("tornado.start_request", ("tornado", handler)).tornado_future
             if dispatch_res and dispatch_res.value is not None:
                 return await dispatch_res.value
@@ -257,28 +239,21 @@ def on_finish(func, handler, args, kwargs):
     current request span (if available).
     """
     request = handler.request
-    request_span = getattr(request, REQUEST_SPAN_KEY, None)
-    if request_span:
-        # use the class name as a resource; if an handler is not available, the
-        # default handler class will be used so we don't pollute the resource
-        # space here
-        klass = handler.__class__
-        request_span.resource = f"{klass.__module__}.{klass.__name__}"
-        core.dispatch(
-            "web.request.finish",
-            (
-                request_span,
-                config.tornado,
-                request.method,
-                request.full_url().rsplit("?", 1)[0],
-                handler.get_status(),
-                request.query,
-                None,
-                None,
-                None,
-                True,
-            ),
-        )
+    ctx = getattr(request, REQUEST_CONTEXT_KEY, None)
+    if ctx is not None:
+        try:
+            request_span = span_from_context(ctx)
+            if request_span is not None:
+                # Use the class name as a resource; if a handler is not available,
+                # the default handler class prevents resource cardinality growth.
+                klass = handler.__class__
+                request_span.resource = f"{klass.__module__}.{klass.__name__}"
+
+            event = ctx.event
+            event.response_status_code = handler.get_status()
+            ctx.dispatch_ended_event()
+        finally:
+            setattr(request, REQUEST_CONTEXT_KEY, None)
     return func(*args, **kwargs)
 
 
