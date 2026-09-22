@@ -6,6 +6,7 @@ factory function along with the stream to wrap.
 
 from abc import ABC
 from abc import abstractmethod
+import asyncio
 import sys
 from typing import Union
 
@@ -103,7 +104,7 @@ class BaseStreamHandler(ABC):
         # block. Record it on the span before finishing, but only if iteration
         # has not already finalized: an error after a completed stream belongs
         # to the caller, not the LLM span.
-        if isinstance(exception, Exception) and not getattr(self, "_finalized", False):
+        if isinstance(exception, (Exception, asyncio.CancelledError)) and not getattr(self, "_finalized", False):
             self.handle_exception(exception)
         self.close_stream(exception)
 
@@ -197,7 +198,11 @@ class TracedStream(wrapt.ObjectProxy):
                 self._self_handler.process_chunk(chunk, self._self_stream_iter)
                 if self._self_handler.should_yield_chunk(chunk):
                     yield chunk
-        except Exception as e:
+        # NOTE: `asyncio.CancelledError` derives from `BaseException`, so it is
+        # caught explicitly. `BaseException` is deliberately not caught: it would
+        # also swallow `GeneratorExit`, which is raised on an ordinary early exit
+        # from the consumer's loop and must not be recorded as an error.
+        except (Exception, asyncio.CancelledError) as e:
             exc = e
             self._self_handler.handle_exception(e)
             raise
@@ -213,7 +218,7 @@ class TracedStream(wrapt.ObjectProxy):
             except StopIteration:
                 self._self_handler.close_stream()
                 raise
-            except Exception as e:
+            except (Exception, asyncio.CancelledError) as e:
                 self._self_handler.handle_exception(e)
                 self._self_handler.close_stream(e)
                 raise
@@ -302,7 +307,11 @@ class TracedAsyncStream(wrapt.ObjectProxy):
                 await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
                 if self._self_handler.should_yield_chunk(chunk):
                     yield chunk
-        except Exception as e:
+        # NOTE: `asyncio.CancelledError` derives from `BaseException`, so it is
+        # caught explicitly. `BaseException` is deliberately not caught: it would
+        # also swallow `GeneratorExit`, which is raised on an ordinary early exit
+        # from the consumer's loop and must not be recorded as an error.
+        except (Exception, asyncio.CancelledError) as e:
             exc = e
             self._self_handler.handle_exception(e)
             raise
@@ -318,7 +327,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
             except StopAsyncIteration:
                 self._self_handler.close_stream()
                 raise
-            except Exception as e:
+            except (Exception, asyncio.CancelledError) as e:
                 self._self_handler.handle_exception(e)
                 self._self_handler.close_stream(e)
                 raise

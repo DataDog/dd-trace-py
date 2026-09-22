@@ -1,3 +1,4 @@
+import asyncio
 import json
 from unittest import mock
 
@@ -2076,6 +2077,47 @@ MUL: "*"
         assert len(output_messages) == 1
         assert output_messages[0]["content"] == partial
         assert partial != ""
+        assert span.error == 1
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 6),
+        reason="Streamed responses are only traced via the stream handler on openai >= 1.6",
+    )
+    async def test_chat_completion_async_stream_cancelled_keeps_partial_response(
+        self, openai, openai_llmobs, test_spans
+    ):
+        """A cancelled async stream is recorded as an error and keeps whatever output arrived.
+
+        `asyncio.CancelledError` derives from `BaseException`, so it is handled separately from
+        ordinary exceptions in the shared stream handler.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
+            model = "gpt-3.5-turbo"
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            stream = resp.__aiter__()
+            partial = ""
+            for _ in range(3):
+                chunk = await stream.__anext__()
+                partial += chunk.choices[0].delta.content or ""
+            with pytest.raises(asyncio.CancelledError):
+                await stream.athrow(asyncio.CancelledError())
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span = spans[0]
+        assert get_llmobs_input_messages(span) == input_messages
+        output_messages = get_llmobs_output_messages(span)
+        assert len(output_messages) == 1
+        assert output_messages[0]["content"] == partial
+        assert partial != ""
+        assert get_llmobs_metrics(span)["output_tokens"] == _est_tokens(partial)
         assert span.error == 1
 
     @pytest.mark.skipif(
