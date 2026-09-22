@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/intake/llm-obs/v2/eval-metric",
+    "headers": {
+      "Content-Type": "application/json",
+      "datadog-entity-id": "in-1312",
+      "Content-Length": "311"
+    },
+    "body": "{\"data\": {\"attributes\": {\"metrics\": [{\"categorical_value\": \"very\", \"event_kind\": \"evaluation\", \"join_on\": {\"span\": {\"span_id\": \"12345678901\", \"trace_id\": \"98765432101\"}}, \"label\": \"toxicity\", \"metric_type\": \"categorical\", \"ml_app\": \"dummy-ml-app\", \"timestamp_ms\": 1756910127022}]}, \"type\": \"evaluation_metric\"}}"
+  },
+  "response": {
+    "status": {
+      "code": 401,
+      "message": "Unauthorized"
+    },
+    "headers": {
+      "content-type": "application/json",
+      "content-length": "27",
+      "date": "Tue, 22 Sep 2026 15:24:03 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"errors\":[\"Unauthorized\"]}"
+  }
+}

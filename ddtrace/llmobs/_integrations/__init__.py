@@ -6,7 +6,10 @@ through every other integration.
 """
 
 from importlib import import_module
+import sys
 from typing import Any
+
+from ddtrace.internal._integration_registry import register_factory
 
 
 _INTEGRATION_MODULES = {
@@ -38,3 +41,15 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = list(_INTEGRATION_MODULES)
+
+
+# Registered here (rather than by contrib patch modules importing the concrete integration
+# classes directly) so contrib -> ddtrace.llmobs stays a one-way, name-based lookup. getattr()
+# on this module (not a bare name reference) is required so it goes through __getattr__ above
+# and only imports the concrete integration module when the factory actually runs.
+register_factory(
+    "anthropic",
+    lambda integration_config: getattr(sys.modules[__name__], "AnthropicIntegration")(
+        integration_config=integration_config
+    ),
+)

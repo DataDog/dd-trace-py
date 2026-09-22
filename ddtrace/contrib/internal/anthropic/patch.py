@@ -13,9 +13,9 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal._integration_registry import get_or_create as get_llmobs_integration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations import AnthropicIntegration
 
 
 log = get_logger(__name__)
@@ -36,7 +36,7 @@ config._add("anthropic", {})
 
 
 def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: AnthropicIntegration = anthropic._datadog_integration
+    integration = anthropic._datadog_integration
     event = LlmRequestEvent(
         component="anthropic",
         integration_config=config.anthropic,
@@ -76,7 +76,7 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
 
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: AnthropicIntegration = anthropic._datadog_integration
+    integration = anthropic._datadog_integration
     event = LlmRequestEvent(
         component="anthropic",
         integration_config=config.anthropic,
@@ -118,7 +118,7 @@ def patch() -> None:
 
     anthropic._datadog_patch = True
 
-    integration = AnthropicIntegration(integration_config=config.anthropic)
+    integration = get_llmobs_integration("anthropic", config.anthropic)
     anthropic._datadog_integration = integration
 
     # AI Guard mirrors this wrap-target list in
