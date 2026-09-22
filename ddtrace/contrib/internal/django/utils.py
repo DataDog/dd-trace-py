@@ -2,7 +2,6 @@ import io
 import json
 from typing import Any
 from typing import Mapping
-from typing import Text
 from typing import Union
 import uuid
 
@@ -44,7 +43,7 @@ DJANGO22 = django.VERSION >= (2, 2, 0)
 REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
-_quantize_text = Union[Text, bytes]
+_quantize_text = Union[str, bytes]
 _quantize_param = Union[_quantize_text, list[_quantize_text], dict[_quantize_text, Any], Any]
 
 
@@ -61,7 +60,7 @@ def resource_from_cache_prefix(resource: str, cache: Any) -> str:
     return name.lower()
 
 
-def quantize_key_values(keys: _quantize_param) -> Text:
+def quantize_key_values(keys: _quantize_param) -> str:
     """
     Used for Django cache key normalization.
 
@@ -71,7 +70,7 @@ def quantize_key_values(keys: _quantize_param) -> Text:
 
     If text is provided we convert to text.
     """
-    args: list[Union[Text, bytes, Any]] = []
+    args: list[Union[str, bytes, Any]] = []
 
     # Normalize input values into a list[Text, bytes]
     if isinstance(keys, dict):

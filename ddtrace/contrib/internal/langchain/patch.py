@@ -238,7 +238,7 @@ def traced_lcel_runnable_sequence(func, instance, args, kwargs):
     """
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="chain",
         instance=instance,
@@ -271,7 +271,7 @@ async def traced_lcel_runnable_sequence_async(func, instance, args, kwargs):
     """
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
         interface_type="chain",
         instance=instance,

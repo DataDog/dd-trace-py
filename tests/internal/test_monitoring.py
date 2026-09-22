@@ -1,10 +1,10 @@
 """Tests for the multiplexed sys.monitoring layer on Python 3.12+."""
 
+from collections.abc import Iterator
 import sys
 from types import CodeType
 from typing import Any
 from typing import Callable
-from typing import Iterator
 from typing import Protocol
 from typing import cast
 
@@ -476,6 +476,14 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
 
     assert raiser.called
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
+
+
+def test_multiplexer_does_not_claim_exception_profiler_tool_id() -> None:
+    """Tool ID 4 is reserved for ExceptionCollector; the multiplexer must not take it."""
+    candidates: tuple[int, ...] = cast(tuple[int, ...], monitoring._CANDIDATE_TOOL_IDS)  # type: ignore[has-type]
+    assert 4 not in candidates
+    tool_id: int = monitoring.get_tool_id()
+    assert tool_id != 4
 
 
 @pytest.mark.subprocess(out=None, err=None)

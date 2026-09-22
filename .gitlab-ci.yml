@@ -127,8 +127,13 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs:
+   - tests-gen
+   # Provides ddtrace wheels for running tests
+   - job: "upload manylinux2014_x86_64"
+     artifacts: false
  variables:
+   PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
@@ -512,6 +517,39 @@ check_added_file_size:
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
 
+check_no_new_aidev_anchors:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+    - unset GH_TOKEN DDOCTOSTS_ID_TOKEN
+    - python3 scripts/check_no_new_aidev_anchors.py --base-ref FETCH_HEAD
 # Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
 # tests stub git/curl (no network), so we skip the heavier .testrunner setup.
 test_resolve_base_branch:

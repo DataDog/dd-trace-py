@@ -489,7 +489,7 @@ async def test_double_async_for_with_exception():
     class StreamConsumed(Exception):
         pass
 
-    class AsyncIteratorByteStream(object):
+    class AsyncIteratorByteStream:
         def __init__(self, stream):
             self._stream = stream
             self._is_stream_consumed = False

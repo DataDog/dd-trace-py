@@ -754,7 +754,7 @@ class LangChainIntegration(BaseLLMIntegration):
             embedding_dim = len(output_values[0])
             _annotate_llmobs_span_data(
                 span,
-                output_value="[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+                output_value=f"[{embeddings_count} embedding(s) returned with size {embedding_dim}]",
             )
         except (TypeError, IndexError):
             log.warning("Failed to write output vectors", output_embedding)
@@ -796,7 +796,7 @@ class LangChainIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             output_documents=format_langchain_io(documents) if documents else None,
-            output_value="[{} document(s) retrieved]".format(len(output_documents)),
+            output_value=f"[{len(output_documents)} document(s) retrieved]",
         )
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:
