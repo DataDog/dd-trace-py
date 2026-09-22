@@ -1263,6 +1263,7 @@ suites:
       - tests/contrib/elasticsearch/test_async.py
       - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch.*
       - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch7.*
+      - tests/snapshots/tests.contrib.elasticsearch.test_async.test_opensearch.*
     services:
       - elasticsearch
     snapshot: true
