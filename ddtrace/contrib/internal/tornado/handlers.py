@@ -38,10 +38,14 @@ async def execute(func, handler, args, kwargs):
         uri = getattr(request, "uri", "")
         full_url = f"{protocol}://{host}{uri}"
         query_string = getattr(request, "query", "")
+        query_parameters = (
+            request.arguments if hasattr(request, "arguments") else getattr(request, "query_arguments", {})
+        )
         headers = {key.lower(): value for key, value in getattr(request, "headers", {}).items()}
         headers.pop("cookie", None)  # Remove Cookie from headers to avoid duplication
+        cookies = {key: handler.get_cookie(key) for key in handler.cookies.keys()}
 
-        http_route, _ = _find_route(handler.application.default_router.rules, request)
+        http_route, path_params = _find_route(handler.application.default_router.rules, request)
         event = WebFrameworkRequestEvent(
             http_operation="tornado.request",
             component=config.tornado.integration_name,
@@ -52,6 +56,11 @@ async def execute(func, handler, args, kwargs):
             request_headers=headers,
             query=query_string,
             request_route=http_route,
+            raw_uri=full_url,
+            parsed_query=query_parameters,
+            request_cookies=cookies,
+            request_path_params=path_params,
+            peer_ip=request.remote_ip,
             activate_distributed_headers=True,
             distributed_headers_config_override=distributed_tracing,
             headers_case_sensitive=True,
