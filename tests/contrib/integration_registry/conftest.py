@@ -7,6 +7,7 @@ from typing import cast
 import pytest
 import yaml
 
+import ddtrace
 import riotfile
 
 
@@ -16,8 +17,8 @@ def project_root() -> Path:
 
 
 @pytest.fixture(scope="module")
-def contrib_dir(project_root: Path) -> Path:
-    return project_root / "ddtrace" / "contrib"
+def contrib_dir() -> Path:
+    return Path(ddtrace.__file__).parent / "contrib"
 
 
 @pytest.fixture(scope="module")
