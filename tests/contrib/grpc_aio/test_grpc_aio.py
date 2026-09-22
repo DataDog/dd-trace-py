@@ -6,6 +6,7 @@ import sys
 import grpc
 from grpc import aio
 import pytest
+import pytest_asyncio
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -45,6 +46,9 @@ class _CoroHelloServicer(HelloServicer):
 
     async def SayHelloTwice(self, request, context):
         await context.write(HelloReply(message="first response"))
+
+        if request.name == "one response":
+            return
 
         if request.name == "exception":
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
@@ -171,8 +175,8 @@ def patch_grpc_aio():
     unpatch()
 
 
-@pytest.fixture
-async def async_server_info(request, tracer, event_loop):
+@pytest_asyncio.fixture
+async def async_server_info(request, tracer):
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
     _server = grpc.aio.server(options=(("grpc.so_reuseport", 0),))
     add_MultiGreeterServicer_to_server(Greeter(), _server)
@@ -185,16 +189,14 @@ async def async_server_info(request, tracer, event_loop):
     abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
     await _server.start()
-    wait_task = event_loop.create_task(_server.wait_for_termination())
+    wait_task = asyncio.create_task(_server.wait_for_termination())
     yield _ServerInfo(target, abort_supported)
     await _server.stop(grace=None)
     await wait_task
 
 
-# `pytest_asyncio.fixture` cannot be used
-# with pytest-asyncio 0.16.0 which is the latest version available for Python3.6.
-@pytest.fixture
-async def server_info(request, tracer, event_loop):
+@pytest_asyncio.fixture
+async def server_info(request, tracer):
     """Configures grpc server and starts it in pytest-asyncio event loop."""
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
     _servicer = request.param
@@ -204,7 +206,7 @@ async def server_info(request, tracer, event_loop):
     abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
     await _server.start()
-    wait_task = event_loop.create_task(_server.wait_for_termination())
+    wait_task = asyncio.create_task(_server.wait_for_termination())
     yield _ServerInfo(target, abort_supported)
     await _server.stop(grace=None)
     await wait_task
@@ -415,6 +417,31 @@ async def test_server_streaming(server_info, tracer):
                 assert response.message == "second response"
             response_counts += 1
         assert response_counts == 2
+
+    spans = _get_spans(tracer)
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloTwice",
+        "server_streaming",
+        expected_port=server_info.target.rsplit(":", 1)[-1],
+    )
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
+
+
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer()], indirect=True)
+async def test_server_streaming_stopped_early(server_info, tracer):
+    async with aio.insecure_channel(server_info.target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloTwice(HelloRequest(name="one response"))
+        async for response in call:
+            assert response.message == "first response"
+            break
+        assert await call.code() == grpc.StatusCode.OK
+        await asyncio.sleep(0)
 
     spans = _get_spans(tracer)
     assert len(spans) == 2
