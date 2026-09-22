@@ -544,19 +544,27 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
     calculator.invoke("2", config={"unserializable": object()})
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message", "meta.error.type"])
 def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
     from unittest import mock
 
-    import httpx
     from openai import APITimeoutError
 
     chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
+    request_client = getattr(chat_model, "root_client", chat_model.client)._client
+    while request_client.__class__.__module__.split(".", 1)[0] == "openai" and hasattr(request_client, "_client"):
+        request_client = request_client._client
+    http_client = importlib.import_module(
+        next(
+            cls.__module__.split(".", 1)[0]
+            for cls in type(request_client).__mro__
+            if cls.__module__.split(".", 1)[0] in ("httpx", "httpx2")
+        )
+    )
 
-    result = chat_model.stream("Hello, my name is")
-    # Mock httpx.Client.send to raise a ReadTimeout so the test does not depend on
-    # the testagent's response latency (which varies by cassette format).
-    with mock.patch("httpx.Client.send", side_effect=httpx.ReadTimeout("Request timed out.")):
+    # Mock the concrete client used by this OpenAI version to avoid testagent response-latency variance.
+    with mock.patch.object(request_client, "send", side_effect=http_client.ReadTimeout("Request timed out.")):
+        result = chat_model.stream("Hello, my name is")
         try:
             next(result)
         except Exception as e:
