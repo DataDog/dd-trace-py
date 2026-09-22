@@ -563,7 +563,7 @@ def _normalize_llmobs_meta(
 
 
 class LLMObs(Service):
-    _instance = None  # type: LLMObs
+    _instance: "LLMObs"
     enabled = False
     _app_key: str = _env.get("DD_APP_KEY", "")
     _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
@@ -1254,7 +1254,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         page_limit: int = 100,
         max_results: Optional[int] = None,
-    ) -> "list[ExperimentSummary]":
+    ) -> list[ExperimentSummary]:
         """List experiments, optionally filtered by name, metadata, or parent experiment.
 
         Each returned summary carries ``aggregate_data`` (average eval scores, error rates, token
