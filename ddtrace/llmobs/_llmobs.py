@@ -3473,22 +3473,13 @@ class LLMObs(Service):
         return cls._instance._api_client.get_spans(base_params)
 
     @classmethod
-    def _inject_llmobs_context(
-        cls,
-        span_context: Context,
-        request_headers: dict[str, str],
-        extra_baggage: Optional[dict[str, Any]] = None,
-    ) -> None:
+    def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
         """Stamp the active LLMObs context onto an outbound request.
 
-        Written to both carriers: ``_dd.p.llmobs_*`` tags on ``span_context._meta`` (legacy,
-        rides x-datadog-tags) and ``extra_baggage`` for the ``baggage`` header, which survives
-        hops that drop the APM trace headers.
-
-        ``extra_baggage`` is a per-request dict from ``HTTPPropagator.inject``, not
-        ``span_context.set_baggage_item()``: a Context's baggage is shared by every span in the
-        trace and by concurrent injections from it, so a request-scoped parent ID written there
-        would leak onto unrelated requests.
+        Written to both carriers: `_dd.p.llmobs_*` tags on span_context._meta (legacy, rides
+        x-datadog-tags) and `llmobs.*` baggage items, which survive a hop that drops the APM
+        trace headers. This runs from the http.span_inject hook, before the baggage header is
+        encoded, so items set here make it onto the request.
         """
         if cls.enabled is False:
             return
@@ -3541,9 +3532,6 @@ class LLMObs(Service):
         parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
         _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
 
-        if extra_baggage is None:
-            return
-
         # Mirrored from the locals above, so baggage escapes the x-datadog-tags budget degradation.
         baggage_values: dict[str, Optional[str]] = {
             BAGGAGE_PARENT_ID_KEY: parent_id,
@@ -3558,9 +3546,14 @@ class LLMObs(Service):
                 parent_agent_name[:BAGGAGE_AGENT_NAME_MAX_LENGTH] if parent_agent_name is not None else None
             ),
         }
+        # A Context's baggage is shared by every span in the trace, so a key left alone here
+        # would keep a previous injection's value and misattribute this request. Every key is
+        # written or removed, never skipped.
         for baggage_key, value in baggage_values.items():
-            if value is not None:
-                extra_baggage[baggage_key] = str(value)
+            if value is None:
+                span_context.remove_baggage_item(baggage_key)
+            else:
+                span_context.set_baggage_item(baggage_key, str(value))
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:

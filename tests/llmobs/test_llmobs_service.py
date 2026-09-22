@@ -1581,16 +1581,10 @@ def test_activate_distributed_headers_calls_httppropagator_extract(llmobs, mock_
         mock_extract.assert_called_once_with({})
 
 
-def test_activate_distributed_headers_no_trace_id_raises(llmobs):
-    with pytest.raises(Exception) as excinfo:
-        llmobs.activate_distributed_headers({})
-    assert str(excinfo.value) == "Failed to extract trace/span ID from request headers."
-
-
-def test_activate_distributed_headers_no_span_id_raises(llmobs):
-    with pytest.raises(Exception) as excinfo:
-        llmobs.activate_distributed_headers({})
-    assert str(excinfo.value) == "Failed to extract trace/span ID from request headers."
+def test_activate_distributed_headers_no_context_does_nothing(llmobs, mock_llmobs_logs):
+    """Headers with neither APM trace identity nor LLMObs context activate nothing, quietly."""
+    llmobs.activate_distributed_headers({})
+    mock_llmobs_logs.debug.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
 
 
 def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, mock_llmobs_logs):

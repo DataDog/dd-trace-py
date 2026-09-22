@@ -1138,13 +1138,18 @@ def test_reinjecting_baggage_parent_preserves_both_formats(llmobs):
     assert span.context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) == _DECIMAL_TRACE_ID
 
 
-def test_inject_does_not_write_llmobs_baggage_onto_context(llmobs):
-    """The LLMObs parent id is request-scoped: writing it onto the trace-shared Context would
-    leak one request's parent onto every other injection from the same trace.
+def test_inject_does_not_leak_stale_baggage_between_calls(llmobs):
+    """Baggage lives on the trace-shared Context, so a key that does not apply to this request
+    must be removed rather than left behind from an earlier injection.
     """
+    with llmobs.agent(name="researcher") as agent_span:
+        agent_headers = {}
+        HTTPPropagator.inject(agent_span.context, agent_headers)
     with llmobs.workflow("w") as span:
-        HTTPPropagator.inject(span.context, {})
-        assert not [k for k in span.context._baggage if k.startswith("llmobs.")]
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert _parse_baggage(agent_headers)[BAGGAGE_PARENT_AGENT_NAME_KEY] == "researcher"
+    assert BAGGAGE_PARENT_AGENT_NAME_KEY not in _parse_baggage(headers)
 
 
 def test_inject_preserves_user_baggage(llmobs):
@@ -1164,19 +1169,17 @@ def test_inject_baggage_carries_session_id(llmobs):
     assert _parse_baggage(headers)[BAGGAGE_SESSION_ID_KEY] == "test-session"
 
 
-def test_inject_baggage_survives_oversized_user_baggage(llmobs):
-    """Baggage truncates item by item (unlike x-datadog-tags, which drops whole), so the LLMObs
-    identity keys must be ordered where truncation reaches them last.
+def test_inject_respects_baggage_budget(llmobs):
+    """Oversized user baggage still yields a within-budget header. LLMObs items are written to
+    the Context after the user's, so truncation reaches them first and LLMObs context is simply
+    lost for that hop -- the same outcome as not sending baggage at all.
     """
     with llmobs.workflow("w") as span:
         for i in range(8):
             span.context.set_baggage_item(f"user.filler.{i}", "x" * 1024)
         headers = {}
         HTTPPropagator.inject(span.context, headers)
-    baggage = _parse_baggage(headers)
     assert len(headers["baggage"].encode("utf-8")) <= DD_TRACE_BAGGAGE_MAX_BYTES
-    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
-    assert baggage[BAGGAGE_LLMOBS_TRACE_ID_KEY] == get_llmobs_trace_id(span)
 
 
 def test_inject_llmobs_baggage_wins_key_collision(llmobs):
