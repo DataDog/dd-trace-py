@@ -1,9 +1,11 @@
+from collections.abc import Mapping
 from time import time_ns
 import traceback
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Protocol
+from typing import Union
 
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext
@@ -12,28 +14,21 @@ from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
+from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import AttributeValue
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.trace import tracer as ddtracer
-
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping  # noqa:F401
-    from typing import Union  # noqa:F401
-
-    from opentelemetry.util.types import Attributes  # noqa:F401
-    from opentelemetry.util.types import AttributeValue  # noqa:F401
-
-    from ddtrace.internal.compat import NumericType  # noqa:F401
 
 
 log = get_logger(__name__)
