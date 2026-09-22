@@ -51,8 +51,8 @@ Datadog::UploadCancellation::postfork_parent()
 void
 Datadog::UploadCancellation::postfork_child()
 {
-    // Re-init the mutex after fork. The child is single-threaded here, so it can
-    // safely drop the inherited token slot after replacing the inherited mutex.
-    reset_mutex_after_fork(mtx);
+    // Unlock the mutex that prefork() locked. The child inherits the forking
+    // thread's identity, so it can release it. Mirrors postfork_parent().
+    mtx.unlock();
     current.reset();
 }

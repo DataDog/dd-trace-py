@@ -139,9 +139,7 @@ ProfilerState::prefork()
 
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
     // inside the CXX Profile::add_dictionary_sample path when the child resets profile state.
-    // postfork_parent releases it via unlock; postfork_child releases it
-    // via placement-new reinit of profile_mtx (which implicitly creates a fresh
-    // unlocked mutex, consistent with every other mutex's postfork path).
+    // Both postfork_parent and postfork_child release it via unlock.
     profile_state.prefork();
 }
 
@@ -177,10 +175,10 @@ ProfilerState::postfork_child()
         void dismiss() { active = false; }
     } guard{ *this };
 
-    // Re-init the mutexes after fork. reset_mutex_after_fork uses placement-new
-    // with TSan annotations so the sanitizer sees fresh mutexes.
-    reset_mutex_after_fork(upload_lock);
-    reset_mutex_after_fork(profiles_dictionary_mtx);
+    // Unlock mutexes that prefork() locked. The child inherits the forking
+    // thread's identity, so it can release them. Mirrors postfork_parent().
+    upload_lock.unlock();
+    profiles_dictionary_mtx.unlock();
     upload_cancellation.postfork_child();
 
     // Re-init the native call registry mutex (data is preserved so forked

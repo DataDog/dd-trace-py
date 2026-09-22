@@ -27,18 +27,20 @@ void __tsan_mutex_create(void* addr, unsigned flags);
 
 namespace Datadog {
 
-// Reset a mutex after fork via placement-new, with TSan annotations so the
-// sanitizer sees the old mutex as destroyed and the new one as fresh.
-// After fork(), the child inherits the parent's locked mutex state in TSan's
-// shadow memory. The linker_init flag (1) tells TSan to skip the
-// locked-mutex check on destroy — the lock is held by a now-dead parent
-// thread, which is expected, not a bug.
+// Reset a mutex after fork via placement-new with TSan annotations.
+// Used for mutexes that are NOT locked in prefork() — if the mutex was
+// locked in prefork(), unlock it in postfork_child() instead.
+//
+// TSan annotations tell the sanitizer the old mutex is gone and a new one
+// exists at the same address. If the mutex happens to be locked by a
+// now-dead thread when fork occurs, TSan may still warn; the proper fix
+// is to lock the mutex in prefork() and unlock in postfork_child().
 template<typename Mutex>
 inline void
 reset_mutex_after_fork(Mutex& mtx)
 {
 #if DD_TSAN_ENABLED
-    __tsan_mutex_destroy(&mtx, /*flags=*/1 /* __tsan_mutex_linker_init */);
+    __tsan_mutex_destroy(&mtx, 0);
 #endif
     new (&mtx) Mutex();
 #if DD_TSAN_ENABLED
