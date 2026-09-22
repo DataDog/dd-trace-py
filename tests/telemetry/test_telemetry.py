@@ -264,9 +264,9 @@ patch(raise_errors=False, sqlite3=True)
 
     integrations_events = test_agent_session.get_events("app-integrations-change")
     assert len(integrations_events) == 1
-    assert (
-        integrations_events[0]["payload"]["integrations"][0]["error"] == "module 'sqlite3' has no attribute 'connect'"
-    )
+    error = integrations_events[0]["payload"]["integrations"][0]["error"]
+    # wrapt 2.4.0 raises PathResolutionError instead of AttributeError.
+    assert error == "module 'sqlite3' has no attribute 'connect'" or "unable to resolve attribute 'connect'" in error
 
     # Get metric containing the integration error
     integration_error = test_agent_session.get_metrics("integration_errors")
@@ -274,7 +274,11 @@ patch(raise_errors=False, sqlite3=True)
     assert len(integration_error) == 1
     assert integration_error[0]["type"] == "count"
     assert integration_error[0]["points"][0][1] == 1
-    assert integration_error[0]["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
+    # wrapt 2.4.0 now throws PathResolutionError instead of AttributeError.
+    assert integration_error[0]["tags"] in (
+        ["integration_name:sqlite3", "error_type:attributeerror"],
+        ["integration_name:sqlite3", "error_type:pathresolutionerror"],
+    )
 
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):

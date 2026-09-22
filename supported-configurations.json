@@ -4567,9 +4567,9 @@
     ],
     "DD_TRACE_OTEL_CTX_ENABLED": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "boolean",
-        "default": "true",
+        "default": "false",
         "experimental": true
       }
     ],

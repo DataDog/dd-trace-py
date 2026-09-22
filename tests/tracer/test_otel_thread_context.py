@@ -10,6 +10,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import core
 from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
+from ddtrace.internal.settings._config import config as dd_config
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
@@ -41,7 +42,8 @@ def _published_span_id():
 
 
 @pytest.fixture(autouse=True)
-def _register_otel_thread_context_listener(tracer):
+def _register_otel_thread_context_listener(tracer, monkeypatch):
+    monkeypatch.setattr(dd_config, "_otel_thread_context_enabled", True)
     listener = register_otel_thread_context_listener(tracer)
     assert listener is not None
     yield
