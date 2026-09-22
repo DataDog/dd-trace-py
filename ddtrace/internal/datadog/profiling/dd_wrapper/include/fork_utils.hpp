@@ -19,9 +19,10 @@
 #endif
 
 #if DD_TSAN_ENABLED
-extern "C" {
-void __tsan_mutex_destroy(void* addr, unsigned flags);
-void __tsan_mutex_create(void* addr, unsigned flags);
+extern "C"
+{
+    void __tsan_mutex_destroy(void* addr, unsigned flags);
+    void __tsan_mutex_create(void* addr, unsigned flags);
 }
 #endif
 

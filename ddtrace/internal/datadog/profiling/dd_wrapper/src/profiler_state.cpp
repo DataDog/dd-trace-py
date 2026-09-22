@@ -1,6 +1,5 @@
 #include "profiler_state.hpp"
 
-#include "fork_utils.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <chrono>

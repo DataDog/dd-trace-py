@@ -1,7 +1,5 @@
 #include "upload_cancellation.hpp"
 
-#include "fork_utils.hpp"
-#include <new>
 #include <utility>
 
 void

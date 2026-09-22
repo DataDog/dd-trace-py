@@ -17,8 +17,6 @@
 
 namespace Datadog {
 
-class Sample;
-
 // ProfilerState is a singleton class that holds all Profiler "global" state.
 // Consolidating it here makes lifecycle management (init, cleanup, fork handling) clearer.
 // Note: this class does not start or stop threads. However, it installs fork handlers that
