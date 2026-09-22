@@ -47,11 +47,7 @@ Same wheel both sides · `DD_PROFILING_LOCK_ENABLED` false→true @ **`profiling
 | lock acquisitions/s | 0 | 2.34 | visibility (not cost) |
 | trace errors / HTTP 5xx | 0 | 0 | flat |
 
-**CompView** (ai_gateway Test Drive, Lock ON vs OFF):
-
-- [CPU Time (Python)](https://ddstaging.datadoghq.com/profiling/comparison?query=service%3Arapid-td-ab-lockonoff-ai0916e-b%20version%3Aab-b-eb8bb1fddc01%20env%3Astaging&compare_query_A=service%3Arapid-td-ab-lockonoff-ai0916e-a%20version%3Aab-a-eb8bb1fddc01%20env%3Astaging&compare_query_B=service%3Arapid-td-ab-lockonoff-ai0916e-b%20version%3Aab-b-eb8bb1fddc01%20env%3Astaging&compare_start_A=1789587570183&compare_start_B=1789587739188&compare_end_A=1789591315000&compare_end_B=1789591315000&compareValuesMode=relative&comparisonViz=table&group_by=line&my_code=disabled&profile_type=cpu-time&from_ts=1789587570183&to_ts=1789591315000&live=false)
-- [CPU Time (eBPF)](https://ddstaging.datadoghq.com/profiling/comparison?query=kube_cluster_name%3Agizmo%20container_name%3Arapid-td-ab-lockonoff-ai0916e-b&compare_query_A=kube_cluster_name%3Agizmo%20container_name%3Arapid-td-ab-lockonoff-ai0916e-a&compare_query_B=kube_cluster_name%3Agizmo%20container_name%3Arapid-td-ab-lockonoff-ai0916e-b&compare_start_A=1789587570183&compare_start_B=1789587739188&compare_end_A=1789591315000&compare_end_B=1789591315000&compareValuesMode=relative&comparisonViz=table&group_by=line&my_code=disabled&profile_type=ebpf-cpu-time&from_ts=1789587570183&to_ts=1789591315000&live=false)
-- [Lock Wait Time](https://ddstaging.datadoghq.com/profiling/comparison?query=service%3Arapid-td-ab-lockonoff-ai0916e-b%20version%3Aab-b-eb8bb1fddc01%20env%3Astaging&compare_query_A=service%3Arapid-td-ab-lockonoff-ai0916e-a%20version%3Aab-a-eb8bb1fddc01%20env%3Astaging&compare_query_B=service%3Arapid-td-ab-lockonoff-ai0916e-b%20version%3Aab-b-eb8bb1fddc01%20env%3Astaging&compare_start_A=1789587570183&compare_start_B=1789587739188&compare_end_A=1789591315000&compare_end_B=1789591315000&compareValuesMode=relative&comparisonViz=table&group_by=line&my_code=disabled&profile_type=lock-acquire-time&from_ts=1789587570183&to_ts=1789591315000&live=false)
+CompView (CPU Time Python / eBPF, Lock Wait Time) was reviewed for this Test Drive; staging profile comparison URLs are omitted because profiles expire after a few days. Run id in Sources.
 
 **Conclusion:** Supports provisional keep-ON.
 
