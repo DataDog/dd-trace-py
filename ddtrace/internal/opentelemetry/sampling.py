@@ -57,15 +57,15 @@ def _threshold(sample_rate: float) -> int:
 
 
 def _format_threshold(threshold: int) -> str:
-    return "{:014x}".format(threshold).rstrip("0") or "0"
+    return f"{threshold:014x}".rstrip("0") or "0"
 
 
 def _build_otel_member(random_value: Optional[str], threshold: Optional[str], unknown_fields: list[str]) -> str:
     candidate_fields: list[str] = []
     if random_value is not None:
-        candidate_fields.append("rv:{}".format(random_value))
+        candidate_fields.append(f"rv:{random_value}")
     if threshold is not None:
-        candidate_fields.append("th:{}".format(threshold))
+        candidate_fields.append(f"th:{threshold}")
     candidate_fields.extend(unknown_fields)
 
     # The ot value (excluding the "ot=" key) is limited to 256 characters. Keep
@@ -154,8 +154,8 @@ def resolve_otel_sampling_decision(
         elif not sampled and random_value_int >= threshold_value:
             random_value_int = max(0, threshold_value - 1)
         if threshold_value == 0:
-            return "rv:{:014x};th:0".format(random_value_int)
-        return "rv:{:014x};th:{}".format(random_value_int, _format_threshold(threshold_value))
+            return f"rv:{random_value_int:014x};th:0"
+        return f"rv:{random_value_int:014x};th:{_format_threshold(threshold_value)}"
 
     random_value, threshold, unknown_fields = _parse_otel_fields(ot_value)
 
@@ -177,7 +177,7 @@ def resolve_otel_sampling_decision(
         random_value_int = max(0, threshold_value - 1)
 
     return _build_otel_member(
-        "{:014x}".format(random_value_int),
+        f"{random_value_int:014x}",
         _format_threshold(threshold_value),
         unknown_fields,
     )

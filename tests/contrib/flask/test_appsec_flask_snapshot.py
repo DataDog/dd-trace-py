@@ -1,9 +1,9 @@
+from collections.abc import Generator  # noqa:F401
 import os
 import signal
 import subprocess
 import sys
 from typing import Callable  # noqa:F401
-from typing import Generator  # noqa:F401
 
 import pytest
 

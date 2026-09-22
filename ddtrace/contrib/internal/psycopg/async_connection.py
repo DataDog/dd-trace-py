@@ -21,9 +21,7 @@ class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
                 Psycopg3FetchTracedAsyncCursor if config.psycopg.trace_fetch_methods else Psycopg3TracedAsyncCursor
             )
 
-        super(Psycopg3TracedAsyncConnection, self).__init__(
-            conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags
-        )
+        super().__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
 
     async def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
@@ -52,7 +50,7 @@ def patched_connect_async_factory(psycopg_module):
         else:
             with core.context_with_data(
                 "psycopg.patched_connect",
-                span_name="{}.{}".format(connect_func.__module__, connect_func.__name__),
+                span_name=f"{connect_func.__module__}.{connect_func.__name__}",
                 service=ext_service(pin, pin._config),
                 span_type=SpanTypes.SQL,
                 pin=pin,

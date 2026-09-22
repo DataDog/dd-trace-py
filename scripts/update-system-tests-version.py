@@ -3,7 +3,7 @@
 # requires-python = ">=3.12"
 # ///
 
-import subprocess
+import subprocess  # nosec B404
 
 
 system_tests_repo = "https://github.com/DataDog/system-tests.git"
@@ -12,13 +12,15 @@ gitlab_ci_path = ".gitlab-ci.yml"
 
 
 def get_latest_system_tests_version() -> str:
-    result = subprocess.check_output(["git", "ls-remote", system_tests_repo, "refs/heads/main"])
+    result = subprocess.check_output(  # nosec B603 B607
+        ["git", "ls-remote", system_tests_repo, "refs/heads/main"]
+    )
     commit_hash, _, _ = result.decode("utf-8").partition("\t")
     return commit_hash
 
 
 def get_current_system_tests_version() -> str:
-    with open(system_tests_workflows_path, "r") as file:
+    with open(system_tests_workflows_path) as file:
         content = file.read()
 
     lines = content.splitlines()
@@ -31,7 +33,7 @@ def get_current_system_tests_version() -> str:
 
 def update_system_tests_version(latest_version: str) -> None:
     # Update GitHub workflow file
-    with open(system_tests_workflows_path, "r") as file:
+    with open(system_tests_workflows_path) as file:
         content = file.read()
 
     lines = content.splitlines()
@@ -52,7 +54,7 @@ def update_system_tests_version(latest_version: str) -> None:
         file.write("\n".join(lines))
 
     # Update GitLab CI file
-    with open(gitlab_ci_path, "r") as file:
+    with open(gitlab_ci_path) as file:
         content = file.read()
 
     lines = content.splitlines()

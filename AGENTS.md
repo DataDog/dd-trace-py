@@ -62,15 +62,6 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## AIDEV Anchor Comments
-
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
-
-- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
-- **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
-
 ## PR Guidelines
 
 Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
@@ -97,6 +88,12 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
+
+OpenFeature tests use the checked-in canonical fixture snapshot under
+`tests/openfeature/ffe-system-test-data/`; no submodule setup is required. Change shared
+cases in `DataDog/ffe-system-test-data` first, then refresh with
+`python scripts/update-ffe-fixtures.py --ref <upstream-commit>`. See the OpenFeature
+fixtures section in `docs/contributing-testing.rst` for the update workflow.
 
 See `docs/troubleshooting.rst`. Covers common issues including:
 
@@ -140,3 +137,14 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+
+## AIDEV Anchor Comments
+
+The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
+Existing anchors were removed from the repository (#20143).
+
+- Do not add new `AIDEV-*` anchor comments. Use plain inline comments when
+  context is needed (see Docstrings and Comments above).
+- CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
+  lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
+  its tests are excluded because they document or exercise the deprecation.
