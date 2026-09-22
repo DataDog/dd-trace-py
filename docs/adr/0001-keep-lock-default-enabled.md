@@ -9,7 +9,7 @@
 | **Start date** | 2026-09-17 |
 | **Evidence vintage** | Thu Sep 17 16:56:13 EDT 2026 (−0400) |
 | **Primary reviewers** | Profiling Python team |
-| **Canonical** | This file (`docs/adr/0003-keep-lock-default-enabled.md`) |
+| **Canonical** | This file (`docs/adr/0001-keep-lock-default-enabled.md`) |
 | **Related** | Ported from [dd-trace-doe#487](https://github.com/DataDog/dd-trace-doe/pull/487) ([discussion](https://github.com/DataDog/dd-trace-doe/pull/487#discussion_r4073648808)); DoE lab evidence lives in dd-trace-doe |
 
 ## Decision
