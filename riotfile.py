@@ -3369,7 +3369,11 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(),
-                    pkgs={"anthropic": latest, "httpx": "<0.28.0"},
+                    pkgs={"anthropic": "<1.0.0", "httpx": "<0.28.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"anthropic": latest},
                 ),
             ],
         ),
@@ -4869,7 +4873,11 @@ venv = Venv(
                     pkgs={"anthropic": "==0.28.0", "httpx": "~=0.27.0"},
                 ),
                 Venv(
-                    pkgs={"anthropic": latest, "httpx": "<0.28.0"},
+                    pkgs={"anthropic": "<1.0.0", "httpx": "<0.28.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"anthropic": latest},
                 ),
             ],
         ),
