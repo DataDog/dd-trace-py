@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: stop the stack profiler's signal-handler cycle guard from permanently
+    marking a thread. A thread that survived one fault chained to a previously
+    installed handler would send its next fault straight to the default disposition,
+    terminating the process without reaching the crash handler underneath. The guard
+    is now scoped to a handler-install epoch.
