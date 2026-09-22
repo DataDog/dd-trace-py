@@ -34,12 +34,7 @@ variables:
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
 
-  # Install Python packages through Depot, Datadog's in-network PyPI mirror, instead of
-  # reaching prod PyPI from every job. Reads need no token: runner egress goes through a
-  # sidecar that attaches identity. Set globally because the uv-driven test jobs extend
-  # .testrunner rather than .setup_ci_deps, so there is no single template to hang this on.
-  # datadog/python is a virtual index already cascading to the upstream PyPI mirror, so no
-  # extra index is needed. Owner: #dependency-management.
+  # Globally configure all Python installs to go through Depot, an in-network PyPI mirror.
   PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
   UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 
