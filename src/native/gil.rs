@@ -12,12 +12,16 @@
 //! after the blocking call, a non-main thread that finds the interpreter finalizing
 //! hangs instead of re-acquiring the GIL. The finalizing thread itself (approximated
 //! by the main thread) re-acquires normally, so shutdown flushes still complete.
+//!
+//! After fork, only the calling thread exists in the child, and CPython treats that
+//! thread as the main thread. A child handler re-records its ident. Without that,
+//! a child whose fork caller was not the parent main thread would park the thread
+//! that must finish finalization, and the process would never exit.
 
 use pyo3::marker::Ungil;
 use pyo3::{ffi, Python};
 use std::os::raw::c_ulong;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-
 
 // CPython < 3.13 has no public Py_IsFinalizing(); use the private symbol, which
 // returns nonzero once finalization has started. It is removed on 3.13+.
@@ -36,11 +40,29 @@ extern "C" {
 static MAIN_THREAD_IDENT: AtomicU64 = AtomicU64::new(0);
 static MAIN_THREAD_SET: AtomicBool = AtomicBool::new(false);
 
-/// Record the interpreter's main thread. Call once from the module init function,
-/// which runs on the importing thread (normally the main thread) with the GIL held.
-pub(crate) fn record_main_thread() {
+fn store_current_as_main_thread() {
     MAIN_THREAD_IDENT.store(current_thread_ident(), Ordering::Relaxed);
     MAIN_THREAD_SET.store(true, Ordering::Release);
+}
+
+// Runs in the forked child, on the only surviving thread.
+// Atomic store and PyThread_get_thread_ident is async-signal-safe.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+unsafe extern "C" fn after_fork_child() {
+    store_current_as_main_thread();
+}
+
+/// Record the interpreter's main thread. Call once from the module init function,
+/// which runs on the importing thread (normally the main thread) with the GIL held.
+/// Also registers a fork child handler so the surviving thread stays the main thread.
+pub(crate) fn record_main_thread() {
+    store_current_as_main_thread();
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    unsafe {
+        // libc fork, including os.fork and native forks such as uWSGI, runs this
+        // handler. A failed registration leaves the parent ident in place.
+        let _ = libc::pthread_atfork(None, None, Some(after_fork_child));
+    }
 }
 
 fn current_thread_ident() -> u64 {
