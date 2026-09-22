@@ -1,4 +1,4 @@
-from typing import Iterable
+from collections.abc import Iterable
 
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.internal.settings.asm import config as asm_config

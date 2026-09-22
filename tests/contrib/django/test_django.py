@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import itertools
 import os
 import subprocess
 import types
+from unittest import mock
 import uuid
 
 import django
@@ -15,7 +15,6 @@ from django.test import override_settings
 from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
-import mock
 import pytest
 
 from ddtrace import config
@@ -1696,7 +1695,7 @@ def test_schematized_default_service_name(
         "v0": global_service_name or "django",
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -1714,11 +1713,11 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.service == "{}"
+    assert span.service == "{expected_service_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -1744,7 +1743,7 @@ def test_schematized_default_db_service_name(
         "v0": "defaultdb",
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import django
 
 from tests.contrib.django.utils import setup_django_test_spans
@@ -1761,11 +1760,11 @@ with setup_django_test_spans() as test_spans, with_default_django_db(test_spans)
 
     span = spans[0]
     assert span.name == "sqlite.query"
-    assert span.service == "{}", span.service
+    assert span.service == "{expected_service_name}", span.service
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     env["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
@@ -1787,7 +1786,7 @@ def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schem
     expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
         schema_version
     ]
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -1805,11 +1804,11 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.name == "{}"
+    assert span.name == "{expected_operation_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -2410,7 +2409,7 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
     env = os.environ.copy()
     env[env_var] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;import django;assert ddtrace.config.django.{}".format(instrument_x),
+        f"import ddtrace;import django;assert ddtrace.config.django.{instrument_x}",
         env=env,
     )
 
@@ -2434,7 +2433,7 @@ def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python
     env = os.environ.copy()
     env[env_var] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;import django;assert not ddtrace.config.django.{}".format(instrument_x),
+        f"import ddtrace;import django;assert not ddtrace.config.django.{instrument_x}",
         env=env,
     )
 
