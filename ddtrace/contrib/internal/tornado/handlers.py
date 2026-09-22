@@ -6,6 +6,7 @@ from tornado.web import HTTPError
 
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
@@ -44,6 +45,7 @@ async def execute(func, handler, args, kwargs):
         headers = {key.lower(): value for key, value in getattr(request, "headers", {}).items()}
         headers.pop("cookie", None)  # Remove Cookie from headers to avoid duplication
         cookies = {key: handler.get_cookie(key) for key in handler.cookies.keys()}
+        client_ip = trace_utils._get_request_header_client_ip(headers, request.remote_ip, True) or request.remote_ip
 
         http_route, path_params = _find_route(handler.application.default_router.rules, request)
         event = WebFrameworkRequestEvent(
@@ -72,7 +74,6 @@ async def execute(func, handler, args, kwargs):
         request_context.set_items(
             {
                 "headers": headers,
-                "remote_addr": request.remote_ip,
                 "headers_case_sensitive": True,
                 "integration_config": config.tornado,
             }
@@ -88,7 +89,7 @@ async def execute(func, handler, args, kwargs):
                 "set_http_meta_for_asm",
                 (
                     req_span,
-                    request.remote_ip,
+                    client_ip,
                     full_url,
                     http_route,
                     method,
