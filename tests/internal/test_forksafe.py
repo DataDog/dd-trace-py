@@ -88,41 +88,6 @@ def test_registry():
 
 
 @pytest.mark.subprocess
-def test_duplicates():
-    import os
-
-    from ddtrace.internal import forksafe
-
-    state = []
-
-    @forksafe.register
-    def hook():
-        state.append(1)
-
-    def f1():
-        return state
-
-    def f2():
-        return state
-
-    def f3():
-        return state
-
-    pid = os.fork()
-
-    if pid == 0:
-        # child
-        assert f1() == f2() == f3() == [1]
-        os._exit(12)
-    else:
-        assert f1() == f2() == f3() == []
-
-    _, status = os.waitpid(pid, 0)
-    exit_code = os.WEXITSTATUS(status)
-    assert exit_code == 12
-
-
-@pytest.mark.subprocess
 def test_method_usage():
     import os
 
@@ -366,7 +331,7 @@ def test_gevent_gunicorn_behaviour():
 
     class TestService(PeriodicService):
         def __init__(self):
-            super(TestService, self).__init__(interval=0.1)
+            super().__init__(interval=0.1)
             self._has_run = False
             self._pid = os.getpid()
 

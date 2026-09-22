@@ -150,7 +150,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
         try:
             with self.override_config("requests", dict(distributed_tracing=True)):
                 with self.tracer.trace("root"):
-                    resp = self.session.get("http://{}/headers".format(HOST_AND_PORT))
+                    resp = self.session.get(f"http://{HOST_AND_PORT}/headers")
                     assert resp.status_code == 200
                     received_headers = resp.json()["headers"]
 
@@ -175,8 +175,8 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
         try:
             with self.override_config("requests", dict(distributed_tracing=True)):
                 with self.tracer.trace("root"):
-                    redirect_url = "http://{}/redirect-to?url=http://{}/headers&status_code=302".format(
-                        HOST_AND_PORT, HOST_AND_PORT
+                    redirect_url = (
+                        f"http://{HOST_AND_PORT}/redirect-to?url=http://{HOST_AND_PORT}/headers&status_code=302"
                     )
                     resp = self.session.get(redirect_url, allow_redirects=True)
                     assert resp.status_code == 200

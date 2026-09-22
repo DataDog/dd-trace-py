@@ -175,7 +175,7 @@ def _get_or_create_bedrock_trace_step_span(
         return step_span
     trace_type = _extract_trace_type(trace) or "Bedrock Agent"
     step_span = _build_step_span(
-        "{} Step".format(trace_type),
+        f"{trace_type} Step",
         root_span,
         root_span,
         "workflow",

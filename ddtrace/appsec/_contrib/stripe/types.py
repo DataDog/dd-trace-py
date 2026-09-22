@@ -1,8 +1,8 @@
+from collections.abc import Sequence
 from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Protocol
-from typing import Sequence
 from typing import Union
 
 

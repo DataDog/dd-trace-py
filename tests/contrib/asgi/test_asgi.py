@@ -1,10 +1,10 @@
 import asyncio
+from collections.abc import Awaitable
 from functools import partial
 import logging
 import os
 import random
 from typing import Any
-from typing import Awaitable
 from typing import Callable
 from typing import TypedDict
 
@@ -137,7 +137,7 @@ def _check_span_tags(scope, span):
     assert span.get_tag("http.method") == scope["method"]
     server = scope.get("server")
     expected_http_url = (
-        "http://{}{}".format(server[0], ":{}/".format(server[1]) if server[1] != 80 else "/") if server else None
+        "http://{}{}".format(server[0], f":{server[1]}/" if server[1] != 80 else "/") if server else None
     )
     assert expected_http_url or span.get_tag("http.url") == expected_http_url
     assert (
@@ -212,7 +212,7 @@ async def test_basic_asgi_sets_ip_tags_from_peer_ip(scope, test_spans):
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_span_attribute_schema_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
     expected_span_name = {None: "asgi.request", "v0": "asgi.request", "v1": "http.server.request"}[schema_version]
-    code = """
+    code = f"""
 import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
@@ -243,12 +243,12 @@ async def test(scope, test_spans):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.name == "{}"
+    assert request_span.name == "{expected_span_name}"
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_span_name)
+    """
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -265,7 +265,7 @@ if __name__ == "__main__":
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
     inferred_base_service = DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
     expected_service_name = global_service_name or inferred_base_service
-    code = """
+    code = f"""
 import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
@@ -295,13 +295,13 @@ async def test(scope, test_spans):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    service = "{}"
+    service = "{expected_service_name}"
     assert request_span.service == (service or None)
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
     env = os.environ.copy()
     if global_service_name:
         env["DD_SERVICE"] = global_service_name
@@ -449,8 +449,8 @@ async def test_asgi_error_custom(scope, test_spans):
 async def test_distributed_tracing(scope, test_spans):
     app = TraceMiddleware(basic_app)
     headers = [
-        (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
-        (http_propagation.HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
+        (http_propagation.HTTP_HEADER_PARENT_ID.encode(), b"1234"),
+        (http_propagation.HTTP_HEADER_TRACE_ID.encode(), b"5678"),
     ]
     scope["headers"] = headers
     instance = ApplicationCommunicator(app, scope)

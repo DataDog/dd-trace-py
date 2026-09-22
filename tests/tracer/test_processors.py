@@ -1,6 +1,6 @@
 from typing import Any  # noqa:F401
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -695,7 +695,7 @@ def test_trace_128bit_processor(trace_id, tracer):
     chunk_root = spans[0]
     assert chunk_root.trace_id == ctx.trace_id
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(chunk_root.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == f"{chunk_root.trace_id >> 64:016x}"
 
 
 @pytest.mark.subprocess(
@@ -709,7 +709,7 @@ def test_span_creation_metrics():
     no in-Python batching (the native worker aggregates the points). The integration_name tag is
     resolved at that moment, so a component set during the span is only reflected at finish.
     """
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.telemetry.metrics import MetricRecorder
     from ddtrace.trace import tracer
@@ -752,7 +752,7 @@ def test_span_dropped_metrics():
     There is no in-Python batching left to flush on shutdown - the native worker aggregates the
     points - so the drops arrive one per trace, carrying that trace's dropped span count.
     """
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.telemetry.metrics import MetricRecorder
     from ddtrace.trace import TraceFilter

@@ -213,7 +213,7 @@ def _extract_embedding_output_value(response: Optional[Any]) -> str:
     data = _get_attr(response, "data", []) or []
     if data:
         embedding = _get_attr(data[0], "embedding", []) or []
-        return "[{} embedding(s) returned with size {}]".format(len(data), len(embedding))
+        return f"[{len(data)} embedding(s) returned with size {len(embedding)}]"
     return ""
 
 

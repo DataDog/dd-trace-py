@@ -110,6 +110,9 @@ case "$cmd" in
   error-log-check)
     uv_lint python scripts/check_constant_log_message.py "$@"
     ;;
+  type-comments-check)
+    uv_lint python scripts/check_type_comments.py "$@"
+    ;;
   supported-config-check)
     uv_lint python scripts/supported_configurations.py --check "$@"
     ;;
@@ -189,6 +192,7 @@ Subcommands:
   suitespec-duplicates      Check for duplicate/dead suitespec suites
   profiling-native-check    Check profiling native coverage
   error-log-check           Check constant log messages
+  type-comments-check       Fail if new PEP 484 type comments were added
   supported-config-check    Check supported-configurations.json is in sync and complete
   ci-deps-check             scripts/check-ci-dependencies
 

@@ -1,6 +1,5 @@
 from typing import Any
 from typing import Callable
-from typing import Text
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -39,7 +38,7 @@ class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 

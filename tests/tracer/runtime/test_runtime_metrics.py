@@ -1,8 +1,8 @@
 import contextlib
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.ext import SpanTypes
