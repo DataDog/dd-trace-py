@@ -767,7 +767,7 @@ class TestCoverageConfigurationEdgeCases:
                 mock_client,
                 COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
-                ["--ddtrace", "--cov", "-v", "-s"],
+                ["--ddtrace", "--cov=.", "-v", "-s"],
             )
 
         # Should handle gracefully even with no tests

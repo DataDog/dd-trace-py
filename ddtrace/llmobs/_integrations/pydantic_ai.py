@@ -1,7 +1,7 @@
+from collections.abc import Sequence
 import functools
 from typing import Any
 from typing import Optional
-from typing import Sequence
 from typing import get_origin
 
 from ddtrace.internal import core

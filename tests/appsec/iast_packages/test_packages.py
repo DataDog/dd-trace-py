@@ -1094,22 +1094,20 @@ def test_packages_not_patched(package):
         pytest.skip(reason)
         return
 
-    print("===============> Testing unpatched: {}, test {}/{}".format(package.name, NUM_TEST, len(PACKAGES) * 2))
+    print(f"===============> Testing unpatched: {package.name}, test {NUM_TEST}/{len(PACKAGES) * 2}")
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
         # 1. Try with the specified version
         cmdlist = [python_bin, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_module_to_validate]
         result = subprocess.run(cmdlist, capture_output=True, text=True)
-        assert result.returncode == 0, "Test unpatched import failed for package {}: {}".format(
-            package.name, result.stdout
-        )
+        assert result.returncode == 0, f"Test unpatched import failed for package {package.name}: {result.stdout}"
 
         # 2. Try with the latest version
         cmdlist[0] = python_bin_latest
         result = subprocess.run(cmdlist, capture_output=True, text=True)
-        assert result.returncode == 0, "Test unpatched import failed for latest version of package {}: {}".format(
-            package.name, result.stdout
+        assert result.returncode == 0, (
+            f"Test unpatched import failed for latest version of package {package.name}: {result.stdout}"
         )
 
     if package.test_e2e:
@@ -1140,7 +1138,7 @@ def test_packages_patched(package):
         pytest.skip(reason)
         return
 
-    print("===============> Testing unpatched: {}, test {}/{}".format(package.name, NUM_TEST, len(PACKAGES) * 2))
+    print(f"===============> Testing unpatched: {package.name}, test {NUM_TEST}/{len(PACKAGES) * 2}")
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
@@ -1161,15 +1159,13 @@ def test_packages_patched(package):
                 capture_output=True,
                 text=True,
             )
-            assert result.returncode == 0, "Test patched import failed for package {}: {}".format(
-                package.name, result.stdout
-            )
+            assert result.returncode == 0, f"Test patched import failed for package {package.name}: {result.stdout}"
 
             # 2. Try with the latest version
             cmdlist[0] = python_bin_latest
             result = subprocess.run(cmdlist, capture_output=True, text=True)
-            assert result.returncode == 0, "Test patched import failed for latest version of package {}: {}".format(
-                package.name, result.stdout
+            assert result.returncode == 0, (
+                f"Test patched import failed for latest version of package {package.name}: {result.stdout}"
             )
 
     if package.test_e2e or package.test_propagation:

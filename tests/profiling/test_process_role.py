@@ -8,7 +8,7 @@ scenarios, so that ``ddup.upload()`` can emit the right ``process_type`` tag
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 

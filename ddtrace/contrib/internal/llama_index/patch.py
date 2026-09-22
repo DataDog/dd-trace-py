@@ -1,9 +1,9 @@
+from collections.abc import Generator
 import functools
 import inspect
 import sys
 from typing import Any
 from typing import Callable
-from typing import Generator
 from typing import Optional
 
 import llama_index.core as llama_core
