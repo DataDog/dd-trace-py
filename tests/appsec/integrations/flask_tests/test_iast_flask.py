@@ -56,7 +56,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_xss_injection()
             patch_unvalidated_redirect()
             patch_json()
-            super(FlaskAppSecIASTEnabledTestCase, self).setUp()
+            super().setUp()
             self.tracer.configure(iast_enabled=True)
             oce.reconfigure()
 
@@ -476,7 +476,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 if vuln["type"] == VULN_SQL_INJECTION:
                     vulnerability = vuln
 
-            assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
+            assert vulnerability, f"No {VULN_SQL_INJECTION} reported"
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
                 "valueParts": [
@@ -2217,7 +2217,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_request_sampling=100.0,
             )
         ):
-            super(FlaskAppSecIASTDisabledTestCase, self).setUp()
+            super().setUp()
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer._recreate()
 

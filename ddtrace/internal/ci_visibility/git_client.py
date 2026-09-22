@@ -76,7 +76,7 @@ FINISHED_METADATA_UPLOAD_STATUSES = [
 ]
 
 
-class CIVisibilityGitClientSerializerV1(object):
+class CIVisibilityGitClientSerializerV1:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
@@ -131,7 +131,7 @@ class CIVisibilityGitClientSerializerV1(object):
         return "multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), CRLF.join(body)
 
 
-class CIVisibilityGitClient(object):
+class CIVisibilityGitClient:
     def __init__(
         self,
         api_key: str,
@@ -365,7 +365,7 @@ class CIVisibilityGitClient(object):
         headers: Optional[dict] = None,
         timeout: int = DEFAULT_TIMEOUT,
     ) -> Response:
-        url = "{}/repository{}".format(base_url, endpoint)
+        url = f"{base_url}/repository{endpoint}"
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
         }

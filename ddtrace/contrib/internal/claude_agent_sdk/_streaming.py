@@ -214,9 +214,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if chunk_type == "ResultMessage":
             if self.instance and self.context is None:
                 self.context = await _retrieve_context(self.instance)
-            # eagerly finish when the result message is received since
-            # the generator may be left open indefinitely
-            self.finalize_stream()
+            # Eagerly finish when the result message is received since
+            # the generator may be left open indefinitely. Go through
+            # close_stream so later iteration/__aexit__ cleanup is a no-op.
+            self.close_stream()
 
         content = getattr(chunk, "content", []) or []
 

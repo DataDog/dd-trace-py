@@ -181,7 +181,7 @@ def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch)
     registered_hooks = []
     unregistered_hooks = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -215,7 +215,7 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
     registered_hooks = []
     unregistered_hooks = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))

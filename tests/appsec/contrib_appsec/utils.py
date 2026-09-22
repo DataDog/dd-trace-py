@@ -1,10 +1,10 @@
+from collections.abc import Generator
 import contextlib
 import itertools
 import json
 import sys
 from typing import Any
 from typing import ClassVar
-from typing import Generator
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -543,7 +543,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     "abc",
                     b"abc",
                 )
-                assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
+                assert int(path_params["param_int"] if isinstance(path_params, dict) else path_params[0]) == 137
             else:
                 assert path_params is None
 
