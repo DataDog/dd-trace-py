@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "PATCH",
+    "url": "https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/new-rerun-exp-id",
+    "headers": {
+      "Content-Type": "application/json",
+      "datadog-entity-id": "in-30402",
+      "Content-Length": "72"
+    },
+    "body": "{\"data\": {\"type\": \"experiments\", \"attributes\": {\"status\": \"completed\"}}}"
+  },
+  "response": {
+    "status": {
+      "code": 401,
+      "message": "Unauthorized"
+    },
+    "headers": {
+      "content-type": "application/json",
+      "content-length": "27",
+      "date": "Tue, 22 Sep 2026 17:18:32 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"errors\":[\"Unauthorized\"]}"
+  }
+}

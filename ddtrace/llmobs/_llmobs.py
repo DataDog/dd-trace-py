@@ -3477,9 +3477,9 @@ class LLMObs(Service):
         """Stamp the active LLMObs context onto an outbound request.
 
         Written to both carriers: `_dd.p.llmobs_*` tags on span_context._meta (legacy, rides
-        x-datadog-tags) and `llmobs.*` baggage items, which survive a hop that drops the APM
-        trace headers. This runs from the http.span_inject hook, before the baggage header is
-        encoded, so items set here make it onto the request.
+        x-datadog-tags) and `llmobs.*` baggage items, which survive if APM trace headers are dropped.
+        This runs from the http.span_inject hook, before the baggage header is encoded, so items set
+        here make it onto the request.
         """
         if cls.enabled is False:
             return
@@ -3522,9 +3522,10 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
         if sample_rate is not None:
             span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
-        sampling_decision_value = getattr(sampling_decision, "value", sampling_decision)
-        if sampling_decision_value is not None:
-            span_context._meta[PROPAGATED_SAMPLING_DECISION] = sampling_decision_value
+        if sampling_decision is not None:
+            span_context._meta[PROPAGATED_SAMPLING_DECISION] = (
+                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
+            )
 
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
         # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
@@ -3540,7 +3541,7 @@ class LLMObs(Service):
             BAGGAGE_ML_APP_KEY: ml_app,
             BAGGAGE_SESSION_ID_KEY: span_context._meta.get(PROPAGATED_SESSION_ID_KEY),
             BAGGAGE_SAMPLE_RATE_KEY: sample_rate,
-            BAGGAGE_SAMPLING_DECISION_KEY: sampling_decision_value,
+            BAGGAGE_SAMPLING_DECISION_KEY: span_context._meta.get(PROPAGATED_SAMPLING_DECISION),
             BAGGAGE_PARENT_AGENT_ID_KEY: parent_agent_span_id,
             BAGGAGE_PARENT_AGENT_NAME_KEY: (
                 parent_agent_name[:BAGGAGE_AGENT_NAME_MAX_LENGTH] if parent_agent_name is not None else None
