@@ -12,6 +12,7 @@ import argparse
 import ast
 from collections import defaultdict
 from dataclasses import dataclass
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -34,11 +35,20 @@ from tests.suitespec import get_test_environments  # noqa: E402
 
 
 CONTRIB_INTERNAL_ROOT = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
-DDTRACE_MONKEY_PATH = PROJECT_ROOT / "ddtrace" / "_monkey.py"
 SUPPORTED_VERSIONS_PATH = PROJECT_ROOT / "supported_versions.json"
 
 REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^;\s]+)")
 PYTHON_VERSION_RE = re.compile(r"^\d+\.\d+$")
+
+
+def get_ddtrace_package_path() -> Path:
+    spec = importlib.util.find_spec("ddtrace")
+    if spec is None or spec.submodule_search_locations is None:
+        raise RuntimeError("ddtrace is not installed")
+    return Path(next(iter(spec.submodule_search_locations)))
+
+
+DDTRACE_MONKEY_PATH = get_ddtrace_package_path() / "_monkey.py"
 
 
 @dataclass(frozen=True)
