@@ -210,18 +210,6 @@ microbenchmarks:
     # so downstream code must treat that literal as unset.
     BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
 
-apm-sdk-benchmarks:
-  stage: benchmarks
-  when: manual
-  allow_failure: true
-  needs:
-    - job: "upload all"
-  trigger:
-    project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
-  variables:
-    TARGET_REF: $CI_PIPELINE_ID
-
 macrobenchmarks:
   stage: benchmarks
   needs:
@@ -251,10 +239,44 @@ macrobenchmarks:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     # Always run on tagged releases and release branches
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: !reference [.is_release_branch]
       when: always
     - if: !reference [.is_release]
       when: always
+    # Otherwise, run manually
+    - when: manual
+      allow_failure: true
+
+apm-sdks-benchmarks:
+  stage: benchmarks
+  needs:
+    - job: "upload all"
+  variables:
+    # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
+    # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
+    # all". Inside a child pipeline that variable is the child's own ID, not
+    # this (parent) pipeline's, so it must be passed explicitly.
+    TARGET_REF: $CI_PIPELINE_ID
+  trigger:
+    include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
+    strategy: depend
+  rules:
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    # Always run on tagged releases and release branches
+    - if: !reference [.is_release_branch]
+      when: always
+    - if: !reference [.is_release]
+      when: always
+    - if: !reference [.is_main]
+      when: always
+    # Flaky benchmark monitoring runs this branch unattended from a parent pipeline,
+    # and pushes to it need the same automatic run while that setup is developed.
+    - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring"
+      when: always
+    # No $NIGHTLY_BUILD rule here: apm-sdks-benchmarks already runs its own nightly
+    # schedule in that project's own CI, independent of dd-trace-py's pipeline.
     # Otherwise, run manually
     - when: manual
       allow_failure: true
