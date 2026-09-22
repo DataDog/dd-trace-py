@@ -425,7 +425,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                 bool leaf_truncated = leaf_depth > leaf_to_keep;
                 bool runtime_truncated = runtime_available > runtime_to_keep;
 
-                // An omission marker consumes one location. Remove the
+                // A truncation marker consumes one location. Remove the
                 // lowest-priority selected physical frame if the real locations
                 // have already filled the budget.
                 if ((leaf_truncated || runtime_truncated) && locations >= max_frames) {
@@ -442,8 +442,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                              python_stack.begin(),
                              python_stack.begin() + static_cast<FrameStack::difference_type>(leaf_to_keep));
                 if (leaf_truncated) {
-                    stack_info->omission_index = stack.size();
-                    stack_info->omitted_frames = leaf_depth - leaf_to_keep;
+                    stack_info->truncation_index = stack.size();
+                    stack_info->truncated_frames = leaf_depth - leaf_to_keep;
                 }
                 stack.insert(stack.end(), task_frames.begin(), task_frames.end());
                 const auto runtime_begin =
@@ -452,8 +452,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                              runtime_begin,
                              runtime_begin + static_cast<FrameStack::difference_type>(runtime_to_keep));
                 if (!leaf_truncated && runtime_truncated) {
-                    stack_info->omission_index = stack.size();
-                    stack_info->omitted_frames = runtime_available - runtime_to_keep;
+                    stack_info->truncation_index = stack.size();
+                    stack_info->truncated_frames = runtime_available - runtime_to_keep;
                 }
             } else {
                 // An off-CPU task is followed by the event-loop thread stack.
@@ -468,8 +468,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                              python_stack.begin(),
                              python_stack.begin() + static_cast<FrameStack::difference_type>(sync_to_keep));
                 if (sync_truncated) {
-                    stack_info->omission_index = stack.size();
-                    stack_info->omitted_frames = python_stack.size() - sync_to_keep;
+                    stack_info->truncation_index = stack.size();
+                    stack_info->truncated_frames = python_stack.size() - sync_to_keep;
                 }
             }
         }
@@ -941,7 +941,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             });
 
             task_stack_info->stack.render(
-              echion, TruncationStatus::Unknown, task_stack_info->omission_index, task_stack_info->omitted_frames);
+              echion, TruncationStatus::Unknown, task_stack_info->truncation_index, task_stack_info->truncated_frames);
 
             renderer.render_stack_end();
         }

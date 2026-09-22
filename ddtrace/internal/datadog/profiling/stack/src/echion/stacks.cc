@@ -19,14 +19,14 @@ rendered_location_count(const Frame& frame)
 }
 
 void
-FrameStack::render(EchionSampler& echion, TruncationStatus truncation, size_t omission_index, size_t omitted_frames)
+FrameStack::render(EchionSampler& echion, TruncationStatus truncation, size_t truncation_index, size_t truncated_frames)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
     for (size_t i = 0; i < size(); ++i) {
-        if (i == omission_index) {
-            renderer.render_omitted_frames(omitted_frames);
+        if (i == truncation_index) {
+            renderer.render_truncated_frames(truncated_frames);
         }
 
         auto& frame = (*this)[i];
@@ -53,8 +53,8 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation, size_t om
         renderer.render_frame(frame);
     }
 
-    if (omission_index == size()) {
-        renderer.render_omitted_frames(omitted_frames);
+    if (truncation_index == size()) {
+        renderer.render_truncated_frames(truncated_frames);
     }
     if (truncation == TruncationStatus::Truncated) {
         renderer.mark_truncated();

@@ -47,10 +47,10 @@ class FrameStack : public std::vector<Frame>
   public:
     using Key = Frame::Key;
 
-    // omission_index is the index into this FrameStack before which to render the omission marker.
+    // truncation_index is the index into this FrameStack before which to render the truncation marker.
     // An index of size() puts the marker after all frames; SIZE_MAX disables it.
-    // omitted_frames is the number of omitted thread frames represented by the marker; zero emits nothing.
-    void render(EchionSampler& echion, TruncationStatus truncation, size_t omission_index, size_t omitted_frames);
+    // truncated_frames is the number of truncated thread frames represented by the marker; zero emits nothing.
+    void render(EchionSampler& echion, TruncationStatus truncation, size_t truncation_index, size_t truncated_frames);
 };
 
 [[nodiscard]] size_t
@@ -101,8 +101,8 @@ class StackInfo
     uint64_t task_id;
     bool on_cpu;
     FrameStack stack;
-    size_t omission_index = SIZE_MAX;
-    size_t omitted_frames = 0;
+    size_t truncation_index = SIZE_MAX;
+    size_t truncated_frames = 0;
 
     // Per-task override wall-time to use in reservoir sampling.
     // nullopt means "use the thread-level wall time"

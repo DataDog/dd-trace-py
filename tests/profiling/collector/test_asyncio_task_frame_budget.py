@@ -173,7 +173,7 @@ def test_task_stack_uses_remaining_budget_for_sync_context() -> None:
             )
 
     assert any(
-        len(names) <= 8 and "sync_code" in names and re.fullmatch(r"<[1-9][0-9]* frames? omitted>", names[-1])
+        len(names) <= 8 and "sync_code" in names and re.fullmatch(r"<[1-9][0-9]* frames? truncated>", names[-1])
         for names in actual
     ), actual
 
