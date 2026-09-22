@@ -1631,7 +1631,7 @@ def debug_build_extension(fn):
         try:
             return fn(self, ext, *args, **kwargs)
         finally:
-            DebugMetadata.build_times[ext] = time.time_ns() - start
+            DebugMetadata.build_times[ext.name] = time.time_ns() - start
 
     return wrapper
 

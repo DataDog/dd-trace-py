@@ -69,6 +69,36 @@ setup_env() {
 }
 
 
+# ext_cache invokes `setup.py ext_hashes`, which imports the build backend. uv build's
+# isolated environment is not reachable from here, so give it an ephemeral one.
+ext_cache() {
+  uv run --no-project \
+    --with "setuptools" \
+    --with "cython" \
+    --with "setuptools-rust<2" \
+    --with "cmake>=3.24.2,<3.28" \
+    --with "patchelf>=0.17.0.0" \
+    python scripts/ext_cache.py --build-lib --no-shared-deps "$1"
+}
+
+# A hit here skips the Rust fat-LTO link, which is ~88% of the build and is not cacheable
+# by sccache (links never are) or by a cargo target dir (CI has none).
+restore_ext_cache() {
+  section_start "restore_ext_cache" "Restoring compiled extensions from cache"
+  ext_cache restore || echo "ext_cache restore failed; falling back to a full build"
+  section_end "restore_ext_cache"
+}
+
+save_ext_cache() {
+  # Under `policy: pull` the runner discards whatever we write, so don't spend the copy.
+  if [[ "${EXT_CACHE_POLICY:-pull}" != "pull-push" ]]; then
+    return 0
+  fi
+  section_start "save_ext_cache" "Saving compiled extensions to cache"
+  ext_cache save || echo "ext_cache save failed; the next build will be cold"
+  section_end "save_ext_cache"
+}
+
 build_wheel() {
   section_start "build_wheel_function" "Building wheel function"
 
