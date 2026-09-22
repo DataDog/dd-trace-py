@@ -429,7 +429,6 @@ suites:
         - name: algoliasearch
           dependencies: ['urllib3~=1.26.15', pytest-randomly, 'algoliasearch~=2.6']
   anyio:
-    venvs_per_job: 8
     paths:
       - '@bootstrap'
       - '@core'
@@ -539,7 +538,6 @@ suites:
         - name: asynctest
           dependencies: ['pytest>=6.0,<7.0', pytest-randomly, 'asynctest==0.13.0']
   avro:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -554,7 +552,6 @@ suites:
         - name: avro
           dependencies: [avro, pytest-randomly]
   aws_lambda:
-    venvs_per_job: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -952,7 +949,6 @@ suites:
         - name: consul
           dependencies: [python-consul, pytest-randomly]
   datastreams:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -1232,7 +1228,6 @@ suites:
         - name: elasticsearch
           dependencies: [pytest-randomly, elasticsearch8]
   elasticsearch_multi:
-    venvs_per_job: 6
     pattern: ^elasticsearch:multi
     env:
       TEST_ELASTICSEARCH_HOST: elasticsearch
@@ -1254,7 +1249,6 @@ suites:
         - name: elasticsearch:multi
           dependencies: [elasticsearch, elasticsearch7, pytest-randomly]
   elasticsearch_async:
-    venvs_per_job: 6
     pattern: ^elasticsearch:async
     env:
       TEST_ELASTICSEARCH_HOST: elasticsearch
@@ -1461,7 +1455,6 @@ suites:
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, flask-caching]
   gevent:
-    venvs_per_job: 9
     paths:
       - '@bootstrap'
       - '@core'
@@ -2008,7 +2001,6 @@ suites:
           env:
             SDK_EXPORTER_INSTALLED: '1'
   protobuf:
-    venvs_per_job: 6
     retry: 2
     paths:
       - '@bootstrap'
@@ -2374,7 +2366,6 @@ suites:
           python: ['3.14']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'

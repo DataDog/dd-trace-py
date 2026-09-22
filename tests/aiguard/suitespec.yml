@@ -7,7 +7,6 @@ components:
     - ddtrace/internal/settings/aiguard.py
 suites:
   ai_guard_api:
-    venvs_per_job: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -77,7 +76,6 @@ suites:
         - name: ai_guard_openai
           dependencies: ['pytest-asyncio==0.23.7', openai]
   ai_guard_anthropic:
-    venvs_per_job: 12
     paths:
       - '@bootstrap'
       - '@core'
@@ -98,7 +96,6 @@ suites:
         - name: ai_guard_anthropic
           dependencies: ['pytest-asyncio==0.23.7', pyyaml, anthropic, 'httpx<0.28.0']
   ai_guard_strands:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'

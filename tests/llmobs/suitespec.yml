@@ -123,7 +123,6 @@ suites:
         - name: google_genai
           dependencies: [pytest-asyncio, google-genai]
   vertexai:
-    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'

@@ -162,7 +162,6 @@ suites:
       python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants: [{name: smoke_test}]
   crashtracker:
-    venvs_per_job: 6
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
@@ -217,7 +216,6 @@ suites:
         - name: ddtracerun
           dependencies: [redis, gevent, pytest-randomly]
   detect_global_locks:
-    venvs_per_job: 6
     paths:
       - 'ddtrace/*'
       - 'setup.py'
@@ -487,7 +485,6 @@ suites:
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:
-    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@core'
