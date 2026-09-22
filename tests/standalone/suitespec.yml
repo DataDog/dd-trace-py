@@ -1,0 +1,14 @@
+---
+suites:
+  standalone:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@settings'
+      - '@ai_guard'
+      - '@appsec'
+      - '@llmobs'
+      - tests/standalone/*
+      - tests/aiguard/utils.py
+    venvs_per_job: 1
