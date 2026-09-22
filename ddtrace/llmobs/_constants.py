@@ -51,11 +51,7 @@ PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
 
-# W3C baggage carrier for the same distributed LLMObs context. Unlike the `_dd.p.*` tags
-# above (which ride x-datadog-tags and are dropped whenever the APM trace/parent ID headers
-# are absent), baggage is injected and extracted independently of APM trace identity, so
-# LLMObs traces survive hops that discard APM trace context. Namespaced under `llmobs.` to
-# avoid colliding with user or other-product baggage keys.
+# W3C baggage carrier for distributed LLMObs context (independent of APM trace headers).
 BAGGAGE_PARENT_ID_KEY = "llmobs.parent_id"
 BAGGAGE_LLMOBS_TRACE_ID_KEY = "llmobs.trace_id"
 BAGGAGE_ML_APP_KEY = "llmobs.ml_app"
@@ -65,18 +61,8 @@ BAGGAGE_SAMPLING_DECISION_KEY = "llmobs.sampling_decision"
 BAGGAGE_PARENT_AGENT_ID_KEY = "llmobs.parent_agent_span_id"
 BAGGAGE_PARENT_AGENT_NAME_KEY = "llmobs.parent_agent_name"
 
-# Cap on the agent name in baggage. The name is an arbitrary user string, and baggage truncates
-# item by item, so an unbounded one could displace the rest of the LLMObs context (or overflow
-# the 8192-byte header by itself). Far more generous than the x-datadog-tags budget allows.
 BAGGAGE_AGENT_NAME_MAX_LENGTH = 512
 
-# Process-local slot for the canonical (hex) LLMObs trace ID on a distributed parent Context,
-# set when the inbound value arrived in baggage and so needed no format guessing. Deliberately
-# NOT `_dd.p.`-prefixed: only that prefix is injected into x-datadog-tags, and this value must
-# stay local (the wire tag carrier is decimal, and the key would also eat the 512-byte budget).
-CANONICAL_LLMOBS_TRACE_ID_CTX_KEY = "_ml_obs.ctx.canonical_llmobs_trace_id"
-
-# Propagating-tag key -> baggage key, for dual-write/dual-read during the migration.
 PROPAGATED_KEY_TO_BAGGAGE_KEY = {
     PROPAGATED_PARENT_ID_KEY: BAGGAGE_PARENT_ID_KEY,
     PROPAGATED_LLMOBS_TRACE_ID_KEY: BAGGAGE_LLMOBS_TRACE_ID_KEY,

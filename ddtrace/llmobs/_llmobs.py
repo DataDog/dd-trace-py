@@ -64,7 +64,6 @@ from ddtrace.llmobs._constants import BAGGAGE_SAMPLING_DECISION_KEY
 from ddtrace.llmobs._constants import BAGGAGE_SESSION_ID_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
-from ddtrace.llmobs._constants import CANONICAL_LLMOBS_TRACE_ID_CTX_KEY
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -2501,10 +2500,9 @@ class LLMObs(Service):
                 sampling_decision = get_llmobs_sampling_decision(llmobs_parent)
             else:
                 parent_ctx = llmobs_parent
-                # A parent that arrived in baggage already carries canonical hex; only the
-                # decimal tag carrier needs normalizing (and only ever once per value).
-                llmobs_trace_id = parent_ctx._meta.get(
-                    CANONICAL_LLMOBS_TRACE_ID_CTX_KEY
+                # Baggage carries canonical hex; only the decimal tag carrier needs normalizing.
+                llmobs_trace_id = parent_ctx.get_baggage_item(
+                    BAGGAGE_LLMOBS_TRACE_ID_KEY
                 ) or _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
@@ -3489,17 +3487,14 @@ class LLMObs(Service):
     ) -> None:
         """Stamp the active LLMObs context onto an outbound request.
 
-        The context is written twice: onto ``span_context._meta`` as ``_dd.p.llmobs_*``
-        propagating tags (the legacy carrier, which rides x-datadog-tags), and into
-        ``extra_baggage`` for the W3C ``baggage`` header. Baggage is the carrier that
-        survives hops which drop the APM trace headers, so it is the one that keeps
-        LLMObs traces whole; the tags are kept for upstream/downstream SDKs that predate
-        baggage support and will be dropped in a future major version.
+        Written to both carriers: ``_dd.p.llmobs_*`` tags on ``span_context._meta`` (legacy,
+        rides x-datadog-tags) and ``extra_baggage`` for the ``baggage`` header, which survives
+        hops that drop the APM trace headers.
 
-        ``extra_baggage`` is a per-injection dict supplied by ``HTTPPropagator.inject``
-        rather than ``span_context._baggage``: the context's baggage is shared by every
-        span in the trace and by concurrent injections from it, so writing a
-        request-scoped parent id there would leak it onto unrelated requests.
+        ``extra_baggage`` is a per-request dict from ``HTTPPropagator.inject``, not
+        ``span_context.set_baggage_item()``: a Context's baggage is shared by every span in the
+        trace and by concurrent injections from it, so a request-scoped parent ID written there
+        would leak onto unrelated requests.
         """
         if cls.enabled is False:
             return
@@ -3525,8 +3520,8 @@ class LLMObs(Service):
             wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
             # Set when the parent arrived in baggage; otherwise derive it from the (decimal, and
             # therefore unambiguous) tag value.
-            hex_trace_id = active_context._meta.get(
-                CANONICAL_LLMOBS_TRACE_ID_CTX_KEY
+            hex_trace_id = active_context.get_baggage_item(
+                BAGGAGE_LLMOBS_TRACE_ID_KEY
             ) or _normalize_wire_trace_id_to_hex(wire_trace_id)
             sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE)
             sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION)
@@ -3546,10 +3541,9 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
         if sample_rate is not None:
             span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
-        if sampling_decision is not None:
-            span_context._meta[PROPAGATED_SAMPLING_DECISION] = (
-                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
-            )
+        sampling_decision_value = getattr(sampling_decision, "value", sampling_decision)
+        if sampling_decision_value is not None:
+            span_context._meta[PROPAGATED_SAMPLING_DECISION] = sampling_decision_value
 
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
         # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
@@ -3560,28 +3554,20 @@ class LLMObs(Service):
         if extra_baggage is None:
             return
 
-        # Mirror the same context into baggage. Values are taken from the resolved locals, not
-        # from span_context._meta, so the baggage copy is not subject to the x-datadog-tags
-        # budget degradation applied above (baggage has its own, far larger, budget).
-        #
-        # session_id is read off _meta because that is where span activation stamps it: it
-        # propagates as a trace-level _dd.p.* tag rather than being resolved here.
+        # Mirrored from the resolved locals rather than span_context._meta, so baggage is not
+        # subject to the x-datadog-tags budget degradation applied above. session_id is the one
+        # exception: span activation stamps it onto _meta, nothing resolves it here.
         baggage_values: dict[str, Optional[str]] = {
             BAGGAGE_PARENT_ID_KEY: parent_id,
-            # Canonical hex, which is what the SDK stores and the backend expects. The decimal
-            # wire format exists only because older SDKs parse the tag value with `int(x)`
-            # (no base), and no released SDK reads this baggage key, so nothing here needs it.
+            # Baggage wire contract is to use hex trace IDs (Decimal wire format is legacy)
             BAGGAGE_LLMOBS_TRACE_ID_KEY: hex_trace_id,
             BAGGAGE_ML_APP_KEY: ml_app,
             BAGGAGE_SESSION_ID_KEY: span_context._meta.get(PROPAGATED_SESSION_ID_KEY),
             BAGGAGE_SAMPLE_RATE_KEY: sample_rate,
-            BAGGAGE_SAMPLING_DECISION_KEY: (
-                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
-            ),
+            BAGGAGE_SAMPLING_DECISION_KEY: sampling_decision_value,
             BAGGAGE_PARENT_AGENT_ID_KEY: parent_agent_span_id,
-            # Last, and length-capped: the name is the only arbitrary-length value here, and
-            # baggage truncation drops trailing items, so an oversized one costs its own entry
-            # rather than the identity keys above it.
+            # Last and capped: baggage truncation drops trailing items, so an oversized name
+            # costs its own entry rather than the identity keys above it.
             BAGGAGE_PARENT_AGENT_NAME_KEY: (
                 parent_agent_name[:BAGGAGE_AGENT_NAME_MAX_LENGTH] if parent_agent_name is not None else None
             ),
@@ -3626,12 +3612,7 @@ class LLMObs(Service):
 
     @staticmethod
     def _read_propagated_value(context: Context, propagated_key: str) -> Optional[str]:
-        """Read one propagated LLMObs value, preferring baggage over the legacy `_dd.p.*` tag.
-
-        Baggage wins because it is the carrier that survives hops that strip APM trace
-        headers, so when both are present the baggage copy is the one that was not at risk
-        of being dropped or truncated en route.
-        """
+        """Read one propagated LLMObs value, preferring baggage over the legacy `_dd.p.*` tag."""
         value = context.get_baggage_item(PROPAGATED_KEY_TO_BAGGAGE_KEY[propagated_key])
         if value is not None:
             return str(value)
@@ -3646,17 +3627,13 @@ class LLMObs(Service):
             if cls.enabled is False:
                 return
             _parent_id = cls._read_propagated_value(context, PROPAGATED_PARENT_ID_KEY)
-            if not context.trace_id or not context.span_id:
-                # No APM trace context. LLMObs context can still arrive in baggage, which is
-                # injected and extracted independently of APM trace identity — that is the
-                # case for a caller (or an intermediary proxy) that drops the APM trace
-                # headers to start a fresh trace locally.
-                if _parent_id is None:
-                    error = "missing_context"
-                    if _soft_fail:
-                        log.warning("Failed to extract trace/span ID from request headers.")
-                        return
-                    raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
+            # No APM trace context, but LLMObs context can still arrive via baggage
+            if (not context.trace_id or not context.span_id) and _parent_id is None:
+                error = "missing_context"
+                if _soft_fail:
+                    log.warning("Failed to extract trace/span ID from request headers.")
+                    return
+                raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
             if _parent_id is None or _parent_id == ROOT_PARENT_ID:
                 error = "missing_parent_id"
                 log.debug("Failed to extract LLMObs parent ID from request headers.")
@@ -3667,16 +3644,10 @@ class LLMObs(Service):
                 error = "invalid_parent_id"
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
                 return
-            # The two carriers use different formats, so the trace ID is read explicitly rather
-            # than through `_read_propagated_value`:
-            #   baggage -> canonical hex, stored as-is under CANONICAL_LLMOBS_TRACE_ID_CTX_KEY.
-            #     Nothing has to guess the format, so the ambiguous-hex class (32 hex chars that
-            #     are all digits with no leading zero) cannot be misread on this path.
-            #   tag     -> decimal wire format. Stored as-is, with normalization deferred to
-            #     `_activate_llmobs_span` so `_normalize_wire_trace_id_to_hex` is applied at most
-            #     once to a given value.
-            # The wire slot is always populated as well: a downstream hop may still be reading
-            # the tag carrier, which must stay decimal.
+            # Read explicitly, not via `_read_propagated_value`: the carriers use different
+            # formats (baggage hex, tag decimal). Keeping the hex means the reader never has to
+            # guess, so the ambiguous 32-digit-hex case cannot be misread. Both slots are filled
+            # below — a downstream hop may still be reading the decimal tag.
             canonical_llmobs_trace_id = context.get_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY)
             if canonical_llmobs_trace_id is not None:
                 canonical_llmobs_trace_id = str(canonical_llmobs_trace_id)
@@ -3699,16 +3670,15 @@ class LLMObs(Service):
                         "available. A new LLMObs trace ID will be generated."
                     )
             # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags or
-            # baggage, so every propagated key must be copied onto it explicitly.
+            # baggage, so every propagated key must be copied onto it explicitly. ml_app included:
+            # a baggage-only request never puts `_dd.p.llmobs_ml_app` on the APM context, so
+            # `_activate_llmobs_span`'s fallback read of it would come up empty.
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             if parent_llmobs_trace_id is not None:
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = parent_llmobs_trace_id
             if canonical_llmobs_trace_id is not None:
-                llmobs_context._meta[CANONICAL_LLMOBS_TRACE_ID_CTX_KEY] = canonical_llmobs_trace_id
+                llmobs_context.set_baggage_item(BAGGAGE_LLMOBS_TRACE_ID_KEY, canonical_llmobs_trace_id)
             for propagated_key in (
-                # ml_app is copied here (rather than being left to `_activate_llmobs_span`'s
-                # fallback read of the APM context's _meta) because a baggage-only inbound
-                # request never puts `_dd.p.llmobs_ml_app` on the APM context at all.
                 PROPAGATED_ML_APP_KEY,
                 PROPAGATED_SAMPLE_RATE,
                 PROPAGATED_SAMPLING_DECISION,
