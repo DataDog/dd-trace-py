@@ -803,7 +803,7 @@ def test_runtime_collector_start_failure_cleans_up_partial_resources(
     registered_hooks = []
     instances = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -856,7 +856,7 @@ def test_runtime_collector_hook_does_not_duplicate_pending_cleanup(monkeypatch):
     registered_hooks = []
     instances = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -903,7 +903,7 @@ def test_failed_start_reregisters_deferred_collector_hooks(monkeypatch):
     registered_hooks = []
     unregistered_hooks = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -1297,7 +1297,7 @@ def test_constructor_failure_rolls_back_partial_instance(monkeypatch):
     unregistered_hooks = []
     partial_instances = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -1338,7 +1338,7 @@ def test_import_hook_registration_failure_unregisters_installed_hook(monkeypatch
     registered_hooks = []
     unregistered_hooks = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -1385,7 +1385,7 @@ def test_restart_replaces_import_hook_collector_after_pending_cleanup(monkeypatc
             if self is instances[0] and self.stop_attempts < 3:
                 raise RuntimeError("cleanup failed")
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             hook(None)
@@ -1727,7 +1727,7 @@ def test_stop_retries_failed_import_hook_cleanup(monkeypatch):
     hook = mock.Mock()
     unregister_attempts = 0
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def unregister_module_hook(module, registered_hook):
             nonlocal unregister_attempts

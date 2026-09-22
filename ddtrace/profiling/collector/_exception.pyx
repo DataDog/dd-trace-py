@@ -169,30 +169,34 @@ class ExceptionCollector(collector.Collector):
             return
 
         if HAS_MONITORING:
+            state = _SamplerState(self._sampling_interval, self._collect_message)
             try:
                 # Claim the tool ID before writing _state so that a ValueError
                 # leaves the existing _state untouched. use_tool_id is the
                 # atomic claim.
                 sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
                 self._owns_tool_id = True
+                self._monitoring_registered = True
                 sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
                 sys.monitoring.register_callback(
                     _MONITORING_TOOL_ID,
                     sys.monitoring.events.RAISE,
                     _on_exception,
                 )
-            except ValueError:
+            except ValueError as e:
                 LOG.exception("Failed to set up exception monitoring")
                 if self._owns_tool_id:
-                    try:
-                        sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
-                    except Exception:
-                        LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
-                self._owns_tool_id = False
-                return
+                    self._stop_service()
 
-            _state = _SamplerState(self._sampling_interval, self._collect_message)
-            self._monitoring_registered = True
+                # Raise instead of returning so Service.start() does not mark this
+                # collector RUNNING when monitoring was never actually installed (e.g. the tool ID
+                # is still held by a previous instance that failed to free it on stop).
+                raise collector.CollectorUnavailable from e
+            except BaseException:
+                self._stop_service()
+                raise
+
+            _state = state
         else:
             LOG.debug("Exception profiling only supports Python 3.12+, skipping")
             return
@@ -206,7 +210,8 @@ class ExceptionCollector(collector.Collector):
             _state = None
             return
 
-        # Each cleanup step is independent.
+        # Each cleanup step is independent. A failed release keeps ownership
+        # state intact so service rollback can retry it.
         try:
             sys.monitoring.register_callback(
                 _MONITORING_TOOL_ID,
@@ -221,12 +226,15 @@ class ExceptionCollector(collector.Collector):
         except Exception:
             LOG.debug("Failed to disable exception monitoring events", exc_info=True)
 
-        if self._owns_tool_id:
-            try:
-                sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
-            except Exception:
-                LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
-
-        self._owns_tool_id = False
-        self._monitoring_registered = False
-        _state = None
+        try:
+            if self._owns_tool_id:
+                try:
+                    sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
+                except Exception:
+                    LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
+                    raise
+                else:
+                    self._owns_tool_id = False
+            self._monitoring_registered = False
+        finally:
+            _state = None
