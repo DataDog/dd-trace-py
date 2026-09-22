@@ -501,10 +501,11 @@ class TestRunner:
         environment: TestEnvironment,
         prepared: PreparedEnvironment,
         command_env: dict[str, str],
+        skip_ddtrace_install: bool,
     ) -> bool:
         with self._environment_lock(prepared):
             environment_is_current = self._environment_is_current(prepared)
-            if environment_is_current and not prepared.editable:
+            if environment_is_current and (not prepared.editable or skip_ddtrace_install):
                 return False
 
             venv_python = prepared.path / "bin/python"
@@ -600,8 +601,12 @@ class TestRunner:
         environments: list[TestEnvironment],
         forwarded_env: dict[str, str],
         test_args: list[str],
+        skip_ddtrace_install: bool,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
+
+        if skip_ddtrace_install and not self.in_ci:
+            print("\n⚡ Skipping refresh for current local ddtrace installations (-s)")
 
         unpin_dependencies = os.environ.get("UNPIN_DEPENDENCIES", "").lower() == "true"
         for environment in environments:
@@ -629,12 +634,15 @@ class TestRunner:
                     environment,
                     prepared,
                     command_env,
+                    skip_ddtrace_install=skip_ddtrace_install and prepared.editable,
                 )
             except TestEnvironmentError as error:
                 print(f"❌ {error}")
                 return False
             if rebuilt:
                 print("   ✅ Test environment synchronized successfully")
+            elif skip_ddtrace_install and prepared.editable:
+                print("   ✅ Reused current test environment; ddtrace installation skipped")
             elif prepared.editable:
                 print("   ✅ Reused current test environment; ddtrace installation refreshed")
             else:
@@ -659,6 +667,7 @@ class TestRunner:
         self,
         selected_environments: list[TestEnvironment],
         test_args: list[str] | None = None,
+        skip_ddtrace_install: bool = False,
     ) -> bool:
         """Execute the selected environments with per-suite service management."""
         if not selected_environments:
@@ -735,6 +744,7 @@ class TestRunner:
                 environments,
                 forwarded_env,
                 test_args or [],
+                skip_ddtrace_install,
             )
 
             # Stop services for this suite
@@ -828,7 +838,7 @@ Examples:
         "-s",
         "--skip-ddtrace-install",
         action="store_true",
-        help="Accepted for compatibility; environment reuse is automatic",
+        help="Reuse a current local ddtrace installation without refreshing it",
     )
 
     parser.add_argument(
@@ -858,13 +868,6 @@ Examples:
         test_args = []
 
     args = parser.parse_args(script_args)
-    if args.skip_ddtrace_install:
-        compatibility_out = sys.stderr if args.list else sys.stdout
-        print(
-            "ℹ️  -s/--skip-ddtrace-install is accepted for compatibility and has no effect",
-            file=compatibility_out,
-        )
-
     runner = TestRunner()
 
     # Special handling for --venv: skip all file discovery but still need suite info for services
@@ -879,6 +882,7 @@ Examples:
         success = runner.run_tests(
             environments_with_suite,
             test_args=test_args,
+            skip_ddtrace_install=args.skip_ddtrace_install,
         )
         return 0 if success else 1
 
@@ -926,6 +930,7 @@ Examples:
     success = runner.run_tests(
         selected_environments,
         test_args=test_args,
+        skip_ddtrace_install=args.skip_ddtrace_install,
     )
 
     return 0 if success else 1

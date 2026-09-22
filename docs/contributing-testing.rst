@@ -83,8 +83,10 @@ List the matching environments before selecting one by hash. The runner starts a
     $ scripts/run-tests --list tests/contrib/django/
     $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-The runner automatically reuses current dependencies and asks the native build to refresh stale extensions. The
-former ``-s``/``--skip-ddtrace-install`` option remains accepted for compatibility but has no effect.
+The runner automatically reuses current dependencies and asks the native build to refresh stale extensions. Pass
+``-s``/``--skip-ddtrace-install`` to skip that refresh when you know the current local ddtrace installation is
+usable. Dependency or project metadata changes still recreate the environment. CI always uses the prebuilt wheel
+and does not require this option.
 
 An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
 remains supported for existing workflows.
