@@ -470,9 +470,8 @@ def test_routed_span_survives_disable_before_trace_flush(llmobs, _llmobs_backend
     assert tenant_reqs, f"routed span never reached the tenant org; keys: {[_api_key(r) for r in reqs[initial_count:]]}"
 
 
-def test_routed_requests_use_direct_path_and_keep_extra_headers(monkeypatch):
-    """Routed batches must not use the Agent proxy path, and must keep configured headers."""
-    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "Authorization:Bearer-custom-token")
+def test_routed_requests_use_direct_path_not_the_agent_proxy(monkeypatch):
+    """Routed batches must not go through the Agent proxy path, which stamps the Agent's key."""
     writer = LLMObsSpanWriter(1.0, 1.0, is_agentless=False, _site=DD_SITE, _api_key=DD_API_KEY)
 
     intake, endpoint, headers = writer._destination(RoutingTarget(api_key=TENANT_A_KEY))
@@ -480,9 +479,64 @@ def test_routed_requests_use_direct_path_and_keep_extra_headers(monkeypatch):
     assert endpoint == SPAN_ENDPOINT, f"routed batch used the Agent proxy path: {endpoint}"
     assert not endpoint.startswith(EVP_PROXY_AGENT_BASE_PATH)
     assert headers["DD-API-KEY"] == TENANT_A_KEY
-    assert headers["Authorization"] == "Bearer-custom-token", "configured proxy header was dropped"
     assert EVP_SUBDOMAIN_HEADER_NAME not in headers
     assert intake == f"{AGENTLESS_SPAN_BASE_URL}.{DD_SITE}"
+
+
+def test_routed_requests_to_tenant_site_do_not_carry_extra_headers(monkeypatch):
+    """Configured extra headers may hold credentials, so a tenant-supplied site must not see them."""
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "Authorization:Bearer-secret-token")
+    writer = LLMObsSpanWriter(1.0, 1.0, is_agentless=False, _site=DD_SITE, _api_key=DD_API_KEY)
+
+    _, _, headers = writer._destination(RoutingTarget(api_key=TENANT_A_KEY, site="us5.datadoghq.com"))
+
+    assert "Authorization" not in headers, "extra headers leaked to a tenant-supplied site"
+    assert set(headers) == {"Content-Type", "DD-API-KEY"}
+
+
+def test_routed_requests_keep_extra_headers_on_override_origin(monkeypatch):
+    """An override origin is operator-supplied, and is what those headers exist for."""
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "Authorization:Bearer-custom-token")
+    writer = LLMObsSpanWriter(
+        1.0, 1.0, is_agentless=False, _site=DD_SITE, _api_key=DD_API_KEY, _override_url="http://127.0.0.1:9126"
+    )
+
+    intake, endpoint, headers = writer._destination(RoutingTarget(api_key=TENANT_A_KEY))
+
+    assert headers["Authorization"] == "Bearer-custom-token"
+    assert headers["DD-API-KEY"] == TENANT_A_KEY
+    assert intake == "http://127.0.0.1:9126"
+    assert endpoint == SPAN_ENDPOINT
+
+
+def test_tenant_buffers_are_keyed_on_api_key_and_site():
+    """Same key, different sites are distinct destinations and must not share a buffer."""
+    writer = LLMObsSpanWriter(1.0, 1.0, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    shared_key = "shared-key-1234"
+
+    writer.enqueue({"span_id": "default-site"}, [RoutingTarget(api_key=shared_key)])
+    writer.enqueue({"span_id": "us5"}, [RoutingTarget(api_key=shared_key, site="us5.datadoghq.com")])
+
+    assert len(writer._tenant_buffers) == 2, "targets sharing an API key collapsed into one buffer"
+    sites = {t.site for t in writer._tenant_buffers}
+    assert sites == {None, "us5.datadoghq.com"}
+
+
+@pytest.mark.parametrize(
+    "bad_site",
+    ["http://evil.example", "evil.example/path", "evil.example:8080", "user@evil.example", "evil example", "EVIL.com"],
+)
+def test_routing_context_rejects_non_hostname_site(bad_site):
+    """dd_site is interpolated into the intake hostname, so only a bare hostname is accepted."""
+    with pytest.raises(ValueError, match="bare Datadog site hostname"):
+        with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY, dd_site=bad_site):
+            pass
+
+
+@pytest.mark.parametrize("site", ["datadoghq.com", "us5.datadoghq.com", "datadoghq.eu", "ddog-gov.com", "datad0g.com"])
+def test_routing_context_accepts_real_sites(site):
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY, dd_site=site):
+        assert get_routing_context()["targets"][0]["site"] == site
 
 
 def test_routing_survives_thread_pool_when_worker_creates_first_llm_span(llmobs, _llmobs_backend):
