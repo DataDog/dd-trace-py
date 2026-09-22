@@ -48,7 +48,7 @@ variables:
       # dependencies that are incompatible with Python 3.14 (e.g.
       # langchain-pinecone requires <3.14). Fall back to 3.12 for those.
       case "$SCENARIO" in
-        packages_update_imported_dependencies)
+        packages_update_imported_dependencies|packages_package_for_root_module_mapping|code_provenance)
           export PYENV_VERSION="3.12.10"
           ;;
         *)
