@@ -85,8 +85,7 @@ class _DDSpanProtocol(Protocol):
     def _add_event(self, name: str, attributes: Optional[Any] = None, time_unix_nano: Optional[int] = None) -> None: ...
 
 
-def _ddmap(span, attribute, value):
-    # type: (_DDSpanProtocol, str, Union[str, bytes, NumericType]) -> _DDSpanProtocol
+def _ddmap(span: _DDSpanProtocol, attribute: str, value: Union[str, bytes, NumericType]) -> _DDSpanProtocol:
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
@@ -122,14 +121,13 @@ class Span(OtelSpan):
 
     def __init__(
         self,
-        datadog_span,  # type: _DDSpanProtocol
-        kind=SpanKind.INTERNAL,  # type: SpanKind
-        attributes=None,  # type: Optional[Mapping[str, AttributeValue]]
-        start_time=None,  # type: Optional[int]
-        record_exception=None,  # type: Optional[bool]
-        set_status_on_exception=None,  # type: Optional[bool]
-    ):
-        # type: (...) -> None
+        datadog_span: _DDSpanProtocol,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Optional[Mapping[str, AttributeValue]] = None,
+        start_time: Optional[int] = None,
+        record_exception: Optional[bool] = None,
+        set_status_on_exception: Optional[bool] = None,
+    ) -> None:
         if start_time is not None:
             # start_time should be set in nanoseconds
             datadog_span.start_ns = start_time

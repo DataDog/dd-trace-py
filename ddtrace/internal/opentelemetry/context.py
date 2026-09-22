@@ -32,7 +32,7 @@ class DDRuntimeContext:
 
         otel_span = get_current_span(otel_context)
         if isinstance(otel_span, Span):
-            self._ddcontext_provider.activate(cast(Any, otel_span._ddspan))
+            self._ddcontext_provider.activate(cast(DDSpanData, otel_span._ddspan))
             ddcontext = otel_span._ddspan.context
         elif otel_span is not INVALID_SPAN:
             ddcontext = _otel_to_dd_span_context(otel_span)
