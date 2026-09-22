@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    tracing: ``DD_TRACE_OTEL_CTX_ENABLED`` now defaults to ``false``. Warning: setting it
+    to ``true`` re-enables a Linux native memory leak. Every OS thread that exits while
+    a trace context is still attached retains memory, and process RSS can grow until the
+    process is killed.
