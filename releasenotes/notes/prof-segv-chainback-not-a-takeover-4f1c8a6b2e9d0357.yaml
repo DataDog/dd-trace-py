@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: stop reporting the stack profiler's own signal-handler chain-back as a
+    takeover by another component. Delivering a fault restored the previous handler for
+    the faulting signal only, which permanently downgraded the profiler to the slower
+    syscall-based memory copy. The profiler now reinstalls its handler and keeps the
+    faster copy; a genuine foreign handler still takes the existing fallback.

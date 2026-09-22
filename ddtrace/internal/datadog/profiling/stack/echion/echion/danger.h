@@ -31,6 +31,13 @@ uninstall_segv_handler();
 bool
 segv_handler_installed();
 
+// True if our handler restored a previous disposition while delivering a fault
+// (the unarmed chain-back in segv_handler). That restore covers only the signal
+// that faulted, leaving us owning one signal and not the other, which is
+// otherwise indistinguishable from a foreign takeover. Clears the flag.
+bool
+consume_segv_handler_chained_back();
+
 #if defined PL_LINUX
 ssize_t
 safe_memcpy_wrapper(pid_t,
