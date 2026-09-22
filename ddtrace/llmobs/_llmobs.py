@@ -3637,7 +3637,6 @@ class LLMObs(Service):
                         "Failed to extract LLMObs trace ID from request headers and no APM trace ID is "
                         "available. A new LLMObs trace ID will be generated."
                     )
-            # llmobs_context inherits nothing, so every propagated key is copied onto it below.
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             if parent_llmobs_trace_id is not None:
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = parent_llmobs_trace_id
