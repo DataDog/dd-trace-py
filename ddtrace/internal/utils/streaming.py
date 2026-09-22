@@ -221,7 +221,7 @@ class TracedStream(wrapt.ObjectProxy):
                 return chunk
 
     def __del__(self):
-        # AIDEV-NOTE: next() without exhausting never hits StopIteration, so
+        # next() without exhausting never hits StopIteration, so
         # the LLM span would stay open until process exit and later work on
         # this worker would nest under it. Finalize here as a last resort.
         try:
@@ -326,7 +326,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
                 return chunk
 
     def __del__(self):
-        # AIDEV-NOTE: see TracedStream.__del__ — same last-resort finalize for
+        # see TracedStream.__del__ — same last-resort finalize for
         # dropped __anext__ iteration.
         try:
             self._self_handler.close_stream()
