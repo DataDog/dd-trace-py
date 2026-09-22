@@ -5,6 +5,8 @@
 #include <echion/danger.h>
 #include <echion/state.h>
 
+#include "elf_symbols.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
@@ -201,8 +203,11 @@ describe_signal_owner(int signo)
         out = buf;
     } else {
         out = info.dli_fname;
+        uintptr_t offset = 0;
+        bool have_offset = false;
         if (info.dli_fbase != nullptr) {
-            const auto offset = reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(info.dli_fbase);
+            offset = reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(info.dli_fbase);
+            have_offset = true;
             char off[32];
             snprintf(off, sizeof(off), "+0x%lx", static_cast<unsigned long>(offset));
             out += off;
@@ -211,6 +216,21 @@ describe_signal_owner(int signo)
             out += " (";
             out += info.dli_sname;
             out += ")";
+        } else if (have_offset) {
+            // dladdr sees only .dynsym, and a signal handler is usually a local symbol
+            // that lives only in .symtab, so the name we most want is exactly the one it
+            // cannot give us. Read the file instead, and fall back to the build ID so a
+            // stripped binary can still be resolved offline.
+            const ElfAddressInfo elf = describe_elf_address(info.dli_fname, offset);
+            if (!elf.symbol.empty()) {
+                out += " (";
+                out += elf.symbol;
+                out += ")";
+            }
+            if (!elf.build_id.empty()) {
+                out += " build_id=";
+                out += elf.build_id;
+            }
         }
     }
     if (!has_siginfo) {

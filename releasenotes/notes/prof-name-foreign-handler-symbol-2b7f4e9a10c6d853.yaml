@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: When another component takes over the ``SIGSEGV``/``SIGBUS`` handler, the
+    stack profiler now logs which component owns it, naming the owning function and the
+    binary's build ID where they can be resolved.
