@@ -14,9 +14,11 @@ object to :func:`unregister` to remove it.
 """
 
 from abc import ABC
+from contextlib import contextmanager
 import sys
 from types import CodeType
 from typing import Any
+from typing import Iterator
 from typing import NamedTuple
 from typing import Optional
 import weakref
@@ -33,7 +35,7 @@ log = get_logger(__name__)
 
 _sys_monitoring: Any = sys.monitoring  # type: ignore[attr-defined]
 _E: Any = _sys_monitoring.events
-DISABLE: object = _sys_monitoring.DISABLE
+_DISABLE: object = _sys_monitoring.DISABLE
 
 # PY_UNWIND became a per-code "other" event only in Python 3.15 (its event bit even
 # moved, 0x1000 -> 0x2000). On 3.12-3.14 it is a global-only event that
@@ -52,18 +54,18 @@ class MonitoringToolUnavailable(RuntimeError):
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
-# for debugger/coverage/profiler/optimizer; 3 and 4 are the only undefined
-# slots for custom tools (see CPython docs). Prefer 4 and fall back to 3 if
-# another tool claimed it.
-_CANDIDATE_TOOL_IDS = (4, 3)
+# for debugger/coverage/profiler/optimizer. Use only custom slot 3 until handled-
+# exception ownership is finalized in the follow-up migration.
+_CANDIDATE_TOOL_IDS = (3,)
 
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
 
 _registry_lock = Lock()
+_pending_registrations: int = 0
 
 
-class IdentityWeakKeyDictionary:
+class _IdentityWeakKeyDictionary:
     """Weak mapping keyed by object identity (not equality).
 
     Unlike ``weakref.WeakKeyDictionary``, lookups use ``is`` rather than
@@ -138,18 +140,13 @@ class IdentityWeakKeyDictionary:
         self._data.clear()
 
 
-_registry: IdentityWeakKeyDictionary = IdentityWeakKeyDictionary()
+_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
 _subscriber_version: int = 0
-# NOTE: Event mutations use an odd generation while they are in progress and an
-# even generation when stable. Aggregate callbacks may return DISABLE only when
-# their original even generation is still current, so stale results cannot cross
-# a global restart, selective refresh, registration, or unregistration.
-_event_generation: int = 0
-# NOTE: Subscriber versions track distinct subscriber identities, not per-code
-# registrations. Coverage adds many code objects for one handler between restarts;
-# invalidating for each object would make ownership checks quadratic. The code sets
-# are weak for the same reason as _registry.
-_subscriber_codes: "dict[int, tuple[weakref.ReferenceType[MonitoringEventHandler], IdentityWeakKeyDictionary]]" = {}
+# NOTE: Event mutations use an odd epoch while they are in progress and an even
+# epoch when stable. Aggregate callbacks may return DISABLE only when their
+# original even epoch is still current, so stale results cannot cross a global
+# restart, selective refresh, registration, or unregistration.
+_event_mutation_epoch: int = 0
 
 
 class MonitoringEventHandler(ABC):
@@ -218,17 +215,29 @@ class _Entry(NamedTuple):
     events: int  # pre-computed from _events_for_handler
 
 
+class _Subscriber(NamedTuple):
+    handler_ref: weakref.ReferenceType[MonitoringEventHandler]
+    codes: _IdentityWeakKeyDictionary
+
+
+# NOTE: Subscriber versions track distinct subscriber identities, not per-code
+# registrations. Coverage adds many code objects for one handler between restarts;
+# invalidating for each object would make ownership checks quadratic. The code sets
+# are weak for the same reason as _registry.
+_subscriber_codes: dict[int, _Subscriber] = {}
+
+
 class _CodeHandlers:
     """Per-code handler table with a pre-built snapshot for hot-path dispatch."""
 
-    __slots__ = ("_by_handler", "disabled_events", "snapshot")
+    __slots__ = ("_by_handler", "possibly_disabled_events", "snapshot")
 
     def __init__(self) -> None:
         self._by_handler: dict[int, _Entry] = {}
         # Event bits for which the aggregate callback has returned DISABLE at
         # least once. This is intentionally conservative: stale bits can cause
         # an unnecessary targeted re-arm, while missing a bit can lose events.
-        self.disabled_events: int = 0
+        self.possibly_disabled_events: int = 0
         self.snapshot: tuple[_Entry, ...] = ()
 
     def __len__(self) -> int:
@@ -259,8 +268,8 @@ def _prune_subscribers() -> None:
 
     stale = [
         handler_id
-        for handler_id, (handler_ref, codes) in _subscriber_codes.items()
-        if handler_ref() is None or not len(codes)
+        for handler_id, subscriber in _subscriber_codes.items()
+        if subscriber.handler_ref() is None or not len(subscriber.codes)
     ]
     if stale:
         for handler_id in stale:
@@ -273,13 +282,13 @@ def _add_subscriber_code(code: CodeType, handler: MonitoringEventHandler) -> Non
     global _subscriber_version
 
     handler_id = id(handler)
-    registration = _subscriber_codes.get(handler_id)
-    if registration is None or registration[0]() is not handler:
-        codes = IdentityWeakKeyDictionary()
-        _subscriber_codes[handler_id] = (weakref.ref(handler), codes)
+    subscriber = _subscriber_codes.get(handler_id)
+    if subscriber is None or subscriber.handler_ref() is not handler:
+        codes = _IdentityWeakKeyDictionary()
+        _subscriber_codes[handler_id] = _Subscriber(weakref.ref(handler), codes)
         _subscriber_version += 1
     else:
-        codes = registration[1]
+        codes = subscriber.codes
     codes[code] = None
 
 
@@ -287,10 +296,10 @@ def _remove_subscriber_code(code: CodeType, handler: MonitoringEventHandler) -> 
     """Remove a code registration, invalidating when its subscriber disappears."""
     global _subscriber_version
 
-    registration = _subscriber_codes.get(id(handler))
-    if registration is None or registration[0]() is not handler:
+    subscriber = _subscriber_codes.get(id(handler))
+    if subscriber is None or subscriber.handler_ref() is not handler:
         return
-    codes = registration[1]
+    codes = subscriber.codes
     codes.pop(code, None)
     if not len(codes):
         del _subscriber_codes[id(handler)]
@@ -331,8 +340,48 @@ def _setup() -> int:
     return _tool_id
 
 
+def _release_tool_if_unused() -> None:
+    """Release the tool after the final registration; caller holds _registry_lock."""
+    global _tool_id
+
+    if _tool_id is None or _pending_registrations or len(_registry):
+        return
+
+    _prune_subscribers()
+    with _tool_lock:
+        if _tool_id is None or _pending_registrations or len(_registry):
+            return
+        tool_id = _tool_id
+        _sys_monitoring.set_events(tool_id, 0)
+        _sys_monitoring.register_callback(tool_id, _E.PY_START, None)
+        _sys_monitoring.register_callback(tool_id, _E.PY_RETURN, None)
+        if _SUPPORTS_LOCAL_PY_UNWIND:
+            _sys_monitoring.register_callback(tool_id, _E.PY_UNWIND, None)
+        _sys_monitoring.register_callback(tool_id, _E.LINE, None)
+        _sys_monitoring.free_tool_id(tool_id)
+        _tool_id = None
+
+
+@contextmanager
+def _reserve_tool_id() -> Iterator[int]:
+    """Keep the shared tool claimed while a caller prepares its registration."""
+    global _pending_registrations
+
+    with _registry_lock:
+        tool_id = _setup()
+        _pending_registrations += 1
+    try:
+        yield tool_id
+    finally:
+        with _registry_lock:
+            _pending_registrations -= 1
+            _release_tool_if_unused()
+
+
 def get_tool_id() -> int:
-    return _setup()
+    """Return the shared tool ID, claiming it if necessary."""
+    with _registry_lock:
+        return _setup()
 
 
 # ---------------------------------------------------------------------------
@@ -343,8 +392,8 @@ def get_tool_id() -> int:
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return DISABLE
-    generation = _event_generation
+        return _DISABLE
+    epoch = _event_mutation_epoch
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     # DISABLE is forwarded only when every PY_START handler for this code object
     # returns it, mirroring on_py_line. Existing handlers (the wrapping context)
@@ -352,18 +401,22 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
-            if e.handler.on_py_start(code, instruction_offset) is not DISABLE:
+            if e.handler.on_py_start(code, instruction_offset) is not _DISABLE:
                 disable = False
-    if disable and generation == _event_generation and not (generation & 1):
-        handlers.disabled_events |= _E.PY_START
-        return DISABLE
+    # Publish the possible DISABLE state before validating the vote. A concurrent
+    # refresh that starts after publication can then observe and re-arm it. If the
+    # epoch changed earlier, retain the conservative bit but reject the stale vote.
+    if disable:
+        handlers.possibly_disabled_events |= _E.PY_START
+        if epoch == _event_mutation_epoch and not (epoch & 1):
+            return _DISABLE
     return None
 
 
 def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return DISABLE
+        return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_RETURN:
@@ -374,7 +427,7 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return DISABLE
+        return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_UNWIND:
@@ -385,20 +438,23 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
 def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return DISABLE
-    generation = _event_generation
+        return _DISABLE
+    epoch = _event_mutation_epoch
     disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.LINE:
             try:
-                if e.handler.on_py_line(code, line_number) is not DISABLE:
+                if e.handler.on_py_line(code, line_number) is not _DISABLE:
                     disable = False
             except Exception:
                 log.warning("monitoring LINE handler failed", exc_info=True)
                 disable = False
-    if disable and generation == _event_generation and not (generation & 1):
-        handlers.disabled_events |= _E.LINE
-        return DISABLE
+    # Publish before validating so a concurrent refresh cannot miss a DISABLE
+    # vote that is about to be returned. Stale conservative bits are harmless.
+    if disable:
+        handlers.possibly_disabled_events |= _E.LINE
+        if epoch == _event_mutation_epoch and not (epoch & 1):
+            return _DISABLE
     return None
 
 
@@ -412,17 +468,17 @@ def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
 
 
 def _begin_event_mutation() -> None:
-    """Mark event configuration as unstable for aggregate DISABLE decisions."""
-    global _event_generation
+    """Mark event configuration unstable; callers hold _registry_lock and do not nest mutations."""
+    global _event_mutation_epoch
 
-    _event_generation += 1
+    _event_mutation_epoch += 1
 
 
 def _end_event_mutation() -> None:
-    """Publish a stable event configuration after a mutation."""
-    global _event_generation
+    """Publish stable event configuration after the matching mutation completes."""
+    global _event_mutation_epoch
 
-    _event_generation += 1
+    _event_mutation_epoch += 1
 
 
 def _rearm_local_events(tool_id: int, code: CodeType, events: int, rearm_events: int) -> None:
@@ -430,14 +486,9 @@ def _rearm_local_events(tool_id: int, code: CodeType, events: int, rearm_events:
     # restart_events() is called. Re-applying the same local events does not
     # clear it. Toggle only the requested event bits so unrelated lifecycle
     # events remain enabled throughout the re-arm operation. The caller keeps
-    # the event generation unstable across inspection and this physical toggle.
+    # the event mutation epoch unstable across inspection and this physical toggle.
     _set_local_events(tool_id, code, events & ~rearm_events)
     _set_local_events(tool_id, code, events)
-
-
-def ensure_tool() -> int:
-    """Claim the shared tool ID or raise MonitoringToolUnavailable."""
-    return _setup()
 
 
 def register(code: CodeType, handler: MonitoringEventHandler) -> None:
@@ -453,10 +504,10 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     if not handler_events:
         raise ValueError("Handler overrides no local MonitoringEventHandler methods")
 
-    tool_id: int = _setup()
     entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
+        tool_id: int = _setup()
         _begin_event_mutation()
         try:
             handlers: Optional[_CodeHandlers] = _registry.get(code)
@@ -473,9 +524,9 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
             if previous is None:
                 _add_subscriber_code(code, handler)
             local_events: int = _events_for(handlers) & _LOCAL_EVENTS
-            handlers.disabled_events &= local_events
+            handlers.possibly_disabled_events &= local_events
 
-            rearm_events = handler_events & existing_events & handlers.disabled_events
+            rearm_events = handler_events & existing_events & handlers.possibly_disabled_events
             if rearm_events:
                 _rearm_local_events(tool_id, code, local_events, rearm_events)
             else:
@@ -497,31 +548,25 @@ def refresh(code: CodeType, events: int) -> None:
 
         _begin_event_mutation()
         try:
-            rearm_events = requested_events & handlers.disabled_events
+            rearm_events = requested_events & handlers.possibly_disabled_events
             if rearm_events:
                 _rearm_local_events(_tool_id, code, local_events, rearm_events)
         finally:
             _end_event_mutation()
 
 
-def restart_events(handler: MonitoringEventHandler, *, force: bool = False) -> Optional[int]:
-    """Restart events and return the subscriber version on success.
-
-    By default, handler must be the sole ddtrace subscriber and no external tool
-    may be visible. force bypasses those safeguards. The handler argument is an
-    ownership check only; the underlying sys.monitoring restart remains global.
-    """
+def restart_events(handler: MonitoringEventHandler) -> Optional[int]:
+    """Restart events when handler has exclusive ownership, returning its subscriber version."""
     with _registry_lock:
-        if not force:
-            _prune_subscribers()
-            if len(_subscriber_codes) != 1 or _tool_id is None:
+        _prune_subscribers()
+        if len(_subscriber_codes) != 1 or _tool_id is None:
+            return None
+        subscriber = next(iter(_subscriber_codes.values()))
+        if subscriber.handler_ref() is not handler:
+            return None
+        for tool_id in range(6):
+            if tool_id != _tool_id and _sys_monitoring.get_tool(tool_id) is not None:
                 return None
-            subscriber_ref, _codes = next(iter(_subscriber_codes.values()))
-            if subscriber_ref() is not handler:
-                return None
-            for tool_id in range(6):
-                if tool_id != _tool_id and _sys_monitoring.get_tool(tool_id) is not None:
-                    return None
 
         # NOTE: The external-tool scan and restart are not atomic because
         # sys.monitoring exposes no shared lock or tool-scoped restart. This narrow
@@ -536,7 +581,12 @@ def restart_events(handler: MonitoringEventHandler, *, force: bool = False) -> O
 
 
 def subscriber_version_is_current(version: int) -> bool:
-    """Return whether the local subscriber set still has version."""
+    """Return whether the local subscriber set still has version.
+
+    Dead weak registrations are pruned by restart_events(), not by this hot-path
+    check. This can conservatively retain a stale version until the next restart
+    attempt, but a new subscriber always invalidates it immediately.
+    """
     return version == _subscriber_version
 
 
@@ -561,7 +611,8 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
             else:
                 assert _tool_id is not None  # nosec
                 local_events = _events_for(handlers) & _LOCAL_EVENTS
-                handlers.disabled_events &= local_events
+                handlers.possibly_disabled_events &= local_events
                 _set_local_events(_tool_id, code, local_events)
         finally:
             _end_event_mutation()
+        _release_tool_if_unused()

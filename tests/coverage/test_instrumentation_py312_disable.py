@@ -17,7 +17,7 @@ def _restore_coverage_state():
     orig_hooks = [(code, m._CODE_HOOKS[code]) for code in m._CODE_HOOKS]
     orig_seen = [(code, set(m._seen_event_locations[code])) for code in m._seen_event_locations]
     orig_rearm_generation = m._rearm_generation
-    orig_single_subscriber_version = m._single_subscriber_version
+    orig_exclusive_restart_version = m._exclusive_restart_version
     orig_warned = m._warned_tool_unavailable
 
     try:
@@ -31,8 +31,28 @@ def _restore_coverage_state():
             for code, locations in orig_seen:
                 m._seen_event_locations[code] = locations
             m._rearm_generation = orig_rearm_generation
-        m._single_subscriber_version = orig_single_subscriber_version
+        m._exclusive_restart_version = orig_exclusive_restart_version
         m._warned_tool_unavailable = orig_warned
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_coverage_registries_do_not_retain_code_objects():
+    import gc
+    import weakref
+
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    code_obj = compile("x = 1", "<collectable>", "exec")
+    collected = weakref.ref(code_obj)
+    m._CODE_HOOKS[code_obj] = (lambda info: None, "/test/path.py", {}, None, None, None)
+    m._seen_event_locations[code_obj] = {1}
+
+    del code_obj
+    gc.collect()
+
+    assert collected() is None
+    assert len(m._CODE_HOOKS) == 0
+    assert len(m._seen_event_locations) == 0
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
@@ -89,12 +109,12 @@ def test_inflight_dispatch_does_not_disable_after_rearm(handler_name, shared, mo
         def on_py_start(self, code, instruction_offset):
             started.set()
             release.wait()
-            return monitoring.DISABLE
+            return monitoring._DISABLE
 
         def on_py_line(self, code, line_number):
             started.set()
             release.wait()
-            return monitoring.DISABLE
+            return monitoring._DISABLE
 
     def hook(_info):
         if not shared:
@@ -103,7 +123,7 @@ def test_inflight_dispatch_does_not_disable_after_rearm(handler_name, shared, mo
 
     code_obj = compile("x = 1", "<inflight>", "exec")
     m._CODE_HOOKS[code_obj] = (hook, "/test/path.py", {}, None, None, None)
-    m._single_subscriber_version = None
+    m._exclusive_restart_version = None
     coverage_handler = getattr(m, handler_name)()
     blocking_handler = BlockingHandler()
     event = monitoring._E.LINE if handler_name == "_CoverageLineHandler" else monitoring._E.PY_START
@@ -128,7 +148,7 @@ def test_inflight_dispatch_does_not_disable_after_rearm(handler_name, shared, mo
         try:
             assert started.wait(timeout=5)
             m._rearm_disabled()
-            assert (m._single_subscriber_version is None) is shared
+            assert (m._exclusive_restart_version is None) is shared
         finally:
             release.set()
             thread.join(timeout=5)
@@ -358,13 +378,13 @@ def test_rearm_disabled_uses_global_restart_for_single_subscriber(monkeypatch):
     )
 
     code_obj = compile("a = 1", "<a>", "exec")
-    m._single_subscriber_version = None
+    m._exclusive_restart_version = None
     assert m._claim_event(code_obj, 1)[0]
 
     m._rearm_disabled()
 
     assert restarted == [m._handler]
-    assert m._single_subscriber_version == 42
+    assert m._exclusive_restart_version == 42
     assert len(m._seen_event_locations) == 0
 
 
@@ -374,7 +394,7 @@ def test_claim_event_skips_software_deduplication_for_single_subscriber(monkeypa
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
     monkeypatch.setattr(monitoring, "subscriber_version_is_current", lambda version: version == 42)
-    m._single_subscriber_version = 42
+    m._exclusive_restart_version = 42
     code_obj = compile("a = 1", "<a>", "exec")
 
     assert m._claim_event(code_obj, 1)[0]
@@ -392,7 +412,7 @@ def test_rearm_disabled_refreshes_all_code_after_single_subscriber_state_ends(mo
     hook_data = (lambda info: None, "/test.py", {}, None, None, None)
     m._CODE_HOOKS[code_a] = hook_data
     m._CODE_HOOKS[code_b] = hook_data
-    m._single_subscriber_version = 42
+    m._exclusive_restart_version = 42
 
     refreshed = []
     monkeypatch.setattr(monitoring, "restart_events", lambda _handler: None)
@@ -402,28 +422,31 @@ def test_rearm_disabled_refreshes_all_code_after_single_subscriber_state_ends(mo
 
     assert sorted(id(code) for code, _events in refreshed) == sorted((id(code_a), id(code_b)))
     assert all(events == m._EVENT for _code, events in refreshed)
-    assert m._single_subscriber_version is None
+    assert m._exclusive_restart_version is None
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_instrument_all_lines_retries_after_multiplexer_unavailable(monkeypatch):
     """A transient slot clash skips one module without permanently disabling coverage."""
+    from contextlib import contextmanager
+
     from ddtrace.internal import monitoring
     from ddtrace.internal.coverage.coverage_lines import CoverageLines
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
     attempts = 0
 
-    def ensure_tool():
+    @contextmanager
+    def reserve_tool_id():
         nonlocal attempts
         attempts += 1
         if attempts == 1:
             raise monitoring.MonitoringToolUnavailable
-        return 4
+        yield 3
 
     instrumented_lines = CoverageLines()
     instrumented_lines.add(1)
-    monkeypatch.setattr(m._monitoring, "ensure_tool", ensure_tool)
+    monkeypatch.setattr(m._monitoring, "_reserve_tool_id", reserve_tool_id)
     monkeypatch.setattr(
         m,
         "_instrument_with_monitoring",

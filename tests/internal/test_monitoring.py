@@ -38,7 +38,7 @@ class _MonitoringEvents(Protocol):
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
 # source module under a pre-3.15 Python version.
 _E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)
-_DISABLE: object = cast(object, monitoring.DISABLE)
+_DISABLE: object = cast(object, monitoring._DISABLE)
 _LOCAL_EVENTS: int = cast(int, monitoring._LOCAL_EVENTS)
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
@@ -152,10 +152,8 @@ def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
 
     outsider = Handler()
     assert monitoring.restart_events(outsider) is None
-    forced_version = monitoring.restart_events(outsider, force=True)
 
     version = monitoring.restart_events(first)
-    assert version == forced_version
     assert version is not None
     assert monitoring.subscriber_version_is_current(version)
 
@@ -167,14 +165,13 @@ def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
     assert monitoring.subscriber_version_is_current(version)
     assert monitoring.restart_events(first) == version
 
-    own_tool = monitoring.ensure_tool()
+    own_tool = monitoring.get_tool_id()
     external_tool = next(
         tool_id for tool_id in range(6) if tool_id != own_tool and sys_monitoring.get_tool(tool_id) is None
     )
     sys_monitoring.use_tool_id(external_tool, "external")
     try:
         assert monitoring.restart_events(first) is None
-        assert monitoring.restart_events(first, force=True) == version
     finally:
         sys_monitoring.free_tool_id(external_tool)
 
@@ -243,10 +240,11 @@ def test_sole_subscriber_survives_collected_code_objects() -> None:
     collected = weakref.ref(ghost_code)
     del ghost_code
     gc.collect()
-    if collected() is None:
-        version = monitoring.restart_events(sole)
-        assert version is not None
-        assert monitoring.restart_events(sole) == version
+    assert collected() is None
+
+    version = monitoring.restart_events(sole)
+    assert version is not None
+    assert monitoring.restart_events(sole) == version
     assert ghost is not None
 
 
@@ -597,17 +595,71 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
 
 
-def test_multiplexer_does_not_claim_exception_profiler_tool_id() -> None:
-    """Tool ID 4 is reserved for ExceptionCollector; the multiplexer must not take it."""
-    candidates: tuple[int, ...] = cast(tuple[int, ...], monitoring._CANDIDATE_TOOL_IDS)  # type: ignore[has-type]
-    assert 4 not in candidates
-    tool_id: int = monitoring.get_tool_id()
-    assert tool_id != 4
+def test_multiplexer_uses_only_tool_id_3() -> None:
+    """Coverage uses only slot 3 until handled-exception ownership is finalized."""
+    assert monitoring._CANDIDATE_TOOL_IDS == (3,)
+    assert monitoring.get_tool_id() == 3
 
 
 @pytest.mark.subprocess(out=None, err=None)
-def test_ensure_tool_falls_back_without_disturbing_occupied_slot() -> None:
-    """Tool setup uses the remaining custom slot without disturbing its owner."""
+def test_tool_reservation_releases_unregistered_slot() -> None:
+    import sys
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+    with monitoring._reserve_tool_id() as tool_id:
+        assert tool_id == 3
+        assert sys_monitoring.get_tool(tool_id) == "ddtrace"
+
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_last_unregister_releases_tool_and_callbacks() -> None:
+    import sys
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    def target() -> None:
+        pass
+
+    handler = Handler()
+    monitoring.register(target.__code__, handler)
+    tool_id = monitoring._tool_id
+    assert tool_id == 3
+
+    monitoring.unregister(target.__code__, handler)
+
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
+
+    sys_monitoring.use_tool_id(tool_id, "external")
+
+    def callback(code: CodeType, line_number: int) -> None:
+        pass
+
+    assert sys_monitoring.register_callback(tool_id, sys_monitoring.events.LINE, callback) is None
+    sys_monitoring.register_callback(tool_id, sys_monitoring.events.LINE, None)
+    sys_monitoring.free_tool_id(tool_id)
+
+    monitoring.register(target.__code__, handler)
+    assert monitoring._tool_id == tool_id
+    monitoring.unregister(target.__code__, handler)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_get_tool_id_ignores_occupied_non_candidate_slot() -> None:
+    """An owner of non-candidate slot 4 does not affect multiplexer setup on slot 3."""
     import sys
 
     sys_monitoring = getattr(sys, "monitoring")
@@ -615,29 +667,28 @@ def test_ensure_tool_falls_back_without_disturbing_occupied_slot() -> None:
 
     from ddtrace.internal import monitoring
 
-    assert monitoring.ensure_tool() == 3
+    assert monitoring.get_tool_id() == 3
     assert sys_monitoring.get_tool(4) == "external"
     assert sys_monitoring.get_tool(3) == "ddtrace"
 
 
 @pytest.mark.subprocess(out=None, err=None)
-def test_ensure_tool_fails_without_disturbing_occupied_slots() -> None:
-    """Tool setup raises only after preserving both external custom-slot owners."""
+def test_get_tool_id_fails_without_falling_back_to_slot_4() -> None:
+    """Tool setup preserves slot 3's owner and does not fall back to slot 4."""
     import sys
 
     import pytest
 
     sys_monitoring = getattr(sys, "monitoring")
-    sys_monitoring.use_tool_id(4, "external-4")
-    sys_monitoring.use_tool_id(3, "external-3")
+    sys_monitoring.use_tool_id(3, "external")
 
     from ddtrace.internal import monitoring
 
     with pytest.raises(monitoring.MonitoringToolUnavailable):
-        monitoring.ensure_tool()
+        monitoring.get_tool_id()
 
-    assert sys_monitoring.get_tool(4) == "external-4"
-    assert sys_monitoring.get_tool(3) == "external-3"
+    assert sys_monitoring.get_tool(3) == "external"
+    assert sys_monitoring.get_tool(4) is None
 
 
 def test_py_start_disable_forwarded_when_all_handlers_return_disable(
@@ -784,6 +835,49 @@ def test_register_invalidates_inflight_disable(
     assert results == [None]
     assert monitoring._on_py_line(fn.__code__, 1) is _DISABLE
     assert second.lines == [1]
+
+
+@pytest.mark.parametrize(("callback_name", "event"), [("_on_py_start", _E.PY_START), ("_on_py_line", _E.LINE)])
+def test_refresh_after_disable_publication_observes_pending_vote(
+    monkeypatch: pytest.MonkeyPatch,
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
+    event: int,
+) -> None:
+    """A refresh between DISABLE publication and validation observes the pending vote."""
+
+    class DisablingHandler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, DisablingHandler())
+    rearmed: list[int] = []
+    monkeypatch.setattr(
+        monitoring,
+        "_rearm_local_events",
+        lambda _tool_id, _code, _events, rearm_events: rearmed.append(rearm_events),
+    )
+
+    class RefreshingEpoch(int):
+        refreshed = False
+
+        def __eq__(self, other: object) -> bool:
+            if not self.refreshed:
+                self.refreshed = True
+                monitoring.refresh(fn.__code__, event)
+            return False
+
+    monkeypatch.setattr(monitoring, "_event_mutation_epoch", RefreshingEpoch(monitoring._event_mutation_epoch))
+
+    callback = getattr(monitoring, callback_name)
+    assert callback(fn.__code__, 1) is None
+    assert rearmed == [event]
 
 
 def test_py_start_continues_when_any_handler_declines_disable(

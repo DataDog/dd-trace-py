@@ -377,6 +377,12 @@ monitoring.register(code, handler)
 monitoring.unregister(code, handler)
 ```
 
+The multiplexer keeps the tool claimed while registrations exist and releases
+it after the final registration is removed. Releasing first disables events and
+removes callbacks, so another monitoring consumer can safely reuse the scarce
+slot. Instrumentation that must transform code before registering holds a short
+reservation across that preparation to prevent teardown from racing registration.
+
 > [!WARNING]
 > Do not call `register()` or `unregister()` from inside a handler method —
 > doing so mutates the handler list while it is being iterated.
@@ -403,17 +409,24 @@ has returned `DISABLE`, so a rejected request does not cause a physical re-arm.
 already be disabled. Call `monitoring.refresh(code, events)` when a handler
 becomes interested in those event bits again.
 
+Callbacks run from an immutable handler snapshot. If event configuration changes
+while a callback is running, its handlers still complete, but the multiplexer
+drops that callback's stale aggregate `DISABLE` vote. A newly registered handler
+does not receive an event that began before registration; it receives subsequent
+events without the old callback immediately disabling them again.
+
 `restart_events(handler)` provides a best-effort global shortcut when `handler`
 is the sole ddtrace subscriber and no external monitoring tool is visible. The
 handler argument is an ownership check, not a scope: the underlying restart is
 still global. If either condition fails, callers must use the selective refresh
 path above, which only toggles ddtrace's tool ID for the requested code and event
-bits. Passing `force=True` bypasses those safeguards.
+bits.
 
 On success, `restart_events()` returns a subscriber version. The version changes
 only when the set of distinct subscribers changes, not when an existing
-subscriber registers more code objects. Callers can retain it and use
-`subscriber_version_is_current()` to re-check sole ownership without scanning
+subscriber registers more code objects. Dead weak registrations are pruned the
+next time `restart_events()` checks ownership. Callers can retain the version and
+use `subscriber_version_is_current()` to re-check sole ownership without scanning
 all registered code objects after ordinary imports.
 
 ### Error Isolation

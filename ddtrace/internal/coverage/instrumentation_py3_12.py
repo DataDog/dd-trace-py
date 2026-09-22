@@ -1,9 +1,12 @@
 """Coverage instrumentation for Python 3.12+ using the sys.monitoring API.
 
 Line mode listens for LINE events and file mode listens for PY_START. Both use
-one handler registered through ddtrace's shared monitoring multiplexer. Between
-test contexts, _rearm_disabled() uses the single-subscriber fast path when no
-external tool is visible and otherwise refreshes only ddtrace's tool.
+one handler registered through ddtrace's shared monitoring multiplexer and both
+always dispatch through that multiplexer.
+
+Re-arming has two paths. Exclusive coverage uses one guarded global restart and
+skips software deduplication. Shared monitoring uses per-code, tool-scoped
+refreshes and software deduplication so other subscribers keep their state.
 """
 
 import dis
@@ -74,9 +77,9 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
 # INSTRUCTION events. Static import tracking (iter_import_events/import_names_by_line) already
 # works on 3.15+ and is used as the fallback.
 
-# NOTE: Coverage registers through ddtrace's shared multiplexer, which tries tool slots 4 and 3.
-# It must not claim coverage.py's conventional slot 1, and it must coexist with other ddtrace
-# monitoring subscribers through the same selected tool.
+# NOTE: Coverage registers through ddtrace's shared multiplexer on tool slot 3. Slot 4 is not a
+# candidate until handled-exception ownership is finalized in the follow-up migration. Coverage
+# must not claim coverage.py's conventional slot 1.
 # The sys.monitoring event this collector listens on. The actual event enabled per code object
 # is derived from the handler's overridden methods (PY_START for file-level, LINE for line-level)
 # by the multiplexer; this constant is kept for observability and test compatibility.
@@ -93,7 +96,7 @@ ImportHookType = t.Optional[t.Callable[[str, ImportName], None]]  # noqa: UP006
 CodeHookData = t.Tuple[HookType, str, ImportNamesByLine, LineHookType, FileHookType, ImportHookType]  # noqa: UP006
 # Code objects compare structurally, so this registry must use identity keys. It is weak to avoid
 # retaining dynamically compiled code after the application drops it.
-_CODE_HOOKS: "_monitoring.IdentityWeakKeyDictionary" = _monitoring.IdentityWeakKeyDictionary()
+_CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 
 # NOTE: Coverage handlers return DISABLE after reporting a location to avoid redundant callbacks
 # in loops. _rearm_disabled() restores those callbacks at each context or session start: it uses a
@@ -104,10 +107,10 @@ _CODE_HOOKS: "_monitoring.IdentityWeakKeyDictionary" = _monitoring.IdentityWeakK
 # when another multiplexer handler keeps an event enabled, the keys identify code objects whose
 # DISABLE marks need to be refreshed for the next context. Identity keys are required because equal
 # code objects still have independent monitoring state.
-_seen_event_locations: "_monitoring.IdentityWeakKeyDictionary" = _monitoring.IdentityWeakKeyDictionary()
+_seen_event_locations: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 _rearm_lock = Lock()
 _rearm_generation: int = 0
-_single_subscriber_version: t.Optional[int] = None
+_exclusive_restart_version: t.Optional[int] = None
 _FILE_EVENT_LOCATION = -1
 
 # Avoid repeating the same warning for every imported module while no tool slot is available.
@@ -117,7 +120,7 @@ _warned_tool_unavailable: bool = False
 
 def _claim_event(code: CodeType, location: int) -> tuple[bool, int]:
     """Return whether coverage should report this location and its claim generation."""
-    if _single_subscriber_version is not None and _monitoring.subscriber_version_is_current(_single_subscriber_version):
+    if _exclusive_restart_version is not None and _monitoring.subscriber_version_is_current(_exclusive_restart_version):
         return True, _rearm_generation
 
     with _rearm_lock:
@@ -151,10 +154,10 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
     def on_py_start(self, code: CodeType, instruction_offset: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
         if hook_data is None:
-            return _monitoring.DISABLE
+            return _monitoring._DISABLE
         claimed, generation = _claim_event(code, _FILE_EVENT_LOCATION)
         if not claimed:
-            return _monitoring.DISABLE
+            return _monitoring._DISABLE
         hook, path, import_names, _line_hook, file_hook, import_hook = hook_data
 
         try:
@@ -174,7 +177,7 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
             _release_event(code, _FILE_EVENT_LOCATION, generation)
             raise
 
-        return _monitoring.DISABLE
+        return _monitoring._DISABLE
 
 
 class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
@@ -183,10 +186,10 @@ class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
     def on_py_line(self, code: CodeType, line_number: int) -> t.Optional[object]:
         hook_data = _CODE_HOOKS.get(code)
         if hook_data is None:
-            return _monitoring.DISABLE
+            return _monitoring._DISABLE
         claimed, generation = _claim_event(code, line_number)
         if not claimed:
-            return _monitoring.DISABLE
+            return _monitoring._DISABLE
         hook, path, import_names, line_hook, _file_hook, import_hook = hook_data
 
         try:
@@ -204,7 +207,7 @@ class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
             _release_event(code, line_number, generation)
             raise
 
-        return _monitoring.DISABLE
+        return _monitoring._DISABLE
 
 
 # A single shared handler instance is registered for every instrumented code object; it dispatches
@@ -223,20 +226,20 @@ def _rearm_disabled() -> None:
     subscriber and no external monitoring tool is visible. Otherwise the
     tool-scoped fallback keeps other subscribers' disabled-event state intact.
     """
+    global _exclusive_restart_version
     global _rearm_generation
-    global _single_subscriber_version
 
     version = _monitoring.restart_events(_handler)
     with _rearm_lock:
         if version is not None:
-            _single_subscriber_version = version
+            _exclusive_restart_version = version
             _seen_event_locations.clear()
             _rearm_generation += 1
             return
 
-        was_single_subscriber = _single_subscriber_version is not None
-        _single_subscriber_version = None
-        if was_single_subscriber:
+        was_exclusive = _exclusive_restart_version is not None
+        _exclusive_restart_version = None
+        if was_exclusive:
             codes = list(_CODE_HOOKS)
         elif _seen_event_locations:
             codes = list(_seen_event_locations)
@@ -267,14 +270,15 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         Tuple of (code object, CoverageLines with instrumentable lines)
 
     Coverage registers one handler with the shared sys.monitoring layer instead of claiming its
-    own tool slot. While it is the only visible subscriber, events use direct delivery and one
-    best-effort global restart per context. If another subscriber appears, normal fan-out and
-    tool-scoped re-arming preserve isolation.
+    own tool slot. While it is the only visible subscriber, one guarded global restart re-arms
+    events per context. If another subscriber appears, normal fan-out and tool-scoped re-arming
+    preserve isolation.
     """
     global _warned_tool_unavailable
 
     try:
-        _monitoring.ensure_tool()
+        with _monitoring._reserve_tool_id():
+            result = _instrument_with_monitoring(code, hook, path, package)
     except _monitoring.MonitoringToolUnavailable:
         if not _warned_tool_unavailable:
             _warned_tool_unavailable = True
@@ -285,7 +289,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         return code, CoverageLines()
 
     _warned_tool_unavailable = False
-    return _instrument_with_monitoring(code, hook, path, package)
+    return result
 
 
 def _instrument_with_monitoring(

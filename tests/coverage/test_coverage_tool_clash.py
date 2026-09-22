@@ -8,8 +8,8 @@ import pytest
 def test_coverage_id_clash_does_not_affect_ddtrace():
     """Another tool holding COVERAGE_ID must not prevent ddtrace from collecting coverage.
 
-    ddtrace's coverage registers with the shared sys.monitoring multiplexer, which tries custom
-    slots 4 and 3. It never uses COVERAGE_ID (slot 1), the slot conventionally held by coverage.py.
+    ddtrace's coverage registers with the shared sys.monitoring multiplexer on custom slot 3.
+    It never uses COVERAGE_ID (slot 1), the slot conventionally held by coverage.py.
     """
     import os
     from pathlib import Path
@@ -53,7 +53,7 @@ def test_coverage_id_clash_does_not_affect_ddtrace():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
 @pytest.mark.subprocess(out=None, err=None)
 def test_dd_tool_slot_clash_causes_graceful_degradation():
-    """If both custom slots are taken, ddtrace logs a warning and skips coverage."""
+    """If slot 3 is taken, ddtrace logs a warning and skips coverage."""
     import os
     from pathlib import Path
     import sys
@@ -65,8 +65,7 @@ def test_dd_tool_slot_clash_causes_graceful_degradation():
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    for slot in (4, 3):
-        sys.monitoring.use_tool_id(slot, "something_else")
+    sys.monitoring.use_tool_id(3, "something_else")
 
     install(include_paths=[include_path], collect_import_time_coverage=True)
 
