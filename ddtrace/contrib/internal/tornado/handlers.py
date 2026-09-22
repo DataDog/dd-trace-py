@@ -74,6 +74,7 @@ async def execute(func, handler, args, kwargs):
                 "headers": headers,
                 "remote_addr": request.remote_ip,
                 "headers_case_sensitive": True,
+                "integration_config": config.tornado,
             }
         )
         with request_context as ctx:
