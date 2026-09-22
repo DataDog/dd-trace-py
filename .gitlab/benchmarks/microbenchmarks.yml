@@ -1,6 +1,10 @@
 include:
 - project: 'DataDog/benchmarking-platform-tools'
   file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+- local: ".gitlab/retry-policies.yml"
+- local: ".gitlab/retry-policies-main.yml"
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "main"
 
 workflow:
   auto_cancel:
