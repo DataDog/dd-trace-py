@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+from importlib import resources
 from pathlib import Path
 import re
 from types import CoroutineType
@@ -54,6 +55,10 @@ _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
     r'^requires-python\s*=\s*"[^"]*<(\d+)\.(\d+)"',
     re.MULTILINE,
 )
+
+
+def _ddtrace_source(path: str) -> str:
+    return resources.files("ddtrace").joinpath(path.removeprefix("ddtrace/")).read_text()
 
 
 def _riotfile_simple_str_assignment(source: str, name: str) -> str | None:
@@ -154,7 +159,7 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
         "is_wrap_supported",
     }
     for relpath in _FEATURE_GATE_MODULES:
-        source: str = (_REPO_ROOT / relpath).read_text()
+        source: str = _ddtrace_source(relpath)
         tree: ast.Module = ast.parse(source)
         found_315_gate: bool = False
         for node in ast.walk(tree):
