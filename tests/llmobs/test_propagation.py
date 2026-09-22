@@ -30,7 +30,6 @@ from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
-from ddtrace.llmobs._llmobs import LLMObsActivateDistributedHeadersError
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
@@ -1293,14 +1292,9 @@ def test_activate_baggage_only_without_trace_id_generates_one(llmobs):
         assert get_llmobs_trace_id(span) is not None
 
 
-def test_activate_no_context_at_all_raises(llmobs):
-    """Neither carrier has anything: the hard-fail public API path still raises."""
-    with pytest.raises(LLMObsActivateDistributedHeadersError):
-        llmobs._instance._activate_llmobs_distributed_context({}, Context(), _soft_fail=False)
-
-
-def test_activate_no_context_at_all_soft_fails(llmobs):
-    llmobs._instance._activate_llmobs_distributed_context({}, Context(), _soft_fail=True)
+def test_activate_no_context_at_all_is_a_no_op(llmobs):
+    """Neither carrier has anything: activation quietly does nothing, it does not raise."""
+    llmobs._instance._activate_llmobs_distributed_context({}, Context())
     with llmobs.workflow("w") as span:
         assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
 

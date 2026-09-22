@@ -359,12 +359,6 @@ class LLMObsInjectDistributedHeadersError(Exception):
     pass
 
 
-class LLMObsActivateDistributedHeadersError(Exception):
-    """Error raised when activating distributed headers."""
-
-    pass
-
-
 def _deprecate_prompt_label(method: str) -> None:
     deprecate(
         prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
@@ -904,7 +898,7 @@ class LLMObs(Service):
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
         core.reset_listeners(
             "http.activate_distributed_headers",
-            self._activate_llmobs_distributed_context_soft_fail,
+            self._activate_llmobs_distributed_context,
         )
         core.reset_listeners("threading.submit", self._current_trace_context)
         core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
@@ -1071,7 +1065,7 @@ class LLMObs(Service):
             core.on("http.span_inject", cls._inject_llmobs_context)
             core.on(
                 "http.activate_distributed_headers",
-                cls._activate_llmobs_distributed_context_soft_fail,
+                cls._activate_llmobs_distributed_context,
             )
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
             core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
@@ -3606,10 +3600,6 @@ class LLMObs(Service):
         finally:
             telemetry.record_inject_distributed_headers(error)
 
-    @classmethod
-    def _activate_llmobs_distributed_context_soft_fail(cls, request_headers: dict[str, str], context: Context) -> None:
-        cls._activate_llmobs_distributed_context(request_headers, context, _soft_fail=True)
-
     @staticmethod
     def _read_propagated_value(context: Context, propagated_key: str) -> Optional[str]:
         """Read one propagated LLMObs value, preferring baggage over the legacy `_dd.p.*` tag."""
@@ -3619,24 +3609,15 @@ class LLMObs(Service):
         return context._meta.get(propagated_key)
 
     @classmethod
-    def _activate_llmobs_distributed_context(
-        cls, request_headers: dict[str, str], context: Context, _soft_fail: bool = False
-    ) -> None:
+    def _activate_llmobs_distributed_context(cls, request_headers: dict[str, str], context: Context) -> None:
         error = None
         try:
             if cls.enabled is False:
                 return
+            # APM trace identity is irrelevant here: the LLMObs parent ID rides baggage and the
+            # `_dd.p.llmobs_*` tags, so a hop that drops the APM trace headers still carries a
+            # usable LLMObs context. The parent ID alone decides whether there is one.
             _parent_id = cls._read_propagated_value(context, PROPAGATED_PARENT_ID_KEY)
-            # The LLMObs parent ID is the only thing actually required; it rides baggage,
-            # independently of the APM trace headers. The APM IDs only pick the failure mode:
-            # neither carrier present means the headers are unusable (hard error), whereas a
-            # valid APM trace that simply carries no LLMObs context is an ordinary miss below.
-            if _parent_id is None and (not context.trace_id or not context.span_id):
-                error = "missing_context"
-                if _soft_fail:
-                    log.warning("Failed to extract trace/span ID from request headers.")
-                    return
-                raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
             if _parent_id is None or _parent_id == ROOT_PARENT_ID:
                 error = "missing_parent_id"
                 log.debug("Failed to extract LLMObs parent ID from request headers.")
@@ -3711,7 +3692,7 @@ class LLMObs(Service):
             return
         context = HTTPPropagator.extract(request_headers)
         cls._instance.tracer.context_provider.activate(context)
-        cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=False)
+        cls._instance._activate_llmobs_distributed_context(request_headers, context)
 
 
 # Initialize the default LLMObs instance before exposing the service to integrations.
