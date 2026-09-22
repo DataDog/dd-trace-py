@@ -12,11 +12,11 @@ replayed.  This is buffer-then-evaluate, NOT live forwarding — do not
 module exists to prevent).
 """
 
+from collections.abc import AsyncIterator
+from collections.abc import Iterator
 import inspect
 from typing import Any
-from typing import AsyncIterator
 from typing import Callable
-from typing import Iterator
 from typing import Optional
 
 import wrapt
@@ -75,7 +75,7 @@ def _text_delta_from_chunk(chunk: Any) -> Optional[str]:
 def _reconstruct_and_evaluate(reconstruct: ReconstructFn, evaluate: EvaluateFn, chunks: list[Any]) -> None:
     """Reconstruct a provider response from buffered *chunks* and run the AI Guard verdict.
 
-    AIDEV-NOTE: reconstruction must fail OPEN -- a converter bug must not break
+    Reconstruction must fail OPEN -- a converter bug must not break
     the user's legitimate stream. Only ``evaluate`` (a block decision) is allowed
     to raise; reconstruction errors are swallowed and the buffer is replayed
     unevaluated. ``evaluate`` itself (``_anthropic_messages_create_after``) already

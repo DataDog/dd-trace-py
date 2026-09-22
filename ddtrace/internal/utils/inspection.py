@@ -1,4 +1,5 @@
 from collections import deque
+from collections.abc import Iterator
 from dis import findlinestarts
 from functools import lru_cache
 from functools import partial
@@ -7,7 +8,6 @@ from pathlib import Path
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
-from typing import Iterator
 from typing import Optional
 from typing import cast
 import weakref
@@ -122,7 +122,27 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             except AttributeError:
                 pass
 
-        # Last resort
+        # PERF: g itself is the answer when it already matches, none of the explicit wrapper
+        # relationships above led elsewhere, and the queue holds no other candidate that the
+        # BFS would have reached first. Both conditions are load-bearing:
+        #   - checking here rather than before the probes preserves their precedence, so a
+        #     wrapper sharing the target's name and file still resolves to the original it
+        #     closes over;
+        #   - requiring an empty queue keeps the BFS honest when an outer wrapper matches but
+        #     a queued intermediate leads to the real original (see
+        #     test_undecorated_same_name_outer_wrapper_defers_to_queued_candidates).
+        # For a plain function neither applies and the expensive __dir__() scan below is
+        # skipped, which is the case the pytest plugin hits once per test.
+        if not q and _isinstance(g, FunctionType) and match(g):
+            return g
+
+        # Last resort.
+        # NOTE: the try wraps the whole loop, so the first name in object.__dir__(g) that is
+        # not gettable via object.__getattribute__ ends the scan early. Bound methods hit
+        # this: object.__dir__ merges in the underlying function's attributes, so a wrapper
+        # decorated with functools.wraps surfaces __wrapped__, which a method object does not
+        # forward, and the scan stops before reaching __func__. That is why a bound method
+        # can come back unresolved, and why the shortcut above is restricted to functions.
         try:
             for v in (object.__getattribute__(g, a) for a in object.__dir__(g)):
                 if _isinstance(v, FunctionType) and v not in seen_functions and match(v):

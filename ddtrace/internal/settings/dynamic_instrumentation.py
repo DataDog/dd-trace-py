@@ -127,7 +127,7 @@ class DynamicInstrumentationConfig(DDConfig):
     redacted_types_re = DDConfig.d(
         t.Optional[re.Pattern],
         lambda c: (
-            re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
+            re.compile(f"^(?:{'|'.join(_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types)})$")
             if c.redacted_types
             else None
         ),

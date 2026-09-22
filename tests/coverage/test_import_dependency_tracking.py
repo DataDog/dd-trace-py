@@ -23,6 +23,8 @@ import sys
 
 import pytest
 
+from ddtrace.internal.compat import is_at_least_py
+
 
 @pytest.mark.subprocess(
     parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"], "PACKAGES_DIRNAME": ["site-packages", "dist-packages"]}
@@ -360,6 +362,10 @@ def test_no_false_dependencies():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.skipif(
+    is_at_least_py(3, 15),
+    reason="TODO(py-315): accurate import injection is not supported on Python 3.15+ (uses INJECTION_ASSEMBLY)",
+)
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true"], "_DD_COVERAGE_ACCURATE_IMPORTS": ["1"]})
 def test_file_level_false_guarded_import_not_tracked():
     """Runtime-false import statements should not create file-level dependency edges."""

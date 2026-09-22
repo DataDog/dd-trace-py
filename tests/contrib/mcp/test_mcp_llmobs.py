@@ -4,9 +4,10 @@ from importlib.metadata import version
 import json
 import os
 from textwrap import dedent
+from unittest import mock
 
-import mock
 import pytest
+
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME

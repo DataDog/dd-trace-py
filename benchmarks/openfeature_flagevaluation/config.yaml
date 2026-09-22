@@ -3,7 +3,7 @@ defaults: &defaults
   num_users: 50
   num_context_fields: 10
 
-# Eval hot path the caller pays: finally_after hook (cheap capture + non-blocking enqueue).
+# Eval hot path the caller pays: bounded immutable snapshot + non-blocking enqueue.
 hook-enqueue-typical:
   <<: *defaults
   mode: hook_enqueue
@@ -21,6 +21,12 @@ hook-enqueue-scale:
   num_flags: 2500
   num_users: 500
   num_context_fields: 20
+
+# Worst-case bounded walk: every list value is inspected then discarded, plus lookahead.
+hook-enqueue-bounded-adversarial:
+  <<: *defaults
+  mode: hook_enqueue_adversarial
+  num_context_fields: 257
 
 # Background worker hot path: canonical key + two-tier aggregation.
 aggregate-typical:

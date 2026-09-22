@@ -23,7 +23,7 @@ from ddtrace.trace import tracer as ddtracer
 
 
 if TYPE_CHECKING:
-    from typing import Mapping  # noqa:F401
+    from collections.abc import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 
@@ -156,7 +156,7 @@ class Span(OtelSpan):
 
         context = self._ddspan.context
         tf = TraceFlags(context._trace_flags)
-        # AIDEV-NOTE: Consume canonical tracestate entries directly. Formatting an HTTP
+        # Consume canonical tracestate entries directly. Formatting an HTTP
         # header only for TraceState.from_header() to split it again is measurable here.
         ts = TraceState(context._tracestate_entries(self._ddspan.span_id))
 

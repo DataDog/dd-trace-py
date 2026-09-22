@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    mysql: Fixes an issue where tracing and SQL-injection detection or blocking are skipped
+    for database connections created with ``mysql.connector.Connect()``.
