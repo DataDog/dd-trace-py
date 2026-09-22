@@ -2,7 +2,6 @@ import sys
 
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib._events.web_framework import WebFrameworkRouteEvent
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
@@ -60,15 +59,17 @@ class TraceMiddleware:
         if ctx is None:
             return
 
-        # Falcon only calls process_resource once routing has resolved a
-        # resource, so req.uri_template is already populated at this point.
-        core.dispatch_event(
-            WebFrameworkRouteEvent(
-                request_context=ctx,
-                resource="%s %s" % (req.method, _name(resource)),
-                request_route=(req.root_path or "") + (req.uri_template or ""),
-            )
-        )
+        span = span_from_context(ctx)
+        if span is None:
+            return
+
+        # Set the resource on the live span before handler execution.
+        span.resource = "%s %s" % (req.method, _name(resource))
+
+        # Prevent the subscriber from replacing a resource customized by the
+        # resource handler.
+        event: WebFrameworkRequestEvent = ctx.event
+        event.set_resource = False
 
     def process_response(self, req, resp, resource, req_succeeded=None):
         # req_succeeded is unavailable in Falcon 1.0.
@@ -96,6 +97,7 @@ class TraceMiddleware:
                     if req_succeeded is None or req_succeeded is False:
                         status = _detect_and_set_status_error(err_type, span)
 
+                event.request_route = (req.root_path or "") + (req.uri_template or "")
                 event.response_headers = resp._headers
 
             event.response_status_code = int(status)
