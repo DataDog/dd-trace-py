@@ -4,7 +4,3 @@ fixes:
     LLM Observability: This fix resolves an issue where cancelled or failed OpenAI streamed requests
     produced no LLM Observability span at all. These requests now produce an LLM span carrying the
     input messages, whatever output arrived before the stream ended, and estimated token metrics.
-  - |
-    LLM Observability: This fix resolves an issue where a streamed request cancelled via
-    ``asyncio`` was not recorded as an error on its LLM Observability span, causing error rates
-    to be undercounted.
