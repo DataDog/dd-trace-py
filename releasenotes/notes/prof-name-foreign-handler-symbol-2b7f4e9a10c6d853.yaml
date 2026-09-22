@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: when another component takes over the SIGSEGV/SIGBUS handler, the stack
+    profiler now names the function that owns it and reports the binary's build ID,
+    instead of only a library path and an address offset.
