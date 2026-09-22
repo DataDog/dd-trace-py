@@ -65,10 +65,18 @@ async def execute(func, handler, args, kwargs):
             distributed_headers_config_override=distributed_tracing,
             headers_case_sensitive=True,
         )
-        with core.context_with_event(
+        request_context = core.context_with_event(
             event,
             dispatch_end_event=False,
-        ) as ctx:
+        )
+        request_context.set_items(
+            {
+                "headers": headers,
+                "remote_addr": request.remote_ip,
+                "headers_case_sensitive": True,
+            }
+        )
+        with request_context as ctx:
             req_span = span_from_context(ctx)
 
             ctx.set_item("req_span", req_span)
