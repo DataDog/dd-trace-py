@@ -1,5 +1,151 @@
 #include "elf_symbols.hpp"
 
+#include <cstdlib>
+#include <cxxabi.h>
+
+namespace {
+
+// Rust v0 (RFC 2603) covers generics, backreferences and punycode identifiers. Decoding
+// all of it is not worth it here, so this handles only the nested-path shape a function
+// symbol takes and refuses anything else, leaving the caller with the mangled name.
+class RustV0PathParser
+{
+  public:
+    RustV0PathParser(const std::string& mangled, size_t start) noexcept
+      : mangled_(mangled)
+      , pos_(start)
+    {
+    }
+
+    bool parse_path(std::string& out) noexcept
+    {
+        if (++depth_ > kMaxDepth) {
+            return false;
+        }
+        if (pos_ >= mangled_.size()) {
+            return false;
+        }
+        switch (mangled_[pos_++]) {
+            case 'C': // crate root
+                return parse_identifier(out);
+            case 'N': { // <namespace> <parent path> <identifier>
+                if (pos_ >= mangled_.size()) {
+                    return false;
+                }
+                ++pos_; // namespace tag: not rendered
+                std::string parent;
+                if (!parse_path(parent)) {
+                    return false;
+                }
+                std::string name;
+                if (!parse_identifier(name)) {
+                    return false;
+                }
+                out = parent + "::" + name;
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+
+  private:
+    static constexpr int kMaxDepth = 64;
+
+    static bool is_base62(char c) noexcept
+    {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
+
+    bool parse_identifier(std::string& out) noexcept
+    {
+        // Optional disambiguator 's' <base-62> '_'. An identifier otherwise starts with
+        // a digit or 'u', so a leading 's' is unambiguous.
+        if (pos_ < mangled_.size() && mangled_[pos_] == 's') {
+            ++pos_;
+            while (pos_ < mangled_.size() && mangled_[pos_] != '_') {
+                if (!is_base62(mangled_[pos_])) {
+                    return false;
+                }
+                ++pos_;
+            }
+            if (pos_ >= mangled_.size()) {
+                return false;
+            }
+            ++pos_;
+        }
+
+        if (pos_ < mangled_.size() && mangled_[pos_] == 'u') {
+            return false; // punycode
+        }
+
+        size_t length = 0;
+        size_t digits = 0;
+        while (pos_ < mangled_.size() && mangled_[pos_] >= '0' && mangled_[pos_] <= '9') {
+            if (length > (kMaxIdentifier - 9) / 10) {
+                return false;
+            }
+            length = length * 10 + static_cast<size_t>(mangled_[pos_] - '0');
+            ++pos_;
+            ++digits;
+        }
+        if (digits == 0 || length == 0) {
+            return false;
+        }
+
+        // A '_' separates the length from an identifier that itself starts with a digit.
+        if (pos_ < mangled_.size() && mangled_[pos_] == '_') {
+            ++pos_;
+        }
+        if (length > mangled_.size() - pos_) {
+            return false;
+        }
+        out.assign(mangled_, pos_, length);
+        pos_ += length;
+        return true;
+    }
+
+    static constexpr size_t kMaxIdentifier = 1u << 20;
+
+    const std::string& mangled_;
+    size_t pos_;
+    int depth_ = 0;
+};
+
+} // namespace
+
+std::string
+demangle_symbol(const std::string& name) noexcept
+{
+    try {
+        if (name.size() > 2 && name[0] == '_' && name[1] == 'R') {
+            // A decimal right after _R marks a format revision this parser predates.
+            if (name[2] < '0' || name[2] > '9') {
+                RustV0PathParser parser(name, 2);
+                std::string path;
+                if (parser.parse_path(path)) {
+                    return path;
+                }
+            }
+            return name;
+        }
+
+        if (name.compare(0, 2, "_Z") == 0 || name.compare(0, 3, "__Z") == 0) {
+            int status = 0;
+            char* buffer = abi::__cxa_demangle(name.c_str(), nullptr, nullptr, &status);
+            if (buffer == nullptr) {
+                return name;
+            }
+            std::string out = (status == 0) ? std::string(buffer) : name;
+            std::free(buffer);
+            return out;
+        }
+    } catch (...) {
+        // Naming the offender is a convenience; never let it throw into the sampler.
+    }
+    return name;
+}
+
 #if defined PL_LINUX
 
 #include <cstring>
@@ -185,7 +331,7 @@ lookup_symbol(const MappedFile& file, const Shdr& symtab, const Shdr& strtab, ui
     if (file.view(name_at, len) == nullptr) {
         return {};
     }
-    return std::string(reinterpret_cast<const char*>(name), len);
+    return demangle_symbol(std::string(reinterpret_cast<const char*>(name), len));
 }
 
 } // namespace

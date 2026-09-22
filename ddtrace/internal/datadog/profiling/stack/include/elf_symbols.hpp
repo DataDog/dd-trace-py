@@ -23,3 +23,10 @@ struct ElfAddressInfo
 // Returns empty fields rather than throwing on any malformed or unreadable input.
 ElfAddressInfo
 describe_elf_address(const char* path, uintptr_t offset) noexcept;
+
+// Human-readable form of a linkage name: Itanium C++ and legacy Rust via the platform
+// demangler, Rust v0 via a parser for the nested-path shape that function symbols take.
+// Returns the input unchanged for anything it cannot fully decode, since a mangled name
+// still identifies the offender.
+std::string
+demangle_symbol(const std::string& name) noexcept;

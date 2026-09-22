@@ -214,7 +214,7 @@ describe_signal_owner(int signo)
         }
         if (info.dli_sname != nullptr) {
             out += " (";
-            out += info.dli_sname;
+            out += demangle_symbol(info.dli_sname);
             out += ")";
         } else if (have_offset) {
             // dladdr sees only .dynsym, and a signal handler is usually a local symbol
