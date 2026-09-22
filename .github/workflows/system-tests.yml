@@ -58,6 +58,8 @@ jobs:
             "${{ steps.resolve-sha.outputs.sha }}" \
             ./wheels \
             manylinux2014_x86_64
+        env:
+          POLL_INTERVAL: 10
 
       - name: Upload artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
