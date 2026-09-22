@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = f"127.0.0.1:{KAFKA_CONFIG['port']}"
-KEY = "test_key".encode("utf-8")
-PAYLOAD = "hueh hueh hueh".encode("utf-8")
+KEY = b"test_key"
+PAYLOAD = b"hueh hueh hueh"
 ENABLE_AUTO_COMMIT = True
 
 

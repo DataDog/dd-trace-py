@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Common tests to aspects, ensuring that they don't break when receiving empty arguments.
 """

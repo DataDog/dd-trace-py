@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 import gc
 import inspect
 import os
@@ -11,7 +12,6 @@ from tracemalloc import Statistic
 from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -1435,7 +1435,7 @@ def _make_mem_domain_object(size_bytes: int) -> object:
 
 
 def _count_heap_samples_with_function(
-    profile: "pprof_pb2.Profile", samples: Sequence["pprof_pb2.Sample"], function_name: str
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], function_name: str
 ) -> int:
     """Count heap-space samples whose stacktrace contains the given function name.
 
