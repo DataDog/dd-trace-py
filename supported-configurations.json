@@ -2744,6 +2744,30 @@
         "default": "false"
       }
     ],
+    "DD_NIQUESTS_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_NIQUESTS_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "niquests",
+        "aliases": [
+          "DD_NIQUESTS_SERVICE_NAME"
+        ]
+      }
+    ],
+    "DD_NIQUESTS_SPLIT_BY_DOMAIN": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_OPENAI_AGENTS_SERVICE": [
       {
         "implementation": "A",
@@ -4680,6 +4704,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_NIQUESTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": [

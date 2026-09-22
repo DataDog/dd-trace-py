@@ -1,0 +1,11 @@
+_v: 1
+name: niquests
+display_name: Niquests
+description: Instruments synchronous and asynchronous outbound HTTP requests made with the Niquests client library, including
+  trace-context propagation.
+packages:
+- name: niquests
+category:
+- http.client
+systems: []
+creation_date: '2026-09-14'
