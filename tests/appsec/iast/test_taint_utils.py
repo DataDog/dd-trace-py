@@ -1,12 +1,27 @@
+import sys
+
 import pytest
 
+from ddtrace.appsec._iast import _taint_utils as taint_utils
+from ddtrace.appsec._iast._iast_env import _get_iast_env
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
+from ddtrace.appsec._iast._taint_tracking import _taint_objects
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
+from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
+from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import UnvalidatedRedirect
 
 
 @pytest.fixture
@@ -248,6 +263,102 @@ def test_taint_structure(iast_context_defaults):
     d = {1: "foo"}
     tainted = taint_structure(d, OriginType.PARAMETER, OriginType.PARAMETER)
     assert is_pyobject_tainted(tainted[1])
+
+
+def _fresh_source_value(payload, text_type):
+    if text_type is str:
+        return payload.decode()
+    return memoryview(payload).tobytes()
+
+
+@pytest.mark.parametrize("structure_kind", ["eager", "lazy_dict", "lazy_list"])
+@pytest.mark.parametrize("text_type", [str, bytes])
+@pytest.mark.parametrize("reuse_address", [False, True])
+def test_taint_structure_unretained_secure_source(iast_context_defaults, structure_kind, text_type, reuse_address):
+    payload = b"https://example.invalid/a-request-value-that-was-never-validated"
+    source = Source("location", payload.decode(), OriginType.PARAMETER)
+    for _ in range(10000):
+        value = _fresh_source_value(payload, text_type)
+        # Propagated ranges do not establish ownership of a source object.
+        assert taint_pyobject_with_ranges(value, [TaintRange(0, len(value), source)])
+        add_secure_mark(value, [VulnerabilityType.UNVALIDATED_REDIRECT])
+        if not reuse_address:
+            replacement = value
+            break
+        address = id(value)
+        del value
+        replacement = _fresh_source_value(payload, text_type)
+        if id(replacement) == address:
+            break
+        replacement = None
+    else:
+        pytest.skip("The allocator did not reuse the freed object's address")
+
+    assert get_tainted_ranges(replacement)[0].has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT)
+    origins = (OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+    if structure_kind == "eager":
+        result = taint_utils.taint_structure({"location": replacement}, *origins, override_pyobject_tainted=True)[
+            "location"
+        ]
+    elif structure_kind == "lazy_dict":
+        result = LazyTaintDict({"location": replacement}, origins=origins, override_pyobject_tainted=True)["location"]
+    else:
+        result = LazyTaintList([replacement], origins=origins, override_pyobject_tainted=True, source_name="location")[
+            0
+        ]
+
+    assert result == replacement
+    assert result is not replacement
+    assert not get_tainted_ranges(result)[0].has_secure_mark(VulnerabilityType.UNVALIDATED_REDIRECT)
+    assert UnvalidatedRedirect.is_tainted_pyobject(result)
+
+
+@pytest.mark.parametrize("text_type", [str, bytes])
+@pytest.mark.parametrize("matching_span", [False, True])
+def test_taint_source_identity_released_at_request_end(iast_context_defaults, text_type, matching_span):
+    payload = b"source objects must not outlive their request"
+    value = taint_pyobject(_fresh_source_value(payload, text_type), "location", payload.decode(), OriginType.PARAMETER)
+    env = _get_iast_env()
+    assert env.iast_taint_source_objects[id(value)] is value
+    references = sys.getrefcount(value)
+
+    _iast_finish_request(env.span if matching_span else object(), shoud_update_global_vulnerability_limit=False)
+
+    assert not env.iast_taint_source_objects
+    assert sys.getrefcount(value) == references - 1
+
+
+def test_taint_source_identity_released_when_request_rejected(iast_context_defaults, monkeypatch):
+    value = taint_pyobject("retained request source", "location", "retained request source", OriginType.PARAMETER)
+    env = _get_iast_env()
+    references = sys.getrefcount(value)
+    monkeypatch.setattr(oce, "acquire_request", lambda span: False)
+
+    _iast_start_request()
+
+    assert not env.iast_taint_source_objects
+    assert sys.getrefcount(value) == references - 1
+
+
+def test_taint_failure_does_not_establish_source_identity(iast_context_defaults, monkeypatch):
+    value = _fresh_source_value(b"source tainting did not succeed", str)
+    monkeypatch.setattr(_taint_objects, "_taint_pyobject_base", lambda *args: value)
+
+    assert taint_pyobject(value, "location", value, OriginType.PARAMETER) is value
+    assert id(value) not in _get_iast_env().iast_taint_source_objects
+
+
+def test_taint_override_without_request_environment(iast_context_defaults, monkeypatch):
+    value = taint_pyobject("request source", "location", "request source", OriginType.PARAMETER)
+    add_secure_mark(value, [VulnerabilityType.UNVALIDATED_REDIRECT])
+    monkeypatch.setattr(taint_utils, "_get_iast_env", lambda: None)
+
+    result = taint_utils.taint_structure(
+        {"location": value}, OriginType.PARAMETER_NAME, OriginType.PARAMETER, override_pyobject_tainted=True
+    )["location"]
+
+    assert result is not value
+    assert UnvalidatedRedirect.is_tainted_pyobject(result)
 
 
 @pytest.mark.parametrize("structure_kind", ["eager", "lazy_dict", "lazy_list"])

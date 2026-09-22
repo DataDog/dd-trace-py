@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -23,10 +24,12 @@ def _should_taint(value, source_name, source_origin, override_pyobject_tainted):
     if not override_pyobject_tainted:
         return not is_pyobject_tainted(value)
 
-    # Overrides must correct source attribution and partial ranges. Reusing
-    # an identical immutable source preserves secure marks and avoids stale map entries
-    # when repeated Flask callbacks would otherwise discard the previous source string.
+    # The native map's address and value hash cannot establish object identity.
+    # Only sources retained since tainting can safely keep existing secure marks.
     if isinstance(value, (str, bytes)):
+        env = _get_iast_env()
+        if env is None or env.iast_taint_source_objects.get(id(value)) is not value:
+            return True
         ranges = get_tainted_ranges(value)
         if len(ranges) == 1:
             taint_range = ranges[0]
@@ -122,7 +125,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     """taint any structured object
     use a queue like mechanism to avoid recursion
     Best effort: mutate mutable structures and rebuild immutable ones if possible.
-    Overrides replace differing sources or ranges, preserving identical immutable sources.
+    Overrides preserve matching immutable sources only while the request retains their identity.
     """
     if not main_obj:
         return main_obj
