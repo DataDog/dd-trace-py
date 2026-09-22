@@ -1,5 +1,3 @@
-from typing import Text
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -29,7 +27,7 @@ UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS = {
 }
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 

@@ -1,5 +1,3 @@
-from typing import Text
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -9,7 +7,7 @@ from .._patch_modules import WrapFunctonsForIAST
 log = get_logger(__name__)
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 

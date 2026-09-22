@@ -24,7 +24,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
             methods = ["GET"]
 
             def dispatch_request(self, name):
-                return "Hello {}".format(name)
+                return f"Hello {name}"
 
         self.app.add_url_rule("/hello/<name>", view_func=TestView.as_view("hello"))
 
@@ -109,7 +109,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         class TestView(MethodView):
             def get(self, name):
-                return "Hello {}".format(name)
+                return f"Hello {name}"
 
         self.app.add_url_rule("/hello/<name>", view_func=TestView.as_view("hello"))
 
