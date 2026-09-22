@@ -104,12 +104,6 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-  # TODO(py-315): drop the cp315 allow_failure rule once #17849 ports the bytecode
-  # wrapping path to sys.monitoring (currently raises NotImplementedError on 3.15).
-  rules:
-    - if: $PYTHON_TAG == "cp315-cp315"
-      allow_failure: true
-    - when: on_success
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -205,6 +199,9 @@ variables:
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
 
 # Rewrites each wheel's version to major.minor.patch[rc].dev<pipeline_id>+<local>.<commit_sha>,
 # then uploads it to the private prerelease index.
@@ -353,6 +350,9 @@ variables:
         WINDOWS_ARCH: ["amd64", "x86"]
   variables:
     WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"
+    # Legacy Windows builds left loaded Rust proc-macro DLLs here, which makes
+    # the runner's pre-job git clean fail before the build script can execute.
+    GIT_CLEAN_FLAGS: "-ffdx -e src/native/target*/"
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:

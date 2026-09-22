@@ -538,9 +538,9 @@ class PromptManager:
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         if fallback is None:
-            message = "Prompt '{}' could not be fetched and no fallback was provided".format(prompt_id)
+            message = f"Prompt '{prompt_id}' could not be fetched and no fallback was provided"
             if reason:
-                message = "{}: {}".format(message, reason)
+                message = f"{message}: {reason}"
             raise ValueError(message)
         log.debug("Using user-provided fallback for prompt %s", prompt_id)
         return ManagedPrompt.from_fallback(prompt_id, fallback)

@@ -137,6 +137,18 @@ scripts/lint typing -- ddtrace/tracer.py
 
 **When to use:** After adding type hints or modifying functions with type annotations.
 
+#### `type-comments-check` - Block new PEP 484 type comments
+Fails if the branch adds type comments (`# type: int`, `# type: (int) -> str`).
+Use inline annotations instead. Existing comments may stay. `# type: ignore` is allowed.
+
+**Usage:**
+```bash
+scripts/lint type-comments-check
+scripts/lint type-comments-check --base-ref origin/main
+```
+
+**When to use:** After adding type annotations, or before opening a PR.
+
 ### Security Checks
 
 #### `security` - Security audit with Bandit

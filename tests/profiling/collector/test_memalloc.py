@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 import gc
 import inspect
 import os
@@ -11,7 +12,6 @@ from tracemalloc import Statistic
 from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -561,8 +561,9 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        initial_allocations_valid = all(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
-        assert initial_allocations_valid, "Initial snapshot should have alloc-space>0 (new allocations)"
+        # The process-wide exporter can include previously reported live samples alongside new allocations.
+        has_new_allocations = any(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
+        assert has_new_allocations, "Initial snapshot should include new allocations"
 
         # Get freed samples (alloc-space > 0, heap-space == 0)
         freed_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0]
@@ -1439,7 +1440,7 @@ def _make_mem_domain_object(size_bytes: int) -> object:
 
 
 def _count_heap_samples_with_function(
-    profile: "pprof_pb2.Profile", samples: Sequence["pprof_pb2.Sample"], function_name: str
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], function_name: str
 ) -> int:
     """Count heap-space samples whose stacktrace contains the given function name.
 

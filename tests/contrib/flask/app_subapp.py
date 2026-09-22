@@ -4,8 +4,6 @@ Verifies that ``flask.resource.full`` appears on spans when a sub-app
 is mounted under a prefix.
 """
 
-import sys
-
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
@@ -26,8 +24,9 @@ def index():
 
 @root.route("/shutdown")
 def shutdown():
+    # See the note in app.py: sys.exit would only end the worker thread.
     tracer.shutdown()
-    sys.exit(0)
+    return "shutdown"
 
 
 @api.route("/users")

@@ -1,10 +1,10 @@
 # Utility functions for testing crashtracker in subprocesses
+from collections.abc import Generator
 from contextlib import contextmanager
 import os
 import random
 import time
 from typing import Callable
-from typing import Generator
 from typing import Optional
 import uuid
 
@@ -49,7 +49,7 @@ def read_files(files):
     for file in files:
         this_msg = ""
         if os.path.exists(file):
-            with open(file, "r") as f:
+            with open(file) as f:
                 this_msg = f.read()
         msg.append(this_msg)
     return msg
