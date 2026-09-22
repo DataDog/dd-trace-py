@@ -110,7 +110,7 @@ def test_start_bookkeeping_failure_rolls_back_profiler(failure_point):
 
 def test_start_retries_cleanup_after_bookkeeping_rollback_fails():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -207,7 +207,7 @@ def test_restart_failure_rolls_back_after_pending_cleanup_changes_status():
             events.append("collector stop")
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -410,7 +410,7 @@ def test_failed_start_collector_cleans_up_partial_resources():
             self.resource_active = False
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     p = TestProfiler(
@@ -449,7 +449,7 @@ def test_cancelled_collector_start_cleans_up_partial_resources():
             self.resource_active = False
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -503,7 +503,7 @@ def test_failed_collector_cleanup_is_retried_by_profiler_rollback():
             self.resource_active = False
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -530,7 +530,7 @@ def test_failed_collector_cleanup_is_retried_by_profiler_rollback():
 
 def test_failed_memory_collector_start_cleanup_is_retried_before_restart():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -596,7 +596,7 @@ def test_restart_drains_pending_collector_cleanup_before_starting_scheduler():
             self.resource_active = False
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -666,7 +666,7 @@ def test_restart_finishes_failed_scheduler_cleanup_before_restarting_collectors(
             events.append("collector stop")
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -770,7 +770,7 @@ def test_restart_preserves_collectors_after_failed_collector():
                 raise RuntimeError("cleanup failed")
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -830,7 +830,7 @@ def test_runtime_collector_start_failure_cleans_up_partial_resources(
     registered_hooks = []
     instances = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -853,7 +853,7 @@ def test_runtime_collector_start_failure_cleans_up_partial_resources(
             self.resource_active = False
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -883,7 +883,7 @@ def test_runtime_collector_hook_does_not_duplicate_pending_cleanup(monkeypatch):
     registered_hooks = []
     instances = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -904,7 +904,7 @@ def test_runtime_collector_hook_does_not_duplicate_pending_cleanup(monkeypatch):
             raise RuntimeError("cleanup failed")
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -930,7 +930,7 @@ def test_failed_start_reregisters_deferred_collector_hooks(monkeypatch):
     registered_hooks = []
     unregistered_hooks = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -947,7 +947,7 @@ def test_failed_start_reregisters_deferred_collector_hooks(monkeypatch):
             pass
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -1006,7 +1006,7 @@ def test_failed_lock_collector_start_preserves_patch_target():
             raise RuntimeError("patch failed")
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1049,7 +1049,7 @@ def test_failed_pytorch_collector_start_preserves_patch_target():
             self.patch()
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1071,7 +1071,7 @@ def test_failed_pytorch_collector_start_preserves_patch_target():
 
 def test_partial_start_rollback_stops_components():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     p = TestProfiler(
@@ -1098,7 +1098,7 @@ def test_partial_start_rollback_stops_components():
 
 def test_partial_start_rollback_finalizes_failed_stop():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1149,7 +1149,7 @@ def test_partial_start_rollback_finalizes_failed_stop():
 
 def test_stop_releases_ownership_after_failed_deferred_scheduler_start(monkeypatch):
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1198,7 +1198,7 @@ def test_stop_releases_ownership_after_failed_deferred_scheduler_start(monkeypat
 
 def test_stop_retry_skips_scheduler_that_already_stopped():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1245,7 +1245,7 @@ def test_stop_retry_skips_scheduler_that_already_stopped():
 
 def test_signal_stop_recovers_failed_scheduler_transition():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1283,7 +1283,7 @@ def test_signal_stop_recovers_failed_scheduler_transition():
 
 def test_signal_stop_preserves_ownership_when_cleanup_fails():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1324,7 +1324,7 @@ def test_constructor_failure_rolls_back_partial_instance(monkeypatch):
     unregistered_hooks = []
     partial_instances = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -1334,7 +1334,7 @@ def test_constructor_failure_rolls_back_partial_instance(monkeypatch):
             unregistered_hooks.append((module, hook))
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
         def __post_init__(self):
@@ -1357,7 +1357,7 @@ def test_constructor_failure_rolls_back_partial_instance(monkeypatch):
 
     assert registered_hooks
     assert unregistered_hooks == registered_hooks
-    assert partial_instances[0]._collectors_on_import_registered == []
+    assert partial_instances[0]._collectors_on_import_armed == []
     upload.assert_not_called()
 
 
@@ -1365,7 +1365,7 @@ def test_import_hook_registration_failure_unregisters_installed_hook(monkeypatch
     registered_hooks = []
     unregistered_hooks = []
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             registered_hooks.append((module, hook))
@@ -1376,7 +1376,7 @@ def test_import_hook_registration_failure_unregisters_installed_hook(monkeypatch
             unregistered_hooks.append((module, hook))
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -1412,7 +1412,7 @@ def test_restart_replaces_import_hook_collector_after_pending_cleanup(monkeypatc
             if self is instances[0] and self.stop_attempts < 3:
                 raise RuntimeError("cleanup failed")
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def register_module_hook(module, hook):
             hook(None)
@@ -1422,7 +1422,7 @@ def test_restart_replaces_import_hook_collector_after_pending_cleanup(monkeypatc
             return None
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -1466,7 +1466,7 @@ def test_restart_replaces_import_hook_collector_after_pending_cleanup(monkeypatc
 @pytest.mark.parametrize("start_method", ["start", "_start_on_fork"])
 def test_failed_profiler_start_rolls_back_started_components(start_method):
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1530,7 +1530,7 @@ def test_failed_fork_start_reserves_profiler_until_cleanup_retry():
 
 def test_partial_start_rollback_preserves_collectors_until_scheduler_stops():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1561,7 +1561,7 @@ def test_partial_start_rollback_preserves_collectors_until_scheduler_stops():
 
 def test_stop_preserves_collectors_until_scheduler_stops():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1596,7 +1596,7 @@ def test_stop_preserves_collectors_until_scheduler_stops():
 
 def test_stop_does_not_join_collector_whose_stop_failed():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1626,7 +1626,7 @@ def test_stop_does_not_join_collector_whose_stop_failed():
 
 def test_stop_retry_does_not_flush_twice_after_collector_failure():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
@@ -1679,7 +1679,7 @@ def test_stop_retry_does_not_flush_twice_after_collector_failure():
 
 def test_stop_does_not_retry_flush_after_upload_may_have_succeeded():
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     class TestCollector(collector.Collector):
@@ -1755,7 +1755,7 @@ def test_stop_retries_failed_import_hook_cleanup(monkeypatch):
     hook = mock.Mock()
     unregister_attempts = 0
 
-    class WatchdogMock(object):
+    class WatchdogMock:
         @staticmethod
         def unregister_module_hook(module, registered_hook):
             nonlocal unregister_attempts
@@ -1766,7 +1766,7 @@ def test_stop_retries_failed_import_hook_cleanup(monkeypatch):
             assert registered_hook is hook
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -1778,7 +1778,7 @@ def test_stop_retries_failed_import_hook_cleanup(monkeypatch):
         _exception_profiling_enabled=False,
     )
     internal._collectors_on_import = [("threading", hook)]
-    internal._collectors_on_import_registered = [("threading", hook)]
+    internal._collectors_on_import_armed = [("threading", hook)]
     internal._scheduler = None
     internal.status = service.ServiceStatus.RUNNING
     wrapped = object.__new__(profiler.Profiler)
@@ -1793,7 +1793,7 @@ def test_stop_retries_failed_import_hook_cleanup(monkeypatch):
         wrapped.stop(flush=False)
 
     assert unregister_attempts == 2
-    assert internal._collectors_on_import_registered == []
+    assert internal._collectors_on_import_armed == []
     assert internal.status == service.ServiceStatus.STOPPED
     assert profiler.Profiler._active_instance is None
     product_activated.assert_called_once_with(profiler.TELEMETRY_APM_PRODUCT.PROFILER, False)
@@ -2937,7 +2937,7 @@ def test_profiler_child_recovers_ownership_inherited_during_start_rollback():
     from ddtrace.profiling import profiler
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kwargs):
+        def _start_exporter(self, *args, **kwargs):
             return None
 
     internal = TestProfiler(
