@@ -59,6 +59,11 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
                 status_code=status_code,
                 request_headers=event.request_headers,
                 response_headers=dict(res_headers) if res_headers is not None else None,
+                raw_uri=event.raw_uri,
+                parsed_query=event.parsed_query,
+                request_cookies=event.request_cookies,
+                request_path_params=event.request_path_params,
+                peer_ip=event.peer_ip,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
             )
