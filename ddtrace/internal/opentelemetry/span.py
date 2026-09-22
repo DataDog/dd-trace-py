@@ -296,8 +296,13 @@ class Span(OtelSpan):
                 # latest span status.
                 self._ddspan._remove_attribute(ERROR_MSG)
 
-    def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
-        # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: Optional[Attributes] = None,
+        timestamp: Optional[int] = None,
+        escaped: bool = False,
+    ) -> None:
         """
         Records an exception as an event
         """
