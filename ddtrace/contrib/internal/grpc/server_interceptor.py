@@ -64,7 +64,7 @@ def _wrap_response_iterator(response_iterator, server_context, span):
 
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, handler_call_details, wrapped):
-        super(_TracedRpcMethodHandler, self).__init__(wrapped)
+        super().__init__(wrapped)
         self._handler_call_details = handler_call_details
 
     def _fn(self, method_kind, behavior, args, kwargs):

@@ -8,7 +8,7 @@ tests/utils.py.
 # PYTEST_ADDOPTS is set to "--ddtrace" by ddtest's platform env (ddtest/internal/
 # platform/python.go:GetPlatformEnv) so the pytest workers load the ddtrace
 # testing plugin. It leaks into every test-spawned subprocess via env
-# inheritance. Under normal riot CI this var is absent, so test subprocesses
+# inheritance. Under ordinary test runs this var is absent, so subprocesses
 # don't activate CI Visibility. The leaked --ddtrace makes a nested
 # pytest.main() enable the plugin, which logs INFO to stderr (breaking tests
 # that assert err == b"") and computes stats (breaking snapshot tests). No

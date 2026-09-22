@@ -1,17 +1,19 @@
 """Tests for the multiplexed sys.monitoring layer on Python 3.12+."""
 
+from collections.abc import Iterator
 import sys
 from types import CodeType
 from typing import Any
 from typing import Callable
-from typing import Iterator
 from typing import Protocol
 from typing import cast
 
 import pytest
 
+from ddtrace.internal.compat import is_at_least_py
 
-if sys.version_info < (3, 12):
+
+if not is_at_least_py(3, 12):
     pytest.skip("ddtrace.internal.monitoring requires Python 3.12+", allow_module_level=True)
 
 from ddtrace.internal import monitoring
@@ -19,8 +21,8 @@ from ddtrace.internal import monitoring
 
 # PY_UNWIND became a per-code event only in 3.15; on 3.12-3.14 the multiplexer
 # rejects handlers that need it.
-_py315 = pytest.mark.skipif(sys.version_info < (3, 15), reason="PY_UNWIND is per-code only on 3.15+")
-_below_315 = pytest.mark.skipif(sys.version_info >= (3, 15), reason="PY_UNWIND is global-only on 3.12-3.14")
+_py315 = pytest.mark.skipif(not is_at_least_py(3, 15), reason="PY_UNWIND is per-code only on 3.15+")
+_below_315 = pytest.mark.skipif(is_at_least_py(3, 15), reason="PY_UNWIND is global-only on 3.12-3.14")
 
 
 class _MonitoringEvents(Protocol):
@@ -34,9 +36,9 @@ class _MonitoringEvents(Protocol):
 
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
 # source module under a pre-3.15 Python version.
-_E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)  # type: ignore[has-type]
-_DISABLE: object = cast(object, monitoring._DISABLE)  # type: ignore[has-type]
-_LOCAL_EVENTS: int = cast(int, monitoring._LOCAL_EVENTS)  # type: ignore[has-type]
+_E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)
+_DISABLE: object = cast(object, monitoring._DISABLE)
+_LOCAL_EVENTS: int = cast(int, monitoring._LOCAL_EVENTS)
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
@@ -474,6 +476,14 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
 
     assert raiser.called
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
+
+
+def test_multiplexer_does_not_claim_exception_profiler_tool_id() -> None:
+    """Tool ID 4 is reserved for ExceptionCollector; the multiplexer must not take it."""
+    candidates: tuple[int, ...] = cast(tuple[int, ...], monitoring._CANDIDATE_TOOL_IDS)  # type: ignore[has-type]
+    assert 4 not in candidates
+    tool_id: int = monitoring.get_tool_id()
+    assert tool_id != 4
 
 
 @pytest.mark.subprocess(out=None, err=None)

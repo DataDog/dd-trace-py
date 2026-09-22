@@ -23,7 +23,7 @@ class FullyNamedContextWrappedFunction(FullyNamed, ContextWrappedFunction):
     """A fully named wrapper function."""
 
 
-class FunctionStore(object):
+class FunctionStore:
     """Function object store.
 
     This class provides a storage layer for patching operations, which allows us

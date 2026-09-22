@@ -48,8 +48,10 @@ in direct span-management except blocks.
 an abandoned iterator can skip that finally, leaving the span in the aggregator
 so later requests nest under it. ASGI request teardown finishes leftover LLM
 descendants after the app callable returns (not when the last body chunk is
-sent). `TracedStream.__del__` finalizes dropped `next()` iteration. Still
-annotate on the happy path from generator finally.
+sent). `TracedStream.__del__` finalizes dropped `next()` iteration.
+`__exit__`/`__aexit__` finalize unexhausted context managers, including when
+wrapped async cleanup raises `CancelledError`. Still annotate on the happy
+path from generator finally.
 
 **Setting items on context after it exits** -- `ctx.set_item()` calls after the
 `with core.context_with_data(...)` block exits are silently dropped.

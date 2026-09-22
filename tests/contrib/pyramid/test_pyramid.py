@@ -157,7 +157,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
@@ -165,7 +165,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
@@ -173,7 +173,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "mysvc", "Expected 'mysvc' and got {}".format(s.service)
+        assert s.service == "mysvc", f"Expected 'mysvc' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess()
     def test_schematized_unspecified_service_name_default(self):
@@ -181,7 +181,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
@@ -189,7 +189,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
@@ -197,9 +197,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' and got {}".format(
-            DEFAULT_SPAN_SERVICE_NAME, s.service
-        )
+        assert s.service == DEFAULT_SPAN_SERVICE_NAME, f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
@@ -207,7 +205,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.name == "pyramid.request", "Expected 'pyramid.request' and got {}".format(s.name)
+        assert s.name == "pyramid.request", f"Expected 'pyramid.request' and got {s.name}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
@@ -215,7 +213,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.name == "http.server.request", "Expected 'http.server.request' and got {}".format(s.name)
+        assert s.name == "http.server.request", f"Expected 'http.server.request' and got {s.name}"
 
 
 @pytest.fixture
