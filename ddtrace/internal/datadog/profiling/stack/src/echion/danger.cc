@@ -97,14 +97,16 @@ disposition_is(int signo, const struct sigaction& expected)
 }
 
 bool
+consume_segv_handler_chained_back()
+{
+    return g_chained_back.exchange(false, std::memory_order_relaxed);
+}
+
+bool
 reclaim_after_chain_back()
 {
-    if (!g_chained_back.exchange(false, std::memory_order_relaxed)) {
-        return false;
-    }
-
-    // The flag only says we chained back at some point, not that the ownership we
-    // see now is what our chain-back produced. Require the exact state: each signal
+    // A recorded chain-back only says we chained back at some point, not that the
+    // ownership we see now is what our chain-back produced. Require the exact state: each signal
     // is either still ours, or sitting on precisely the handler we saved for it.
     // Anything else means someone other than us changed a disposition, and we must
     // not re-arm over them (PROF-14568). A false negative here is harmless - it
