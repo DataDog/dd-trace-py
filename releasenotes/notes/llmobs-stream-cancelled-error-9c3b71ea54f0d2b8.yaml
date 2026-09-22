@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    LLM Observability: This fix resolves an issue where a streamed request cancelled via
-    ``asyncio`` was not recorded as an error on its LLM Observability span, causing error rates
-    to be undercounted. Cancellation now marks the span as an error across all streaming
-    integrations, while an ordinary early exit from the consumer's loop remains a clean finish.
