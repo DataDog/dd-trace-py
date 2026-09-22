@@ -2048,7 +2048,6 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
-        "django.traced_get_response",
         "django.process_exception",
         "django.func.wrapped",
         # non web frameworks
@@ -2104,7 +2103,6 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
-        "django.traced_get_response",
         "molten.trace_func",
         "redis.execute_pipeline",
         "redis.command",

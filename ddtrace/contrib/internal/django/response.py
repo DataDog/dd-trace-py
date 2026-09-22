@@ -11,7 +11,7 @@ from django.http import HttpResponse
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -19,16 +19,11 @@ from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import Block_config
@@ -93,20 +88,26 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
 
     pin = Pin.get_from(instance)
 
-    with core.context_with_data(
-        "django.traced_get_response",
-        remote_addr=request.META.get("REMOTE_ADDR"),
-        headers=request_headers,
-        headers_case_sensitive=True,
-        span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config_django),
-        span_type=SpanTypes.WEB,
-        tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
+    event = WebFrameworkRequestEvent(
+        http_operation="django.request",
+        component=config_django.integration_name,
         integration_config=config_django,
-        distributed_headers=request_headers,
+        service=trace_utils.int_service(pin, config_django),
+        request_method=request.method,
+        request_url=utils.get_request_uri(request) or request.path,
+        request_headers=request_headers,
+        query=request.META.get("QUERY_STRING", ""),
         activate_distributed_headers=True,
-    ) as ctx:
+        headers_case_sensitive=True,
+    )
+    ctx = core.context_with_event(event)
+    ctx.set_item("integration_config", config_django)
+    ctx.set_item("remote_addr", request.META.get("REMOTE_ADDR"))
+    ctx.set_item("headers", request_headers)
+
+    with ctx:
+        span_from_context(ctx).resource = utils.REQUEST_DEFAULT_RESOURCE
+
         core.dispatch(
             "django.traced_get_response.pre",
             (
@@ -179,6 +180,9 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 core.dispatch("django.finalize_response", ("Django",))
                 if block_config := get_blocked():
                     response = blocked_response(block_config)
+            if response is not None:
+                event.response_status_code = response.status_code
+                event.response_headers = dict(response.items())
         return response
 
 

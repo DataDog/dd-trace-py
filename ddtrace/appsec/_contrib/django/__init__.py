@@ -289,5 +289,5 @@ def listen() -> None:
     core.on("django.extract_body", _get_headers_if_appsec, "headers")
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
 
-    core.on("context.ended.django.traced_get_response", _on_context_ended)
+    core.on("context.ended.web.request", _on_context_ended)
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
