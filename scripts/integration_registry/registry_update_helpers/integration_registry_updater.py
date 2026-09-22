@@ -53,7 +53,7 @@ class IntegrationRegistryUpdater:
             if not self.registry_yaml_path.exists():
                 self.raw_registry_data = {}
                 return
-            with open(self.registry_yaml_path, "r", encoding="utf-8") as f:
+            with open(self.registry_yaml_path, encoding="utf-8") as f:
                 self.raw_registry_data = yaml.safe_load(f)
                 if self.raw_registry_data:
                     self._load_integrations()
@@ -65,7 +65,7 @@ class IntegrationRegistryUpdater:
         """Loads the JSON data from the specified input file."""
         input_file_path = pathlib.Path(input_file_path_str)
         try:
-            with open(input_file_path, "r", encoding="utf-8") as f:
+            with open(input_file_path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
@@ -107,10 +107,12 @@ class IntegrationRegistryUpdater:
                 added_integrations += 1
                 continue
             else:
-                riot_venv = self._get_riot_venv_name()
+                test_suite = self._get_test_suite_name()
 
                 # update the existing integration
-                changed = self.integrations[integration_name].update(updates, update_versions=True, riot_venv=riot_venv)
+                changed = self.integrations[integration_name].update(
+                    updates, update_versions=True, test_suite=test_suite
+                )
                 if changed:
                     updated_integrations += 1
 
@@ -151,11 +153,10 @@ class IntegrationRegistryUpdater:
         except OSError as e:
             print(f"IntegrationRegistryUpdater: Failed to delete lock file: {e}", file=sys.stderr)
 
-    def _get_riot_venv_name(self):
-        """Returns the name of the riot venv if this is being run from a riot job."""
-        if os.environ.get("RIOT_VENV_NAME"):
-            # split venv name for special cases like "django:celery" to "django"
-            return os.environ.get("RIOT_VENV_NAME").split(":")[0]
+    def _get_test_suite_name(self):
+        """Return the integration name when this runs inside a test suite."""
+        if test_suite := os.environ.get("TEST_SUITE"):
+            return test_suite.split("::")[-1].split(":")[0]
         return None
 
     def run(self, input_file_path_str: str) -> bool:

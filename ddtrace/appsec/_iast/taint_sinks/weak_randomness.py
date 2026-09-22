@@ -7,4 +7,4 @@ class WeakRandomness(VulnerabilityBase):
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
-        super(WeakRandomness, cls).report(evidence_value=evidence_value)
+        super().report(evidence_value=evidence_value)

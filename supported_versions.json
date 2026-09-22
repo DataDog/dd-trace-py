@@ -525,6 +525,17 @@
                 "tested": [
                     "6.105.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "8.127.0"
+                ]
             }
         ],
         "aliases": [
@@ -779,6 +790,21 @@
                 "supportedRange": ">=0.12",
                 "tested": [
                     "0.12.25",
+                    "0.13.4"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10",
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=0.12",
+                "tested": [
                     "0.13.4"
                 ]
             }
@@ -1612,7 +1638,7 @@
                 "supportedRange": ">=1.0.0",
                 "tested": [
                     "1.0.0",
-                    "2.8.0"
+                    "2.9.0"
                 ]
             }
         ]
@@ -2228,6 +2254,17 @@
                     "1.65.4",
                     "1.80.16"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.80.16"
+                ]
             }
         ],
         "pinned": true
@@ -2250,6 +2287,17 @@
                 "tested": [
                     "0.11.23",
                     "0.14.18"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=0.11.0",
+                "tested": [
+                    "0.14.24"
                 ]
             }
         ],
@@ -2475,7 +2523,8 @@
                 "testedRuntimes": {
                     "python": [
                         "3.12",
-                        "3.13"
+                        "3.13",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
@@ -2494,7 +2543,8 @@
                 "testedRuntimes": {
                     "python": [
                         "3.12",
-                        "3.13"
+                        "3.13",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
@@ -2513,7 +2563,8 @@
                 "testedRuntimes": {
                     "python": [
                         "3.12",
-                        "3.13"
+                        "3.13",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=2.11.4",
@@ -2666,6 +2717,17 @@
                     "0.8.4",
                     "0.14.8",
                     "0.17.7"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=0.0.2",
+                "tested": [
+                    "0.22.0"
                 ]
             }
         ]
@@ -2927,7 +2989,9 @@
                         "3.9",
                         "3.10",
                         "3.11",
-                        "3.12"
+                        "3.12",
+                        "3.13",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=5.5.1",
@@ -3150,6 +3214,18 @@
                     "2.10.0",
                     "2.11.0",
                     "2.12.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=2.0",
+                "tested": [
+                    "2.14.0"
                 ]
             }
         ]
@@ -3407,9 +3483,20 @@
                 "tested": [
                     "23.12.2"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=20.12.0",
+                "tested": [
+                    "25.12.1"
+                ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "dependencyName": "snowflake-connector-python",
@@ -3922,7 +4009,11 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.10"
+                        "3.10",
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=2.0.0",

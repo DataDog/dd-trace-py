@@ -13,7 +13,8 @@ from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace.testing.internal.constants import XDIST_MANIFEST_DIR_PREFIX
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
-import ddtrace.testing.internal.offline_mode as offline_module
+from ddtrace.testing.internal.offline_mode import get_offline_mode
+from ddtrace.testing.internal.offline_mode import reset_offline_mode
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestSession
 from tests.testing.mocks import CoverageReportUploadCapture
@@ -24,9 +25,13 @@ from tests.utils import reinitialize_agentless_config
 
 
 @pytest.fixture(autouse=True)
-def reset_offline_singleton(monkeypatch):
-    """Reset the offline mode singleton before each test."""
-    monkeypatch.setattr(offline_module, "_offline_mode", None)
+def reset_offline_singleton():
+    """Reset the offline mode singleton before and after each test."""
+    reset_offline_mode()
+    try:
+        yield
+    finally:
+        reset_offline_mode()
 
 
 def _make_manifest_dir(tmp_path: Path) -> Path:
@@ -204,17 +209,16 @@ class TestUploadGitDataSkipping:
         env = MockDefaults.test_environment()
 
         with (
+            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
             patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
+            assert get_offline_mode().manifest_enabled
             sm = SessionManager(session=_make_session())
-
-        # upload_git_data was already called during __init__; call again explicitly
-        # to confirm Git is never instantiated in manifest mode.
-        with patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls:
             sm.upload_git_data()
-            mock_git_cls.assert_not_called()
+
+        mock_git_cls.assert_not_called()
 
     def test_git_upload_skipped_in_payload_files_mode(self, monkeypatch, tmp_path):
         output_dir = tmp_path / "out"

@@ -17,7 +17,7 @@ class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
     """
 
     def setUp(self):
-        super(MiddlewareTestCase, self).setUp()
+        super().setUp()
 
         # build a test app with a dummy tracer
         self._service = "falcon"
