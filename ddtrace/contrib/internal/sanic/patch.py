@@ -234,7 +234,7 @@ def _create_sanic_request_context(request: "Request") -> core.ExecutionContext[W
     if isinstance(query_string, bytes):
         query_string = query_string.decode()
 
-    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
+    url = f"{request.scheme}://{request.host}{request.path}"
     event = WebFrameworkRequestEvent(
         http_operation="sanic.request",
         component=config.sanic.integration_name,
@@ -253,7 +253,7 @@ def _create_sanic_request_context(request: "Request") -> core.ExecutionContext[W
         if SANIC_VERSION < (21, 0, 0):
             request_span = span_from_context(ctx)
             if request_span is not None:
-                request_span.resource = "{} {}".format(request.method, _get_path(request))
+                request_span.resource = f"{request.method} {_get_path(request)}"
 
         setattr(request.ctx, _REQUEST_CONTEXT_ATTR, ctx)
         return ctx
