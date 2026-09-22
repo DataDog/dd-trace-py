@@ -16,6 +16,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <utility>
 
 static const size_t page_size = []() -> size_t {
     auto v = sysconf(_SC_PAGESIZE);
@@ -78,10 +79,54 @@ disarm_fault_handler()
 // lock-free atomic is all the handler may do here.
 static std::atomic<bool> g_chained_back{ false };
 
-bool
-consume_segv_handler_chained_back()
+static void
+segv_handler(int signo, siginfo_t*, void*);
+
+static bool
+disposition_is(int signo, const struct sigaction& expected)
 {
-    return g_chained_back.exchange(false, std::memory_order_relaxed);
+    struct sigaction current;
+    if (sigaction(signo, nullptr, &current) != 0) {
+        return false;
+    }
+    if (current.sa_flags != expected.sa_flags) {
+        return false;
+    }
+    return (expected.sa_flags & SA_SIGINFO) ? current.sa_sigaction == expected.sa_sigaction
+                                            : current.sa_handler == expected.sa_handler;
+}
+
+bool
+reclaim_after_chain_back()
+{
+    if (!g_chained_back.exchange(false, std::memory_order_relaxed)) {
+        return false;
+    }
+
+    // The flag only says we chained back at some point, not that the ownership we
+    // see now is what our chain-back produced. Require the exact state: each signal
+    // is either still ours, or sitting on precisely the handler we saved for it.
+    // Anything else means someone other than us changed a disposition, and we must
+    // not re-arm over them (PROF-14568). A false negative here is harmless - it
+    // just takes the conservative syscall-copy fallback.
+    const std::pair<int, const struct sigaction&> chain[] = {
+        { SIGSEGV, g_old_segv },
+        { SIGBUS, g_old_bus },
+    };
+    for (const auto& link : chain) {
+        struct sigaction current;
+        if (sigaction(link.first, nullptr, &current) != 0) {
+            return false;
+        }
+        if (current.sa_sigaction == segv_handler) {
+            continue;
+        }
+        if (!disposition_is(link.first, link.second)) {
+            return false;
+        }
+    }
+
+    return init_segv_catcher() == 0 && segv_handler_installed();
 }
 
 static void
