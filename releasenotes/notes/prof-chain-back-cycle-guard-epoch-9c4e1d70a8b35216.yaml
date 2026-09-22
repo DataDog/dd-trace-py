@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where a process that had already survived one memory
+    fault could later terminate with no crash report or traceback, if the same thread
+    faulted again while the stack profiler was running.

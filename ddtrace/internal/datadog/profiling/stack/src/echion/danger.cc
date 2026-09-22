@@ -6,6 +6,7 @@
 #include <echion/state.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cerrno>
 #include <csetjmp>
@@ -48,7 +49,16 @@ thread_local volatile sig_atomic_t t_handler_armed = 0;
 // to us (e.g. profiler <-> crashtracker pointing at each other), we would loop
 // forever and hang the process. If we re-enter the unarmed path while already
 // chaining, fall through to the default disposition so termination is guaranteed.
-thread_local volatile sig_atomic_t t_in_unarmed_chain = 0;
+//
+// Scoped to an install epoch rather than left set for the life of the thread. A
+// previous handler that recovers (siglongjmp) or simply returns never gives us a
+// completion point to clear a plain flag, so a thread that survived one chain-back
+// would send its next unarmed fault straight to SIG_DFL - skipping crashtracker and
+// losing the crash report. A cycle can only happen within one delivery episode, so
+// comparing against the current epoch is sufficient, and reinstalling our handler
+// starts a fresh one.
+static std::atomic<unsigned int> g_install_epoch{ 1 };
+thread_local volatile sig_atomic_t t_chain_epoch = 0;
 
 static inline void
 arm_fault_handler()
@@ -68,7 +78,8 @@ static void
 segv_handler(int signo, siginfo_t*, void*)
 {
     if (!t_handler_armed) {
-        if (t_in_unarmed_chain) {
+        const sig_atomic_t epoch = static_cast<sig_atomic_t>(g_install_epoch.load(std::memory_order_relaxed));
+        if (t_chain_epoch == epoch) {
             // We are being re-entered while already chaining to a previous
             // handler: the handler chain has cycled back to us. Restore the
             // default disposition and re-raise to guarantee the process
@@ -82,7 +93,7 @@ segv_handler(int signo, siginfo_t*, void*)
             pthread_kill(pthread_self(), signo);
             return;
         }
-        t_in_unarmed_chain = 1;
+        t_chain_epoch = epoch;
 
         struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
         // Restore the previous handler and re-raise so default/old handling occurs.
@@ -139,6 +150,13 @@ init_segv_catcher()
             }
             return -1;
         }
+    }
+
+    if (need_segv || need_bus) {
+        // Our handler is back in the chain, so any chain-back a thread started
+        // before this point has run to completion: start a fresh cycle-detection
+        // epoch rather than leaving those threads permanently marked.
+        g_install_epoch.fetch_add(1, std::memory_order_relaxed);
     }
 
     return 0;
