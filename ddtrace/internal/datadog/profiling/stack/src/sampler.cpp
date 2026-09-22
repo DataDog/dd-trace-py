@@ -413,6 +413,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
     bool chain_back_reported = false;
+    // A fatal fault takes the process down while crashtracker collects its report, so
+    // surviving this long after a chain-back is what tells us the fault was
+    // recoverable and that re-arming will not interfere with that collection.
+    constexpr double chain_back_grace_seconds = 1.0;
+    bool chain_back_pending = false;
+    steady_clock::time_point chain_back_deadline{};
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
@@ -465,25 +471,44 @@ Sampler::sampling_thread(const uint64_t seq_num)
                                   << std::endl;
                     }
                 }
-            } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
+            } else if (!handler_fallback_done &&
+                       (chain_back_pending || (fast_copy_active && !segv_handler_installed()))) {
                 // We no longer own both signals. Two very different causes look
                 // identical from here, so ask which one it was.
                 //
                 // Our own handler restores the previous disposition for the faulting
                 // signal while delivering an unarmed fault (danger.cc segv_handler).
                 // That leaves one signal ours and one not, with nobody having taken
-                // anything. Reinstalling is safe in that case - we restore a layout we
-                // created, over a handler we ourselves saved - and only in that case,
-                // which is what reclaim_after_chain_back verifies (PROF-14568).
-                if (reclaim_after_chain_back()) {
-                    if (!chain_back_reported) {
-                        chain_back_reported = true;
-                        std::cerr << "ddtrace stack profiler: restored the previously installed SIGSEGV/SIGBUS "
-                                     "handler while delivering a fault, then reinstalled ours; keeping the "
-                                     "faster memory copy. This is not a takeover by another component."
-                                  << std::endl;
+                // anything. Wait out the grace on the safe copy before re-arming: if
+                // the fault was fatal we will not be here when it elapses, so we stay
+                // out of crashtracker's way while it collects the report.
+                if (!chain_back_pending && consume_segv_handler_chained_back() && set_fast_copy_enabled(false)) {
+                    chain_back_pending = true;
+                    chain_back_deadline = sample_time_now + duration_cast<steady_clock::duration>(
+                                                              duration<double>(chain_back_grace_seconds));
+                }
+
+                // Suppresses the permanent fallback below while the outcome is still open.
+                bool chain_back_handled = false;
+                if (chain_back_pending) {
+                    chain_back_handled = true;
+                    if (sample_time_now >= chain_back_deadline) {
+                        chain_back_pending = false;
+                        // Reinstalling is safe only if the split is still exactly the one
+                        // our chain-back produces, which reclaim_after_chain_back verifies
+                        // so that a genuine foreign owner is never reclaimed (PROF-14568).
+                        chain_back_handled = reclaim_after_chain_back() && set_fast_copy_enabled(true);
+                        if (chain_back_handled && !chain_back_reported) {
+                            chain_back_reported = true;
+                            std::cerr << "ddtrace stack profiler: restored the previously installed SIGSEGV/SIGBUS "
+                                         "handler while delivering a fault, then reinstalled ours; keeping the "
+                                         "faster memory copy. This is not a takeover by another component."
+                                      << std::endl;
+                        }
                     }
-                } else {
+                }
+
+                if (!chain_back_handled) {
                     // A handler was taken over after upgrading; fall back permanently
                     // (no debounce). This is not free: it pins the process to the slower
                     // syscall copy for its remaining lifetime, which can meaningfully

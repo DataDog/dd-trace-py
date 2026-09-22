@@ -31,11 +31,16 @@ uninstall_segv_handler();
 bool
 segv_handler_installed();
 
+// True if our handler restored a previous disposition while delivering a fault (the
+// unarmed chain-back in segv_handler). That restore covers only the signal that
+// faulted, so it leaves us owning one signal and not the other. Clears the flag.
+bool
+consume_segv_handler_chained_back();
+
 // Reinstalls our handler if, and only if, the signals we no longer own are sitting
 // on exactly the handlers we previously saved for them - the state our own
-// chain-back in segv_handler leaves behind when the process survives the fault.
-// Returns false for any other cause of split ownership, so a genuine foreign owner
-// is never reclaimed.
+// chain-back leaves behind when the process survives the fault. Returns false for
+// any other cause of split ownership, so a genuine foreign owner is never reclaimed.
 bool
 reclaim_after_chain_back();
 
