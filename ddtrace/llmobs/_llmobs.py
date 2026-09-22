@@ -1960,6 +1960,14 @@ class LLMObs(Service):
         process submits through the Datadog Agent, because the Agent stamps its own API key on
         everything it forwards. The process must therefore be able to reach the intake.
 
+        The context follows ``asyncio`` tasks, and follows work submitted to a
+        ``ThreadPoolExecutor`` as long as the ``futures`` integration is patched, which it is by
+        default. It does **not** follow a bare ``threading.Thread``, an executor the integration
+        does not patch, or anything submitted with ``DD_TRACE_FUTURES_ENABLED=false``: in those
+        cases the resulting span belongs to an unrelated trace with no link back to this context,
+        so there is nothing to inherit from and it is sent to the default organization. Open the
+        routing context inside the worker when using one of those.
+
         :param dd_api_key: API key of a single destination organization.
         :param dd_site: Site of that organization, for example ``datadoghq.eu``. Defaults to
                         the site the tracer is configured with.

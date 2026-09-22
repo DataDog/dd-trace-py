@@ -12,6 +12,7 @@ importing _llmobs.py, which would close an import cycle.
 """
 
 import contextvars
+import re
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
@@ -23,6 +24,18 @@ from typing import Optional
 ROUTING_TARGETS = "targets"
 ROUTING_API_KEY = "api_key"
 ROUTING_SITE = "site"
+
+
+# A site is interpolated straight into the intake hostname, so it must be a bare hostname.
+# Rejecting anything else keeps a caller-supplied value from redirecting requests somewhere
+# unintended (a scheme, userinfo, port, path or whitespace would all change where we connect).
+_SITE_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
+def _validated_site(site: str) -> str:
+    if not _SITE_PATTERN.match(site):
+        raise ValueError(f"dd_site must be a bare Datadog site hostname such as datadoghq.eu, got {site!r}")
+    return site
 
 
 # A routing context as stored on the contextvar and stamped onto spans.
@@ -60,7 +73,8 @@ def build_routing_context(
     A single dd_api_key is normalized into a one-entry targets list so downstream code only
     ever deals with the list form.
 
-    :raises ValueError: If neither or both forms are given, or a target has no API key.
+    :raises ValueError: If neither or both forms are given, a target has no API key, or a
+                        supplied site is not a bare hostname.
     """
     if dd_api_key is not None and targets is not None:
         raise ValueError("Cannot specify both dd_api_key and targets")
@@ -71,7 +85,7 @@ def build_routing_context(
             raise ValueError("dd_api_key is required and must be non-empty")
         target: dict[str, Any] = {ROUTING_API_KEY: dd_api_key}
         if dd_site:
-            target[ROUTING_SITE] = dd_site
+            target[ROUTING_SITE] = _validated_site(dd_site)
         return {ROUTING_TARGETS: [target]}
 
     if not targets:
@@ -84,7 +98,7 @@ def build_routing_context(
         normalized_target: dict[str, Any] = {ROUTING_API_KEY: api_key}
         site = entry.get("dd_site")
         if site:
-            normalized_target[ROUTING_SITE] = site
+            normalized_target[ROUTING_SITE] = _validated_site(site)
         normalized.append(normalized_target)
     return {ROUTING_TARGETS: normalized}
 
