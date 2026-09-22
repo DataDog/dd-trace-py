@@ -23,6 +23,7 @@ variables:
 
 .benchmarks:
   stage: test
+  extends: .retry_on_infrastructure_failure
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   rules:
