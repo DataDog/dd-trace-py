@@ -83,6 +83,8 @@ def _iast_start_request(span=None) -> Optional[int]:
         elif (context_id := _get_iast_context_id()) is not None:
             finish_request_context(context_id)
             IAST_CONTEXT.set(None)
+            if env := _get_iast_env():
+                env.iast_taint_source_objects.clear()
     return context_id
 
 
@@ -103,9 +105,10 @@ def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: boo
     if context_id is not None:
         finish_request_context(context_id)
         IAST_CONTEXT.set(None)
-        return True
 
-    return False
+    if env is not None:
+        env.iast_taint_source_objects.clear()
+    return context_id is not None
 
 
 def get_hash_object_tracking_len():
