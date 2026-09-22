@@ -472,13 +472,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // Our own handler restores the previous disposition for the faulting
                 // signal while delivering an unarmed fault (danger.cc segv_handler).
                 // That leaves one signal ours and one not, with nobody having taken
-                // anything. Reinstalling is safe in that case: we are restoring a
-                // layout we created, over a handler we ourselves saved, so it cannot
-                // stomp an uncoordinated owner (PROF-14568).
-                const bool recovered_own_chain_back =
-                  consume_segv_handler_chained_back() && init_segv_catcher() == 0 && segv_handler_installed();
-
-                if (recovered_own_chain_back) {
+                // anything. Reinstalling is safe in that case - we restore a layout we
+                // created, over a handler we ourselves saved - and only in that case,
+                // which is what reclaim_after_chain_back verifies (PROF-14568).
+                if (reclaim_after_chain_back()) {
                     if (!chain_back_reported) {
                         chain_back_reported = true;
                         std::cerr << "ddtrace stack profiler: restored the previously installed SIGSEGV/SIGBUS "
