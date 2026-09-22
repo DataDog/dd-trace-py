@@ -440,6 +440,21 @@ def test_code_object_address_reuse_does_not_return_stale_frame() -> None:
     assert replacement_name in sampled_names
     assert old_name not in sampled_names
 
+    # Parse the earlier upload after address reuse so profile parsing cannot perturb the reuse sequence.
+    profile_files = sorted(
+        tmp_path.glob(Path(output_filename).name + ".*.pprof"), key=lambda path: int(path.name.rsplit(".", 2)[-2])
+    )
+    assert len(profile_files) >= 2
+    old_profile = pprof_utils.parse_profile(str(profile_files[-2]))
+    old_samples = pprof_utils.get_samples_with_value_type(old_profile, "wall-time")
+    pprof_utils.assert_profile_has_sample(
+        old_profile,
+        samples=old_samples,
+        expected_sample=pprof_utils.StackEvent(
+            locations=[pprof_utils.StackLocation(function_name=old_name, filename=code_filename, line_no=-1)]
+        ),
+    )
+
 
 def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     test_name = "test_push_span"

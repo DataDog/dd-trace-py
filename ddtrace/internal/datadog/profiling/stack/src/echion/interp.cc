@@ -3,6 +3,7 @@
 bool
 for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback)
 {
+    // TODO: Collect per-reason metrics for interpreter capture failures (field reads and detected cycles).
     bool all_interpreter_data_captured = true;
 
     // Limit interpreter iteration to prevent infinite loops from cycles or corrupted memory.
