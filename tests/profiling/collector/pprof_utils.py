@@ -28,7 +28,7 @@ def _protobuf_version() -> tuple[int, int, int]:
 
 
 if TYPE_CHECKING:
-    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
+    from tests.profiling.collector import pprof_pb2 as pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 else:
     # Load the appropriate pprof_pb2 module
     _pb_version = _protobuf_version()
