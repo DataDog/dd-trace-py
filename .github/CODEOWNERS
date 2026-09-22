@@ -52,6 +52,7 @@ tests/vendor/                       @DataDog/python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
 benchmarks/                         @DataDog/apm-core-python
+benchmarks/openfeature_flagevaluation/ @DataDog/feature-flagging-and-experimentation-sdk
 scripts/perf-*                      @DataDog/apm-core-python
 scripts/perf_*                      @DataDog/apm-core-python
 scripts/profiles/                   @DataDog/profiling-python
