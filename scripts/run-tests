@@ -129,6 +129,7 @@ class PreparedEnvironment:
     requirements_contents: str
     identity: str
     editable: bool
+    project_requirement: str
 
     @property
     def requirements(self) -> Path:
@@ -427,7 +428,7 @@ class TestRunner:
             if not project_file.is_file():
                 raise TestEnvironmentError(f"project metadata does not exist: {project_file}")
             project_identity = project_file.read_bytes()
-            project_requirement = "-e ."
+            project_requirement = "."
             editable = True
         else:
             artifact = self.root / project_artifact
@@ -445,7 +446,7 @@ class TestRunner:
         )
         if filtered and not filtered.endswith("\n"):
             filtered += "\n"
-        requirements_contents = f"{filtered}{project_requirement}\n"
+        requirements_contents = filtered
         identity = _short_hash(
             b"\0".join(
                 (
@@ -462,6 +463,7 @@ class TestRunner:
             requirements_contents=requirements_contents,
             identity=identity,
             editable=editable,
+            project_requirement=project_requirement,
         )
 
     def _environment_is_current(self, prepared: PreparedEnvironment) -> bool:
@@ -499,42 +501,48 @@ class TestRunner:
         environment: TestEnvironment,
         prepared: PreparedEnvironment,
         command_env: dict[str, str],
-        reuse_current: bool,
     ) -> bool:
         with self._environment_lock(prepared):
-            if reuse_current and self._environment_is_current(prepared):
+            environment_is_current = self._environment_is_current(prepared)
+            if environment_is_current and not prepared.editable:
                 return False
 
-            (self.root / prepared.path / TEST_ENVIRONMENT_COMPLETE).unlink(missing_ok=True)
-            _atomic_write(self.root / prepared.requirements, prepared.requirements_contents)
             venv_python = prepared.path / "bin/python"
-            install = [
+            commands = []
+            if not environment_is_current:
+                (self.root / prepared.path / TEST_ENVIRONMENT_COMPLETE).unlink(missing_ok=True)
+                _atomic_write(self.root / prepared.requirements, prepared.requirements_contents)
+                commands.append(
+                    [
+                        "uv",
+                        "venv",
+                        "--clear",
+                        "--relocatable",
+                        "--python",
+                        environment.python,
+                        "--no-python-downloads",
+                        str(prepared.path),
+                    ]
+                )
+
+            project_install = [
                 "uv",
                 "pip",
                 "install",
-                "--exact",
                 "--python",
                 str(venv_python),
-                "--requirements",
-                str(prepared.requirements),
                 "--strict",
                 "--no-progress",
             ]
+            if environment_is_current:
+                project_install.append("--no-deps")
+            else:
+                project_install.extend(["--exact", "--requirements", str(prepared.requirements)])
             if prepared.editable:
-                install.extend(["--config-settings-package", "ddtrace:editable_mode=compat"])
-            commands = (
-                [
-                    "uv",
-                    "venv",
-                    "--clear",
-                    "--relocatable",
-                    "--python",
-                    environment.python,
-                    "--no-python-downloads",
-                    str(prepared.path),
-                ],
-                install,
-            )
+                project_install.extend(["--config-settings-package", "ddtrace:editable_mode=compat", "--editable"])
+            project_install.append(prepared.project_requirement)
+            commands.append(project_install)
+
             for command in commands:
                 wrapped = self._container_command(command, command_env)
                 result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
@@ -542,7 +550,7 @@ class TestRunner:
                     raise TestEnvironmentError(f"build failed for {environment.hash} (exit code {result.returncode})")
 
             self._mark_environment_current(prepared)
-            return True
+            return not environment_is_current
 
     def _prebuilt_ddtrace_wheel(self, python: str) -> Path:
         wheel_directory = self.root / DDTRACE_TEST_WHEEL_ROOT / python
@@ -592,12 +600,8 @@ class TestRunner:
         environments: list[TestEnvironment],
         forwarded_env: dict[str, str],
         test_args: list[str],
-        skip_ddtrace_install: bool,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
-
-        if skip_ddtrace_install:
-            print("\n⚡ Reusing prebuilt or current ddtrace installations (-s)")
 
         unpin_dependencies = os.environ.get("UNPIN_DEPENDENCIES", "").lower() == "true"
         for environment in environments:
@@ -606,10 +610,6 @@ class TestRunner:
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
                 if self.in_ci:
-                    if not skip_ddtrace_install:
-                        raise TestEnvironmentError(
-                            "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
-                        )
                     project_artifact = self._prebuilt_ddtrace_wheel(environment.python)
                 else:
                     project_artifact = None
@@ -629,15 +629,14 @@ class TestRunner:
                     environment,
                     prepared,
                     command_env,
-                    reuse_current=skip_ddtrace_install,
                 )
             except TestEnvironmentError as error:
                 print(f"❌ {error}")
                 return False
             if rebuilt:
                 print("   ✅ Test environment synchronized successfully")
-            elif skip_ddtrace_install:
-                print("   ✅ Reusing current test environment; ddtrace install skipped")
+            elif prepared.editable:
+                print("   ✅ Reused current test environment; ddtrace installation refreshed")
             else:
                 print("   ✅ Reusing current test environment")
 
@@ -660,7 +659,6 @@ class TestRunner:
         self,
         selected_environments: list[TestEnvironment],
         test_args: list[str] | None = None,
-        skip_ddtrace_install: bool = False,
     ) -> bool:
         """Execute the selected environments with per-suite service management."""
         if not selected_environments:
@@ -737,7 +735,6 @@ class TestRunner:
                 environments,
                 forwarded_env,
                 test_args or [],
-                skip_ddtrace_install,
             )
 
             # Stop services for this suite
@@ -816,9 +813,6 @@ Examples:
   # Run tests for changes since main branch
   scripts/run-tests --git-base=main
 
-  # Reuse a current ddtrace installation for faster reruns
-  scripts/run-tests -s --venv <hash>
-
   # Pass additional arguments to pytest
   scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
         """,
@@ -834,7 +828,7 @@ Examples:
         "-s",
         "--skip-ddtrace-install",
         action="store_true",
-        help="Reuse a current ddtrace installation instead of reinstalling it",
+        help="Accepted for compatibility; environment reuse is automatic",
     )
 
     parser.add_argument(
@@ -864,7 +858,12 @@ Examples:
         test_args = []
 
     args = parser.parse_args(script_args)
-    skip_ddtrace_install = args.skip_ddtrace_install
+    if args.skip_ddtrace_install:
+        compatibility_out = sys.stderr if args.list else sys.stdout
+        print(
+            "ℹ️  -s/--skip-ddtrace-install is accepted for compatibility and has no effect",
+            file=compatibility_out,
+        )
 
     runner = TestRunner()
 
@@ -880,7 +879,6 @@ Examples:
         success = runner.run_tests(
             environments_with_suite,
             test_args=test_args,
-            skip_ddtrace_install=skip_ddtrace_install,
         )
         return 0 if success else 1
 
@@ -928,7 +926,6 @@ Examples:
     success = runner.run_tests(
         selected_environments,
         test_args=test_args,
-        skip_ddtrace_install=skip_ddtrace_install,
     )
 
     return 0 if success else 1
