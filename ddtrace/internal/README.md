@@ -45,17 +45,20 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
-## Component Registry
+## Handing a product-owned object to contrib via the core event bus
 
-`ddtrace.internal._component_registry` (`_component_registry.py`) lets code in a shared zone
-(`ddtrace.contrib` or `ddtrace.internal` itself) obtain a product-owned object by name, instead of
-importing the product package that defines it. It exists to satisfy the dependency-direction rule
-enforced by the `dependency-direction-analysis` skill: `ddtrace.contrib` and `ddtrace.internal` must
-never import from a product zone (e.g. `ddtrace.llmobs`), because contribs are shared foundation
-code that every product may need, and a reverse dependency would make that foundation depend on one
-specific product being installed/importable.
+`ddtrace.contrib` and `ddtrace.internal` must never import from a product zone (e.g.
+`ddtrace.llmobs`) - this is enforced by the `dependency-direction-analysis` skill, because contribs
+are shared foundation code that every product may need, and a reverse dependency would make that
+foundation depend on one specific product being installed/importable. When a contrib integration
+needs a *product-owned object*, by name, and the product should own its own construction, dispatch a
+`"<component>.integration.create"` event instead of importing the product's class directly. This is
+the same core event bus used for fire-and-forget notifications
+(`ddtrace.internal.core.dispatch`/`core.on`, documented in `.cursor/rules/isolated-responsibility.mdc`)
+- the only difference is that the listener's job is to hand a constructed object back by mutating
+shared state the caller reads afterward, rather than merely reacting to a fact.
 
-### Two different meanings of "integration" — and why the registry avoids the word
+### Two different meanings of "integration"
 
 This area of the codebase uses "integration" for two distinct things, and it's easy to conflate
 them:
@@ -67,104 +70,91 @@ them:
   `AnthropicIntegration`) owned by `ddtrace.llmobs`, which knows how to turn a request/response
   into LLMObs spans and tags.
 
-A contrib integration's `patch()` needs a handle to its corresponding LLMObs integration object,
-but importing `ddtrace.llmobs._integrations.AnthropicIntegration` directly from
-`ddtrace/contrib/internal/anthropic/patch.py` is exactly the `contrib -> product:llmobs` violation
-described above. The registry solves this, but if it reused "integration" for its own API
-(`register_integration`, `get_integration`, ...) it would be unclear on either side of the call
-which kind of integration was meant. So the registry's own vocabulary calls what it stores a
-**component handle**: an opaque, product-owned object keyed by a component name (e.g.
-`"anthropic"`). It's still an LLMObs integration under the hood — `_component_registry.py` doesn't
-know or care what LLMObs is — but contrib code only ever deals in strings and duck-typed handles,
-never a concrete class it would have to import.
-
-This is a naming convention for the registry's own module, not a repo-wide rename: existing,
-well-established uses of "integration" elsewhere (the `llmobs_integration` field on
-`LlmRequestEvent` in `ddtrace/contrib/_events/llm.py`, the local `integration` variable inside
-`anthropic/patch.py`, `ddtrace.llmobs._integrations` itself) are legitimate LLMObs domain vocabulary
-and are unaffected.
-
-### API
-
-| Function | Description |
-|----------|-------------|
-| `register_factory(component: str, factory: Callable[[Any], Any]) -> None` | Called by the owning product to register how to build the handle for `component`. |
-| `set_loader(loader: Callable[[], None]) -> None` | Registers a callable that populates the registry (via `register_factory()`) the first time it's needed. See "Lazy loading" below for why this exists. |
-| `get_or_create(component: str, component_config: Any) -> Optional[Any]` | Returns the cached handle for `component`, building and caching it via its factory on first call. Returns `None` if no factory is registered for `component` even after running the loader. |
+The event name and the listener that answers it stay in `ddtrace.llmobs._integrations` - the
+existing, well-established home for LLMObs integration vocabulary - so this isn't a naming problem
+in practice, just something to keep straight when reading `patch.py` next to
+`ddtrace/llmobs/_integrations/__init__.py`.
 
 ### Usage walkthrough (anthropic)
 
-1. `ddtrace/llmobs/_integrations/__init__.py` — the product that owns `AnthropicIntegration` —
-   registers a factory for the `"anthropic"` component:
+1. `ddtrace/llmobs/_integrations/__init__.py` - the product that owns `AnthropicIntegration` -
+   registers a listener for the `"anthropic.integration.create"` event:
 
    ```python
-   register_factory(
-       "anthropic",
-       lambda integration_config: getattr(sys.modules[__name__], "AnthropicIntegration")(
+   def _on_anthropic_integration_create(integration_config: Any) -> None:
+       import anthropic
+
+       anthropic._datadog_integration = getattr(sys.modules[__name__], "AnthropicIntegration")(
            integration_config=integration_config
-       ),
-   )
+       )
+
+   core.on("anthropic.integration.create", _on_anthropic_integration_create)
    ```
 
-   The factory looks up `AnthropicIntegration` through this module's own `__getattr__` (rather than
+   The listener looks up `AnthropicIntegration` through this module's own `__getattr__` (rather than
    a bare name) so that importing `ddtrace.llmobs._integrations` doesn't eagerly import every
-   concrete integration module — only the factory that actually runs does.
+   concrete integration module - only the listener that actually runs does. It imports the
+   third-party `anthropic` package itself (rather than receiving it as an argument) because the only
+   channel back to the caller is the shared `anthropic` module object.
 
-2. `ddtrace/contrib/internal/anthropic/patch.py` looks the handle up by name, with no import of
-   `ddtrace.llmobs` anywhere in the file:
+2. `ddtrace/contrib/internal/anthropic/patch.py` dispatches the event and then reads the attribute
+   the listener set, with no import of `ddtrace.llmobs` anywhere in the file:
 
    ```python
-   from ddtrace.internal._component_registry import get_or_create as get_llmobs_component
+   from ddtrace._monkey import ensure_llmobs_integrations_loaded
 
    def patch() -> None:
        ...
-       integration = get_llmobs_component("anthropic", config.anthropic)
-       anthropic._datadog_integration = integration
+       ensure_llmobs_integrations_loaded()
+       core.dispatch("anthropic.integration.create", (config.anthropic,))
+       # anthropic._datadog_integration is now set; traced_chat_model_generate reads it per-request.
    ```
 
-3. Something has to cause the factory from step 1 to actually be registered — i.e. something has to
-   import `ddtrace.llmobs._integrations` at least once. That's what `set_loader()` is for.
+   This works because `core.dispatch()` runs registered listeners synchronously before returning, and
+   `patch()` always finishes before a user can make a real `anthropic` call - so the attribute is
+   guaranteed to exist by the time anything reads it.
 
-### Lazy loading and why it's needed
+3. Something has to cause the listener from step 1 to actually be registered - i.e. something has to
+   import `ddtrace.llmobs._integrations` at least once before the dispatch in step 2 runs. That's
+   what `ensure_llmobs_integrations_loaded()` is for.
+
+### Why `ensure_llmobs_integrations_loaded()` is called from `patch()`, not just once centrally
 
 `ddtrace._monkey` is one of the few modules classified as unclassified/foundation code rather than
-`internal-core`, which makes it the correct, deliberate bridge point between contrib and products —
+`internal-core`, which makes it the correct, deliberate bridge point between contrib and products -
 it's exempt from the "no product imports" rule specifically so something can wire the two together.
-Naively, it could just do `import ddtrace.llmobs._integrations` at module scope to populate the
-registry. That fails: `ddtrace._monkey` is itself imported by `ddtrace/__init__.py` before that
-module finishes setting its own `config` attribute, and `ddtrace.llmobs.__init__` transitively does
-`from ddtrace import config` deep in its import chain — so importing it too early raises
-`ImportError: cannot import name 'config' from partially initialized module 'ddtrace'`.
+Naively, it could just do `import ddtrace.llmobs._integrations` at its own module scope. That fails:
+`ddtrace._monkey` is itself imported by `ddtrace/__init__.py` before that module finishes setting its
+own `config` attribute, and `ddtrace.llmobs.__init__` transitively does `from ddtrace import config`
+deep in its import chain - so importing it too early raises `ImportError: cannot import name
+'config' from partially initialized module 'ddtrace'`.
 
-Moving the import into `ddtrace._monkey.patch()`'s body doesn't fully fix it either: tests (and any
-other caller) can call a contrib module's `patch()` function directly, bypassing
-`ddtrace._monkey.patch()` entirely, in which case the registry would never get populated.
+Calling it only once, from inside `ddtrace._monkey.patch()`'s body, doesn't fully fix it either:
+tests (and any other caller) can call a contrib module's `patch()` function directly, bypassing
+`ddtrace._monkey.patch()` entirely, in which case the listener would never get registered and the
+dispatch in step 2 would silently do nothing.
 
-The fix is `set_loader()`: `ddtrace._monkey` registers a callback at module scope — just a function
-reference, so no import executes yet:
+The fix is exposing `ensure_llmobs_integrations_loaded()` as a function contrib patch() functions
+call directly, immediately before they dispatch:
 
 ```python
-def _load_llmobs_integrations() -> None:
-    import ddtrace.llmobs._integrations  # noqa: F401
+_llmobs_integrations_loaded = False
 
-_set_llmobs_component_loader(_load_llmobs_integrations)
+def ensure_llmobs_integrations_loaded() -> None:
+    global _llmobs_integrations_loaded
+    if _llmobs_integrations_loaded:
+        return
+    _llmobs_integrations_loaded = True
+    import ddtrace.llmobs._integrations  # noqa: F401
 ```
 
-`get_or_create()` invokes that callback lazily, exactly once, the first time any lookup misses —
-which is always after `ddtrace` has finished initializing, regardless of whether the caller reached
-the registry via `ddtrace._monkey.patch()` or a contrib `patch()` called directly. This isn't a
-deferred import used to paper over a real circular import (which AGENTS.md rule 14 bans) — there is
-no cycle here (`ddtrace.llmobs` never imports `ddtrace._monkey`); it's a bootstrap-ordering /
-lazy-activation concern, the same shape as the `wrapt.importer.when_imported` lazy-activation
-pattern already used elsewhere in this file.
-
-### When to reach for this vs. other patterns
-
-Use the component registry when contrib (or `ddtrace.internal`) needs a *product-owned object*, by
-name, and the product should own its own construction. If instead contrib just needs to notify a
-product that something happened (fire-and-forget, no return value needed), prefer the core event
-bus (`ddtrace.internal.core.dispatch`/`core.on`) documented in
-`.cursor/rules/isolated-responsibility.mdc` — that pattern doesn't need a registry at all.
+Because every contrib `patch()` function calls this right before its own dispatch, the import always
+runs exactly once, lazily, regardless of whether the caller reached it via `ddtrace._monkey.patch()`
+or a contrib `patch()` called directly - and always after `ddtrace` has finished initializing, since
+nothing can call any `patch()` function before that. This isn't a deferred import used to paper over
+a real circular import (which AGENTS.md rule 14 bans) - there is no cycle here (`ddtrace.llmobs`
+never imports `ddtrace._monkey`); it's a bootstrap-ordering / lazy-activation concern, the same shape
+as the `wrapt.importer.when_imported` lazy-activation pattern already used elsewhere in this file.
 
 
 ## Remote Configuration Callbacks

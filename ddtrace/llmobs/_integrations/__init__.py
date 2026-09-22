@@ -9,7 +9,7 @@ from importlib import import_module
 import sys
 from typing import Any
 
-from ddtrace.internal._component_registry import register_factory
+from ddtrace.internal import core
 
 
 _INTEGRATION_MODULES = {
@@ -43,13 +43,21 @@ def __getattr__(name: str) -> Any:
 __all__ = list(_INTEGRATION_MODULES)
 
 
-# Registered here (rather than by contrib patch modules importing the concrete integration
-# classes directly) so contrib -> ddtrace.llmobs stays a one-way, name-based lookup. getattr()
-# on this module (not a bare name reference) is required so it goes through __getattr__ above
-# and only imports the concrete integration module when the factory actually runs.
-register_factory(
-    "anthropic",
-    lambda integration_config: getattr(sys.modules[__name__], "AnthropicIntegration")(
+def _on_anthropic_integration_create(integration_config: Any) -> None:
+    # anthropic (the third-party package) is guaranteed to already be imported by the time this
+    # listener runs: it's dispatched from within ddtrace/contrib/internal/anthropic/patch.py's own
+    # patch() function, after that module's own `import anthropic` at the top of the file.
+    import anthropic
+
+    # getattr() on this module (not a bare name reference) is required so it goes through
+    # __getattr__ above and only imports the concrete integration module when this listener runs.
+    anthropic._datadog_integration = getattr(sys.modules[__name__], "AnthropicIntegration")(
         integration_config=integration_config
-    ),
-)
+    )
+
+
+# Registered here (rather than by contrib patch modules importing the concrete integration classes
+# directly) so contrib -> ddtrace.llmobs stays a one-way, event-based notification: contrib
+# dispatches "anthropic.integration.create" and this listener builds and stashes the integration
+# object, instead of contrib importing and constructing AnthropicIntegration itself.
+core.on("anthropic.integration.create", _on_anthropic_integration_create)

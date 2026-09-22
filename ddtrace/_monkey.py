@@ -7,7 +7,6 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.internal._component_registry import set_loader as _set_llmobs_component_loader
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import _integration_env_var_id
@@ -25,19 +24,31 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 log = get_logger(__name__)
 
 
-def _load_llmobs_integrations() -> None:
-    # Populates ddtrace.internal._component_registry with LLMObs integration factories so contrib
-    # patch modules can look up their LLMObs component handle by name instead of importing
-    # ddtrace.llmobs directly. Registered as a loader (called lazily, on first registry lookup)
-    # rather than imported here at module scope: ddtrace._monkey is itself imported by
-    # ddtrace/__init__.py before that module finishes initializing, and ddtrace.llmobs
-    # transitively does `from ddtrace import config`, which isn't set on the partially-initialized
-    # ddtrace module yet. By the time anything actually looks a component up, ddtrace has always
-    # finished importing.
+_llmobs_integrations_loaded = False
+
+
+def ensure_llmobs_integrations_loaded() -> None:
+    """Import ddtrace.llmobs._integrations exactly once, on demand.
+
+    That import's side effect is registering this process's "<component>.integration.create"
+    core-event listeners (see ddtrace/llmobs/_integrations/__init__.py), which a contrib patch()
+    function dispatches to obtain its LLMObs integration object without importing ddtrace.llmobs
+    itself. Callers must call this immediately before dispatching such an event.
+
+    Deferred rather than imported at ddtrace._monkey's own module scope: ddtrace._monkey is itself
+    imported by ddtrace/__init__.py before that module finishes setting its own `config` attribute,
+    and ddtrace.llmobs transitively does `from ddtrace import config`, which isn't set on the
+    partially-initialized ddtrace module yet. Calling this from within a contrib patch() function
+    (rather than only from ddtrace._monkey.patch()) also covers tests and other callers that invoke
+    a contrib patch() directly, bypassing ddtrace._monkey.patch() entirely - by the time any patch()
+    runs, ddtrace has always finished importing.
+    """
+    global _llmobs_integrations_loaded
+    if _llmobs_integrations_loaded:
+        return
+    _llmobs_integrations_loaded = True
     import ddtrace.llmobs._integrations  # noqa: F401
 
-
-_set_llmobs_component_loader(_load_llmobs_integrations)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
