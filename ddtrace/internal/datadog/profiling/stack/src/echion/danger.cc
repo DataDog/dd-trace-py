@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <csetjmp>
 #include <cstdio>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
@@ -149,6 +150,8 @@ segv_handler_installed()
 {
     // Recovery needs our handler to own BOTH SIGSEGV and SIGBUS
     // (a copy fault can arrive as either); anything else means we can't recover.
+    // Do not treat crashtracker's _native.so handler as installed: it cannot
+    // siglongjmp back into safe_memcpy.
     const int signals[] = { SIGSEGV, SIGBUS };
     for (int signo : signals) {
         struct sigaction current;
@@ -160,6 +163,63 @@ segv_handler_installed()
         }
     }
     return true;
+}
+
+static bool
+we_own_signal(const struct sigaction* current)
+{
+    return (current->sa_flags & SA_SIGINFO) != 0 && current->sa_sigaction == segv_handler;
+}
+
+static bool
+is_crashtracker_handler(const struct sigaction* current)
+{
+    if (we_own_signal(current)) {
+        return false;
+    }
+    if (current->sa_handler == SIG_DFL || current->sa_handler == SIG_IGN) {
+        return false;
+    }
+    // Union: compare sa_sigaction even if SA_SIGINFO is off so a stripped flag
+    // still names us instead of our .so.
+    if (current->sa_sigaction == segv_handler) {
+        return false;
+    }
+    void* addr = (current->sa_flags & SA_SIGINFO) != 0 ? reinterpret_cast<void*>(current->sa_sigaction)
+                                                       : reinterpret_cast<void*>(current->sa_handler);
+    if (addr == nullptr) {
+        return false;
+    }
+    Dl_info info{};
+    if (dladdr(addr, &info) == 0 || info.dli_fname == nullptr) {
+        return false;
+    }
+    const char* slash = strrchr(info.dli_fname, '/');
+    const char* base = slash != nullptr ? slash + 1 : info.dli_fname;
+    return fname_is_ddtrace_native_so(base);
+}
+
+bool
+should_reclaim_crashtracker_handlers()
+{
+    // Reclaim only when we saw crashtracker's _native.so on a signal we do not
+    // own, and no unowned signal belongs to anyone else (abseil, PyTorch, SIG_DFL).
+    const int signals[] = { SIGSEGV, SIGBUS };
+    bool saw_crashtracker = false;
+    for (int signo : signals) {
+        struct sigaction current;
+        if (sigaction(signo, nullptr, &current) != 0) {
+            return false;
+        }
+        if (we_own_signal(&current)) {
+            continue;
+        }
+        if (!is_crashtracker_handler(&current)) {
+            return false;
+        }
+        saw_crashtracker = true;
+    }
+    return saw_crashtracker;
 }
 
 void
