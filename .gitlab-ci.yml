@@ -798,7 +798,7 @@ lib_injection_tests:
 profiling_native:
   extends:
     - .profiling_native_base
-    - .retry_on_failure
+    - .retry_on_all_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"

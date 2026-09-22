@@ -1,6 +1,10 @@
 include:
 - project: 'DataDog/benchmarking-platform-tools'
   file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+- local: ".gitlab/retry-policies.yml"
+- local: ".gitlab/retry-policies-main.yml"
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "main"
 
 workflow:
   auto_cancel:
@@ -23,6 +27,7 @@ variables:
 
 .benchmarks:
   stage: test
+  extends: .retry_on_infrastructure_failure
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   rules:
