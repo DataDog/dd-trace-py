@@ -47,10 +47,9 @@ class FrameStack : public std::vector<Frame>
   public:
     using Key = Frame::Key;
 
-    // omission_index locates a gap left by omitted synchronous frames in the leaf-to-root stack.
-    // It indexes retained Frames, not rendered locations: insert the marker before that Frame,
-    // or append it when the index equals size(). SIZE_MAX disables the marker.
-    // omitted_frames supplies the marker's count; zero emits nothing.
+    // omission_index is the index into this FrameStack before which to render the omission marker.
+    // An index of size() puts the marker after all frames; SIZE_MAX disables it.
+    // omitted_frames is the number of synchronous frames represented by the marker; zero emits nothing.
     void render(EchionSampler& echion, TruncationStatus truncation, size_t omission_index, size_t omitted_frames);
 };
 
