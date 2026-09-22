@@ -3627,8 +3627,11 @@ class LLMObs(Service):
             if cls.enabled is False:
                 return
             _parent_id = cls._read_propagated_value(context, PROPAGATED_PARENT_ID_KEY)
-            # No APM trace context, but LLMObs context can still arrive via baggage
-            if (not context.trace_id or not context.span_id) and _parent_id is None:
+            # The LLMObs parent ID is the only thing actually required; it rides baggage,
+            # independently of the APM trace headers. The APM IDs only pick the failure mode:
+            # neither carrier present means the headers are unusable (hard error), whereas a
+            # valid APM trace that simply carries no LLMObs context is an ordinary miss below.
+            if _parent_id is None and (not context.trace_id or not context.span_id):
                 error = "missing_context"
                 if _soft_fail:
                     log.warning("Failed to extract trace/span ID from request headers.")
