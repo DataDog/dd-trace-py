@@ -412,6 +412,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     const bool fast_copy_warmup = fast_copy_desired && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
+    bool chain_back_reported = false;
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
@@ -465,24 +466,46 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     }
                 }
             } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
-                // A handler was taken over after upgrading; fall back permanently
-                // (no debounce). This is not free: it pins the process to the slower
-                // syscall copy for its remaining lifetime, which can meaningfully
-                // degrade sample quality (e.g. on asyncio workloads). We still prefer
-                // it over the alternative, which is crashing under a foreign handler.
-                handler_fallback_done = true;
-                mark_fast_copy_syscall_fallback();
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing."
-                          << std::endl;
-                if (!set_fast_copy_enabled(false)) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
-                    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing."
+                // We no longer own both signals. Two very different causes look
+                // identical from here, so ask which one it was.
+                //
+                // Our own handler restores the previous disposition for the faulting
+                // signal while delivering an unarmed fault (danger.cc segv_handler).
+                // That leaves one signal ours and one not, with nobody having taken
+                // anything. Reinstalling is safe in that case: we are restoring a
+                // layout we created, over a handler we ourselves saved, so it cannot
+                // stomp an uncoordinated owner (PROF-14568).
+                const bool recovered_own_chain_back =
+                  consume_segv_handler_chained_back() && init_segv_catcher() == 0 && segv_handler_installed();
+
+                if (recovered_own_chain_back) {
+                    if (!chain_back_reported) {
+                        chain_back_reported = true;
+                        std::cerr << "ddtrace stack profiler: restored the previously installed SIGSEGV/SIGBUS "
+                                     "handler while delivering a fault, then reinstalled ours; keeping the "
+                                     "faster memory copy. This is not a takeover by another component."
+                                  << std::endl;
+                    }
+                } else {
+                    // A handler was taken over after upgrading; fall back permanently
+                    // (no debounce). This is not free: it pins the process to the slower
+                    // syscall copy for its remaining lifetime, which can meaningfully
+                    // degrade sample quality (e.g. on asyncio workloads). We still prefer
+                    // it over the alternative, which is crashing under a foreign handler.
+                    handler_fallback_done = true;
+                    mark_fast_copy_syscall_fallback();
+                    std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
+                                 "component; falling back to syscall-based memory copy to avoid crashing."
                               << std::endl;
-                    break;
+                    if (!set_fast_copy_enabled(false)) {
+                        // No safe fallback available (e.g. process_vm_readv blocked), so
+                        // safe_memcpy is still active; reading under a foreign handler would
+                        // crash - stop sampling instead.
+                        std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                                     "stopping stack sampling to avoid crashing."
+                                  << std::endl;
+                        break;
+                    }
                 }
             }
         }

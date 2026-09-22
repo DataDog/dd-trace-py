@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the stack profiler reported that another component
+    had taken over the ``SIGSEGV``/``SIGBUS`` handler after the application faulted, and
+    permanently degraded stack sampling in processes that survived the fault.

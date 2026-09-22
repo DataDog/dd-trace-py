@@ -74,6 +74,16 @@ disarm_fault_handler()
     t_handler_armed = 0;
 }
 
+// Set from the signal handler, read by the sampling thread. A relaxed store on a
+// lock-free atomic is all the handler may do here.
+static std::atomic<bool> g_chained_back{ false };
+
+bool
+consume_segv_handler_chained_back()
+{
+    return g_chained_back.exchange(false, std::memory_order_relaxed);
+}
+
 static void
 segv_handler(int signo, siginfo_t*, void*)
 {
@@ -94,6 +104,11 @@ segv_handler(int signo, siginfo_t*, void*)
             return;
         }
         t_chain_epoch = epoch;
+
+        // Record that the disposition below is being changed by us, not by another
+        // component. Only the faulting signal is restored, so the sampler would
+        // otherwise read the resulting split ownership as a foreign takeover.
+        g_chained_back.store(true, std::memory_order_relaxed);
 
         struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
         // Restore the previous handler and re-raise so default/old handling occurs.
