@@ -23,7 +23,7 @@ def _should_taint(value, source_name, source_origin, override_pyobject_tainted):
     if not override_pyobject_tainted:
         return not is_pyobject_tainted(value)
 
-    # AIDEV-NOTE: Overrides must correct source attribution and partial ranges. Reusing
+    # Overrides must correct source attribution and partial ranges. Reusing
     # an identical immutable source preserves secure marks and avoids stale map entries
     # when repeated Flask callbacks would otherwise discard the previous source string.
     if isinstance(value, (str, bytes)):
