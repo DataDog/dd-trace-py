@@ -224,7 +224,7 @@ StackRenderer::render_omitted_frames(size_t count)
         return;
     }
 
-    const std::string name = "<" + std::to_string(count) + " synchronous frame" + (count == 1 ? "" : "s") + " omitted>";
+    const std::string name = "<" + std::to_string(count) + " frame" + (count == 1 ? "" : "s") + " omitted>";
     sample->push_frame(name, "", 0, 0);
 }
 

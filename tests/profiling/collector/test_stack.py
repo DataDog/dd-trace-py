@@ -237,9 +237,10 @@ def test_set_max_frames_after_fork_restart() -> None:
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_native_frame_limit",
     ),
+    parametrize={"DD_TEST_STACK_MODE": ["plain", "asyncio"]},
     err=None,
 )
-def test_asyncio_discovery_preserves_sync_context() -> None:
+def test_stack_collection_preserves_sync_context() -> None:
     import asyncio
     import os
     import time
@@ -249,6 +250,8 @@ def test_asyncio_discovery_preserves_sync_context() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
+    use_asyncio = os.environ["DD_TEST_STACK_MODE"] == "asyncio"
+    nframes = 64 if use_asyncio else 1
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     ddup.config(
         env="test",
@@ -272,52 +275,53 @@ def test_asyncio_discovery_preserves_sync_context() -> None:
     async def outer() -> None:
         await inner()
 
-    with stack.StackCollector(nframes=1):
-        assert _stack._get_frame_limits() == (1, 1024)
-        sync_outer()
-    # Asyncio collection now shares the frame limit, so leave room for the stitched stack.
-    with stack.StackCollector(nframes=64):
-        asyncio.run(outer())
+    with stack.StackCollector(nframes=nframes):
+        assert _stack._get_frame_limits() == (nframes, 1024)
+        if use_asyncio:
+            asyncio.run(outer())
+        else:
+            sync_outer()
 
     ddup.upload()
     profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
 
-    plain_samples = [
-        sample
-        for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        if pprof_utils.get_label_with_key(profile.string_table, sample, "task name") is None
-    ]
-    plain_stack_was_bounded = False
-    for sample in plain_samples:
-        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
-        if not any(location.function_name == "sync_leaf" for location in locations):
-            continue
-        python_locations = [
-            location
-            for location in locations
-            if location.filename != "<native>" and not location.function_name.startswith("<")
+    if not use_asyncio:
+        plain_samples = [
+            sample
+            for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time")
+            if pprof_utils.get_label_with_key(profile.string_table, sample, "task name") is None
         ]
-        plain_stack_was_bounded = len(python_locations) <= 1 and "omitted>" in locations[-1].function_name
-        if plain_stack_was_bounded:
-            break
+        plain_stack_was_bounded = False
+        for sample in plain_samples:
+            locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+            if not any(location.function_name == "sync_leaf" for location in locations):
+                continue
+            python_locations = [
+                location
+                for location in locations
+                if location.filename != "<native>" and not location.function_name.startswith("<")
+            ]
+            plain_stack_was_bounded = len(python_locations) <= 1 and "omitted>" in locations[-1].function_name
+            if plain_stack_was_bounded:
+                break
 
-    assert plain_stack_was_bounded
-
-    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            locations=[
-                pprof_utils.StackLocation(function_name="sync_leaf", filename="", line_no=-1),
-                pprof_utils.StackLocation(function_name="sync_outer", filename="", line_no=-1),
-                pprof_utils.StackLocation(function_name="inner", filename="", line_no=-1),
-                pprof_utils.StackLocation(function_name="outer", filename="", line_no=-1),
-            ],
-        ),
-        print_samples_on_failure=True,
-    )
+        assert plain_stack_was_bounded
+    else:
+        samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                locations=[
+                    pprof_utils.StackLocation(function_name="sync_leaf", filename="", line_no=-1),
+                    pprof_utils.StackLocation(function_name="sync_outer", filename="", line_no=-1),
+                    pprof_utils.StackLocation(function_name="inner", filename="", line_no=-1),
+                    pprof_utils.StackLocation(function_name="outer", filename="", line_no=-1),
+                ],
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 def test_stack_locations(tmp_path: Path) -> None:

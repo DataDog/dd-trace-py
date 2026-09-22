@@ -123,6 +123,7 @@ def test_deep_sync_stack_does_not_hide_task_context() -> None:
 def test_task_stack_uses_remaining_budget_for_sync_context() -> None:
     import asyncio
     import os
+    import re
     import time
 
     from ddtrace.internal.datadog.profiling import stack
@@ -172,7 +173,7 @@ def test_task_stack_uses_remaining_budget_for_sync_context() -> None:
             )
 
     assert any(
-        len(names) <= 8 and "sync_code" in names and names[-1].startswith("<") and "synchronous frame" in names[-1]
+        len(names) <= 8 and "sync_code" in names and re.fullmatch(r"<[1-9][0-9]* frames? omitted>", names[-1])
         for names in actual
     ), actual
 

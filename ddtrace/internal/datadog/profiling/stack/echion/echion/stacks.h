@@ -49,7 +49,7 @@ class FrameStack : public std::vector<Frame>
 
     // omission_index is the index into this FrameStack before which to render the omission marker.
     // An index of size() puts the marker after all frames; SIZE_MAX disables it.
-    // omitted_frames is the number of synchronous frames represented by the marker; zero emits nothing.
+    // omitted_frames is the number of omitted thread frames represented by the marker; zero emits nothing.
     void render(EchionSampler& echion, TruncationStatus truncation, size_t omission_index, size_t omitted_frames);
 };
 

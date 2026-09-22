@@ -157,7 +157,6 @@ class EchionSampler
     size_t asyncio_task_count() const { return asyncio_task_count_; }
 
     void set_max_frames(size_t max_frames) { stack_max_frames_ = std::max<size_t>(max_frames, 1); }
-
     [[nodiscard]] size_t stack_max_frames() const { return stack_max_frames_; }
 
     unsigned int max_tasks_per_sample() const { return max_tasks_per_sample_; }
