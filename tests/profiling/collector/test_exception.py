@@ -10,6 +10,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import exception
 from ddtrace.trace import Tracer
@@ -158,6 +159,123 @@ def test_exception_config_defaults() -> None:
     assert profiling_config.exception.enabled is True
     assert profiling_config.exception.sampling_interval == 100
     assert profiling_config.exception.collect_message is False
+
+
+def test_exception_monitoring_setup_failure_releases_tool_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_set_events = sys.monitoring.set_events
+    failed = False
+
+    def fail_first_enable(tool_id: int, events: int) -> None:
+        nonlocal failed
+        if events == sys.monitoring.events.RAISE and not failed:
+            failed = True
+            raise RuntimeError("set events failed")
+        real_set_events(tool_id, events)
+
+    monkeypatch.setattr(sys.monitoring, "set_events", fail_first_enable)
+    first = exception.ExceptionCollector(sampling_interval=1)
+
+    with pytest.raises(RuntimeError, match="set events failed"):
+        first.start()
+
+    assert sys.monitoring.get_tool(4) is None
+
+    second = exception.ExceptionCollector(sampling_interval=1)
+    second.start()
+    try:
+        assert second.status == service.ServiceStatus.RUNNING
+        assert sys.monitoring.get_tool(4) == "dd-trace-exception-profiler"
+    finally:
+        second.stop()
+
+
+@pytest.mark.parametrize("setup_method", ["set_events", "register_callback"])
+def test_exception_monitoring_setup_cleanup_retries_free_tool_id(
+    monkeypatch: pytest.MonkeyPatch, setup_method: str
+) -> None:
+    real_setup = getattr(sys.monitoring, setup_method)
+    real_free_tool_id = sys.monitoring.free_tool_id
+    setup_failed = False
+    free_failed = False
+
+    def fail_first_setup(*args: object) -> object:
+        nonlocal setup_failed
+        if not setup_failed:
+            setup_failed = True
+            raise RuntimeError("monitoring setup failed")
+        return real_setup(*args)
+
+    def fail_first_free(tool_id: int) -> None:
+        nonlocal free_failed
+        if not free_failed:
+            free_failed = True
+            raise RuntimeError("free tool failed")
+        real_free_tool_id(tool_id)
+
+    monkeypatch.setattr(sys.monitoring, setup_method, fail_first_setup)
+    monkeypatch.setattr(sys.monitoring, "free_tool_id", fail_first_free)
+    first = exception.ExceptionCollector(sampling_interval=1)
+
+    with pytest.raises(RuntimeError, match="free tool failed"):
+        first.start()
+
+    assert sys.monitoring.get_tool(4) == "dd-trace-exception-profiler"
+    first._rollback_start()
+    assert sys.monitoring.get_tool(4) is None
+
+    second = exception.ExceptionCollector(sampling_interval=1)
+    second.start()
+    try:
+        assert second.status == service.ServiceStatus.RUNNING
+        assert sys.monitoring.get_tool(4) == "dd-trace-exception-profiler"
+    finally:
+        second.stop()
+
+
+def test_exception_monitoring_stop_retries_free_tool_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_free_tool_id = sys.monitoring.free_tool_id
+    free_failed = False
+
+    def fail_first_free(tool_id: int) -> None:
+        nonlocal free_failed
+        if not free_failed:
+            free_failed = True
+            raise RuntimeError("free tool failed")
+        real_free_tool_id(tool_id)
+
+    monkeypatch.setattr(sys.monitoring, "free_tool_id", fail_first_free)
+    collector = exception.ExceptionCollector(sampling_interval=1)
+    collector.start()
+
+    with pytest.raises(RuntimeError, match="free tool failed"):
+        collector.stop()
+
+    assert collector.status == service.ServiceStatus.RUNNING
+    assert sys.monitoring.get_tool(4) == "dd-trace-exception-profiler"
+
+    collector.stop()
+    assert collector.status == service.ServiceStatus.STOPPED
+    assert sys.monitoring.get_tool(4) is None
+
+
+def test_exception_sampler_setup_failure_does_not_claim_tool_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_urandom = os.urandom
+    monkeypatch.setattr(os, "urandom", mock.Mock(side_effect=RuntimeError("sampler setup failed")))
+    first = exception.ExceptionCollector(sampling_interval=1)
+
+    with pytest.raises(RuntimeError, match="sampler setup failed"):
+        first.start()
+
+    assert sys.monitoring.get_tool(4) is None
+
+    monkeypatch.setattr(os, "urandom", real_urandom)
+    second = exception.ExceptionCollector(sampling_interval=1)
+    second.start()
+    try:
+        assert second.status == service.ServiceStatus.RUNNING
+        assert sys.monitoring.get_tool(4) == "dd-trace-exception-profiler"
+    finally:
+        second.stop()
 
 
 def test_poisson_sampling_distribution() -> None:
