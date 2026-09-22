@@ -1025,7 +1025,12 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // faulthandler) install its own handler so it doesn't record ours as its
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
-    if (fast_copy_active) {
+    //
+    // Gate on safe_memcpy_initialized, not fast_copy_active: warmup clears
+    // the latter while the handlers stay installed. A coordinated crashtracker
+    // handoff during that window must still uninstall or crashtracker records
+    // us as previous and a no-op reinstall leaves _native on SIGSEGV.
+    if (safe_memcpy_initialized) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -1034,11 +1039,12 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
-    // This is used to reclaim the handler after another component (e.g., Python's
-    // faulthandler module) overwrites it. Our handler chains to the previous one
+    // Reinstall SIGSEGV/SIGBUS handlers if safe_memcpy was initialized (including
+    // during warmup, when fast_copy_active is false). This is used to reclaim
+    // the handler after another component (e.g., Python's faulthandler module
+    // or crashtracker) overwrites it. Our handler chains to the previous one
     // for non-recovery faults, so both systems coexist correctly.
-    if (fast_copy_active) {
+    if (safe_memcpy_initialized) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;

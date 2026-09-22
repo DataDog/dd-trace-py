@@ -31,6 +31,28 @@ uninstall_segv_handler();
 bool
 segv_handler_installed();
 
+// Basename of the rust extension that hosts crashtracker (_native.so / _native.*.so).
+inline bool
+fname_is_ddtrace_native_so(const char* base)
+{
+    static constexpr char kPrefix[] = "_native";
+    static constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
+    if (base == nullptr) {
+        return false;
+    }
+    if (strncmp(base, kPrefix, kPrefixLen) != 0) {
+        return false;
+    }
+    const char next = base[kPrefixLen];
+    return next == '\0' || next == '.' || next == '-';
+}
+
+// True when every SIGSEGV/SIGBUS we do not own is crashtracker in _native.so.
+// Does not treat _native as installed for recovery; the caller must reinstall
+// our handler on top so sampling faults longjmp and real crashes chain.
+bool
+should_reclaim_crashtracker_handlers();
+
 #if defined PL_LINUX
 ssize_t
 safe_memcpy_wrapper(pid_t,

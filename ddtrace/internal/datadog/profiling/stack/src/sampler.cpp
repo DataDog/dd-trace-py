@@ -36,6 +36,27 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_enabled(fast_copy_active);
 }
 
+// If crashtracker (_native.so) took SIGSEGV/SIGBUS, reinstall on top so sampling
+// faults longjmp and real crashes chain to crashtracker. True foreign owners
+// still pin the syscall fallback. Never treat _native as segv_handler_installed().
+static bool
+reclaim_crashtracker_handlers_if_ours()
+{
+    if (segv_handler_installed()) {
+        return true;
+    }
+    if (!should_reclaim_crashtracker_handlers()) {
+        return false;
+    }
+    if (init_segv_catcher() != 0 || !segv_handler_installed()) {
+        return false;
+    }
+    std::cerr << "ddtrace stack profiler: reclaimed SIGSEGV/SIGBUS from crashtracker; "
+                 "keeping safe_memcpy (stack catcher current, crashtracker previous)."
+              << std::endl;
+    return true;
+}
+
 void
 Datadog::seed_fast_copy_profiler_stats()
 {
@@ -377,7 +398,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
 {
     seed_fast_copy_profiler_stats();
 
-    // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them.
+    // (Re)install our SIGSEGV/SIGBUS handlers once if we still own them, or if
+    // the owner is our crashtracker (_native.so). Crashtracker can longjmp-chain
+    // underneath us; a true foreign owner cannot, so we leave that in place.
     //
     // safe_memcpy recovers only when our handler owns BOTH signals (see danger.cc).
     // We can chain on top of handlers we coordinate with (faulthandler, crashtracker:
@@ -385,12 +408,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // abseil (vLLM/gRPC) or PyTorch/CUDA install their own handlers independently—often
     // lazily on other threads—so overwriting them breaks their crash path and faults
     // during sampling may still reach their handler instead of our siglongjmp (PROF-14568).
-    // If a foreign owner is already authoritative, leave it in place and fall back to
-    // the syscall copy rather than reclaiming on top.
     static std::once_flag segv_handler_once;
     if (fast_copy_active) {
         std::call_once(segv_handler_once, []() {
-            if (segv_handler_installed()) {
+            if (segv_handler_installed() || should_reclaim_crashtracker_handlers()) {
                 init_segv_catcher();
             }
         });
@@ -451,7 +472,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // upgrade to safe_memcpy only if we still own the handlers.
                 if (sample_time_now >= fast_copy_warmup_deadline) {
                     fast_copy_upgraded = true; // decide once
-                    if (segv_handler_installed()) {
+                    if (reclaim_crashtracker_handlers_if_ours()) {
                         set_fast_copy_enabled(true);
                     } else {
                         // Another component already owns a handler; stay on the safe
@@ -465,24 +486,28 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     }
                 }
             } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
-                // A handler was taken over after upgrading; fall back permanently
-                // (no debounce). This is not free: it pins the process to the slower
-                // syscall copy for its remaining lifetime, which can meaningfully
-                // degrade sample quality (e.g. on asyncio workloads). We still prefer
-                // it over the alternative, which is crashing under a foreign handler.
-                handler_fallback_done = true;
-                mark_fast_copy_syscall_fallback();
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing."
-                          << std::endl;
-                if (!set_fast_copy_enabled(false)) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
-                    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing."
+                // Crashtracker (_native.so) is ours: reinstall on top and keep fast copy.
+                // A true foreign owner still pins the syscall fallback (PROF-14568).
+                if (!reclaim_crashtracker_handlers_if_ours()) {
+                    // A handler was taken over after upgrading; fall back permanently
+                    // (no debounce). This is not free: it pins the process to the slower
+                    // syscall copy for its remaining lifetime, which can meaningfully
+                    // degrade sample quality (e.g. on asyncio workloads). We still prefer
+                    // it over the alternative, which is crashing under a foreign handler.
+                    handler_fallback_done = true;
+                    mark_fast_copy_syscall_fallback();
+                    std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
+                                 "component; falling back to syscall-based memory copy to avoid crashing."
                               << std::endl;
-                    break;
+                    if (!set_fast_copy_enabled(false)) {
+                        // No safe fallback available (e.g. process_vm_readv blocked), so
+                        // safe_memcpy is still active; reading under a foreign handler would
+                        // crash - stop sampling instead.
+                        std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                                     "stopping stack sampling to avoid crashing."
+                                  << std::endl;
+                        break;
+                    }
                 }
             }
         }

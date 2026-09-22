@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 
@@ -154,3 +156,70 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        _DD_PROFILING_STACK_FAST_COPY="1",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_warmup_handoff_still_uninstalls() -> None:
+    """Warmup clears fast_copy_active but leaves SIGSEGV/SIGBUS handlers installed.
+
+    uninstall/reinstall must still swap so a coordinated crashtracker-style
+    install during warmup is not left as a permanent _native SIGSEGV owner.
+    """
+    import signal
+    import time
+    from typing import Optional
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    _stack._set_fast_copy_warmup_seconds(2.0)
+    stack.set_adaptive_sampling(False)
+    started: bool = stack.start()
+    assert started
+
+    try:
+        saw_warmup: bool = False
+        warmup_deadline: float = time.monotonic() + 10
+        while time.monotonic() < warmup_deadline:
+            if _stack.fast_copy_memory_active() is False:
+                saw_warmup = True
+                break
+            time.sleep(0.05)
+        assert saw_warmup, "sampler never dropped to the syscall copy during warmup"
+        assert stack.segv_handler_installed() is True
+
+        pause_result: Optional[bool] = stack.pause_sampling()
+        assert pause_result is not None, "sampler pause timed out during warmup handoff"
+        try:
+            stack.uninstall_segv_handler()
+            assert stack.segv_handler_installed() is False
+            signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+            signal.signal(signal.SIGBUS, signal.SIG_DFL)
+            stack.reinstall_segv_handler()
+            assert stack.segv_handler_installed() is True
+        finally:
+            if pause_result is True:
+                stack.resume_sampling()
+
+        saw_upgrade: bool = False
+        upgrade_deadline: float = time.monotonic() + 10
+        while time.monotonic() < upgrade_deadline:
+            if _stack.fast_copy_memory_active() is True:
+                saw_upgrade = True
+                break
+            time.sleep(0.05)
+        assert saw_upgrade, "sampler never upgraded to safe_memcpy after warmup handoff"
+    finally:
+        stack.stop()
