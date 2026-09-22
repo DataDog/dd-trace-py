@@ -24,6 +24,8 @@ Full-stack DoE Δ cannot be charged to Lock and would not be reclaimed by flippi
 
 ## DoE results (full-stack `profiling` false→true)
 
+**Not Lock-attributable.** Table Δ is full-stack profiling on/off under Lock-heavy load. It cannot be attributed solely to Lock and would not be reclaimed by flipping Lock alone. Lock-isolated process cost is the `ai_gateway` section below (and the Q4 DoE isolation gate).
+
 Settings: FastAPI 0.116.1 / asyncio / Python 3.13 / library `4.15.0rc2`, 8 workers, zero lock-hold time, 10 replicates where possible. Baseline at 600 requests/s with lock-churn densities 0/50/200/500; stress runs use a wider CPU set (high-load at 600 rps; midpoint at 500 rps; reduced-RPS at 300 rps). Lock-ops density: 0 = lock-idle; 50/200/500 = light / moderate / heavy churn.
 
 | Run | ops | scenario | Δ p50 latency | Δ CPU | n (off/on) |
