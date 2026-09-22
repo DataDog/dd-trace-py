@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import contextlib
 from contextlib import contextmanager
@@ -484,7 +486,7 @@ class TestSpanContainer:
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self) -> "TestSpanNode":
+    def get_root_span(self) -> TestSpanNode:
         """
         Helper to get the root span from the list of spans in this container
 
@@ -697,7 +699,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
-    ) -> "DummyWriter":
+    ) -> DummyWriter:
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
