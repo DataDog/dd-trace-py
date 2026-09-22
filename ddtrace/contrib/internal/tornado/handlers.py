@@ -83,6 +83,26 @@ async def execute(func, handler, args, kwargs):
             core.dispatch("web.request.start", (ctx, config.tornado))
 
             setattr(request, REQUEST_CONTEXT_KEY, ctx)
+            core.dispatch(
+                "set_http_meta_for_asm",
+                (
+                    req_span,
+                    request.remote_ip,
+                    full_url,
+                    http_route,
+                    method,
+                    headers,
+                    cookies,
+                    query_parameters,
+                    path_params,
+                    None,
+                    None,
+                    None,
+                    None,
+                    request.remote_ip,
+                    True,
+                ),
+            )
             dispatch_res = core.dispatch_with_results("tornado.start_request", ("tornado", handler)).tornado_future
             if dispatch_res and dispatch_res.value is not None:
                 return await dispatch_res.value
