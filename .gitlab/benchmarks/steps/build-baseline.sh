@@ -17,13 +17,19 @@ else
   else
     echo "Failed to download from S3, building wheel from scratch..."
     ulimit -c unlimited
-    for i in 1 2 3; do
-      curl -sSf https://sh.rustup.rs | sh -s -- -y && break
-      echo "rustup install attempt $i failed, retrying..."
-      sleep 5
-      [ "$i" -eq 3 ] && { echo "Failed to install rustup after 3 attempts"; exit 1; }
-    done
-    export PATH="$HOME/.cargo/bin:$PATH"
+    # Skip rustup install if Rust is already available (e.g. when using the
+    # dd-trace-py build image as PACKAGE_IMAGE, which ships Rust pre-installed).
+    if ! command -v cargo &>/dev/null; then
+      for i in 1 2 3; do
+        curl -sSf https://sh.rustup.rs | sh -s -- -y && break
+        echo "rustup install attempt $i failed, retrying..."
+        sleep 5
+        [ "$i" -eq 3 ] && { echo "Failed to install rustup after 3 attempts"; exit 1; }
+      done
+      export PATH="$HOME/.cargo/bin:$PATH"
+    else
+      echo "Rust toolchain already available, skipping rustup install"
+    fi
     echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
     git checkout "${BASELINE_COMMIT_SHA}"
     mkdir ./tmp
