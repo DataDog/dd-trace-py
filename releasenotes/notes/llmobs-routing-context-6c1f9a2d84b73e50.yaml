@@ -10,4 +10,6 @@ features:
     ``dd_api_key`` and an optional ``dd_site``, to send the same data to several organizations.
     Routed data is always submitted directly to the LLM Observability intake, even when the rest
     of the process submits through the Datadog Agent, so the process must be able to reach the
-    intake.
+    intake. The context follows ``asyncio`` tasks and ``ThreadPoolExecutor`` work while the
+    ``futures`` integration is patched; it does not follow a bare ``threading.Thread`` or an
+    unpatched executor, where the routing context should be opened inside the worker instead.

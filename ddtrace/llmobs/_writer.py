@@ -134,7 +134,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._buffer: list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
         self._buffer_size: int = 0
         # One buffer per routed org, created on demand and reaped once idle.
-        self._tenant_buffers: dict[str, _TenantBuffer] = {}
+        self._tenant_buffers: dict[RoutingTarget, _TenantBuffer] = {}
         self._warned_routing_bypasses_agent: bool = False
         self._timeout: float = timeout
         self._api_key: str = _api_key or config._dd_api_key
@@ -198,10 +198,12 @@ class BaseLLMObsWriter(PeriodicService):
         self.periodic()
 
     def _get_tenant_buffer(self, target: RoutingTarget) -> _TenantBuffer:
-        buffer = self._tenant_buffers.get(target.api_key)
+        # Keyed on the whole target: two destinations can share an API key while differing in
+        # site, and keying on the key alone would collapse them into whichever arrived first.
+        buffer = self._tenant_buffers.get(target)
         if buffer is None:
             buffer = _TenantBuffer(target)
-            self._tenant_buffers[target.api_key] = buffer
+            self._tenant_buffers[target] = buffer
         return buffer
 
     def _enqueue_routed(
@@ -282,10 +284,10 @@ class BaseLLMObsWriter(PeriodicService):
             self._buffer = []
             self._buffer_size = 0
             routed_batches: list[tuple[RoutingTarget, list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]]] = []
-            for api_key, buffer in list(self._tenant_buffers.items()):
+            for key, buffer in list(self._tenant_buffers.items()):
                 if not buffer.events:
                     # Reap idle tenants so a long-lived multi-tenant process does not grow buffers forever.
-                    del self._tenant_buffers[api_key]
+                    del self._tenant_buffers[key]
                     continue
                 routed_batches.append((buffer.target, buffer.events))
                 buffer.clear()
@@ -337,16 +339,20 @@ class BaseLLMObsWriter(PeriodicService):
 
         Routed batches bypass the Agent EVP proxy and go straight to the intake: the proxy
         stamps the Agent's own API key, which is the org routing exists to steer away from.
-        They keep any configured extra headers, since a custom proxy may require them to accept
-        the request at all, but drop the EVP subdomain header, which only means something to the
-        Agent. An override origin still wins, so local proxies and tests keep working.
+        Extra headers from _DD_TRACE_WRITER_ADDITIONAL_HEADERS are kept only when an override
+        origin is configured, because that origin is operator-supplied and is the case those
+        headers exist for (a local proxy that will not accept the request without them). A
+        tenant-supplied site is not trusted to the same degree, and those headers may carry
+        credentials, so a routed request to llmobs-intake.<site> carries only the tenant's own
+        API key.
         """
         if target is None:
             return self._intake, self._endpoint, self._headers
-        headers = {k: v for k, v in self._headers.items() if k != EVP_SUBDOMAIN_HEADER_NAME}
-        headers["DD-API-KEY"] = target.api_key
         if self._override_url:
+            headers = {k: v for k, v in self._headers.items() if k != EVP_SUBDOMAIN_HEADER_NAME}
+            headers["DD-API-KEY"] = target.api_key
             return self._intake, self._direct_endpoint, headers
+        headers = {"Content-Type": "application/json", "DD-API-KEY": target.api_key}
         return f"{self.AGENTLESS_BASE_URL}.{target.site or self._site}", self._direct_endpoint, headers
 
     def _send_payload(
