@@ -168,7 +168,7 @@ class DataDogProvider(AbstractProvider):
 
         # Agentless configuration-source poller; started in initialize() when
         # agentless is the resolved source and stopped in shutdown().
-        self._configuration_source: typing.Optional["AgentlessConfigurationSource"] = None
+        self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true

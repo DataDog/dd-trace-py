@@ -408,7 +408,7 @@ def fixup_pth_file(filename: str, old_dir: str, new_dir: str) -> None:
     """
     logger.debug("fixup_pth_file %s", filename)
 
-    with open(filename, "r") as f:
+    with open(filename) as f:
         lines = f.readlines()
 
     has_change = False

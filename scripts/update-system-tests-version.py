@@ -20,7 +20,7 @@ def get_latest_system_tests_version() -> str:
 
 
 def get_current_system_tests_version() -> str:
-    with open(system_tests_workflows_path, "r") as file:
+    with open(system_tests_workflows_path) as file:
         content = file.read()
 
     lines = content.splitlines()
@@ -33,7 +33,7 @@ def get_current_system_tests_version() -> str:
 
 def update_system_tests_version(latest_version: str) -> None:
     # Update GitHub workflow file
-    with open(system_tests_workflows_path, "r") as file:
+    with open(system_tests_workflows_path) as file:
         content = file.read()
 
     lines = content.splitlines()
@@ -54,7 +54,7 @@ def update_system_tests_version(latest_version: str) -> None:
         file.write("\n".join(lines))
 
     # Update GitLab CI file
-    with open(gitlab_ci_path, "r") as file:
+    with open(gitlab_ci_path) as file:
         content = file.read()
 
     lines = content.splitlines()

@@ -84,8 +84,7 @@ def test_encode_traces_civisibility_v0():
     all_spans = sorted([span for trace in traces for span in trace], key=lambda span: span.start_ns)
     for given_span, received_event in zip(all_spans, received_events):
         expected_meta = {
-            "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
-            for key, value in sorted(given_span._get_str_attributes().items())
+            f"{key}".encode(): f"{value}".encode() for key, value in sorted(given_span._get_str_attributes().items())
         }
         expected_event = {
             b"type": b"test" if given_span.span_type == "test" else b"span",
