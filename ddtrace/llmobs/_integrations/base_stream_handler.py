@@ -223,7 +223,7 @@ class TracedStream(wrapt.ObjectProxy):
         # When __enter__ wraps a stream manager, it returns a child TracedStream.
         # The `with` statement only keeps the parent alive, so hold the child
         # here or __del__ would finalize the shared handler before the body runs.
-        self._self_entered_stream: Optional["TracedStream"] = None
+        self._self_entered_stream: Optional[TracedStream] = None
 
     def _ensure_started(self):
         if not self._self_started:
@@ -342,7 +342,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         self._self_async_stream_iter = self.__wrapped__
         # see ``TracedStream._self_started`` for rationale.
         self._self_started = False
-        self._self_entered_stream: Optional["TracedAsyncStream"] = None
+        self._self_entered_stream: Optional[TracedAsyncStream] = None
 
     def _ensure_started(self):
         if not self._self_started:
