@@ -38,7 +38,7 @@ Execution, once per pipeline:
    SLO template down to the matching scenarios. Nothing relevant changed means a
    `microbenchmark-noop` job and no benchmarks.
 2. `baseline:detect` resolves the comparison point, `baseline:build` produces its wheel (PyPI,
-   then S3, then a source build), and `candidate` takes the `cp312` wheel from the parent
+   then S3, then a source build), and `candidate` takes the `cp314` wheel from the parent
    pipeline.
 3. Each `microbenchmarks` matrix job runs its scenarios against both wheels and uploads results.
 4. `check-slo-breaches` scores the results against the filtered SLO file;
