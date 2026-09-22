@@ -4,6 +4,7 @@ import os
 import platform
 from threading import Barrier
 from threading import Event
+from threading import Lock
 from threading import Thread
 from time import monotonic
 from time import sleep
@@ -13,6 +14,131 @@ import pytest
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
+from ddtrace.internal import threads as internal_threads
+
+
+def test_before_fork_stops_cancelled_workers_without_restarting_them(monkeypatch):
+    events = []
+
+    class ForkWorker:
+        def __init__(self, name, restart_cancelled=False):
+            self.name = name
+            self._restart_cancelled = restart_cancelled
+
+        def _before_fork(self):
+            events.append(("stop", self))
+
+        def join(self):
+            events.append(("join", self))
+
+    active_worker = ForkWorker("active")
+    cancelled_worker = ForkWorker("cancelled", restart_cancelled=True)
+    deferred_restarts = set()
+    monkeypatch.setattr(internal_threads, "_forking", False)
+    monkeypatch.setattr(internal_threads, "periodic_threads", {1: active_worker, 2: cancelled_worker})
+    monkeypatch.setattr(internal_threads, "_threads_to_restart_after_fork", deferred_restarts)
+
+    internal_threads._before_fork()
+
+    assert {thread for operation, thread in events if operation == "stop"} == {active_worker, cancelled_worker}
+    assert {thread for operation, thread in events if operation == "join"} == {active_worker, cancelled_worker}
+    assert deferred_restarts == {active_worker}
+
+
+def test_before_fork_stop_snapshot_tolerates_concurrent_restart_cancellation(monkeypatch):
+    events = []
+    deferred_restarts = set()
+    stop_started = Event()
+    allow_stop = Event()
+
+    class ForkWorker:
+        _restart_cancelled = False
+
+        def __init__(self, name):
+            self.name = name
+
+        def _before_fork(self):
+            events.append(("stop", self))
+            stop_started.set()
+            assert allow_stop.wait(1)
+
+        def join(self):
+            events.append(("join", self))
+
+    active_worker = ForkWorker("active")
+    cancelled_worker = ForkWorker("cancelled")
+    workers = {active_worker, cancelled_worker}
+    monkeypatch.setattr(internal_threads, "_forking", False)
+    monkeypatch.setattr(internal_threads, "periodic_threads", dict(enumerate(workers)))
+    monkeypatch.setattr(internal_threads, "_threads_to_restart_after_fork", deferred_restarts)
+
+    errors = []
+
+    def prepare_for_fork():
+        try:
+            internal_threads._before_fork()
+        except BaseException as error:
+            errors.append(error)
+
+    fork_thread = Thread(target=prepare_for_fork)
+    fork_thread.start()
+    assert stop_started.wait(1)
+    with internal_threads._forking_lock:
+        cancelled_worker._restart_cancelled = True
+        deferred_restarts.discard(cancelled_worker)
+    allow_stop.set()
+    fork_thread.join(1)
+
+    assert not fork_thread.is_alive()
+    assert errors == []
+    assert {thread for operation, thread in events if operation == "stop"} == workers
+    assert {thread for operation, thread in events if operation == "join"} == workers
+    assert max(index for index, event in enumerate(events) if event[0] == "stop") < min(
+        index for index, event in enumerate(events) if event[0] == "join"
+    )
+    assert deferred_restarts == {active_worker}
+
+
+def test_after_fork_child_serializes_restarts_and_deferred_starts(monkeypatch):
+    fork_lock = Lock()
+    restarted = []
+
+    class DeferredThread:
+        name = "deferred thread"
+
+        def _after_fork(self, force=False):
+            assert force is False
+            assert fork_lock.locked()
+            restarted.append(self)
+
+        def start(self):
+            assert fork_lock.locked()
+
+    deferred_thread = DeferredThread()
+    deferred_starts = [deferred_thread.start]
+    deferred_restarts = {deferred_thread}
+    monkeypatch.setattr(internal_threads, "_forking", True)
+    monkeypatch.setattr(internal_threads, "_forking_lock", fork_lock)
+    monkeypatch.setattr(internal_threads, "_threads_to_start_after_fork", deferred_starts)
+    monkeypatch.setattr(internal_threads, "_threads_to_restart_after_fork", deferred_restarts)
+
+    internal_threads._after_fork_child()
+
+    assert not internal_threads._forking
+    assert deferred_starts == []
+    assert deferred_restarts == set()
+    assert restarted == [deferred_thread]
+
+
+def test_forking_lock_is_reset_before_child_hooks():
+    fork_lock = internal_threads._forking_lock
+    fork_lock.acquire()
+    try:
+        internal_threads.forksafe._reset_objects()
+        assert fork_lock.acquire(blocking=False)
+    finally:
+        if fork_lock.locked():
+            fork_lock.release()
 
 
 def test_periodic():
