@@ -62,6 +62,17 @@ def langchain_openai(langchain_core):
         import langchain_openai
 
         yield langchain_openai
+        try:
+            from langchain_openai.chat_models import _client_utils
+        except ImportError:
+            return
+
+        # Recent langchain-openai releases cache async HTTP clients. Reusing one
+        # across pytest-asyncio's per-test event loops leaves it bound to a closed loop.
+        for cache_name in ("_cached_sync_httpx_client", "_cached_async_httpx_client"):
+            cache = getattr(_client_utils, cache_name, None)
+            if cache is not None:
+                cache.cache_clear()
     except ImportError:
         yield
 

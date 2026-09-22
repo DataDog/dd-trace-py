@@ -551,7 +551,9 @@ def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
     from openai import APITimeoutError
 
     chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
-    request_client = chat_model.root_client._client
+    request_client = getattr(chat_model, "root_client", chat_model.client)._client
+    while request_client.__class__.__module__.split(".", 1)[0] == "openai" and hasattr(request_client, "_client"):
+        request_client = request_client._client
     http_client = importlib.import_module(
         next(
             cls.__module__.split(".", 1)[0]
