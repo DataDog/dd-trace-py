@@ -1,10 +1,9 @@
-import molten
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -12,17 +11,15 @@ from ddtrace.internal.utils.importlib import func_name
 
 
 def trace_wrapped(resource, wrapped, *args, **kwargs):
-    pin = Pin.get_from(molten)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     with core.context_with_data(
         "molten.trace_func",
         span_name=func_name(wrapped),
-        service=trace_utils.int_service(pin, config.molten, pin),
+        service=trace_utils.int_service(None, config.molten),
         resource=resource,
         allow_default_resource=True,
-        pin=pin,
         tags={COMPONENT: config.molten.integration_name, SPAN_KIND: SpanKind.SERVER},
         integration_config=config.molten,
     ):
@@ -65,8 +62,7 @@ class WrapperRouter(wrapt.ObjectProxy):
         func = self.__wrapped__.match
         route_and_params = func(*args, **kwargs)
 
-        pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return route_and_params
 
         if route_and_params is not None:
