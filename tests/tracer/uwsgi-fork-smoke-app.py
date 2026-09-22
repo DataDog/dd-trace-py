@@ -10,10 +10,10 @@ same place ddtrace's own forksafe registry runs -- and there creates and
 finishes a span to prove the tracer still works post-fork.
 """
 
+from collections.abc import Iterable
 import os
 from typing import Any
 from typing import Callable
-from typing import Iterable
 
 from ddtrace import tracer
 from ddtrace.internal import runtime

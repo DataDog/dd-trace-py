@@ -14,7 +14,6 @@ functions and enable taint tracking and vulnerability detection.
 import functools
 from typing import Callable
 from typing import Optional
-from typing import Text
 
 from wrapt import FunctionWrapper
 
@@ -70,7 +69,7 @@ class IASTFunction:
         self.force = force
 
     @staticmethod
-    def force_wrapper(module: Text, name: Text, wrapper: Callable):
+    def force_wrapper(module: str, name: str, wrapper: Callable):
         """Force immediate wrapping of a module's function.
 
         This method attempts to immediately wrap a function in a module, regardless of

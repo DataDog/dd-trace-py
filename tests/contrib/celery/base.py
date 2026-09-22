@@ -12,13 +12,13 @@ from ..config import REDIS_CONFIG
 
 
 REDIS_URL = "redis://127.0.0.1:{port}".format(port=REDIS_CONFIG["port"])
-BROKER_URL = "{redis}/{db}".format(redis=REDIS_URL, db=0)
-BACKEND_URL = "{redis}/{db}".format(redis=REDIS_URL, db=1)
+BROKER_URL = f"{REDIS_URL}/{0}"
+BACKEND_URL = f"{REDIS_URL}/{1}"
 
 AMQP_URL = "amqp://{user}:{password}@127.0.0.1:{port}".format(
     user=RABBITMQ_CONFIG["user"], password=RABBITMQ_CONFIG["password"], port=RABBITMQ_CONFIG["port"]
 )
-AMQP_BROKER_URL = "{amqp}//".format(amqp=AMQP_URL)
+AMQP_BROKER_URL = f"{AMQP_URL}//"
 
 
 @pytest.fixture(scope="session")
@@ -85,12 +85,12 @@ class CeleryBaseTestCase(TracerTestCase):
             return
 
     def setUp(self):
-        super(CeleryBaseTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
         self.app = None
 
-        super(CeleryBaseTestCase, self).tearDown()
+        super().tearDown()
 
     def assert_items_equal(self, a, b):
         return self.assertCountEqual(a, b)

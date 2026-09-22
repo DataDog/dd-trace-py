@@ -16,13 +16,13 @@ PATH defaults to generated test lockfiles.
 """
 
 import argparse
+from collections.abc import Iterable
 import concurrent.futures
 import datetime as dt
 import json
 import pathlib
 import re
 import sys
-from typing import Iterable
 from typing import Optional
 import urllib.error
 import urllib.request

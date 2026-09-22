@@ -834,7 +834,7 @@ def test_crashtracker_process_tags():
         assert b"string_at" in report["body"]
 
         # Verify process_tags are present in crash report
-        assert "process_tags".encode() in report["body"]
+        assert b"process_tags" in report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")

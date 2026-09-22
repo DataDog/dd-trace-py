@@ -444,7 +444,7 @@ class TestRunner:
             identity = f"{artifact.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
             project_hash = hashlib.sha256(identity.encode()).hexdigest()[:12]
             project_requirement = str(artifact)
-            editable_mode = "prebuilt-editable"
+            editable_mode = "prebuilt-wheel"
 
         requirements = UV_ENVIRONMENT_ROOT / ".requirements" / (f"{lockfile.stem}-{package_hash}-{project_hash}.txt")
         filtered = "".join(
@@ -639,6 +639,7 @@ class TestRunner:
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
+        run_env["RIOT_VENV_NAME"] = environment.integration_name
         if self.in_ci:
             _configure_ci_itr_environment(run_env, environment.python, environment.lock_hash)
         return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
@@ -661,7 +662,7 @@ class TestRunner:
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
-                if self.in_ci and environment.suite != "smoke_test":
+                if self.in_ci:
                     if not skip_ddtrace_install:
                         raise UvTestEnvironmentError(
                             "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
