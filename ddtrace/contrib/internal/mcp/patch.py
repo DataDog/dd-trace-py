@@ -283,7 +283,7 @@ async def traced_server_middleware(context, call_next):
         span = integration.trace(
             operation_name,
             submit_to_llmobs=True,
-            span_name="mcp.{}".format(method),
+            span_name=f"mcp.{method}",
         )
 
         if method == "tools/call":
@@ -401,23 +401,35 @@ def patch():
     # guard above and wrap everything a second time.
     mcp.__datadog_patch = True
 
-    from mcp.client.session import ClientSession
-
     is_mcp2 = False
     try:
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
-    except ImportError:
-        is_mcp2 = True
-        from mcp.server import Server
+        from mcp.client.session import ClientSession
 
+        try:
+            from mcp.shared.session import BaseSession
+            from mcp.shared.session import RequestResponder
+        except ImportError:
+            from mcp.server import Server
+
+            is_mcp2 = True
+    except ImportError:
+        mcp.__datadog_patch = False
+        log.debug("mcp is importable but is not the MCP SDK, skipping instrumentation")
+        return
+
+    mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
+
+    if is_mcp2:
         wrap(ClientSession, "send_request", traced_send_request)
         wrap(Server, "__init__", traced_server_init)
     else:
         wrap(BaseSession, "send_request", traced_send_request)
-        wrap(RequestResponder, "__enter__", traced_request_responder_enter)
-        wrap(RequestResponder, "__exit__", traced_request_responder_exit)
         wrap(RequestResponder, "respond", traced_request_responder_respond)
+
+        # RequestResponder gained the context manager protocol in mcp 1.3.0.
+        if hasattr(RequestResponder, "__enter__") and hasattr(RequestResponder, "__exit__"):
+            wrap(RequestResponder, "__enter__", traced_request_responder_enter)
+            wrap(RequestResponder, "__exit__", traced_request_responder_exit)
 
     wrap(ClientSession, "__aenter__", traced_client_session_aenter)
     wrap(ClientSession, "__aexit__", traced_client_session_aexit)
@@ -426,15 +438,6 @@ def patch():
     wrap(ClientSession, "initialize", traced_client_session_initialize)
     if is_mcp2:
         wrap(ClientSession, "send_discover", traced_client_session_discover)
-      
-    else:
-        wrap(BaseSession, "send_request", traced_send_request)
-        wrap(RequestResponder, "respond", traced_request_responder_respond)
-
-    # RequestResponder gained the context manager protocol in mcp 1.3.0.
-    if hasattr(RequestResponder, "__enter__") and hasattr(RequestResponder, "__exit__"):
-        wrap(RequestResponder, "__enter__", traced_request_responder_enter)
-        wrap(RequestResponder, "__exit__", traced_request_responder_exit)
 
 
 def unpatch():
@@ -463,9 +466,12 @@ def unpatch():
         _mcp2_servers.clear()
     else:
         unwrap(BaseSession, "send_request")
-        unwrap(RequestResponder, "__enter__")
-        unwrap(RequestResponder, "__exit__")
         unwrap(RequestResponder, "respond")
+
+        # Only wrapped on mcp >= 1.3.0, see patch().
+        if iswrapped(RequestResponder, "__enter__"):
+            unwrap(RequestResponder, "__enter__")
+            unwrap(RequestResponder, "__exit__")
 
     unwrap(ClientSession, "__aenter__")
     unwrap(ClientSession, "__aexit__")
@@ -475,13 +481,5 @@ def unpatch():
 
     if is_mcp2:
         unwrap(ClientSession, "send_discover")
-    else:
-        unwrap(BaseSession, "send_request")
-        unwrap(RequestResponder, "respond")
-
-    # Only wrapped on mcp >= 1.3.0, see patch().
-    if iswrapped(RequestResponder, "__enter__"):
-        unwrap(RequestResponder, "__enter__")
-        unwrap(RequestResponder, "__exit__")
 
     delattr(mcp, "_datadog_integration")
