@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <csignal>
+#include <dlfcn.h>
 #include <pthread.h>
 #include <sys/resource.h>
 #include <thread>
@@ -37,6 +38,13 @@ void
 previous_owner(int, siginfo_t*, void*)
 {
     g_previous_owner_calls.fetch_add(1, std::memory_order_relaxed);
+}
+
+// A second handler in this same shared object, so that a check at library granularity
+// would accept it as ours. Only comparing the function pointer we saved rejects it.
+void
+other_owner(int, siginfo_t*, void*)
+{
 }
 
 struct sigaction g_captured_ours;
@@ -148,4 +156,116 @@ TEST(SegvChainBackDeathTest, AChainThatCyclesWithinOneEpochFallsThroughToTheDefa
       },
       ::testing::KilledBySignal(SIGSEGV),
       "");
+}
+
+// segv_handler_installed() needs both signals, so the split our own chain-back leaves
+// behind is indistinguishable from a foreign takeover without this record.
+TEST(SegvChainBack, TheChainBackIsRecordedAndConsumedExactlyOnce)
+{
+    RestoreSignalHandlers restore;
+    // Tests share a process when the binary is run directly rather than through ctest.
+    (void)consume_segv_handler_chained_back();
+
+    ASSERT_EQ(install_handler(SIGSEGV, previous_owner), 0);
+    ASSERT_EQ(install_handler(SIGBUS, previous_owner), 0);
+
+    std::thread faulting([] {
+        ASSERT_EQ(init_segv_catcher(), 0);
+        // SIGBUS reaches the other half of the split the chain-back can leave.
+        ASSERT_EQ(pthread_kill(pthread_self(), SIGBUS), 0);
+        ASSERT_FALSE(segv_handler_installed());
+    });
+    faulting.join();
+
+    EXPECT_TRUE(consume_segv_handler_chained_back());
+    EXPECT_FALSE(consume_segv_handler_chained_back());
+
+    uninstall_segv_handler();
+}
+
+// PROF-14568: a handler owned by anyone other than the component we saved is never
+// taken back, whatever the chain-back record says.
+TEST(ReclaimAfterChainBack, RefusesASignalOwnedBySomeoneOtherThanTheHandlerWeSaved)
+{
+    RestoreSignalHandlers restore;
+
+    ASSERT_EQ(install_handler(SIGSEGV, previous_owner), 0);
+    ASSERT_EQ(install_handler(SIGBUS, previous_owner), 0);
+    ASSERT_EQ(init_segv_catcher(), 0);
+
+    Dl_info saved{};
+    Dl_info intruder{};
+    ASSERT_NE(dladdr(reinterpret_cast<void*>(previous_owner), &saved), 0);
+    ASSERT_NE(dladdr(reinterpret_cast<void*>(other_owner), &intruder), 0);
+    ASSERT_EQ(saved.dli_fbase, intruder.dli_fbase);
+
+    ASSERT_EQ(install_handler(SIGSEGV, other_owner), 0);
+    EXPECT_FALSE(reclaim_after_chain_back());
+
+    struct sigaction current
+    {};
+    ASSERT_EQ(sigaction(SIGSEGV, nullptr, &current), 0);
+    EXPECT_EQ(current.sa_sigaction, other_owner);
+
+    uninstall_segv_handler();
+}
+
+// The saved disposition is compared whole, so a previous owner that reinstalled itself
+// with different flags no longer matches. That false negative only costs the slower
+// syscall copy, which is the side to err on.
+TEST(ReclaimAfterChainBack, RefusesWhenOnlyTheFlagsOfTheSavedHandlerChanged)
+{
+    RestoreSignalHandlers restore;
+
+    ASSERT_EQ(install_handler(SIGSEGV, previous_owner), 0);
+    ASSERT_EQ(install_handler(SIGBUS, previous_owner), 0);
+    ASSERT_EQ(init_segv_catcher(), 0);
+
+    struct sigaction reinstalled
+    {};
+    reinstalled.sa_sigaction = previous_owner;
+    sigemptyset(&reinstalled.sa_mask);
+    reinstalled.sa_flags = SA_SIGINFO | SA_NODEFER | SA_RESTART;
+    ASSERT_EQ(sigaction(SIGSEGV, &reinstalled, nullptr), 0);
+
+    EXPECT_FALSE(reclaim_after_chain_back());
+
+    struct sigaction current
+    {};
+    ASSERT_EQ(sigaction(SIGSEGV, nullptr, &current), 0);
+    EXPECT_EQ(current.sa_sigaction, previous_owner);
+    EXPECT_NE(current.sa_flags & SA_RESTART, 0);
+
+    uninstall_segv_handler();
+}
+
+TEST(ReclaimAfterChainBack, RestoresBothSignalsWhenTheSplitIsTheOneOurChainBackLeaves)
+{
+    RestoreSignalHandlers restore;
+
+    ASSERT_EQ(install_handler(SIGSEGV, previous_owner), 0);
+    ASSERT_EQ(install_handler(SIGBUS, previous_owner), 0);
+    struct sigaction saved
+    {};
+    ASSERT_EQ(sigaction(SIGSEGV, nullptr, &saved), 0);
+
+    ASSERT_EQ(init_segv_catcher(), 0);
+    ASSERT_TRUE(segv_handler_installed());
+
+    // Exactly the state the unarmed path leaves: the faulting signal back on the owner
+    // we saved for it, the other one still ours.
+    ASSERT_EQ(sigaction(SIGSEGV, &saved, nullptr), 0);
+    ASSERT_FALSE(segv_handler_installed());
+
+    EXPECT_TRUE(reclaim_after_chain_back());
+    EXPECT_TRUE(segv_handler_installed());
+
+    uninstall_segv_handler();
+
+    struct sigaction current
+    {};
+    ASSERT_EQ(sigaction(SIGSEGV, nullptr, &current), 0);
+    EXPECT_EQ(current.sa_sigaction, previous_owner);
+    ASSERT_EQ(sigaction(SIGBUS, nullptr, &current), 0);
+    EXPECT_EQ(current.sa_sigaction, previous_owner);
 }
