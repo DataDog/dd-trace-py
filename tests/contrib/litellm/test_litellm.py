@@ -134,8 +134,8 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
     model_base = model.split("/")[0]
     is_new_litellm = parse_version(get_version()) >= (1, 74, 15)
 
-    if model == "command-r" and is_new_litellm:
-        pytest.skip("Cassette not yet generated for command-r on litellm >= 1.74.15")
+    if model == "command-r" and parse_version(get_version()) >= (1, 65, 4):
+        pytest.skip("Bare command-r is not recognized by litellm >= 1.65.4")
 
     if is_new_litellm:
         cassette_name = f"completion_{model_base}_v1_74_15.yaml"
