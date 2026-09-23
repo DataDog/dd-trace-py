@@ -11,8 +11,7 @@ from ddtrace.trace import TraceFilter
 class Client:
     """HTTP Client for making requests to a local http server."""
 
-    def __init__(self, base_url):
-        # type: (str) -> None
+    def __init__(self, base_url: str) -> None:
         self._base_url = base_url
         self._session = requests.Session()
         # Propagate traces with trace_id = 1 for the ping trace so we can filter them out.
@@ -20,8 +19,7 @@ class Client:
         HTTPPropagator.inject(c, d)
         self._ignore_headers = d
 
-    def _url(self, path):
-        # type: (str) -> str
+    def _url(self, path: str) -> str:
         return urllib.parse.urljoin(self._base_url, path)
 
     def get(self, path, **kwargs):
@@ -43,8 +41,7 @@ class Client:
     def request(self, method, path, *args, **kwargs):
         return self._session.request(method, self._url(path), *args, **kwargs)
 
-    def wait(self, path="/", max_tries=100, delay=0.1, initial_wait=0):
-        # type: (str, int, float) -> None
+    def wait(self, path: str = "/", max_tries: int = 100, delay: float = 0.1, initial_wait: float = 0) -> None:
         """Wait for the server to start by repeatedly http `get`ting `path` until a 200 is received."""
 
         @retry(after=[delay] * (max_tries - 1), initial_wait=initial_wait)
