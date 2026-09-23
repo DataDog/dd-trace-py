@@ -60,7 +60,7 @@ def span():
     yield Span("test.http.request", span_type=SpanTypes.WEB)
 
 
-def _run_request_with_evaluate(tracer, request_headers=None, peer_ip=None, extra_global_config=None):
+def _run_request_with_evaluate(tracer, request_headers=None, peer_ip="10.0.0.1", extra_global_config=None):
     """Simulate a web request: start a root span, run set_http_meta with AI Guard enabled, then evaluate."""
     with override_ai_guard_config(AI_GUARD_CONFIG):
         client = new_ai_guard_client()
@@ -100,7 +100,7 @@ class TestSetHttpMetaAlone:
                 integration_config,
                 request_headers={"x-forwarded-for": "8.8.8.8"},
             )
-            assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == "8.8.8.8"
+            assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == ("8.8.8.8", None)
 
     def test_ip_tags_not_set_when_everything_disabled(self, span, integration_config):
         with override_global_config(dict(_retrieve_client_ip=False)):
@@ -118,14 +118,15 @@ class TestSetHttpMetaAlone:
 class TestAIGuardPopulatesRootSpan:
     """When evaluate() runs, the stashed IP must land on the service-entry span."""
 
+    @pytest.mark.parametrize("peer_ip", [None, "10.0.0.1"])
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-    def test_ip_set_on_root_span_after_evaluate(self, mock_execute_request, tracer, test_spans):
+    def test_ip_set_on_root_span_after_evaluate(self, mock_execute_request, tracer, test_spans, peer_ip):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        root_span = _run_request_with_evaluate(tracer, request_headers={"x-forwarded-for": "8.8.8.8"})
+        root_span = _run_request_with_evaluate(tracer, request_headers={"x-forwarded-for": "8.8.8.8"}, peer_ip=peer_ip)
 
         assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"
         assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
-        assert root_span.get_tag(NETWORK_CLIENT_IP) == "8.8.8.8"
+        assert root_span.get_tag(NETWORK_CLIENT_IP) == peer_ip
 
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
     def test_ip_not_set_when_evaluate_is_never_called(self, mock_execute_request, tracer, test_spans):
@@ -138,6 +139,7 @@ class TestAIGuardPopulatesRootSpan:
                 dummy,
                 cfg.myint,
                 request_headers={"x-forwarded-for": "8.8.8.8"},
+                peer_ip="10.0.0.1",
             )
 
         mock_execute_request.assert_not_called()
@@ -158,7 +160,7 @@ class TestAIGuardPopulatesRootSpan:
         )
 
         assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
-        assert root_span.get_tag(NETWORK_CLIENT_IP) == "8.8.8.8"
+        assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
 
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
     def test_dd_trace_client_ip_header_override(self, mock_execute_request, tracer, test_spans):
@@ -171,7 +173,7 @@ class TestAIGuardPopulatesRootSpan:
         )
 
         assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
-        assert root_span.get_tag(NETWORK_CLIENT_IP) == "8.8.8.8"
+        assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
 
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
     def test_public_ip_picked_from_xff_chain(self, mock_execute_request, tracer, test_spans):
@@ -182,7 +184,7 @@ class TestAIGuardPopulatesRootSpan:
         )
 
         assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
-        assert root_span.get_tag(NETWORK_CLIENT_IP) == "8.8.8.8"
+        assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
 
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
     def test_peer_ip_fallback(self, mock_execute_request, tracer, test_spans):
@@ -235,7 +237,7 @@ class TestOutboundClientSpansDoNotStash:
                 request_headers={"x-forwarded-for": "1.2.3.4"},
             )
 
-        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == "8.8.8.8"
+        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == ("8.8.8.8", None)
 
     def test_serverless_span_stashes_candidate_ip(self, integration_config):
         # Serverless entry spans (e.g. AWS Lambda) must also stash the candidate IP so
@@ -248,4 +250,4 @@ class TestOutboundClientSpansDoNotStash:
                 request_headers={"x-forwarded-for": "8.8.8.8"},
             )
 
-        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == "8.8.8.8"
+        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == ("8.8.8.8", None)

@@ -1,0 +1,4 @@
+fixes:
+  - |
+    AI Guard: Fixes an issue where ``network.client.ip`` contains an IP resolved
+    from proxy headers instead of the peer address of the incoming connection.
