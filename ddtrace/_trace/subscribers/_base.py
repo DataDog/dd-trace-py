@@ -132,10 +132,37 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
     # Register here events that just create / finish spans
     event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
+    _before_start_handlers: tuple = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+
+        cls._before_start_handlers = tuple(
+            base_cls.on_before_start
+            for base_cls in reversed(cls.__mro__[:-1])
+            if issubclass(base_cls, TracingSubscriber)
+            and "on_before_start" in base_cls.__dict__
+            and base_cls is not TracingSubscriber
+        )
+
+    @classmethod
+    def on_before_start(
+        cls,
+        ctx: core.ExecutionContext[TracingEventType],
+    ) -> None:
+        """Run immediately before span creation.
+
+        Handlers may modify the event or context to customize span creation.
+        """
+        pass
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
+        for handler in cls._before_start_handlers:
+            handler(ctx)
+
         _start_span(ctx)
+
         for handler in cls._started_handlers:
             handler(ctx)
 

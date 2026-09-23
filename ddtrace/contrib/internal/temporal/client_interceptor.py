@@ -6,94 +6,115 @@ from collections.abc import Awaitable
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 from typing import Any
+from ddtrace.contrib.internal.temporal.constants import TemporalOperationNames
 
 import temporalio.client
-
-from ddtrace.trace import tracer
-
-from .constants import COMMON_ATTRIBUTE_MAP
-from .constants import OperationNames
-from .constants import SpanAttributes
-from .span_runner import _SpanRunner
+from ddtrace.internal.settings._config import config
+from ddtrace.contrib._events.temporal import TemporalWorkflowEvent
+from ddtrace.internal import core
 
 
 if TYPE_CHECKING:
     from .interceptor import DatadogTracingInterceptor
 
 
-class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundInterceptor):  # type: ignore[misc]
+class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.client.OutboundInterceptor,
         root: DatadogTracingInterceptor,
     ) -> None:
-        temporalio.client.OutboundInterceptor.__init__(self, next)
-        _SpanRunner.__init__(self, root)
+        super().__init__(next)
+        self.root = root
 
     async def start_workflow(
         self, input: temporalio.client.StartWorkflowInput
     ) -> temporalio.client.WorkflowHandle[Any, Any]:
-        operation_name = (
-            OperationNames.SIGNAL_WITH_START_WORKFLOW if input.start_signal else OperationNames.START_WORKFLOW
-        )
-        return await self._start_operation(
-            operation_name,
-            input,
-            input.workflow,
-            self._get_workflow_attributes(input),
-            super().start_workflow,
-        )
+
+        with core.context_with_event(
+            TemporalWorkflowEvent(
+                operation=TemporalOperationNames.SIGNAL_WITH_START_WORKFLOW if input.start_signal else TemporalOperationNames.START_WORKFLOW,
+                resource=input.workflow,
+                integration_config=config.temporal,
+                component=config.integration_name,
+                input=input
+            )
+        ):
+            input.headers = self.root.propagator.inject_headers(input.headers, event.outgoing_carrier)
+            return await super().start_workflow(input)
 
     async def signal_workflow(self, input: temporalio.client.SignalWorkflowInput) -> None:
-        if self.root.workflow_tracing_config.disable_signal_tracing:
+        if self.root.disable_signal_tracing:
             await super().signal_workflow(input)
             return
-        await self._start_operation(
-            OperationNames.SIGNAL_WORKFLOW,
-            input,
-            input.signal,
-            self._get_workflow_attributes(input),
-            super().signal_workflow,
-        )
+
+        with core.context_with_event(
+            TemporalWorkflowEvent(
+                operation=TemporalOperationNames.SIGNAL_WORKFLOW,
+                resource=input.signal,
+                integration_config=config.temporal,
+                component=config.integration_name,
+                input=input
+            )
+        ):
+            input.headers = self.root.propagator.inject_headers(input.headers, event.outgoing_carrier)
+            await super().signal_workflow(input)
 
     async def query_workflow(self, input: temporalio.client.QueryWorkflowInput) -> Any:
-        if self.root.workflow_tracing_config.disable_query_tracing:
+        if self.root.disable_query_tracing:
             return await super().query_workflow(input)
-        return await self._start_operation(
-            OperationNames.QUERY_WORKFLOW,
-            input,
-            input.query,
-            self._get_workflow_attributes(input),
-            super().query_workflow,
-        )
 
-    async def create_schedule(self, input: temporalio.client.CreateScheduleInput) -> temporalio.client.ScheduleHandle:
-        span = self._get_span(OperationNames.CREATE_SCHEDULE, input.id)
-        return await self.run(span, OperationNames.CREATE_SCHEDULE, super().create_schedule(input))
+        with core.context_with_event(
+            TemporalWorkflowEvent(
+                operation=TemporalOperationNames.QUERY_WORKFLOW,
+                resource=input.query,
+                integration_config=config.temporal,
+                component=config.integration_name,
+                input=input
+            )
+        ):
+            input.headers = self.root.propagator.inject_headers(input.headers, event.outgoing_carrier)
+            return await super().query_workflow(input)
 
     async def start_workflow_update(
         self, input: temporalio.client.StartWorkflowUpdateInput
     ) -> temporalio.client.WorkflowUpdateHandle[Any]:
-        if self.root.workflow_tracing_config.disable_update_tracing:
+        if self.root.disable_update_tracing:
             return await super().start_workflow_update(input)
-        return await self._start_operation(
-            OperationNames.UPDATE_WORKFLOW,
-            input,
-            input.update,
-            self._get_workflow_attributes(input),
-            super().start_workflow_update,
+
+        with core.context_with_event(
+            TemporalWorkflowEvent(
+                operation=TemporalOperationNames.UPDATE_WORKFLOW,
+                resource=input.update,
+                integration_config=config.temporal,
+                component=config.integration_name,
+                input=input
+            )
+        ):
+            input.headers = self.root.propagator.inject_headers(input.headers, event.outgoing_carrier)
+            return await super().start_workflow_update(input)
+
+    async def create_schedule(self, input: temporalio.client.CreateScheduleInput) -> temporalio.client.ScheduleHandle:
+        event = self.root._operation_event(
+            operation_name=OperationNames.CREATE_SCHEDULE,
+            resource_name=input.id,
+            activate=True,
+            use_active_context=True,
         )
+        with core.context_with_event(event):
+            return await super().create_schedule(input)
 
     async def start_update_with_start_workflow(
         self, input: temporalio.client.StartWorkflowUpdateWithStartInput
     ) -> temporalio.client.WorkflowUpdateHandle[Any]:
-        if self.root.workflow_tracing_config.disable_update_tracing:
+        if self.root.disable_update_tracing:
             # Update tracing is disabled, but this call also starts a new workflow.
             # Propagate the currently active trace into the workflow start headers so
             # RunWorkflow is not an unparented root when workflow tracing is enabled.
-            active_ctx = tracer.context_provider.active()
+            propagation_event = TemporalPropagationEvent(use_active_context=True)
+            core.dispatch_event(propagation_event)
             input.start_workflow_input.headers = self.root.propagator.inject_headers(
-                input.start_workflow_input.headers, active_ctx
+                input.start_workflow_input.headers, propagation_event.outgoing_carrier
             )
             return await super().start_update_with_start_workflow(input)
 
@@ -102,24 +123,22 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
         attributes[SpanAttributes.UPDATE_NAME] = input.update_workflow_input.update
         if input.update_workflow_input.update_id:
             attributes[SpanAttributes.UPDATE_ID] = input.update_workflow_input.update_id
-        span = self._get_span(
-            operation_name,
-            input.update_workflow_input.update,
-            attributes,
+        event = self.root._operation_event(
+            operation_name=operation_name,
+            resource_name=input.update_workflow_input.update,
+            activate=True,
+            use_active_context=True,
+            attributes=attributes,
+            inject=True,
         )
-
-        input.start_workflow_input.headers = self.root.propagator.inject_headers(
-            input.start_workflow_input.headers, span.context
-        )
-        input.update_workflow_input.headers = self.root.propagator.inject_headers(
-            input.update_workflow_input.headers, span.context
-        )
-
-        return await self.run(
-            span,
-            operation_name,
-            super().start_update_with_start_workflow(input),
-        )
+        with core.context_with_event(event):
+            input.start_workflow_input.headers = self.root.propagator.inject_headers(
+                input.start_workflow_input.headers, event.outgoing_carrier
+            )
+            input.update_workflow_input.headers = self.root.propagator.inject_headers(
+                input.update_workflow_input.headers, event.outgoing_carrier
+            )
+            return await super().start_update_with_start_workflow(input)
 
     async def start_activity(
         self, input: temporalio.client.StartActivityInput
@@ -140,26 +159,17 @@ class _ClientOutboundInterceptor(_SpanRunner, temporalio.client.OutboundIntercep
         attributes: dict[str, Any],
         awaitable: Callable[[Any], Awaitable[Any]],
     ) -> Any:
-        span = self._get_span(operation_name, resource_name, attributes)
-        input.headers = self.root.propagator.inject_headers(input.headers, span.context)
-        return await self.run(span, operation_name, awaitable(input))
-
-    def _get_span(
-        self,
-        operation_name: str,
-        resource_name: str,
-        attributes: dict[str, Any] | None = None,
-    ) -> Any:
-        # Use the currently active ddtrace span as parent if one exists
-        parent_ctx = tracer.context_provider.active()
-        return self.root._start_span(
+        event = self.root._operation_event(
             operation_name=operation_name,
-            parent_ctx=parent_ctx,
             resource_name=resource_name,
             activate=True,
+            use_active_context=True,
             attributes=attributes,
-            parent_from_header=False,
+            inject=True,
         )
+        with core.context_with_event(event):
+            input.headers = self.root.propagator.inject_headers(input.headers, event.outgoing_carrier)
+            return await awaitable(input)
 
     @classmethod
     def _get_workflow_attributes(cls, input: Any) -> dict[str, Any]:

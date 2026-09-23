@@ -155,6 +155,7 @@ class ExecutionContext(Generic[EventType]):
         "_token",
         "_dispatch_end_event",
         "_end_event_dispatched",
+        "_allow_raise_start_event",
     )
 
     def __init__(
@@ -174,12 +175,13 @@ class ExecutionContext(Generic[EventType]):
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
+        self._allow_raise_start_event: bool = False
 
     def __enter__(self) -> "ExecutionContext[EventType]":
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         try:
-            dispatch("context.started." + self.identifier, (self,))
+            dispatch("context.started." + self.identifier, (self,), self._allow_raise_start_event)
         except BaseException:
             # If dispatch raises, __exit__ won't be called — reset the context ourselves
             # to avoid leaving _CURRENT_CONTEXT pointing at this partially-entered context.
@@ -354,12 +356,22 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def context_with_event(
-    event: "EventType", parent=None, context_name_override: Optional[str] = None, dispatch_end_event=True
+    event: "EventType",
+    parent=None,
+    context_name_override: Optional[str] = None,
+    dispatch_end_event=True,
+    allow_raise: bool = False,
 ) -> ExecutionContext[EventType]:
+    """Create an event-backed context, optionally propagating start-listener exceptions."""
     identifier = context_name_override or event.event_name
-    return _CONTEXT_CLASS(
-        identifier, parent=(parent or _CURRENT_CONTEXT.get()), event=event, dispatch_end_event=dispatch_end_event
+    ctx = _CONTEXT_CLASS(
+        identifier,
+        parent=(parent or _CURRENT_CONTEXT.get()),
+        event=event,
+        dispatch_end_event=dispatch_end_event,
     )
+    ctx._allow_raise_start_event = allow_raise
+    return ctx
 
 
 def add_suppress_exception(exc_type: type) -> None:

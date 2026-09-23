@@ -8,9 +8,9 @@ from typing import Any
 import nexusrpc.handler
 import temporalio.worker
 
-from .constants import OperationNames
-from .constants import SpanAttributes
-from .span_runner import _SpanRunner
+from ddtrace.contrib._events.temporal import OperationNames
+from ddtrace.contrib._events.temporal import SpanAttributes
+from ddtrace.internal import core
 
 
 if TYPE_CHECKING:
@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 
 
 class _NexusOperationInboundInterceptor(
-    _SpanRunner,
     temporalio.worker.NexusOperationInboundInterceptor,  # type: ignore[misc]
 ):
     def __init__(
@@ -26,34 +25,31 @@ class _NexusOperationInboundInterceptor(
         next: temporalio.worker.NexusOperationInboundInterceptor,
         root: DatadogTracingInterceptor,
     ) -> None:
-        temporalio.worker.NexusOperationInboundInterceptor.__init__(self, next)
-        _SpanRunner.__init__(self, root)
+        super().__init__(next)
+        self.root = root
 
     async def execute_nexus_operation_start(
         self, input: temporalio.worker.ExecuteNexusOperationStartInput
     ) -> nexusrpc.handler.StartOperationResultSync[Any] | nexusrpc.handler.StartOperationResultAsync:
-        return await self.run(
-            self._get_span(input, OperationNames.RUN_NEXUS_OPERATION_START_HANDLER),
-            OperationNames.RUN_NEXUS_OPERATION_START_HANDLER,
-            super().execute_nexus_operation_start(input),
-        )
+        return await self._run(input, OperationNames.RUN_NEXUS_OPERATION_START_HANDLER, True)
 
     async def execute_nexus_operation_cancel(self, input: temporalio.worker.ExecuteNexusOperationCancelInput) -> None:
-        await self.run(
-            self._get_span(input, OperationNames.RUN_NEXUS_OPERATION_CANCEL_HANDLER),
-            OperationNames.RUN_NEXUS_OPERATION_CANCEL_HANDLER,
-            super().execute_nexus_operation_cancel(input),
-        )
+        await self._run(input, OperationNames.RUN_NEXUS_OPERATION_CANCEL_HANDLER, False)
 
-    def _get_span(self, input: Any, operation_name: str) -> Any:
-        return self.root._start_span(
+    async def _run(self, input: Any, operation_name: str, start: bool) -> Any:
+        event = self.root._operation_event(
             operation_name=operation_name,
-            parent_ctx=self.root.propagator.extract(input.ctx.headers),
+            incoming_carrier=input.ctx.headers,
             resource_name=f"{input.ctx.service}/{input.ctx.operation}",
             activate=True,
+            use_active_context=False,
             attributes=self._get_nexus_attributes(input.ctx),
             parent_from_header=True,
         )
+        with core.context_with_event(event, allow_raise=True):
+            if start:
+                return await super().execute_nexus_operation_start(input)
+            return await super().execute_nexus_operation_cancel(input)
 
     @staticmethod
     def _get_nexus_attributes(nexus_ctx: Any) -> dict[str, Any]:

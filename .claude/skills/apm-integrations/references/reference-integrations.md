@@ -20,7 +20,7 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | logging | `logging/patch.py` | `loguru/patch.py` | Log correlation injection (trace ID, span ID) -- no spans created |
 | messaging | `kafka/patch.py` | `kombu/patch.py` | Message brokers, DSM support, Pin + `tracer.trace` |
 | object-store | `botocore/patch.py` (S3) | -- | S3 via botocore service-specific handlers |
-| orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
+| orchestration | `celery/patch.py` | `temporal/` | Temporal uses typed events, tracing subscribers, and a deferred workflow lifecycle across its sandbox bridge |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
 ## LLM / Generative AI Detail

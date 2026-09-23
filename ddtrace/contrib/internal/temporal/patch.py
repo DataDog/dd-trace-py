@@ -22,12 +22,18 @@ import temporalio.client
 from ddtrace.contrib.internal.temporal.interceptor import DatadogTracingInterceptor
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.utils.formats import asbool
 
 
 config._add(  # type: ignore[no-untyped-call]
     "temporal",
-    dict(),
+    {
+        "disable_signal_tracing": asbool(env.get("DD_TRACE_TEMPORAL_DISABLE_SIGNAL_TRACING", default=False)),
+        "disable_query_tracing": asbool(env.get("DD_TRACE_TEMPORAL_DISABLE_QUERY_TRACING", default=False)),
+        "disable_update_tracing": asbool(env.get("DD_TRACE_TEMPORAL_DISABLE_UPDATE_TRACING", default=False)),
+    },
 )
 
 
@@ -50,7 +56,7 @@ def _traced_client_init(
     if not any(isinstance(i, DatadogTracingInterceptor) for i in interceptors):
         # Honour DD_TEMPORAL_SERVICE / DD_TEMPORAL_SERVICE_NAME when set; None
         # falls back to the global tracer service name (DD_SERVICE).
-        interceptors.append(DatadogTracingInterceptor(service_name=config.temporal.service))
+        interceptors.append(DatadogTracingInterceptor())
         kwargs["interceptors"] = interceptors
     return wrapped(*args, **kwargs)
 
@@ -64,9 +70,12 @@ def patch() -> None:
     """
     if getattr(temporalio, "_datadog_patch", False):
         return
-    temporalio._datadog_patch = True
+
+    import ddtrace._trace.subscribers.temporal  # noqa: F401
 
     wrap("temporalio.client", "Client.__init__", _traced_client_init)
+
+    temporalio._datadog_patch = True
 
 
 def unpatch() -> None:

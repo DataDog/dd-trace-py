@@ -47,6 +47,25 @@ def test_basic_context_event():
     )
 
 
+def test_context_event_can_propagate_start_listener_exceptions():
+    """Test that allow_raise propagates start-listener exceptions to the caller."""
+
+    @dataclass
+    class ContextEvent(Event):
+        event_name = "test.event.allow_raise"
+
+    def on_context_started(ctx: core.ExecutionContext):
+        raise ValueError("invalid context")
+
+    core.on(f"context.started.{ContextEvent.event_name}", on_context_started)
+
+    with pytest.raises(ValueError, match="invalid context"):
+        with core.context_with_event(ContextEvent(), allow_raise=True):
+            pass
+
+    assert core.current.identifier == core.ROOT_CONTEXT_ID
+
+
 def test_context_event_is_released_after_ended_dispatch():
     """The event remains available to ended listeners but not to retained context snapshots."""
 

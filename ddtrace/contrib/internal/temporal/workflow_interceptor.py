@@ -4,7 +4,6 @@ from collections.abc import Callable
 from collections.abc import Generator
 from contextlib import contextmanager
 import contextvars
-from dataclasses import dataclass
 import logging
 from typing import Any
 from typing import NoReturn
@@ -13,41 +12,31 @@ from typing import cast
 import temporalio.worker
 import temporalio.workflow
 
-from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
-from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.contrib._events.temporal import COMMON_ATTRIBUTE_MAP
+from ddtrace.contrib._events.temporal import OperationNames
+from ddtrace.contrib._events.temporal import SpanAttributes
+from ddtrace.contrib._events.temporal import TemporalActivateWorkflowEvent
+from ddtrace.contrib._events.temporal import TemporalPropagationEvent
+from ddtrace.contrib._events.temporal import TemporalWorkflowLogEvent
+from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.fnv import fnv1_64
-from ddtrace.internal.utils.formats import format_trace_id
 
-from .constants import COMMON_ATTRIBUTE_MAP
-from .constants import OperationNames
-from .constants import SpanAttributes
 from .propagator import _Propagator
 
 
-# ContextVar keeps this flag task-local. Sandboxed workflows load
+# ContextVars keep workflow state task-local. Sandboxed workflows load
 # non-passthrough modules into a per-instance module namespace; unsandboxed
 # workflow tasks capture their own context.
-_trace_disconnected: contextvars.ContextVar[bool] = contextvars.ContextVar("_trace_disconnected", default=False)
-
-# Live RunWorkflow span for the current execution, set before user code runs.
-# Never None — RunWorkflow is exempt from the replay guard in span_ctx.
-# Isolated per execution by the same mechanism as _trace_disconnected.
-_active_workflow_span: contextvars.ContextVar[Any] = contextvars.ContextVar("_active_workflow_span", default=None)
-
-# Holds (trace_id, span_id) for the active RunWorkflow span so that the log
-# filter below can inject dd.trace_id / dd.span_id into every workflow.logger
-# call without activating the span (which is unsafe inside the sandbox).
-_current_span_info: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
-    "_current_span_info", default=None
+_active_workflow_context: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
+    "_active_workflow_context", default=None
 )
+_trace_disconnected: contextvars.ContextVar[bool] = contextvars.ContextVar("_trace_disconnected", default=False)
 
 
 class _DDTraceLogFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        info = _current_span_info.get()
-        if info is not None:
-            record.__dict__[LOG_ATTR_TRACE_ID] = info[0]
-            record.__dict__[LOG_ATTR_SPAN_ID] = info[1]
+        core.dispatch_event(TemporalWorkflowLogEvent(record=record))
         return True
 
 
@@ -58,57 +47,48 @@ if not getattr(temporalio.workflow.logger.base_logger, "_dd_trace_filter_install
     temporalio.workflow.logger.base_logger._dd_trace_filter_installed = True
 
 
-@dataclass
-class WorkflowTracingConfig:
-    # Set the relevant flag to suppress signal, query, or update spans while
-    # keeping workflow and activity tracing enabled.
-    disable_signal_tracing: bool
-    disable_query_tracing: bool
-    disable_update_tracing: bool
-
-    @staticmethod
-    def default_config() -> "WorkflowTracingConfig":
-        return WorkflowTracingConfig(
-            disable_signal_tracing=False,
-            disable_query_tracing=False,
-            disable_update_tracing=False,
-        )
-
-
 class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInboundInterceptor):  # type: ignore[misc]
     def __init__(self, next: temporalio.worker.WorkflowInboundInterceptor) -> None:
         super().__init__(next)
-        self._span_counter = 1  # Reserve the 1 for the RunWorkflow span
+        self._operation_counter = 1  # Reserve 1 for RunWorkflow's idempotency key.
 
         externs = temporalio.workflow.extern_functions()
-        self._start_span_extern = cast(
-            Callable[[str, str, dict[str, Any], Any | None, str | None, int | None], Any],
-            externs["__temporal_datadog_start_sandboxed_span"],
+        self._start_event_extern = cast(
+            Callable[
+                [str, str, dict[str, Any], Any | None, Any | None, int | None, str | None, int | None],
+                tuple[Any, dict[str, str]],
+            ],
+            externs["__temporal_datadog_start_sandboxed_event"],
         )
-        self._finish_span_extern = cast(
-            Callable[[str, Any | None, BaseException | None], None],
-            externs["__temporal_datadog_finish_sandboxed_span"],
+        self._finish_event_extern = cast(
+            Callable[[Any | None, BaseException | None], None],
+            externs["__temporal_datadog_finish_sandboxed_event"],
         )
         config_func = cast(
-            Callable[[], tuple[_Propagator, WorkflowTracingConfig]],
+            Callable[[], tuple[_Propagator, bool, bool, bool]],
             externs["__temporal_datadog_configure_workflow_tracing"],
         )
-        self.propagator, self.config = config_func()
+        (
+            self.propagator,
+            self.disable_signal_tracing,
+            self.disable_query_tracing,
+            self.disable_update_tracing,
+        ) = config_func()
 
     def init(self, outbound: temporalio.worker.WorkflowOutboundInterceptor) -> None:
         super().init(_WorkflowOutboundInterceptor(outbound, self))
 
     @contextmanager
-    def span_ctx(
+    def operation_ctx(
         self,
         operation_name: str,
         resource_name: str,
         input: Any,
         idempotency_key: str | None = None,
         start_time: int | None = None,
-    ) -> Generator[tuple[Any, Any], None, None]:
+    ) -> Generator[tuple[Any, dict[str, str], Any | None], None, None]:
         attributes = self._get_span_attributes(input)
-        parent_ctx = self._parent_ctx_for(operation_name, input)
+        incoming_carrier, workflow_carrier, workflow_span_id = self._parent_carriers_for(operation_name, input)
 
         # Idempotency-keyed HandleSignal and HandleUpdate spans are suppressed
         # while replaying. RunWorkflow is exempt so a restarted worker recreates
@@ -119,51 +99,45 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
             and operation_name != OperationNames.RUN_WORKFLOW
             and temporalio.workflow.unsafe.is_replaying()
         ):
-            span = None
+            ctx = None
+            outgoing_carrier: dict[str, str] = {}
         else:
-            span = self._start_span_extern(
+            ctx, outgoing_carrier = self._start_event_extern(
                 operation_name,
                 resource_name,
                 attributes,
-                parent_ctx,
+                incoming_carrier,
+                workflow_carrier,
+                workflow_span_id,
                 idempotency_key,
                 start_time,
             )
         exc: BaseException | None = None
         try:
-            yield input, span
+            yield input, outgoing_carrier, ctx
         except BaseException as e:
             exc = e
             raise
         finally:
-            self._finish_span_extern(operation_name, span, exc)
+            self._finish_event_extern(ctx, exc)
 
-    def _parent_ctx_for(self, operation_name: str, input: Any) -> Any:
+    def _parent_carriers_for(self, operation_name: str, input: Any) -> tuple[Any, Any, int | None]:
         # Parent from workflow header
         if operation_name == OperationNames.RUN_WORKFLOW:
-            return self.propagator.extract_headers(temporalio.workflow.info().headers)
+            return self.propagator.extract_headers(temporalio.workflow.info().headers), None, None
 
         # Parent from input headers
-        ctx = self.propagator.extract_headers(input.headers)
-        if ctx is not None:
-            return ctx
+        incoming = self.propagator.extract_headers(input.headers)
+        workflow = self.propagator.extract_headers(temporalio.workflow.info().headers)
+        return incoming, workflow, fnv1_64(self._make_idempotency_key(1).encode())
 
-        # Make RunWorkflow the parent
-        return self.recover_workflow_span()
-
-    def recover_workflow_span(self) -> Any:
-        # Reconstruct the RunWorkflow context from the workflow start headers by
-        # reusing the trace_id from StartWorkflow and overriding the span_id with
-        # RunWorkflow's deterministic ID. Reliable across sandbox task boundaries
-        # because workflow.info().headers is always available.
-        ctx = self.propagator.extract_headers(temporalio.workflow.info().headers)
-        if ctx is not None:
-            ctx.span_id = fnv1_64(self._make_idempotency_key(1).encode())
-            return ctx
-
-        # No start headers (uninstrumented client). Fall back to the live span.
-        span = span_from_workflow_context()
-        return span.context if span is not None else None
+    def workflow_carrier(self) -> dict[str, str]:
+        event = TemporalPropagationEvent(
+            incoming_carrier=self.propagator.extract_headers(temporalio.workflow.info().headers),
+            workflow_span_id=fnv1_64(self._make_idempotency_key(1).encode()),
+        )
+        core.dispatch_event(event, allow_raise=True)
+        return event.outgoing_carrier
 
     def _get_span_attributes(self, input: Any) -> dict[str, Any]:
         info = temporalio.workflow.info()
@@ -194,48 +168,62 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
         return f"WorkflowInboundInterceptor:{info.namespace}:{info.workflow_id}:{info.run_id}:{counter}"
 
     def _next_idempotency_key(self) -> str:
-        self._span_counter += 1
-        return self._make_idempotency_key(self._span_counter)
+        self._operation_counter += 1
+        return self._make_idempotency_key(self._operation_counter)
 
     async def execute_workflow(self, input: temporalio.worker.ExecuteWorkflowInput) -> Any:
         info = temporalio.workflow.info()
-        with self.span_ctx(
+        with self.operation_ctx(
             OperationNames.RUN_WORKFLOW,
             info.workflow_type,
             input,
             idempotency_key=self._make_idempotency_key(1),
             start_time=int(info.workflow_start_time.timestamp() * 1e9),
-        ) as (i, span):
-            if span is not None:
-                i.headers = self.propagator.inject_headers(i.headers, span.context)
-                _current_span_info.set((format_trace_id(span.trace_id), str(span.span_id)))
-            _active_workflow_span.set(span)
-            return await super().execute_workflow(i)
+        ) as (i, carrier, ctx):
+            if ctx is not None:
+                core.dispatch_event(TemporalActivateWorkflowEvent(operation_context=ctx))
+            # AIDEV-NOTE: The RunWorkflow ExecutionContext owns its span. Keep
+            # the context task-local so workflow helpers can resolve that span
+            # without using an event as a request/response transport.
+            token = _active_workflow_context.set(ctx)
+            try:
+                i.headers = self.propagator.inject_headers(i.headers, carrier)
+                return await super().execute_workflow(i)
+            finally:
+                _active_workflow_context.reset(token)
 
     async def handle_signal(self, input: temporalio.worker.HandleSignalInput) -> None:
-        if self.config.disable_signal_tracing:
+        if self.disable_signal_tracing:
             await super().handle_signal(input)
             return
-        with self.span_ctx(OperationNames.HANDLE_SIGNAL, input.signal, input, self._next_idempotency_key()) as (i, _):
+        with self.operation_ctx(OperationNames.HANDLE_SIGNAL, input.signal, input, self._next_idempotency_key()) as (
+            i,
+            _,
+            _,
+        ):
             await super().handle_signal(i)
 
     async def handle_query(self, input: temporalio.worker.HandleQueryInput) -> Any:
-        if self.config.disable_query_tracing:
+        if self.disable_query_tracing:
             return await super().handle_query(input)
-        with self.span_ctx(OperationNames.HANDLE_QUERY, input.query, input) as (i, _):
+        with self.operation_ctx(OperationNames.HANDLE_QUERY, input.query, input) as (i, _, _):
             return await super().handle_query(i)
 
     def handle_update_validator(self, input: temporalio.worker.HandleUpdateInput) -> None:
-        if self.config.disable_update_tracing:
+        if self.disable_update_tracing:
             super().handle_update_validator(input)
             return
-        with self.span_ctx(OperationNames.VALIDATE_UPDATE, input.update, input) as (i, _):
+        with self.operation_ctx(OperationNames.VALIDATE_UPDATE, input.update, input) as (i, _, _):
             super().handle_update_validator(i)
 
     async def handle_update_handler(self, input: temporalio.worker.HandleUpdateInput) -> Any:
-        if self.config.disable_update_tracing:
+        if self.disable_update_tracing:
             return await super().handle_update_handler(input)
-        with self.span_ctx(OperationNames.HANDLE_UPDATE, input.update, input, self._next_idempotency_key()) as (i, _):
+        with self.operation_ctx(OperationNames.HANDLE_UPDATE, input.update, input, self._next_idempotency_key()) as (
+            i,
+            _,
+            _,
+        ):
             return await super().handle_update_handler(i)
 
 
@@ -250,40 +238,37 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
 
     def continue_as_new(self, input: temporalio.worker.ContinueAsNewInput) -> NoReturn:
         if not _trace_disconnected.get():
-            input.headers = self.root.propagator.inject_headers(input.headers, self.root.recover_workflow_span())
+            input.headers = self.root.propagator.inject_headers(input.headers, self.root.workflow_carrier())
         super().continue_as_new(input)
         raise AssertionError("unreachable: continue_as_new did not raise")
 
     async def signal_child_workflow(self, input: temporalio.worker.SignalChildWorkflowInput) -> None:
-        if self.root.config.disable_signal_tracing:
+        if self.root.disable_signal_tracing:
             await super().signal_child_workflow(input)
             return
         if temporalio.workflow.unsafe.is_replaying():
             await super().signal_child_workflow(input)
             return
-        with self.root.span_ctx(OperationNames.SIGNAL_CHILD_WORKFLOW, input.signal, input) as (i, span):
-            if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+        with self.root.operation_ctx(OperationNames.SIGNAL_CHILD_WORKFLOW, input.signal, input) as (i, carrier, _):
+            i.headers = self.root.propagator.inject_headers(i.headers, carrier)
             await super().signal_child_workflow(i)
 
     async def signal_external_workflow(self, input: temporalio.worker.SignalExternalWorkflowInput) -> None:
-        if self.root.config.disable_signal_tracing:
+        if self.root.disable_signal_tracing:
             await super().signal_external_workflow(input)
             return
         if temporalio.workflow.unsafe.is_replaying():
             await super().signal_external_workflow(input)
             return
-        with self.root.span_ctx(OperationNames.SIGNAL_EXTERNAL_WORKFLOW, input.signal, input) as (i, span):
-            if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+        with self.root.operation_ctx(OperationNames.SIGNAL_EXTERNAL_WORKFLOW, input.signal, input) as (i, carrier, _):
+            i.headers = self.root.propagator.inject_headers(i.headers, carrier)
             await super().signal_external_workflow(i)
 
     def start_activity(self, input: temporalio.worker.StartActivityInput) -> temporalio.workflow.ActivityHandle:
         if temporalio.workflow.unsafe.is_replaying():
             return super().start_activity(input)
-        with self.root.span_ctx(OperationNames.START_ACTIVITY, input.activity, input) as (i, span):
-            if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+        with self.root.operation_ctx(OperationNames.START_ACTIVITY, input.activity, input) as (i, carrier, _):
+            i.headers = self.root.propagator.inject_headers(i.headers, carrier)
             return super().start_activity(i)
 
     async def start_child_workflow(
@@ -291,9 +276,8 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
     ) -> temporalio.workflow.ChildWorkflowHandle:
         if temporalio.workflow.unsafe.is_replaying():
             return await super().start_child_workflow(input)
-        with self.root.span_ctx(OperationNames.START_CHILD_WORKFLOW, input.workflow, input) as (i, span):
-            if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+        with self.root.operation_ctx(OperationNames.START_CHILD_WORKFLOW, input.workflow, input) as (i, carrier, _):
+            i.headers = self.root.propagator.inject_headers(i.headers, carrier)
             return await super().start_child_workflow(i)
 
     def start_local_activity(
@@ -301,9 +285,8 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
     ) -> temporalio.workflow.ActivityHandle:
         if temporalio.workflow.unsafe.is_replaying():
             return super().start_local_activity(input)
-        with self.root.span_ctx(OperationNames.START_ACTIVITY, input.activity, input) as (i, span):
-            if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+        with self.root.operation_ctx(OperationNames.START_ACTIVITY, input.activity, input) as (i, carrier, _):
+            i.headers = self.root.propagator.inject_headers(i.headers, carrier)
             return super().start_local_activity(i)
 
     async def start_nexus_operation(
@@ -314,15 +297,13 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
         if temporalio.workflow.unsafe.is_replaying():
             return await super().start_nexus_operation(input)
 
-        with self.root.span_ctx(
+        with self.root.operation_ctx(
             OperationNames.START_NEXUS_OPERATION,
             f"{input.service}/{input.operation_name}",
             input,
-        ) as (i, span):
-            if span is not None:
-                # Nexus uses plain string headers, not Temporal payload headers.
-                carrier = self.root.propagator.inject(span.context)
-                i.headers = {**(i.headers or {}), **carrier}
+        ) as (i, carrier, _):
+            # Nexus uses plain string headers, not Temporal payload headers.
+            i.headers = {**(i.headers or {}), **carrier}
             return await super().start_nexus_operation(i)
 
 
@@ -340,10 +321,8 @@ def span_from_workflow_context() -> Any:
     Go version, which takes a ``workflow.Context`` and can return any
     operation's span, this always returns the RunWorkflow span.
     """
-    # ddtrace is registered as a sandbox passthrough module (see
-    # DatadogTracingInterceptor.__init__), so the sandbox reuses this module
-    # from the host and the ContextVar below is the same object the host set.
-    return _active_workflow_span.get()
+    context = _active_workflow_context.get()
+    return span_from_context(context) if context is not None else None
 
 
 def disconnect_trace_span_from_workflow_context() -> None:

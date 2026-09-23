@@ -17,6 +17,7 @@ Create `ddtrace/contrib/internal/{name}/patch.py` with `get_version()`, `_suppor
   - `ddtrace/_trace/subscribers/_base.py` — `TracingSubscriber` base class (handles span creation)
   - `ddtrace/internal/core/__init__.py` — `context_with_event()` API
   - `ddtrace/internal/core/events.py` — `Event` base + `event_field()` descriptor
+  - `ddtrace/contrib/internal/temporal/` — orchestration example with deferred event completion across a sandbox boundary
 - **`context_with_data()` (existing pattern)**: Use `context_with_data()` + `trace_handlers.py`. Read `ddtrace/contrib/internal/flask/patch.py` or another existing `context_with_data` integration. Use this when extending or mirroring an existing `context_with_data` integration.
 - **Pin + `tracer.trace()` (DEPRECATED)**: Do NOT use in new integrations.
 - **LLM/AI integrations**: Use this guide for contrib package layout, registration, config, and APM tests. Use the `llmobs-integrations` skill for LLM-specific patch patterns, span lifecycle, `BaseLLMIntegration`, stream handling, extraction, and LLMObs tests.

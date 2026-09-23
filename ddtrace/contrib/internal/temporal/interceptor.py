@@ -10,120 +10,90 @@ import temporalio.converter
 import temporalio.worker
 import temporalio.workflow
 
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.fnv import fnv1_64
-from ddtrace.trace import tracer
+from ddtrace.contrib._events.temporal import FinishContext
+from ddtrace.contrib._events.temporal import FinishResult
+from ddtrace.contrib._events.temporal import TemporalOperationEvent
+from ddtrace.internal import core
+from ddtrace.internal.settings._config import config
 
 from .activity_interceptor import _ActivityInboundInterceptor
 from .client_interceptor import _ClientOutboundInterceptor
-from .constants import CONTINUE_AS_NEW_TAG
 from .constants import DEFAULT_HEADER_KEY
-from .constants import TEMPORAL_TAG_PREFIX
-from .constants import OperationNames
 from .nexus_interceptor import _NexusOperationInboundInterceptor
 from .propagator import _Propagator
-from .span_annotator import _SpanAnnotator
 from .workflow_interceptor import DatadogTracingWorkflowInboundInterceptor
-from .workflow_interceptor import WorkflowTracingConfig
-from .workflow_interceptor import _active_workflow_span
-from .wrapped_tracer import FinishContext
-from .wrapped_tracer import FinishResult
-
-
-log = get_logger(__name__)
 
 
 class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker.Interceptor):  # type: ignore[misc]
     def __init__(
         self,
         *,
-        service_name: str | None = None,
+        service_name: str | None = config.temporal.service,
         header_key: str = DEFAULT_HEADER_KEY,
         extra_tags: Mapping[str, str] | None = None,
         on_span_finish: Callable[[FinishContext], FinishResult | None] | None = None,
-        workflow_tracing_config: WorkflowTracingConfig | None = None,
+        disable_signal_tracing: bool | None = config.temporal.disable_signal_tracing,
+        disable_query_tracing: bool | None =  config.temporal.disable_query_tracing,
+        disable_update_tracing: bool | None = config.temporal.disable_update_tracing,
         allow_invalid_parent_spans: bool = False,
     ) -> None:
-        self.workflow_tracing_config = workflow_tracing_config or WorkflowTracingConfig.default_config()
+        self.disable_signal_tracing = disable_signal_tracing
+        self.disable_query_tracing = disable_query_tracing
+        self.disable_update_tracing = disable_update_tracing
 
         _register_sandbox_passthrough()
 
         self.propagator = _Propagator(
             header_key=header_key,
-            service_name=service_name,
             payload_converter=temporalio.converter.PayloadConverter.default,
             allow_invalid_parent_spans=allow_invalid_parent_spans,
         )
 
         self._service_name = service_name
+        self._extra_tags = extra_tags or {}
         self._on_span_finish = on_span_finish
-        self._annotator = _SpanAnnotator(service_name=service_name, extra_tags=extra_tags)
+        self._allow_invalid_parent_spans = allow_invalid_parent_spans
 
-    def _start_span(
+    def _operation_event(
         self,
         *,
         operation_name: str,
-        parent_ctx: Span | Context | None,
         resource_name: str,
         activate: bool,
+        use_active_context: bool,
+        incoming_carrier: Mapping[str, str] | None = None,
+        workflow_carrier: Mapping[str, str] | None = None,
+        workflow_span_id: int | None = None,
         start_time: int | None = None,
-        span_id: int | None = None,
+        idempotency_key: str | None = None,
         attributes: Mapping[str, Any] | None = None,
         parent_from_header: bool = False,
-        trace_id: int | None = None,
-    ) -> Span:
-        # AIDEV-NOTE: Supply deterministic trace IDs through the parent context;
-        # changing span.trace_id after creation breaks the tracer's trace registry.
-        effective_parent = parent_ctx
-        if trace_id is not None and parent_ctx is None:
-            effective_parent = Context(trace_id=trace_id, span_id=None, is_remote=True)
-        span = tracer.start_span(
-            name=f"{TEMPORAL_TAG_PREFIX}{operation_name}",
-            child_of=effective_parent,
+        inject: bool = False,
+    ) -> TemporalOperationEvent:
+        return TemporalOperationEvent(
+            operation=operation_name,
+            component="temporal",
+            integration_config=config.temporal,
             service=self._service_name,
             resource=resource_name,
             activate=activate,
+            use_active_context=use_active_context,
+            measured=False,
+            attributes=attributes or {},
+            incoming_carrier=incoming_carrier,
+            workflow_carrier=workflow_carrier,
+            workflow_span_id=workflow_span_id,
+            start_ns=start_time,
+            idempotency_key=idempotency_key,
+            deterministic_root_trace=operation_name == "RunWorkflow",
+            inject=inject,
+            parent_from_header=parent_from_header,
+            allow_invalid_parent_spans=self._allow_invalid_parent_spans,
+            extra_tags=self._extra_tags,
+            on_span_finish=self._on_span_finish,
+            ignored_exceptions=(temporalio.workflow.ContinueAsNewError, temporalio.activity._CompleteAsyncError),
+            continued_as_new_exception=temporalio.workflow.ContinueAsNewError,
         )
-        span._ignore_exception(temporalio.workflow.ContinueAsNewError)
-        span._ignore_exception(temporalio.activity._CompleteAsyncError)
-        if start_time is not None:
-            span.start_ns = start_time
-        if span_id is not None:
-            span.span_id = span_id
-            span.context.span_id = span_id
-        force_keep = parent_ctx is None or parent_from_header
-        self._annotator.annotate(span, operation_name, attributes, self.propagator.get_baggage(parent_ctx), force_keep)
-        self.propagator.set_baggage(span.context)
-        return span
-
-    def _finish_span(
-        self,
-        span: Span,
-        operation_name: str,
-        exc: BaseException | None,
-    ) -> None:
-        try:
-            result: FinishResult | None = None
-            if self._on_span_finish is not None:
-                try:
-                    result = self._on_span_finish(FinishContext(operation=operation_name, exception=exc))
-                except Exception:
-                    log.error(
-                        "temporal on_span_finish callback for %r raised; ignoring",
-                        operation_name,
-                        exc_info=True,
-                    )
-
-            if exc:
-                span.set_exc_info(type(exc), exc, exc.__traceback__)
-
-            if result is not None and result.extra_tags:
-                for key, value in result.extra_tags.items():
-                    span.set_tag(key, value)
-        finally:
-            span.finish()
 
     def intercept_client(self, next: temporalio.client.OutboundInterceptor) -> temporalio.client.OutboundInterceptor:
         return _ClientOutboundInterceptor(next, self)
@@ -141,62 +111,63 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
     def workflow_interceptor_class(
         self, input: temporalio.worker.WorkflowInterceptorClassInput
     ) -> type[DatadogTracingWorkflowInboundInterceptor]:
-        input.unsafe_extern_functions["__temporal_datadog_start_sandboxed_span"] = self._start_sandboxed_span
-        input.unsafe_extern_functions["__temporal_datadog_finish_sandboxed_span"] = self._finish_sandboxed_span
+        input.unsafe_extern_functions["__temporal_datadog_start_sandboxed_event"] = self._start_sandboxed_event
+        input.unsafe_extern_functions["__temporal_datadog_finish_sandboxed_event"] = self._finish_sandboxed_event
         input.unsafe_extern_functions["__temporal_datadog_configure_workflow_tracing"] = (
             self._configure_workflow_tracing
         )
         return DatadogTracingWorkflowInboundInterceptor
 
-    def _configure_workflow_tracing(self) -> tuple[_Propagator, WorkflowTracingConfig]:
-        return self.propagator, self.workflow_tracing_config
+    def _configure_workflow_tracing(self) -> tuple[_Propagator, bool, bool, bool]:
+        return (
+            self.propagator,
+            self.disable_signal_tracing,
+            self.disable_query_tracing,
+            self.disable_update_tracing,
+        )
 
-    def _start_sandboxed_span(
+    def _start_sandboxed_event(
         self,
         operation_name: str,
         resource_name: str,
         attributes: dict[str, Any] | None,
-        parent_ctx: Any | None,
+        incoming_carrier: Mapping[str, str] | None,
+        workflow_carrier: Mapping[str, str] | None,
+        workflow_span_id: int | None,
         idempotency_key: str | None,
         start_time: int | None = None,
-    ) -> Any:
-        # No DD header (uninstrumented client): pass a deterministic trace_id to keep
-        # the RunWorkflow trace consistent if the worker restarts mid-run.
-        det_trace_id = (
-            fnv1_64(f"trace:{idempotency_key}".encode())
-            if operation_name == OperationNames.RUN_WORKFLOW and parent_ctx is None and idempotency_key is not None
-            else None
-        )
-        span = self._start_span(
+    ) -> tuple[Any, dict[str, str]]:
+        event = self._operation_event(
             operation_name=operation_name,
-            parent_ctx=parent_ctx,
             resource_name=resource_name,
             activate=False,
+            use_active_context=False,
+            incoming_carrier=incoming_carrier,
+            workflow_carrier=workflow_carrier,
+            workflow_span_id=workflow_span_id,
             start_time=start_time,
-            span_id=fnv1_64(idempotency_key.encode()) if idempotency_key is not None else None,
+            idempotency_key=idempotency_key,
             attributes=attributes,
             parent_from_header=True,
-            trace_id=det_trace_id,
+            inject=True,
         )
-        # Expose RunWorkflow to the host-side ContextVar that
-        # span_from_workflow_context() returns via the extern above.
-        if operation_name == OperationNames.RUN_WORKFLOW:
-            _active_workflow_span.set(span)
-        return span
+        ctx = core.context_with_event(event, dispatch_end_event=False, allow_raise=True)
+        ctx.__enter__()
+        ctx.__exit__(None, None, None)
+        return ctx, event.outgoing_carrier
 
-    def _finish_sandboxed_span(
+    def _finish_sandboxed_event(
         self,
-        operation_name: str,
-        span: Any | None,
+        ctx: Any | None,
         operation_exc: BaseException | None,
     ) -> None:
-        if span is None:
+        if ctx is None:
             return
-
-        if isinstance(operation_exc, temporalio.workflow.ContinueAsNewError):
-            span.set_tag(CONTINUE_AS_NEW_TAG, True)
-
-        self._finish_span(span, operation_name, operation_exc)
+        ctx.dispatch_ended_event(
+            type(operation_exc) if operation_exc is not None else None,
+            operation_exc,
+            operation_exc.__traceback__ if operation_exc is not None else None,
+        )
 
 
 # The workflow sandbox re-imports every non-passthrough module fresh; doing

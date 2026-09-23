@@ -12,9 +12,8 @@ import temporalio.converter
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
-from ddtrace.contrib.internal.temporal.workflow_interceptor import WorkflowTracingConfig
-from ddtrace.contrib.internal.temporal.wrapped_tracer import FinishContext
-from ddtrace.contrib.internal.temporal.wrapped_tracer import FinishResult
+from ddtrace.contrib._events.temporal import FinishContext
+from ddtrace.contrib._events.temporal import FinishResult
 from ddtrace.contrib.temporal import DatadogTracingInterceptor
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.formats import format_trace_id
@@ -738,12 +737,7 @@ async def test_disable_signal_tracing(
     if env.supports_time_skipping:
         pytest.skip("time-skipping server not supported")
 
-    config = WorkflowTracingConfig(
-        disable_signal_tracing=True,
-        disable_query_tracing=False,
-        disable_update_tracing=False,
-    )
-    interceptor = _make_interceptor(workflow_tracing_config=config)
+    interceptor = _make_interceptor(disable_signal_tracing=True)
     tc = _traced_client(client, interceptor)
     tq = _task_queue()
 
@@ -780,12 +774,7 @@ async def test_disable_query_tracing(
     if env.supports_time_skipping:
         pytest.skip("time-skipping server not supported")
 
-    config = WorkflowTracingConfig(
-        disable_signal_tracing=False,
-        disable_query_tracing=True,
-        disable_update_tracing=False,
-    )
-    interceptor = _make_interceptor(workflow_tracing_config=config)
+    interceptor = _make_interceptor(disable_query_tracing=True)
     tc = _traced_client(client, interceptor)
     tq = _task_queue()
 
@@ -819,12 +808,7 @@ async def test_disable_update_tracing(
     if env.supports_time_skipping:
         pytest.skip("time-skipping server not supported")
 
-    config = WorkflowTracingConfig(
-        disable_signal_tracing=False,
-        disable_query_tracing=False,
-        disable_update_tracing=True,
-    )
-    interceptor = _make_interceptor(workflow_tracing_config=config)
+    interceptor = _make_interceptor(disable_update_tracing=True)
     tc = _traced_client(client, interceptor)
     tq = _task_queue()
 
@@ -866,12 +850,7 @@ async def test_disable_update_tracing_still_propagates_into_new_workflow(
     if env.supports_time_skipping:
         pytest.skip("time-skipping server not supported")
 
-    config = WorkflowTracingConfig(
-        disable_signal_tracing=False,
-        disable_query_tracing=False,
-        disable_update_tracing=True,
-    )
-    interceptor = _make_interceptor(workflow_tracing_config=config)
+    interceptor = _make_interceptor(disable_update_tracing=True)
     tc = _traced_client(client, interceptor)
     tq = _task_queue()
 

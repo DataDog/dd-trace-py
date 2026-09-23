@@ -24,6 +24,24 @@ passthrough with the Temporal workflow sandbox so workflow code can call
 
 ``patch(logging=True)`` is recommended separately to opt in to ``dd.trace_id``
 log injection.
+
+Configuration
+~~~~~~~~~~~~~
+
+.. envvar:: DD_TRACE_TEMPORAL_DISABLE_SIGNAL_TRACING
+
+   Whether to suppress Temporal signal spans. Default: ``False``.
+
+.. envvar:: DD_TRACE_TEMPORAL_DISABLE_QUERY_TRACING
+
+   Whether to suppress Temporal query spans. Default: ``False``.
+
+.. envvar:: DD_TRACE_TEMPORAL_DISABLE_UPDATE_TRACING
+
+   Whether to suppress Temporal update spans. Default: ``False``.
+
+Values passed to the corresponding ``DatadogTracingInterceptor`` constructor
+arguments take precedence over these integration settings.
 """
 
 from .interceptor import DatadogTracingInterceptor

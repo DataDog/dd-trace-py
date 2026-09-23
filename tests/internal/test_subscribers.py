@@ -237,6 +237,40 @@ def test_base_tracing_subscriber(test_spans):
     assert span.resource == "/api/endpoint"
 
 
+def test_tracing_subscriber_before_start_hook(test_spans):
+    """Test that pre-start hooks run before span creation and may customize its arguments."""
+
+    @dataclass
+    class TestTracingEvent(TracingEvent):
+        event_name = "test.subscriber.before_start"
+        span_type = "custom"
+        span_kind = "internal"
+
+        def __post_init__(self):
+            self.operation_name = "test.subscriber.span"
+
+    class TestTracingSubscriber(TracingSubscriber):
+        event_names = (TestTracingEvent.event_name,)
+
+        @classmethod
+        def on_before_start(cls, ctx):
+            called.append("before_start")
+            assert ctx.get_item("_inner_span") is None
+            ctx.event.resource = "customized-resource"
+
+        @classmethod
+        def on_started(cls, ctx):
+            called.append("started")
+            assert span_from_context(ctx) is not None
+
+    with core.context_with_event(TestTracingEvent(component="test-component", integration_config={})):
+        pass
+
+    assert called == ["before_start", "started"]
+    test_spans.assert_span_count(1)
+    assert test_spans.spans[0].resource == "customized-resource"
+
+
 def test_span_context_event_missing_required_field(test_spans):
     """Test that missing required tracing attributes raises an AttributeError."""
 
