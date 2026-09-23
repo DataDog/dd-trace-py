@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._constants import WEB_SEARCH_COUNT_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import anthropic_tool_call_from_block
 from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
@@ -254,6 +255,11 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         if cache_read_tokens is not None:
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+
+        server_tool_use = _get_attr(usage, "server_tool_use", None)
+        web_search_requests = _get_attr(server_tool_use, "web_search_requests", None) if server_tool_use else None
+        if web_search_requests:
+            metrics[WEB_SEARCH_COUNT_METRIC_KEY] = web_search_requests
         return metrics
 
     def _get_model_provider(self, span: Span) -> str:
