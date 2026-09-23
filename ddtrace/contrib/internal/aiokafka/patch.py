@@ -125,7 +125,7 @@ async def traced_send(func, instance, args, kwargs):
         core.set_item("kafka_cluster_id", cluster_id)
         event.cluster_id = cluster_id
         event.tombstone = value is None
-        event.message_key = key.decode("utf-8") if key else None
+        event.message_key = key.decode("utf-8") if key else "None"
         event.partition = partition
 
         for header_key, header_value in tracing_headers.items():
