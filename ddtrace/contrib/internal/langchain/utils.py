@@ -23,7 +23,6 @@ class BaseLangchainStreamHandler:
         # listener — means a stream that is created but never consumed cannot
         # leak the counter into the next call in the same task. Paired with
         # the ``.stream.finally`` event below.
-        self._stream_started = True
         started_event = self.options.get("aiguard_started_event")
         if started_event:
             core.dispatch(started_event, ())
