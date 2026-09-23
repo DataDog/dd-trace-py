@@ -26,3 +26,6 @@ experiments:
           - name: pytestplugin-ddtrace
             thresholds:
               - execution_time < 5000 ms
+          - name: pytestplugin-ddtrace_coverage
+            thresholds:
+              - execution_time < 5000 ms
