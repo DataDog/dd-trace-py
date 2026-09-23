@@ -46,7 +46,7 @@ class WrapperComponent(wrapt.ObjectProxy):
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
         cname = func_name(self.__wrapped__)
-        resource = "{}.{}".format(cname, func.__name__)
+        resource = f"{cname}.{func.__name__}"
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
@@ -54,7 +54,7 @@ class WrapperRenderer(wrapt.ObjectProxy):
     def render(self, *args, **kwargs):
         func = self.__wrapped__.render
         cname = func_name(self.__wrapped__)
-        resource = "{}.{}".format(cname, func.__name__)
+        resource = f"{cname}.{func.__name__}"
         return trace_wrapped(resource, func, *args, **kwargs)
 
 

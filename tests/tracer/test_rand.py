@@ -128,7 +128,7 @@ def test_fork_pid_check():
 
 
 def _test_multiprocess_target(q):
-    assert sum((_ is seed for _ in forksafe._registry)) == 1
+    assert sum(_ is seed for _ in forksafe._registry) == 1
     q.put([rand64bits() for _ in range(100)])
 
 

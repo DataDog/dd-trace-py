@@ -3,14 +3,6 @@
 #include "constants.hpp"
 #include "profiler_state.hpp"
 #include "static_sample_pool.hpp"
-#include "types.hpp"
-
-void
-Datadog::SampleManager::add_type(unsigned int type)
-{
-    auto& state = ProfilerState::get();
-    state.type_mask = static_cast<SampleType>((state.type_mask | type) & SampleType::All);
-}
 
 void
 Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
@@ -30,7 +22,7 @@ Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
 void
 Datadog::SampleManager::set_timeline(bool enable)
 {
-    Datadog::Sample::set_timeline(enable);
+    ProfilerState::get().timeline_enabled = enable;
 }
 
 void

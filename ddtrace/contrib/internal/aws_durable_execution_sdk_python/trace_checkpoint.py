@@ -155,7 +155,7 @@ def _allocate_checkpoint_n(state: ExecutionState) -> int:
 
 def _step_id(name: str, execution_arn: str) -> str:
     """Deterministic blake2b-based step id so re-runs don't duplicate."""
-    digest = hashlib.blake2b(f"{name}:{execution_arn}".encode("utf-8"), digest_size=16).hexdigest()
+    digest = hashlib.blake2b(f"{name}:{execution_arn}".encode(), digest_size=16).hexdigest()
     return digest
 
 

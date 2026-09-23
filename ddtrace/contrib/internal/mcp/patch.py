@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -52,7 +54,7 @@ def _supported_versions() -> dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "ClientRequest":
+def _set_distributed_headers_into_mcp_request(request: ClientRequest) -> ClientRequest:
     """Inject distributed tracing headers into MCP request metadata."""
     span = tracer.current_span()
     if span is None:
@@ -92,7 +94,7 @@ def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "Clie
         return request
 
 
-def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[dict[str, str]]:
+def _extract_distributed_headers_from_mcp_request(request_root: Request) -> Optional[dict[str, str]]:
     """Extract distributed tracing headers from MCP request params.meta field."""
     request_params = _get_attr(request_root, "params", None)
     meta = _get_attr(request_params, "meta", None) if request_params else None

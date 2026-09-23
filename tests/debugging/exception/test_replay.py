@@ -118,7 +118,7 @@ def with_rate_limiter(limiter):
 
 class ExceptionReplayTestCase(TracerTestCase):
     def setUp(self):
-        super(ExceptionReplayTestCase, self).setUp()
+        super().setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         _third_party_packages().remove("ddtrace")
@@ -126,7 +126,7 @@ class ExceptionReplayTestCase(TracerTestCase):
     def tearDown(self):
         _third_party_packages().add("ddtrace")
         ddtrace.tracer = self.backup_tracer
-        super(ExceptionReplayTestCase, self).tearDown()
+        super().tearDown()
 
     def test_debugger_exception_replay(self):
         def a(v, d=None):

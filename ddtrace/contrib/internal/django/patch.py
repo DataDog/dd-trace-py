@@ -284,8 +284,8 @@ def _instrument_view(django, view):
             if not func or is_wrapted(func):
                 continue
 
-            resource = "{0}.{1}".format(func_name(view), name)
-            op_name = "django.view.{0}".format(name)
+            resource = f"{func_name(view)}.{name}"
+            op_name = f"django.view.{name}"
             trace_utils.wrap(view, name, traced_func(django, name=op_name, resource=resource))
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
@@ -301,8 +301,8 @@ def _instrument_view(django, view):
                 if not func or is_wrapted(func):
                     continue
 
-                resource = "{0}.{1}".format(func_name(response_cls), name)
-                op_name = "django.response.{0}".format(name)
+                resource = f"{func_name(response_cls)}.{name}"
+                op_name = f"django.response.{name}"
                 trace_utils.wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)

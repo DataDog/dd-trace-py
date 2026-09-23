@@ -1,9 +1,9 @@
+from collections.abc import Mapping
 import functools
 import sys
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Protocol
 from urllib import parse
@@ -100,10 +100,10 @@ class _TracedIterable(wrapt.ObjectProxy):
     def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False):
         self._self_wrapped_is_iterator = wrapped_is_iterator
         if self._self_wrapped_is_iterator:
-            super(_TracedIterable, self).__init__(wrapped)
+            super().__init__(wrapped)
             self._wrapped_iterator = iter(wrapped)
         else:
-            super(_TracedIterable, self).__init__(iter(wrapped))
+            super().__init__(iter(wrapped))
         self._self_span = span
         self._self_parent_span = parent_span
         self._self_span_finished = False
@@ -142,7 +142,7 @@ class _TracedIterable(wrapt.ObjectProxy):
             # However this attribute should not be defined for iterables.
             # By definition, iterables should not support len(...).
             raise AttributeError("__len__ is not supported")
-        return super(_TracedIterable, self).__getattribute__(name)
+        return super().__getattribute__(name)
 
 
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
@@ -2054,6 +2054,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.durable_functions.patched_orchestration",
         "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
@@ -2091,6 +2092,7 @@ def listen():
         "redis.command",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
+        "azure.durable_functions.patched_orchestration",
         "azure.functions.patched_cosmosdb",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",

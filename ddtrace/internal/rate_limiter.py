@@ -5,9 +5,9 @@ from dataclasses import field
 import random
 import time
 from typing import TYPE_CHECKING
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Optional
 
 from ddtrace.internal.threads import Lock
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from _thread import LockType
 
 
-class RateLimiter(object):
+class RateLimiter:
     """
     A token bucket rate limiter implementation
     """
@@ -48,15 +48,15 @@ class RateLimiter(object):
         """
         self.rate_limit = rate_limit
         self.time_window = time_window
-        self.tokens = rate_limit  # type: float
+        self.tokens: float = rate_limit
         self.max_tokens = rate_limit
 
         self.last_update_ns = time.monotonic_ns()
 
-        self.current_window_ns = 0  # type: float
+        self.current_window_ns: float = 0
         self.tokens_allowed = 0
         self.tokens_total = 0
-        self.prev_window_rate = None  # type: Optional[float]
+        self.prev_window_rate: Optional[float] = None
 
         self._lock = Lock()
 
@@ -161,12 +161,9 @@ class RateLimiter(object):
         return (self._current_window_rate() + self.prev_window_rate) / 2.0
 
     def __repr__(self):
-        return "{}(rate_limit={!r}, tokens={!r}, last_update_ns={!r}, effective_rate={!r})".format(
-            self.__class__.__name__,
-            self.rate_limit,
-            self.tokens,
-            self.last_update_ns,
-            self.effective_rate,
+        return (
+            f"{self.__class__.__name__}(rate_limit={self.rate_limit!r}, tokens={self.tokens!r},"
+            f" last_update_ns={self.last_update_ns!r}, effective_rate={self.effective_rate!r})"
         )
 
 
