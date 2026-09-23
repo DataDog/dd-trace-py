@@ -111,6 +111,12 @@ configure_stack_internal_test(test_sampling_cycle_state)
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
 
+dd_wrapper_add_test(test_elf_symbols test_elf_symbols.cpp)
+# The ELF tests resolve a local symbol inside this very binary, so it has to carry a build-id note.
+if(NOT APPLE)
+    target_link_options(test_elf_symbols PRIVATE -Wl,--build-id)
+endif()
+
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
