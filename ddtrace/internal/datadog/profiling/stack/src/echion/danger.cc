@@ -43,8 +43,8 @@ thread_local ThreadAltStack t_altstack;
 thread_local sigjmp_buf t_jmpenv;
 thread_local volatile sig_atomic_t t_handler_armed = 0;
 
-// Guards against a signal-handler chaining cycle. The unarmed path below chains
-// to the previously installed handler and re-raises; if that handler chains back
+// Guards against a signal-handler chaining cycle. The unarmed path below calls
+// the previously installed handler; if that handler chains back
 // to us (e.g. profiler <-> crashtracker pointing at each other), we would loop
 // forever and hang the process. If we re-enter the unarmed path while already
 // chaining, fall through to the default disposition so termination is guaranteed.
@@ -65,7 +65,7 @@ disarm_fault_handler()
 }
 
 static void
-segv_handler(int signo, siginfo_t*, void*)
+segv_handler(int signo, siginfo_t* info, void* ucontext)
 {
     if (!t_handler_armed) {
         if (t_in_unarmed_chain) {
@@ -84,14 +84,25 @@ segv_handler(int signo, siginfo_t*, void*)
         }
         t_in_unarmed_chain = 1;
 
-        struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
-        // Restore the previous handler and re-raise so default/old handling occurs.
-        // Use pthread_kill(pthread_self(), signo): thread-directed (targets the
-        // faulting thread, which is guaranteed to be the current thread for
-        // synchronous signals like SIGSEGV/SIGBUS) and async-signal-safe per POSIX,
-        // unlike raise which acquires a lock internally.
-        sigaction(signo, old, nullptr);
-        pthread_kill(pthread_self(), signo);
+        // Chain to the previous handler
+        const struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
+        if (old->sa_flags & SA_SIGINFO) {
+            old->sa_sigaction(signo, info, ucontext);
+        } else if (old->sa_handler != SIG_DFL && old->sa_handler != SIG_IGN) {
+            old->sa_handler(signo);
+        } else {
+            // SIG_IGN is treated like SIG_DFL: returning from a synchronous
+            // SIGSEGV/SIGBUS re-executes the faulting instruction and would loop.
+            struct sigaction dfl
+            {};
+            dfl.sa_handler = SIG_DFL;
+            sigemptyset(&dfl.sa_mask);
+            dfl.sa_flags = 0;
+            sigaction(signo, &dfl, nullptr);
+            pthread_kill(pthread_self(), signo);
+        }
+
+        t_in_unarmed_chain = 0;
         return;
     }
 
@@ -107,6 +118,7 @@ init_segv_catcher()
     }
 
     struct sigaction sa
+
     {};
     sa.sa_sigaction = segv_handler;
     sigemptyset(&sa.sa_mask);
