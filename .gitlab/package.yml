@@ -58,16 +58,6 @@ variables:
     - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
         - .download_cache
-    # Finished .so artifacts, keyed by a content hash of their sources. A hit skips the
-    # Rust fat-LTO link, which neither sccache nor a cargo target dir can cache and which
-    # dominates the job. IMAGE_TAG must be in the key: the content hash covers source bytes
-    # and cargo features but not libc, so manylinux and musllinux would otherwise collide.
-    # DD_SERVERLESS_BUILD must be in it too: both flavors build the same paths, so sharing a
-    # key would have each flavor's push overwrite the other's archive and miss every time.
-    - key: v1-ext-cache-${IMAGE_TAG}-${PYTHON_TAG}-${DD_SERVERLESS_BUILD}
-      policy: ${EXT_CACHE_POLICY}
-      paths:
-        - .ext_cache
 
 .upload_wheels_base:
   tags: ["arch:amd64"]
@@ -109,6 +99,22 @@ variables:
     SCCACHE_BUCKET: "dd-trace-py-builds"
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
+  cache:
+    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+      paths:
+        - .download_cache
+    # Finished .so artifacts, keyed by a content hash of their sources. A hit skips the
+    # Rust fat-LTO link, which neither sccache nor a cargo target dir can cache and which
+    # dominates the job. IMAGE_TAG must be in the key: the content hash covers source bytes
+    # and cargo features but not libc, so manylinux and musllinux would otherwise collide.
+    # DD_SERVERLESS_BUILD must be in it too: both flavors build the same paths, so sharing a
+    # key would have each flavor's push overwrite the other's archive and miss every time.
+    # Only "build linux" runs ext_cache.py. macOS and the sdist job never populate .ext_cache,
+    # so this entry stays off .build_base and they skip the unused upload.
+    - key: v1-ext-cache-${IMAGE_TAG}-${PYTHON_TAG}-${DD_SERVERLESS_BUILD}
+      policy: ${EXT_CACHE_POLICY}
+      paths:
+        - .ext_cache
   parallel:
     matrix:
       - ARCH_TAG: "amd64"

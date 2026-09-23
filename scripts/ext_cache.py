@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 import typing as t
 
 
@@ -16,10 +17,10 @@ CACHE = ROOT / ".ext_cache"
 # reports whichever the caller asks for, and the cache has to target the same tree.
 INPLACE = True
 
-# How many distinct source states to keep per extension. main and every release branch write to
-# one cache object, so a limit of 1 makes them evict each other on every build. A high limit is
-# cheap because a branch diverges on only the few extensions whose sources it changes.
-KEEP_GENERATIONS = 8
+# How long an unused source state stays in the cache. main and every release branch write to
+# one cache object. When a branch stops producing a hash, nothing refreshes its entry, and it
+# ages out on its own. The sweep needs no list of which extensions still exist.
+MAX_CACHE_AGE_DAYS = 2
 
 
 def invoke_ext_hashes() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, Path]]]:
@@ -84,41 +85,47 @@ def try_restore_from_cache(shared_deps: bool = True) -> None:
         _restore_shared_deps(dep_entries)
 
 
-def _record_and_prune(cache: Path, ext_entries: list[tuple[str, str, str]], keep: int = KEEP_GENERATIONS) -> None:
-    """Mark this build's entries as most recently used and evict the oldest beyond keep.
+def _record_and_prune(
+    cache: Path,
+    ext_entries: list[tuple[str, str, str]],
+    now: t.Optional[float] = None,
+    max_age_days: float = MAX_CACHE_AGE_DAYS,
+) -> None:
+    """Mark this build's entries as used now and evict every generation older than max_age_days.
 
-    A build only ever adds to the cache, so without eviction its entry count grows without
-    bound and every job in the fleet pays the extra transfer. Recency lives in one index file
-    keyed by a monotonic counter rather than in per-entry mtimes, because the cache
-    round-trips through an archiver that need not preserve them.
+    Recency lives in one index file keyed by wall-clock time, not per-entry mtimes. The cache
+    round-trips through an archiver that need not preserve mtimes.
+
+    The sweep walks every directory under cache, not only the extensions this build produced.
+    A removed or renamed extension's generation still ages out, rather than sitting in the
+    archive forever.
     """
+    now = time.time() if now is None else now
     index_path = cache / "usage.json"
     try:
         index = json.loads(index_path.read_text())
     except (OSError, ValueError):
         index = {}
 
-    seq = index.get("seq", 0) + 1
-    used: dict[str, int] = index.get("entries", {})
+    used: dict[str, float] = index.get("entries", {})
     for ext_name, ext_hash, _ in ext_entries:
-        used[f"{ext_name}/{ext_hash}"] = seq
+        used[f"{ext_name}/{ext_hash}"] = now
 
-    for ext_name in {name for name, _, _ in ext_entries}:
-        ext_dir = cache / ext_name
-        if not ext_dir.is_dir():
+    cutoff = now - max_age_days * 86400
+    for ext_dir in cache.iterdir() if cache.is_dir() else []:
+        if not ext_dir.is_dir() or ext_dir.name == "shared_deps":
             continue
-        generations = sorted(
-            (d for d in ext_dir.iterdir() if d.is_dir()),
-            key=lambda d: (used.get(f"{ext_name}/{d.name}", 0), d.name),
-            reverse=True,
-        )
-        for stale in generations[keep:]:
-            print(f"Evicting {stale} from the cache")
-            shutil.rmtree(stale, ignore_errors=True)
-            used.pop(f"{ext_name}/{stale.name}", None)
+        for generation in ext_dir.iterdir():
+            if not generation.is_dir():
+                continue
+            key = f"{ext_dir.name}/{generation.name}"
+            if used.get(key, 0) < cutoff:
+                print(f"Evicting {generation} from the cache")
+                shutil.rmtree(generation, ignore_errors=True)
+                used.pop(key, None)
 
     cache.mkdir(parents=True, exist_ok=True)
-    index_path.write_text(json.dumps({"seq": seq, "entries": used}))
+    index_path.write_text(json.dumps({"entries": used}))
 
 
 def save_to_cache(shared_deps: bool = True) -> None:
