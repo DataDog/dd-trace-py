@@ -92,7 +92,7 @@ class TaintEngineContext
     // request context maps and return the first map that contains at least
     // one of these ranges in any of its stored TaintedObjects. Returns nullptr
     // if none of the ranges are found in any active map.
-    // AIDEV-QUESTION: Should this require all ranges to be found in the same
+    // TODO: Should this require all ranges to be found in the same
     // map/object, or is finding any one sufficient? Implemented as "any"
     // for now for performance and broader matching.
     TaintedObjectMapTypePtr get_tainted_object_map_from_ranges(const TaintRangeRefs& ranges);

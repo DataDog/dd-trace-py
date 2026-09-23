@@ -87,12 +87,10 @@ def patched_query_request(original_func, instance, args, kwargs):
     endpoint_name = instance.host.split(".")[0]
 
     with tracer.trace(
-        schematize_cloud_api_operation(
-            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
-        ),
+        schematize_cloud_api_operation(f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, schematize_service_name("{}.{}".format(pin.service, endpoint_name)), config.boto)
+        set_service_and_source(span, schematize_service_name(f"{pin.service}.{endpoint_name}"), config.boto)
         span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
@@ -167,12 +165,10 @@ def patched_auth_request(original_func, instance, args, kwargs):
     endpoint_name = instance.host.split(".")[0]
 
     with tracer.trace(
-        schematize_cloud_api_operation(
-            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
-        ),
+        schematize_cloud_api_operation(f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, schematize_service_name("{}.{}".format(pin.service, endpoint_name)), config.boto)
+        set_service_and_source(span, schematize_service_name(f"{pin.service}.{endpoint_name}"), config.boto)
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if args:
             http_method = get_argument_value(args, kwargs, 0, "method")

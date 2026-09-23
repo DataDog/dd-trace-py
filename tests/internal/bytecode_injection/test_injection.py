@@ -1,6 +1,5 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
-import sys
 from types import FunctionType
 from typing import Any
 from typing import Optional
@@ -14,6 +13,7 @@ from ddtrace.internal.bytecode_injection import eject_hook
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.bytecode_injection import inject_hooks
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.utils.inspection import linenos
 
 
@@ -41,7 +41,7 @@ def injected_hook(
 
     eject_hook(f, hook, line, arg)
 
-    if sys.version_info >= (3, 15):
+    if is_at_least_py(3, 15):
         # The 3.15+ monitoring-based injection path attaches hooks via
         # sys.monitoring rather than rewriting bytecode, so the code object is
         # intentionally left unchanged across inject/eject.
@@ -228,7 +228,7 @@ def test_inject_in_loop():
     assert hook.call_count == n
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
+@pytest.mark.skipif(is_at_least_py(3, 12), reason="Fails on 3.13")
 def test_inject_in_generator():
     lo = next(iter(linenos(generator_target)))
     hook = mock.Mock()
@@ -308,7 +308,7 @@ def test_for_block():
     with injected_hook(for_loop, hook, arg, line=for_loop.__code__.co_firstlineno + 2):
         for_loop()
 
-    if sys.version_info >= (3, 15):
+    if is_at_least_py(3, 15):
         # The monitoring-based path fires a LINE event every time the loop
         # header line is (re-)entered, i.e. once per iteration, rather than
         # once at loop setup as the bytecode-rewriting path does.
@@ -318,7 +318,10 @@ def test_for_block():
         hook.assert_called_once_with(arg)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="line hook registry is only keyed by code identity on 3.15+")
+@pytest.mark.skipif(
+    not is_at_least_py(3, 15),
+    reason="line hook registry is only keyed by code identity on 3.15+",
+)
 def test_line_hooks_isolated_across_structurally_equal_code_objects():
     """Two distinct code objects that compare equal must not share a line hook registration."""
     src = "def target(x):\n    return x + 1\n"
@@ -343,7 +346,10 @@ def test_line_hooks_isolated_across_structurally_equal_code_objects():
     eject_hook(f_a, hook, lo, 42)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="line hook registry is only keyed by code identity on 3.15+")
+@pytest.mark.skipif(
+    not is_at_least_py(3, 15),
+    reason="line hook registry is only keyed by code identity on 3.15+",
+)
 def test_line_hooks_isolated_across_code_replace_clone():
     """A hook registered against the original code object must not fire for a code.replace() clone."""
 

@@ -1,8 +1,8 @@
+from collections.abc import Mapping
 from functools import wraps
 import sys
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from urllib import parse
 
@@ -98,6 +98,50 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
     span._set_attribute(http.STATUS_CODE, "500")
+
+
+def _span_is_descendant_of(span: Span, ancestor: Span) -> bool:
+    parent = span._parent
+    while parent is not None:
+        if parent is ancestor:
+            return True
+        parent = parent._parent
+    return False
+
+
+def _finish_unfinished_llm_spans(request_span: Span) -> None:
+    # NOTE: Streaming LLM spans (LLMObs.llm() around an SSE generator,
+    # OpenAI/Anthropic TracedStream, etc.) are often finished only from a
+    # generator finally block. If the client disconnects or the generator is
+    # abandoned, those child spans stay in the SpanAggregator. Sweep them
+    # after await self.app() returns — not when the request span finishes on
+    # the last http.response.body, because the app may still be annotating.
+    # Only descendants of this request: an enclosing LLMObs.llm() around an
+    # in-process ASGI call is a legitimate ancestor and must stay open.
+    # Do not finish non-LLM children (fire-and-forget / background work).
+    try:
+        aggregator = tracer._span_aggregator
+        traces = aggregator._traces
+        lock = aggregator._lock
+        trace_id = request_span.trace_id
+        with lock:
+            if trace_id not in traces:
+                return
+            leftover = [
+                child
+                for child in traces[trace_id].spans
+                if child is not request_span
+                and child.duration_ns is None
+                and child.span_type == SpanTypes.LLM
+                and _span_is_descendant_of(child, request_span)
+            ]
+        for child in leftover:
+            try:
+                child.finish()
+            except Exception:
+                log.debug("Failed to finish leftover LLM span on ASGI request teardown", exc_info=True)
+    except Exception:
+        log.debug("Failed to sweep leftover LLM spans on ASGI request teardown", exc_info=True)
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -277,14 +321,14 @@ class TraceMiddleware:
             raw_path = scope.get("raw_path")
             raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
-                url = "{}://{}{}".format(scheme, host_header, full_path)
-                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
+                url = f"{scheme}://{host_header}{full_path}"
+                raw_url = f"{scheme}://{host_header}{raw_path_str}"
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = "{}://{}{}".format(scheme, server_host, full_path)
-                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
+                url = f"{scheme}://{server_host}{full_path}"
+                raw_url = f"{scheme}://{server_host}{raw_path_str}"
             else:
                 url = None
                 raw_url = None
@@ -532,6 +576,9 @@ class TraceMiddleware:
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:
                     _cleanup_previous_receive(scope)
+
+                if scope["type"] == "http":
+                    _finish_unfinished_llm_spans(span)
 
     def _handle_websocket_send_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")

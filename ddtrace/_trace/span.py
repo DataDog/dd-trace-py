@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from io import StringIO
 import math
 import sys
@@ -5,9 +6,7 @@ import traceback
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
-from typing import Text
 from typing import Union
 from typing import cast
 
@@ -64,8 +63,6 @@ class Span(SpanData):
         "_context",
         "_store",
         # Internal attributes
-        "_local_root_value",
-        "_service_entry_span_value",
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
@@ -125,10 +122,8 @@ class Span(SpanData):
             for link in links:
                 self._set_link(link.trace_id, link.span_id, link.tracestate, link.flags, link.attributes)
 
-        self._parent: Optional["Span"] = None
+        self._parent: Optional[Span] = None
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
-        self._local_root_value: Optional["Span"] = None  # None means this is the root span.
-        self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
 
     @property
@@ -180,7 +175,7 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         ctx = self.context
         with ctx:
-            # AIDEV-NOTE: traceparent and tracestate are propagation state, not DD-native
+            # traceparent and tracestate are propagation state, not DD-native
             # span metadata. Copy both context dictionaries while filtering them.
             self._set_default_context_attributes(ctx._meta, ctx._metrics)
 
@@ -236,7 +231,7 @@ class Span(SpanData):
     def _set_sampling_decision_maker(
         self,
         sampling_mechanism: int,
-    ) -> Optional[Text]:
+    ) -> Optional[str]:
         value = "-%d" % sampling_mechanism
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
@@ -519,30 +514,6 @@ class Span(SpanData):
 
         return False
 
-    @property
-    def _local_root(self) -> "Span":
-        return self._local_root_value or self
-
-    @_local_root.setter
-    def _local_root(self, value: "Span") -> None:
-        self._local_root_value = value if value is not self else None
-
-    @_local_root.deleter
-    def _local_root(self) -> None:
-        del self._local_root_value
-
-    @property
-    def _service_entry_span(self) -> "Span":
-        return self._service_entry_span_value or self
-
-    @_service_entry_span.setter
-    def _service_entry_span(self, span: "Span") -> None:
-        self._service_entry_span_value = None if span is self else span
-
-    @_service_entry_span.deleter
-    def _service_entry_span(self) -> None:
-        del self._service_entry_span_value
-
     def link_span(self, context: Context, attributes: Optional[Mapping[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
@@ -602,7 +573,7 @@ class Span(SpanData):
         This method is useful if a sudden program shutdown is required and finishing
         the trace is desired.
         """
-        span: Optional["Span"] = self
+        span: Optional[Span] = self
         while span is not None:
             span.finish()
             span = span._parent

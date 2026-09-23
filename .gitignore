@@ -244,7 +244,9 @@ ddtrace/profiling/collector/build-test/
 
 # APM AI Toolkit Analysis Logs
 .analysis/
+.dd-apm-byo-agent-*/
 
 # file created when running scripts/lint
 uv.lock
 .riot/*.installed
+benchmark-artifacts/

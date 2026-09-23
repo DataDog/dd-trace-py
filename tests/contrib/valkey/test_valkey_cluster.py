@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import valkey
 
 from ddtrace.contrib.internal.valkey.patch import patch
@@ -19,7 +18,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         return valkey.cluster.ValkeyCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
-        super(TestValkeyClusterPatch, self).setUp()
+        super().setUp()
         patch()
         r = self._get_test_client()
         r.flushall()
@@ -27,7 +26,7 @@ class TestValkeyClusterPatch(TracerTestCase):
 
     def tearDown(self):
         unpatch()
-        super(TestValkeyClusterPatch, self).tearDown()
+        super().tearDown()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_service_name_v1(self):

@@ -22,6 +22,7 @@ class LLMObsExportMode(str, Enum):
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
+LLMOBS_SAMPLING = "_llmobs.sampling"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -96,6 +97,20 @@ LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
 LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
+LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY = "_dd.llmobs.artificial_gen_ai_tags"
+
+GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
+GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
+GEN_AI_PROVIDER_NAME_TAG_KEY = "gen_ai.provider.name"
+GEN_AI_APPLICATION_NAME_TAG_KEY = "gen_ai.application.name"
+GEN_AI_CONVERSATION_ID_TAG_KEY = "gen_ai.conversation.id"
+
+GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY = "gen_ai.usage.total_tokens"
+GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_read_input_tokens"
+GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_write_input_tokens"
+GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.reasoning_output_tokens"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -109,9 +124,9 @@ SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"
-AGENTLESS_SPAN_BASE_URL = "https://{}".format(SPAN_SUBDOMAIN_NAME)
-AGENTLESS_EVAL_BASE_URL = "https://{}".format(EVAL_SUBDOMAIN_NAME)
-AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
+AGENTLESS_SPAN_BASE_URL = f"https://{SPAN_SUBDOMAIN_NAME}"
+AGENTLESS_EVAL_BASE_URL = f"https://{EVAL_SUBDOMAIN_NAME}"
+AGENTLESS_EXP_BASE_URL = f"https://{EXP_SUBDOMAIN_NAME}"
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
