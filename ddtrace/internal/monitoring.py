@@ -17,6 +17,7 @@ from abc import ABC
 import sys
 from types import CodeType
 from typing import Any
+from typing import Callable
 from typing import NamedTuple
 from typing import Optional
 import weakref
@@ -54,9 +55,9 @@ class MonitoringToolUnavailable(RuntimeError):
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # Every ddtrace sys.monitoring consumer registers here instead of claiming a
-# slot directly. CPython reserves 0/1/2/5 for conventional tools, leaving custom
-# slots 3 and 4. Prefer 3 and fall back to 4; never use coverage.py's slot 1.
-_CANDIDATE_TOOL_IDS = (3, 4)
+# slot directly. Use custom slot 3 until the exception profiler migrates from
+# slot 4; never use coverage.py's conventional slot 1.
+_CANDIDATE_TOOL_IDS = (3,)
 
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
@@ -76,14 +77,19 @@ class _IdentityWeakKeyDictionary:
     # every code-object registry built on this class, or separately compiled/reloaded
     # copies of the same code will overwrite each other.
 
-    __slots__ = ("_data",)
+    __slots__ = ("_data", "_on_remove")
 
-    def __init__(self) -> None:
+    def __init__(self, on_remove: Optional[Callable[[], None]] = None) -> None:
         self._data: dict[int, tuple[weakref.ref[Any], Any]] = {}
+        self._on_remove = on_remove
 
     def _make_remove(self, key_id: int) -> Any:
-        def remove(_ref: weakref.ref[Any]) -> None:
-            self._data.pop(key_id, None)
+        def remove(ref: weakref.ref[Any]) -> None:
+            item = self._data.get(key_id)
+            if item is not None and item[0] is ref:
+                self._data.pop(key_id, None)
+                if self._on_remove is not None:
+                    self._on_remove()
 
         return remove
 
@@ -139,7 +145,13 @@ class _IdentityWeakKeyDictionary:
         self._data.clear()
 
 
-_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
+def _on_code_registration_collected() -> None:
+    """Release tool ownership when weak cleanup removes the final local registration."""
+    with _registry_lock:
+        _release_tool_if_unused()
+
+
+_registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_registration_collected)
 
 
 class MonitoringEventHandler(ABC):
@@ -425,10 +437,10 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     if not handler_events:
         raise ValueError("Handler overrides no local MonitoringEventHandler methods")
 
-    tool_id: int = _setup()
     entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
+        tool_id: int = _setup()
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers is None:
             _registry[code] = handlers = _CodeHandlers()
@@ -491,9 +503,18 @@ def register_global(handler: MonitoringEventHandler) -> None:
     global _global_exception_handler
 
     with _registry_lock:
+        if _global_exception_handler is handler:
+            return
+        if _global_exception_handler is not None:
+            raise ValueError("EXCEPTION_HANDLED already has a different monitoring handler")
         tool_id = _setup()
         _global_exception_handler = handler
-        _sys_monitoring.set_events(tool_id, _E.EXCEPTION_HANDLED)
+        try:
+            _sys_monitoring.set_events(tool_id, _E.EXCEPTION_HANDLED)
+        except Exception:
+            _global_exception_handler = None
+            _release_tool_if_unused()
+            raise
 
 
 def unregister_global(handler: MonitoringEventHandler) -> None:

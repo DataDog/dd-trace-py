@@ -390,6 +390,9 @@ monitoring.register_global(handler)
 monitoring.unregister_global(handler)
 ```
 
+Each supported global event has one owner. Registering the same handler is
+idempotent; registering a different handler for an occupied event is rejected.
+
 The multiplexer keeps the tool claimed while registrations exist and releases
 it after the final local or global registration is removed. Releasing first
 disables events and removes callbacks, so another monitoring consumer can safely

@@ -83,6 +83,24 @@ def test_handled_exception_uninstall_releases_last_tool_registration():
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_module_only_filter_avoids_path_resolution_and_stale_negative_cache():
+    from unittest.mock import patch
+
+    from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
+
+    file_name = "/tmp/configured_module.py"
+    reporting.INSTRUMENTED_FILE_PATHS.clear()
+    reporting._report_configured_modules = True
+    reporting._should_report_exception = None
+    reporting._cached_should_report_exception.cache_clear()
+
+    with patch.object(reporting.Path, "resolve", side_effect=AssertionError("unexpected path resolution")):
+        assert not reporting.cached_should_report_exception(file_name)
+        reporting.INSTRUMENTED_FILE_PATHS.add(file_name)
+        assert reporting.cached_should_report_exception(file_name)
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_handled_exception_reporting_preserves_external_tools_when_unavailable():
     import sys
 
@@ -97,6 +115,7 @@ def test_handled_exception_reporting_preserves_external_tools_when_unavailable()
 
     with pytest.raises(monitoring.MonitoringToolUnavailable):
         _install_sys_monitoring_reporting()
+    assert monitoring._global_exception_handler is None
 
     _uninstall_sys_monitoring_reporting()
     assert sys.monitoring.get_tool(4) == "external-4"

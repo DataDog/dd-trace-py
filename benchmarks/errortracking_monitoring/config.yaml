@@ -18,3 +18,11 @@ multiplexer_passive:
 # Multiplexer: global handler records each exception (realistic path).
 multiplexer_active:
   handler: "multiplexer_active"
+
+# Module-only reporting: high-cardinality filenames not in the configured set.
+module_filter_miss:
+  handler: "module_filter_miss"
+
+# Module-only reporting: configured filenames in the dynamic module set.
+module_filter_hit:
+  handler: "module_filter_hit"

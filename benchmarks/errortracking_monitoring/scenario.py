@@ -10,6 +10,8 @@ Configurations (multiplexer vs. direct ``sys.monitoring``):
 - ``direct_active`` — raw ``sys.monitoring`` callback that records the exception
 - ``multiplexer_passive`` — multiplexer ``register_global`` handler, no work
 - ``multiplexer_active`` — multiplexer ``register_global`` handler, records exception
+- ``module_filter_miss`` — module-only filtering with high-cardinality rejected filenames
+- ``module_filter_hit`` — module-only filtering with configured filenames
 
 The ``direct_*`` configs reproduce the pre-multiplexer code path (a dedicated
 tool slot with a single callback registered directly via
@@ -17,91 +19,141 @@ tool slot with a single callback registered directly via
 shared multiplexer's ``register_global`` / ``unregister_global`` API.  Comparing
 the two isolates the multiplexer dispatch overhead.
 
-On branches where ``register_global`` is not yet available (e.g. ``main``), the
-``multiplexer_*`` configs are skipped so the benchmark can still run the
-``direct_*`` configs for baseline comparison.
+On branches where ``register_global`` is not yet available, the
+``multiplexer_*`` configurations use the equivalent direct callback as their
+baseline so comparison output remains meaningful.
 """
 
 from collections.abc import Generator
+from types import CodeType
+from typing import Any
 from typing import Callable
 
 import bm
 
 
-class ErrorTrackingMonitoring(bm.Scenario):
-    handler: str  # "direct_passive", "direct_active", "multiplexer_passive", "multiplexer_active"
+class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
+    handler: str
 
     def run(self) -> Generator[Callable[[int], None], None]:
         import sys
 
         from ddtrace.internal import monitoring
 
-        TOOL_ID = 3
-        EVENT = sys.monitoring.events.EXCEPTION_HANDLED
-        cleanup = None
+        sys_monitoring = getattr(sys, "monitoring")
+        tool_id = 3
+        event = sys_monitoring.events.EXCEPTION_HANDLED
+        cleanup: Callable[[], None] | None = None
+
+        # -- module filename filtering -----------------------------------------
+
+        if self.handler in ("module_filter_miss", "module_filter_hit"):
+            from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
+
+            file_names = tuple(f"errortracking_module_{index}.py" for index in range(8192))
+            reporting.INSTRUMENTED_FILE_PATHS.clear()
+            if hasattr(reporting, "_report_configured_modules"):
+                reporting._report_configured_modules = True
+                reporting._should_report_exception = None
+                reporting._cached_should_report_exception.cache_clear()
+            else:
+                reporting._should_report_exception = reporting.create_should_report_exception_optimized({"modules"})
+                getattr(reporting.cached_should_report_exception, "cache_clear")()
+
+            if self.handler == "module_filter_hit":
+                paths: Any = reporting.INSTRUMENTED_FILE_PATHS
+                if isinstance(paths, set):
+                    paths.update(file_names)
+                else:
+                    paths.extend(file_names)
+
+            def _(loops: int) -> None:
+                for index in range(loops):
+                    reporting.cached_should_report_exception(file_names[index & 8191])
+
+            yield _
+            return
 
         # -- direct sys.monitoring (pre-multiplexer code path) -----------------
 
         if self.handler == "direct_passive":
-            sys.monitoring.use_tool_id(TOOL_ID, "datadog_handled_exceptions")
-            sys.monitoring.set_events(TOOL_ID, EVENT)
+            sys_monitoring.use_tool_id(tool_id, "datadog_handled_exceptions")
+            sys_monitoring.set_events(tool_id, event)
 
-            def _direct_callback(code, instruction_offset, exception):
+            def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
                 pass
 
-            sys.monitoring.register_callback(TOOL_ID, EVENT, _direct_callback)
+            sys_monitoring.register_callback(tool_id, event, _direct_callback)
 
-            def cleanup():
-                sys.monitoring.register_callback(TOOL_ID, EVENT, None)
-                sys.monitoring.set_events(TOOL_ID, 0)
-                sys.monitoring.free_tool_id(TOOL_ID)
+            def cleanup() -> None:
+                sys_monitoring.register_callback(tool_id, event, None)
+                sys_monitoring.set_events(tool_id, 0)
+                sys_monitoring.free_tool_id(tool_id)
 
         elif self.handler == "direct_active":
             seen: list[BaseException] = []
-            sys.monitoring.use_tool_id(TOOL_ID, "datadog_handled_exceptions")
-            sys.monitoring.set_events(TOOL_ID, EVENT)
+            sys_monitoring.use_tool_id(tool_id, "datadog_handled_exceptions")
+            sys_monitoring.set_events(tool_id, event)
 
-            def _direct_callback(code, instruction_offset, exception):
+            def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
                 seen.append(exception)
 
-            sys.monitoring.register_callback(TOOL_ID, EVENT, _direct_callback)
+            sys_monitoring.register_callback(tool_id, event, _direct_callback)
 
-            def cleanup():
-                sys.monitoring.register_callback(TOOL_ID, EVENT, None)
-                sys.monitoring.set_events(TOOL_ID, 0)
-                sys.monitoring.free_tool_id(TOOL_ID)
+            def cleanup() -> None:
+                sys_monitoring.register_callback(tool_id, event, None)
+                sys_monitoring.set_events(tool_id, 0)
+                sys_monitoring.free_tool_id(tool_id)
 
         # -- shared multiplexer (new code path) --------------------------------
 
         elif self.handler in ("multiplexer_passive", "multiplexer_active"):
-            if not hasattr(monitoring, "register_global"):
-                # Baseline (main) does not have the multiplexer API yet.
-                # Skip this config so the benchmark can still run direct_* configs.
-                def _(loops: int) -> None:
-                    pass
+            register_global = getattr(monitoring, "register_global", None)
+            unregister_global = getattr(monitoring, "unregister_global", None)
+            if register_global is None or unregister_global is None:
+                # Use the equivalent direct callback as the pre-multiplexer baseline.
+                seen = []
+                sys_monitoring.use_tool_id(tool_id, "datadog_handled_exceptions")
+                sys_monitoring.set_events(tool_id, event)
 
-                yield _
-                return
+                def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+                    if self.handler == "multiplexer_active":
+                        seen.append(exception)
 
-            if self.handler == "multiplexer_passive":
+                sys_monitoring.register_callback(tool_id, event, _direct_callback)
 
-                class _Handler(monitoring.MonitoringEventHandler):
-                    def on_exception_handled(self, code, instruction_offset, exception):
-                        pass
+                def cleanup() -> None:
+                    sys_monitoring.register_callback(tool_id, event, None)
+                    sys_monitoring.set_events(tool_id, 0)
+                    sys_monitoring.free_tool_id(tool_id)
+
             else:
+                if self.handler == "multiplexer_passive":
 
-                class _Handler(monitoring.MonitoringEventHandler):
-                    def __init__(self):
-                        self.seen: list[BaseException] = []
+                    class _PassiveHandler(monitoring.MonitoringEventHandler):
+                        def on_exception_handled(
+                            self, code: CodeType, instruction_offset: int, exception: BaseException
+                        ) -> None:
+                            pass
 
-                    def on_exception_handled(self, code, instruction_offset, exception):
-                        self.seen.append(exception)
+                    handler: monitoring.MonitoringEventHandler = _PassiveHandler()
+                else:
 
-            h = _Handler()
-            monitoring.register_global(h)
+                    class _ActiveHandler(monitoring.MonitoringEventHandler):
+                        def __init__(self) -> None:
+                            self.seen: list[BaseException] = []
 
-            def cleanup():
-                monitoring.unregister_global(h)
+                        def on_exception_handled(
+                            self, code: CodeType, instruction_offset: int, exception: BaseException
+                        ) -> None:
+                            self.seen.append(exception)
+
+                    handler = _ActiveHandler()
+
+                register_global(handler)
+
+                def cleanup() -> None:
+                    unregister_global(handler)
 
         else:
             raise ValueError(f"Unknown handler config: {self.handler}")
