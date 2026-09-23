@@ -327,3 +327,11 @@ lines-after-imports = 2
 force-sort-within-sections = true
 known-first-party = [ "ddtrace" ]
 relative-imports-order = "furthest-to-closest"
+
+[tool.ruff.lint.per-file-ignores]
+# The Temporal SDK's interceptor base classes declare their parameters as
+# ``input`` and ``next``; overrides must keep those names to stay signature-
+# compatible, so A002 (argument shadowing a builtin) is silenced for the
+# integration and its tests.
+"ddtrace/contrib/internal/temporal/*.py" = ["A002"]
+"tests/contrib/temporal/*.py" = ["A002"]
