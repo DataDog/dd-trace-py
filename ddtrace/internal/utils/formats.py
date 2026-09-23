@@ -8,6 +8,7 @@ from typing import Union  # noqa:F401
 from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
 from ddtrace.internal.native._native import is_sequence  # noqa: F401
+from ddtrace.internal.settings import env
 
 from ..compat import ensure_text
 
@@ -62,7 +63,7 @@ def asbool(value: Union[str, bool, None]) -> bool:
     return value.lower() in ("true", "1")
 
 
-def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
+def parse_tags_str(tags_str: Optional[str], sep: Optional[str] = None) -> dict[str, str]:
     """
     Parses a string containing key-value pairs and returns a dictionary.
     Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
@@ -70,13 +71,16 @@ def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
     This implementation aligns with the way tags are parsed by the Agent and other Datadog SDKs
 
     :param tags_str: A string of the above form to parse tags from.
+    :param sep: An explicit pair separator to use instead of auto-detecting one. Callers whose
+        values may themselves contain whitespace (and no comma) should pass "," here to avoid an
+        incorrect whitespace-based split.
     :return: A dict containing the tags that were parsed.
     """
     res: dict[str, str] = {}
     if not tags_str:
         return res
     # falling back to comma as separator
-    sep = "," if "," in tags_str else " "
+    sep = sep if sep is not None else ("," if "," in tags_str else " ")
 
     for tag in tags_str.split(sep):
         tag = tag.strip()
@@ -96,14 +100,30 @@ def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
     return res
 
 
-def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> Text:
+def get_test_session_token() -> Optional[str]:
+    """Resolve the dd-apm-test-agent session token from the environment.
+
+    Reads the token from the canonical ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` env var
+    (the ``X-Datadog-Test-Session-Token`` header that the trace writer, Remote Config
+    client, and telemetry worker all forward via ``Endpoint.test_token``); returns
+    ``None`` when unset. Extracted here so callers share one parse, and so Remote Config
+    and telemetry can resolve the token without importing the trace writer module (which
+    drags in ``settings.asm`` — an unnecessary coupling on their runtime paths).
+    """
+    additional_headers = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    if not additional_headers:
+        return None
+    return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
+
+
+def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> str:
     """Convert a list of arguments into a space concatenated string
 
     This function is useful to convert a list of cache keys
     into a resource name or tag value with a max size limit.
     """
     length = 0
-    out: list[Text] = []
+    out: list[str] = []
     for arg in args:
         try:
             if isinstance(arg, (bytes, str)):
@@ -130,4 +150,4 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
 
 def format_trace_id(trace_id: int) -> str:
     """Translate a trace ID to a string format supported by the backend."""
-    return "{:032x}".format(trace_id) if trace_id > MAX_UINT_64BITS else str(trace_id)
+    return f"{trace_id:032x}" if trace_id > MAX_UINT_64BITS else str(trace_id)

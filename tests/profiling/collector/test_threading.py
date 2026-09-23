@@ -643,7 +643,7 @@ def test_lock_gevent_tasks() -> None:
             try:
                 os.remove(f)
             except Exception as e:
-                print("Error removing file: {}".format(e))
+                print(f"Error removing file: {e}")
 
     with ThreadingLockCollector(capture_pct=100):
         t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
@@ -730,7 +730,7 @@ def test_rlock_gevent_tasks() -> None:
             try:
                 os.remove(f)
             except Exception as e:
-                print("Error removing file: {}".format(e))
+                print(f"Error removing file: {e}")
 
     with ThreadingRLockCollector(capture_pct=100):
         t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
@@ -910,8 +910,7 @@ def test_all_exceptions_suppressed_by_default() -> None:
     when config.enable_asserts=False (default).
     """
     import threading
-
-    import mock  # type: ignore[import-untyped]
+    from unittest import mock  # type: ignore[import-untyped]
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
@@ -949,8 +948,7 @@ def test_flush_sample_uses_push_monotonic_ns() -> None:
     """
     import threading
     import time
-
-    import mock
+    from unittest import mock
 
     import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -988,8 +986,7 @@ def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
     the exact instant of boot — never in practice, but guard it anyway.
     """
     import threading
-
-    import mock
+    from unittest import mock
 
     import ddtrace.profiling.collector._lock as _lock_module
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -1101,7 +1098,7 @@ class LockCollectorTestBase:
             try:
                 os.remove(f)
             except Exception as e:
-                print("Error removing file: {}".format(e))
+                print(f"Error removing file: {e}")
 
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_type_union_syntax(self) -> None:
@@ -1135,7 +1132,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
     def test_wrapper(self) -> None:
         with self.collector_class():
 
-            class Foobar(object):
+            class Foobar:
                 def __init__(self, lock_class: LockTypeClass) -> None:
                     lock: LockTypeInst = lock_class()
                     assert lock.acquire()
@@ -1267,7 +1264,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         with self.collector_class(capture_pct=100):
             lock_class: LockTypeClass = self.lock_class  # Capture for inner class
 
-            class Foobar(object):
+            class Foobar:
                 def lockfunc(self) -> None:
                     lock: LockTypeInst = lock_class()  # !CREATE! test_lock_acquire_events_class
                     lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
@@ -1972,23 +1969,27 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
     def test_lock_profiling_overhead_reasonable(self) -> None:
         """Test that profiling overhead with 0% capture is bounded."""
-        # Measure without profiling (collector stopped)
-        regular_lock: LockTypeInst = self.lock_class()
-        start: float = time.perf_counter()
         iterations: int = 10000  # More iterations for stable measurement
-        for _ in range(iterations):
-            regular_lock.acquire()
-            regular_lock.release()
-        regular_time: float = time.perf_counter() - start
+        repeats: int = 3
+
+        def time_acquire_release(lock: LockTypeInst) -> float:
+            start: float = time.process_time()
+            for _ in range(iterations):
+                lock.acquire()
+                lock.release()
+            return time.process_time() - start
+
+        def best_time(lock: LockTypeInst) -> float:
+            # warm up run first
+            time_acquire_release(lock)
+            return min(time_acquire_release(lock) for _ in range(repeats))
+
+        # Measure without profiling (collector stopped)
+        regular_time: float = best_time(self.lock_class())
 
         # Measure with profiling at 0% capture (should skip profiling logic)
         with self.collector_class(capture_pct=0):
-            profiled_lock: LockTypeInst = self.lock_class()
-            start = time.perf_counter()
-            for _ in range(iterations):
-                profiled_lock.acquire()
-                profiled_lock.release()
-            profiled_time_zero: float = time.perf_counter() - start
+            profiled_time_zero: float = best_time(self.lock_class())
 
         # With 0% capture, there's still wrapper overhead but should be reasonable
         # This is a smoke test to catch egregious performance issues, not a precise benchmark

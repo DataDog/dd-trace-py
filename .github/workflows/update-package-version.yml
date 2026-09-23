@@ -1,10 +1,10 @@
-name: Update riot package lockfiles
+name: Update test locks for a package
 
 on:
   workflow_dispatch:
     inputs:
       integration_name:
-        description: "Riot integration/venv name to update"
+        description: "Test environment name to update"
         required: true
         type: string
       package_name:
@@ -13,13 +13,15 @@ on:
         type: string
 
 jobs:
-  update-riot-package-lockfiles:
-    name: Update riot package lockfiles
+  update-test-locks:
+    name: Update test locks
     runs-on: ubuntu-22.04
+    outputs:
+      changed: ${{ steps.patch.outputs.changed }}
+      new_latest: ${{ steps.new-latest.outputs.new_latest }}
     permissions:
       actions: read
-      contents: write
-      id-token: write
+      contents: read
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -82,27 +84,10 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - name: Compute supply-chain cooldown cutoff
-        id: cooldown
-        run: |
-          # TEST-CD (APMLP-1362): forward a cutoff 48h in the past to riot's
-          # uv pip compile backend so transitive deps younger than the
-          # cooldown can't be pulled into a regenerated lockfile.
-          CUTOFF=$(date -u -d "2 days ago" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
-                   || python -c "import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
-          echo "cutoff=${CUTOFF}" >> "$GITHUB_OUTPUT"
-          echo "Using exclude-newer cutoff: ${CUTOFF}"
-
-      - name: Run regenerate-riot-latest
+      - name: Regenerate test locks
         env:
           TARGET_PACKAGE: ${{ inputs.integration_name }}
-          # Opt riot's `requirements` compile step into `uv pip compile` so
-          # that --exclude-newer can be forwarded for the cooldown. Older
-          # riot versions ignore both variables silently, so this is safe
-          # to set before the riot upgrade lands.
-          RIOT_PIP_COMPILE_BACKEND: "uv"
-          RIOT_PIP_COMPILE_EXCLUDE_NEWER: ${{ steps.cooldown.outputs.cutoff }}
-        run: scripts/regenerate-riot-latest.sh "$TARGET_PACKAGE"
+        run: scripts/test-requirements lock --upgrade "$TARGET_PACKAGE" >/dev/null
 
       - name: Run integration registry update
         run: python scripts/integration_registry/update_and_format_registry.py
@@ -115,34 +100,68 @@ jobs:
           NEW_LATEST=$(python scripts/get_latest_version.py "$TARGET_PACKAGE")
           echo "new_latest=$NEW_LATEST" >> "$GITHUB_OUTPUT"
 
-      - name: Check for changes
-        id: changes
-        run: |
-          if git diff --quiet; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Prepare generated changes
+        id: patch
+        uses: ./.github/actions/generated-change-patch
+        with:
+          mode: create
+          patch-file: generated.patch
+          profile: package-versions
+
+      - name: Upload generated changes
+        if: steps.patch.outputs.changed == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: generated-package-version
+          path: generated.patch
+          retention-days: 1
+
+  create-pull-request:
+    name: Create pull request
+    needs: update-test-locks
+    if: needs.update-test-locks.outputs.changed == 'true'
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Download generated changes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: generated-package-version
+          path: ${{ runner.temp }}/generated-package-version
+
+      - name: Apply and validate generated changes
+        uses: ./.github/actions/generated-change-patch
+        with:
+          mode: apply
+          patch-file: ${{ runner.temp }}/generated-package-version/generated.patch
+          profile: package-versions
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
-        if: steps.changes.outputs.changed == 'true'
         id: octo-sts
         with:
           scope: DataDog/dd-trace-py
-          policy: self.generate-package-versions.create-pr
+          policy: self.update-package-version.create-pr
 
       - name: Create Pull Request
-        if: steps.changes.outputs.changed == 'true'
         id: pr
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.octo-sts.outputs.token }}
+          sign-commits: true
           branch: "upgrade-latest-${{ inputs.package_name }}-version"
           commit-message: "Update package version"
           delete-branch: true
           base: main
-          title: "chore: update ${{ inputs.package_name }} latest version to ${{ steps.new-latest.outputs.new_latest }}"
+          title: "chore: update ${{ inputs.package_name }} latest version to ${{ needs.update-test-locks.outputs.new_latest }}"
           labels: changelog/no-changelog
           body: |
             Update ${{ inputs.package_name }} lockfiles.
-            This updates only the riot lockfiles for the selected package/venv.
+            This updates only the uv-generated locks for the selected test suite.

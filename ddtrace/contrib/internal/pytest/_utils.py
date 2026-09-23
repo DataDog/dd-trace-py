@@ -257,3 +257,8 @@ def get_user_property(report, key, default=None):
 
 excinfo_by_report = {}
 reports_by_item = {}
+
+
+def is_enabled(config):
+    """Check if the ddtrace plugin is enabled."""
+    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")

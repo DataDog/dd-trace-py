@@ -3,7 +3,6 @@
 The tests in this module only validate the exit status from pytest-xdist.
 """
 
-import os  # Just for the RIOT env var check
 from unittest import mock
 
 import pytest
@@ -13,12 +12,7 @@ from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
-######
-# Skip these tests if they are not running under riot
-riot_env_value = os.getenv("RIOT", None)
-if not riot_env_value:
-    pytest.importorskip("xdist", reason="Auto Test Retries + xdist tests, not running under riot")
-######
+pytest.importorskip("xdist", reason="Auto Test Retries + xdist tests require pytest-xdist")
 
 
 _USE_PLUGIN_V2 = True
@@ -155,6 +149,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
 _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 """
         self.testdir.makepyfile(sitecustomize=sitecustomize_content)
+        self.make_xdist_worker_sitecustomize()
 
     def inline_run(self, *args, **kwargs):
         # Add -n 2 to the end of the command line arguments

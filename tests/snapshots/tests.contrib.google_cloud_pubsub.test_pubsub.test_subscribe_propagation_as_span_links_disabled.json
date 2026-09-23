@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -42,6 +43,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -73,6 +75,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -106,6 +109,7 @@
        "meta": {
          "_dd.p.dm": "-0",
          "_dd.p.tid": "69f39b4e00000000",
+         "_dd.svc_src": "google_cloud_pubsub",
          "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
          "component": "google_cloud_pubsub",
          "gcloud.project_id": "test-project",
@@ -138,7 +142,8 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "69f39b4e00000000"
+            "_dd.p.tid": "69f39b4e00000000",
+            "_dd.svc_src": "datadog"
           },
           "duration": 60458,
           "start": 1777572686373295463
@@ -156,6 +161,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -187,6 +193,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",

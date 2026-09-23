@@ -1,12 +1,16 @@
-defaults: &defaults
+# Eval hot path the caller pays: bounded immutable snapshot + non-blocking enqueue.
+# Keep the shared anchor on a real scenario; the runner executes every top-level key.
+hook-enqueue-typical: &defaults
   num_flags: 100
   num_users: 50
   num_context_fields: 10
+  observe_full_evaluation_data: true
+  mode: hook_enqueue
 
-# Eval hot path the caller pays: finally_after hook (cheap capture + non-blocking enqueue).
-hook-enqueue-typical:
+hook-enqueue-protected-typical:
   <<: *defaults
   mode: hook_enqueue
+  observe_full_evaluation_data: false
 
 hook-enqueue-stress:
   <<: *defaults
@@ -22,10 +26,22 @@ hook-enqueue-scale:
   num_users: 500
   num_context_fields: 20
 
+# Worst-case bounded walk: every list value is inspected then discarded, plus lookahead.
+hook-enqueue-bounded-adversarial:
+  <<: *defaults
+  mode: hook_enqueue_adversarial
+  num_context_fields: 257
+  observe_full_evaluation_data: true
+
 # Background worker hot path: canonical key + two-tier aggregation.
 aggregate-typical:
   <<: *defaults
   mode: aggregate
+
+aggregate-protected-typical:
+  <<: *defaults
+  mode: aggregate
+  observe_full_evaluation_data: false
 
 aggregate-stress:
   <<: *defaults

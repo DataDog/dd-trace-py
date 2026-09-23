@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_threading_session():
     import os
     from pathlib import Path
@@ -37,7 +37,7 @@ def test_coverage_threading_session():
         assert False
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_threading_context():
     import os
     from pathlib import Path
@@ -76,7 +76,7 @@ def test_coverage_threading_context():
     assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_concurrent_futures_threadpool_session():
     import concurrent.futures
     import os
@@ -112,7 +112,7 @@ def test_coverage_concurrent_futures_threadpool_session():
         assert False
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_concurrent_futures_threadpool_context():
     import concurrent.futures
     import os

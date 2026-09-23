@@ -51,6 +51,48 @@ def test_periodic_double_start():
     t.join()
 
 
+@pytest.mark.subprocess(timeout=10)
+def test_periodic_thread_gilstate_reentry_during_thread_state_cleanup():
+    """Thread and context-local destructors may re-enter PyGILState during worker teardown."""
+    import contextvars
+    import ctypes
+    import threading
+
+    from ddtrace.internal._threads import PERIODIC_STOP
+    from ddtrace.internal._threads import PeriodicThread
+
+    ensure = ctypes.pythonapi.PyGILState_Ensure
+    ensure.argtypes = []
+    ensure.restype = ctypes.c_int
+    release = ctypes.pythonapi.PyGILState_Release
+    release.argtypes = [ctypes.c_int]
+    release.restype = None
+
+    local = threading.local()
+    context_value = contextvars.ContextVar("context_value")
+    finalized = []
+
+    class ReenterPyGILState:
+        def __init__(self, kind):
+            self.kind = kind
+
+        def __del__(self):
+            finalized.append(self.kind)
+            state = ensure()
+            release(state)
+
+    def target():
+        local.value = ReenterPyGILState("thread-local")
+        context_value.set(ReenterPyGILState("context-local"))
+        return PERIODIC_STOP
+
+    thread = PeriodicThread(0.001, target, name="SignalUploader", no_wait_at_start=True)
+    thread.start()
+    thread.join()
+
+    assert sorted(finalized) == ["context-local", "thread-local"]
+
+
 def test_periodic_join_positional_timeout_is_honored():
     """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
 
@@ -563,6 +605,63 @@ def test_autorestart_false_service_restarts_in_parent_after_fork():
     )
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_nested_fork_preserves_periodic_thread_restart_policy():
+    """A nested fork must not force-restart workers inherited by the intermediate child."""
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
+    inherited_ran = Event()
+
+    class InheritedService(periodic.PeriodicService):
+        def periodic(self):
+            inherited_ran.set()
+
+    inherited = InheritedService(interval=0.05, autorestart=False)
+    inherited.start()
+    assert inherited_ran.wait(timeout=2)
+    inherited_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        local_ran = Event()
+
+        class LocalService(periodic.PeriodicService):
+            def periodic(self):
+                local_ran.set()
+
+        local = LocalService(interval=0.05, autorestart=False)
+        local.start()
+        assert local_ran.wait(timeout=2)
+        local_ran.clear()
+
+        grandchild_pid = os.fork()
+        if grandchild_pid == 0:
+            os._exit(0)
+        _, grandchild_status = os.waitpid(grandchild_pid, 0)
+        assert os.waitstatus_to_exitcode(grandchild_status) == 0
+
+        # The nested-fork parent timer must resume workers that were active locally, while
+        # leaving the autorestart=False worker inherited from the root process stopped.
+        sleep(0.5)
+        if local._worker is not None:
+            local._worker.awake()
+        assert local_ran.wait(timeout=2)
+        assert not inherited_ran.is_set()
+        local.stop()
+        local.join()
+        os._exit(0)
+
+    _, status = os.waitpid(pid, 0)
+    inherited.stop()
+    inherited.join()
+    assert os.waitstatus_to_exitcode(status) == 0
+
+
 def test_periodic_service_no_immediate_run_after_fork():
     periodic_ran = Event()
 
@@ -702,7 +801,7 @@ def _get_native_thread_name():
         # Read from /proc/self/task/<tid>/comm
         try:
             tid = ctypes.CDLL(None).syscall(186)  # SYS_gettid
-            with open(f"/proc/self/task/{tid}/comm", "r") as f:
+            with open(f"/proc/self/task/{tid}/comm") as f:
                 return f.read().strip()
         except Exception:
             return None
@@ -733,71 +832,6 @@ def _get_native_thread_name():
         return None
 
     return None
-
-
-@pytest.mark.subprocess
-def test_periodic_thread_stop_without_join_forksafe():
-    """
-    Dropping a PeriodicThread that was stop()'d without join() in a forked child
-    must not crash, even when the OS (Linux/glibc) recycles the old pthread
-    descriptor for a new thread between the stop() call and the dealloc in the
-    child.
-
-    Scenario:
-      1. Start a PeriodicThread, call stop() — *without* join().
-      2. Wait briefly so the OS thread exits and glibc marks the pthread_t
-         reusable.
-      3. Fork.
-      4. In the child: spin up many short-lived threads to encourage glibc to
-         recycle the old pthread_t, then drop the last Python reference
-         (triggering dealloc).
-      5. Assert the child exited cleanly (not killed by a signal).
-
-    Before the fix, PeriodicThread_dealloc called join() or detach() on the
-    stale handle, which on Linux causes SIGSEGV when the pthread descriptor has
-    been reused.
-    """
-    import gc
-    import os
-    import signal
-    from threading import Thread
-    from time import sleep
-
-    from ddtrace.internal import periodic
-
-    def noop():
-        pass
-
-    t = periodic.PeriodicThread(60.0, noop)
-    t.start()
-    t.stop()
-    sleep(0.3)  # let the OS thread exit so the pthread_t is eligible for recycling
-
-    pid = os.fork()
-    if pid == 0:
-        # Churn threads to encourage glibc to recycle the victim's pthread descriptor.
-        for _ in range(5):
-            batch = [Thread(target=lambda: None, daemon=True) for _ in range(20)]
-            for th in batch:
-                th.start()
-            for th in batch:
-                th.join()
-
-        # Treat a hang (futex deadlock on dead pthread) as a failure too.
-        signal.alarm(3)
-
-        del t
-        gc.collect()
-        os._exit(0)
-    else:
-        _, status = os.waitpid(pid, 0)
-        assert not os.WIFSIGNALED(status), (
-            f"child killed by signal {os.WTERMSIG(status)} — "
-            "PeriodicThread_dealloc crashed on a stale/recycled pthread handle"
-        )
-        assert os.WEXITSTATUS(status) == 0
-        # Parent still owns a reference; join to clean up properly.
-        t.join()
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")

@@ -18,7 +18,9 @@ More specifically, this module defines dataclass-based event objects that are us
 2. Context lifecycle events with ``core.context_with_event(event_instance)``.
    The context manager emits ``context.started.<event_name>`` and
    ``context.ended.<event_name>`` events, and listeners can access the original event
-   through ``ctx.event``.
+   through ``ctx.event`` during both synchronous dispatches. The context releases its
+   reference to the event after ended dispatch completes. Deferred flows keep the event
+   until they call ctx.dispatch_ended_event().
 
    Example::
 
@@ -64,7 +66,7 @@ from typing import TypeVar
 
 EventType = TypeVar("EventType", bound="Event")
 
-_PY3_9 = sys.version_info < (3, 10)
+_PY3_9: bool = sys.version_info[:2] == (3, 9)
 
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:

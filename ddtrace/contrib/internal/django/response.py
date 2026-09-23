@@ -15,7 +15,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
-from ddtrace.contrib.internal.django.patch import _collect_routes_once
+from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
@@ -30,6 +30,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import Block_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
@@ -130,7 +131,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 )
                 response.content = content
                 response["Content-Length"] = len(content.encode())
-            utils._after_request_tags(pin, ctx.span, request, response)
+            utils._after_request_tags(pin, span_from_context(ctx), request, response)
             return response
 
         try:

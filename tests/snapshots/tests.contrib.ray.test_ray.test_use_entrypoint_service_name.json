@@ -12,7 +12,7 @@
       "_dd.base_service": "test",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69dd0d1700000000",
-      "_dd.svc_src": "ray",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:dashboard,entrypoint.name:agent,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "ray",
       "language": "python",
@@ -54,7 +54,7 @@
        "meta": {
          "_dd.p.tid": "69dd0d1700000000",
          "_dd.parent_id": "5598519f8a9d451b",
-         "_dd.svc_src": "ray",
+         "_dd.svc_src": "m",
          "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
          "component": "ray",
          "language": "python",
@@ -93,7 +93,7 @@
           "type": "ray",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "ray",
+            "_dd.svc_src": "m",
             "component": "ray",
             "ray.actor_id": "9db4d01c3a41249a2ed0b07a01000000",
             "ray.hostname": "docker-desktop",
@@ -124,7 +124,7 @@
              "type": "ray",
              "error": 0,
              "meta": {
-               "_dd.svc_src": "ray",
+               "_dd.svc_src": "m",
                "component": "ray",
                "ray.actor_id": "9db4d01c3a41249a2ed0b07a01000000",
                "ray.hostname": "docker-desktop",
@@ -155,7 +155,7 @@
           "type": "ray",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "ray",
+            "_dd.svc_src": "m",
             "component": "ray",
             "ray.actor_id": "9db4d01c3a41249a2ed0b07a01000000",
             "ray.hostname": "docker-desktop",
@@ -188,7 +188,7 @@
           "meta": {
             "_dd.p.tid": "69dd0d1700000000",
             "_dd.parent_id": "9be47cb0bb18c604",
-            "_dd.svc_src": "ray",
+            "_dd.svc_src": "m",
             "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
             "component": "ray",
             "language": "python",

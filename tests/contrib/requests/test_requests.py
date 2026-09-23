@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from unittest import mock
 
 import pytest
 import requests
@@ -24,18 +25,18 @@ from tests.utils import assert_span_http_status_code
 
 HOST_AND_PORT = "localhost:8001"
 SOCKET = HOST_AND_PORT.split(":")[0]
-URL_200 = "http://{}/status/200".format(HOST_AND_PORT)
-URL_500 = "http://{}/status/500".format(HOST_AND_PORT)
-URL_AUTH_200 = "http://user:pass@{}/status/200".format(HOST_AND_PORT)
+URL_200 = f"http://{HOST_AND_PORT}/status/200"
+URL_500 = f"http://{HOST_AND_PORT}/status/500"
+URL_AUTH_200 = f"http://user:pass@{HOST_AND_PORT}/status/200"
 
 
-class BaseRequestTestCase(object):
+class BaseRequestTestCase:
     """Create a traced Session, patching during the setUp and
     unpatching after the tearDown
     """
 
     def setUp(self):
-        super(BaseRequestTestCase, self).setUp()
+        super().setUp()
 
         patch()
         self.session = Session()
@@ -43,7 +44,7 @@ class BaseRequestTestCase(object):
     def tearDown(self):
         unpatch()
 
-        super(BaseRequestTestCase, self).tearDown()
+        super().tearDown()
 
 
 class TestRequests(BaseRequestTestCase, TracerTestCase):
@@ -57,6 +58,15 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("component") == "requests"
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == SOCKET
+
+    def test_resource_with_otel_semantics(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            out = self.session.get(URL_200)
+
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "GET"
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work
@@ -535,9 +545,9 @@ session.get("http://httpbin.org/status/200")
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
     )
-    p.wait()
-    assert p.stderr.read() == b""
-    assert p.stdout.read() == b""
+    stdout, stderr = p.communicate()
+    assert stderr == b""
+    assert stdout == b""
     assert p.returncode == 0
 
 

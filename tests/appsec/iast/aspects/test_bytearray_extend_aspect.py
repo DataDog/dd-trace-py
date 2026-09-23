@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import logging
 
 import pytest
@@ -16,7 +15,7 @@ from tests.utils import override_global_config
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
-class TestByteArrayExtendAspect(object):
+class TestByteArrayExtendAspect:
     def test_simple_extend_not_tainted(self):
         ba1 = bytearray(b"123")
         assert not get_tainted_ranges(ba1)
@@ -40,6 +39,25 @@ class TestByteArrayExtendAspect(object):
         b2 = 456
         with pytest.raises(TypeError):
             _extend_aspect(ba1, b2)
+
+    def test_extend_releases_method_result(self):
+        from ddtrace.appsec._iast._taint_tracking.aspects import _extend_aspect
+
+        released = []
+
+        class Result:
+            def __del__(self):
+                released.append(True)
+
+        class ReturningBytearray(bytearray):
+            def extend(self, value):
+                super().extend(value)
+                return Result()
+
+        value = ReturningBytearray(b"123")
+        assert _extend_aspect(value, b"456") is None
+        assert value == b"123456"
+        assert released == [True]
 
     def test_extend_first_tainted(self):
         ba1 = taint_pyobject(

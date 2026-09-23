@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import ctypes
 from enum import Enum
 import glob
@@ -5,7 +6,6 @@ import os
 import re
 from typing import TYPE_CHECKING
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -28,7 +28,7 @@ def _protobuf_version() -> tuple[int, int, int]:
 
 
 if TYPE_CHECKING:
-    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
+    from tests.profiling.collector import pprof_pb2 as pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 else:
     # Load the appropriate pprof_pb2 module
     _pb_version = _protobuf_version()
@@ -285,6 +285,17 @@ def parse_newest_profile(
     return profile
 
 
+def get_internal_metadata_files(filename_prefix: str) -> list[str]:
+    """Internal metadata files with the given prefix (which includes the pid), oldest upload first.
+
+    Files are named <filename_prefix>.<counter>.internal_metadata.json without
+    padding, so a lexicographic sort would place upload 10 before upload 2.
+    """
+    files = glob.glob(filename_prefix + ".*.internal_metadata.json")
+    files.sort(key=lambda f: int(f.rsplit(".", 3)[-3]))
+    return files
+
+
 def get_sample_type_index(profile: pprof_pb2.Profile, value_type: str) -> int:
     return next(
         i for i, sample_type in enumerate(profile.sample_type) if profile.string_table[sample_type.type] == value_type
@@ -302,6 +313,34 @@ def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> list[ppr
 
 def get_label_with_key(string_table: Sequence[str], sample: pprof_pb2.Sample, key: str) -> Optional[pprof_pb2.Label]:
     return next((label for label in sample.label if string_table[label.key] == key), None)
+
+
+def get_label_str_values(profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], key: str) -> list[str]:
+    """Return the string value for each sample's label with the given key, or "" when absent."""
+    values: list[str] = []
+    for sample in samples:
+        label = get_label_with_key(profile.string_table, sample, key)
+        values.append(profile.string_table[label.str] if label is not None else "")
+    return values
+
+
+def _sample_has_function_name(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_name: str) -> bool:
+    for location_id in sample.location_id:
+        location = get_location_with_id(profile, location_id)
+        if not location.line:
+            continue
+        fn = get_function_with_id(profile, location.line[0].function_id)
+        if profile.string_table[fn.name] == function_name:
+            return True
+    return False
+
+
+def get_label_str_values_for_function(
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], key: str, function_name: str
+) -> list[str]:
+    """Like get_label_str_values, restricted to samples whose stack contains function_name."""
+    matching = [sample for sample in samples if _sample_has_function_name(profile, sample, function_name)]
+    return get_label_str_values(profile, matching, key)
 
 
 def get_location_with_id(profile: pprof_pb2.Profile, location_id: int) -> pprof_pb2.Location:
@@ -329,6 +368,29 @@ def get_location_from_id(profile: pprof_pb2.Profile, location_id: int) -> StackL
     filename = profile.string_table[function.filename]
     line_no = line.line
     return StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+
+def get_samples_with_function(
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], function_name: str
+) -> list[pprof_pb2.Sample]:
+    return [
+        sample
+        for sample in samples
+        if any(
+            get_location_from_id(profile, location_id).function_name == function_name
+            for location_id in sample.location_id
+        )
+    ]
+
+
+def get_str_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[str]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else profile.string_table[label.str]
+
+
+def get_num_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[int]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else label.num
 
 
 def assert_lock_events_of_type(
@@ -421,15 +483,11 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     lock_name_label = get_label_with_key(profile.string_table, sample, "lock name")
     assert lock_name_label is not None, "Lock name label not found in sample"
     if expected_event.lock_name is None:
-        expected_lock_name = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
+        expected_lock_name = f"{expected_event.filename}:{expected_event.linenos.create}"
     else:
-        expected_lock_name = "{}:{}:{}".format(
-            expected_event.filename, expected_event.linenos.create, expected_event.lock_name
-        )
+        expected_lock_name = f"{expected_event.filename}:{expected_event.linenos.create}:{expected_event.lock_name}"
     actual_lock_name = profile.string_table[lock_name_label.str]
-    assert actual_lock_name == expected_lock_name, "Expected lock name {} got {}".format(
-        expected_lock_name, actual_lock_name
-    )
+    assert actual_lock_name == expected_lock_name, f"Expected lock name {expected_lock_name} got {actual_lock_name}"
     # location_id[0] is the 'leaf' location
     location_id = sample.location_id[0]
     location = get_location_with_id(profile, location_id)
@@ -437,16 +495,16 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     line = location.line[0]
     # We expect the function name to be the caller's name
     function = get_function_with_id(profile, line.function_id)
-    assert profile.string_table[function.name] == expected_event.caller_name, "Expected caller {} got {}".format(
-        expected_event.caller_name, profile.string_table[function.name]
+    assert profile.string_table[function.name] == expected_event.caller_name, (
+        f"Expected caller {expected_event.caller_name} got {profile.string_table[function.name]}"
     )
     if expected_event.event_type == LockEventType.ACQUIRE:
-        assert line.line == expected_event.linenos.acquire, "Expected line {} got {}".format(
-            expected_event.linenos.acquire, line.line
+        assert line.line == expected_event.linenos.acquire, (
+            f"Expected line {expected_event.linenos.acquire} got {line.line}"
         )
     elif expected_event.event_type == LockEventType.RELEASE:
-        assert line.line == expected_event.linenos.release, "Expected line {} got {}".format(
-            expected_event.linenos.release, line.line
+        assert line.line == expected_event.linenos.release, (
+            f"Expected line {expected_event.linenos.release} got {line.line}"
         )
 
     assert_base_event(profile.string_table, sample, expected_event)
@@ -552,6 +610,8 @@ def assert_profile_has_sample(
             error_description += ", thread name " + expected_sample.thread_name
 
         if print_samples_on_failure:
+            # Keep the actionable failure ahead of the dump so CI truncation retains it.
+            print(error_description)
             print_all_samples(profile)
 
     assert found, error_description

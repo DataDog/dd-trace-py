@@ -4,6 +4,8 @@ This file is organized with high-level feature tests first, followed by unit tes
 Integration tests are in tests/test_integration.py.
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
 import typing as t
@@ -14,10 +16,12 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.pytest._xdist import CrashRetryBudget
+from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
-from ddtrace.testing.internal.pytest.plugin import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
@@ -27,6 +31,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
@@ -611,6 +616,66 @@ class TestSkippingAndITRFeatures:
         mock_manager.coverage_writer.put_coverage.assert_called_once()
         mock_manager.coverage_writer.put_suite_coverage.assert_not_called()
 
+    def test_coverage_collection_skipped_when_coverage_disabled(self) -> None:
+        """When coverage is disabled, the per-test coverage CM must not be entered.
+
+        ModuleCodeCollector is only installed when settings.coverage_enabled is True.
+        Entering coverage_collection() without it made
+        ModuleCodeCollector.coverage_enabled() report True for the duration of every
+        test and called the global sys.monitoring restart_events() per test, for a
+        collector that does not exist. The plugin substitutes an empty CoverageData,
+        which is what the disabled collector yielded anyway.
+        """
+        test_ref = TestDataFactory.create_test_ref("", "test_suite.py", "test_function")
+
+        mock_manager = session_manager_mock().build_mock()  # coverage_enabled defaults to False
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+        plugin.tests_by_nodeid = {"/test_suite.py::test_function": test}
+        mock_item = pytest_item_mock("/test_suite.py::test_function").build()
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection") as mock_coverage_collection,
+        ):
+            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+
+        # The real coverage_collection CM was never entered.
+        mock_coverage_collection.assert_not_called()
+        # Coverage is still dispatched (with empty bitmaps) via the same put_coverage path.
+        mock_manager.coverage_writer.put_coverage.assert_called_once()
+
+    @pytest.mark.parametrize("coverage_enabled", [False, True])
+    def test_coverage_telemetry_follows_coverage_enabled(self, coverage_enabled: bool, mock_telemetry: Mock) -> None:
+        """code_coverage_started/finished must describe coverage running, not a test running.
+
+        The legacy plugin only reaches record_code_coverage_started() when
+        InternalTestSession.should_collect_coverage() is true, so emitting these per test
+        regardless of the setting over-reports coverage activity.
+        """
+        test_ref = TestDataFactory.create_test_ref("", "test_suite.py", "test_function")
+
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.settings.coverage_enabled = coverage_enabled
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+        plugin.tests_by_nodeid = {"/test_suite.py::test_function": test}
+        mock_item = pytest_item_mock("/test_suite.py::test_function").build()
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+        ):
+            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+
+        expected = 1 if coverage_enabled else 0
+        assert mock_telemetry.record_coverage_started.call_count == expected
+        assert mock_telemetry.record_coverage_finished.call_count == expected
+
 
 class TestFinalStatusFeatures:
     """Test final status tag functionality."""
@@ -885,6 +950,73 @@ class TestNodeIdToTestRef:
         assert module == "unknown_module"  # Fallback for invalid nodeids (matches old plugin)
         assert suite == "unknown_suite"  # Fallback for invalid nodeids (matches old plugin)
         assert test == "some_weird_format"
+
+
+class TestItemToTestRef:
+    """Unit tests for item_to_test_ref helper."""
+
+    class _HookCaller:
+        def __init__(self, value: t.Optional[str] = None, has_impls: bool = False) -> None:
+            self.value = value
+            self.has_impls = has_impls
+            self.calls = 0
+
+        def __call__(self, item: t.Any) -> t.Optional[str]:
+            self.calls += 1
+            return self.value
+
+        def get_hookimpls(self) -> list[object]:
+            return [object()] if self.has_impls else []
+
+    class _Hook:
+        def __init__(self, has_impls: bool = False) -> None:
+            self.pytest_ddtrace_get_item_module_name = TestItemToTestRef._HookCaller("custom.module", has_impls)
+            self.pytest_ddtrace_get_item_suite_name = TestItemToTestRef._HookCaller("custom_suite.py", has_impls)
+            self.pytest_ddtrace_get_item_test_name = TestItemToTestRef._HookCaller("custom_test", has_impls)
+
+    class _Config:
+        def __init__(self, has_impls: bool = False) -> None:
+            self.hook = TestItemToTestRef._Hook(has_impls)
+
+    class _Item:
+        def __init__(self, nodeid: str, config: TestItemToTestRef._Config) -> None:
+            self.nodeid = nodeid
+            self.config = config
+
+    def test_skips_custom_name_hooks_when_none_registered(self) -> None:
+        config = self._Config(has_impls=False)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        test_ref = item_to_test_ref(item)
+
+        assert test_ref.name == "test_function"
+        assert test_ref.suite.name == "test_example.py"
+        assert test_ref.suite.module.name == "tests.internal"
+        assert config.hook.pytest_ddtrace_get_item_module_name.calls == 0
+        assert config.hook.pytest_ddtrace_get_item_suite_name.calls == 0
+        assert config.hook.pytest_ddtrace_get_item_test_name.calls == 0
+
+    def test_caches_test_ref_on_item(self) -> None:
+        config = self._Config(has_impls=True)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        first_ref = item_to_test_ref(item)
+        second_ref = item_to_test_ref(item)
+
+        assert second_ref is first_ref
+        assert config.hook.pytest_ddtrace_get_item_module_name.calls == 1
+        assert config.hook.pytest_ddtrace_get_item_suite_name.calls == 1
+        assert config.hook.pytest_ddtrace_get_item_test_name.calls == 1
+
+    def test_uses_custom_name_hooks_when_registered(self) -> None:
+        config = self._Config(has_impls=True)
+        item = self._Item("tests/internal/test_example.py::test_function", config)
+
+        test_ref = item_to_test_ref(item)
+
+        assert test_ref.name == "custom_test"
+        assert test_ref.suite.name == "custom_suite.py"
+        assert test_ref.suite.module.name == "custom.module"
 
 
 class TestHelperFunctions:
@@ -1497,6 +1629,86 @@ class TestSessionLifecycleMethods:
 
         plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
 
+    def test_pytest_sessionfinish_collection_errors(self) -> None:
+        """Test pytest_sessionfinish with collection errors (INTERRUPTED exit code).
+
+        When all tests error during collection, pytest returns ExitCode.INTERRUPTED (2),
+        not ExitCode.TESTS_FAILED (1). The session must still be marked as FAIL.
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up session and manager
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        # Mock session with collection errors (INTERRUPTED)
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.INTERRUPTED
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        # Verify session was finished with FAIL status
+        plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
+
+    def test_pytest_sessionfinish_internal_error(self) -> None:
+        """Test pytest_sessionfinish with internal error exit code."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.INTERNAL_ERROR
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
+
+    def test_pytest_sessionfinish_usage_error(self) -> None:
+        """Test pytest_sessionfinish with usage error exit code."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.USAGE_ERROR
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
+
+    def test_pytest_sessionfinish_no_tests_collected(self) -> None:
+        """Test pytest_sessionfinish with NO_TESTS_COLLECTED exit code (no ITR skips).
+
+        When no tests are collected and ITR did not skip anything, the session
+        should be marked as PASS (nothing failed).
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        plugin.session.set_status.assert_called_once_with(TestStatus.PASS)
+
     def test_pytest_sessionfinish_xdist_worker(self) -> None:
         """Test pytest_sessionfinish as xdist worker."""
         mock_manager = session_manager_mock().build_mock()
@@ -1617,8 +1829,251 @@ class TestXdistPlugin:
         assert mock_node.workerinput["dd_session_id"] == "test-session-123"
 
 
+class TestXdistCrashRequeue:
+    """Test the controller policy for retrying worker crashes."""
+
+    @staticmethod
+    def _build_plugin(
+        *, atr: bool = False, efd: bool = False, test_management: bool = False, dynamic: bool = False
+    ) -> XdistTestOptPlugin:
+        from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
+        from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
+        from ddtrace.testing.internal.settings_data import Settings
+        from ddtrace.testing.internal.settings_data import TestManagementSettings
+
+        builder = session_manager_mock()
+        builder._settings = Settings(
+            auto_test_retries=AutoTestRetriesSettings(enabled=atr),
+            early_flake_detection=EarlyFlakeDetectionSettings(enabled=efd),
+            test_management=TestManagementSettings(enabled=test_management),
+        )
+        manager = builder.build_mock()
+        with patch("ddtrace.testing.internal.pytest._xdist.is_xdist_worker_process", return_value=False):
+            plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=manager))
+        plugin._dynamic_retries = dynamic
+        return plugin
+
+    @staticmethod
+    def _make_report(nodeid: str = "test_foo.py::test_a") -> Mock:
+        from _pytest.reports import TestReport
+
+        report = Mock(spec=TestReport)
+        report.nodeid = nodeid
+        report.outcome = "failed"
+        report.user_properties = []
+        return report
+
+    def test_requeues_crash_with_atr(self) -> None:
+        plugin = self._build_plugin(atr=True)
+        report = self._make_report()
+        sched = Mock()
+
+        plugin.pytest_runtest_logstart(report.nodeid, None)
+        plugin.pytest_handlecrashitem(report.nodeid, report, sched)
+
+        sched.mark_test_pending.assert_called_once_with(report.nodeid)
+        assert report.outcome == "rerun"
+        assert dict(report.user_properties) == {
+            "dd_retry_outcome": "failed",
+            "dd_retry_reason": "xdist_worker_crash",
+            "dd_retry_number": 1,
+        }
+        plugin.main_plugin.manager.writer.put_item.assert_not_called()
+        assert plugin._crash_retry_state_path is not None
+        assert read_atr_crash_retry_state(plugin._crash_retry_state_path) == {
+            report.nodeid: CrashRetryBudget(retries=1, retry_limit=plugin._flat_retry_limit)
+        }
+
+    def test_does_not_requeue_when_budget_handoff_fails(self) -> None:
+        plugin = self._build_plugin(atr=True)
+        report = self._make_report()
+        sched = Mock()
+
+        with patch.object(plugin, "_write_crash_retry_state", side_effect=OSError):
+            plugin.pytest_handlecrashitem(report.nodeid, report, sched)
+
+        sched.mark_test_pending.assert_not_called()
+        assert report.outcome == "failed"
+        assert plugin._remaining_session_retries == 1000
+
+    @pytest.mark.parametrize("feature", ["efd", "test_management"])
+    def test_does_not_requeue_when_worker_policy_is_ambiguous(self, feature: str) -> None:
+        plugin = self._build_plugin(atr=True, **{feature: True})
+        report = self._make_report()
+        sched = Mock()
+
+        plugin.pytest_handlecrashitem(report.nodeid, report, sched)
+
+        sched.mark_test_pending.assert_not_called()
+        assert report.outcome == "failed"
+
+    def test_honors_flat_per_test_limit(self) -> None:
+        plugin = self._build_plugin(atr=True)
+        plugin._flat_retry_limit = 2
+        sched = Mock()
+        nodeid = "test_foo.py::test_a"
+
+        for expected_retry_number in (1, 2):
+            report = self._make_report(nodeid)
+            plugin.pytest_runtest_logstart(nodeid, None)
+            plugin.pytest_handlecrashitem(nodeid, report, sched)
+            assert dict(report.user_properties)["dd_retry_number"] == expected_retry_number
+
+        final_report = self._make_report(nodeid)
+        plugin.pytest_runtest_logstart(nodeid, None)
+        plugin.pytest_handlecrashitem(nodeid, final_report, sched)
+
+        assert sched.mark_test_pending.call_count == 2
+        assert final_report.outcome == "failed"
+
+    def test_caches_dynamic_limit_from_first_crash(self) -> None:
+        plugin = self._build_plugin(atr=True, dynamic=True)
+        nodeid = "test_foo.py::test_a"
+
+        with patch("ddtrace.testing.internal.pytest._xdist.time.monotonic", side_effect=[100.0, 106.0]):
+            plugin.pytest_runtest_logstart(nodeid, None)
+            plugin.pytest_handlecrashitem(nodeid, self._make_report(nodeid), Mock())
+
+        assert plugin._crash_retry_limits[nodeid] == 5
+        assert plugin._crash_retry_state_path is not None
+        assert read_atr_crash_retry_state(plugin._crash_retry_state_path)[nodeid] == CrashRetryBudget(1, 5)
+
+    def test_honors_atr_session_limit(self) -> None:
+        with patch.dict(os.environ, {"DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "1"}):
+            plugin = self._build_plugin(atr=True)
+        sched = Mock()
+
+        plugin.pytest_handlecrashitem("test_a.py::test_a", self._make_report("test_a.py::test_a"), sched)
+        second_report = self._make_report("test_b.py::test_b")
+        plugin.pytest_handlecrashitem(second_report.nodeid, second_report, sched)
+
+        sched.mark_test_pending.assert_called_once_with("test_a.py::test_a")
+        assert second_report.outcome == "failed"
+
+    def test_does_not_requeue_after_in_worker_atr_attempt(self) -> None:
+        plugin = self._build_plugin(atr=True)
+        nodeid = "test_foo.py::test_mixed"
+        retry_report = self._make_report(nodeid)
+        retry_report.outcome = "rerun"
+        retry_report.user_properties = [
+            ("dd_retry_outcome", "failed"),
+            ("dd_retry_reason", "Auto Test Retries"),
+        ]
+        plugin.pytest_runtest_logreport(retry_report)
+        crash_report = self._make_report(nodeid)
+        sched = Mock()
+
+        plugin.pytest_handlecrashitem(nodeid, crash_report, sched)
+
+        sched.mark_test_pending.assert_not_called()
+        assert crash_report.outcome == "failed"
+
+    def test_normal_completion_discards_per_test_state(self) -> None:
+        plugin = self._build_plugin(atr=True)
+        nodeid = "test_foo.py::test_a"
+        plugin._start_times[nodeid] = 1.0
+        plugin._crash_retry_counts[nodeid] = 1
+        plugin._crash_retry_limits[nodeid] = 5
+        plugin._worker_retried_nodeids.add(nodeid)
+
+        plugin.pytest_runtest_logfinish(nodeid, None)
+
+        assert nodeid not in plugin._start_times
+        assert nodeid not in plugin._crash_retry_counts
+        assert nodeid not in plugin._crash_retry_limits
+        assert nodeid not in plugin._worker_retried_nodeids
+
+
 class TestOutcomeProcessing:
     """Test test outcome processing methods."""
+
+    def test_passing_makereport_does_not_store_report(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        call = Mock(when="call", excinfo=None)
+        report = test_report(nodeid="test_id", outcome="passed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        assert plugin.reports_by_nodeid == {}
+        assert plugin.excinfo_by_report == {}
+        assert plugin.outcomes_by_nodeid == {}
+        assert plugin._get_test_outcome("test_id") == (TestStatus.PASS, {})
+
+    def test_passing_makereport_can_store_report_when_optimization_disabled(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        with patch.dict(os.environ, {"_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS": "true"}):
+            plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        call = Mock(when="call", excinfo=None)
+        report = test_report(nodeid="test_id", outcome="passed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        assert plugin.reports_by_nodeid["test_id"] == {"call": report}
+        assert plugin.excinfo_by_report == {report: None}
+        assert plugin.outcomes_by_nodeid == {}
+        assert plugin._get_test_outcome("test_id") == (TestStatus.PASS, {})
+
+    def test_failing_makereport_stores_aggregate_outcome(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        excinfo = Mock()
+        excinfo.type = ValueError
+        excinfo.value = ValueError("boom")
+        excinfo.tb = None
+        call = Mock(when="call", excinfo=excinfo)
+        report = test_report(nodeid="test_id", outcome="failed", when="call")
+        outcome = Mock()
+        outcome.get_result.return_value = report
+
+        generator = plugin.pytest_runtest_makereport(item, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(outcome)
+
+        status, tags = plugin._get_test_outcome("test_id")
+        assert status == TestStatus.FAIL
+        assert tags[TestTag.ERROR_TYPE] == "builtins.ValueError"
+        assert tags[TestTag.ERROR_MESSAGE] == "boom"
+        assert plugin.reports_by_nodeid == {}
+        assert plugin.excinfo_by_report == {}
+        assert plugin.outcomes_by_nodeid == {}
+
+    def test_later_passing_call_report_clears_external_retry_failure(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+        item = pytest_item_mock("test_id").build()
+        excinfo = Mock()
+        excinfo.type = ValueError
+        excinfo.value = ValueError("first attempt failed")
+        excinfo.tb = None
+
+        for call, report in (
+            (Mock(when="call", excinfo=excinfo), test_report(nodeid="test_id", outcome="failed", when="call")),
+            (Mock(when="call", excinfo=None), test_report(nodeid="test_id", outcome="passed", when="call")),
+        ):
+            outcome = Mock()
+            outcome.get_result.return_value = report
+            generator = plugin.pytest_runtest_makereport(item, call)
+            next(generator)
+            with pytest.raises(StopIteration):
+                generator.send(outcome)
+
+        assert plugin.outcomes_by_nodeid == {}
+        assert plugin._get_test_outcome("test_id") == (TestStatus.PASS, {})
 
     def test_get_test_outcome_pass(self) -> None:
         """Test _get_test_outcome for passing test."""
@@ -1726,6 +2181,32 @@ class TestOutcomeProcessing:
 
         assert status == TestStatus.SKIP
         assert tags[TestTag.SKIP_REASON] == "Unknown skip reason"
+
+    def test_get_test_outcome_teardown_failure_overrides_skip(self) -> None:
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        setup_report = test_report(outcome="skipped", when="setup")
+        teardown_report = test_report(outcome="failed", when="teardown")
+        excinfo = Mock()
+        excinfo.type = RuntimeError
+        excinfo.value = RuntimeError("teardown failed")
+        excinfo.tb = None
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "teardown": teardown_report,
+        }
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            teardown_report: excinfo,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.FAIL
+        assert tags[TestTag.ERROR_TYPE] == "builtins.RuntimeError"
+        assert tags[TestTag.ERROR_MESSAGE] == "teardown failed"
 
     def test_get_test_outcome_xfail_call(self) -> None:
         """Test _get_test_outcome for xfail test."""

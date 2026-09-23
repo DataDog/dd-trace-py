@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
@@ -7,9 +10,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Iterator
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -22,16 +23,36 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
+from ddtrace.llmobs._constants import GEN_AI_APPLICATION_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_CONVERSATION_ID_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_OPERATION_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_PROVIDER_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_REQUEST_MODEL_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_PROMPT
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -45,7 +66,7 @@ from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:
-    from ddtrace.llmobs._writer import LLMObsSpanData
+    from ddtrace.llmobs._event_types import LLMObsSpanData
 
 
 log = get_logger(__name__)
@@ -246,24 +267,29 @@ def _unserializable_default_repr(obj):
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return "[Unserializable object: {}]".format(repr(obj))
+        return f"[Unserializable object: {repr(obj)}]"
 
 
 _MAX_NESTED_META_DEPTH = 12
 
 
-def _sanitize_span_event_depth(obj: Any) -> Any:
-    """Return a sanitized copy of obj with any container value that exceeds
-    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
-    and every mapping key stringified. The original structure is never mutated.
-    A warning is logged for each stringified field, including its dotted path.
+def _sanitize_span_event_data(obj: Any) -> Any:
+    """Return a copy of obj that is safe to encode into a span event.
+
+    Three guarantees, applied to every node: any container that exceeds _MAX_NESTED_META_DEPTH
+    levels from the root is replaced by its JSON string representation, every mapping key is
+    stringified, and every leaf value is made JSON-serializable. The original structure is never
+    mutated. A debug log is emitted for each stringified over-depth field, including its dotted path.
+
+    This is the last line of defense before the agentless APM exporter, which drops the whole trace
+    payload on a single unserializable object. It runs after the user span processor for that reason.
     """
 
     def _walk(node: Any, depth: int, path: str) -> Any:
         if not isinstance(node, (dict, list)):
-            return node
+            return _sanitize_leaf(node, depth, path)
         if depth >= _MAX_NESTED_META_DEPTH:
-            log.warning(
+            log.debug(
                 "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
                 "stringified to avoid backend parsing errors.",
                 path,
@@ -273,6 +299,21 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
         if isinstance(node, dict):
             return {str(k): _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
         return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
+
+    def _sanitize_leaf(node: Any, depth: int, path: str) -> Any:
+        if node is None or isinstance(node, (str, int, float, bool)):
+            return node
+        # load_data_value keeps structure where it can (models become dicts) instead of flattening
+        # to a string, so nested objects stay queryable. Re-walk it to apply the depth limit.
+        try:
+            loaded = load_data_value(node)
+        except Exception:
+            log.debug("LLMObs: span event field %r could not be converted; falling back to str.", path)
+            try:
+                return str(node)
+            except Exception:
+                return f"[Unserializable object of type {type(node).__name__}]"
+        return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
 
@@ -310,13 +351,17 @@ def load_data_value(value):
     elif isinstance(value, type):
         return value.__name__
     elif hasattr(value, "model_dump"):
-        return value.model_dump(exclude_none=True)
+        # model_dump() can leave non-primitive field values (datetime, Enum, ...) unconverted.
+        return load_data_value(value.model_dump(exclude_none=True))
     elif is_dataclass(value):
-        return asdict(value)
+        # asdict() deep-copies non-dataclass field types as-is, leaving them unconverted.
+        return load_data_value(asdict(value))
     elif isinstance(value, (int, float, str, bool)) or value is None:
         return value
     else:
         value_str = safe_json(value)
+        if value_str is None:  # safe_json swallows its failure and returns None
+            return str(value)
         try:
             return json.loads(value_str)
         except json.JSONDecodeError:
@@ -486,8 +531,15 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
       4. neither when even the id would exceed the budget.
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
+
+    Both keys describe the span being injected, but meta is trace-scoped and shared by every
+    span in the trace, so a value written by an earlier span outlives it. Whatever does not apply
+    to this span is cleared, or it would be propagated as if it did.
     """
+    if agent_name is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_NAME_KEY, None)
     if agent_span_id is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
         return
     meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
     if agent_name is not None:
@@ -678,9 +730,13 @@ def _sanitize_metric_key(key):
 
     LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
     decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
-    Non-string keys are returned unchanged (value validation happens upstream in ``annotate``).
+    Non-string keys are stringified first, since a metric key is serialized as a string either way
+    and the encoder has no representation for other key types -- and stringifying can itself
+    introduce a dot (1.5 -> "1.5"). (Value validation happens upstream in annotate.)
     """
-    if not isinstance(key, str) or "." not in key:
+    if not isinstance(key, str):
+        key = str(key)
+    if "." not in key:
         return key
     sanitized = key.replace(".", "_")
     log.warning(
@@ -770,7 +826,8 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            # Metadata keys are serialized as strings, so coerce non-string keys here.
+            # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
+            # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
         if agent_manifest is not None or cost_tags is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
@@ -785,11 +842,11 @@ def _annotate_llmobs_span_data(
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
-            # Tag values are serialized as strings, so coerce non-string values here.
-            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})
+            # Tag keys and values are both serialized as strings, so coerce non-string ones here.
+            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({str(k): str(v) for k, v in tags.items()})
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
-            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = str(session_id)
             span._set_ctx_item(SESSION_ID, session_id)
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
@@ -1029,3 +1086,55 @@ class LinkTracker:
         since output guardrails are only linked to the last LLM span for a particular agent.
         """
         self._last_llm_span = None
+
+
+# Other kinds carry unrelated metrics that would be misleading under a gen_ai.usage.* key.
+_TOKEN_METRIC_SPAN_KINDS = ("llm", "embedding")
+
+_TOKEN_METRIC_KEYS = (
+    (INPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY),
+    (OUTPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY),
+    (TOTAL_TOKENS_METRIC_KEY, GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY),
+    (CACHE_READ_INPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY),
+    (CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY),
+    (REASONING_OUTPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY),
+)
+
+
+def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
+    """Write the scalar gen_ai.* attributes onto the APM span from its LLMObs meta_struct.
+
+    Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every
+    kind other than llm/embedding. span_kind is passed in because normalization is also what
+    writes meta.span.kind.
+    """
+    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
+    model_name = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME)
+    model_provider = llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER)
+    metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS)
+    ml_app = llmobs_data.get(LLMOBS_STRUCT.ML_APP)
+    session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID)
+
+    if span_kind:
+        span.set_tag(GEN_AI_OPERATION_NAME_TAG_KEY, span_kind)
+    if span_kind in _TOKEN_METRIC_SPAN_KINDS:
+        # Mirrors _normalize_llmobs_meta: model-backed spans always report a model and provider.
+        span.set_tag(GEN_AI_REQUEST_MODEL_TAG_KEY, model_name or UNKNOWN_MODEL_NAME)
+        span.set_tag(GEN_AI_PROVIDER_NAME_TAG_KEY, (model_provider or UNKNOWN_MODEL_PROVIDER).lower())
+    else:
+        if model_name:
+            span.set_tag(GEN_AI_REQUEST_MODEL_TAG_KEY, model_name)
+        if model_provider:
+            span.set_tag(GEN_AI_PROVIDER_NAME_TAG_KEY, model_provider.lower())
+    if ml_app:
+        span.set_tag(GEN_AI_APPLICATION_NAME_TAG_KEY, ml_app)
+    if session_id:
+        span.set_tag(GEN_AI_CONVERSATION_ID_TAG_KEY, session_id)
+    if span_kind in _TOKEN_METRIC_SPAN_KINDS and metrics:
+        for llmobs_key, gen_ai_key in _TOKEN_METRIC_KEYS:
+            value = metrics.get(llmobs_key)
+            if value is not None:
+                span._set_attribute(gen_ai_key, value)
+    # Without this tag, the backend processor identifies gen_ai tags on the APM span and creates
+    # a duplicate LLMObs span.
+    span.set_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY, "true")

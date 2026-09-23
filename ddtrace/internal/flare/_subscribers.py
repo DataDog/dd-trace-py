@@ -6,8 +6,6 @@ from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
-from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
 log = get_logger(__name__)
@@ -134,26 +132,3 @@ class TracerFlareCallback(RCCallback):
             return
 
         _process_payloads(self._flare, self._state, payloads)
-
-
-class TracerFlareSubscriber(RemoteConfigSubscriber):
-    """Subscriber for tracer flare requests."""
-
-    def __init__(
-        self,
-        data_connector: PublisherSubscriberConnector,
-        flare: Flare,
-        stale_flare_age: int = DEFAULT_STALE_FLARE_DURATION_MINS,
-    ):
-        super().__init__(data_connector, lambda _data: None, "TracerFlareConfig")
-        self.current_request_start: Optional[datetime] = None
-        self.stale_tracer_flare_num_mins = stale_flare_age
-        self.flare = flare
-
-    def has_stale_flare(self) -> bool:
-        if self.current_request_start:
-            curr = datetime.now()
-            flare_age = (curr - self.current_request_start).total_seconds()
-            stale_age = self.stale_tracer_flare_num_mins * 60
-            return flare_age >= stale_age
-        return False

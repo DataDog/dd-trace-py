@@ -59,3 +59,10 @@ def pt_exec_with_globals(origin_string):
     exec(origin_string)
     my_var_in_pt_exec_with_globals += "def"
     return my_var_in_pt_exec_with_globals
+
+
+def pt_eval_caller_locals(origin_string):
+    # eval() without globals/locals: the expression can only resolve local_value if the sink
+    # correctly walks back to this frame instead of stopping inside wrapt's wrapper.
+    local_value = 42  # noqa: F841
+    return eval(origin_string)

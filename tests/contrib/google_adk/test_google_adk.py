@@ -1,11 +1,17 @@
+import gc
 from typing import Any
 
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
+from google.adk.tools.function_tool import FunctionTool
 import pytest
 
 from ddtrace.contrib.internal.google_adk.patch import _traced_functions_call_tool_live
+from tests.contrib.google_adk.conftest import call_tool_async
 from tests.contrib.google_adk.conftest import create_test_message
+from tests.contrib.google_adk.conftest import stream_then_raise
+from tests.contrib.google_adk.conftest import stream_values
+from tests.contrib.google_adk.conftest import streaming_via_call_tool_async
 
 
 @pytest.mark.asyncio
@@ -21,8 +27,16 @@ async def test_agent_run_async(test_runner, test_spans, request_vcr):
                 session_id="test-session",
                 new_message=message,
             ):
+                # google-adk >= 2.7.0 emits framework events with no content
+                if event.content is None:
+                    continue
                 for part in event.content.parts:
                     if hasattr(part, "function_response") and part.function_response is not None:
+                        # google-adk >= 2.9.0 answers the hallucinated exec_python call with a
+                        # tool-not-found function response instead of raising; skip responses that
+                        # aren't from the agent's own tools.
+                        if part.function_response.name not in ("search_docs", "multiply"):
+                            continue
                         response = part.function_response.response
                         if "results" in response:
                             output += response["results"][0]
@@ -86,9 +100,9 @@ async def test_agent_with_tool_usage(test_runner, test_spans, request_vcr):
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
-    tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     assert len(tool_spans) >= 1, (
-        f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+        f"Expected FunctionTool call_tool_async spans, got spans: {[s.resource for s in spans]}"
     )
 
     runner_span = runner_spans[0]
@@ -149,9 +163,9 @@ async def test_agent_with_tool_calculation(test_runner, test_spans, request_vcr)
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
-    tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     assert len(tool_spans) >= 1, (
-        f"Expected FunctionTool.__call_tool_async spans, got spans: {[s.resource for s in spans]}"
+        f"Expected FunctionTool call_tool_async spans, got spans: {[s.resource for s in spans]}"
     )
 
     runner_span = runner_spans[0]
@@ -235,7 +249,7 @@ async def test_error_handling_e2e(test_runner, test_spans, request_vcr):
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
     assert len(runner_spans) >= 1, f"Expected Runner.run_async spans, got spans: {[s.resource for s in spans]}"
 
-    tool_spans = [s for s in spans if "FunctionTool.__call_tool_async" in s.resource]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
     if tool_spans:
         tool_span = tool_spans[0]
         assert tool_span.name == "google_adk.request"
@@ -271,3 +285,91 @@ async def test_call_tool_live_fallback_does_not_double_invoke_wrapped() -> None:
 
     assert yielded == ["a", "b", "c"]
     assert call_count == 1, f"wrapped should be invoked exactly once, was invoked {call_count} times"
+
+
+@streaming_via_call_tool_async
+@pytest.mark.asyncio
+async def test_streaming_tool_called_with_keyword_arguments(adk, test_spans, streaming_tool_context):
+    """The streaming dispatch path passes every argument by keyword, including `tool`."""
+    tool = FunctionTool(func=stream_values)
+
+    result = await call_tool_async(adk)(tool=tool, args={"count": 3}, tool_context=streaming_tool_context)
+
+    assert [item async for item in result] == [{"value": 0}, {"value": 1}, {"value": 2}]
+
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    tool_spans = [s for s in spans if "FunctionTool." in s.resource and "call_tool_async" in s.resource]
+    assert len(tool_spans) == 1
+    assert tool_spans[0].duration is not None, "the tool span should stay open until the stream is exhausted"
+
+
+@streaming_via_call_tool_async
+@pytest.mark.asyncio
+async def test_streaming_tool_span_finished_when_stream_raises(adk, test_spans, streaming_tool_context):
+    """A tool that fails partway through the stream still finishes its span, with the error set."""
+    tool = FunctionTool(func=stream_then_raise)
+
+    result = await call_tool_async(adk)(tool=tool, args={"count": 2}, tool_context=streaming_tool_context)
+
+    with pytest.raises(RuntimeError, match="stream blew up"):
+        async for _ in result:
+            pass
+
+    tool_spans = [
+        s
+        for t in test_spans.pop_traces()
+        for s in t
+        if "FunctionTool." in s.resource and "call_tool_async" in s.resource
+    ]
+    assert len(tool_spans) == 1
+    assert tool_spans[0].duration is not None
+    assert tool_spans[0].error == 1
+
+
+@streaming_via_call_tool_async
+@pytest.mark.asyncio
+async def test_streaming_tool_span_finished_when_consumer_stops_early(adk, test_spans, streaming_tool_context):
+    """google-adk closes the stream with `Aclosing`, so an early close must finish the span."""
+    tool = FunctionTool(func=stream_values)
+
+    result = await call_tool_async(adk)(tool=tool, args={"count": 10}, tool_context=streaming_tool_context)
+
+    async for _ in result:
+        break
+    await result.aclose()
+
+    tool_spans = [
+        s
+        for t in test_spans.pop_traces()
+        for s in t
+        if "FunctionTool." in s.resource and "call_tool_async" in s.resource
+    ]
+    assert len(tool_spans) == 1
+    assert tool_spans[0].duration is not None, "the span must be finished when the consumer stops early"
+
+
+@streaming_via_call_tool_async
+@pytest.mark.asyncio
+async def test_streaming_tool_span_finished_when_stream_never_started(adk, test_spans, streaming_tool_context):
+    """The non-live dispatch does not iterate an async generator result, it just stores it.
+
+    A generator that never starts never runs its finally, so the span cannot be finished from
+    inside the stream wrapper. Dropping the result must still finish it.
+    """
+    tool = FunctionTool(func=stream_values)
+
+    # `tool` positionally, matching the non-live dispatch that does not check for a generator.
+    result = await call_tool_async(adk)(tool, args={"count": 3}, tool_context=streaming_tool_context)
+
+    del result
+    gc.collect()
+
+    tool_spans = [
+        s
+        for t in test_spans.pop_traces()
+        for s in t
+        if "FunctionTool." in s.resource and "call_tool_async" in s.resource
+    ]
+    assert len(tool_spans) == 1
+    assert tool_spans[0].duration is not None, "an abandoned stream must not leave its span unfinished"
+    assert tool_spans[0].duration >= 0, "an abandoned stream must not report a negative duration"

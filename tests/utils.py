@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import contextlib
 from contextlib import contextmanager
@@ -42,6 +44,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import NativeWriter
@@ -50,6 +53,7 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
+from tests._ddtest_env_helpers import strip_ddtest_leaked_env
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -72,6 +76,7 @@ _LLMOBS_SHADOW_IGNORES = [
     "meta._dd.llmobs.span_kind",
     "meta._dd.llmobs.model_name",
     "meta._dd.llmobs.model_provider",
+    "meta._dd.llmobs.artificial_gen_ai_tags",
     "meta._dd.p.llmobs_trace_id",
     "meta._dd.p.llmobs_parent_id",
     "meta._dd.p.llmobs_ml_app",
@@ -81,6 +86,17 @@ _LLMOBS_SHADOW_IGNORES = [
     "metrics._dd.llmobs.total_tokens",
     "metrics._dd.llmobs.cache_read_input_tokens",
     "metrics._dd.llmobs.cache_write_input_tokens",
+    "meta.gen_ai.operation.name",
+    "meta.gen_ai.request.model",
+    "meta.gen_ai.provider.name",
+    "meta.gen_ai.application.name",
+    "meta.gen_ai.conversation.id",
+    "metrics.gen_ai.usage.input_tokens",
+    "metrics.gen_ai.usage.output_tokens",
+    "metrics.gen_ai.usage.total_tokens",
+    "metrics.gen_ai.usage.cache_read_input_tokens",
+    "metrics.gen_ai.usage.cache_write_input_tokens",
+    "metrics.gen_ai.usage.reasoning_output_tokens",
 ]
 
 
@@ -105,6 +121,19 @@ def assert_span_http_status_code(span, code):
     tag = span.get_tag(http.STATUS_CODE)
     code = str(code)
     assert tag == code, "%r != %r" % (tag, code)
+
+
+def reinitialize_agentless_config():
+    """Re-resolve the agentless settings from the environment as it stands now.
+
+    ``ddtrace.internal.settings._agentless.config`` is resolved once, at import, and its consumers
+    hold a reference to that instance -- so a test that changes the environment in-process has to
+    refresh it in place rather than rebind the module attribute.
+    """
+    from ddtrace.internal.settings._agentless import AgentlessConfig
+    from ddtrace.internal.settings._agentless import config as agentless_config
+
+    agentless_config.__dict__ = AgentlessConfig().__dict__
 
 
 @contextlib.contextmanager
@@ -168,6 +197,8 @@ def override_global_config(values: dict[str, Any]):
         "_trace_resource_renaming_always_simplified_endpoint",
         "_obfuscation_query_string_pattern",
         "_global_query_string_obfuscation_disabled",
+        "_trace_agentless_enabled",
+        "_agentless_enabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
         "_remote_config_enabled",
@@ -191,6 +222,7 @@ def override_global_config(values: dict[str, Any]):
         "_dd_app_key",
         "_llmobs_enabled",
         "_llmobs_sample_rate",
+        "_llmobs_sampling_rules",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
         "_llmobs_instrumented_proxy_urls",
@@ -205,12 +237,16 @@ def override_global_config(values: dict[str, Any]):
 
     asm_config_keys = asm_config._asm_config_keys
 
+    # Standalone (APM opt-out) config keys
+    standalone_config_keys = standalone_config._standalone_config_keys
+
     # OpenFeature config keys
     openfeature_config_keys = ffe_config._openfeature_config_keys
 
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
+    standalone_originals = dict((key, getattr(standalone_config, key)) for key in standalone_config_keys)
     openfeature_originals = dict((key, getattr(ffe_config, key)) for key in openfeature_config_keys)
 
     # Override from the passed in keys
@@ -221,6 +257,10 @@ def override_global_config(values: dict[str, Any]):
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(asm_config, key, value)
+    # Override standalone config
+    for key, value in values.items():
+        if key in standalone_config_keys:
+            setattr(standalone_config, key, value)
     # Override openfeature config
     for key, value in values.items():
         if key in openfeature_config_keys:
@@ -259,6 +299,10 @@ def override_global_config(values: dict[str, Any]):
         asm_config.reset()
         for key, value in asm_originals.items():
             setattr(asm_config, key, value)
+
+        standalone_config.reset()
+        for key, value in standalone_originals.items():
+            setattr(standalone_config, key, value)
 
         for key, value in openfeature_originals.items():
             setattr(ffe_config, key, value)
@@ -400,7 +444,7 @@ class BaseTestCase(SubprocessTestCase):
     assert_is_not_measured = staticmethod(assert_is_not_measured)
 
 
-class TestSpanContainer(object):
+class TestSpanContainer:
     """
     Helper class for a container of Spans.
 
@@ -442,7 +486,7 @@ class TestSpanContainer(object):
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self) -> "TestSpanNode":
+    def get_root_span(self) -> TestSpanNode:
         """
         Helper to get the root span from the list of spans in this container
 
@@ -469,11 +513,11 @@ class TestSpanContainer(object):
     def assert_trace_count(self, count):
         """Assert the number of unique trace ids this container has"""
         trace_count = len(self.get_root_spans())
-        assert trace_count == count, "Trace count {0} != {1}".format(trace_count, count)
+        assert trace_count == count, f"Trace count {trace_count} != {count}"
 
     def assert_span_count(self, count):
         """Assert this container has the expected number of spans"""
-        assert len(self.spans) == count, "Span count {0} != {1}".format(len(self.spans), count)
+        assert len(self.spans) == count, f"Span count {len(self.spans)} != {count}"
 
     def assert_has_spans(self):
         """Assert this container has spans"""
@@ -481,7 +525,7 @@ class TestSpanContainer(object):
 
     def assert_has_no_spans(self):
         """Assert this container does not have any spans"""
-        assert len(self.spans) == 0, "Span count {0}".format(len(self.spans))
+        assert len(self.spans) == 0, f"Span count {len(self.spans)}"
 
     def filter_spans(self, *args, **kwargs):
         """
@@ -518,9 +562,7 @@ class TestSpanContainer(object):
         :rtype: :class:`tests.TestSpan`
         """
         span = next(self.filter_spans(*args, **kwargs), None)
-        assert span is not None, "No span found for filter {0!r} {1!r}, have {2} spans".format(
-            args, kwargs, len(self.spans)
-        )
+        assert span is not None, f"No span found for filter {args!r} {kwargs!r}, have {len(self.spans)} spans"
         return span
 
 
@@ -534,12 +576,12 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Before each test case, configure the global tracer with a DummyWriter"""
         self.scoped_tracer = scoped_tracer()
         self.tracer = self.scoped_tracer.__enter__()
-        super(TracerTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
         """After each test case, reset the tracer state"""
         try:
-            super(TracerTestCase, self).tearDown()
+            super().tearDown()
         finally:
             self.scoped_tracer.__exit__(None, None, None)
             self.reset()
@@ -636,7 +678,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
         kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
-        kwargs["stats_opt_out"] = asm_config._apm_opt_out
+        kwargs["stats_opt_out"] = standalone_config.apm_opt_out
         self._inner_writer = NativeWriter(*args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
@@ -657,7 +699,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
-    ) -> "DummyWriter":
+    ) -> DummyWriter:
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
@@ -861,10 +903,8 @@ class TestSpan(Span):
             elif name == "metrics":
                 self.assert_metrics(value)
             else:
-                assert hasattr(self, name), "{0!r} does not have property {1!r}".format(self, name)
-                assert getattr(self, name) == value, "{0!r} property {1}: {2!r} != {3!r}".format(
-                    self, name, getattr(self, name), value
-                )
+                assert hasattr(self, name), f"{self!r} does not have property {name!r}"
+                assert getattr(self, name) == value, f"{self!r} property {name}: {getattr(self, name)!r} != {value!r}"
 
     def assert_meta(self, meta, exact=False):
         """
@@ -885,10 +925,8 @@ class TestSpan(Span):
             assert self.get_tags() == meta
         else:
             for key, value in meta.items():
-                assert self._has_attribute(key), "{0} meta does not have property {1!r}".format(self, key)
-                assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self.get_tag(key), value
-                )
+                assert self._has_attribute(key), f"{self} meta does not have property {key!r}"
+                assert self.get_tag(key) == value, f"{self} meta property {key!r}: {self.get_tag(key)!r} != {value!r}"
 
     def assert_metrics(self, metrics, exact=False):
         """
@@ -909,14 +947,14 @@ class TestSpan(Span):
             assert self._get_numeric_attributes() == metrics
         else:
             for key, value in metrics.items():
-                assert self._has_attribute(key), "{0} metrics does not have property {1!r}".format(self, key)
-                assert self._get_numeric_attribute(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self._get_numeric_attribute(key), value
+                assert self._has_attribute(key), f"{self} metrics does not have property {key!r}"
+                assert self._get_numeric_attribute(key) == value, (
+                    f"{self} metrics property {key!r}: {self._get_numeric_attribute(key)!r} != {value!r}"
                 )
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._get_events()) == count, "Span event count {0} != {1}".format(len(self._get_events()), count)
+        assert len(self._get_events()) == count, f"Span event count {len(self._get_events())} != {count}"
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
@@ -932,9 +970,9 @@ class TestSpan(Span):
         """
         span_event_attrs = self._get_events()[event_idx].attributes
         for name, value in attrs.items():
-            assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
-            assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
-                span_event_attrs, name, span_event_attrs[name], value
+            assert name in span_event_attrs, f"{span_event_attrs!r} does not have property {name!r}"
+            assert span_event_attrs[name] == value, (
+                f"{span_event_attrs!r} property {name}: {span_event_attrs[name]!r} != {value!r}"
             )
 
 
@@ -948,7 +986,7 @@ class TracerSpanContainer(TestSpanContainer):
         if not isinstance(tracer._span_aggregator.writer, DummyWriter):
             raise ValueError("Tracer must have a DummyWriter")
         self.tracer = tracer
-        super(TracerSpanContainer, self).__init__()
+        super().__init__()
 
     @property
     def writer(self):
@@ -998,7 +1036,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     """
 
     def __init__(self, root, children=None):
-        super(TestSpanNode, self).__init__(root)
+        super().__init__(root)
         object.__setattr__(self, "_children", children or [])
 
     def get_spans(self):
@@ -1098,16 +1136,16 @@ def get_root_span(
     for span in spans:
         if span.parent_id is None:
             if root is not None:
-                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
+                raise AssertionError(f"Multiple root spans found {root!r} {span!r}")
             root = span
 
-    assert root, "No root span found in {0!r}".format(spans)
+    assert root, f"No root span found in {spans!r}"
 
     return _build_tree(spans, root)
 
 
 def assert_dict_issuperset(a, b):
-    assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
+    assert set(a.items()).issuperset(set(b.items())), f"{a} is not a superset of {b}"
 
 
 @contextmanager
@@ -1241,7 +1279,7 @@ def snapshot_context(
         applicable_variant_ids = [k for (k, v) in variants.items() if v]
         assert len(applicable_variant_ids) == 1
         variant_id = applicable_variant_ids[0]
-        token = "{}_{}".format(token, variant_id) if variant_id else token
+        token = f"{token}_{variant_id}" if variant_id else token
 
     ignores = list(ignores or [])
     if not token.startswith("tests.internal.test_process_tags."):
@@ -1406,24 +1444,32 @@ def snapshot(
     return wrapper
 
 
-class AnyStr(object):
+class AnyStr:
     def __eq__(self, other):
         return isinstance(other, str)
 
 
-class AnyInt(object):
+class AnyInt:
     def __eq__(self, other):
         return isinstance(other, int)
 
 
-class AnyExc(object):
+class AnyExc:
     def __eq__(self, other):
         return isinstance(other, Exception)
 
 
-class AnyFloat(object):
+class AnyFloat:
     def __eq__(self, other):
         return isinstance(other, float)
+
+
+# ddtest sets PYTEST_ADDOPTS="--ddtrace" globally for pytest workers. It leaks
+# into test-spawned subprocesses, enabling CI Visibility which logs to stderr
+# (breaking tests that assert err == b"") and computes stats (breaking
+# snapshot tests). All ddtest-specific env stripping is encapsulated in
+# _ddtest_env_helpers so it can be removed cleanly if ddtest support is
+# dropped.
 
 
 def call_program(*args, **kwargs):
@@ -1432,7 +1478,12 @@ def call_program(*args, **kwargs):
         # Remove all keys with the value None from env, None is used to unset an environment variable
         env = kwargs.pop("env")
         cleaned_env = {env: val for env, val in env.items() if val is not None}
-        kwargs["env"] = cleaned_env
+    else:
+        # No explicit env: subprocess would inherit os.environ directly.
+        cleaned_env = dict(os.environ)
+    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches ordinary
+    # test runs, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
+    kwargs["env"] = strip_ddtest_leaked_env(cleaned_env)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
@@ -1440,7 +1491,7 @@ def call_program(*args, **kwargs):
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
-    return stdout, stderr, subp.wait(), subp.pid
+    return stdout, stderr, subp.returncode, subp.pid
 
 
 def request_token(request: pytest.FixtureRequest) -> str:

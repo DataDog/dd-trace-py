@@ -1,46 +1,85 @@
+from collections.abc import Mapping
 from time import time_ns
 import traceback
-from typing import TYPE_CHECKING
+from typing import Any
+from typing import Optional
+from typing import Protocol
+from typing import Union
 
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
-from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
+from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import AttributeValue
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
-from ddtrace.internal.utils.http import w3c_tracestate_add_p
 from ddtrace.trace import tracer as ddtracer
-
-
-if TYPE_CHECKING:
-    from typing import Mapping  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Union  # noqa:F401
-
-    from opentelemetry.util.types import Attributes  # noqa:F401
-    from opentelemetry.util.types import AttributeValue  # noqa:F401
-
-    from ddtrace._trace.span import Span as DDSpan  # noqa:F401
-    from ddtrace.internal.compat import NumericType  # noqa:F401
 
 
 log = get_logger(__name__)
 
 
-def _ddmap(span, attribute, value):
-    # type: (DDSpan, str, Union[str, bytes, NumericType]) -> DDSpan
+class _DDSpanProtocol(Protocol):
+    """Structural span interface the OpenTelemetry span shim needs.
+
+    Lets this module type-annotate the wrapped Datadog span without a runtime dependency on the
+    concrete ddtrace._trace.span.Span class.
+    """
+
+    name: str
+    resource: str
+    error: int
+    start_ns: int
+
+    @property
+    def finished(self) -> bool: ...
+
+    @property
+    def context(self) -> Context: ...
+
+    @property
+    def span_id(self) -> int: ...
+
+    @property
+    def trace_id(self) -> int: ...
+
+    @property
+    def _local_root(self) -> "_DDSpanProtocol": ...
+
+    def get_tag(self, key: str) -> Optional[str]: ...
+
+    def set_tag(self, key: str, value: Optional[str] = None) -> None: ...
+
+    def _get_ctx_item(self, key: str) -> Optional[Any]: ...
+
+    def _set_ctx_item(self, key: str, val: Any) -> None: ...
+
+    def _finish_ns(self, finish_time_ns: int) -> None: ...
+
+    def _get_str_attribute(self, key: str) -> Optional[str]: ...
+
+    def _set_attribute(self, key: str, value: Any) -> None: ...
+
+    def _remove_attribute(self, key: str) -> None: ...
+
+    def _add_event(self, name: str, attributes: Optional[Any] = None, time_unix_nano: Optional[int] = None) -> None: ...
+
+
+def _ddmap(span: _DDSpanProtocol, attribute: str, value: Union[str, bytes, NumericType]) -> _DDSpanProtocol:
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
@@ -60,18 +99,6 @@ def _ddmap(span, attribute, value):
     return span
 
 
-def _get_trace_flags(sampling_priority):
-    """Returns the trace flags for a given sampling priority.
-    Note - DEFAULT_TRACE_OPTIONS is equivalent to 'span is not sampled YET'
-    """
-    if sampling_priority is None:
-        return DEFAULT_TRACE_OPTIONS
-    elif sampling_priority > 0:
-        return TraceFlags(TraceFlags.SAMPLED)
-    else:
-        return TraceFlags(TraceFlags.DEFAULT)
-
-
 _OTelDatadogMapping = {
     "service.name": "service",
     "resource.name": "resource",
@@ -88,14 +115,13 @@ class Span(OtelSpan):
 
     def __init__(
         self,
-        datadog_span,  # type: DDSpan
-        kind=SpanKind.INTERNAL,  # type: SpanKind
-        attributes=None,  # type: Optional[Mapping[str, AttributeValue]]
-        start_time=None,  # type: Optional[int]
-        record_exception=None,  # type: Optional[bool]
-        set_status_on_exception=None,  # type: Optional[bool]
-    ):
-        # type: (...) -> None
+        datadog_span: _DDSpanProtocol,
+        kind: SpanKind = SpanKind.INTERNAL,
+        attributes: Optional[Mapping[str, AttributeValue]] = None,
+        start_time: Optional[int] = None,
+        record_exception: Optional[bool] = None,
+        set_status_on_exception: Optional[bool] = None,
+    ) -> None:
         if start_time is not None:
             # start_time should be set in nanoseconds
             datadog_span.start_ns = start_time
@@ -168,10 +194,11 @@ class Span(OtelSpan):
             # the span context is accessed.
             ddtracer.sample(self._ddspan._local_root)
 
-        tf = _get_trace_flags(self._ddspan.context.sampling_priority)
-        # Evaluate the tracestate header after the sampling decision has been made
-        ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
-        ts = TraceState.from_header([ts_str])
+        context = self._ddspan.context
+        tf = TraceFlags(context._trace_flags)
+        # Consume canonical tracestate entries directly. Formatting an HTTP
+        # header only for TraceState.from_header() to split it again is measurable here.
+        ts = TraceState(context._tracestate_entries(self._ddspan.span_id))
 
         return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
@@ -268,8 +295,13 @@ class Span(OtelSpan):
                 # latest span status.
                 self._ddspan._remove_attribute(ERROR_MSG)
 
-    def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
-        # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: Optional[Attributes] = None,
+        timestamp: Optional[int] = None,
+        escaped: bool = False,
+    ) -> None:
         """
         Records an exception as an event
         """
@@ -336,7 +368,7 @@ class Span(OtelSpan):
 
     @property
     def _datadog_operation_name(self):
-        # Adapted from https://github.com/DataDog/dd-trace-java/blob/4131e509a94db430b47104769800ec14de5f0a0d/dd-java-agent/instrumentation/opentelemetry/opentelemetry-1.4/src/main/java/datadog/trace/instrumentation/opentelemetry14/trace/OtelConventions.java#L107
+        # Adapted from https://github.com/DataDog/dd-trace-java/blob/4131e509a94db430b47104769800ec14de5f0a0d/dd-java-agent/instrumentation/opentelemetry/opentelemetry-1.4/src/main/java/datadog/trace/instrumentation/opentelemetry14/trace/OtelConventions.java#L107  # noqa: E501
         ddspan = self._ddspan
         span_kind = self.kind
 

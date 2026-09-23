@@ -1,0 +1,74 @@
+[[
+  {
+    "name": "http.client.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "http.client.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a8706b400000000",
+      "_dd.peer.service.source": "out.host",
+      "_dd.svc_src": "httpx2",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmphmh2_56k,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "httpx2",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx2/x.xx.x",
+      "language": "python",
+      "out.host": "localhost",
+      "peer.service": "localhost",
+      "runtime-id": "a6ded5cc1a374be7a5a31912ccb6fe39",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 693.0
+    },
+    "duration": 2331637,
+    "start": 1787233972538944453
+  }],
+[
+  {
+    "name": "http.client.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "http.client.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a8706b400000000",
+      "_dd.peer.service.source": "out.host",
+      "_dd.svc_src": "httpx2",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmphmh2_56k,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "httpx2",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx2/x.xx.x",
+      "language": "python",
+      "out.host": "localhost",
+      "peer.service": "localhost",
+      "runtime-id": "a6ded5cc1a374be7a5a31912ccb6fe39",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 693.0
+    },
+    "duration": 5037861,
+    "start": 1787233972545473369
+  }]]

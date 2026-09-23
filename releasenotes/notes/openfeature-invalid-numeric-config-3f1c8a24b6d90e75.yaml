@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    openfeature: This fix resolves an issue where an invalid value for a numeric Feature
+    Flagging environment variable raised an exception while importing ``ddtrace.openfeature``,
+    preventing the application from starting. Such values are now logged and the documented
+    default is used instead.

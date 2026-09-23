@@ -1,15 +1,22 @@
+from collections.abc import Iterator
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from itertools import chain
 from types import FrameType
 from typing import Any
-from typing import Iterator
 from typing import Optional
 
 from ddtrace.internal.safety import get_slots
 
 
 GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]  # noqa: F821
+
+# Direct handle on type's own __qualname__ getset_descriptor.
+_type_qualname_descriptor: Any = type.__dict__["__qualname__"]  # type: ignore[index]
+
+
+def safe_qualname(cls: type) -> str:
+    return _type_qualname_descriptor.__get__(cls)  # type: ignore[no-any-return]
 
 
 def get_args(frame: FrameType) -> Iterator[tuple[str, Any]]:

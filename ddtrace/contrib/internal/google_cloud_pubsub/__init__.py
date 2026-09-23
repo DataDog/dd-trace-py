@@ -53,8 +53,12 @@ Configuration
    producer context is attached as a span link. Requires
    ``distributed_tracing_enabled`` to be ``True``.
 
-   This option can also be set with the ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS``
-   environment variable.
+   This option can be set by adding ``google_cloud_pubsub`` to the comma-separated
+   ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS`` environment variable.
+
+   The per-integration ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS`` environment
+   variable is deprecated in favor of ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS`` and will be
+   removed in a future release.
 
    Default: ``False``
 

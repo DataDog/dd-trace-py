@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -42,6 +43,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -73,6 +75,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -104,6 +107,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -135,6 +139,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -170,6 +175,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39b4e00000000",
       "_dd.span_links": "[{\"trace_id\": \"69f39b4e0000000080162b7b525a710f\", \"span_id\": \"544ea1c260b6092f\", \"tracestate\": \"dd=t.tid:69f39b4e00000000\", \"flags\": 0}]",
+      "_dd.svc_src": "google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",

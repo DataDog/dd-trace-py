@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes potential process memory growth when a stack profiling sampling cycle exits before completing a
+    sample.

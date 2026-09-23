@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: The Anthropic integration now captures inline base64 image inputs on message
+    requests as ``image_parts`` on LLM span messages, so they can be rendered in LLM Observability.
+    Note: images referenced by a URL or a file ID are not captured, and a very large inline image is
+    replaced with a text placeholder.

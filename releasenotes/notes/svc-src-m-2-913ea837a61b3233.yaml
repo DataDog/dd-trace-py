@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where `_dd.svc_src` was incorrectly set to either `"m"` or the name of the service

@@ -1,6 +1,5 @@
 import os
-
-import mock  # type: ignore[import-untyped]
+from unittest import mock  # type: ignore[import-untyped]
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
@@ -124,23 +123,21 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "agent_service:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "ddtrace.version:{}".format(ddtrace.__version__),
+        f"ddtrace.version:{ddtrace.__version__}",
         "language:python",
     ]
     if error:
         expected_tags.append("error:1")
-        expected_tags.append("error_type:{}".format(error))
+        expected_tags.append(f"error_type:{error}")
     else:
         expected_tags.append("error:0")
     if session_id:
-        expected_tags.append("session_id:{}".format(session_id))
+        expected_tags.append(f"session_id:{session_id}")
     if is_decorator:
         expected_tags.append("decorator:1")
     if tags:
         expected_tags.extend(
-            "{}:{}".format(k, v)
-            for k, v in tags.items()
-            if k not in ("version", "env", "service", "ml_app", "agent_service")
+            f"{k}:{v}" for k, v in tags.items() if k not in ("version", "env", "service", "ml_app", "agent_service")
         )
     return sorted(expected_tags)
 
@@ -428,11 +425,12 @@ def _expected_llmobs_eval_metric_event(
     eval_scope="span",
 ):
     eval_metric_event = {
+        "event_kind": "evaluation",
         "join_on": {},
         "metric_type": metric_type,
         "label": label,
         "tags": [
-            "ddtrace.version:{}".format(ddtrace.__version__),
+            f"ddtrace.version:{ddtrace.__version__}",
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
         "eval_scope": eval_scope,
@@ -465,6 +463,43 @@ def _expected_llmobs_eval_metric_event(
     if metadata is not None:
         eval_metric_event["metadata"] = metadata
     return eval_metric_event
+
+
+def _expected_llmobs_feedback_event(
+    metric_type,
+    label,
+    value,
+    submitter,
+    target_type,
+    target_value,
+    ml_app,
+    timestamp_ms=None,
+    tags=None,
+    assessment=None,
+    reasoning=None,
+):
+    feedback_event = {
+        "event_kind": "feedback",
+        target_type: target_value,
+        "metric_type": metric_type,
+        "label": label,
+        f"{metric_type}_value": value,
+        "submitter": submitter,
+        "tags": [
+            f"ddtrace.version:{ddtrace.__version__}",
+            "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
+        ],
+        "timestamp_ms": timestamp_ms if timestamp_ms is not None else mock.ANY,
+    }
+    if tags is not None:
+        feedback_event["tags"] = tags
+    if assessment is not None:
+        feedback_event["assessment"] = assessment
+    if reasoning is not None:
+        feedback_event["reasoning"] = reasoning
+    if ml_app is not None:
+        feedback_event["ml_app"] = ml_app
+    return feedback_event
 
 
 def _completion_event():
@@ -713,7 +748,7 @@ def expected_ragas_trace_tags():
         "service:tests.llmobs",
         "source:integration",
         "ml_app:unnamed-ml-app",
-        "ddtrace.version:{}".format(ddtrace.__version__),
+        f"ddtrace.version:{ddtrace.__version__}",
         "language:python",
         "error:0",
         "runner.integration:ragas",
@@ -770,13 +805,14 @@ class DummyEvaluator:
 
 def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
     return LLMObsEvaluationMetricEvent(
+        event_kind="evaluation",
         join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
         label=label or "dummy",
-        tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
+        tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:unnamed-ml-app"],
         eval_scope="span",
     )
 
@@ -1191,7 +1227,7 @@ def assert_llmobs_span_data(
     """
     # If meta_struct is empty there's nothing else to assert against; fail fast with a
     # clear hint about the most common cause.
-    assert actual, "expected LLMObsSpanData on span, got {!r} (was meta_struct scrubbed?)".format(actual)
+    assert actual, f"expected LLMObsSpanData on span, got {actual!r} (was meta_struct scrubbed?)"
 
     actual_meta = actual.get(LLMOBS_STRUCT.META, {})
     actual_input = actual_meta.get(LLMOBS_STRUCT.INPUT, {})
@@ -1219,15 +1255,11 @@ def assert_llmobs_span_data(
 
     def _check_eq(label, expected_value, actual_value):
         if actual_value != expected_value:
-            failures.append(
-                "{} mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_value, actual_value)
-            )
+            failures.append(f"{label} mismatch:\n    expected={expected_value!r}\n    actual={actual_value!r}")
 
     def _check_subset(label, expected_subset, actual_dict):
         if not expected_subset.items() <= actual_dict.items():
-            failures.append(
-                "{} subset mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_subset, actual_dict)
-            )
+            failures.append(f"{label} subset mismatch:\n    expected={expected_subset!r}\n    actual={actual_dict!r}")
 
     # Structural — strict equality on each declared field.
     _check_eq("span.kind", span_kind, actual_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND))
@@ -1262,9 +1294,7 @@ def assert_llmobs_span_data(
     if error is None:
         actual_error = actual_meta.get(LLMOBS_STRUCT.ERROR)
         if actual_error:
-            failures.append(
-                "meta.error unexpectedly present:\n    expected=<absent>\n    actual={!r}".format(actual_error)
-            )
+            failures.append(f"meta.error unexpectedly present:\n    expected=<absent>\n    actual={actual_error!r}")
     else:
         _check_eq("meta.error", error, actual_meta.get(LLMOBS_STRUCT.ERROR))
     if tool_definitions is not None:

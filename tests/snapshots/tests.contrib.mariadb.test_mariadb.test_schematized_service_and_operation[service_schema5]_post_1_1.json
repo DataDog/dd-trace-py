@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69eb930c00000000",
       "_dd.peer.service.source": "db.name",
-      "_dd.svc_src": "mysvc",
+      "_dd.svc_src": "mariadb",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "mariadb",
       "db.name": "test",

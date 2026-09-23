@@ -1,0 +1,70 @@
+[[
+  {
+    "name": "http.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "http.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a8706b500000000",
+      "_dd.svc_src": "httpx2",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpag634cb9,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "httpx2",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx2/x.xx.x",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "3dc1a1db581941df91adc74ea9c62523",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 707.0
+    },
+    "duration": 2257562,
+    "start": 1787233973899094807
+  }],
+[
+  {
+    "name": "http.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "http.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a8706b500000000",
+      "_dd.svc_src": "httpx2",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpag634cb9,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "httpx2",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx2/x.xx.x",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "3dc1a1db581941df91adc74ea9c62523",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 707.0
+    },
+    "duration": 4591409,
+    "start": 1787233973905362753
+  }]]

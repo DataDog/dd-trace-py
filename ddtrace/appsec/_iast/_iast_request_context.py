@@ -2,7 +2,6 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_env import _get_iast_env
@@ -14,7 +13,8 @@ from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.internal import core
+from ddtrace.internal import span_bus
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -38,7 +38,7 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
 
 
 def _create_and_attach_iast_report_to_span(
-    req_span: "Span", existing_data: Optional[Union[str, dict[str, Any]]], merge: bool = False
+    req_span: SpanProtocol, existing_data: Optional[Union[str, dict[str, Any]]], merge: bool = False
 ):
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
     if merge and existing_data is not None and report_data is not None:
@@ -70,7 +70,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
         move_to_root = asm_config._iast_use_root_span
         if move_to_root:
-            req_span = core.get_root_span()
+            req_span = span_bus.get_root_span()
         else:
             if span:
                 req_span = span

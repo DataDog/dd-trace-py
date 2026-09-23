@@ -7,7 +7,7 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-class ValueCollector(object):
+class ValueCollector:
     """A basic state machine useful for collecting, caching and updating data
     obtained from different Python modules.
 
@@ -80,10 +80,11 @@ class ValueCollector(object):
         self.value_loaded = True
         return self.value
 
+    def stop(self) -> None:
+        """Release process-wide resources. Base is a no-op."""
+
     def __repr__(self):
-        return "<{}(enabled={},periodic={},required_modules={})>".format(
-            self.__class__.__name__,
-            self.enabled,
-            self.periodic,
-            self.required_modules,
+        return (
+            f"<{self.__class__.__name__}(enabled={self.enabled},periodic={self.periodic},"
+            f"required_modules={self.required_modules})>"
         )

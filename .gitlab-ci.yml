@@ -1,27 +1,34 @@
 stages:
   - package
+  - shared-pipeline-build
   - tests
   - system-tests
   - fuzz
-  - shared-pipeline
+  - shared-pipeline-test
   - benchmarks
   - release
+  - shared-pipeline-publish
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  # Build OpenTelemetry Operator-compatible Python images through one-pipeline.
+  CI_OTEL_OPERATOR_IMAGES_ENABLED: "true"
+  CI_OTEL_OPERATOR_LANGUAGE: python
   # VPA Template configuration
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "f80b47dee3bb5871ed9d712d393abe949901d4df"
+  SYSTEM_TESTS_REF: "7826911341b566032de160372974ada85830df22"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
+  # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
+  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v130207166-153cbe2-ci-utils@sha256:816d1defebb9f049f3bc2e9987ce90d47f7a6c0316b7fc720c30f56376be63ed"
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
@@ -55,6 +62,12 @@ workflow:
 
 include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
+  - local: ".gitlab/retry-policies.yml"
+  # Included after the base policies so main pipelines override them without
+  # duplicating concrete job definitions or changing job identities.
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -111,8 +124,13 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs:
+   - tests-gen
+   # Provides ddtrace wheels for running tests
+   - job: "upload manylinux2014_x86_64"
+     artifacts: false
  variables:
+   PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
@@ -170,8 +188,8 @@ microbenchmarks:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -182,26 +200,15 @@ microbenchmarks:
       - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
         job: tests-gen
     strategy: depend
-    # Forward pipeline variables so an external orchestrator can pass
-    # BP_EXTERNAL_S3_URL down to override the S3 destination of benchmark results.
-    forward:
-      pipeline_variables: true
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
-
-apm-sdk-benchmarks:
-  stage: benchmarks
-  when: manual
-  allow_failure: true
-  needs:
-    - job: "upload all"
-  trigger:
-    project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
-  variables:
-    TARGET_REF: $CI_PIPELINE_ID
+    # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
+    # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
+    # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
+    # so downstream code must treat that literal as unset.
+    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
 
 macrobenchmarks:
   stage: benchmarks
@@ -211,17 +218,18 @@ macrobenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
-    # Forward pipeline variables so an external orchestrator can pass
-    # BP_EXTERNAL_S3_URL down to override the S3 destination of benchmark results.
-    forward:
-      pipeline_variables: true
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
+    # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
+    # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
+    # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
+    # so downstream code must treat that literal as unset.
+    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
   allow_failure: false
   rules:
     # Always run on nightly schedule or API triggered pipelines
@@ -231,10 +239,44 @@ macrobenchmarks:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     # Always run on tagged releases and release branches
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: !reference [.is_release_branch]
       when: always
     - if: !reference [.is_release]
       when: always
+    # Otherwise, run manually
+    - when: manual
+      allow_failure: true
+
+apm-sdks-benchmarks:
+  stage: benchmarks
+  needs:
+    - job: "upload all"
+  variables:
+    # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
+    # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
+    # all". Inside a child pipeline that variable is the child's own ID, not
+    # this (parent) pipeline's, so it must be passed explicitly.
+    TARGET_REF: $CI_PIPELINE_ID
+  trigger:
+    include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
+    strategy: depend
+  rules:
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    # Always run on tagged releases and release branches
+    - if: !reference [.is_release_branch]
+      when: always
+    - if: !reference [.is_release]
+      when: always
+    - if: !reference [.is_main]
+      when: always
+    # Flaky benchmark monitoring runs this branch unattended from a parent pipeline,
+    # and pushes to it need the same automatic run while that setup is developed.
+    - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring"
+      when: always
+    # No $NIGHTLY_BUILD rule here: apm-sdks-benchmarks already runs its own nightly
+    # schedule in that project's own CI, independent of dd-trace-py's pipeline.
     # Otherwise, run manually
     - when: manual
       allow_failure: true
@@ -306,20 +348,9 @@ check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
-  variables:
-    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
-    # (see "overridden by VPA" in runner logs) and clamps the build container
-    # down to ~4 GiB based on its learned model. compile-and-prune-test-
-    # requirements pip-compiles every riot lockfile sequentially and peaks
-    # above that when resolving the full venv matrix (including 3.15 venvs),
-    # causing OOMKilled (exit 137).
-    DD_DISABLE_VPA: "true"
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
-    - pip install toml==0.10.2 pyyaml==6.0.2
-    - scripts/compile-and-prune-test-requirements
-    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+    - pip install toml==0.10.2
+    - scripts/test-requirements check
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
@@ -334,7 +365,12 @@ codeowners:
   stage: tests
   needs: []
   tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  variables:
+    GIT_DEPTH: "0"
+  image: ${CI_UTILS_IMAGE}
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   script:
     # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
     # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
@@ -362,22 +398,27 @@ codeowners:
             echo "Please remove duplicates from .github/CODEOWNERS."
             exit 1
         fi
-    - apt-get update && apt install ca-certificates git wget curl -y
-    - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
-    - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
-    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      > /tmp/changed_files.txt
-      while IFS= read -r f; do
-        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
-      done < /tmp/changed_all.txt
-    - |
-      if [ -s /tmp/changed_files.txt ]; then
-        echo '```' > codeowners.txt
-        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
-        echo '```' >> codeowners.txt
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+      git show "FETCH_HEAD:.github/CODEOWNERS" > /tmp/base-CODEOWNERS
+      git diff --name-only --diff-filter=ACMRTUXB -z "FETCH_HEAD...${CI_COMMIT_SHA}" > /tmp/changed_files.txt
+    - |
+      {
+        printf 'Resolved from the full PR diff against `%s` using the target branch CODEOWNERS file.\n' "${BASE_BRANCH}"
+        printf 'CODEOWNERS team requests not listed below are not required by the current file set.\n\n'
+        if [ -s /tmp/changed_files.txt ]; then
+          echo '```'
+          xargs -0 codeowners --file /tmp/base-CODEOWNERS < /tmp/changed_files.txt
+          echo '```'
+        else
+          echo 'No remaining files require a CODEOWNERS review.'
+        fi
+      } | tee codeowners.txt
     - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
 
 detect_circular_imports:
@@ -401,14 +442,14 @@ detect_circular_imports:
     - cat cycles-pr.json
     - |
       cd dd-trace-py
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
+      # resolve-base-branch.sh mints its own token only if it hits the API,
+      # so don't acquire one unconditionally here.
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
-      git checkout FETCH_HEAD
+      git fetch origin -- "${BASE_BRANCH}"
+      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
+      git checkout "${MERGE_BASE}"
       cd ..
-    # Analyse the base branch ddtrace using the PR version of cycles.py (has uv metadata)
+    # Analyse the merge base ddtrace using the PR version of cycles.py (has uv metadata)
     - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
     - cat cycles-base.json
     - |
@@ -420,10 +461,57 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
+detect_layering_violations:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - pip install uv
+    - cd ..
+    # Keep copies of PR scripts (and their config) so they survive the git checkout of the base branch below
+    - cp dd-trace-py/scripts/import-analysis/layers.py layers.py
+    - cp dd-trace-py/scripts/import-analysis/layers.json layers.json
+    - cp dd-trace-py/.gitlab/scripts/post-pr-comment.sh post-pr-comment.sh
+    - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-pr.json
+    - cat layers-pr.json
+    - |
+      cd dd-trace-py
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
+      git checkout "${MERGE_BASE}"
+      cd ..
+    # Analyse the merge base using the PR version of layers.py/layers.json (has uv metadata)
+    - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-base.json
+    - cat layers-base.json
+    - |
+      set +e
+      uv run --script layers.py compare layers-base.json layers-pr.json > layers_report.txt
+      COMPARE_EXIT=$?
+      set -e
+    - cat layers_report.txt
+    - ./post-pr-comment.sh "Dependency direction analysis" layers_report.txt
+    - exit $COMPARE_EXIT
+
 check_added_file_size:
   stage: tests
   needs: []
   extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
   rules:
     - if: !reference [.is_main]
       when: never
@@ -447,6 +535,87 @@ check_added_file_size:
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
+
+check_no_new_aidev_anchors:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+    - unset GH_TOKEN DDOCTOSTS_ID_TOKEN
+    - python3 scripts/check_no_new_aidev_anchors.py --base-ref FETCH_HEAD
+
+check_type_comments:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+    - python3 scripts/check_type_comments.py --base-ref FETCH_HEAD
+
+# Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
+# tests stub git/curl (no network), so we skip the heavier .testrunner setup.
+test_resolve_base_branch:
+  stage: tests
+  needs: []
+  image:
+    name: ${TESTRUNNER_IMAGE}
+    docker:
+      user: bits
+  tags: [ "arch:amd64" ]
+  timeout: 5m
+  script:
+    - .gitlab/scripts/resolve-base-branch.test.sh
 
 
 "summarize failures":
@@ -488,79 +657,8 @@ check_added_file_size:
       - claude.stdout.log
     expire_in: 1 month
 
-
-package-oci:
-  needs:
-    - job: "package version"
-      artifacts: true
-    - job: "build linux"
-      artifacts: true
-    - job: "download_dependency_wheels"
-      artifacts: true
-
-promote-oci-to-prod:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-prod-beta:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-staging:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-publish-lib-init-pinned-tags:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: create-multiarch-lib-injection-image
-    - job: generate-lib-init-pinned-tag-values
-      artifacts: true
-
-configure_system_tests:
-  needs: []
-  variables:
-    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
-
-system_tests:
-  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
-
-deploy_to_reliability_env:
-  needs: []
-  rules:
-    # Always deploy on main nightly builds
-    - if: $NIGHTLY_BUILD == "true" && $CI_COMMIT_REF_NAME == "main"
-      when: always
-    # Original rules from one-pipeline.yml
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: on_success
-    - when: manual
-      allow_failure: true
-
 deploy_to_di_backend:manual:
-  stage: shared-pipeline
+  stage: tests
   rules:
     - when: manual
       allow_failure: true
@@ -577,19 +675,22 @@ deploy_to_di_backend:manual:
     UPSTREAM_PACKAGE_JOB: build
 
 # Trigger profiling correctness tests with just-built wheels.
-# Runs the prof-correctness test suite (Python scenarios) against the wheels
-# uploaded to S3 for this commit.
+# Runs the eight 3.14/3.15 migration scenarios in prof-correctness against the
+# wheels uploaded to S3 for this commit (Python-only; see downstream-python.yml).
 prof-correctness:
-  stage: shared-pipeline
+  stage: tests
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: ["arch:amd64"]
   needs:
     - job: "upload all"
-  allow_failure: true
+  timeout: 60m
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
-    - changes:
+    # Bare rules:changes is true for web/API/tag pipelines; require a push.
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - .github/workflows/prof-correctness.yml
         - .gitlab-ci.yml
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
@@ -602,17 +703,46 @@ prof-correctness:
   script:
     - |
       if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+        export GH_TOKEN="$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)"
       fi
-    - |
-      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
-      # Trigger pipeline, but do not wait for the job to complete
+      if [ -z "${GH_TOKEN:-}" ]; then
+        echo "error: GH_TOKEN is empty after dd-octo-sts (policy dd-trace-py.gitlab.trigger-ci)" >&2
+        exit 1
+      fi
+      TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
+      # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
+      TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
       gh workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
-        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
+        -f "test_scenarios=${TEST_SCENARIOS}"
+
+      RUN_ID=""
+      for _ in $(seq 1 30); do
+        RUN_ID="$(gh run list \
+          --repo DataDog/prof-correctness \
+          --workflow=downstream-python.yml \
+          --event workflow_dispatch \
+          --limit 20 \
+          --json databaseId,displayTitle,headSha,event,createdAt \
+          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+        if [ -n "${RUN_ID}" ]; then
+          break
+        fi
+        sleep 2
+      done
+
+      if [ -z "${RUN_ID}" ]; then
+        echo "error: no DataDog/prof-correctness downstream-python run found for sha ${CI_COMMIT_SHA} (expected title 'dd-trace-py downstream (${CI_COMMIT_SHA})') dispatched at/after ${TRIGGERED_AT}" >&2
+        exit 1
+      fi
+
+      echo "Watching prof-correctness run ${RUN_ID}"
+      gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
 
 lib_injection_tests:
-  # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
+  # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
@@ -662,8 +792,9 @@ lib_injection_tests:
 # Extension-based patterns keep Python and docs out automatically; non-extension
 # build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
-  extends: .profiling_native_base
-  retry: 2
+  extends:
+    - .profiling_native_base
+    - .retry_on_all_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
@@ -690,7 +821,12 @@ profiling_native:
         # against generated FFI headers from src/native/target/.../include/)
         - src/native/**/*.rs
         - src/native/**/*.toml
+        - src/native/**/*.txt
         - src/native/**/Cargo.lock
+        # Standalone heap-gotter cdylib crate (opt-in build via setup.py)
+        - src/native_heap_gotter/**/*.rs
+        - src/native_heap_gotter/**/*.toml
+        - src/native_heap_gotter/**/Cargo.lock
         # Top-level build config
         - setup.py
         - pyproject.toml
@@ -719,3 +855,32 @@ test-dd-sts:
     - apt-get update && apt-get install -y curl
     - 'curl -s -o /dev/null -w "API key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab"'
     - 'curl -s -o /dev/null -w "APP key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key"'
+
+package-oci:
+  needs:
+    - job: "package version"
+      artifacts: true
+    - job: "build linux"
+      artifacts: true
+    - job: "download_dependency_wheels"
+      artifacts: true
+      # 3.15 cell is when: never until the python image is mirrored
+      optional: true
+
+configure_system_tests:
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+
+system_tests:
+  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
+
+# The reliability environment installs commit-scoped wheels from the CI index.
+deploy_to_reliability_env:
+  needs:
+    - job: "upload all"
+      artifacts: false
+
+# Clear the one-pipeline publishing-gate's `needs: []` so it falls back to
+# stage-based ordering and waits for all prior stages before publishing.
+publishing-gate:
+  needs: null

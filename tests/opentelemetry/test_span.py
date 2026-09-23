@@ -15,6 +15,9 @@ import pytest
 
 from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.opentelemetry.sampling import _random_value
 from ddtrace.internal.opentelemetry.span import Span
 
 
@@ -80,7 +83,7 @@ def test_otel_span_events(oteltracer):
 )
 def test_otel_span_attributes_overrides(oteltracer, override):
     otel, value = override
-    with oteltracer.start_span("set-{}".format(otel)) as span:
+    with oteltracer.start_span(f"set-{otel}") as span:
         span.set_attribute(otel, value)
 
 
@@ -265,7 +268,10 @@ def test_otel_get_span_context(oteltracer):
     # By default ddtrace set sampled=True for all spans
     assert span_context.trace_flags == TraceFlags.SAMPLED
     # Default tracestate values set on all Datadog Spans
-    assert span_context.trace_state.to_header() == "dd=p:{:016x};s:1;t.dm:-0".format(span_context.span_id)
+    assert (
+        span_context.trace_state.to_header()
+        == f"dd=p:{span_context.span_id:016x};s:1;t.dm:-0,ot=rv:{_random_value(span_context.trace_id):014x};th:0"
+    )
 
 
 def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
@@ -275,9 +281,9 @@ def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
     otelspan.end()
 
     span_context = otelspan.get_span_context()
-    assert (
-        span_context.trace_state.to_header()
-        == "dd=p:{:016x};s:1;t.dm:-0;t.congo:t61rcWkgMzE;t.some_val:tehehe".format(span_context.span_id)
+    assert span_context.trace_state.to_header() == (
+        f"dd=p:{span_context.span_id:016x};s:1;t.dm:-0;t.congo:t61rcWkgMzE;"
+        f"t.some_val:tehehe,ot=rv:{_random_value(span_context.trace_id):014x};th:0"
     )
 
 
@@ -287,6 +293,47 @@ def test_otel_get_span_context_with_default_trace_state(oteltracer):
 
         span_context = otelspan.get_span_context()
         assert span_context.trace_flags == TraceFlags.DEFAULT
+
+
+@pytest.mark.parametrize(("sampling_priority", "expected_flags"), [(0, 0x2), (1, 0x3)])
+@pytest.mark.parametrize(("version", "future_fields"), [("00", ""), ("01", "-what-the-future-looks-like")])
+def test_otel_get_span_context_preserves_inherited_random_trace_id_flag(
+    oteltracer, sampling_priority, expected_flags, version, future_fields
+):
+    otelspan = oteltracer.start_span("otel-server")
+    context = otelspan._ddspan.context
+    context.sampling_priority = sampling_priority
+    context._meta[W3C_TRACEPARENT_KEY] = f"{version}-{context.trace_id:032x}-{context.span_id:016x}-03{future_fields}"
+    context._meta[W3C_TRACESTATE_KEY] = "ot=th:8"
+
+    span_context = otelspan.get_span_context()
+
+    assert span_context.trace_flags == TraceFlags(expected_flags)
+    assert "ot=th:8" in span_context.trace_state.to_header()
+
+
+def test_otel_child_span_context_reflects_root_sampling_decision(oteltracer):
+    """A child span surfaces the sampling decision made on its local root.
+
+    A child span's Datadog context is built lazily as a copy of its parent's that shares the
+    trace-level ``_metrics`` (where sampling priority lives) by reference. get_span_context()
+    makes the sampling decision on the local root the first time it is read; because the child
+    shares that ``_metrics`` dict, the decision is visible through the child's context. Assert
+    the child reports a consistent, non-None sampling decision matching the root.
+    """
+    with oteltracer.start_as_current_span("otel-root") as root_span:
+        with oteltracer.start_as_current_span("otel-child") as child_span:
+            # Read the child first: this samples the local root and records the decision in the
+            # trace-level metrics shared with the child's lazily-built context.
+            child_context = child_span.get_span_context()
+            root_context = root_span.get_span_context()
+
+            assert child_context.trace_id == root_context.trace_id
+            # A concrete (non-None) sampling decision is visible through the child's context.
+            assert child_span._ddspan.context.sampling_priority is not None
+            # The child and root agree on the sampling decision (shared trace-level metrics).
+            assert child_context.trace_flags == root_context.trace_flags
+            assert child_context.trace_flags == TraceFlags.SAMPLED
 
 
 @pytest.mark.parametrize("trace_flags", [TraceFlags.SAMPLED, TraceFlags.DEFAULT])

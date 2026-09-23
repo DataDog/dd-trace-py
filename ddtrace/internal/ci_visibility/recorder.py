@@ -31,6 +31,7 @@ from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
+from ddtrace.internal.ci_visibility._protocols import CIVisibilityProtocol
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._session import TestVisibilitySessionSettings
@@ -151,7 +152,7 @@ class CIVisibilityTracer(Tracer):
         super().__init__(*args, **kwargs)
 
 
-class CIVisibility(Service):
+class CIVisibility(Service, CIVisibilityProtocol):
     _instance: Optional["CIVisibility"] = None
     enabled = False
 
@@ -210,7 +211,7 @@ class CIVisibility(Service):
         self._api_key = env.get("_CI_DD_API_KEY", env.get("DD_API_KEY"))
 
         self._dd_site = env.get("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
+        self.config: Optional[IntegrationConfig] = config or ddconfig.test_visibility
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
         self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
         if not isinstance(ddconfig.test_visibility.itr_skipping_level, ITR_SKIPPING_LEVEL):
@@ -262,7 +263,7 @@ class CIVisibility(Service):
                 self._dd_env = "none"
                 dd_env_msg = " (not set in environment)"
             if not self._api_key:
-                raise EnvironmentError(
+                raise OSError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
                     "cannot be initialized."
                 )
@@ -665,7 +666,7 @@ class CIVisibility(Service):
             cls._instance.is_known_tests_enabled(),
         )
 
-    # AIDEV-NOTE: _suspend()/_resume() allow a nested pytest session (e.g. inline_run())
+    # _suspend()/_resume() allow a nested pytest session (e.g. inline_run())
     # or a test fixture to get a clean-slate view of CIVisibility without stopping the
     # outer session's instance.  Unlike calling disable(), _suspend() never calls stop()
     # on the instance, so the outer tracer and telemetry keep running.  Pair them in a

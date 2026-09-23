@@ -3,6 +3,8 @@ from inspect import unwrap
 from pathlib import Path
 import typing as t
 
+import pytest
+
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._session import Session
@@ -32,7 +34,7 @@ class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
 
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
-        super(SpanProbeTestCase, self).setUp()
+        super().setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
 
@@ -43,7 +45,7 @@ class SpanProbeTestCase(TracerTestCase):
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
-        super(SpanProbeTestCase, self).tearDown()
+        super().tearDown()
 
         MockSpanCodeOriginProcessorEntry.disable()
 
@@ -145,40 +147,6 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.frames.0.snapshot_id") is None
 
         assert snapshot_ids_from_span_tags == snapshot_ids
-
-    def test_span_origin_entry(self):
-        def entry_call():
-            pass
-
-        core.dispatch("service_entrypoint.patch", (entry_call,))
-
-        with self.tracer.trace("entry"):
-            entry_call()
-            with self.tracer.trace("middle"):
-                with self.tracer.trace("exit", span_type=SpanTypes.HTTP):
-                    pass
-
-        self.assert_span_count(3)
-        entry, middle, _exit = self.get_spans()
-
-        # Check for the expected tags on the entry span
-        assert entry.get_tag("_dd.code_origin.type") == "entry"
-        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
-        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
-        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
-        assert (
-            entry.get_tag("_dd.code_origin.frames.0.method")
-            == "SpanProbeTestCase.test_span_origin_entry.<locals>.entry_call"
-        )
-
-        # Check that we don't have span location tags on the middle span
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
-
-        # Check that we also don't have the span location tags on the exit span
-        assert _exit.get_tag("_dd.code_origin.type") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
 
     def test_span_origin_entry_method(self):
         class App:
@@ -289,6 +257,66 @@ class SpanProbeTestCase(TracerTestCase):
         assert inner_span.get_tag("_dd.code_origin.frames.0.file") is None
 
 
+@pytest.mark.subprocess(err=None)
+def test_span_origin_tracer_wrap_ephemeral_no_leak():
+    """
+    Regression: ephemeral functions decorated with @tracer.wrap() on every call
+    (e.g. a connection/cursor factory pattern) must not leak the function, its
+    EntrySpanWrappingContext, or its EntrySpanProbe once code origin for spans
+    is enabled and the function goes out of scope.
+
+    Run in a subprocess, rather than in-process under pytest, to escape a
+    pytest-cov/coverage.py artifact: on Python 3.12+, coverage's SysMonitor
+    backend (coverage/sysmon.py) intentionally keeps a strong reference to every
+    code object it has ever seen for the life of the collection session, to keep
+    id()-based identity safe. Once one of these ephemeral functions is invoked
+    and promoted to permanent wrapping, its spliced code object embeds the
+    wrapping context in its constants, so coverage's strong reference would
+    otherwise keep it (and the function) alive for the rest of the pytest run --
+    not a genuine production leak.
+    """
+    import gc
+    from inspect import unwrap
+    import typing as t
+    import weakref
+
+    import ddtrace
+    from ddtrace.debugging._origin.span import EntrySpanWrappingContext
+    import ddtrace.debugging._products.code_origin.span as code_origin_span
+
+    code_origin_span.start()
+
+    tracer = ddtrace.tracer
+
+    def make_and_call():
+        @tracer.wrap("entry")
+        def entry_call():
+            pass
+
+        original = unwrap(entry_call)
+
+        with tracer.trace("root"):
+            entry_call()
+
+        context = t.cast(EntrySpanWrappingContext, EntrySpanWrappingContext.extract(original))
+        return (
+            weakref.ref(original),
+            weakref.ref(context),
+            weakref.ref(context.location.probe),
+        )
+
+    refs = [make_and_call() for _ in range(5)]
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref, _ in refs if c_ref() is not None)
+    alive_probes = sum(1 for _, _, p_ref in refs if p_ref() is not None)
+
+    assert alive_functions == 0, f"{alive_functions} ephemeral function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} EntrySpanWrappingContext(s) leaked"
+    assert alive_probes == 0, f"{alive_probes} EntrySpanProbe(s) leaked"
+
+
 def test_instrument_view_benchmark(benchmark):
     """Benchmark instrument_view performance when wrapping functions."""
     MockSpanCodeOriginProcessorEntry.enable()
@@ -328,3 +356,26 @@ def test_instrument_view_benchmark(benchmark):
 
     finally:
         MockSpanCodeOriginProcessorEntry.disable()
+
+
+@pytest.mark.subprocess
+def test_instrument_view_does_not_leak_ephemeral_functions_while_disabled():
+    import gc
+    import weakref
+
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
+    assert SpanCodeOriginProcessorEntry._instance is None
+
+    def make_and_instrument():
+        def ephemeral():
+            return 42
+
+        SpanCodeOriginProcessorEntry.instrument_view(ephemeral)
+        return weakref.ref(ephemeral)
+
+    refs = [make_and_instrument() for _ in range(5)]
+    gc.collect()
+
+    alive = sum(1 for r in refs if r() is not None)
+    assert alive == 0, f"{alive} ephemeral function(s) leaked via SpanCodeOriginProcessorEntry._pending"

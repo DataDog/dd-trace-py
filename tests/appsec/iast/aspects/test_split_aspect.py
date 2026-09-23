@@ -24,6 +24,22 @@ def wrap_somesplit(func, *args, **kwargs):
     return func(None, 0, *args, **kwargs)
 
 
+def test_split_releases_custom_function_result():
+    released = []
+
+    class Result(list):
+        def __del__(self):
+            released.append(True)
+
+    def custom_split(value):
+        return Result([value])
+
+    result = _aspect_split(custom_split, 1, "instrumentation argument", "value")
+    assert result == ["value"]
+    del result
+    assert released == [True]
+
+
 @given(one_of(non_empty_text))
 def test_aspect_split(text):
     text_1 = text

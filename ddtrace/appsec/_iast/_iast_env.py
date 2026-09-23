@@ -1,9 +1,11 @@
 from typing import TYPE_CHECKING
 from typing import Optional
+from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -15,14 +17,18 @@ class IASTEnvironment:
     an object of this class contains all iast data
     for a single request. It is bound to a single iast request context.
     It is contained into a ContextVar.
+
+    Immutable source objects are retained until request teardown so their addresses
+    cannot be reused while source overrides preserve their secure marks.
     """
 
-    def __init__(self, span: Optional[Span] = None):
-        self.span = span or core.get_span()
+    def __init__(self, span: Optional[SpanProtocol] = None):
+        self.span = span or span_bus.get_span()
 
-        self.iast_reporter: Optional["IastSpanReporter"] = None
+        self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: dict[str, int] = {}
         self.iast_hash_object_tracking: dict[int, bool] = {}
+        self.iast_taint_source_objects: dict[int, Union[str, bytes]] = {}
         self.iast_stack_trace_reported: bool = False
         self.vulnerability_copy_global_limit: dict[str, int] = {}
         self.vulnerabilities_request_limit: dict[str, int] = {}

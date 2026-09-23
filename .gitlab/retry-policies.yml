@@ -1,0 +1,17 @@
+# Retry policies for pipelines.
+# https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/2411528655/Onboarding+To+Gitlab+CI#Retry-settings-%3Aloop%3A
+
+# Retry policies for all pipelines. A later conditional include overrides
+# retry_on_all_failure jobs to limit retries to infrastructure failures only
+.retry_on_all_failure:
+  retry: 2
+
+.retry_on_infrastructure_failure:
+  retry:
+    max: 2
+    when:
+      - unknown_failure
+      - data_integrity_failure
+      - runner_system_failure  # mostly machine failed to be provisioned
+      - scheduler_failure
+      - api_failure

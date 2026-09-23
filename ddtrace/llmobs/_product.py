@@ -5,10 +5,10 @@ that operators can enable/disable LLMObs and set the ml_app name at runtime
 without restarting the service.
 """
 
-import enum
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigCapabilities
 
 
 log = get_logger(__name__)
@@ -16,8 +16,7 @@ log = get_logger(__name__)
 requires = ["apm-tracing-rc"]
 
 
-class APMCapabilities(enum.IntFlag):
-    APM_TRACING_LLMOBS = 1 << 48
+APMCapabilities = (RemoteConfigCapabilities.LlmObsActivation,)
 
 
 def enabled() -> bool:

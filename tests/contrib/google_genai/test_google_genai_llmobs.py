@@ -221,7 +221,7 @@ class TestLLMObsGoogleGenAI:
                 spans[0],
                 model_name="gemini-2.5-pro",
                 output_messages=[
-                    {"content": "Let me think about this...", "role": "assistant"},
+                    {"content": "Let me think about this...", "role": "reasoning"},
                     {"content": "The sky is blue due to rayleigh scattering", "role": "assistant"},
                 ],
                 metrics={
@@ -263,6 +263,36 @@ class TestLLMObsGoogleGenAI:
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
             **_expected_generate_content_span_data(spans[0]),
+        )
+
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_generate_content_stream_with_reasoning(
+        self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream_with_reasoning, consume_stream
+    ):
+        response = genai_client.models.generate_content_stream(
+            model="gemini-2.5-pro",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        consume_stream(response)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            **_expected_generate_content_span_data(
+                spans[0],
+                model_name="gemini-2.5-pro",
+                output_messages=[
+                    {"content": "Let me think about this...", "role": "reasoning"},
+                    {"content": "The sky is blue due to rayleigh scattering", "role": "assistant"},
+                ],
+                metrics={
+                    "input_tokens": 8,
+                    "output_tokens": 14,
+                    "total_tokens": 22,
+                    "reasoning_output_tokens": 5,
+                },
+            ),
         )
 
     def test_generate_content_stream_error(self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream):
@@ -325,6 +355,36 @@ class TestLLMObsGoogleGenAI:
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
             **_expected_generate_content_span_data(spans[0]),
+        )
+
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_generate_content_stream_async_with_reasoning(
+        self, genai_client, genai_llmobs, test_spans, mock_async_generate_content_stream_with_reasoning, consume_stream
+    ):
+        response = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.5-pro",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        await consume_stream(response)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            **_expected_generate_content_span_data(
+                spans[0],
+                model_name="gemini-2.5-pro",
+                output_messages=[
+                    {"content": "Let me think about this...", "role": "reasoning"},
+                    {"content": "The sky is blue due to rayleigh scattering", "role": "assistant"},
+                ],
+                metrics={
+                    "input_tokens": 8,
+                    "output_tokens": 14,
+                    "total_tokens": 22,
+                    "reasoning_output_tokens": 5,
+                },
+            ),
         )
 
     async def test_generate_content_stream_async_error(

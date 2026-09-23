@@ -3,11 +3,11 @@ from collections import defaultdict
 from collections import deque
 from importlib.metadata import entry_points
 from itertools import chain
-import sys
 import typing as t
 from typing import Protocol  # noqa:F401
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
@@ -30,7 +30,7 @@ _TRUSTED_PRODUCT_DISTRIBUTIONS = frozenset({"ddtrace"})
 _TRUSTED_PRODUCT_MODULE_PREFIXES = frozenset({"ddtrace."})
 
 
-if sys.version_info >= (3, 10):
+if is_at_least_py(3, 10):
 
     def get_product_entry_points() -> list[t.Any]:
         return list(entry_points(group="ddtrace.products"))
@@ -247,6 +247,11 @@ class ProductManager:
     def _do_products(self) -> None:
         # Start all products
         self.start_products()
+
+        # Emit telemetry app-started now that products are loaded and their configuration has been
+        # reported, so the app-started payload carries the full startup configuration (the native
+        # worker builds it from state accumulated so far; see TelemetryWriter.app_started).
+        telemetry_writer.app_started()
 
         # Execute before fork hooks
         forksafe.register_before_fork(self.before_fork)

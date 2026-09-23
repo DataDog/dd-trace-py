@@ -10,19 +10,18 @@ import azure.servicebus.amqp as azure_servicebus_amqp
 from azure.servicebus.amqp import AmqpAnnotatedMessage
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 
 
 def create_context(
     context_name: str,
-    pin: Pin,
     operation_name: str,
     resource: Optional[str] = None,
     integration_config: Optional[dict] = None,
@@ -30,9 +29,8 @@ def create_context(
     return core.context_with_data(
         context_name,
         span_name=operation_name,
-        pin=pin,
         resource=resource,
-        service=ext_service(pin, config.azure_servicebus),
+        service=ext_service(None, config.azure_servicebus),
         span_type=SpanTypes.WORKER,
         integration_config=integration_config,
     )
@@ -127,7 +125,7 @@ def dispatch_message_modifier(
     message_id, batch_count = handle_service_bus_message_attributes(message_arg_value)
 
     if config.azure_servicebus.distributed_tracing:
-        handle_service_bus_message_context(ctx.span, message_arg_value)
+        handle_service_bus_message_context(span_from_context(ctx), message_arg_value)
 
     core.dispatch(
         "azure.servicebus.message_modifier",

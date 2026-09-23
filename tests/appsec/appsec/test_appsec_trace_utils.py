@@ -1,5 +1,5 @@
+import contextlib
 import logging
-from unittest.mock import MagicMock
 from unittest.mock import patch as mock_patch
 
 import pytest
@@ -25,8 +25,29 @@ from tests.appsec.utils import is_blocked
 from tests.utils import TracerTestCase
 
 
-def get_telemetry_metrics(mocked):
-    return [(args[0].value, args[1].value) + args[2:] for args, kwargs in mocked.add_metric.call_args_list]
+@contextlib.contextmanager
+def capture_telemetry_metrics():
+    """Patch the telemetry writer's add_*_metric methods and record their calls.
+
+    Yields a list of tuples matching the legacy _namespace.add_metric format:
+    (metric_type, namespace, name, value, tags).
+    """
+    metrics = []
+    tw = ddtrace.internal.telemetry.telemetry_writer
+
+    def _rec(metric_type):
+        def _f(namespace, name, value, tags=None):
+            metrics.append((metric_type, getattr(namespace, "value", namespace), name, value, tags))
+
+        return _f
+
+    with (
+        mock_patch.object(tw, "add_count_metric", _rec("count")),
+        mock_patch.object(tw, "add_gauge_metric", _rec("gauge")),
+        mock_patch.object(tw, "add_rate_metric", _rec("rate")),
+        mock_patch.object(tw, "add_distribution_metric", _rec("distribution")),
+    ):
+        yield metrics
 
 
 config_asm = {"_asm_enabled": True}
@@ -151,7 +172,7 @@ class EventsSDKTestCase(TracerTestCase):
 
     def test_track_user_login_event_success_with_metadata(self):
         with (
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            capture_telemetry_metrics() as metrics,
             asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm) as span,
         ):
             track_user_login_success_event(self.tracer, "1234", metadata={"foo": "bar"})
@@ -168,7 +189,6 @@ class EventsSDKTestCase(TracerTestCase):
             assert not entry_span.get_tag(user.SCOPE)
             assert not entry_span.get_tag(user.ROLE)
             assert not entry_span.get_tag(user.SESSION_ID)
-            metrics = get_telemetry_metrics(telemetry_mock)
             assert (
                 "count",
                 "appsec",
@@ -217,7 +237,7 @@ class EventsSDKTestCase(TracerTestCase):
 
     def test_track_user_login_event_failure_user_doesnt_exists(self):
         with (
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            capture_telemetry_metrics() as metrics,
             self.trace("test_failure") as span,
         ):
             track_user_login_failure_event(
@@ -229,26 +249,24 @@ class EventsSDKTestCase(TracerTestCase):
             entry_span = span._service_entry_span
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
             assert entry_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "false"
-            metrics = get_telemetry_metrics(telemetry_mock)
             assert metrics == [
                 ("count", "appsec", "sdk.event", 1, (("event_type", "login_failure"), ("sdk_version", "v1")))
             ]
 
     def test_track_user_signup_event_exists(self):
         with (
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            capture_telemetry_metrics() as metrics,
             self.trace("test_signup_exists") as span,
         ):
             track_user_signup_event(self.tracer, "john", True)
             entry_span = span._service_entry_span
             assert entry_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
             assert entry_span.get_tag(user.ID) == "john"
-            metrics = get_telemetry_metrics(telemetry_mock)
             assert metrics == [("count", "appsec", "sdk.event", 1, (("event_type", "signup"), ("sdk_version", "v1")))]
 
     def test_custom_event(self):
         with (
-            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            capture_telemetry_metrics() as metrics,
             self.trace("test_custom") as span,
         ):
             event = "some_event"
@@ -257,7 +275,6 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert entry_span.get_tag("%s.%s.foo" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "bar"
             assert entry_span.get_tag("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "true"
-            metrics = get_telemetry_metrics(telemetry_mock)
             assert ("count", "appsec", "sdk.event", 1, (("event_type", "custom"), ("sdk_version", "v1"))) in metrics
 
     def test_set_user_blocked(self):

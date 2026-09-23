@@ -9,6 +9,7 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 
 
 log = get_logger(__name__)
@@ -22,9 +23,29 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: WebFrameworkRequestEvent = ctx.event
+        span: Span = span_from_context(ctx)
 
         if event.allow_default_resource:
             event.set_resource = True
+
+        try:
+            trace_utils.set_http_meta(
+                span=span,
+                integration_config=event.integration_config,
+                method=event.request_method,
+                url=event.request_url,
+                # set_http_meta checks only integration_config when deciding
+                # whether to trace the query string. aiohttp supports a
+                # per-application override instead.
+                query=event.query if event.trace_query_string is None else None,
+                request_headers=event.request_headers,
+                headers_are_case_sensitive=event.headers_case_sensitive,
+            )
+        except Exception:
+            log.debug("%s: error adding request tags", event.integration_config.integration_name, exc_info=True)
+
+        if event.trace_query_string and event.query is not None:
+            span._set_attribute(http.QUERY_STRING, event.query)
 
     @classmethod
     def on_ended(
@@ -37,7 +58,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         method = event.request_method
         res_headers = event.response_headers
 
-        span: Span = ctx.span
+        span: Span = span_from_context(ctx)
 
         # event.resource can be updated at span finish time
         if event.resource:
@@ -49,24 +70,14 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             trace_utils.set_http_meta(
                 span=span,
                 integration_config=event.integration_config,
-                method=method,
-                url=event.request_url,
-                # set_http_meta will check only integration_config to set or not query
-                # however, aiohttp support per-app trace_query_string config overrides
-                query=event.query if event.trace_query_string is None else None,
                 status_code=status_code,
-                request_headers=event.request_headers,
                 response_headers=dict(res_headers) if res_headers is not None else None,
+                headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
             )
         except Exception:
-            log.debug("%s: error adding tags", event.integration_config.integration_name, exc_info=True)
-
-        # aiohttp supports per-app trace_query_string overrides that may differ from
-        # integration_config.trace_query_string.
-        if event.trace_query_string and event.query is not None:
-            span._set_attribute(http.QUERY_STRING, event.query)
+            log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
 
         _set_inferred_proxy_tags(span, status_code)
-        for tk, tv in core.get_item("additional_tags", default=dict()).items():
+        for tk, tv in ctx.get_item("additional_tags", default=dict()).items():
             span._set_attribute(tk, tv)

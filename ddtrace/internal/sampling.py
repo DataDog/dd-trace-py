@@ -34,7 +34,7 @@ from .rate_limiter import RateLimiter
 log = get_logger(__name__)
 
 
-class PriorityCategory(object):
+class PriorityCategory:
     DEFAULT = "default"
     AUTO = "auto"
     RULE_DEFAULT = "rule_default"
@@ -42,9 +42,13 @@ class PriorityCategory(object):
     RULE_DYNAMIC = "rule_dynamic"
 
 
-SAMPLING_MECHANISM_CONSTANTS = {
-    "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
-}
+# sampling mechanism is an opaque integer; validate syntax/range only, not enum
+# membership, or unenumerated-but-valid ids get silently dropped (#13516, #19335). Do not re-tighten.
+_MAX_SAMPLING_MECHANISM = 255  # libdatadog encodes the sampling mechanism as a u8
+VALID_SAMPLING_DECISIONS = frozenset("-%d" % value for value in range(_MAX_SAMPLING_MECHANISM + 1))
+
+# Unused, kept so external `.add()` calls (a past workaround) don't AttributeError on upgrade.
+SAMPLING_MECHANISM_CONSTANTS = {f"-{value}" for name, value in vars(SamplingMechanism).items() if name.isupper()}
 
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
 
@@ -59,16 +63,11 @@ def format_rate(rate: float) -> str:
     return f"{rounded:.6f}".rstrip("0").rstrip(".")
 
 
-SpanSamplingRules = TypedDict(
-    "SpanSamplingRules",
-    {
-        "name": str,
-        "service": str,
-        "sample_rate": float,
-        "max_per_second": int,
-    },
-    total=False,
-)
+class SpanSamplingRules(TypedDict, total=False):
+    name: str
+    service: str
+    sample_rate: float
+    max_per_second: int
 
 
 def validate_sampling_decision(
@@ -77,7 +76,7 @@ def validate_sampling_decision(
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
-        if value not in SAMPLING_MECHANISM_CONSTANTS:
+        if value not in VALID_SAMPLING_DECISIONS:
             del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
             meta["_dd.propagation_error"] = "decoding_error"
             log.warning("failed to decode _dd.p.dm: %r", value)
@@ -199,10 +198,8 @@ def _get_span_sampling_json() -> list[dict[str, Any]]:
 
     if env_json_rules and file_json_rules:
         log.warning(
-            (
-                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
-                "Defaulting to DD_SPAN_SAMPLING_RULES value."
-            )
+            "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
+            "Defaulting to DD_SPAN_SAMPLING_RULES value."
         )
         return env_json_rules
     return env_json_rules or file_json_rules or []
@@ -244,7 +241,13 @@ def _check_unsupported_pattern(string: str) -> None:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
+def _set_sampling_tags(
+    span: Span,
+    sampled: bool,
+    sample_rate: float,
+    mechanism: int,
+    probabilistic_decision: bool = False,
+) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
         span._set_sampling_decision_maker(mechanism)
@@ -264,7 +267,10 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
-    span.context.sampling_priority = priorities[priority_index]
+    # Injection treats a non-None sampling priority as the publication marker for the
+    # complete decision. Publish the deferred ot= state and priority together in one native call,
+    # which does not release the GIL, so concurrent branches cannot observe a partial decision.
+    span.context._publish_sampling_decision(priorities[priority_index], sample_rate, probabilistic_decision)
 
 
 def add_trace_source(span: Span, source: int) -> None:

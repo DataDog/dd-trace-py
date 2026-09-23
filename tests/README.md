@@ -38,12 +38,13 @@ The suite schema is as follows:
   suite_name:
     skip: # Skip the suite, even when needed
     env: # Environment variables to pass to the runner
-    parallelism: # The parallel degree of the job
+    venvs_per_job: # Number of dependency environments assigned to each generated job
     retry: # The number of retries for the job
     timeout: # The timeout for the job
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
     services: # The services to start before running the suite, defined in .gitlab/services.yml
+    matrix: # Shared configuration and named dependency variants
 ```
 
 For example
@@ -53,7 +54,7 @@ suites:
   profile:
     env:
       DD_TRACE_AGENT_URL: ''
-    parallelism: 20
+    venvs_per_job: 1
     retry: 2
     pattern: profile
     paths:
@@ -69,3 +70,12 @@ Components do not need to be declared within the same `suitespec.yml` file. They
 can be declared in any file within the `/tests` sub-tree. The CI configuration
 generator will aggregate all the components and suites to build the full test
 suite specification and resolve the components after that.
+
+For standard test suites, `venvs_per_job` is the target number of dependency
+environments per generated job. The job count is the environment count divided by
+this value and rounded up, with a limit of 25 jobs per suite. Lower values increase
+parallelism. By default, `venvs_per_job` is the suite's total environment count, so
+omitting it runs the suite as one job. Do not set `parallelism` directly.
+
+Suites using `ddtest: true` shard each dependency environment with `ddtest_nodes`
+instead. They must not set `venvs_per_job`.

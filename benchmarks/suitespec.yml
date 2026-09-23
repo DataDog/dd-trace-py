@@ -24,7 +24,6 @@ components:
     - ddtrace/internal/pack_template.h
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
-    - ddtrace/internal/processor/__init__.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
@@ -46,6 +45,17 @@ components:
   errortracking:
     - ddtrace/errortracking/*
     - ddtrace/internal/settings/errortracking.py
+  ci_visibility_benchmark:
+    # The pytest (CI Visibility / Test Visibility) plugin and its supporting modules.
+    # Named ci_visibility_benchmark (not ci_visibility) to avoid overwriting the
+    # component of the same name in tests/ci_visibility/suitespec.yml.
+    - ddtrace/testing/*
+    - ddtrace/testing/internal/*
+    - ddtrace/internal/ci_visibility/*
+    - ddtrace/internal/test_visibility/*
+    - ddtrace/internal/coverage/*
+    - ddtrace/contrib/internal/coverage/*
+    - ddtrace/ext/test_visibility/*
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/*
@@ -72,6 +82,7 @@ components:
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
+    - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
@@ -82,7 +93,6 @@ components:
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py
-    - ddtrace/internal/uds.py
     - ddtrace/internal/utils/*
     - ddtrace/internal/uwsgi.py
     - ddtrace/internal/wrapping/*
@@ -121,6 +131,16 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  encoder_v05:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - benchmarks/encoder_v05/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   # events_api:
   #   paths:
   #     - '@bootstrap'
@@ -145,7 +165,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/telemetry/constants.py
-      - ddtrace/internal/telemetry/metrics_namespaces.py*
+      - ddtrace/internal/telemetry/writer.py
       - benchmarks/telemetry_add_metric/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -385,6 +405,37 @@ suites:
       - ddtrace/internal/telemetry/dependency*.py
       - ddtrace/appsec/sca/*
       - benchmarks/telemetry_dependencies/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  coverage_monitoring:
+    # Python 3.12+ line- and file-level coverage costs with a no-coverage control.
+    paths:
+      - '@ci_visibility_benchmark'
+      - ddtrace/internal/monitoring.py
+      - benchmarks/coverage_monitoring/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  pytest_plugin:
+    # Whole-session overhead of the ddtrace pytest plugin on a trivial-test corpus.
+    # Subprocess-based (like `startup`); cProfile is disabled for this scenario.
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@ci_visibility_benchmark'
+      - benchmarks/pytest_plugin/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  openfeature_flagevaluation:
+    paths:
+      - ddtrace/internal/openfeature/_flageval_pii.py
+      - ddtrace/internal/openfeature/_flag_eval_evp_hook.py
+      - ddtrace/internal/openfeature/_flagevaluation_writer.py
+      - benchmarks/openfeature_flagevaluation/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'

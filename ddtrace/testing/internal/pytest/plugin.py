@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+import contextlib
 from functools import lru_cache
 import inspect
 from io import StringIO
@@ -24,6 +25,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -31,9 +33,14 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
+from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_STATE_WORKER_INPUT
+from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -41,6 +48,10 @@ from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
+from ddtrace.testing.internal.pytest.xdist import XdistManifest
+from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -57,6 +68,7 @@ from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
+from ddtrace.testing.internal.tracer_api.coverage import CoverageData
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
@@ -66,6 +78,7 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_perc
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import _get_async_flush_events
 
 
 try:
@@ -85,6 +98,7 @@ except TypeError:
 _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
     "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
 )
+_STORE_PASSING_REPORTS_ENV = "_DD_CIVISIBILITY_PYTEST_STORE_PASSING_REPORTS"
 
 
 if t.TYPE_CHECKING:
@@ -97,12 +111,14 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+    XDIST_MANIFEST_STASH_KEY = pytest.StashKey[XdistManifest]()
     _HAS_STASH = True
 except AttributeError:
     # pytest < 7.0 does not have StashKey/Config.stash; fall back to a plain attribute name.
     # Do not check pytest.Config.stash at class level: on supported pytest versions, stash is an instance attribute.
     _HAS_STASH = False
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
+    XDIST_MANIFEST_STASH_KEY = "xdist_manifest_key"
 
 
 def _stash_set(config, key, value):
@@ -263,6 +279,36 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
             return 0, 0
 
 
+@contextlib.contextmanager
+def _maybe_collect_coverage(coverage_enabled: bool) -> t.Generator[CoverageData, None, None]:
+    """Yield a per-test coverage collector, or a no-op when coverage is disabled.
+
+    Entering coverage_collection() is only meaningful when the ModuleCodeCollector is
+    installed, which setup_coverage_collection() gates on the same coverage_enabled flag.
+    Entering it regardless left the interpreter misreporting its own state for the
+    duration of every test: CollectInContext sets the ctx_coverage_enabled ContextVar,
+    which makes ModuleCodeCollector.coverage_enabled() answer True even though no
+    collector exists, and on Python 3.12+ it calls the global sys.monitoring
+    restart_events() once per test on behalf of a tool that was never registered. The
+    collected bitmaps were empty either way, so nothing was gained by it.
+
+    An empty CoverageData is what the disabled collector produced anyway, and it flows
+    through the same put_coverage empty fast path, so uploads are unchanged.
+
+    The code_coverage_started/finished telemetry is recorded here, so it describes
+    coverage actually running rather than merely a test executing. That matches the
+    legacy plugin, which only reaches record_code_coverage_started() when
+    InternalTestSession.should_collect_coverage() is true.
+    """
+    if coverage_enabled:
+        TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+        with coverage_collection() as coverage_data:
+            yield coverage_data
+        TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+    else:
+        yield CoverageData()
+
+
 class TestPhase:
     SETUP = "setup"
     CALL = "call"
@@ -276,7 +322,7 @@ else:
     _ReportGroup = dict
 
 
-class TestOptPlugin:
+class TestOptPlugin(TestOptPluginProtocol):
     """
     pytest plugin for test optimization.
     """
@@ -301,13 +347,14 @@ class TestOptPlugin:
             self.enable_ddtrace_trace_filter = True
 
         # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
-        # Requires DD_CIVISIBILITY_AGENTLESS_ENABLED.
+        # Requires agentless mode (i.e. DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED)
         self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
         if self.enable_agentless_log_submission:
-            if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+            if not agentless_config.ci_visibility:
                 log.warning(
-                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_CIVISIBILITY_AGENTLESS_ENABLED is not. "
-                    "Log submission to Datadog requires agentless mode; logs will not be forwarded."
+                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but agentless mode is not enabled. "
+                    "Set DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED; "
+                    "logs will not be forwarded."
                 )
                 self.enable_agentless_log_submission = False
             elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
@@ -326,6 +373,8 @@ class TestOptPlugin:
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.outcomes_by_nodeid: dict[str, tuple[TestStatus, dict[str, str]]] = {}
+        self._store_passing_reports = asbool(env.get(_STORE_PASSING_REPORTS_ENV, "false"))
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
@@ -339,6 +388,8 @@ class TestOptPlugin:
 
         self.manager = session_manager
         self.session = self.manager.session
+        self.xdist_manifest: t.Optional[XdistManifest] = None
+        self.xdist_atr_crash_state_path: t.Optional[Path] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -353,6 +404,8 @@ class TestOptPlugin:
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
                 self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
+            if crash_state_path := xdist_worker_input.get(_CRASH_RETRY_STATE_WORKER_INPUT):
+                self.xdist_atr_crash_state_path = Path(crash_state_path)
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -417,7 +470,9 @@ class TestOptPlugin:
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
         self.session.set_status(
-            TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+            TestStatus.FAIL
+            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
+            else TestStatus.PASS
         )
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
@@ -427,6 +482,20 @@ class TestOptPlugin:
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
+        # This hook runs in every process, so an xdist session uploads one report per process, each
+        # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
+        # for a session, so the partial uploads add up to full coverage.
+        #
+        # Do NOT "fix" this by restricting the upload to the controller. Which process holds which data depends on who
+        # owns coverage.py:
+        #   - with pytest-cov, workers ship their data to the controller and pytest-cov merges it in its
+        #     pytest_runtestloop wrapper, i.e. before this hook, so the controller's report is complete;
+        #   - without pytest-cov, ddtrace starts coverage.py per process in pytest_configure and nothing merges across
+        #     processes, so the controller (which runs no tests under xdist) has an empty report and the workers hold
+        #     all the real data.
+        # Controller-only upload would therefore be harmless in the first case and lose everything in the second.
+        # Uploading once from the controller would only save bandwidth, and would first require implementing the
+        # cross-process merge that pytest-cov does for us in the first case but nobody does in the second.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
@@ -478,6 +547,11 @@ class TestOptPlugin:
             self._logs_writer = None
 
         self.manager.finish()
+
+        if self.xdist_manifest is not None:
+            # All workers have finished, so the generated manifest cache is no longer needed.
+            cleanup_xdist_manifest(self.xdist_manifest, self.manager.env_tags)
+            self.xdist_manifest = None
 
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
@@ -541,6 +615,10 @@ class TestOptPlugin:
                 and _is_test_unskippable(item)
             ):
                 self._itr_unskippable_suites.add(test_ref.suite)
+
+        async_flush_events = _get_async_flush_events(len(session.items))
+        self.manager.writer.set_async_flush_events(async_flush_events)
+        self.manager.coverage_writer.set_async_flush_events(async_flush_events)
 
         self.manager.finish_collection()
         self._emit_itr_ignored_suite_events(session)
@@ -653,7 +731,7 @@ class TestOptPlugin:
             on_new_test=_on_new_test,
         )
 
-    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+    def _apply_test_management_markers(self, item: pytest.Item, test: Test) -> None:
         """Apply test management markers for the base plugin (used when an external rerun plugin drives execution).
 
         ATF retries are not supported in this mode — the external plugin controls the protocol and we cannot intercept
@@ -696,10 +774,8 @@ class TestOptPlugin:
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 yield
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -800,6 +876,7 @@ class TestOptPlugin:
 
     def _do_test_runs(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> None:
         test = self.tests_by_nodeid[item.nodeid]
+        self._sync_xdist_atr_crash_budget(item.nodeid, test)
         retry_handler = self._check_applicable_retry_handlers(test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
@@ -837,6 +914,33 @@ class TestOptPlugin:
 
         if self._osr_enabled and self._is_osr_candidate(test, retry_handler):
             self._osr_candidates.append(item)
+
+    def _sync_xdist_atr_crash_budget(self, nodeid: str, test: Test) -> None:
+        """Apply controller-consumed crash retries to the worker's ATR handler."""
+        if self.xdist_atr_crash_state_path is None:
+            return
+
+        atr_handler = next(
+            (handler for handler in self.manager.retry_handlers if isinstance(handler, AutoTestRetriesHandler)),
+            None,
+        )
+        if atr_handler is None:
+            return
+
+        try:
+            state = read_atr_crash_retry_state(self.xdist_atr_crash_state_path)
+        except (OSError, ValueError):
+            # A crash-requeued attempt still runs, but no further worker retry is safe without the consumed budget.
+            atr_handler.disable_retries()
+            return
+
+        budget = state.get(nodeid)
+        atr_handler.set_external_retry_budget(
+            test,
+            retries=budget.retries if budget is not None else 0,
+            retry_limit=budget.retry_limit if budget is not None else atr_handler.max_retries_per_test,
+            session_retries=len(state),
+        )
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
         status, tags = self._get_test_outcome(item.nodeid)
@@ -1057,8 +1161,34 @@ class TestOptPlugin:
         """
         outcome = yield
         report: pytest.TestReport = outcome.get_result()
-        self.reports_by_nodeid[item.nodeid][call.when] = report
-        self.excinfo_by_report[report] = call.excinfo
+
+        if self._store_passing_reports:
+            # Opt-out for the outcome aggregation optimization. This keeps the previous behavior: retain every pytest
+            # phase report and derive the final Datadog outcome later in _get_test_outcome(). It is slower because the
+            # common pass path stores a report object and exception-info entry for every setup/call/teardown phase, but
+            # it is useful as a private safety valve if a third-party plugin relies on report storage in an unexpected
+            # way.
+            self.reports_by_nodeid[item.nodeid][call.when] = report
+            self.excinfo_by_report[report] = call.excinfo
+        elif (
+            report.passed
+            and not getattr(report, "wasxfail", None)
+            and call.when == TestPhase.CALL
+            and item.nodeid in self.outcomes_by_nodeid
+        ):
+            # Fast path: a normal passing report carries no status metadata we need to preserve, so we do not store it.
+            # The implicit outcome is PASS when _get_test_outcome() finds no aggregate outcome for the item.
+            #
+            # The one important exception is external retry plugins (for example pytest-flaky or pytest-rerunfailures):
+            # they may emit a failed call report followed by a passing call report for the same pytest item. Since the
+            # later pass is no longer stored and cannot overwrite the earlier failure in reports_by_nodeid, clear the
+            # aggregate failure here. A later teardown failure, if any, will still be recorded by the non-passing path.
+            self.outcomes_by_nodeid.pop(item.nodeid, None)
+        elif not report.passed or getattr(report, "wasxfail", None):
+            # Non-passing and xfail/xpass reports carry status, error, skip, or xfail metadata. Aggregate just that
+            # final outcome data instead of retaining all phase reports. This keeps the frequent PASS path allocation
+            # free while preserving the information needed to tag the Datadog test run.
+            self._update_test_outcome(item.nodeid, report, call.excinfo)
 
         if call.when == TestPhase.TEARDOWN:
             # We need to extract pytest-benchmark data _before_ the fixture teardown.
@@ -1078,40 +1208,56 @@ class TestOptPlugin:
 
         return None
 
+    def _update_test_outcome(
+        self,
+        nodeid: str,
+        report: pytest.TestReport,
+        excinfo: t.Optional[pytest.ExceptionInfo[t.Any]],
+    ) -> None:
+        status, tags = self.outcomes_by_nodeid.get(nodeid, (TestStatus.PASS, {}))
+
+        if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
+            tags[TestTag.XFAIL_REASON] = str(wasxfail)
+            tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
+
+        # Preserve a failure once recorded. A later teardown failure may still override a skip, matching pytest's
+        # session outcome semantics for fixture finalizer errors.
+        if status == TestStatus.FAIL:
+            self.outcomes_by_nodeid[nodeid] = (status, tags)
+            return
+
+        if report.failed:
+            status = TestStatus.FAIL
+            tags.update(_get_exception_tags(excinfo))
+        elif report.skipped:
+            status = TestStatus.SKIP
+            reason = str(excinfo.value) if excinfo else "Unknown skip reason"
+            tags[TestTag.SKIP_REASON] = reason
+
+        self.outcomes_by_nodeid[nodeid] = (status, tags)
+
     def _get_test_outcome(self, nodeid: str) -> tuple[TestStatus, dict[str, str]]:
         """
         Return test status and tags with exception/skip information for a given executed test.
-
-        This methods consumes the test reports and exception information for the specified test, and removes them from
-        the dictionaries.
         """
-        status = TestStatus.PASS
-        tags = {}
+        if outcome := self.outcomes_by_nodeid.pop(nodeid, None):
+            return outcome
 
+        # Compatibility fallback for callers/tests that still populate the old report dictionaries directly.
+        status = TestStatus.PASS
+        tags: dict[str, str] = {}
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
         for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             report = reports_dict.get(phase)
             if not report:
                 continue
-
-            if (wasxfail := getattr(report, "wasxfail", None)) and wasxfail != "dd_quarantined":
-                tags[TestTag.XFAIL_REASON] = str(wasxfail)
-                tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
-
-            excinfo = self.excinfo_by_report.pop(report, None)
-
-            if report.failed:
-                status = TestStatus.FAIL
-                tags.update(_get_exception_tags(excinfo))
+            self._update_test_outcome(nodeid, report, self.excinfo_by_report.pop(report, None))
+            status, tags = self.outcomes_by_nodeid[nodeid]
+            if status == TestStatus.FAIL:
                 break
 
-            if report.skipped:
-                status = TestStatus.SKIP
-                reason = str(excinfo.value) if excinfo else "Unknown skip reason"
-                tags[TestTag.SKIP_REASON] = reason
-                break
-
+        self.outcomes_by_nodeid.pop(nodeid, None)
         return status, tags
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
@@ -1192,7 +1338,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
     span bookkeeping.
     """
 
-    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+    def _apply_test_management_markers(self, item: pytest.Item, test: Test) -> None:
         """Apply test management markers for the plugin that drives retries itself.
 
         ATF tests must NOT use skip or xfail here: ATF takes precedence over quarantine/disable markers, and any
@@ -1254,12 +1400,10 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         test.finish()
 
@@ -1398,29 +1542,6 @@ class RetryReports:
         return None
 
 
-class XdistTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
-        self.main_plugin = main_plugin
-
-    @pytest.hookimpl
-    def pytest_configure_node(self, node: t.Any) -> None:
-        """
-        Pass test session id from the main process to xdist workers.
-        """
-        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
-
-    @pytest.hookimpl
-    def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
-        """
-        Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
-        """
-        if not hasattr(node, "workeroutput"):
-            return
-
-        if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
-
-
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
     return {report.when: report for report in reports}
 
@@ -1485,11 +1606,21 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
+    # NOTE: Register before the enablement guard: importing the tracer also
+    # registers its exit hook without --ddtrace (#16712). Cleanup runs in LIFO order,
+    # so registering before capture starts lets this rescan run after capture cleanup
+    # and include handlers installed by later hooks. Never disable propagation: healthy
+    # root handlers must still receive tracer diagnostics, including at shutdown.
+    early_config.add_cleanup(protect_ddtrace_stream_handlers)
+
     if not _is_enabled_early(early_config, args):
         yield
         return
 
     setup_logging()
+
+    # An inherited manifest env var only applies to this process if our own controller generated it.
+    resolve_inherited_manifest_env()
 
     session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
@@ -1504,6 +1635,9 @@ def pytest_load_initial_conftests(
         log.error("%s", e)
         yield
         return
+
+    # When running with xdist, let the workers reuse what this controller fetched instead of querying the backend.
+    _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
@@ -1520,9 +1654,23 @@ def pytest_load_initial_conftests(
     yield
 
 
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_sessionfinish() -> t.Generator[None, None, None]:
+    # Fixture capture streams can already be closed when session teardown starts.
+    protect_ddtrace_stream_handlers()
+    yield
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_unconfigure() -> t.Generator[None, None, None]:
+    # This also runs after collection errors and includes sessionfinish reconfiguration.
+    protect_ddtrace_stream_handlers()
+    yield
+
+
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path)
+    install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -1538,7 +1686,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if is_discovery_mode_enabled():
         # Register hook specs so item_to_test_ref can call the custom name hooks during
         # discovery, giving the same module/suite/name resolution as a real test run.
-        # AIDEV-NOTE: BddTestOptPlugin is not registered here, so pytest-bdd tests will
+        # BddTestOptPlugin is not registered here, so pytest-bdd tests will
         # fall back to nodeid-based names rather than feature-file names during discovery.
         # TODO: register BddTestOptPlugin in discovery mode to support pytest-bdd.
         import ddtrace.testing.internal.pytest._discovery as _ddtrace_discovery
@@ -1585,6 +1733,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     try:
         plugin = plugin_class(session_manager=session_manager)
+        plugin.xdist_manifest = _stash_get(config, XDIST_MANIFEST_STASH_KEY, None)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return
@@ -1625,7 +1774,7 @@ def _get_test_command(config: pytest.Config) -> str:
     if invocation_params := getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(invocation_params.args))
     if addopts := env.get("PYTEST_ADDOPTS"):
-        command += " {}".format(addopts)
+        command += f" {addopts}"
     return command
 
 

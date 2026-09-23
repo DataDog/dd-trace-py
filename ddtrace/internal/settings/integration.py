@@ -3,7 +3,7 @@ from typing import Optional  # noqa:F401
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 
 from .http import HttpConfig
 
@@ -41,7 +41,7 @@ class IntegrationConfig(AttrDict):
         :param args:
         :param kwargs:
         """
-        super(IntegrationConfig, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # Set internal properties for this `IntegrationConfig`
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties

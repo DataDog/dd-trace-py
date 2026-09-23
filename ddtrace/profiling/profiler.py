@@ -1,9 +1,8 @@
-# -*- encoding: utf-8 -*-
+from collections.abc import Mapping
 import json
 import logging
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -35,7 +34,7 @@ from ddtrace.profiling.collector import threading
 LOG = logging.getLogger(__name__)
 
 
-class Profiler(object):
+class Profiler:
     """Run profiling while code is executed.
 
     Note that the whole Python process is profiled, not only the code executed. Data from all running threads are
@@ -47,7 +46,7 @@ class Profiler(object):
     _active_lock = Lock()
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
+        self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
 
     def start(self) -> None:
         """Start the profiler."""
@@ -379,6 +378,22 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
+        # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
+        # inherit the patched GOT (and the activator skips a redundant re-install).
+        # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED
+        # (unset = on); that is not a ddtrace setting — see heap_gotter docs.
+        if profiling_config.native_heap.enabled:
+            from ddtrace.internal.datadog.profiling import heap_gotter
+
+            try:
+                if heap_gotter.install():
+                    mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
+                    LOG.info("Native heap profiling armed (GOT overrides installed, %s)", mode)
+                else:
+                    LOG.warning("Native heap profiling requested but GOT overrides were not installed")
+            except Exception:
+                LOG.error("Failed to arm native heap profiling", exc_info=True)
+
         collectors = []
         for col in self._collectors:
             try:

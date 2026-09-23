@@ -7,7 +7,35 @@ lines that code technically depends on (eg: imported functions, classes, or cons
 time rather than at code execution time.
 """
 
+import sys
+
 import pytest
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess()
+def test_coverage_defaults_to_file_level_when_env_unset():
+    import os
+    from pathlib import Path
+
+    os.environ.pop("_DD_COVERAGE_FILE_LEVEL", None)
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path])
+
+    from tests.coverage.included_path.lib import called_in_session
+
+    with ModuleCodeCollector.CollectInContext() as context:
+        called_in_session(1, 2)
+        covered = _get_relpath_dict(cwd_path, context.get_covered_lines())
+
+    assert covered["tests/coverage/included_path/lib.py"] == {0}
 
 
 @pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})

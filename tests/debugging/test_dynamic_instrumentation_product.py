@@ -9,6 +9,7 @@ from ddtrace.debugging._products.dynamic_instrumentation import before_fork
 from ddtrace.debugging._products.dynamic_instrumentation import enabled
 from ddtrace.debugging._products.dynamic_instrumentation import post_preload
 from ddtrace.debugging._products.dynamic_instrumentation import restart
+from ddtrace.internal.native import RemoteConfigCapabilities
 
 
 def test_post_preload_is_noop():
@@ -155,4 +156,5 @@ def test_apm_tracing_rc_remote_reenable_when_no_env_override(monkeypatch):
 
 
 def test_apm_capabilities_value():
-    assert APMCapabilities.APM_TRACING_ENABLE_DYNAMIC_INSTRUMENTATION == 1 << 38
+    assert APMCapabilities == (RemoteConfigCapabilities.ApmTracingEnableDynamicInstrumentation,)
+    assert int(APMCapabilities[0]) == 38

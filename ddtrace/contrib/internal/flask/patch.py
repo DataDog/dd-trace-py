@@ -16,6 +16,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 
 
@@ -207,7 +208,7 @@ def patch():
         flask_hooks.append("before_first_request")
 
     for hook in flask_hooks:
-        _w("flask", "Flask.{}".format(hook), patched_flask_hook)
+        _w("flask", f"Flask.{hook}", patched_flask_hook)
     _w("flask", "after_this_request", patched_flask_hook)
 
     flask_app_traces = [
@@ -223,7 +224,7 @@ def patch():
         flask_app_traces.append("try_trigger_before_first_request_functions")
 
     for name in flask_app_traces:
-        _w("flask", "Flask.{}".format(name), simple_call_wrapper("flask.{}".format(name)))
+        _w("flask", f"Flask.{name}", simple_call_wrapper(f"flask.{name}"))
     # flask static file helpers
     _w("flask", "send_file", simple_call_wrapper("flask.send_file"))
 
@@ -256,7 +257,7 @@ def patch():
         bp_hooks.append("before_app_first_request")
 
     for hook in bp_hooks:
-        _w("flask", "Blueprint.{}".format(hook), patched_flask_hook)
+        _w("flask", f"Blueprint.{hook}", patched_flask_hook)
 
     if config.flask["trace_signals"]:
         signals = [
@@ -288,7 +289,7 @@ def patch():
                 module = "flask.signals"
 
             # DEV: Patch `receivers_for` instead of `connect` to ensure we don't mess with `disconnect`
-            _w(module, "{}.receivers_for".format(signal), patched_signal_receivers_for(signal))
+            _w(module, f"{signal}.receivers_for", patched_signal_receivers_for(signal))
 
 
 def unpatch():
@@ -398,7 +399,7 @@ def patched_wsgi_app(wrapped, instance, args, kwargs):
     return middleware(environ, start_response)
 
 
-_collected_scripts_by_app: "weakref.WeakKeyDictionary[flask.Flask, set[str]]" = weakref.WeakKeyDictionary()
+_collected_scripts_by_app: weakref.WeakKeyDictionary[flask.Flask, set[str]] = weakref.WeakKeyDictionary()
 
 
 def _collect_flask_routes(app, script_name):
@@ -564,7 +565,7 @@ def _build_render_template_wrapper(name):
                 span_type=SpanTypes.TEMPLATE,
                 integration_config=config.flask,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             return wrapped(*args, **kwargs)
 
@@ -613,7 +614,7 @@ def request_patcher(name):
                 tags={COMPONENT: config.flask.integration_name},
                 integration_config=config.flask,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             core.dispatch("flask._patched_request", (ctx,))
             return wrapped(*args, **kwargs)
@@ -645,6 +646,6 @@ def patched_jsonify(wrapped, instance, args, kwargs):
             flask_config=config.flask,
             tags={COMPONENT: config.flask.integration_name},
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return wrapped(*args, **kwargs)

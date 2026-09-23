@@ -60,6 +60,7 @@ The `RCCallback` abstract base class is defined in
 from ddtrace.internal.remoteconfig import RCCallback, Payload
 from typing import Sequence
 
+
 class MyProductCallback(RCCallback):
     def __call__(self, payloads: Sequence[Payload]) -> None:
         """Process configuration payloads received from Remote Config.
@@ -212,6 +213,7 @@ def start():
     # 2. Advertise the product to the agent so it starts sending configuration.
     remoteconfig_poller.enable_product("MY_PRODUCT")
 
+
 def stop(join=False):
     # 1. Stop requesting configuration from the agent.
     remoteconfig_poller.disable_product("MY_PRODUCT")
@@ -264,7 +266,7 @@ Use the helpers to register hooks:
 from ddtrace.internal import forksafe
 
 forksafe.register_before_fork(my_before_hook)
-forksafe.register(my_after_child_hook)        # after_in_child
+forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
 ```
 
@@ -336,3 +338,74 @@ machinery in a well-defined order.
   path — the service will be left marked as running with no active worker.
 - Never call `flush_queue()` or perform I/O in an after-child hook; flush only
   in after-parent hooks or at clean shutdown.
+
+
+## The `sys.monitoring` Multiplexer
+
+`sys.monitoring` (PEP 669, Python 3.12+) grants a limited number of tool IDs.
+`ddtrace.internal.monitoring` claims one ID on behalf of ddtrace subsystems and
+fans local events out per code object.
+
+
+### The `MonitoringEventHandler` Interface
+
+Sub-systems implement `MonitoringEventHandler` and override only the methods
+they need. The multiplexer inspects which methods are overridden and enables
+only the corresponding events for that handler, so an unused hook costs
+nothing:
+
+```python
+from ddtrace.internal import monitoring
+
+
+class MyHandler(monitoring.MonitoringEventHandler):
+    def on_py_start(self, code, instruction_offset): ...
+
+    def on_py_line(self, code, line_number):
+        # Return sys.monitoring.DISABLE to vote for disabling LINE events at
+        # this location; the multiplexer only forwards DISABLE to CPython
+        # once every handler registered for this code object agrees.
+        return None
+```
+
+Register and unregister local handlers with the handler instance as the key:
+
+```python
+handler = MyHandler()
+monitoring.register(code, handler)
+...
+monitoring.unregister(code, handler)
+```
+
+> [!WARNING]
+> Do not call `register()` or `unregister()` from inside a handler method —
+> doing so mutates the handler list while it is being iterated.
+
+### Local Events
+
+PY_START, PY_RETURN, LINE, and Python 3.15+'s PY_UNWIND are enabled locally
+per code object. On Python 3.12–3.14, PY_UNWIND is not available as a local
+event, so the multiplexer rejects handlers that request it.
+
+### `DISABLE` and `refresh()`
+
+A `DISABLE` returned from a local event callback is sticky in CPython until
+the local event set changes or `restart_events()` resets it. The multiplexer
+forwards `DISABLE` only when every handler for that event requests it. A
+handler must therefore tolerate repeated delivery when a sibling still needs
+the event.
+
+Because `restart_events()` is global and would clear other tools' disabled
+state, the multiplexer re-arms only requested event bits by toggling those bits
+off and back on. It tracks events for which the aggregate callback has returned
+`DISABLE`, so a rejected request does not cause a physical re-arm. `register()`
+does this automatically when a new handler shares an event that may already be
+disabled. Call `monitoring.refresh(code, events)` when a handler becomes
+interested in those event bits again.
+
+### Error Isolation
+
+LINE handler failures are logged and isolated so one subsystem cannot disrupt
+another. PY_START, PY_RETURN, and PY_UNWIND handler failures propagate to the
+monitored frame; handlers for those lifecycle events must handle their own
+failures when isolation is required.

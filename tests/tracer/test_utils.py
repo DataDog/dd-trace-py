@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 from functools import partial
 import sys
 from time import sleep
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.utils import ArgumentError
@@ -65,6 +64,20 @@ _LOG_ERROR_FAIL_SEPARATOR = (
 )
 def test_parse_env_tags(tag_str, expected_tags):
     assert parse_tags_str(tag_str) == expected_tags, tag_str
+
+
+@pytest.mark.parametrize(
+    "tag_str,sep,expected_tags",
+    [
+        # No comma anywhere: auto-detection would fall back to whitespace and split "Bearer <token>".
+        # An explicit "," separator keeps it as a single value.
+        ("Authorization:Bearer abc123xyz", ",", {"Authorization": "Bearer abc123xyz"}),
+        # Explicit " " separator forces a whitespace split even though a comma is present.
+        ("a:b,c bKey:bVal", " ", {"a": "b,c", "bKey": "bVal"}),
+    ],
+)
+def test_parse_env_tags_explicit_sep(tag_str, sep, expected_tags):
+    assert parse_tags_str(tag_str, sep=sep) == expected_tags, tag_str
 
 
 @pytest.mark.parametrize(
@@ -142,7 +155,7 @@ def test_context_manager():
     assert watch.elapsed() > 0
 
 
-class SomethingCallable(object):
+class SomethingCallable:
     """
     A dummy class that implements __call__().
     """
@@ -181,7 +194,7 @@ minus_two = partial(minus, b=2)  # partial funcs need special handling (no modul
 plus_three = lambda x: x + 3  # noqa: E731
 
 
-class TestContrib(object):
+class TestContrib:
     """
     Ensure that contrib utility functions handles corner cases
     """
@@ -311,7 +324,7 @@ def test_cachedmethod():
     def expensive(key):
         return key[::-1].lower()
 
-    class Foo(object):
+    class Foo:
         @cachedmethod(cache_size)
         def cheap(self, key):
             witness(key)

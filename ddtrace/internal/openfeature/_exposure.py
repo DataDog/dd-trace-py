@@ -19,6 +19,7 @@ def build_exposure_event(
     variant_key: Optional[str],
     allocation_key: Optional[str],
     evaluation_context: Optional[EvaluationContext],
+    serial_id: Optional[int] = None,
 ) -> Optional[ExposureEvent]:
     """
     Build an exposure event that will be batched and sent with context.
@@ -31,6 +32,9 @@ def build_exposure_event(
         variant_key: The variant key returned by the evaluation
         allocation_key: The allocation key
         evaluation_context: The evaluation context with subject information
+        serial_id: Serial id of the split the subject landed in. The intake resolves it
+            back to the holdout the allocation was generated from, which an exposure
+            does not otherwise record.
     """
     # Validate required fields
     if not flag_key:
@@ -58,5 +62,8 @@ def build_exposure_event(
             "attributes": evaluation_context.attributes or {},
         },
     }
+
+    if serial_id is not None:
+        exposure_event["serial_id"] = serial_id
 
     return exposure_event

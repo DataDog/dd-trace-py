@@ -262,6 +262,14 @@ Traces
            ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
            and will be deleted in 2.0.0
 
+   DD_TRACE_OTEL_CTX_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+         Enables publication of OpenTelemetry thread context records for external readers such as the OpenTelemetry eBPF Profiler.
+         These records describe the active traces running within the sampled process.
+
    DD_TRACE_OTEL_ENABLED:
      type: Boolean
      default: False
@@ -282,6 +290,18 @@ Traces
      type: Integer
      default: 300
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
+
+   DD_TRACE_PROPAGATION_AS_SPAN_LINKS:
+     type: String
+     default: (empty)
+     description: |
+         Comma-separated list of integration names for which upstream context is attached to the
+         child span as span links instead of being used to parent the span.
+
+         Example: ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS="google_cloud_pubsub,kafka"``.
+
+     version_added:
+       v4.15.0:
 
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
      type: Boolean
@@ -435,6 +455,35 @@ Traces
      version_added:
         v4.11.0:
 
+   DD_LLMOBS_SAMPLING_RULES:
+     type: JSON array
+
+     description: |
+         A JSON array of tag-based sampling rules for LLM Observability traces, mirroring the format of
+         ``DD_TRACE_SAMPLING_RULES``. Each rule requires a ``sample_rate`` and may declare a ``tags``
+         object mapping tag names to glob patterns, matched case-insensitively against the root span of
+         the trace (``*`` matches any number of characters, ``?`` exactly one). Every declared tag must
+         match, so a rule with no ``tags`` matches every trace.
+
+         Rules are evaluated in order and the first match wins, with its rate replacing
+         ``DD_LLMOBS_SAMPLE_RATE``. Traces matching no rule fall back to that global rate. One decision
+         applies to the whole trace and is propagated across distributed boundaries.
+
+         **Note** that the decision is made as late as possible and then frozen, so that every span of a
+         trace carries the same one. Because rules match against the root span's tags as they stand at
+         that moment, a tag set after the freeze does not affect sampling. The freeze happens at
+         whichever of these comes first:
+
+         * the first outbound request from an instrumented integration, which propagates the decision;
+         * handing the trace off to another thread or to an ``asyncio`` task;
+         * a partial flush (see ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS``, 300 spans by default);
+         * the root span finishing.
+
+         **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
+
+     version_added:
+        v4.15.0:
+
 Trace Context propagation
 -------------------------
 
@@ -535,6 +584,59 @@ Metrics
 
      version_added:
        v3.11.0:
+
+   DD_TRACE_STATS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 7000
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct trace metrics aggregation keys tracked during a single flush period when
+         client-side stats computation is enabled. Once the limit is reached, further keys are
+         aggregated together under a sentinel key. Lower it to bound memory usage for applications
+         with very high cardinality.
+
+   DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT:
+     type: Integer
+     default: 1024
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct resource names tracked during a single flush period when client-side stats
+         computation is enabled. Resource names beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct HTTP endpoints tracked during a single flush period when client-side stats
+         computation is enabled. Endpoints beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct peer tag combinations tracked during a single flush period when client-side
+         stats computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 100
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct combinations of the tags configured with
+         ``DD_TRACE_STATS_ADDITIONAL_TAGS`` tracked during a single flush period when client-side stats
+         computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
 
 Application & API Security
 --------------------------
@@ -660,6 +762,16 @@ AI Guard
        behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
        force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
        never raised, regardless of the in-app blocking setting.
+
+   DD_AI_GUARD_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Global switch for AI Guard sensitive data redaction. When set to ``True`` (default) and the
+       AI Guard service asks for redaction, the tracer replaces the affected message content with the
+       redacted values returned by the AI Guard, and reports the redacted messages instead of the
+       originals. Set to ``False`` to disable the transformation without a tracer rollback: evaluations
+       still run and sensitive data findings are still reported, but no message is modified.
 
    DD_AI_GUARD_OPENAI_ENABLED:
      type: Boolean
@@ -816,6 +928,32 @@ Test Visibility
 
      version_added:
         v1.13.0:
+
+   DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables dynamic, duration-based Auto Test Retries budgets. When enabled, the number of retries
+        allowed for a test is determined by the duration of its initial attempt, using the same duration
+        buckets as Early Flake Detection, instead of the flat per-test retry limit. Requires Auto Test
+        Retries to be enabled by the backend.
+
+     version_added:
+        v4.15.0:
+
+   DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS:
+     type: String
+     default: ""
+
+     description: |
+        Comma-separated list of five positive integers in ``[1, 20]`` overriding the five duration-based
+        Auto Test Retries budgets (for the 5s, 10s, 30s, 5m, and >5m buckets respectively). When unset or
+        empty, the Early Flake Detection retry settings from the backend are used. Only takes effect when
+        ``DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED`` is enabled.
+
+     version_added:
+        v4.15.0:
 
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean
@@ -986,6 +1124,29 @@ Agent
      version_added:
         v0.17.0:
         v1.7.0:
+
+   DD_AGENTLESS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Submit data directly to the Datadog intake instead of through a Datadog Agent. This
+         covers instrumentation telemetry, traces, Remote Configuration, Dynamic Instrumentation,
+         OpenTelemetry metrics and logs, crash reports, Test Optimization and LLM Observability.
+
+         ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
+         startup. ``DD_SITE`` selects the intake to submit to.
+
+         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and
+         ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this value and can each be set explicitly to
+         override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
+         specific variants, likewise keeps OpenTelemetry data going to your own collector.
+
+         Health metrics, profiling and tracer flares require an agent and thus have no effect
+         in agentless mode.
+
+     version_added:
+        v4.15.0:
 
    DD_DOGSTATSD_URL:
      type: URL
@@ -1185,9 +1346,15 @@ Sampling
      type: JSON array
 
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", "tags", and "discard" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+
+         Setting "discard" to ``true`` on a rule fully drops a trace chunk the rule rejects, excluding it from client-side stats and the Agent.
+
+         **Note** that with partial flushing enabled (the default), a chunk is matched against the trace's local root span as it stood when that chunk was flushed, so a rule keyed on data only available later in the request (e.g. a resolved HTTP route) may miss chunks flushed earlier in the same trace.
 
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
+
+         **Example (fully drop a noisy, unsampled endpoint):** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.0,"resource":"/health","discard":true}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.'
 
@@ -1195,6 +1362,58 @@ Sampling
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
+       v4.15.0: added support for "discard"
+
+Feature Flagging
+----------------
+
+.. ddtrace-configuration-options::
+
+   DD_FEATURE_FLAGS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Stable kill switch for Feature Flagging. When ``False``, the provider is
+         disabled regardless of the configured source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE:
+     type: String
+     default: agentless
+     description: |
+         Selects where Feature Flagging loads Universal Flag Configuration from.
+         Supported values are ``agentless`` (load directly from the Datadog CDN)
+         and ``remote_config`` (deliver via the Datadog Agent's Remote
+         Configuration). ``offline`` is reserved and currently unsupported; any
+         unsupported value disables the provider without contacting either source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
+     type: String
+     default: (none)
+     description: |
+         Overrides the Datadog-managed agentless Universal Flag Configuration
+         endpoint, for local development or an operator-managed proxy. The URL must
+         use HTTP or HTTPS. An origin or root URL receives the standard rules-based
+         server path, so ``http://localhost:8080`` resolves to
+         ``http://localhost:8080/api/v2/feature-flagging/config/rules-based/server``;
+         a URL with a non-root path, such as
+         ``https://ufc-proxy.internal.example.com/ufc``, is used verbatim as the
+         exact endpoint. ``DD_API_KEY`` is never sent to a custom endpoint. Only
+         applies when ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is ``agentless``.
+         See `Use a custom agentless endpoint <https://docs.datadoghq.com/feature_flags/concepts/configuration_sources/#use-a-custom-agentless-endpoint>`_.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS:
+     type: Integer
+     default: 30
+     description: |
+         The agentless Universal Flag Configuration polling interval in seconds,
+         capped at one hour.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS:
+     type: Integer
+     default: 5
+     description: |
+         The per-request timeout in seconds for agentless Universal Flag
+         Configuration polls.
 
 Other
 -----

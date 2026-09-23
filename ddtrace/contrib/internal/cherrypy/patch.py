@@ -19,9 +19,10 @@ from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ class TraceTool(cherrypy.Tool):
             activate_distributed_headers=True,
             headers_case_sensitive=True,
         ) as ctx:
-            req_span = ctx.span
+            req_span = span_from_context(ctx)
             set_service_and_source(
                 req_span,
                 trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
@@ -131,7 +132,7 @@ class TraceTool(cherrypy.Tool):
             # For now, default resource is method and path:
             #   GET /
             #   POST /save
-            resource = "{} {}".format(cherrypy.request.method, cherrypy.request.path_info)
+            resource = f"{cherrypy.request.method} {cherrypy.request.path_info}"
             span.resource = str(resource)
 
         url = str(cherrypy.request.base + cherrypy.request.path_info)
@@ -157,7 +158,7 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request._datadog_span = None
 
 
-class TraceMiddleware(object):
+class TraceMiddleware:
     def __init__(self, app, tracer=None, service="cherrypy", distributed_tracing=None):
         self.app = app
         if tracer is not None:

@@ -201,17 +201,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.3.0:
 
-  DD_PROFILING_NATIVE_TESTS:
-    type: Boolean
-    default: False
-
-    description: |
-        If set to 1, it compiles the profiling native tests. This is useful only when modifying the library’s profiling features and
-        is disabled by default.
-
-    version_added:
-        v2.16.0:
-
   DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY:
     type: Boolean
     default: False
@@ -294,6 +283,56 @@ These environment variables modify aspects of the build process.
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
 
+Using a system-provided libddwaf
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default the build downloads the prebuilt libddwaf binaries from GitHub releases and bundles the one matching the target
+architecture into the package. Distribution packagers cannot do that: they build from source with no network access, and
+package libddwaf separately rather than vendoring it.
+
+The ``build_py`` command therefore takes a ``--no-bundle-libddwaf`` option. With it, nothing is downloaded and no library is
+bundled. Being a command option rather than an environment variable, it is set through ``setup.cfg``, which is how it
+reaches ``build_py`` through a PEP 517 frontend such as ``pip``:
+
+.. code-block:: ini
+
+    [build_py]
+    no_bundle_libddwaf = 1
+
+It can also be passed on the command line for a direct ``python setup.py build_py --no-bundle-libddwaf`` invocation. Default
+builds read no such section and bundle the library as before.
+
+How the library is found at runtime
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The loader uses the bundled library when the package contains one. When it does not — which is what the option produces,
+but also what a partial or damaged install looks like — it asks the dynamic linker instead, trying ``libddwaf.so.2`` and
+then ``libddwaf.so``. Both names are tried because libddwaf's own CMake sets no ``SOVERSION``: an install built from
+upstream sources is plain ``libddwaf.so``, while a distribution that adds a ``SOVERSION`` ships ``libddwaf.so.2`` in its
+runtime package and keeps ``libddwaf.so`` in ``-devel``. The versioned name is tried first so that the runtime package is
+preferred over a development symlink.
+
+Because an unversioned SONAME guarantees no ABI, the loader checks ``ddwaf_get_version()`` once the library is in: anything
+that is not 2.x is refused.
+
+What the packaging must guarantee
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- The library is installed where the dynamic linker looks for it — a normal ``/usr/lib64`` install registered in
+  ``ld.so.cache`` is enough, and ``-devel`` is not required since the versioned name is tried first. ``LD_LIBRARY_PATH``
+  also works.
+- The package declares a runtime dependency on libddwaf. The library is loaded at import time, not linked at build time, so
+  the build succeeds whether or not libddwaf is installed.
+- libddwaf 2.x, at least 2.0.0: every ``ddwaf_*`` symbol ddtrace resolves is present in 2.0.0, whose public header is
+  identical to 2.0.1's. ``LIBDDWAF_VERSION`` in ``setup.py`` is the version ddtrace pins and tests against, so prefer that
+  one; a 3.x will need a new ddtrace release.
+
+If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disables itself; the rest of the tracer is
+unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
+
+Linux only: elsewhere the runtime has no system library to fall back to, so the build fails rather than produce a package
+whose AppSec cannot load.
+
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -306,7 +345,7 @@ How the Build Works
 
 .. code-block:: text
 
-    riot generate
+    scripts/run-tests
       └─ pip install -e .
            ├─ build_py  → LibraryDownloader.run()
            │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
@@ -369,7 +408,7 @@ Known Root Causes of Warm Rebuilds
 
 2. **CMakeExtension skip check gated on ``IS_EDITABLE``**
 
-   The skip check ``if IS_EDITABLE and self.INCREMENTAL`` never fired during riot's
+   The skip check ``if IS_EDITABLE and self.INCREMENTAL`` never fired during the test environment's
    ``pip install -e .`` because ``IS_EDITABLE`` was never set in that context. Fixed
    by removing the ``IS_EDITABLE`` guard.
 

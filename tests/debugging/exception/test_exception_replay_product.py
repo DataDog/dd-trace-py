@@ -8,6 +8,7 @@ from ddtrace.debugging._products.exception_replay import apm_tracing_rc
 from ddtrace.debugging._products.exception_replay import enabled
 from ddtrace.debugging._products.exception_replay import post_preload
 from ddtrace.debugging._products.exception_replay import restart
+from ddtrace.internal.native import RemoteConfigCapabilities
 
 
 def test_post_preload_is_noop():
@@ -145,4 +146,5 @@ def test_apm_tracing_rc_remote_reenable_when_no_env_override(monkeypatch):
 
 
 def test_apm_capabilities_value():
-    assert APMCapabilities.APM_TRACING_ENABLE_EXCEPTION_REPLAY == 1 << 39
+    assert APMCapabilities == (RemoteConfigCapabilities.ApmTracingEnableExceptionReplay,)
+    assert int(APMCapabilities[0]) == 39

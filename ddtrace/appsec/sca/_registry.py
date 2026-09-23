@@ -6,12 +6,12 @@ target functions to be instrumented for SCA detection.
 
 from dataclasses import dataclass
 from dataclasses import field
-from threading import Lock
 from types import CodeType
 from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 
 
 log = get_logger(__name__)

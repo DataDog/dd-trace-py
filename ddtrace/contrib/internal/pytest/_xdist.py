@@ -18,12 +18,16 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.testing.internal.pytest import xdist as _shared_xdist
 
 
 log = get_logger(__name__)
 
-# xdist-related constants
-XDIST_UNSET = "UNSET"
+XDIST_UNSET = _shared_xdist.XDIST_UNSET
+XDIST_AUTO = _shared_xdist.XDIST_AUTO
+XDIST_LOGICAL = _shared_xdist.XDIST_LOGICAL
+parse_worker_value = _shared_xdist.parse_worker_value
+_parse_xdist_args_from_cmd = _shared_xdist.parse_xdist_args_from_cmd
 
 
 def is_xdist_worker_env() -> bool:
@@ -34,78 +38,6 @@ def is_xdist_worker_env() -> bool:
     an outer xdist worker that has cleared PYTEST_XDIST_WORKER from the environment.
     """
     return env.get("PYTEST_XDIST_WORKER") is not None
-
-
-XDIST_AUTO = "auto"
-XDIST_LOGICAL = "logical"
-
-
-def parse_worker_value(val: str) -> t.Union[int, str]:
-    """Parse worker count value, handling auto/logical or integers."""
-    if val in (XDIST_AUTO, XDIST_LOGICAL):
-        return val
-    try:
-        return int(val)
-    except ValueError:
-        return XDIST_UNSET
-
-
-def _parse_xdist_args_from_cmd(args: list[str]) -> tuple[t.Union[int, str], str]:
-    """
-    Parse xdist-related arguments from command line args.
-
-    Returns:
-        tuple: (num_workers, dist_mode)
-               num_workers can be int, "auto", "logical", or None
-               dist_mode can be str or None
-    """
-
-    def set_workers_and_dist(val: str) -> None:
-        """Set num_workers and ensure dist_mode defaults to 'load'."""
-        nonlocal num_workers, dist_mode
-        num_workers = parse_worker_value(val)
-        if (
-            num_workers
-            and (isinstance(num_workers, int) or num_workers in (XDIST_AUTO, XDIST_LOGICAL))
-            and dist_mode == XDIST_UNSET
-        ):
-            dist_mode = "load"
-
-    num_workers = XDIST_UNSET
-    dist_mode = XDIST_UNSET
-
-    i = 0
-    while i < len(args):
-        arg = args[i]
-
-        # Handle -n and --numprocesses arguments
-        if arg == "-n" and i + 1 < len(args):
-            # -n <value>
-            set_workers_and_dist(args[i + 1])
-            i += 1
-        elif arg.startswith("-n") and len(arg) > 2:
-            # -n<value> (no space)
-            set_workers_and_dist(arg[2:])
-        elif arg == "--numprocesses" and i + 1 < len(args):
-            # --numprocesses <value>
-            set_workers_and_dist(args[i + 1])
-            i += 1
-        elif arg.startswith("--numprocesses="):
-            # --numprocesses=<value>
-            set_workers_and_dist(arg.split("=", 1)[1])
-
-        # Handle --dist arguments
-        elif arg == "--dist" and i + 1 < len(args):
-            # --dist <mode>
-            dist_mode = args[i + 1]
-            i += 1
-        elif arg.startswith("--dist="):
-            # --dist=<mode>
-            dist_mode = arg.split("=", 1)[1]
-
-        i += 1
-
-    return num_workers, dist_mode
 
 
 def _skipping_level_for_xdist_parallelization_mode(

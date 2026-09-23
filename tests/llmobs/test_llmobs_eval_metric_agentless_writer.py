@@ -3,8 +3,8 @@ from http.server import HTTPServer
 import os
 import threading
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -19,6 +19,7 @@ DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 def _categorical_metric_event(label: str, value: str) -> LLMObsEvaluationMetricEvent:
     return {
+        "event_kind": "evaluation",
         "join_on": {
             "span": {
                 "span_id": "12345678901",
@@ -35,6 +36,7 @@ def _categorical_metric_event(label: str, value: str) -> LLMObsEvaluationMetricE
 
 def _score_metric_event(label: str, value: float) -> LLMObsEvaluationMetricEvent:
     return {
+        "event_kind": "evaluation",
         "join_on": {
             "span": {
                 "span_id": "12345678902",
@@ -46,6 +48,43 @@ def _score_metric_event(label: str, value: float) -> LLMObsEvaluationMetricEvent
         "score_value": value,
         "ml_app": "dummy-ml-app",
         "timestamp_ms": 1756910127022,
+    }
+
+
+def _feedback_metric_event() -> LLMObsEvaluationMetricEvent:
+    return {
+        "event_kind": "feedback",
+        "session_id": "session-123",
+        "submitter": {"id": "user-123", "type": "reviewer"},
+        "metric_type": "text",
+        "label": "comment",
+        "text_value": "The response was clear.",
+        "ml_app": "dummy-ml-app",
+        "timestamp_ms": 1756910127022,
+    }
+
+
+def test_evaluation_metric_uses_evaluation_metric_envelope():
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    evaluation_event = _categorical_metric_event(label="toxicity", value="very")
+
+    assert llmobs_eval_metric_writer._data([evaluation_event]) == {
+        "data": {
+            "type": "evaluation_metric",
+            "attributes": {"metrics": [evaluation_event]},
+        }
+    }
+
+
+def test_feedback_metric_uses_evaluation_metric_envelope():
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    feedback_event = _feedback_metric_event()
+
+    assert llmobs_eval_metric_writer._data([feedback_event]) == {
+        "data": {
+            "type": "evaluation_metric",
+            "attributes": {"metrics": [feedback_event]},
+        }
     }
 
 
@@ -97,7 +136,7 @@ def test_send_metric_bad_api_key(mock_writer_logs):
     server.shutdown()
     server.server_close()
 
-    mock_writer_logs.error.assert_called_with(
+    mock_writer_logs.error.assert_any_call(
         "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
         1,
         "evaluation_metric",

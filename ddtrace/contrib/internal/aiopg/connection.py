@@ -8,10 +8,12 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -26,7 +28,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin):
-        super(AIOTracedCursor, self).__init__(cursor)
+        super().__init__(cursor)
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
@@ -61,12 +63,16 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
+        if isinstance(query, str):
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
+        if isinstance(query, str):
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 
@@ -82,7 +88,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
-        super(AIOTracedConnection, self).__init__(conn)
+        super().__init__(conn)
         vendor = dbapi._get_vendor(conn)
         name = schematize_service_name(vendor)
         db_pin = pin or Pin(service=name)

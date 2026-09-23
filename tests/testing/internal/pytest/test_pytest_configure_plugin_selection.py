@@ -15,6 +15,7 @@ import pytest
 from ddtrace.testing.internal.pytest.plugin import _EXTERNAL_RERUN_PLUGINS
 from ddtrace.testing.internal.pytest.plugin import _HOOKIMPL_SUPPORTS_SPECNAME
 from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
+from ddtrace.testing.internal.pytest.plugin import XDIST_MANIFEST_STASH_KEY
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import TestOptPluginWithProtocol
 from ddtrace.testing.internal.pytest.plugin import _stash_set
@@ -41,6 +42,7 @@ def _make_mock_config(plugin_names=(), atr_enabled=False, efd_enabled=False, atf
     session_manager.settings.early_flake_detection.enabled = efd_enabled
     session_manager.settings.test_management.enabled = atf_enabled
     _stash_set(config, SESSION_MANAGER_STASH_KEY, session_manager)
+    _stash_set(config, XDIST_MANIFEST_STASH_KEY, None)
     return config, session_manager
 
 

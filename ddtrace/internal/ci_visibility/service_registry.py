@@ -2,14 +2,13 @@
 
 import typing as t
 
-
-if t.TYPE_CHECKING:
-    from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-CI_VISIBILITY_INSTANCE = None
+from ddtrace.internal.ci_visibility._protocols import CIVisibilityProtocol
 
 
-def register_ci_visibility_instance(service: "CIVisibility") -> None:
+CI_VISIBILITY_INSTANCE: t.Optional[CIVisibilityProtocol] = None
+
+
+def register_ci_visibility_instance(service: CIVisibilityProtocol) -> None:
     """Register the CIVisibility service instance."""
     global CI_VISIBILITY_INSTANCE
     CI_VISIBILITY_INSTANCE = service
@@ -21,7 +20,7 @@ def unregister_ci_visibility_instance() -> None:
     CI_VISIBILITY_INSTANCE = None
 
 
-def require_ci_visibility_service() -> "CIVisibility":
+def require_ci_visibility_service() -> CIVisibilityProtocol:
     """Get the CIVisibility service, raising if not available."""
     if not CI_VISIBILITY_INSTANCE:
         raise RuntimeError("CIVisibility service not registered")

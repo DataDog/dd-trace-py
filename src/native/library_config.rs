@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use libdd_library_config::tracer_metadata::ThreadLocalMetadata;
 use libdd_library_config::{
     tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata},
     Configurator, ProcessInfo,
@@ -7,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::types::PyList;
 
-#[pyclass(name = "PyConfigurator", module = "ddtrace.internal._native")]
+#[pyclass(name = "PyConfigurator", module = "ddtrace.internal.native._native")]
 pub struct PyConfigurator {
     configurator: Box<Configurator>,
     local_file: String,
@@ -68,7 +70,7 @@ impl PyConfigurator {
     }
 }
 
-#[pyclass(name = "PyTracerMetadata", module = "ddtrace.internal._native")]
+#[pyclass(name = "PyTracerMetadata", module = "ddtrace.internal.native._native")]
 pub struct PyTracerMetadata {
     pub runtime_id: Option<String>,
     pub tracer_version: String,
@@ -107,7 +109,10 @@ impl PyTracerMetadata {
     }
 }
 
-#[pyclass(name = "PyAnonymousFileHandle", module = "ddtrace.internal._native")]
+#[pyclass(
+    name = "PyAnonymousFileHandle",
+    module = "ddtrace.internal.native._native"
+)]
 #[allow(dead_code)]
 pub struct PyAnonymousFileHandle {
     internal: AnonymousFileHandle,
@@ -127,6 +132,12 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_version: data.service_version.clone(),
         process_tags: data.process_tags.clone(),
         container_id: data.container_id.clone(),
+        #[cfg(target_os = "linux")]
+        threadlocal_metadata: Some(ThreadLocalMetadata {
+            attribute_keys: vec![],
+            schema_version: None,
+            extra_attributes: vec![],
+        }),
     };
 
     let res = store_tracer_metadata(&metadata);
