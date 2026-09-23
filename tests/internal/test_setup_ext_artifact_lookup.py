@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import typing as t
 from typing import Any
@@ -35,8 +36,6 @@ def _exec_helper() -> Any:
 def _touch(path: Path, mtime: float) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"")
-    import os
-
     os.utime(path, (mtime, mtime))
     return path
 

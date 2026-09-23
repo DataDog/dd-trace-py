@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -14,6 +15,11 @@ CACHE = ROOT / ".ext_cache"
 # wheel build (``uv build --wheel``) puts them under ``build/lib.<platform>``. ``ext_hashes``
 # reports whichever the caller asks for, and the cache has to target the same tree.
 INPLACE = True
+
+# How many distinct source states to keep per extension. main and every release branch write to
+# one cache object, so a limit of 1 makes them evict each other on every build. A high limit is
+# cheap because a branch diverges on only the few extensions whose sources it changes.
+KEEP_GENERATIONS = 8
 
 
 def invoke_ext_hashes() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, Path]]]:
@@ -78,6 +84,43 @@ def try_restore_from_cache(shared_deps: bool = True) -> None:
         _restore_shared_deps(dep_entries)
 
 
+def _record_and_prune(cache: Path, ext_entries: list[tuple[str, str, str]], keep: int = KEEP_GENERATIONS) -> None:
+    """Mark this build's entries as most recently used and evict the oldest beyond keep.
+
+    A build only ever adds to the cache, so without eviction its entry count grows without
+    bound and every job in the fleet pays the extra transfer. Recency lives in one index file
+    keyed by a monotonic counter rather than in per-entry mtimes, because the cache
+    round-trips through an archiver that need not preserve them.
+    """
+    index_path = cache / "usage.json"
+    try:
+        index = json.loads(index_path.read_text())
+    except (OSError, ValueError):
+        index = {}
+
+    seq = index.get("seq", 0) + 1
+    used: dict[str, int] = index.get("entries", {})
+    for ext_name, ext_hash, _ in ext_entries:
+        used[f"{ext_name}/{ext_hash}"] = seq
+
+    for ext_name in {name for name, _, _ in ext_entries}:
+        ext_dir = cache / ext_name
+        if not ext_dir.is_dir():
+            continue
+        generations = sorted(
+            (d for d in ext_dir.iterdir() if d.is_dir()),
+            key=lambda d: (used.get(f"{ext_name}/{d.name}", 0), d.name),
+            reverse=True,
+        )
+        for stale in generations[keep:]:
+            print(f"Evicting {stale} from the cache")
+            shutil.rmtree(stale, ignore_errors=True)
+            used.pop(f"{ext_name}/{stale.name}", None)
+
+    cache.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(json.dumps({"seq": seq, "entries": used}))
+
+
 def save_to_cache(shared_deps: bool = True) -> None:
     ext_entries, dep_entries = invoke_ext_hashes()
 
@@ -100,6 +143,8 @@ def save_to_cache(shared_deps: bool = True) -> None:
 
     if shared_deps:
         _save_shared_deps(dep_entries)
+
+    _record_and_prune(CACHE, ext_entries)
 
 
 # ---------------------------------------------------------------------------

@@ -903,10 +903,8 @@ SHARED_DEPS: list[SharedDep] = [
 def _first_up_to_date(candidates: list[Path], sources: list[str]) -> t.Optional[Path]:
     """Return the first candidate artifact that is newer than every source, else None.
 
-    An editable build leaves artifacts in the source tree while a wheel build puts them
-    under build/lib, and ext_cache restores to whichever of the two it was asked for. A
-    rebuild is only warranted when neither location holds a usable artifact, so checking
-    a single hard-coded location silently discards a restored one.
+    ext_cache restores a .so into the source tree for an editable build and into build/lib
+    for a wheel build, so both are candidates.
     """
     for candidate in candidates:
         if not newer_group(sources, str(candidate), "newer"):
