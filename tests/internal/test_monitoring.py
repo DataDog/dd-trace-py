@@ -802,16 +802,28 @@ def test_register_rearms_disabled_py_start_for_new_handler(
     assert passive.count == 2
 
 
+@pytest.mark.parametrize("callback_name", ["_on_py_start", "_on_py_line"])
 def test_register_invalidates_inflight_disable(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
 ) -> None:
     """A handler registered during dispatch is not hidden by that dispatch's DISABLE."""
     started = threading.Event()
     release = threading.Event()
     results: list[object | None] = []
 
-    class BlockingLineHandler(monitoring.MonitoringEventHandler):
+    class BlockingHandler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.count = 0
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
+            self.count += 1
+            started.set()
+            release.wait()
+            return _DISABLE
+
         def on_py_line(self, code: CodeType, line_number: int) -> object | None:
+            self.count += 1
             started.set()
             release.wait()
             return _DISABLE
@@ -819,10 +831,11 @@ def test_register_invalidates_inflight_disable(
     def fn() -> None:
         pass
 
-    registered(fn.__code__, BlockingLineHandler())
-    second = LineHandler(disable=True)
+    first = registered(fn.__code__, BlockingHandler())
+    second = BlockingHandler()
+    callback = getattr(monitoring, callback_name)
 
-    thread = threading.Thread(target=lambda: results.append(monitoring._on_py_line(fn.__code__, 1)))
+    thread = threading.Thread(target=lambda: results.append(callback(fn.__code__, 1)))
     thread.start()
     try:
         assert started.wait(timeout=5)
@@ -833,8 +846,57 @@ def test_register_invalidates_inflight_disable(
 
     assert not thread.is_alive()
     assert results == [None]
-    assert monitoring._on_py_line(fn.__code__, 1) is _DISABLE
-    assert second.lines == [1]
+    assert second.count == 0
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert second.count == 1
+    monitoring.unregister(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert second.count == 2
+
+
+@pytest.mark.parametrize("callback_name", ["_on_py_start", "_on_py_line"])
+def test_callback_snapshots_follow_registration_order(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            calls.append((self.name, "_on_py_start"))
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            calls.append((self.name, "_on_py_line"))
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    first = registered(fn.__code__, Handler("first"))
+    second = registered(fn.__code__, Handler("second"))
+    callback = getattr(monitoring, callback_name)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name), ("second", callback_name)]
+
+    calls.clear()
+    registered(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name), ("second", callback_name)]
+
+    calls.clear()
+    monitoring.unregister(fn.__code__, first)
+    registered(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("second", callback_name), ("first", callback_name)]
+
+    calls.clear()
+    monitoring.unregister(fn.__code__, second)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name)]
 
 
 @pytest.mark.parametrize(("callback_name", "event"), [("_on_py_start", _E.PY_START), ("_on_py_line", _E.LINE)])

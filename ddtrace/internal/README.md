@@ -409,7 +409,11 @@ has returned `DISABLE`, so a rejected request does not cause a physical re-arm.
 already be disabled. Call `monitoring.refresh(code, events)` when a handler
 becomes interested in those event bits again.
 
-Callbacks run from an immutable handler snapshot. If event configuration changes
+Registration binds callbacks into immutable tuples for each event, so dispatch
+does not repeatedly filter unrelated handlers or look up their methods. Re-register
+a handler after replacing its methods to update these callbacks.
+
+Callbacks run from an immutable callback snapshot. If event configuration changes
 while a callback is running, its handlers still complete, but the multiplexer
 drops that callback's stale aggregate `DISABLE` vote. A newly registered handler
 does not receive an event that began before registration; it receives subsequent

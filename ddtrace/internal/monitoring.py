@@ -18,6 +18,7 @@ from contextlib import contextmanager
 import sys
 from types import CodeType
 from typing import Any
+from typing import Callable
 from typing import Iterator
 from typing import NamedTuple
 from typing import Optional
@@ -228,9 +229,16 @@ _subscriber_codes: dict[int, _Subscriber] = {}
 
 
 class _CodeHandlers:
-    """Per-code handler table with a pre-built snapshot for hot-path dispatch."""
+    """Per-code handler table with bound callbacks partitioned by event."""
 
-    __slots__ = ("_by_handler", "possibly_disabled_events", "snapshot")
+    __slots__ = (
+        "_by_handler",
+        "possibly_disabled_events",
+        "start_callbacks",
+        "return_callbacks",
+        "unwind_callbacks",
+        "line_callbacks",
+    )
 
     def __init__(self) -> None:
         self._by_handler: dict[int, _Entry] = {}
@@ -238,7 +246,10 @@ class _CodeHandlers:
         # least once. This is intentionally conservative: stale bits can cause
         # an unnecessary targeted re-arm, while missing a bit can lose events.
         self.possibly_disabled_events: int = 0
-        self.snapshot: tuple[_Entry, ...] = ()
+        self.start_callbacks: tuple[Callable[[CodeType, int], Optional[object]], ...] = ()
+        self.return_callbacks: tuple[Callable[[CodeType, int, object], None], ...] = ()
+        self.unwind_callbacks: tuple[Callable[[CodeType, int, BaseException], None], ...] = ()
+        self.line_callbacks: tuple[Callable[[CodeType, int], Optional[object]], ...] = ()
 
     def __len__(self) -> int:
         return len(self._by_handler)
@@ -246,18 +257,27 @@ class _CodeHandlers:
     def set_handler(self, handler_id: int, entry: _Entry) -> Optional[_Entry]:
         previous = self._by_handler.get(handler_id)
         self._by_handler[handler_id] = entry
-        self.snapshot = tuple(self._by_handler.values())
+        self._update_callbacks()
         return previous
 
     def pop_handler(self, handler_id: int) -> Optional[_Entry]:
         entry = self._by_handler.pop(handler_id, None)
-        self.snapshot = tuple(self._by_handler.values())
+        self._update_callbacks()
         return entry
+
+    def _update_callbacks(self) -> None:
+        # Bind and filter at registration time, not on every delivered event.
+        # Each immutable tuple also preserves the in-flight dispatch snapshot.
+        entries = self._by_handler.values()
+        self.start_callbacks = tuple(e.handler.on_py_start for e in entries if e.events & _E.PY_START)
+        self.return_callbacks = tuple(e.handler.on_py_return for e in entries if e.events & _E.PY_RETURN)
+        self.unwind_callbacks = tuple(e.handler.on_py_unwind for e in entries if e.events & _E.PY_UNWIND)
+        self.line_callbacks = tuple(e.handler.on_py_line for e in entries if e.events & _E.LINE)
 
 
 def _events_for(handlers: _CodeHandlers) -> int:
     events: int = 0
-    for e in handlers.snapshot:
+    for e in handlers._by_handler.values():
         events |= e.events
     return events
 
@@ -385,13 +405,13 @@ def get_tool_id() -> int:
 
 
 # ---------------------------------------------------------------------------
-# Hot-path callbacks — no lock; iterate a pre-built handler snapshot tuple
+# Hot-path callbacks — no lock; iterate pre-built per-event callback tuples
 # ---------------------------------------------------------------------------
 
 
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if handlers is None:
         return _DISABLE
     epoch = _event_mutation_epoch
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
@@ -399,10 +419,9 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     # returns it, mirroring on_py_line. Existing handlers (the wrapping context)
     # return None, so behaviour is unchanged unless a handler opts into DISABLE.
     disable: bool = True
-    for e in handlers.snapshot:
-        if e.events & _E.PY_START:
-            if e.handler.on_py_start(code, instruction_offset) is not _DISABLE:
-                disable = False
+    for callback in handlers.start_callbacks:
+        if callback(code, instruction_offset) is not _DISABLE:
+            disable = False
     # Publish the possible DISABLE state before validating the vote. A concurrent
     # refresh that starts after publication can then observe and re-arm it. If the
     # epoch changed earlier, retain the conservative bit but reject the stale vote.
@@ -415,40 +434,37 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
 
 def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if handlers is None:
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
-    for e in handlers.snapshot:
-        if e.events & _E.PY_RETURN:
-            e.handler.on_py_return(code, instruction_offset, retval)
+    for callback in handlers.return_callbacks:
+        callback(code, instruction_offset, retval)
     return None
 
 
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if handlers is None:
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
-    for e in handlers.snapshot:
-        if e.events & _E.PY_UNWIND:
-            e.handler.on_py_unwind(code, instruction_offset, exception)
+    for callback in handlers.unwind_callbacks:
+        callback(code, instruction_offset, exception)
     return None
 
 
 def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
-    if not handlers or not handlers.snapshot:
+    if handlers is None:
         return _DISABLE
     epoch = _event_mutation_epoch
     disable: bool = True
-    for e in handlers.snapshot:
-        if e.events & _E.LINE:
-            try:
-                if e.handler.on_py_line(code, line_number) is not _DISABLE:
-                    disable = False
-            except Exception:
-                log.warning("monitoring LINE handler failed", exc_info=True)
+    for callback in handlers.line_callbacks:
+        try:
+            if callback(code, line_number) is not _DISABLE:
                 disable = False
+        except Exception:
+            log.warning("monitoring LINE handler failed", exc_info=True)
+            disable = False
     # Publish before validating so a concurrent refresh cannot miss a DISABLE
     # vote that is about to be returned. Stale conservative bits are harmless.
     if disable:
