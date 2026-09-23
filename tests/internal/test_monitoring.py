@@ -521,9 +521,40 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
 
 
-def test_multiplexer_prefers_tool_id_3() -> None:
-    assert monitoring._CANDIDATE_TOOL_IDS == (3, 4)
+def test_multiplexer_uses_only_tool_id_3() -> None:
+    """Slot 4 remains available until the exception profiler joins the multiplexer."""
+    assert monitoring._CANDIDATE_TOOL_IDS == (3,)
     assert monitoring.get_tool_id() == 3
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_last_collected_code_releases_tool_and_callbacks() -> None:
+    import gc
+    import sys
+    from types import CodeType
+    import weakref
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    code = compile("pass", "<collected>", "exec")
+    collected = weakref.ref(code)
+    monitoring.register(code, Handler())
+    tool_id = monitoring._tool_id
+    assert tool_id == 3
+
+    del code
+    gc.collect()
+
+    assert collected() is None
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
 
 
 @pytest.mark.subprocess(out=None, err=None)
@@ -567,24 +598,89 @@ def test_last_unregister_releases_tool_and_callbacks() -> None:
     monitoring.unregister(target.__code__, handler)
 
 
+def test_registration_holds_registry_lock_while_claiming_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Final teardown cannot free the tool between setup and registry publication."""
+    import threading
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    first_code = compile("pass", "<first>", "exec")
+    second_code = compile("pass", "<second>", "exec")
+    handler = Handler()
+    monitoring.register(first_code, handler)
+
+    original_setup = monitoring._setup
+    setup_returned = threading.Event()
+    allow_registration = threading.Event()
+    unregister_finished = threading.Event()
+    errors: list[BaseException] = []
+
+    def blocked_setup() -> int:
+        tool_id = original_setup()
+        setup_returned.set()
+        allow_registration.wait(timeout=5)
+        return tool_id
+
+    def register_second() -> None:
+        try:
+            monitoring.register(second_code, handler)
+        except BaseException as error:
+            errors.append(error)
+
+    def unregister_first() -> None:
+        try:
+            monitoring.unregister(first_code, handler)
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            unregister_finished.set()
+
+    monkeypatch.setattr(monitoring, "_setup", blocked_setup)
+    register_thread = threading.Thread(target=register_second)
+    register_thread.start()
+    assert setup_returned.wait(timeout=5)
+
+    unregister_thread = threading.Thread(target=unregister_first)
+    unregister_thread.start()
+    teardown_won_race = unregister_finished.wait(timeout=0.1)
+    allow_registration.set()
+    register_thread.join(timeout=5)
+    unregister_thread.join(timeout=5)
+
+    assert not teardown_won_race
+    assert not register_thread.is_alive()
+    assert not unregister_thread.is_alive()
+    assert not errors
+    assert monitoring._registry.get(second_code) is not None
+    assert monitoring._tool_id is not None
+
+    monitoring.unregister(second_code, handler)
+
+
 @pytest.mark.subprocess(out=None, err=None)
-def test_get_tool_id_falls_back_without_disturbing_occupied_slot() -> None:
-    """After handled exceptions migrate, setup can fall back to custom slot 4."""
+def test_get_tool_id_does_not_fall_back_to_profiler_slot() -> None:
+    """An occupied slot 3 is preserved without claiming the profiler's slot 4."""
     import sys
+
+    import pytest
 
     sys_monitoring = getattr(sys, "monitoring")
     sys_monitoring.use_tool_id(3, "external")
 
     from ddtrace.internal import monitoring
 
-    assert monitoring.get_tool_id() == 4
+    with pytest.raises(monitoring.MonitoringToolUnavailable):
+        monitoring.get_tool_id()
+
     assert sys_monitoring.get_tool(3) == "external"
-    assert sys_monitoring.get_tool(4) == "ddtrace"
+    assert sys_monitoring.get_tool(4) is None
 
 
 @pytest.mark.subprocess(out=None, err=None)
 def test_get_tool_id_fails_without_disturbing_occupied_slots() -> None:
-    """Tool setup raises only after preserving both custom-slot owners."""
+    """Tool setup preserves both custom-slot owners when slot 3 is unavailable."""
     import sys
 
     import pytest
@@ -859,26 +955,52 @@ def test_global_registration_preserves_disabled_local_events(
     fn()
     assert len(line_handler.lines) == disabled_count
 
+    monitoring.refresh(fn.__code__, _E.LINE)
+    fn()
+    refreshed_count = len(line_handler.lines)
+    assert refreshed_count > disabled_count
+
     monitoring.unregister_global(exception_handler)
     fn()
-    assert len(line_handler.lines) == disabled_count
+    assert len(line_handler.lines) == refreshed_count
 
 
-def test_exception_handled_handler_failure_does_not_skip_siblings(
+def test_exception_handled_handler_failure_does_not_affect_user_code(
     registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
-    """One failing global handler must not affect other handlers or user code."""
+    """A failing global handler is isolated from user code."""
 
     def fn() -> None:
         pass
 
     registered_global(RaisingHandledExceptionHandler())
-    sibling: HandledExceptionHandler = registered_global(HandledExceptionHandler())  # type: ignore[assignment]
+    monitoring._on_exception_handled(fn.__code__, 0, ValueError("handled"))
+
+
+def test_register_global_rejects_different_exception_handler(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A second owner cannot silently replace the active global handler."""
+
+    def fn() -> None:
+        pass
+
+    first: HandledExceptionHandler = registered_global(HandledExceptionHandler())  # type: ignore[assignment]
+    second = HandledExceptionHandler()
+
+    with pytest.raises(ValueError, match="already has a different"):
+        monitoring.register_global(second)
+
+    first.handled.clear()
     exception = ValueError("handled")
-
     monitoring._on_exception_handled(fn.__code__, 0, exception)
+    assert (fn.__code__, exception) in first.handled
+    assert not second.handled
 
-    assert (fn.__code__, exception) in sibling.handled
+    monitoring.unregister_global(second)
+    first.handled.clear()
+    monitoring._on_exception_handled(fn.__code__, 0, exception)
+    assert (fn.__code__, exception) in first.handled
 
 
 def test_register_global_rejects_local_only_handler() -> None:

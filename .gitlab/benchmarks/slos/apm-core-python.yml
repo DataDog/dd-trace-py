@@ -93,6 +93,12 @@ experiments:
           - name: sysmonitoring-multiplexer_active
             thresholds:
               - execution_time < 0.0019 ms
+          - name: errortrackingmonitoring-module_filter_miss
+            thresholds:
+              - execution_time < 0.0001 ms
+          - name: errortrackingmonitoring-module_filter_hit
+            thresholds:
+              - execution_time < 0.0001 ms
           # errortrackingdjangosimple
           - name: errortrackingdjangosimple-baseline
             thresholds:
