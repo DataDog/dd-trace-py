@@ -231,3 +231,7 @@ of each audio-turn workflow. Speech offsets select the input WAV; speech-end
 event receipt defines the initial latency boundary. Projected assistant playback
 is an estimate, not a device acknowledgement. Keep total samples separate from
 bounded retained bytes; share the audio payload budget across both roles.
+
+Nova protocol state lives in llmobs/_integrations/_aws_sdk_bedrock_runtime.py.
+The product supplies it through the Bedrock core event only while enabled. Shared
+parent/trace identity stamping lives in BaseLLMIntegration._start_audio_span.

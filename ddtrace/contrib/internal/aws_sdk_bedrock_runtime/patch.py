@@ -6,12 +6,14 @@ import aws_sdk_bedrock_runtime
 from aws_sdk_bedrock_runtime.client import AsyncBedrockRuntimeClient
 
 from ddtrace import config
-from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._sonic import SonicState
+from ddtrace.contrib._events.aws_sdk_bedrock_runtime import BedrockBidirectionalStreamEvent
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._stream import DuplexProxy
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations import AwsSdkBedrockRuntimeIntegration
+from ddtrace.trace import Context
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -27,15 +29,22 @@ def _supported_versions() -> dict[str, str]:
 
 
 async def traced_invoke(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    integration = aws_sdk_bedrock_runtime._datadog_integration
     request = args[0] if args else kwargs.get("input")
     model = getattr(request, "model_id", "")
-    if not integration.llmobs_enabled or model != "amazon.nova-2-sonic-v1:0":
+    if not core.has_listeners(BedrockBidirectionalStreamEvent.event_name):
         return await func(*args, **kwargs)
     try:
-        state = SonicState(integration, model)
+        event = BedrockBidirectionalStreamEvent(
+            integration_config=config.aws_sdk_bedrock_runtime,
+            model=model,
+            parent=tracer.context_provider.active() or Context(),
+        )
+        core.dispatch_event(event)
+        state = event.observer
     except Exception:
         log.debug("Cannot initialize Nova Sonic tracing", exc_info=True)
+        return await func(*args, **kwargs)
+    if state is None:
         return await func(*args, **kwargs)
     try:
         stream = await func(*args, **kwargs)
@@ -53,7 +62,6 @@ async def traced_invoke(func: Callable[..., Any], instance: Any, args: tuple[Any
 def patch() -> None:
     if getattr(aws_sdk_bedrock_runtime, "_datadog_patch", False):
         return
-    aws_sdk_bedrock_runtime._datadog_integration = AwsSdkBedrockRuntimeIntegration(config.aws_sdk_bedrock_runtime)
     wrap(AsyncBedrockRuntimeClient, "invoke_model_with_bidirectional_stream", traced_invoke)
     aws_sdk_bedrock_runtime._datadog_patch = True
 

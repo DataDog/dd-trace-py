@@ -3,6 +3,8 @@ components:
   aws_sdk_bedrock_runtime:
     - ddtrace/contrib/internal/aws_sdk_bedrock_runtime/*
     - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime.py
+    - ddtrace/llmobs/_integrations/_aws_sdk_bedrock_runtime.py
+    - ddtrace/contrib/_events/aws_sdk_bedrock_runtime.py
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
   claude_agent_sdk:

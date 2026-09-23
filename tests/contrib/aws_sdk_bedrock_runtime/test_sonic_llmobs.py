@@ -14,6 +14,7 @@ from smithy_core.aio.eventstream import DuplexEventStream
 from ddtrace import patch as patch_integrations
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._stream import DuplexProxy
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import LLMObs
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import INPUT
@@ -168,3 +169,37 @@ async def test_invoke_failure_emits_error_without_replacing_exception(monkeypatc
     emitted = [call.args[0] for call in llmobs.enqueue.call_args_list]
     assert len(emitted) == 2
     assert all(span["status"] == "error" for span in emitted)
+
+
+@pytest.mark.asyncio
+async def test_observer_registration_follows_enable_disable(monkeypatch, llmobs, tracer):
+    event_name = "aws_sdk_bedrock_runtime.bidirectional_stream"
+    assert core.has_listeners(event_name)
+    LLMObs.disable()
+    assert not core.has_listeners(event_name)
+    underlying = await mock_stream(monkeypatch, [])
+    async with AsyncBedrockRuntimeClient() as client:
+        request = InvokeModelWithBidirectionalStreamOperationInput(model_id=MODEL)
+        assert await client.invoke_model_with_bidirectional_stream(request) is underlying
+        # Patching before enable must begin observing later calls when LLMObs starts.
+        LLMObs.enable(integrations_enabled=False, _tracer=tracer, agentless_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        monkeypatch.setattr(LLMObs._instance._llmobs_span_writer, "enqueue", MagicMock())
+        assert core.has_listeners(event_name)
+        result = await client.invoke_model_with_bidirectional_stream(request)
+        assert isinstance(result, DuplexProxy)
+        await result.close()
+    LLMObs.disable()
+    assert not core.has_listeners(event_name)
+
+
+@pytest.mark.asyncio
+async def test_observer_initialization_failure_preserves_sdk_result(monkeypatch, llmobs):
+    underlying = await mock_stream(monkeypatch, [])
+    monkeypatch.setattr(core, "dispatch_event", MagicMock(side_effect=RuntimeError("observer failed")))
+    async with AsyncBedrockRuntimeClient() as client:
+        result = await client.invoke_model_with_bidirectional_stream(
+            InvokeModelWithBidirectionalStreamOperationInput(model_id=MODEL)
+        )
+    assert result is underlying
+    assert not llmobs.enqueue.called

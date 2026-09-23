@@ -5,11 +5,11 @@ from typing import Optional
 
 from wrapt import ObjectProxy
 
-from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._sonic import SonicState
+from ddtrace.contrib._events.aws_sdk_bedrock_runtime import BedrockStreamObserver
 
 
 class InputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy base.
-    def __init__(self, wrapped: Any, state: SonicState) -> None:
+    def __init__(self, wrapped: Any, state: BedrockStreamObserver) -> None:
         super().__init__(wrapped)
         self._self_state = state
 
@@ -40,7 +40,7 @@ class InputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy
 
 
 class OutputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy base.
-    def __init__(self, wrapped: Any, state: SonicState) -> None:
+    def __init__(self, wrapped: Any, state: BedrockStreamObserver) -> None:
         super().__init__(wrapped)
         self._self_state = state
 
@@ -95,7 +95,7 @@ class OutputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed prox
 
 
 class DuplexProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy base.
-    def __init__(self, wrapped: Any, state: SonicState) -> None:
+    def __init__(self, wrapped: Any, state: BedrockStreamObserver) -> None:
         super().__init__(wrapped)
         self._self_state = state
         self._self_input = InputProxy(wrapped.input_stream, state)

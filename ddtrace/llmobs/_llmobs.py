@@ -134,6 +134,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
+from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import on_bidirectional_stream
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -894,6 +895,8 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
+        core.reset_listeners("aws_sdk_bedrock_runtime.bidirectional_stream", on_bidirectional_stream)
+
         # Remove listener hooks for span events
         core.reset_listeners("trace.span_start", self._on_span_start)
         core.reset_listeners("trace.span_finish", self._on_span_finish)
@@ -1062,6 +1065,8 @@ class LLMObs(Service):
                 sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
+
+            core.on("aws_sdk_bedrock_runtime.bidirectional_stream", on_bidirectional_stream)
 
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)

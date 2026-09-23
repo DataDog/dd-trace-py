@@ -28,11 +28,11 @@ attachments.
 
 Input clips use provider speech offsets across input content containers.
 The initial latency boundary matches OpenAI Realtime: receipt of the speech-end
-notification to receipt of the first output audio. It includes neither an
-estimate of endpointing delay nor device playback latency.
+notification to receipt of the first output audio. It excludes speech-end
+detection delay and device playback latency.
 
 Assistant playback is projected from chunk arrival and PCM duration. Queued
-chunks are serialized, and underruns are represented by silence. Interruptions
+chunks are serialized, and silence fills gaps when the audio queue empties. Interruptions
 cut this projection at notification receipt. This is an estimate: the SDK
 does not report how many samples the user's device actually played.
 The span metadata labels this timing and retains speech/detection offsets.
@@ -44,7 +44,7 @@ Only mono, base64-encoded 16-bit LPCM with a supported negotiated sample rate
 is converted to WAV. Oversize, invalid, unavailable, or changed-format audio
 falls back to text. Input and output share the inline audio payload budget.
 Per-turn usage is attributed when events arrive; cumulative session counters
-are differenced once so they are not charged repeatedly.
+are converted to increments so they are not charged repeatedly.
 
 Use a new connection for each prompt. Reusing input content containers within
 one prompt preserves the sample offset origin. If a different prompt starts on

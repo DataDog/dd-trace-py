@@ -36,3 +36,7 @@ For independently consumed input/output streams, see
 SDK operation and its returned connection, not global Smithy classes.
 These audio-turn spans use the specialized direct-span LLMObs lifecycle;
 see the LLMObs implementation guide for parenting and finalization rules.
+
+The Bedrock wrapper dispatches a typed observer handoff event through core. The
+LLMObs service registers its handler on enable and removes it on disable; contrib
+does not import the product. Stream proxies depend only on the observer protocol.

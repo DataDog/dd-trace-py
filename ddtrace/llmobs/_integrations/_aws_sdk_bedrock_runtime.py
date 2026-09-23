@@ -15,8 +15,6 @@ from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYT
 from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.trace import Context
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -131,7 +129,7 @@ class Turn:
             self.output_end_ns = now
         if not rate:
             return
-        # AIDEV-NOTE: queued chunks must follow earlier audio, never overlap it.
+        # Queued chunks must follow earlier audio, never overlap it.
         # Pad underruns so one clip and one speech phase describe the same timeline.
         previous_end = self.output_end_ns if self.output_end_ns is not None else now
         gap = max(0, now - previous_end) * rate // 1_000_000_000 * 2
@@ -157,10 +155,10 @@ class Turn:
 
 
 class SonicState:
-    def __init__(self, integration: Any, model: str) -> None:
+    def __init__(self, integration: Any, model: str, parent: Any) -> None:
         self.integration = integration
         self.model = model
-        self.parent = tracer.context_provider.active() or Context()
+        self.parent = parent
         self.session_id = str(uuid.uuid4())
         self.audio = InputAudio()
         self.pending = Turn()

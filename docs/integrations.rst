@@ -274,7 +274,7 @@ google-adk
 .. _aws_sdk_bedrock_runtime:
 
 aws-sdk-bedrock-runtime
-~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.aws_sdk_bedrock_runtime
 
 

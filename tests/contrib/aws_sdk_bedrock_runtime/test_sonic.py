@@ -15,16 +15,18 @@ import pytest
 from smithy_core.aio.eventstream import DuplexEventStream
 
 from ddtrace import config
-from ddtrace.contrib.internal.aws_sdk_bedrock_runtime import _sonic
-from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._sonic import InputAudio
-from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._sonic import SonicState
-from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._sonic import Turn
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._stream import DuplexProxy
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import patch
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import unpatch
+from ddtrace.llmobs._integrations import _aws_sdk_bedrock_runtime as _sonic
+from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import InputAudio
+from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import SonicState
+from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import Turn
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import AwsSdkBedrockRuntimeIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.trace import Context
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 MODEL = "amazon.nova-2-sonic-v1:0"
@@ -54,7 +56,7 @@ class RecordingIntegration(AwsSdkBedrockRuntimeIntegration):
 
 def state():
     integration = RecordingIntegration()
-    return SonicState(integration, MODEL), integration
+    return SonicState(integration, MODEL, tracer.context_provider.active() or Context()), integration
 
 
 def event(name, data):
