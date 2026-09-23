@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    OpenTelemetry logs: Fixes an issue where enabling OpenTelemetry logs
+    (``DD_LOGS_OTEL_ENABLED=true``, or ``OTEL_SDK_DISABLED=false``) could make the
+    process stop responding and export an ever-growing volume of its own log records.
+    Application logs are still collected and exported.
