@@ -5,7 +5,6 @@ from typing import Callable
 import anthropic
 
 from ddtrace import config
-from ddtrace._monkey import ensure_llmobs_integrations_loaded
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
@@ -118,11 +117,6 @@ def patch() -> None:
 
     anthropic._datadog_patch = True
 
-    # Sets anthropic._datadog_integration; consumed by traced_chat_model_generate /
-    # traced_async_chat_model_generate below. Dispatched (rather than imported directly) so this
-    # module never imports ddtrace.llmobs - see ddtrace/llmobs/_integrations/__init__.py's
-    # _on_anthropic_integration_create for the listener that builds the integration object.
-    ensure_llmobs_integrations_loaded()
     core.dispatch("anthropic.integration.create", (config.anthropic,))
 
     # AI Guard mirrors this wrap-target list in
