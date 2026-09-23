@@ -378,10 +378,11 @@ monitoring.unregister(code, handler)
 ```
 
 The multiplexer keeps the tool claimed while registrations exist and releases
-it after the final registration is removed. Releasing first disables events and
-removes callbacks, so another monitoring consumer can safely reuse the scarce
-slot. Instrumentation that must transform code before registering holds a short
-reservation across that preparation to prevent teardown from racing registration.
+it after the final registration is removed or its code object is collected.
+Releasing first disables events and removes callbacks, so another monitoring
+consumer can safely reuse the scarce slot. Instrumentation that must transform
+code before registering holds a short reservation across that preparation to
+prevent teardown from racing registration.
 
 > [!WARNING]
 > Do not call `register()` or `unregister()` from inside a handler method —
@@ -426,12 +427,14 @@ still global. If either condition fails, callers must use the selective refresh
 path above, which only toggles ddtrace's tool ID for the requested code and event
 bits.
 
-On success, `restart_events()` returns a subscriber version. The version changes
-only when the set of distinct subscribers changes, not when an existing
-subscriber registers more code objects. Dead weak registrations are pruned the
-next time `restart_events()` checks ownership. Callers can retain the version and
-use `subscriber_version_is_current()` to re-check sole ownership without scanning
-all registered code objects after ordinary imports.
+On success, `restart_events()` returns a subscriber token. The token remains
+valid while the set of distinct subscribers is unchanged, including when an
+existing subscriber registers more code objects. Weak-reference cleanup prunes
+dead registrations and invalidates the token when the last code object for a
+subscriber is collected. Callers can retain the token and inspect its `valid`
+attribute without scanning all registered code objects after ordinary imports;
+`subscriber_version_is_current()` remains as a compatibility helper for existing
+internal callers.
 
 ### Error Isolation
 

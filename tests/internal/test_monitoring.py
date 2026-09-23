@@ -371,6 +371,44 @@ def test_on_py_line_disables_when_all_handlers_return_disable(
     assert result is _DISABLE
 
 
+def test_concurrent_event_callbacks_retain_each_disabled_event(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """Concurrent event kinds cannot overwrite each other's disabled-event state."""
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.barrier = threading.Barrier(2)
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            self.barrier.wait()
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            self.barrier.wait()
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, Handler())
+    results: list[object | None] = []
+    start_thread = threading.Thread(target=lambda: results.append(monitoring._on_py_start(fn.__code__, 0)))
+    line_thread = threading.Thread(
+        target=lambda: results.append(monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno))
+    )
+
+    start_thread.start()
+    line_thread.start()
+    start_thread.join()
+    line_thread.join()
+
+    handlers = monitoring._registry.get(fn.__code__)
+    assert handlers is not None
+    assert monitoring._possibly_disabled_events(handlers) == _E.PY_START | _E.LINE
+    assert results == [_DISABLE, _DISABLE]
+
+
 def test_on_py_line_continues_when_any_handler_declines_disable(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
@@ -601,6 +639,27 @@ def test_multiplexer_uses_only_tool_id_3() -> None:
     assert monitoring.get_tool_id() == 3
 
 
+@pytest.mark.subprocess(timeout=10, out=None, err=None)
+def test_batch_registration_materializes_one_shot_iterable_before_locking() -> None:
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    def codes():
+        yield compile("pass", "<first>", "exec")
+        yield compile("pass", "<second>", "exec")
+
+    monitoring._register_many(codes(), Handler(), events=monitoring._E.LINE)
+
+    # The batch tuple is released after the registry lock. Both code objects can
+    # then be collected and weakref cleanup releases the now-unused tool.
+    assert monitoring._tool_id is None
+
+
 @pytest.mark.subprocess(out=None, err=None)
 def test_tool_reservation_releases_unregistered_slot() -> None:
     import sys
@@ -614,6 +673,36 @@ def test_tool_reservation_releases_unregistered_slot() -> None:
 
     assert monitoring._tool_id is None
     assert sys_monitoring.get_tool(tool_id) is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_last_collected_code_releases_tool_and_callbacks() -> None:
+    import gc
+    import sys
+    from types import CodeType
+    import weakref
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    code = compile("pass", "<collected>", "exec")
+    collected = weakref.ref(code)
+    monitoring.register(code, Handler())
+    tool_id = monitoring._tool_id
+    assert tool_id == 3
+
+    del code
+    gc.collect()
+
+    assert collected() is None
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
 
 
 @pytest.mark.subprocess(out=None, err=None)
