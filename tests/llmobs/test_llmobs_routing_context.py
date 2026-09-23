@@ -613,3 +613,46 @@ def test_thread_pool_worker_does_not_reuse_routing(llmobs, _llmobs_backend):
 
     assert sent["tenant"] == TENANT_A_KEY
     assert sent["default"] == default_api_key
+
+
+_DROP_GOLD_RULE = '[{"tags": {"tier": "gold"}, "sample_rate": 0}]'
+
+
+def _sent_sampling(reqs, initial_count, num):
+    _wait_for_requests(reqs, initial_count + num)
+    sent = {}
+    for request in reqs[initial_count:]:
+        body = json.loads(request["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for span in event.get("spans", []):
+                sent[span["name"]] = (span["_dd"]["sample_rate"], span["_dd"]["sampling_decision"])
+    return sent
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_routed_span_applies_sampling_rules(llmobs, _llmobs_backend):
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="gold") as span:
+            llmobs.annotate(span, tags={"tier": "gold"})
+
+    assert _sent_sampling(reqs, initial_count, 1)["gold"] == ("0", "0")
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_routed_child_and_unrouted_root_share_one_decision(llmobs, _llmobs_backend):
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs.workflow(name="root") as root:
+        llmobs.annotate(root, tags={"tier": "gold"})
+        with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+            with llmobs.task(name="routed-child"):
+                pass
+    llmobs_service.flush()
+
+    sent = _sent_sampling(reqs, initial_count, 2)
+    assert sent["routed-child"] == ("0", "0")
+    assert sent["root"] == ("0", "0")

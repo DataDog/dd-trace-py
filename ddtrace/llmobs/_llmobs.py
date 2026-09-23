@@ -685,6 +685,14 @@ class LLMObs(Service):
             # never rides the APM trace anyway, and deferring means the event is lost if LLMObs is
             # disabled before the enclosing trace is flushed -- while its payload would still be
             # on the trace, headed for the default org.
+            if self._sampling_resolver.resolves_late:
+                # LLMObsProcessor never sees this span, so resolve here. Like a partial flush,
+                # the span leaving the process freezes the decision for the whole trace.
+                sample_rate, sampling_decision = self._resolve_sampling(span)
+                event_dd = span_event.get(LLMOBS_STRUCT.DD)
+                if event_dd is not None and sample_rate is not None and sampling_decision is not None:
+                    event_dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
+                    event_dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event, targets)
