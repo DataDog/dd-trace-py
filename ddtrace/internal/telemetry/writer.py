@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import itertools
 import os
 import traceback
@@ -20,10 +19,10 @@ from ddtrace.internal.settings._telemetry import config
 from ...internal import atexit
 from ...internal import excepthook
 from ...internal import forksafe
+from .._runtime_id import get_ancestor_runtime_id
+from .._runtime_id import get_parent_runtime_id
+from .._runtime_id import get_runtime_id
 from ..periodic import PeriodicService
-from ..runtime import get_ancestor_runtime_id
-from ..runtime import get_parent_runtime_id
-from ..runtime import get_runtime_id
 from ..utils.formats import get_test_session_token
 from ..utils.version import version as tracer_version
 from .constants import TELEMETRY_APM_PRODUCT
@@ -163,12 +162,12 @@ class TelemetryWriter:
         self._agentless = agentless
 
         # The native worker, lazily built in enable() once the native runtime exists.
-        self._worker: Optional["TelemetryWorker"] = None
+        self._worker: Optional[TelemetryWorker] = None
         # Registered native metric contexts, keyed by (namespace, name, type) - deliberately NOT
         # by tags, which ride along with each point instead, so this stays bounded by the number of
         # distinct metrics. ContextKeys are worker-specific, so it is cleared on every worker
         # rebuild (see enable()).
-        self._metric_contexts: dict[tuple[TELEMETRY_NAMESPACE, str, str], "MetricContext"] = {}
+        self._metric_contexts: dict[tuple[TELEMETRY_NAMESPACE, str, str], MetricContext] = {}
         # Serializes first-time metric-context registration so two threads recording the same new
         # metric can't both register it (which would create duplicate native contexts / split the
         # series). Only taken on a cache miss; the hot add path reads the cache lock-free.
@@ -205,9 +204,9 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in Python-managed forked children. The NativeRuntime
-            # after_fork_child callback runs before this callback, ensuring the shared runtime
-            # has been restarted before we drop and lazily rebuild the telemetry worker.
+            # Rebuild the native worker in Python-managed forked children. The shared runtime
+            # is marked abandoned in the child; the replacement worker starts lazily after
+            # all child hooks have completed, without unparking the inherited Tokio runtime.
             forksafe.register(self._fork_writer)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
@@ -919,12 +918,13 @@ class TelemetryWriter:
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
     def _fork_writer(self) -> None:
-        # Runs in the child after a Python-managed fork. Drop the inherited worker and rebuild
-        # lazily on the child's next telemetry call (enable()), bound to the child's own runtime
-        # and session ids (get_runtime_id()/get_parent_runtime_id() now reflect the child),
-        # heartbeating without re-emitting app-started.
-        # NOTE: rebuilding here, inside the fork-hook chain, starts Tokio before process managers
-        # such as Celery finish closing inherited file descriptors.
+        # Runs in the child after a Python-managed fork. Drop the inherited worker handle
+        # without shutting it down: the shared runtime is marked abandoned, and rebuilding
+        # here would start Tokio before process managers such as Celery finish closing
+        # inherited file descriptors. Rebuild lazily on the child's next telemetry call
+        # (enable()); the replacement is bound to the child's runtime and session ids and
+        # heartbeats without app-started. The child's first telemetry or exporter call
+        # replaces the inherited runtime without unparking its I/O driver.
         #
         # This hook is registered before the tracer's _child_after_fork (TelemetryWriter is
         # constructed before the tracer), so it always runs before the trace-exporter rebuild
@@ -971,7 +971,7 @@ class TelemetryWriter:
                         1,
                         (("integration_name", integration_name), ("error_type", tp.__name__)),
                     )
-                    error_msg = "{}:{} {}".format(filename, lineno, str(value))
+                    error_msg = f"{filename}:{lineno} {str(value)}"
                     self.add_integration(integration_name, True, error_msg=error_msg)
 
             self.app_shutdown()

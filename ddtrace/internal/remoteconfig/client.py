@@ -1,15 +1,15 @@
+from collections.abc import Sequence
 import json
 import os
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-from typing import Sequence
 import uuid
 
 import ddtrace
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
-from ddtrace.internal import runtime
+from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
@@ -102,9 +102,9 @@ class RemoteConfigClient:
         self.agent_url = agent_config.trace_agent_url
 
         # Product callbacks for single subscriber architecture
-        self._product_callbacks: "dict[RemoteConfigProduct, RCCallback]" = {}
+        self._product_callbacks: dict[RemoteConfigProduct, RCCallback] = {}
         # Track which products are enabled (reported to the agent each poll)
-        self._enabled_products: "set[RemoteConfigProduct]" = set()
+        self._enabled_products: set[RemoteConfigProduct] = set()
         self._capability_values: list = []
 
         # Native client (created lazily on the master process) and the
@@ -136,7 +136,7 @@ class RemoteConfigClient:
                 agent_url=str(self.agent_url),
                 tracer_version=tracer_version,
                 client_id=self.id,
-                runtime_id=runtime.get_runtime_id(),
+                runtime_id=get_runtime_id(),
                 service=ddtrace.config.service or "",
                 env=ddtrace.config.env or "",
                 app_version=ddtrace.config.version or "",

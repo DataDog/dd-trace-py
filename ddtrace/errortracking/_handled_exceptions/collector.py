@@ -1,9 +1,9 @@
-import sys
 import typing as t
 from typing import NamedTuple
 
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
@@ -48,7 +48,7 @@ class HandledExceptionCollector(Service):
     _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEventData]]] = {}
 
     def __init__(self) -> None:
-        super(HandledExceptionCollector, self).__init__()
+        super().__init__()
         log.debug("%s initialized", self.__class__.__name__)
 
     @classmethod
@@ -79,7 +79,7 @@ class HandledExceptionCollector(Service):
         try:
             if config.enabled is False:
                 return
-            if sys.version_info >= (3, 12):
+            if is_at_least_py(3, 12):
                 from ddtrace.errortracking._handled_exceptions.monitoring_reporting import (
                     _install_sys_monitoring_reporting,
                 )
@@ -91,7 +91,7 @@ class HandledExceptionCollector(Service):
                 we need to add a filtering step which can be time efficient.
                 """
                 _install_sys_monitoring_reporting()
-            elif sys.version_info >= (3, 10):
+            elif is_at_least_py(3, 10):
                 from ddtrace.errortracking._handled_exceptions.bytecode_reporting import (
                     _install_bytecode_injection_reporting,
                 )
@@ -109,7 +109,7 @@ class HandledExceptionCollector(Service):
             log.error("Failed to enable HandledExceptionCollector", exc_info=True)
 
     def _stop_service(self) -> None:
-        if sys.version_info >= (3, 12):
+        if is_at_least_py(3, 12):
             from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _disable_monitoring
 
             _disable_monitoring()

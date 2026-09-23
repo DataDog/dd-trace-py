@@ -11,6 +11,8 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -22,7 +24,6 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -36,9 +37,9 @@ _original_exec = exec
 # Compiled at import time so it matches the running Python version.
 _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
-_PY_GE_312 = sys.version_info >= (3, 12)
-_PY_GE_313 = sys.version_info >= (3, 13)
-_PY_GE_314 = sys.version_info >= (3, 14)
+_PY_GE_312 = is_at_least_py(3, 12)
+_PY_GE_313 = is_at_least_py(3, 13)
+_PY_GE_314 = is_at_least_py(3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
 _SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
 
@@ -112,10 +113,10 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         # Import-time coverage data
         self._import_time_covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
-        self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
+        self._import_time_contexts: dict[str, ModuleCodeCollector.CollectInContext] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
-        # AIDEV-NOTE: Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
+        # Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
         # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
         self._direct_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
         self._import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
