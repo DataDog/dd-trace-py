@@ -454,7 +454,6 @@ suites:
           python: ['3.10']
           dependencies: [pytest-randomly, 'anyio<4.0', 'trio<0.22']
         - name: anyio
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, anyio, trio]
   aredis:
     paths:
@@ -2772,7 +2771,6 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, 'trio==0.21.0']
         - name: trio
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, trio]
   urllib3:
     venvs_per_job: 6

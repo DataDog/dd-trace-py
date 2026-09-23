@@ -12,6 +12,17 @@ from typing import cast
 import anyio
 import anyio.to_thread
 
+from ddtrace.internal import core
+from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal._context_watcher import context_switches_require_fallback
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.wrapping import unwrap
+from ddtrace.internal.wrapping import wrap
+
+
+log = get_logger(__name__)
 
 # AnyIO 4.12+ exposes this helper and makes sniffio optional. Older supported versions (3.4–4.11)
 # lack it but depend on sniffio, so use its equivalent API there. If either import breaks, backend
@@ -22,6 +33,8 @@ except ImportError:
     try:
         import sniffio
     except ImportError:
+        # Module import runs once, so this reports the degraded detection at startup only.
+        log.debug("Neither anyio nor sniffio exposes current_async_library; AnyIO keeps worker-thread ownership")
 
         def current_async_library() -> Optional[str]:
             return None
@@ -33,15 +46,6 @@ except ImportError:
                 return sniffio.current_async_library()  # type: ignore[no-any-return]
             except sniffio.AsyncLibraryNotFoundError:
                 return None
-
-
-from ddtrace.internal import core
-from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
-from ddtrace.internal._context_watcher import context_switches_require_fallback
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
-from ddtrace.internal.wrapping import unwrap
-from ddtrace.internal.wrapping import wrap
 
 
 def get_version() -> str:
