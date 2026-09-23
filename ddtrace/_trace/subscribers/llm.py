@@ -47,7 +47,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
             instance=event.instance,
         )
 
-        base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
+        base_url = event.llmobs_integration._get_base_url(instance=event.instance)
         if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
         event.llmobs_integration._annotate_integration_tag(span)
