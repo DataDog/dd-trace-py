@@ -83,7 +83,7 @@ class WrapperRouter(wrapt.ObjectProxy):
                 core.dispatch_event(
                     MoltenRouteEvent(
                         request_context=request_context,
-                        resource="{} {}".format(route.method, route.template),
+                        resource=f"{route.method} {route.template}",
                         request_route=route.template,
                         route_name=route.name,
                     )
