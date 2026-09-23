@@ -85,6 +85,8 @@ components:
     - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
+  context_watcher:
+    - ddtrace/internal/_context_watcher.py
   datastreams:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
@@ -200,7 +202,7 @@ suites:
       python: ['3.10']
       variants: [{name: meta-testing}]
   ddtracerun:
-    venvs_per_job: 2
+    venvs_per_job: 3
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -215,7 +217,6 @@ suites:
         - name: ddtracerun
           dependencies: [redis, gevent, pytest-randomly]
   detect_global_locks:
-    venvs_per_job: 3
     paths:
       - 'ddtrace/*'
       - 'setup.py'
@@ -239,8 +240,7 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants: [{name: detect_global_locks}]
   integration_agent:
-    ddtest_nodes: 2
-    ddtest: true
+    venvs_per_job: 1
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     paths:
@@ -258,20 +258,14 @@ suites:
       variants:
         - name: integration-latest
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
           env:
-            DDTEST_SUITE_PATH: tests/integration
-            DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-latest-civisibility
           dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
-          env:
-            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
-            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
+          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   integration_testagent:
-    ddtest_nodes: 2
-    ddtest: true
+    venvs_per_job: 1
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
@@ -293,20 +287,15 @@ suites:
       variants:
         - name: integration-snapshot
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
           env:
-            DDTEST_SUITE_PATH: tests/integration
-            DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-snapshot-civisibility
           dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
-          env:
-            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
-            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
+          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   internal:
+    venvs_per_job: 4
     retry: 2
-    venvs_per_job: 2
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
@@ -370,13 +359,13 @@ suites:
         - name: wrapping
           dependencies: [pytest-xdist, 'wrapt<2.0.0']
   lib_injection:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@contrib'
       - '@lib_injection'
-    venvs_per_job: 2
     pattern: ^lib_injection$
     matrix:
       command: pytest {cmdargs} tests/lib_injection/
@@ -443,12 +432,9 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
-    ddtest: true
-    ddtest_nodes: 2
+    venvs_per_job: 1
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
-      DDTEST_SUITE_PATH: tests/tracer
-      DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
       DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
@@ -463,6 +449,7 @@ suites:
       - '@futures'
       - '@ci_visibility'
       - '@vendor'
+      - '@context_watcher'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
@@ -472,8 +459,6 @@ suites:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
-        DDTEST_SUITE_PATH: tests/tracer
-        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
         DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
@@ -507,8 +492,6 @@ suites:
     matrix:
       command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py
       env:
-        DDTEST_SUITE_PATH: tests/tracer
-        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
         DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
         DD_CIVISIBILITY_LOG_LEVEL: none

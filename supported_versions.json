@@ -1578,7 +1578,7 @@
                 "supportedRange": ">=21.1.2",
                 "tested": [
                     "21.12.0",
-                    "26.5.0"
+                    "26.9.0"
                 ]
             },
             {
@@ -1590,7 +1590,7 @@
                 "supportedRange": ">=21.1.2",
                 "tested": [
                     "22.10.2",
-                    "26.5.0"
+                    "26.9.0"
                 ]
             },
             {
@@ -1603,7 +1603,7 @@
                 },
                 "supportedRange": ">=21.1.2",
                 "tested": [
-                    "26.5.0"
+                    "26.9.0"
                 ]
             }
         ]
@@ -2497,7 +2497,7 @@
                 "supportedRange": ">=2.0.0",
                 "tested": [
                     "2.0.5",
-                    "2.8.0"
+                    "2.10.1"
                 ]
             }
         ]
@@ -3793,6 +3793,40 @@
             }
         ],
         "pinned": true
+    },
+    {
+        "dependencyName": "trio",
+        "integrationName": "trio",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=0.21.0",
+                "tested": [
+                    "0.21.0",
+                    "0.31.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10",
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=0.21.0",
+                "tested": [
+                    "0.34.0"
+                ]
+            }
+        ]
     },
     {
         "dependencyName": "stdlib.unittest",
