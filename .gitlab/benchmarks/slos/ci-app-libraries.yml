@@ -19,6 +19,17 @@ experiments:
         run: fail_on_breach
         scenarios:
 
+          # coveragemonitoring
+          - name: coveragemonitoring-baseline
+            thresholds:
+              - execution_time < 3000 ms
+          - name: coveragemonitoring-line_level
+            thresholds:
+              - execution_time < 5000 ms
+          - name: coveragemonitoring-file_level
+            thresholds:
+              - execution_time < 5000 ms
+
           # pytestplugin
           - name: pytestplugin-baseline
             thresholds:
