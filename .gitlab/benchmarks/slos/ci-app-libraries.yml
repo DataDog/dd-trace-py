@@ -22,13 +22,13 @@ experiments:
           # coveragemonitoring
           - name: coveragemonitoring-baseline
             thresholds:
-              - execution_time < 3000 ms
+              - execution_time < 80 ms
           - name: coveragemonitoring-line_level
             thresholds:
-              - execution_time < 5000 ms
+              - execution_time < 750 ms
           - name: coveragemonitoring-file_level
             thresholds:
-              - execution_time < 5000 ms
+              - execution_time < 700 ms
 
           # pytestplugin
           - name: pytestplugin-baseline
