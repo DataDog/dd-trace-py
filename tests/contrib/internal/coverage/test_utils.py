@@ -1,5 +1,6 @@
 """Tests for shared coverage utilities."""
 
+from pathlib import Path
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -403,3 +404,162 @@ class TestCoverageUtilityFunctions:
             patch("ddtrace.contrib.internal.coverage.utils._command_invokes_coverage_run", return_value=False),
         ):
             assert _is_coverage_invoked_by_coverage_run() is False
+
+
+class TestRemapLcovPaths:
+    """Tests for _remap_lcov_paths and _build_path_aliases."""
+
+    def test_remap_wheel_installed_paths(self, tmp_path):
+        """SF: lines with site-packages paths are remapped to repo paths."""
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        lcov = (
+            "TN:ddtrace\n"
+            "SF:.cache/uv-test-environments/100b0a9-df168796e73c/lib/python3.12/site-packages/ddtrace/__init__.py\n"
+            "DA:1,1\n"
+            "end_of_record\n"
+            "SF:.cache/uv-test-environments/10210f3-2925f25ab8c0/lib/python3.9/site-packages/ddtrace/__init__.py\n"
+            "DA:1,1\n"
+            "end_of_record\n"
+            "SF:.cache/uv-test-environments/102b11d-879899dc816e/lib/python3.11/site-packages/"
+            "ddtrace/internal/coverage/instrumentation_py3_10.py\n"
+            "DA:1,0\n"
+            "end_of_record\n"
+        )
+        lcov_file = tmp_path / "test.lcov"
+        lcov_file.write_text(lcov, encoding="utf-8")
+
+        _remap_lcov_paths(lcov_file)
+
+        result = lcov_file.read_text(encoding="utf-8")
+        import re
+
+        sf_lines = re.findall(r"^SF:(.+)$", result, re.MULTILINE)
+        assert len(sf_lines) == 3  # still 3 records
+        assert set(sf_lines) == {
+            "ddtrace/__init__.py",
+            "ddtrace/internal/coverage/instrumentation_py3_10.py",
+        }
+
+    def test_remap_noop_for_repo_paths(self, tmp_path):
+        """SF: lines that are already repo-relative are left unchanged."""
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        lcov = "SF:ddtrace/__init__.py\nDA:1,1\nend_of_record\n"
+        lcov_file = tmp_path / "test.lcov"
+        lcov_file.write_text(lcov, encoding="utf-8")
+
+        _remap_lcov_paths(lcov_file)
+
+        assert lcov_file.read_text(encoding="utf-8") == lcov
+
+    def test_remap_noop_for_non_ddtrace_paths(self, tmp_path):
+        """SF: lines for test files (not under site-packages/ddtrace) are left unchanged."""
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        lcov = "SF:tests/test_foo.py\nDA:1,1\nend_of_record\n"
+        lcov_file = tmp_path / "test.lcov"
+        lcov_file.write_text(lcov, encoding="utf-8")
+
+        _remap_lcov_paths(lcov_file)
+
+        assert lcov_file.read_text(encoding="utf-8") == lcov
+
+    def test_remap_noop_when_no_paths_configured(self, tmp_path):
+        """_remap_lcov_paths is a no-op when [paths] has no aliases."""
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        lcov = "SF:foo/bar.py\nDA:1,1\nend_of_record\n"
+        lcov_file = tmp_path / "test.lcov"
+        lcov_file.write_text(lcov, encoding="utf-8")
+
+        with patch("ddtrace.contrib.internal.coverage.utils._build_path_aliases", return_value=None):
+            _remap_lcov_paths(lcov_file)
+
+        assert lcov_file.read_text(encoding="utf-8") == lcov
+
+    def test_remap_empty_file(self, tmp_path):
+        """An empty LCOV file is handled gracefully."""
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        lcov_file = tmp_path / "empty.lcov"
+        lcov_file.write_text("", encoding="utf-8")
+
+        _remap_lcov_paths(lcov_file)
+
+        assert lcov_file.read_text(encoding="utf-8") == ""
+
+    def test_remap_preserves_non_sf_lines(self, tmp_path):
+        """DA, FN, end_of_record, and other lines are preserved unchanged."""
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        lcov = (
+            "TN:ddtrace\n"
+            "SF:.cache/uv-test-environments/abc/lib/python3.12/site-packages/ddtrace/__init__.py\n"
+            "FN:1,func\n"
+            "FNDA:1,func\n"
+            "DA:1,1\n"
+            "DA:2,0\n"
+            "BRDA:1,0,0,1\n"
+            "end_of_record\n"
+        )
+        lcov_file = tmp_path / "test.lcov"
+        lcov_file.write_text(lcov, encoding="utf-8")
+
+        _remap_lcov_paths(lcov_file)
+
+        result = lcov_file.read_text(encoding="utf-8")
+        # SF line should be remapped
+        assert "SF:ddtrace/__init__.py\n" in result
+        # All other lines preserved
+        assert "TN:ddtrace\n" in result
+        assert "FN:1,func\n" in result
+        assert "FNDA:1,func\n" in result
+        assert "DA:1,1\n" in result
+        assert "DA:2,0\n" in result
+        assert "BRDA:1,0,0,1\n" in result
+        assert "end_of_record\n" in result
+
+    def test_build_path_aliases_returns_none_when_no_coverage(self):
+        """_build_path_aliases returns None when coverage.py is not installed."""
+        with patch("ddtrace.contrib.internal.coverage.utils._Coverage", None):
+            from ddtrace.contrib.internal.coverage.utils import _build_path_aliases
+
+            assert _build_path_aliases() is None
+
+    def test_build_path_aliases_uses_active_coverage_instance(self):
+        """_build_path_aliases uses the provided coverage instance instead of creating a new one."""
+        mock_cov = Mock()
+        mock_aliases = Mock()
+        mock_aliases.aliases = [("pattern", None, "result")]
+        mock_cov._make_aliases.return_value = mock_aliases
+
+        from ddtrace.contrib.internal.coverage.utils import _build_path_aliases
+
+        result = _build_path_aliases(cov_instance=mock_cov)
+
+        assert result is mock_aliases
+        mock_cov._make_aliases.assert_called_once()
+
+    def test_remap_uses_active_coverage_config(self, tmp_path):
+        """_remap_lcov_paths uses aliases from the provided coverage instance, not the default config."""
+        from ddtrace.contrib.internal.coverage.utils import _remap_lcov_paths
+
+        # Build a mock aliases object that maps any path to a fixed result
+        mock_aliases = Mock()
+        mock_aliases.aliases = [("pattern", None, "result")]
+        mock_aliases.map = Mock(return_value="/repo/custom/path.py")
+
+        mock_cov = Mock()
+        mock_cov._make_aliases.return_value = mock_aliases
+
+        lcov = "SF:some/installed/path.py\nDA:1,1\nend_of_record\n"
+        lcov_file = tmp_path / "test.lcov"
+        lcov_file.write_text(lcov, encoding="utf-8")
+
+        with patch("ddtrace.contrib.internal.coverage.utils.Path.cwd", return_value=Path("/repo")):
+            _remap_lcov_paths(lcov_file, cov_instance=mock_cov)
+
+        result = lcov_file.read_text(encoding="utf-8")
+        assert "SF:custom/path.py\n" in result
+        mock_cov._make_aliases.assert_called_once()
