@@ -33,6 +33,7 @@ class _MonitoringEvents(Protocol):
     PY_UNWIND: int
     LINE: int
     EXCEPTION_HANDLED: int
+    RAISE: int
 
 
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
@@ -125,6 +126,19 @@ class HandledExceptionHandler(monitoring.MonitoringEventHandler):
 class RaisingHandledExceptionHandler(monitoring.MonitoringEventHandler):
     def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
         raise RuntimeError("handled-exception handler exploded")
+
+
+class RaiseHandler(monitoring.MonitoringEventHandler):
+    def __init__(self) -> None:
+        self.raised: list[tuple[CodeType, BaseException]] = []
+
+    def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        self.raised.append((code, exception))
+
+
+class RaisingRaiseHandler(monitoring.MonitoringEventHandler):
+    def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        raise RuntimeError("raise handler exploded")
 
 
 @pytest.fixture
@@ -870,3 +884,74 @@ def test_exception_handled_handler_failure_does_not_skip_siblings(
 def test_register_global_rejects_local_only_handler() -> None:
     with pytest.raises(ValueError, match="no global"):
         monitoring.register_global(LineHandler())
+
+
+def test_raise_handler_receives_exceptions(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A global RAISE handler receives exceptions when they are raised."""
+
+    def fn() -> None:
+        try:
+            raise ValueError("raised")
+        except ValueError:
+            return
+
+    raise_handler = cast(RaiseHandler, registered_global(RaiseHandler()))
+
+    tool_id = monitoring._tool_id
+    assert tool_id is not None
+    assert _sys_monitoring.get_events(tool_id) & _E.RAISE
+
+    fn()
+
+    assert any(code is fn.__code__ and exc.args == ("raised",) for code, exc in raise_handler.raised)
+
+    raise_count = len(raise_handler.raised)
+    monitoring.unregister_global(raise_handler)
+    assert not (_sys_monitoring.get_events(tool_id) & _E.RAISE)
+
+    fn()
+    assert len(raise_handler.raised) == raise_count
+
+
+def test_raise_and_exception_handled_coexist(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """RAISE and EXCEPTION_HANDLED handlers can be registered simultaneously."""
+
+    def fn() -> None:
+        try:
+            raise ValueError("both")
+        except ValueError:
+            return
+
+    raise_handler = cast(RaiseHandler, registered_global(RaiseHandler()))
+    handled_handler = cast(HandledExceptionHandler, registered_global(HandledExceptionHandler()))
+
+    tool_id = monitoring._tool_id
+    assert tool_id is not None
+    assert _sys_monitoring.get_events(tool_id) & _E.RAISE
+    assert _sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED
+
+    fn()
+
+    assert any(code is fn.__code__ and exc.args == ("both",) for code, exc in raise_handler.raised)
+    assert any(code is fn.__code__ and exc.args == ("both",) for code, exc in handled_handler.handled)
+
+
+def test_raise_handler_failure_does_not_skip_siblings(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A failing RAISE handler must not affect other global handlers or user code."""
+
+    def fn() -> None:
+        pass
+
+    registered_global(RaisingRaiseHandler())
+    sibling: RaiseHandler = registered_global(RaiseHandler())  # type: ignore[assignment]
+    exception = ValueError("raised")
+
+    monitoring._on_raise(fn.__code__, 0, exception)
+
+    assert (fn.__code__, exception) in sibling.raised

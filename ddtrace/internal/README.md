@@ -402,9 +402,10 @@ reuse the scarce slot.
 ### Local vs. Global Events
 
 PY_START, PY_RETURN, LINE, and Python 3.15+'s PY_UNWIND are enabled locally
-per code object. EXCEPTION_HANDLED is enabled globally only while at least one
-global handler is registered. On Python 3.12–3.14, PY_UNWIND is not available
-as a local event, so the multiplexer rejects handlers that request it.
+per code object. EXCEPTION_HANDLED and RAISE are enabled globally only while
+at least one global handler is registered for each. On Python 3.12–3.14,
+PY_UNWIND is not available as a local event, so the multiplexer rejects
+handlers that request it.
 
 ### `DISABLE` and `refresh()`
 

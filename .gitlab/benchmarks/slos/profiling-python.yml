@@ -32,3 +32,16 @@ experiments:
           - name: codeprovenancefork-fork-10
             thresholds:
               - execution_time < 2500 ms
+          # sysmonitoring (exception profiler / RAISE path)
+          - name: sysmonitoring-direct_raise_passive
+            thresholds:
+              - execution_time < 0.0007 ms
+          - name: sysmonitoring-direct_raise_active
+            thresholds:
+              - execution_time < 0.0018 ms
+          - name: sysmonitoring-multiplexer_raise_passive
+            thresholds:
+              - execution_time < 0.0008 ms
+          - name: sysmonitoring-multiplexer_raise_active
+            thresholds:
+              - execution_time < 0.0019 ms
