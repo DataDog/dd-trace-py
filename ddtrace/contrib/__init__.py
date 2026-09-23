@@ -16,4 +16,5 @@ def ensure_llmobs_integrations_loaded() -> None:
     _llmobs_integrations_loaded = True
     import ddtrace.llmobs._integrations  # noqa: F401
 
+
 ensure_llmobs_integrations_loaded()
