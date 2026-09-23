@@ -85,7 +85,6 @@ def _notify_runtime_identity_refresh_callbacks(*, raise_on_error: bool = False) 
         except Exception:
             log.exception("Exception ignored in runtime ID callback %r", cb)
 
-
 def _refresh_runtime_id() -> None:
     global _RUNTIME_ID
 
