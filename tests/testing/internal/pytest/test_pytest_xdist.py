@@ -179,7 +179,7 @@ class MockCIVisibilityServer:
         self.server: t.Optional[HTTPServer] = None
         self.thread: t.Optional[threading.Thread] = None
 
-    def __enter__(self) -> "MockCIVisibilityServer":
+    def __enter__(self) -> MockCIVisibilityServer:
         self.server = HTTPServer(("127.0.0.1", 0), _MockCIVisibilityHandler)
         self.server.recorded_payloads = []  # type: ignore[attr-defined]
         self.server.recorded_request_paths = []  # type: ignore[attr-defined]
@@ -1235,3 +1235,176 @@ def test_mock_settings_payload_is_parseable() -> None:
     assert settings.early_flake_detection.slow_test_retries_5s == 10
     assert settings.early_flake_detection.faulty_session_threshold == 30
     assert settings.test_management.attempt_to_fix_retries == 20
+
+
+class TestXdistAtrCrashRequeue:
+    """Exercise ATR retries across real xdist worker crashes."""
+
+    @staticmethod
+    def _enable_atr(settings: dict[str, t.Any]) -> None:
+        settings["flaky_test_retries_enabled"] = True
+        settings["known_tests_enabled"] = True
+
+    def test_thread_timeout_crash_is_requeued(self, mock_server: MockCIVisibilityServer, test_project: Path) -> None:
+        pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
+
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        (test_project / "test_timeout_crash.py").write_text(
+            textwrap.dedent("""\
+                import os
+                import time
+                import pytest
+
+                _ATTEMPT_FILE = os.path.join(os.path.dirname(__file__), "attempts.txt")
+
+                def _next_attempt():
+                    try:
+                        with open(_ATTEMPT_FILE) as f:
+                            attempt = int(f.read())
+                    except FileNotFoundError:
+                        attempt = 0
+                    with open(_ATTEMPT_FILE, "w") as f:
+                        f.write(str(attempt + 1))
+                    return attempt
+
+                @pytest.mark.timeout(1, method="thread", func_only=True)
+                def test_crash_then_pass():
+                    if _next_attempt() == 0:
+                        time.sleep(10)
+            """)
+        )
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "1",
+            "--max-worker-restart=5",
+            env=_make_env(mock_server.url),
+            timeout=90,
+        )
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        assert "xdist_worker_crash" in result.stdout
+        events = [
+            event
+            for event in mock_server.get_test_events()
+            if event["content"]["meta"]["test.name"] == "test_crash_then_pass"
+        ]
+        assert {event["content"]["meta"]["test.status"] for event in events} == {"pass"}
+
+    def test_crash_retry_consumes_worker_atr_budget(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
+
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        attempt_file = test_project / "attempts.txt"
+        other_attempt_file = test_project / "other_attempts.txt"
+        (test_project / "test_crash_then_fail.py").write_text(
+            textwrap.dedent("""\
+                from pathlib import Path
+                import time
+                import pytest
+
+                _ATTEMPT_FILE = Path(__file__).with_name("attempts.txt")
+
+                @pytest.mark.timeout(1, method="thread", func_only=True)
+                def test_crash_then_fail():
+                    try:
+                        attempt = int(_ATTEMPT_FILE.read_text())
+                    except FileNotFoundError:
+                        attempt = 0
+                    _ATTEMPT_FILE.write_text(str(attempt + 1))
+                    if attempt == 0:
+                        time.sleep(10)
+                    assert False
+
+                def test_session_budget_is_consumed():
+                    attempt_file = Path(__file__).with_name("other_attempts.txt")
+                    try:
+                        attempt = int(attempt_file.read_text())
+                    except FileNotFoundError:
+                        attempt = 0
+                    attempt_file.write_text(str(attempt + 1))
+                    assert False
+            """)
+        )
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "1",
+            "--max-worker-restart=5",
+            "-p",
+            "no:randomly",
+            env=_make_env(
+                mock_server.url,
+                extra={
+                    "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "1",
+                    "DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "1",
+                },
+            ),
+            timeout=90,
+        )
+
+        assert result.returncode != 0
+        assert attempt_file.read_text() == "2"
+        assert other_attempt_file.read_text() == "1"
+        assert "xdist_worker_crash" in result.stdout
+
+    def test_crash_after_in_worker_retry_is_not_requeued(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
+
+        settings = _settings_attributes()
+        self._enable_atr(settings)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        attempt_file = test_project / "attempts.txt"
+        (test_project / "test_mixed_retry.py").write_text(
+            textwrap.dedent("""\
+                from pathlib import Path
+                import time
+                import pytest
+
+                _ATTEMPT_FILE = Path(__file__).with_name("attempts.txt")
+
+                @pytest.mark.timeout(1, method="thread", func_only=True)
+                def test_fail_then_crash():
+                    try:
+                        attempt = int(_ATTEMPT_FILE.read_text())
+                    except FileNotFoundError:
+                        attempt = 0
+                    _ATTEMPT_FILE.write_text(str(attempt + 1))
+                    if attempt == 0:
+                        assert False
+                    if attempt == 1:
+                        time.sleep(10)
+            """)
+        )
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "1",
+            "--max-worker-restart=5",
+            env=_make_env(mock_server.url),
+            timeout=90,
+        )
+
+        assert result.returncode != 0
+        assert attempt_file.read_text() == "2"
+        assert "xdist_worker_crash" not in result.stdout

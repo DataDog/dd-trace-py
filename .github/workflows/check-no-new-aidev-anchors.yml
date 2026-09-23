@@ -1,0 +1,27 @@
+name: check-no-new-aidev-anchors
+on:
+  # PR-only counterpart to the GitLab job of the same name. GitLab still
+  # covers ordinary non-PR pipelines; this workflow does not run on push.
+  # No paths filter: a new deprecated anchor can land in any file.
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-no-new-aidev-anchors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          # Full history so merge-base against the PR base cannot miss a
+          # common ancestor (same reason the GitLab job sets GIT_DEPTH: "0").
+          fetch-depth: 0
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Fetch PR base
+        run: git fetch origin "${{ github.base_ref }}"
+      - name: Check for new deprecated anchors
+        run: python scripts/check_no_new_aidev_anchors.py --base-ref "origin/${{ github.base_ref }}"

@@ -5,8 +5,8 @@ import os
 import pprint
 import threading
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service

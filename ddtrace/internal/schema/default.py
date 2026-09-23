@@ -16,8 +16,8 @@ log = logging.getLogger(__name__)
 
 def _validate_schema(version: str) -> bool:
     error_message = (
-        "You have specified an invalid span attribute schema version: '{}'.".format(version),
-        "Valid options are: {}. You can change the specified value by updating".format(VALID_VERSIONS),
+        f"You have specified an invalid span attribute schema version: '{version}'.",
+        f"Valid options are: {VALID_VERSIONS}. You can change the specified value by updating",
         "the value exported in the 'DD_TRACE_SPAN_ATTRIBUTE_SCHEMA' environment variable.",
     )
 
