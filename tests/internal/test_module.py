@@ -7,11 +7,11 @@ from warnings import warn
 
 import pytest
 
+import ddtrace
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
-from tests.utils import DDTRACE_PATH
 from tests.utils import _build_env
 
 
@@ -567,7 +567,7 @@ def test_public_modules_in_ddtrace_contrib():
     """Ensures that integration implementation details are not accidentally added to our public api.
     By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/
     """
-    contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
+    contrib_dir = Path(ddtrace.__file__).resolve().parent / "contrib"
 
     public_modules = set()
     for directory, _, file_names in os.walk(contrib_dir):
@@ -729,7 +729,16 @@ def test_universal_module_watchdog_constant_find_spec_calls():
             sys.modules.pop("tests.submod.stuff", None)
 
 
+@pytest.mark.subprocess
 def test_universal_module_watchdog_first_registered_wins():
+    # DEV: Run in an isolated subprocess. Otherwise other pre_exec_module hooks
+    # already registered by product code elsewhere in the test session, or
+    # "tests.submod.stuff" already being cached in sys.modules from an unrelated
+    # test, can make this test flaky.
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+
     calls = []
 
     class First(ModuleWatchdog):
@@ -748,9 +757,6 @@ def test_universal_module_watchdog_first_registered_wins():
             lambda name: name == "tests.submod.stuff", lambda loader, module: calls.append("second")
         )
 
-        # Ensure the module is not already cached from a prior test so that the
-        # import below actually executes the module body and triggers the
-        # pre_exec hooks.
         sys.modules.pop("tests.submod.stuff", None)
         import tests.submod.stuff  # noqa:F401
 

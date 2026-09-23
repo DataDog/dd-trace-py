@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
@@ -59,6 +60,7 @@ def test_llm_span_emits_all_scalars(llmobs, test_spans):
     assert span.get_tag(GEN_AI_PROVIDER_NAME_TAG_KEY) == "openai"
     assert span.get_tag(GEN_AI_CONVERSATION_ID_TAG_KEY) == "sess-1"
     assert span.get_tag(GEN_AI_APPLICATION_NAME_TAG_KEY) is not None
+    assert span.get_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY) == "true"
     assert _usage(span) == {
         GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY: 10,
         GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY: 20,
