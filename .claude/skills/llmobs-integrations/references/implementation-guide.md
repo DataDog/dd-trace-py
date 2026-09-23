@@ -212,3 +212,18 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
+
+## Duplex audio streams
+
+Nova 2 Sonic (aws_sdk_bedrock_runtime) uses a connection-local duplex adapter,
+like OpenAI Realtime, rather than one response iterator and one span.
+Do not consume ahead. Observe successful input sends, allow output drain after
+input half-close, and finish once on output EOF, close, cancellation, or error.
+Keep turn state separate from provider completion IDs, which can be shared by
+many responses. Snapshot the caller's parent; do not activate long-lived turns.
+
+Use explicit LLMObs parent/trace/session identity on the three direct children
+of each audio-turn workflow. Speech offsets select the input WAV; speech-end
+event receipt defines the initial latency boundary. Projected assistant playback
+is an estimate, not a device acknowledgement. Keep total samples separate from
+bounded retained bytes; share the audio payload budget across both roles.

@@ -28,3 +28,11 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+## Specialized duplex SDKs
+
+For independently consumed input/output streams, see
+`aws_sdk_bedrock_runtime/patch.py` and `_stream.py`. Wrap only the target
+SDK operation and its returned connection, not global Smithy classes.
+These audio-turn spans use the specialized direct-span LLMObs lifecycle;
+see the LLMObs implementation guide for parenting and finalization rules.

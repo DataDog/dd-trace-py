@@ -31,6 +31,7 @@ PATCH_MODULES = {
     "aredis": True,
     "asyncio": True,
     "avro": True,
+    "aws_sdk_bedrock_runtime": True,
     "boto": True,
     "botocore": True,
     "bottle": True,

@@ -3357,6 +3357,12 @@ venv = Venv(
             },
         ),
         Venv(
+            name="aws_sdk_bedrock_runtime",
+            command="pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime",
+            pys=["3.12", "3.13"],
+            pkgs={"pytest-asyncio": latest, "aws-sdk-bedrock-runtime": "==0.11.0"},
+        ),
+        Venv(
             name="google_genai",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",

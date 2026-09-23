@@ -107,6 +107,7 @@ INTEGRATION_CONFIGS = frozenset(
         "pyodbc",
         "dramatiq",
         "flask",
+        "aws_sdk_bedrock_runtime",
         "google_genai",
         "google_adk",
         "urllib3",

@@ -1,5 +1,8 @@
 ---
 components:
+  aws_sdk_bedrock_runtime:
+    - ddtrace/contrib/internal/aws_sdk_bedrock_runtime/*
+    - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime.py
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
   claude_agent_sdk:
@@ -35,6 +38,21 @@ components:
   vllm:
     - ddtrace/contrib/internal/vllm/*
 suites:
+  aws_sdk_bedrock_runtime:
+    paths:
+      - "@bootstrap"
+      - "@core"
+      - "@tracing"
+      - "@contrib"
+      - "@aws_sdk_bedrock_runtime"
+      - "@llmobs"
+      - tests/contrib/aws_sdk_bedrock_runtime/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
+      variants:
+        - name: aws_sdk_bedrock_runtime
+          python: ["3.12", "3.13"]
+          dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
   anthropic:
     parallelism: 2
     paths:
