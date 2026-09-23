@@ -20,7 +20,7 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from sanic.request import Request
     from sanic.response import BaseHTTPResponse
     from sanic_routing.route import Route
@@ -143,11 +143,11 @@ def _get_path(request: "Request") -> str:
 
 
 async def patch_run_request_middleware(wrapped: Callable, instance: sanic.Sanic, args: tuple, kwargs: dict) -> Any:
-    # Set span resource from the framework request
+    # Set resource from the framework request
     request = args[0]
-    span = _get_request_span(request)
-    if span is not None:
-        span.resource = f"{request.method} {_get_path(request)}"
+    ctx = _get_request_context(request)
+    if ctx is not None:
+        ctx.event.resource = f"{request.method} {_get_path(request)}"
     return await wrapped(*args, **kwargs)
 
 
@@ -235,6 +235,12 @@ def _create_sanic_request_context(request: "Request") -> core.ExecutionContext[W
         query_string = query_string.decode()
 
     url = f"{request.scheme}://{request.host}{request.path}"
+    resource = None
+    if SANIC_VERSION < (21, 0, 0):
+        # The path is not available anymore in 21.x. It is set from
+        # patch_run_request_middleware instead.
+        resource = f"{request.method} {_get_path(request)}"
+
     event = WebFrameworkRequestEvent(
         http_operation="sanic.request",
         component=config.sanic.integration_name,
@@ -245,16 +251,12 @@ def _create_sanic_request_context(request: "Request") -> core.ExecutionContext[W
         request_headers=headers,
         query=query_string,
         request_route=None,
+        resource=resource,
         activate_distributed_headers=True,
         headers_case_sensitive=True,
     )
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        if SANIC_VERSION < (21, 0, 0):
-            request_span = span_from_context(ctx)
-            if request_span is not None:
-                request_span.resource = f"{request.method} {_get_path(request)}"
-
         setattr(request.ctx, _REQUEST_CONTEXT_ATTR, ctx)
         return ctx
 
@@ -266,8 +268,8 @@ async def sanic_http_lifecycle_handle(request: "Request") -> None:
 
 async def sanic_http_routing_after(request: "Request", route: "Route", kwargs: dict, handler: Callable) -> None:
     """Lifecycle signal called after routing has been resolved."""
-    span = _get_request_span(request)
-    if not span:
+    ctx = _get_request_context(request)
+    if ctx is None:
         return
 
     pattern = route.raw_path
@@ -277,8 +279,8 @@ async def sanic_http_routing_after(request: "Request", route: "Route", kwargs: d
     if route.regex:
         pattern = route.pattern
 
-    span.resource = f"{request.method} {pattern}"
-    span._set_attribute("sanic.route.name", route.name)
+    ctx.event.resource = f"{request.method} {pattern}"
+    ctx.set_item("additional_tags", {"sanic.route.name": route.name})
 
 
 async def sanic_http_lifecycle_response(request: "Request", response: "BaseHTTPResponse") -> None:
