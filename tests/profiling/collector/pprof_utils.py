@@ -28,7 +28,7 @@ def _protobuf_version() -> tuple[int, int, int]:
 
 
 if TYPE_CHECKING:
-    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
+    from tests.profiling.collector import pprof_pb2 as pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 else:
     # Load the appropriate pprof_pb2 module
     _pb_version = _protobuf_version()
@@ -610,6 +610,8 @@ def assert_profile_has_sample(
             error_description += ", thread name " + expected_sample.thread_name
 
         if print_samples_on_failure:
+            # Keep the actionable failure ahead of the dump so CI truncation retains it.
+            print(error_description)
             print_all_samples(profile)
 
     assert found, error_description

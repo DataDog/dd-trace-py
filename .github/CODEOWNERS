@@ -30,7 +30,6 @@ tests/integration/                  @DataDog/apm-core-python
 ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-core-python @DataDog/apm-python
-riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 .uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
@@ -53,6 +52,7 @@ tests/vendor/                       @DataDog/python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
 benchmarks/                         @DataDog/apm-core-python
+benchmarks/openfeature_flagevaluation/ @DataDog/feature-flagging-and-experimentation-sdk
 scripts/perf-*                      @DataDog/apm-core-python
 scripts/perf_*                      @DataDog/apm-core-python
 scripts/profiles/                   @DataDog/profiling-python
