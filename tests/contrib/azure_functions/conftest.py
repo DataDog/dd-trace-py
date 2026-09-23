@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import signal
 import subprocess
@@ -13,14 +15,12 @@ AZURE_FUNCTIONS_PORT = 7071
 AZURE_FUNCTION_APP_DIR = os.path.join(os.path.dirname(__file__), "azure_function_app")
 
 
-def _read_log(log_file):
-    # type: (object) -> str
+def _read_log(log_file: object) -> str:
     log_file.seek(0)
     return log_file.read().decode("utf-8", errors="replace")
 
 
-def _start_azure_functions_server(extra_env=None):
-    # type: (dict | None) -> tuple[subprocess.Popen, Client]
+def _start_azure_functions_server(extra_env: dict | None = None) -> tuple[subprocess.Popen, Client]:
     env = os.environ.copy()
     if extra_env:
         env.update(extra_env)

@@ -16,6 +16,8 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _libddwaf_platform
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
@@ -256,8 +258,10 @@ class ASMConfig(DDConfig):
     # version-gated in setup.py. This bound intentionally leads requires-python in pyproject.toml, so
     # do not "resync" it downwards; 3.15 itself is still untested for IAST, tracked by issue #17843.
     # IAST supported on python 3.6 to 3.15 and never on windows
-    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 16, 0)) and not (
-        sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+    _iast_supported: bool = (
+        is_at_least_py(3, 6)
+        and is_at_most_py(3, 15)
+        and not (sys.platform.startswith("win") or sys.platform.startswith("cygwin"))
     )
 
     _rc_client_id: Optional[str] = None

@@ -75,10 +75,13 @@ def test_symbols_class():
             yield oroc
 
         def me(self) -> "Sym":
+            # The return type for this function MUST be quoted.
+            # Using from __future__ import annotations would also postpone
+            # gen's annotation, and symbol_db would then report t.Generator[...].
             return self
 
     module = ModuleType("test")
-    module.Sym = Sym
+    module.Sym = Sym  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -109,7 +112,7 @@ def test_symbols_class():
         "return_type": "typing.Generator[int, NoneType, NoneType]",
         "function_type": "generator",
     }
-    gen_line = Sym.gen.__code__.co_firstlineno + 1
+    gen_line = Sym.gen.__code__.co_firstlineno + 1  # type: ignore[attr-defined]
     assert gen_scope.symbols == [
         Symbol(symbol_type=SymbolType.ARG, name="n", line=gen_line, type="int"),
         Symbol(symbol_type=SymbolType.ARG, name="_untyped", line=gen_line, type=None),
@@ -133,7 +136,7 @@ def test_symbols_decorators():
         pass
 
     module = ModuleType("test")
-    module.foo = foo
+    module.foo = foo  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -152,8 +155,8 @@ def test_symbols_decorators_included():
         pass
 
     module = ModuleType("test")
-    module.deco = deco
-    module.foo = foo
+    module.deco = deco  # type: ignore[attr-defined]
+    module.foo = foo  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -177,6 +180,7 @@ def test_symbols_decorated_methods():
             pass
 
     scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
+    assert scope is not None
     (bar_scope,) = scope.scopes
     assert bar_scope.name == "bar"
 
@@ -380,7 +384,9 @@ def test_scope_context_upload_metadata():
 
         assert ctx._event_data["uploadId"] == expected_upload_id
         assert ctx._event_data["batchNum"] == 1
-        assert ctx._event_data["attachmentSize"] > 0
+        size = ctx._event_data["attachmentSize"]
+        assert isinstance(size, int)
+        assert size > 0
 
         attachment = json.loads(captured["bytes"].decode("utf-8"))
         assert attachment["upload_id"] == expected_upload_id

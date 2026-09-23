@@ -1,7 +1,6 @@
 import math
 import re
-from typing import Any  # noqa:F401
-from typing import Text  # noqa:F401
+from typing import Any
 
 from hypothesis import given
 from hypothesis.strategies import text
