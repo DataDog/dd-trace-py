@@ -1,10 +1,12 @@
 import _thread
+from contextlib import ExitStack
 import inspect
 import os
 from pathlib import Path
 import sys
 import threading
 import time
+from types import CodeType
 from typing import TYPE_CHECKING
 from unittest import mock
 
@@ -172,6 +174,38 @@ def test_poisson_sampling_distribution() -> None:
     mean = sum(samples) / len(samples)
     # Mean of 1000 exponential(100) samples has std ≈ 3.16; use wide bounds to avoid flakes
     assert 80 <= mean <= 120, f"Expected mean ~100, got {mean}"
+
+
+@pytest.mark.parametrize("profiler_first", [False, True])
+def test_exception_profiler_shares_tool_with_handled_exceptions(profiler_first: bool) -> None:
+    """Profiler and handled-error startup order does not change global event ownership."""
+    from ddtrace.internal import monitoring
+
+    class HandledExceptionHandler(monitoring.MonitoringEventHandler):
+        def on_exception_handled(
+            self, code: CodeType, instruction_offset: int, handled_exception: BaseException
+        ) -> None:
+            pass
+
+    handled_handler = HandledExceptionHandler()
+    collector = exception.ExceptionCollector(sampling_interval=100)
+
+    with ExitStack() as stack:
+        if profiler_first:
+            stack.enter_context(collector)
+            monitoring.register_global(handled_handler)
+            stack.callback(monitoring.unregister_global, handled_handler)
+        else:
+            monitoring.register_global(handled_handler)
+            stack.callback(monitoring.unregister_global, handled_handler)
+            stack.enter_context(collector)
+
+        tool_id = monitoring.get_tool_id()
+        events = getattr(sys, "monitoring").get_events(tool_id)
+        assert events & getattr(sys, "monitoring").events.EXCEPTION_HANDLED
+        assert events & getattr(sys, "monitoring").events.RAISE
+        assert monitoring._global_exception_handled_handler is handled_handler
+        assert monitoring._global_raise_handler is not None
 
 
 # Pprof profile tests

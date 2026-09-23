@@ -115,7 +115,7 @@ def test_handled_exception_reporting_preserves_external_tools_when_unavailable()
 
     with pytest.raises(monitoring.MonitoringToolUnavailable):
         _install_sys_monitoring_reporting()
-    assert monitoring._global_exception_handler is None
+    assert monitoring._global_exception_handled_handler is None
 
     _uninstall_sys_monitoring_reporting()
     assert sys.monitoring.get_tool(4) == "external-4"

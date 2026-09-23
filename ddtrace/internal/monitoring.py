@@ -54,9 +54,9 @@ class MonitoringToolUnavailable(RuntimeError):
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # Every ddtrace sys.monitoring consumer registers here instead of claiming a
-# slot directly. Use custom slot 3 until the exception profiler migrates from
-# slot 4; never use coverage.py's conventional slot 1.
-_CANDIDATE_TOOL_IDS = (3,)
+# slot directly. Prefer custom slot 3 and fall back to slot 4 now that the
+# exception profiler also uses the multiplexer; never claim coverage.py's slot 1.
+_CANDIDATE_TOOL_IDS = (3, 4)
 
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
@@ -265,18 +265,20 @@ def _events_for(handlers: _CodeHandlers) -> int:
 
 _GLOBAL_EVENTS = _E.EXCEPTION_HANDLED | _E.RAISE
 
-# Direct references for each global event subscriber.  A dict keyed by event
-# bit avoids per-event tuple iteration and NamedTuple field access on the hot
-# path.  Each global event has at most one subscriber; if multiple are ever
-# needed, restore the fan-out via _CodeHandlers.
-_global_handlers: dict[int, MonitoringEventHandler] = {}
+# Dedicated references keep each global callback to one attribute load and one
+# direct method call. Each event has at most one subscriber; if fan-out is ever
+# needed, use an event-specific immutable snapshot rather than the local registry.
+_global_exception_handled_handler: Optional[MonitoringEventHandler] = None
+_global_raise_handler: Optional[MonitoringEventHandler] = None
 
 
 def _compute_global_events() -> int:
-    """Return the OR of all registered global event bits."""
+    """Return the OR of global events that currently have an owner."""
     events = 0
-    for event_bit in _global_handlers:
-        events |= event_bit
+    if _global_exception_handled_handler is not None:
+        events |= _E.EXCEPTION_HANDLED
+    if _global_raise_handler is not None:
+        events |= _E.RAISE
     return events
 
 
@@ -320,11 +322,21 @@ def _release_tool_if_unused() -> None:
     """Release the tool after the final registration; caller holds _registry_lock."""
     global _tool_id
 
-    if _tool_id is None or len(_registry) or _global_handlers:
+    if (
+        _tool_id is None
+        or len(_registry)
+        or _global_exception_handled_handler is not None
+        or _global_raise_handler is not None
+    ):
         return
 
     with _tool_lock:
-        if _tool_id is None or len(_registry) or _global_handlers:
+        if (
+            _tool_id is None
+            or len(_registry)
+            or _global_exception_handled_handler is not None
+            or _global_raise_handler is not None
+        ):
             return
         tool_id = _tool_id
         _sys_monitoring.set_events(tool_id, 0)
@@ -409,7 +421,7 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 
 
 def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-    h = _global_handlers.get(_E.EXCEPTION_HANDLED)
+    h = _global_exception_handled_handler
     if h is not None:
         try:
             h.on_exception_handled(code, instruction_offset, exception)
@@ -418,7 +430,7 @@ def _on_exception_handled(code: CodeType, instruction_offset: int, exception: Ba
 
 
 def _on_raise(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-    h = _global_handlers.get(_E.RAISE)
+    h = _global_raise_handler
     if h is not None:
         try:
             h.on_raise(code, instruction_offset, exception)
@@ -524,28 +536,58 @@ def register_global(handler: MonitoringEventHandler) -> None:
     """Register *handler* for the global events it overrides.
 
     Each global event (EXCEPTION_HANDLED, RAISE) supports a single subscriber.
-    The handler must override at least one global event method.
+    Registering the current owner is idempotent; a different owner is rejected
+    without changing any event.
     """
     handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
     if not handler_events:
         raise ValueError("Handler overrides no global MonitoringEventHandler methods")
 
+    global _global_exception_handled_handler
+    global _global_raise_handler
+
     with _registry_lock:
-        tool_id = _setup()
-        for event_bit in (_E.EXCEPTION_HANDLED, _E.RAISE):
-            if handler_events & event_bit:
-                _global_handlers[event_bit] = handler
-        _sys_monitoring.set_events(tool_id, _compute_global_events())
+        if (
+            handler_events & _E.EXCEPTION_HANDLED
+            and _global_exception_handled_handler is not None
+            and _global_exception_handled_handler is not handler
+        ):
+            raise ValueError("EXCEPTION_HANDLED already has a different monitoring handler")
+        if handler_events & _E.RAISE and _global_raise_handler is not None and _global_raise_handler is not handler:
+            raise ValueError("RAISE already has a different monitoring handler")
+
+        previous_exception_handled = _global_exception_handled_handler
+        previous_raise = _global_raise_handler
+        if handler_events & _E.EXCEPTION_HANDLED:
+            _global_exception_handled_handler = handler
+        if handler_events & _E.RAISE:
+            _global_raise_handler = handler
+        if previous_exception_handled is _global_exception_handled_handler and previous_raise is _global_raise_handler:
+            return
+
+        try:
+            tool_id = _setup()
+            _sys_monitoring.set_events(tool_id, _compute_global_events())
+        except Exception:
+            _global_exception_handled_handler = previous_exception_handled
+            _global_raise_handler = previous_raise
+            _release_tool_if_unused()
+            raise
 
 
 def unregister_global(handler: MonitoringEventHandler) -> None:
-    """Remove *handler* from the global monitoring registry."""
+    """Remove *handler* from every global event it owns."""
+    global _global_exception_handled_handler
+    global _global_raise_handler
+
     with _registry_lock:
         removed = False
-        for event_bit in list(_global_handlers):
-            if _global_handlers[event_bit] is handler:
-                del _global_handlers[event_bit]
-                removed = True
+        if _global_exception_handled_handler is handler:
+            _global_exception_handled_handler = None
+            removed = True
+        if _global_raise_handler is handler:
+            _global_raise_handler = None
+            removed = True
         if not removed:
             return
         if _tool_id is not None:

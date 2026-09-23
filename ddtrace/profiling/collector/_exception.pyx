@@ -12,6 +12,11 @@ from ddtrace.profiling.collector._fast_poisson import PoissonSampler
 
 LOG = logging.getLogger(__name__)
 HAS_MONITORING = hasattr(sys, "monitoring")
+if HAS_MONITORING:
+    from ddtrace.internal import monitoring as _monitoring
+else:
+    _monitoring = None
+
 _GIL_DISABLED = _sysconfig.get_config_var("Py_GIL_DISABLED")
 _current_thread = threading.current_thread
 
@@ -149,7 +154,14 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
         _collecting = False
 
 
-_exception_handler = None
+if HAS_MONITORING:
+    class _ExceptionMonitoringHandler(_monitoring.MonitoringEventHandler):
+        def on_raise(self, code, instruction_offset, exception):
+            _on_exception(code, instruction_offset, exception)
+
+    _exception_handler = _ExceptionMonitoringHandler()
+else:
+    _exception_handler = None
 
 
 class ExceptionCollector(collector.Collector):
@@ -166,7 +178,6 @@ class ExceptionCollector(collector.Collector):
 
     def _start_service(self) -> None:
         global _state
-        global _exception_handler
 
         if _GIL_DISABLED:
             LOG.debug("Exception profiling is not supported on free-threaded CPython, skipping")
@@ -177,14 +188,6 @@ class ExceptionCollector(collector.Collector):
                 LOG.debug("ExceptionCollector already running, skipping")
                 return
             try:
-                from ddtrace.internal import monitoring as _monitoring
-
-                if _exception_handler is None:
-                    class _Handler(_monitoring.MonitoringEventHandler):
-                        def on_raise(self, code, instruction_offset, exception):
-                            _on_exception(code, instruction_offset, exception)
-
-                    _exception_handler = _Handler()
                 _monitoring.register_global(_exception_handler)
             except _monitoring.MonitoringToolUnavailable:
                 LOG.exception("Failed to set up exception monitoring")
@@ -209,8 +212,6 @@ class ExceptionCollector(collector.Collector):
             return
 
         try:
-            from ddtrace.internal import monitoring as _monitoring
-
             if _exception_handler is not None:
                 _monitoring.unregister_global(_exception_handler)
         except Exception:

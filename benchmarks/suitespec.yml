@@ -350,15 +350,26 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
-  sys_monitoring:
+  errortracking_monitoring:
     paths:
       - '@bootstrap'
       - '@core'
       - '@vendor'
       - '@errortracking'
+      - benchmarks/errortracking_monitoring/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  exception_profiler_monitoring:
+    paths:
+      - ddtrace/internal/monitoring.py
+      - ddtrace/internal/datadog/profiling/ddup/*
+      - ddtrace/internal/datadog/profiling/dd_wrapper/*
       - ddtrace/profiling/collector/_exception.pyx
+      - ddtrace/profiling/collector/_exception.pyi
+      - ddtrace/profiling/collector/_fast_poisson.*
       - ddtrace/profiling/collector/exception.py
-      - benchmarks/sys_monitoring/*
+      - benchmarks/exception_profiler_monitoring/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
