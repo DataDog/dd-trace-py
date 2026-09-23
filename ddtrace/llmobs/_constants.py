@@ -82,6 +82,10 @@ REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
+# Server-side tool calls billed per call by the provider, on top of token costs.
+WEB_SEARCH_COUNT_METRIC_KEY = "web_search_count"
+STORAGE_SEARCH_COUNT_METRIC_KEY = "storage_search_count"
+
 # Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
 # token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
 INPUT_COST_METRIC_KEY = "input_cost"

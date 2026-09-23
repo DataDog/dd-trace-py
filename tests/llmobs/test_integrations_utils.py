@@ -33,6 +33,7 @@ from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_mes
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
+from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
@@ -1619,3 +1620,74 @@ class TestAnthropicToolDefinitions:
         assert get_tool_definitions_from_anthropic_tools(tools) == [
             {"name": "deferred", "description": "", "schema": {}}
         ]
+
+
+def _web_search_call(status="completed", action_type="search"):
+    return {"type": "web_search_call", "id": "ws_1", "status": status, "action": {"type": action_type}}
+
+
+def _file_search_call(status="completed", queries=("company holiday policy",)):
+    return {"type": "file_search_call", "id": "fs_1", "status": status, "queries": list(queries), "results": None}
+
+
+_MESSAGE_ITEM = {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "hi"}]}
+
+
+class TestOpenAIServerToolUsageMetrics:
+    """Server-side web/file search calls are counted from the Responses output array."""
+
+    def test_no_tool_calls_omits_metrics(self):
+        assert get_openai_server_tool_usage_metrics({"output": [_MESSAGE_ITEM]}) == {}
+        assert get_openai_server_tool_usage_metrics({"output": []}) == {}
+        assert get_openai_server_tool_usage_metrics({}) == {}
+        assert get_openai_server_tool_usage_metrics(None) == {}
+
+    def test_chat_completion_has_no_output(self):
+        assert get_openai_server_tool_usage_metrics({"choices": [{"message": {"content": "hi"}}]}) == {}
+
+    def test_both_tools_interleaved_with_messages(self):
+        # Observed real-world order: tool calls are not grouped ahead of the messages.
+        resp = {"output": [_web_search_call(), _MESSAGE_ITEM, _file_search_call(), _MESSAGE_ITEM]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1, "storage_search_count": 1}
+
+    def test_only_search_actions_counted(self):
+        # Only search actions incur a tool call cost; reasoning models' open_page / find_in_page
+        # steps are free. Observed: 2 search + 3 open_page reported tool_usage num_requests=2.
+        resp = {
+            "output": [
+                _web_search_call(action_type="search"),
+                _web_search_call(action_type="open_page"),
+                _web_search_call(action_type="open_page"),
+                _web_search_call(action_type="find_in_page"),
+                _web_search_call(action_type="search"),
+            ]
+        }
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 2}
+
+    def test_only_non_search_actions_omits_metric(self):
+        resp = {"output": [_web_search_call(action_type="open_page"), _web_search_call(action_type="find_in_page")]}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    def test_web_search_without_action_counted(self):
+        resp = {"output": [{"type": "web_search_call", "id": "ws_1", "status": "completed"}]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}
+
+    def test_multiple_queries_count_as_one_call(self):
+        resp = {"output": [_file_search_call(queries=("a", "b", "c"))]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"storage_search_count": 1}
+
+    @pytest.mark.parametrize("status", ["in_progress", "searching", "incomplete", "failed", None])
+    def test_non_completed_not_counted(self, status):
+        resp = {"output": [_web_search_call(status=status), _file_search_call(status=status)]}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    def test_sdk_response_objects(self):
+        # _get_attr reads both dicts and SDK model attributes.
+        resp = SimpleNamespace(
+            output=[
+                SimpleNamespace(type="web_search_call", status="completed"),
+                SimpleNamespace(type="message", status="completed"),
+                SimpleNamespace(type="file_search_call", status="completed"),
+            ]
+        )
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1, "storage_search_count": 1}

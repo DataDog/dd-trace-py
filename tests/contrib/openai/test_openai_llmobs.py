@@ -26,6 +26,7 @@ from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
 from tests.contrib.openai.utils import mock_response_mcp_tool_call
+from tests.contrib.openai.utils import mock_response_web_and_file_search
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
@@ -2726,6 +2727,39 @@ MUL: "*"
                 "total_tokens": 212,
                 "cache_read_input_tokens": 0,
                 "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_response_server_tool_usage(self, mock_response_post, openai, openai_llmobs, test_spans):
+        """Completed web_search_call / file_search_call items are counted as billable tool calls."""
+        mock_response_post.return_value = mock_response_web_and_file_search()
+
+        client = openai.OpenAI()
+        client.responses.create(
+            model="gpt-4.1",
+            tools=[{"type": "web_search"}, {"type": "file_search", "vector_store_ids": ["vs_123"]}],
+            input="Find a positive news story and our holiday policy.",
+        )
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name="gpt-4.1-2025-04-14",
+            model_provider="openai",
+            metrics={
+                "input_tokens": 120,
+                "output_tokens": 40,
+                "total_tokens": 160,
+                "web_search_count": 1,
+                "storage_search_count": 1,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
