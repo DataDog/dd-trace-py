@@ -5,6 +5,7 @@ from typing import Callable
 import anthropic
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
@@ -35,7 +36,7 @@ config._add("anthropic", {})
 
 
 def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration = anthropic._datadog_integration
+    integration: LLMObsIntegrationLike = anthropic._datadog_integration
     event = LlmRequestEvent(
         component="anthropic",
         integration_config=config.anthropic,
@@ -75,7 +76,7 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
 
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration = anthropic._datadog_integration
+    integration: LLMObsIntegrationLike = anthropic._datadog_integration
     event = LlmRequestEvent(
         component="anthropic",
         integration_config=config.anthropic,
