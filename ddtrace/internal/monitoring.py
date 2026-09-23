@@ -25,6 +25,7 @@ import weakref
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import RLock
 
 
 if not is_at_least_py(3, 12):
@@ -60,7 +61,7 @@ _CANDIDATE_TOOL_IDS = (3,)
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
 
-_registry_lock = Lock()
+_registry_lock = RLock()
 
 
 class _IdentityWeakKeyDictionary:
