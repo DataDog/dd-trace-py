@@ -212,6 +212,8 @@ suites:
       command: pytest {cmdargs} tests/contrib/litellm
       env:
         DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
+        # Keep recorded tests independent of upstream model catalogue changes.
+        LITELLM_LOCAL_MODEL_COST_MAP: 'True'
       variants:
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
