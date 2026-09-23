@@ -15,6 +15,7 @@ import weakref
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
@@ -209,10 +210,17 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def __init__(self) -> None:
         super().__init__()
-        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str]]] = weakref.WeakKeyDictionary()
+        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str], CodeType]] = (
+            weakref.WeakKeyDictionary()
+        )
 
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
-        self._code[module] = (list(collect_code_objects(code)), set(self._subscribers))
+        # The top-level code object is kept around (rather than checked here)
+        # so is_obfuscated() can check it lazily: this runs on every module
+        # compiled in the process, so eagerly calling is_obfuscated_code()
+        # here would pay that cost for every import, when in practice only
+        # the modules a subscriber actually looks at ever need the check.
+        self._code[module] = (list(collect_code_objects(code)), set(self._subscribers), code)
         return code
 
     def after_import(self, module: ModuleType) -> None:
@@ -239,6 +247,20 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         return entry[0] if entry is not None else None
 
     @classmethod
+    def is_obfuscated(cls, module: ModuleType) -> bool:
+        """Check whether the module's top-level code object looks obfuscated.
+
+        Raises KeyError if the module was never tracked, e.g. because it was
+        imported before this watchdog was installed, or its loader has no
+        ``get_code`` (as with C extension modules). Callers must handle that
+        case explicitly rather than treating an untracked module as a
+        confirmed negative.
+        """
+        if not cls.is_installed():
+            raise KeyError(module)
+        return is_obfuscated_code(cast("ModuleCodeCollector", cls._instance)._code[module][2])
+
+    @classmethod
     def release(cls, module: ModuleType, subscriber: str) -> None:
         """Release a subscriber's interest in a module's collected code objects.
 
@@ -252,7 +274,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         entry = instance._code.get(module)
         if entry is None:
             return
-        _, pending = entry
+        _, pending, _ = entry
         pending.discard(subscriber)
         if not pending:
             del instance._code[module]
