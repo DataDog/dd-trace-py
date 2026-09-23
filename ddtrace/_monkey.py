@@ -28,21 +28,6 @@ _llmobs_integrations_loaded = False
 
 
 def ensure_llmobs_integrations_loaded() -> None:
-    """Import ddtrace.llmobs._integrations exactly once, on demand.
-
-    That import's side effect is registering this process's "<component>.integration.create"
-    core-event listeners (see ddtrace/llmobs/_integrations/__init__.py), which a contrib patch()
-    function dispatches to obtain its LLMObs integration object without importing ddtrace.llmobs
-    itself. Callers must call this immediately before dispatching such an event.
-
-    Deferred rather than imported at ddtrace._monkey's own module scope: ddtrace._monkey is itself
-    imported by ddtrace/__init__.py before that module finishes setting its own `config` attribute,
-    and ddtrace.llmobs transitively does `from ddtrace import config`, which isn't set on the
-    partially-initialized ddtrace module yet. Calling this from within a contrib patch() function
-    (rather than only from ddtrace._monkey.patch()) also covers tests and other callers that invoke
-    a contrib patch() directly, bypassing ddtrace._monkey.patch() entirely - by the time any patch()
-    runs, ddtrace has always finished importing.
-    """
     global _llmobs_integrations_loaded
     if _llmobs_integrations_loaded:
         return
