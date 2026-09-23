@@ -564,3 +564,116 @@ def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
     with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
         started.finalize_stream()
     dispatch.assert_called_once_with("langchain.llm.stream.finally", ())
+
+
+def _sync_chunks_then_cancel(n):
+    for i in range(n):
+        yield i
+    raise asyncio.CancelledError()
+
+
+async def _async_chunks_then_cancel(n):
+    for i in range(n):
+        yield i
+    raise asyncio.CancelledError()
+
+
+def test_traced_stream_records_cancellation_on_iteration():
+    """``asyncio.CancelledError`` derives from ``BaseException``, so it needs
+    explicit handling to be recorded as a stream failure rather than a clean end.
+    """
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks_then_cancel(3), handler)
+    with pytest.raises(asyncio.CancelledError):
+        list(traced)
+    assert handler.finalize_stream_calls == 1
+    assert len(handler.handle_exception_calls) == 1
+    assert isinstance(handler.handle_exception_calls[0], asyncio.CancelledError)
+    assert isinstance(handler.finalize_exceptions[0], asyncio.CancelledError)
+
+
+def test_traced_stream_records_cancellation_thrown_into_iterator():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks(5), handler)
+    stream = traced.__iter__()
+    assert next(stream) == 0
+    with pytest.raises(asyncio.CancelledError):
+        stream.throw(asyncio.CancelledError())
+    assert handler.finalize_stream_calls == 1
+    assert isinstance(handler.handle_exception_calls[0], asyncio.CancelledError)
+
+
+def test_traced_stream_records_cancellation_on_next():
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks_then_cancel(2), handler)
+    assert traced.__next__() == 0
+    assert traced.__next__() == 1
+    with pytest.raises(asyncio.CancelledError):
+        traced.__next__()
+    assert handler.finalize_stream_calls == 1
+    assert isinstance(handler.handle_exception_calls[0], asyncio.CancelledError)
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_records_cancellation_on_iteration():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_async_chunks_then_cancel(3), handler)
+    with pytest.raises(asyncio.CancelledError):
+        async for _ in traced:
+            pass
+    assert handler.finalize_stream_calls == 1
+    assert isinstance(handler.handle_exception_calls[0], asyncio.CancelledError)
+    assert isinstance(handler.finalize_exceptions[0], asyncio.CancelledError)
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_records_cancellation_thrown_into_iterator():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_async_chunks(5), handler)
+    stream = traced.__aiter__()
+    assert await stream.__anext__() == 0
+    with pytest.raises(asyncio.CancelledError):
+        await stream.athrow(asyncio.CancelledError())
+    assert handler.finalize_stream_calls == 1
+    assert isinstance(handler.handle_exception_calls[0], asyncio.CancelledError)
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_records_cancellation_on_anext():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_async_chunks_then_cancel(2), handler)
+    assert await traced.__anext__() == 0
+    assert await traced.__anext__() == 1
+    with pytest.raises(asyncio.CancelledError):
+        await traced.__anext__()
+    assert handler.finalize_stream_calls == 1
+    assert isinstance(handler.handle_exception_calls[0], asyncio.CancelledError)
+
+
+def test_traced_stream_early_break_is_not_an_error():
+    """``GeneratorExit`` is raised on an ordinary early exit from the consumer's
+    loop and must never be attributed to the span as a failure.
+    """
+    handler = _SyncRecordingHandler()
+    traced = make_traced_stream(_sync_chunks(5), handler)
+    for chunk in traced:
+        if chunk == 1:
+            break
+    gc.collect()
+    assert handler.finalize_stream_calls == 1
+    assert handler.handle_exception_calls == []
+    assert handler.finalize_exceptions == [None]
+
+
+@pytest.mark.asyncio
+async def test_traced_async_stream_early_break_is_not_an_error():
+    handler = _AsyncRecordingHandler()
+    traced = make_traced_stream(_async_chunks(5), handler)
+    stream = traced.__aiter__()
+    async for chunk in stream:
+        if chunk == 1:
+            break
+    await stream.aclose()
+    assert handler.finalize_stream_calls == 1
+    assert handler.handle_exception_calls == []
+    assert handler.finalize_exceptions == [None]

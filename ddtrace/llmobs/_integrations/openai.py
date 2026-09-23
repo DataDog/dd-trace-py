@@ -326,7 +326,12 @@ class OpenAIIntegration(BaseLLMIntegration):
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
             metrics.update(get_openrouter_cost_metrics(token_usage))
             return metrics
-        elif kwargs.get("stream") and resp is not None:
+        elif kwargs.get("stream") and isinstance(resp, list):
+            # `_compute_completion_tokens` expects the chat/completion shape: a list of message
+            # dicts. A Responses API `resp` is a single pydantic object, and iterating one yields
+            # (field, value) tuples, so estimating from it raises and loses every tag on the span.
+            # A completed Responses stream never reaches here (it carries `usage`); a truncated one
+            # does, which is why this only surfaces when a stream ends early.
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
             completion_tokens = _compute_completion_tokens(resp)
             total_tokens = prompt_tokens + completion_tokens
