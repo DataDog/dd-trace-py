@@ -747,6 +747,56 @@ def test_last_unregister_releases_tool_and_callbacks() -> None:
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_weak_cleanup_can_reenter_registry_lock_during_gc() -> None:
+    import gc
+    import threading
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    gc.disable()
+    first_code = compile("pass", "<cyclic-first>", "exec")
+    first_handler = Handler()
+    monitoring.register(first_code, first_handler)
+
+    cycle: list[object] = [first_code]
+    cycle.append(cycle)
+    del first_code
+    del cycle
+
+    second_code = compile("pass", "<cyclic-second>", "exec")
+    second_handler = Handler()
+    original_set_local_events = monitoring._set_local_events
+    errors: list[BaseException] = []
+
+    def collect_during_registration(tool_id: int, code: CodeType, events: int) -> None:
+        gc.collect()
+        original_set_local_events(tool_id, code, events)
+
+    def register_second() -> None:
+        try:
+            monitoring.register(second_code, second_handler)
+        except BaseException as error:
+            errors.append(error)
+
+    monitoring._set_local_events = collect_during_registration
+    thread = threading.Thread(target=register_second, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "weak cleanup deadlocked while re-entering the registry lock"
+    assert not errors
+
+    monitoring._set_local_events = original_set_local_events
+    monitoring.unregister(second_code, second_handler)
+    gc.enable()
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_get_tool_id_ignores_occupied_non_candidate_slot() -> None:
     """An owner of non-candidate slot 4 does not affect multiplexer setup on slot 3."""
     import sys
