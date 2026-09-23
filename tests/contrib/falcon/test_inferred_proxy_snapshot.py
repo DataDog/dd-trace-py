@@ -2,12 +2,12 @@
 Snapshot tests for inferred proxy spans (PR #18820, Azure Front Door support).
 
 Inferred proxy spans are created by the core web-request handling whenever a
-request carries ``x-dd-proxy-*`` headers, independent of the web framework. We
+request carries `x-dd-proxy-*` headers, independent of the web framework. We
 use an in-process Falcon test client purely as the vehicle to fire the request
 through a real instrumented server code path — the same approach as
-``tests/contrib/google_cloud_pubsub/test_pubsub_push.py`` — so the snapshot
-captures both the child ``falcon.request`` web span and the parent inferred
-``azure.frontdoor`` span with all of the tags that land on them.
+`tests/contrib/google_cloud_pubsub/test_pubsub_push.py` — so the snapshot
+captures both the child `falcon.request` web span and the parent inferred
+`azure.frontdoor` span with all of the tags that land on them.
 """
 
 import falcon
