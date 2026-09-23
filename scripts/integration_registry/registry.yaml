@@ -1021,6 +1021,16 @@ integrations:
       min: 6.1.0
       max: 6.5.1
 
+- integration_name: trio
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - trio
+  tested_versions_by_dependency:
+    trio:
+      min: 0.21.0
+      max: 0.34.0
+
 - integration_name: unittest
   is_external_package: false
   is_tested: true
