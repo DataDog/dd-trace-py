@@ -1,4 +1,3 @@
-import os
 import subprocess
 from unittest import mock
 
@@ -10,15 +9,11 @@ from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 
-######
-# Skip these tests if they are not running under riot
-riot_env_value = os.getenv("RIOT", None)
-if not riot_env_value:
-    pytest.importorskip("xdist", reason="Pytest xdist tests, not running under riot")
-######
+pytest.importorskip("xdist", reason="Pytest xdist tests require pytest-xdist")
 
 
 _USE_PLUGIN_V2 = True
+_SUBPROCESS_TIMEOUT = 120
 
 pytestmark = pytest.mark.skipif(not _USE_PLUGIN_V2, reason="Tests in this module are for v2 of the pytest plugin")
 
@@ -53,6 +48,11 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
+        # NOTE: Anchor pytester's teardown CWD before the test body and keep nested pytest
+        # controllers from inheriting an outer xdist worker identity.
+        testdir.chdir()
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
 
     @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=3)
     def test_pytest_xdist_will_include_lines_pct(self):
@@ -99,6 +99,8 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
+                check=True,
+                timeout=_SUBPROCESS_TIMEOUT,
             )
 
     @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=3)
@@ -146,6 +148,8 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
+                check=True,
+                timeout=_SUBPROCESS_TIMEOUT,
             )
 
     @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL, wait_for_num_traces=3)
@@ -183,6 +187,8 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
+                check=True,
+                timeout=_SUBPROCESS_TIMEOUT,
             )
 
     @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=4)
@@ -238,4 +244,6 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
+                check=True,
+                timeout=_SUBPROCESS_TIMEOUT,
             )

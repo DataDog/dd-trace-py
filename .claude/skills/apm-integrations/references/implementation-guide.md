@@ -80,9 +80,6 @@ Key rules:
 - Cover the oldest supported and latest compatible dependency versions
 - Regenerate the committed locks with `scripts/test-requirements lock <environment-name>`
 
-Until the test-runner migration is complete, mirror environment changes in `riotfile.py` and run
-[`test_uv_suitespec_matches_riot`](https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py).
-
 ### suitespec.yml
 
 Add **component** and **suite** entries to the correct suitespec file:

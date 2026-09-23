@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_NAME
@@ -43,7 +44,7 @@ def test_publish_custom_evaluator_through_agent_proxy(mock_conn):
 
     method, path, _body, headers = mock_conn.request.call_args[0]
     assert method == "PUT"
-    assert path == "{}{}".format(EVP_PROXY_AGENT_BASE_PATH, PUBLISH_EVALUATOR_PATH)
+    assert path == f"{EVP_PROXY_AGENT_BASE_PATH}{PUBLISH_EVALUATOR_PATH}"
     assert headers[EVP_SUBDOMAIN_HEADER_NAME] == "api"
     assert headers[EVP_NEEDS_APP_KEY_HEADER_NAME] == "true"
     assert "DD-API-KEY" not in headers

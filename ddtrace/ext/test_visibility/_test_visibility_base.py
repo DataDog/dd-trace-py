@@ -62,15 +62,13 @@ class TestModuleId(_TestVisibilityRootItemIdBase):
     name: str
 
     def __repr__(self):
-        return "TestModuleId(module={})".format(
-            self.name,
-        )
+        return f"TestModuleId(module={self.name})"
 
 
 @dataclasses.dataclass(frozen=True)
 class TestSuiteId(_TestVisibilityChildItemIdBase[TestModuleId]):
     def __repr__(self):
-        return "TestSuiteId(module={}, suite={})".format(self.parent_id.name, self.name)
+        return f"TestSuiteId(module={self.parent_id.name}, suite={self.name})"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -78,11 +76,9 @@ class TestId(_TestVisibilityChildItemIdBase[TestSuiteId]):
     parameters: Optional[str] = None  # For hashability, a JSON string of a dictionary of parameters
 
     def __repr__(self):
-        return "TestId(module={}, suite={}, test={}, parameters={})".format(
-            self.parent_id.parent_id.name,
-            self.parent_id.name,
-            self.name,
-            self.parameters,
+        return (
+            f"TestId(module={self.parent_id.parent_id.name}, suite={self.parent_id.name},"
+            f" test={self.name}, parameters={self.parameters})"
         )
 
 

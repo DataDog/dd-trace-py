@@ -29,8 +29,11 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
-    # 30m S3 poll + 60m downstream watch (matches the GitLab job timeout).
-    timeout-minutes: 90
+    # 60m S3 poll + 60m downstream watch = 120, plus ~10m slack
+    # for octo-sts / trigger / GHA overhead.
+    # Job timeout must stay strictly above POLL_TIMEOUT so a late upload
+    # does not consume the entire budget before downstream-python starts.
+    timeout-minutes: 130
     steps:
       - name: Resolve commit SHA
         id: sha
@@ -68,15 +71,17 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # GitLab uploads install.sh after wheel build (~15m). Poll before dispatch
-      # so downstream does not 404. Same timeout/interval as download-s3-wheels.sh.
+      # GitLab uploads install.sh after wheel build (often 20–63+ min under
+      # load). This workflow uses its own 60m poll budget for late GitLab
+      # uploads (independent of scripts/download-s3-wheels.sh). Poll before
+      # dispatch so downstream does not 404.
       - name: Wait for S3 install.sh
         if: steps.gate.outputs.run == 'true'
         env:
           DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
         run: |
           INSTALL_URL="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}/install.sh"
-          POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
+          POLL_TIMEOUT="${POLL_TIMEOUT:-3800}"
           POLL_INTERVAL="${POLL_INTERVAL:-30}"
           echo "Polling for: ${INSTALL_URL}"
           elapsed=0

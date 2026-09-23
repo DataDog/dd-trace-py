@@ -1,10 +1,10 @@
+from collections.abc import Iterable
 from enum import Enum
 import os
 import time
 import typing as t
 from typing import Any
 from typing import Callable
-from typing import Iterable
 from typing import Optional
 
 from ddtrace import config as tracer_config
@@ -74,7 +74,7 @@ def _filter_by_env_and_version(f: Callable[..., Iterable[Probe]]) -> Callable[..
     return _wrapper
 
 
-class ProbeFactory(object):
+class ProbeFactory:
     __line_class__: Optional[type[LineProbe]] = None
     __function_class__: Optional[type[FunctionProbe]] = None
 

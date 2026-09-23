@@ -552,8 +552,7 @@ def test_split_aspect_tainting(s, call, _args, should_be_tainted, result_list, r
 
 
 class TestOperatorsReplacement(BaseReplacement):
-    def test_aspect_ljust_str_tainted(self):
-        # type: () -> None
+    def test_aspect_ljust_str_tainted(self) -> None:
         string_input = "foo"
 
         # Not tainted
@@ -600,8 +599,7 @@ class TestOperatorsReplacement(BaseReplacement):
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 0
 
-    def test_format(self):
-        # type: () -> None
+    def test_format(self) -> None:
         string_input = "foo"
         result = mod.do_format_fill(string_input)
         assert result == "foo       "

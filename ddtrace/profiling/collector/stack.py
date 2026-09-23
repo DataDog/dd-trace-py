@@ -1,13 +1,13 @@
 """Simple wrapper around stack native extension module."""
 
 import logging
-import sys
 from types import ModuleType
 import typing
 
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.native._native import Context
@@ -86,7 +86,7 @@ class StackCollector(collector.Collector):
             raise collector.CollectorUnavailable
 
         # Start native C function call tracking (Python 3.12+ only)
-        if sys.version_info >= (3, 12) and config.stack.native_frames:
+        if is_at_least_py(3, 12) and config.stack.native_frames:
             try:
                 from ddtrace.internal.datadog.profiling import native_call_monitor
 

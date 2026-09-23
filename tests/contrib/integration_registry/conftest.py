@@ -1,13 +1,12 @@
 import json
 from pathlib import Path
 import re
-from typing import Any
 from typing import cast
 
 import pytest
 import yaml
 
-import riotfile
+import ddtrace
 
 
 @pytest.fixture(scope="module")
@@ -16,8 +15,8 @@ def project_root() -> Path:
 
 
 @pytest.fixture(scope="module")
-def contrib_dir(project_root: Path) -> Path:
-    return project_root / "ddtrace" / "contrib"
+def contrib_dir() -> Path:
+    return Path(ddtrace.__file__).parent / "contrib"
 
 
 @pytest.fixture(scope="module")
@@ -43,7 +42,7 @@ def registry_content(registry_yaml_path: Path) -> dict:
     if not registry_yaml_path.is_file():
         pytest.fail(f"Registry YAML file not found: {registry_yaml_path}")
     try:
-        with open(registry_yaml_path, "r", encoding="utf-8") as f:
+        with open(registry_yaml_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
             if not isinstance(data, dict):
                 pytest.fail(f"Invalid structure in {registry_yaml_path}: Expected root object.")
@@ -72,7 +71,7 @@ def registry_schema(registry_schema_path: Path) -> dict:
     if not registry_schema_path.is_file():
         pytest.fail(f"Schema JSON file not found: {registry_schema_path}")
     try:
-        with open(registry_schema_path, "r", encoding="utf-8") as f:
+        with open(registry_schema_path, encoding="utf-8") as f:
             schema = json.load(f)
         return schema
     except json.JSONDecodeError as e:
@@ -148,32 +147,6 @@ def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
 
 
 @pytest.fixture(scope="module")
-def riot_venvs() -> Any:
-    """Gets all Venv defined in riotfile.py."""
-    return riotfile.venv.venvs  # type: ignore[attr-defined]
-
-
-@pytest.fixture(scope="module")
-def riot_venv_names() -> set[str]:
-    """Finds all Venv names defined in riotfile.py."""
-
-    names: set[str] = set()
-    nodes_to_visit: list[Any] = [riotfile.venv]  # type: ignore[attr-defined]
-
-    while nodes_to_visit:
-        current_node = nodes_to_visit.pop()
-        if hasattr(current_node, "name") and isinstance(current_node.name, str):
-            names.add(current_node.name)
-
-        if hasattr(current_node, "venvs") and isinstance(current_node.venvs, list):
-            nodes_to_visit.extend(current_node.venvs)
-
-    if not names:
-        pytest.fail("No integration Venv names found in riotfile.venv structure.")
-    return names
-
-
-@pytest.fixture(scope="module")
 def docs_index_path(project_root: Path) -> Path:
     """Returns the path to docs/index.rst."""
     return project_root / "docs" / "index.rst"
@@ -193,7 +166,7 @@ def documented_versions(docs_index_path: Path, dependency_to_integration_mapping
     if not docs_index_path.exists():
         pytest.fail(f"Documentation file not found: {docs_index_path}")
 
-    with open(docs_index_path, "r", encoding="utf-8") as f:
+    with open(docs_index_path, encoding="utf-8") as f:
         content = f.read()
 
     versions = {}

@@ -2,8 +2,8 @@ import json
 import sys
 from typing import Optional
 from typing import Union
+from unittest import mock
 
-import mock
 from pydantic import BaseModel
 import pydantic_ai
 import pytest
@@ -544,13 +544,13 @@ class TestPydanticAIAgentManifest:
     ):
         """One case per field mapping, asserted as a subset so unrelated keys do not couple."""
         if min_version and PYDANTIC_AI_VERSION < min_version:
-            pytest.skip("pydantic-ai < {} does not support this field".format(min_version))
+            pytest.skip(f"pydantic-ai < {min_version} does not support this field")
 
         _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", **make_kwargs())
 
         if isinstance(expected, ABSENT):
             for key in expected.keys:
-                assert key not in manifest, "manifest should not contain {}".format(key)
+                assert key not in manifest, f"manifest should not contain {key}"
         else:
             _assert_contains(manifest, expected)
 
@@ -560,13 +560,13 @@ class TestPydanticAIAgentManifest:
     ):
         """The security contract, one case per carrier. expected is asserted so a case cannot pass empty."""
         if min_version and PYDANTIC_AI_VERSION < min_version:
-            pytest.skip("pydantic-ai < {} does not support this field".format(min_version))
+            pytest.skip(f"pydantic-ai < {min_version} does not support this field")
 
         _, manifest = await self._run(pydantic_ai, test_spans, name="test_agent", **make_kwargs())
 
         blob = safe_json(manifest)
         for canary in forbidden:
-            assert canary not in blob, "{} reached the manifest".format(canary)
+            assert canary not in blob, f"{canary} reached the manifest"
         _assert_contains(manifest, expected)
 
     async def test_shape_is_one_flat_document(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
@@ -587,7 +587,7 @@ class TestPydanticAIAgentManifest:
         )
 
         unknown = set(manifest) - self.SCHEMA_KEYS
-        assert not unknown, "manifest emits keys outside the shared schema: {}".format(sorted(unknown))
+        assert not unknown, f"manifest emits keys outside the shared schema: {sorted(unknown)}"
         # No key is a dotted path: the flat schema has no prefixed names to parse apart.
         assert not [key for key in manifest if "." in key]
 
@@ -716,12 +716,12 @@ class TestPydanticAIAgentManifest:
         def walk(node, path):
             if isinstance(node, dict):
                 for key, value in node.items():
-                    assert value is not None, "{}.{} is null".format(path, key)
-                    assert value != "" and value != [] and value != {}, "{}.{} is empty".format(path, key)
-                    walk(value, "{}.{}".format(path, key))
+                    assert value is not None, f"{path}.{key} is null"
+                    assert value != "" and value != [] and value != {}, f"{path}.{key} is empty"
+                    walk(value, f"{path}.{key}")
             elif isinstance(node, list):
                 for index, item in enumerate(node):
-                    walk(item, "{}[{}]".format(path, index))
+                    walk(item, f"{path}[{index}]")
 
         walk(manifest, "manifest")
 
@@ -962,7 +962,7 @@ class TestPydanticAIAgentManifest:
         assert manifest["model_settings"] == {"top_p": 0.9}
 
     def test_mcp_servers_are_named_but_never_addressed(self, pydantic_ai):
-        """MCP capture, which no other test reaches: the mcp extra is in none of the riot venvs.
+        """MCP capture, which no other test reaches because the suite does not install the mcp extra.
 
         No URI is emitted, so a server address cannot carry a credential onto the wire.
         """
@@ -1017,7 +1017,7 @@ class TestPydanticAIAgentManifest:
                 self.api_key = "sk-not-a-real-key"
 
             def __repr__(self):
-                return "SecretHolder(api_key={!r})".format(self.api_key)
+                return f"SecretHolder(api_key={self.api_key!r})"
 
         def mytool(x: str) -> str:
             """real docstring"""
