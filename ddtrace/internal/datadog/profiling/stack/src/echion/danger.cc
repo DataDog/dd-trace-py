@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cerrno>
 #include <csetjmp>
+#include <cstdint>
 #include <cstdio>
 #include <pthread.h>
 #include <signal.h>
@@ -48,7 +49,12 @@ thread_local volatile sig_atomic_t t_handler_armed = 0;
 // to us (e.g. profiler <-> crashtracker pointing at each other), we would loop
 // forever and hang the process. If we re-enter the unarmed path while already
 // chaining, fall through to the default disposition so termination is guaranteed.
-thread_local volatile sig_atomic_t t_in_unarmed_chain = 0;
+// We record the handler's frame address rather than a flag. If the previous
+// handler recovers with longjmp (as opposed to returning), we cannot reset the flag
+// and it would stay set forever.
+// A real cycle would always run deeper on the stack than the recorded frame, so we
+// check for this to confirm whether we are in a cycle.
+thread_local volatile uintptr_t t_unarmed_chain_frame = 0;
 
 static inline void
 arm_fault_handler()
@@ -68,7 +74,8 @@ static void
 segv_handler(int signo, siginfo_t* info, void* ucontext)
 {
     if (!t_handler_armed) {
-        if (t_in_unarmed_chain) {
+        const uintptr_t frame = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
+        if (t_unarmed_chain_frame != 0 && frame < t_unarmed_chain_frame) {
             // We are being re-entered while already chaining to a previous
             // handler: the handler chain has cycled back to us. Restore the
             // default disposition and re-raise to guarantee the process
@@ -82,7 +89,7 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
             pthread_kill(pthread_self(), signo);
             return;
         }
-        t_in_unarmed_chain = 1;
+        t_unarmed_chain_frame = frame;
 
         // Chain to the previous handler
         const struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
@@ -122,7 +129,7 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
             pthread_kill(pthread_self(), signo);
         }
 
-        t_in_unarmed_chain = 0;
+        t_unarmed_chain_frame = 0;
         return;
     }
 
