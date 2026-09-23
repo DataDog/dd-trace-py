@@ -1,6 +1,6 @@
 fixes:
   - |
-    CI visibility: Fixes an issue where code coverage path aliases from the
+    CI Visibility: Fixes an issue where code coverage path aliases from the
     active coverage configuration were not applied to LCOV source filenames
     when the mapped destination files did not exist on disk.  This caused
     uploaded coverage reports to retain separate installed-package paths for
