@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Protocol  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
@@ -10,12 +11,22 @@ from ddtrace.internal.settings._config import config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.pin import Pin  # noqa:F401
     from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
-    from ddtrace.trace import Span  # noqa:F401
 
 
-def int_service(pin: Optional["Pin"], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
+class _PinLike(Protocol):
+    service: Optional[str]
+
+
+class _SpanLike(Protocol):
+    service: Optional[str]
+
+    def set_tag(self, key: str, value: Any) -> None: ...
+
+
+def int_service(
+    pin: Optional[_PinLike], int_config: "IntegrationConfig", default: Optional[str] = None
+) -> Optional[str]:
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -52,7 +63,9 @@ def int_service(pin: Optional["Pin"], int_config: "IntegrationConfig", default: 
     return default
 
 
-def ext_service(pin: Optional["Pin"], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
+def ext_service(
+    pin: Optional[_PinLike], int_config: "IntegrationConfig", default: Optional[str] = None
+) -> Optional[str]:
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
@@ -73,7 +86,7 @@ def ext_service(pin: Optional["Pin"], int_config: "IntegrationConfig", default: 
 
 
 def set_service_and_source(
-    span: "Span",
+    span: _SpanLike,
     service: str,
     int_config: Union["IntegrationConfig", "dict[str, Any]"],
     default_service_key: str = "_default_service",
