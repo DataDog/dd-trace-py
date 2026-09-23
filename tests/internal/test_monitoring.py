@@ -32,6 +32,7 @@ class _MonitoringEvents(Protocol):
     PY_RETURN: int
     PY_UNWIND: int
     LINE: int
+    EXCEPTION_HANDLED: int
 
 
 # `_E = sys.monitoring.events` has an indeterminate type when mypy analyzes the
@@ -113,6 +114,19 @@ class RaisingUnwindHandler(monitoring.MonitoringEventHandler):
         raise RuntimeError("unwind handler exploded")
 
 
+class HandledExceptionHandler(monitoring.MonitoringEventHandler):
+    def __init__(self) -> None:
+        self.handled: list[tuple[CodeType, BaseException]] = []
+
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        self.handled.append((code, exception))
+
+
+class RaisingHandledExceptionHandler(monitoring.MonitoringEventHandler):
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        raise RuntimeError("handled-exception handler exploded")
+
+
 @pytest.fixture
 def registered() -> Iterator[
     Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler]
@@ -129,6 +143,21 @@ def registered() -> Iterator[
 
     for code, handler in registrations:
         monitoring.unregister(code, handler)
+
+
+@pytest.fixture
+def registered_global() -> Iterator[Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler]]:
+    registrations: list[monitoring.MonitoringEventHandler] = []
+
+    def _register(handler: monitoring.MonitoringEventHandler) -> monitoring.MonitoringEventHandler:
+        monitoring.register_global(handler)
+        registrations.append(handler)
+        return handler
+
+    yield _register
+
+    for handler in registrations:
+        monitoring.unregister_global(handler)
 
 
 @_py315
@@ -478,47 +507,85 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
 
 
-def test_multiplexer_does_not_claim_exception_profiler_tool_id() -> None:
-    """Tool ID 4 is reserved for ExceptionCollector; the multiplexer must not take it."""
-    candidates: tuple[int, ...] = cast(tuple[int, ...], monitoring._CANDIDATE_TOOL_IDS)  # type: ignore[has-type]
-    assert 4 not in candidates
-    tool_id: int = monitoring.get_tool_id()
-    assert tool_id != 4
+def test_multiplexer_prefers_tool_id_3() -> None:
+    assert monitoring._CANDIDATE_TOOL_IDS == (3, 4)
+    assert monitoring.get_tool_id() == 3
 
 
 @pytest.mark.subprocess(out=None, err=None)
-def test_ensure_tool_falls_back_without_disturbing_occupied_slot() -> None:
-    """Tool setup uses the remaining custom slot without disturbing its owner."""
+def test_last_unregister_releases_tool_and_callbacks() -> None:
     import sys
-
-    sys_monitoring = getattr(sys, "monitoring")
-    sys_monitoring.use_tool_id(4, "external")
+    from types import CodeType
 
     from ddtrace.internal import monitoring
 
-    assert monitoring.ensure_tool() == 3
-    assert sys_monitoring.get_tool(4) == "external"
-    assert sys_monitoring.get_tool(3) == "ddtrace"
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    def target() -> None:
+        pass
+
+    handler = Handler()
+    monitoring.register(target.__code__, handler)
+    tool_id = monitoring._tool_id
+    assert tool_id == 3
+
+    monitoring.unregister(target.__code__, handler)
+
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
+
+    sys_monitoring.use_tool_id(tool_id, "external")
+
+    def callback(code: CodeType, line_number: int) -> None:
+        pass
+
+    assert sys_monitoring.register_callback(tool_id, sys_monitoring.events.LINE, callback) is None
+    sys_monitoring.register_callback(tool_id, sys_monitoring.events.LINE, None)
+    sys_monitoring.free_tool_id(tool_id)
+
+    monitoring.register(target.__code__, handler)
+    assert monitoring._tool_id == tool_id
+    monitoring.unregister(target.__code__, handler)
 
 
 @pytest.mark.subprocess(out=None, err=None)
-def test_ensure_tool_fails_without_disturbing_occupied_slots() -> None:
-    """Tool setup raises only after preserving both external custom-slot owners."""
+def test_get_tool_id_falls_back_without_disturbing_occupied_slot() -> None:
+    """After handled exceptions migrate, setup can fall back to custom slot 4."""
+    import sys
+
+    sys_monitoring = getattr(sys, "monitoring")
+    sys_monitoring.use_tool_id(3, "external")
+
+    from ddtrace.internal import monitoring
+
+    assert monitoring.get_tool_id() == 4
+    assert sys_monitoring.get_tool(3) == "external"
+    assert sys_monitoring.get_tool(4) == "ddtrace"
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_get_tool_id_fails_without_disturbing_occupied_slots() -> None:
+    """Tool setup raises only after preserving both custom-slot owners."""
     import sys
 
     import pytest
 
     sys_monitoring = getattr(sys, "monitoring")
-    sys_monitoring.use_tool_id(4, "external-4")
     sys_monitoring.use_tool_id(3, "external-3")
+    sys_monitoring.use_tool_id(4, "external-4")
 
     from ddtrace.internal import monitoring
 
     with pytest.raises(monitoring.MonitoringToolUnavailable):
-        monitoring.ensure_tool()
+        monitoring.get_tool_id()
 
-    assert sys_monitoring.get_tool(4) == "external-4"
     assert sys_monitoring.get_tool(3) == "external-3"
+    assert sys_monitoring.get_tool(4) == "external-4"
 
 
 def test_py_start_disable_forwarded_when_all_handlers_return_disable(
@@ -722,3 +789,84 @@ def test_local_events_exclude_py_unwind_below_315() -> None:
     assert _LOCAL_EVENTS & _E.PY_START
     assert _LOCAL_EVENTS & _E.PY_RETURN
     assert _LOCAL_EVENTS & _E.LINE
+
+
+def test_global_and_local_events_share_the_same_tool(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A global EXCEPTION_HANDLED handler coexists with a local LINE handler."""
+
+    def fn() -> None:
+        try:
+            raise ValueError("handled")
+        except ValueError:
+            return
+
+    line_handler: LineHandler = registered(fn.__code__, LineHandler())  # type: ignore[assignment]
+    exception_handler = cast(HandledExceptionHandler, registered_global(HandledExceptionHandler()))
+
+    tool_id = monitoring._tool_id
+    assert tool_id is not None
+    assert _sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED
+    assert _sys_monitoring.get_local_events(tool_id, fn.__code__) & _E.LINE
+
+    fn()
+
+    assert line_handler.lines
+    assert any(code is fn.__code__ and exc.args == ("handled",) for code, exc in exception_handler.handled)
+
+    handled_count = len(exception_handler.handled)
+    monitoring.unregister_global(exception_handler)
+    assert not (_sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED)
+    assert _sys_monitoring.get_local_events(tool_id, fn.__code__) & _E.LINE
+
+    fn()
+    assert len(exception_handler.handled) == handled_count
+
+
+def test_global_registration_preserves_disabled_local_events(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """Changing global events must not reset local DISABLE state."""
+
+    def fn() -> None:
+        value = 1
+        value += 1
+
+    line_handler: LineHandler = registered(fn.__code__, LineHandler(disable=True))  # type: ignore[assignment]
+    fn()
+    disabled_count = len(line_handler.lines)
+    fn()
+    assert len(line_handler.lines) == disabled_count
+
+    exception_handler = registered_global(HandledExceptionHandler())
+    fn()
+    assert len(line_handler.lines) == disabled_count
+
+    monitoring.unregister_global(exception_handler)
+    fn()
+    assert len(line_handler.lines) == disabled_count
+
+
+def test_exception_handled_handler_failure_does_not_skip_siblings(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """One failing global handler must not affect other handlers or user code."""
+
+    def fn() -> None:
+        pass
+
+    registered_global(RaisingHandledExceptionHandler())
+    sibling: HandledExceptionHandler = registered_global(HandledExceptionHandler())  # type: ignore[assignment]
+    exception = ValueError("handled")
+
+    monitoring._on_exception_handled(fn.__code__, 0, exception)
+
+    assert (fn.__code__, exception) in sibling.handled
+
+
+def test_register_global_rejects_local_only_handler() -> None:
+    with pytest.raises(ValueError, match="no global"):
+        monitoring.register_global(LineHandler())

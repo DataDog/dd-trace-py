@@ -1,0 +1,17 @@
+# Microbenchmark configurations for the sys.monitoring multiplexer
+# EXCEPTION_HANDLED global-handler path used by error-tracking.
+
+# Baseline: multiplexer tool claimed but no global handler registered.
+# Measures the cost of the empty-snapshot callback dispatch.
+no_handler:
+  handler: "none"
+
+# Passive handler: global handler registered but does no work.
+# Measures the per-exception dispatch overhead of the multiplexer.
+passive_handler:
+  handler: "passive"
+
+# Active handler: global handler records each exception.
+# Measures the realistic error-tracking reporting path.
+active_handler:
+  handler: "active"

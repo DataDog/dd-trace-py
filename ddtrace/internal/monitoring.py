@@ -1,16 +1,16 @@
 """Multiplexed sys.monitoring interface for ddtrace internal use.
 
 A single sys.monitoring tool ID is shared across all ddtrace sub-systems.
-Sub-systems implement :class:`MonitoringEventHandler` and register instances
-via :func:`register`; the multiplexer dispatches each monitoring event to all
-handlers registered for that code object.
+Sub-systems implement :class:`MonitoringEventHandler`. Local handlers register
+via :func:`register` and receive events for a code object; global handlers
+register via :func:`register_global` and receive process-wide events.
 
 Only the events corresponding to overridden handler methods are enabled,
 so a handler that only overrides ``on_py_start`` pays no cost for the other
 events.
 
 The handler instance itself serves as the registration key: pass the same
-object to :func:`unregister` to remove it.
+object to the corresponding unregister function to remove it.
 """
 
 from abc import ABC
@@ -45,18 +45,18 @@ else:
     _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE
     _SUPPORTS_LOCAL_PY_UNWIND = False
 
+_GLOBAL_EVENTS = _E.EXCEPTION_HANDLED
+
 
 class MonitoringToolUnavailable(RuntimeError):
     """Raised when no free sys.monitoring tool ID is available for ddtrace."""
 
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
-# sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
-# for debugger/coverage/profiler/optimizer. ID 4 is reserved for
-# ExceptionCollector. ID 3 is the
-# remaining custom slot; error tracking also uses it when enabled, in which
-# case _setup() fails and asyncio falls back to wrap().
-_CANDIDATE_TOOL_IDS = (3,)
+# Every ddtrace sys.monitoring consumer registers here instead of claiming a
+# slot directly. CPython reserves 0/1/2/5 for conventional tools, leaving custom
+# slots 3 and 4. Prefer 3 and fall back to 4; never use coverage.py's slot 1.
+_CANDIDATE_TOOL_IDS = (3, 4)
 
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
@@ -141,6 +141,8 @@ class _IdentityWeakKeyDictionary:
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
 
+_global_handlers = _CodeHandlers()
+
 
 class MonitoringEventHandler(ABC):
     """Base class for sys.monitoring event handlers.
@@ -149,8 +151,9 @@ class MonitoringEventHandler(ABC):
     only those events, so un-overridden methods incur no monitoring overhead.
 
     .. warning::
-        Do not call :func:`register` or :func:`unregister` from inside an
-        event handler method.  Doing so mutates the handler list while it is
+        Do not call :func:`register`, :func:`unregister`,
+        :func:`register_global`, or :func:`unregister_global` from inside an
+        event handler method. Doing so mutates the handler list while it is
         being iterated, which produces undefined behavior.
 
     .. warning::
@@ -159,8 +162,8 @@ class MonitoringEventHandler(ABC):
         later handler for the same event, exactly as sys.monitoring itself
         would deliver a callback failure. Catch your own exceptions if a
         handler must not affect the monitored function's behavior.
-        ``on_py_line`` is caught and logged instead, since independent
-        handlers commonly share one code object's LINE registration.
+        ``on_py_line`` and ``on_exception_handled`` are caught and logged
+        instead so one sub-system cannot disrupt another.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -186,6 +189,9 @@ class MonitoringEventHandler(ABC):
         """
         return None
 
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        pass
+
 
 def _events_for_handler(handler: MonitoringEventHandler) -> int:
     """Return the OR of events corresponding to overridden handler methods."""
@@ -200,6 +206,8 @@ def _events_for_handler(handler: MonitoringEventHandler) -> int:
         events |= _E.PY_UNWIND
     if cls.on_py_line is not base.on_py_line:
         events |= _E.LINE
+    if cls.on_exception_handled is not base.on_exception_handled:
+        events |= _E.EXCEPTION_HANDLED
     return events
 
 
@@ -228,9 +236,10 @@ class _CodeHandlers:
         self._by_handler[handler_id] = entry
         self.snapshot = tuple(self._by_handler.values())
 
-    def pop_handler(self, handler_id: int) -> None:
-        self._by_handler.pop(handler_id, None)
+    def pop_handler(self, handler_id: int) -> Optional[_Entry]:
+        entry = self._by_handler.pop(handler_id, None)
         self.snapshot = tuple(self._by_handler.values())
+        return entry
 
 
 def _events_for(handlers: _CodeHandlers) -> int:
@@ -270,8 +279,31 @@ def _setup() -> int:
         if _SUPPORTS_LOCAL_PY_UNWIND:
             _sys_monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
         _sys_monitoring.register_callback(_tool_id, _E.LINE, _on_py_line)
+        _sys_monitoring.register_callback(_tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
 
     return _tool_id
+
+
+def _release_tool_if_unused() -> None:
+    """Release the tool after the final registration; caller holds _registry_lock."""
+    global _tool_id
+
+    if _tool_id is None or len(_registry) or _global_handlers:
+        return
+
+    with _tool_lock:
+        if _tool_id is None or len(_registry) or _global_handlers:
+            return
+        tool_id = _tool_id
+        _sys_monitoring.set_events(tool_id, 0)
+        _sys_monitoring.register_callback(tool_id, _E.PY_START, None)
+        _sys_monitoring.register_callback(tool_id, _E.PY_RETURN, None)
+        if _SUPPORTS_LOCAL_PY_UNWIND:
+            _sys_monitoring.register_callback(tool_id, _E.PY_UNWIND, None)
+        _sys_monitoring.register_callback(tool_id, _E.LINE, None)
+        _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, None)
+        _sys_monitoring.free_tool_id(tool_id)
+        _tool_id = None
 
 
 def get_tool_id() -> int:
@@ -343,6 +375,15 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     return None
 
 
+def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+    for e in _global_handlers.snapshot:
+        if e.events & _E.EXCEPTION_HANDLED:
+            try:
+                e.handler.on_exception_handled(code, instruction_offset, exception)
+            except Exception:
+                log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -407,6 +448,8 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
 def refresh(code: CodeType, events: int) -> None:
     """Re-arm disabled local *events* for *code* without changing unrelated events."""
     with _registry_lock:
+        if _global_handlers:
+            return
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers and _tool_id is not None:
             local_events: int = _events_for(handlers) & _LOCAL_EVENTS
@@ -433,3 +476,28 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
             local_events = _events_for(handlers) & _LOCAL_EVENTS
             handlers.disabled_events &= local_events
             _set_local_events(_tool_id, code, local_events)
+
+        _release_tool_if_unused()
+
+
+def register_global(handler: MonitoringEventHandler) -> None:
+    """Register handler for the global events it overrides."""
+    handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
+    if not handler_events:
+        raise ValueError("Handler overrides no global MonitoringEventHandler methods")
+
+    with _registry_lock:
+        tool_id = _setup()
+        _global_handlers.set_handler(id(handler), _Entry(handler, handler_events))
+        _sys_monitoring.set_events(tool_id, _events_for(_global_handlers) & _GLOBAL_EVENTS)
+
+
+def unregister_global(handler: MonitoringEventHandler) -> None:
+    """Remove handler from the global monitoring registry."""
+    with _registry_lock:
+        entry = _global_handlers.pop_handler(id(handler))
+        if entry is None:
+            return
+        if _tool_id is not None:
+            _sys_monitoring.set_events(_tool_id, _events_for(_global_handlers) & _GLOBAL_EVENTS)
+        _release_tool_if_unused()
