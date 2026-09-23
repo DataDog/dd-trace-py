@@ -72,6 +72,54 @@ def hook(writer):
 
 
 class TestFlagEvalEVPHook:
+    @pytest.mark.parametrize("sink_fails", [False, True])
+    def test_repeated_failures_are_counted_without_propagating_telemetry_errors(self, hook, writer, sink_fails):
+        writer.enqueue.side_effect = RuntimeError("error-only-canary")
+        with mock.patch("ddtrace.internal.openfeature._flag_eval_evp_hook._count_metric") as count:
+            if sink_fails:
+                count.side_effect = RuntimeError("telemetry failed")
+            for _ in range(3):
+                hook.finally_after(_make_hook_context(), _make_details(), {})
+        assert count.call_args_list == [mock.call("flagevaluation.hook.errors", 1)] * 3
+
+    def test_counted_enqueue_drop_is_not_a_hook_failure(self):
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+        from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+
+        writer = FlagEvaluationWriter()
+        writer._accepting_events = False
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer._count_metric") as drops:
+            with mock.patch("ddtrace.internal.openfeature._flag_eval_evp_hook._count_metric") as errors:
+                FlagEvalEVPHook(writer).finally_after(_make_hook_context(), _make_details(), {})
+        drops.assert_called_once_with("flagevaluation.rows.dropped", 1, "closed")
+        errors.assert_not_called()
+
+    @pytest.mark.parametrize("observe", [False, True])
+    @pytest.mark.parametrize("degraded", [False, True])
+    def test_error_code_survives_real_hook_to_wire(self, observe, degraded):
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+        from ddtrace.internal.openfeature._flagevaluation_writer import PER_FLAG_CAP
+        from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+
+        writer = FlagEvaluationWriter()
+        if degraded:
+            writer._per_flag_count["my-flag"] = PER_FLAG_CAP
+        details = _make_details(
+            variant=None,
+            error_code=ErrorCode.TYPE_MISMATCH,
+            error_message="error-only-canary",
+            flag_metadata={"__dd_observe_full_evaluation_data": observe},
+        )
+        FlagEvalEVPHook(writer).finally_after(_make_hook_context(attrs={"plan": "pro"}), details, {})
+        with mock.patch.object(writer, "_send_payload") as send:
+            writer.periodic()
+        raw = send.call_args.args[0]
+        row = json.loads(raw)["flagEvaluations"][0]
+        assert row["error"] == {"message": "TYPE_MISMATCH"}
+        assert row["runtime_default_used"] is True
+        assert row["evaluation_count"] == 1
+        assert b"error-only-canary" not in raw
+
     def test_finally_after_calls_writer_enqueue_once(self, hook, writer):
         """finally_after must call writer.enqueue exactly once per evaluation."""
         hc = _make_hook_context()
@@ -154,7 +202,7 @@ class TestFlagEvalEVPHook:
     def test_finally_after_borrows_attrs_for_synchronous_writer_snapshot(self, hook, writer):
         attrs = {"tier": "premium", "region": "us-west"}
         hc = _make_hook_context(attrs=attrs)
-        details = _make_details()
+        details = _make_details(flag_metadata={"__dd_observe_full_evaluation_data": True})
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
@@ -166,7 +214,9 @@ class TestFlagEvalEVPHook:
 
         attrs = FalseMapping(tier="premium")
         hc = _make_hook_context(attrs=attrs)
-        hook.finally_after(hc, _make_details(), {})
+        details = _make_details(flag_metadata={"__dd_observe_full_evaluation_data": True})
+
+        hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
 
@@ -205,6 +255,19 @@ class TestFlagEvalEVPHook:
         details = _make_details()
         # Must not raise.
         hook.finally_after(hc, details, {})
+
+    def test_finally_after_does_not_log_exception_message_or_traceback(self, hook, writer):
+        writer.enqueue.side_effect = RuntimeError("secret@example.com")
+        hc = _make_hook_context()
+        details = _make_details()
+
+        with mock.patch("ddtrace.internal.openfeature._flag_eval_evp_hook.logger.debug") as debug:
+            hook.finally_after(hc, details, {})
+
+        debug.assert_called_once_with(
+            "FlagEvalEVPHook.finally_after: failed to enqueue eval snapshot (%s)",
+            "RuntimeError",
+        )
 
 
 class TestAsyncBoundary:

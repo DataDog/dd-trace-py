@@ -105,7 +105,7 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 3. `span.finish()` called before stream is exhausted
 4. `finalize_stream()` doesn't complete the span lifecycle: event-based integrations must dispatch the ended event; direct-trace integrations must call `integration.llmobs_set_tags()` and `span.finish()`
 5. Token usage not captured from final stream event
-6. Caller uses `with stream:` and does not exhaust the iterator — `TracedStream.__exit__` / `TracedAsyncStream.__aexit__` call `close_stream()` so `finalize_stream()` still runs once; wrapping the raw stream yourself skips that
+6. Caller uses `with stream:` and does not exhaust the iterator — `TracedStream.__exit__` / `TracedAsyncStream.__aexit__` close the wrapped stream first, then `close_stream()`, including when wrapped `__aexit__` raises `CancelledError`; wrapping the raw stream yourself skips that
 
 **Fix:**
 - Subclass `StreamHandler` (sync) or `AsyncStreamHandler` (async)
@@ -131,7 +131,8 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 
 **Fix:**
 - ASGI `TraceMiddleware` finishes leftover descendant `SpanTypes.LLM` spans after `await self.app()` returns (`_finish_unfinished_llm_spans`). Do not attach this to request-span finish: the last `http.response.body` can precede more annotation. Do not finish enclosing LLM ancestors or non-LLM children
-- `TracedStream` / `TracedAsyncStream` `__exit__`/`__aexit__` and `__del__` call `close_stream()` so unexhausted context-manager use and dropped partial iteration still finalize; `close_stream()` is idempotent with `__iter__`/`__next__`
+- `TracedStream` / `TracedAsyncStream` `__exit__`/`__aexit__` close the wrapped stream first, then `close_stream()` (including `BaseException` from wrapped cleanup). `__del__` is last-resort for dropped `next()`. Stream-manager `__enter__` retains the child wrapper for the `with` body; `on_stream_created` runs before retain and finalizes on callback failure because `__exit__` will not run
+- `close_stream()` is idempotent with `__iter__`/`__next__`
 - Happy path should still annotate and finish the LLM span from the generator `finally` so teardown is a no-op
 
 ---

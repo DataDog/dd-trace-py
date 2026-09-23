@@ -1,6 +1,6 @@
+from __future__ import annotations
+
 import os
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Optional  # noqa:F401
 from unittest import mock
 
 import pytest
@@ -8,12 +8,9 @@ import pytest
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 from tests.utils import override_global_config
-
-
-if TYPE_CHECKING:
-    from ddtrace.trace import Span  # noqa:F401
 
 
 def pytest_configure(config):
@@ -75,7 +72,7 @@ def azure_openai_config(openai):
 class FilterOrg(TraceFilter):
     """Replace the organization tag on spans with fake data."""
 
-    def process_trace(self, trace: list["Span"]) -> Optional[list["Span"]]:
+    def process_trace(self, trace: list[Span]) -> list[Span] | None:
         for span in trace:
             if span.get_tag("organization"):
                 span._set_attribute("organization", "not-a-real-org")
