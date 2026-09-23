@@ -171,9 +171,6 @@ OAI_HANDOFF_TOOL_ARG = "{}"
 LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
-# Set on a botocore execution context when a bedrock stream ends early, carrying the response
-# assembled from the chunks received before the error so the span can still be tagged with it.
-PARTIAL_STREAM_RESPONSE = "llmobs.partial_stream_response"
 
 REQUEST_BASE_URL = "llmobs.request_base_url"
 

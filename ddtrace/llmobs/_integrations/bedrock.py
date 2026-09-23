@@ -108,9 +108,6 @@ class BedrockIntegration(BaseLLMIntegration):
         )
 
         output_messages: list[Message] = [Message(content="")]
-        # Deliberately not gated on `span.error`: a stream that failed or was cancelled part-way
-        # still produced real output, and the error paths now pass in what was accumulated before
-        # the failure. A non-streamed failure has no response at all and falls through unchanged.
         if response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
