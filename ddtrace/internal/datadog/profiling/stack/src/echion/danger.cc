@@ -18,6 +18,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+// Lock-free atomics are required to be async-signal-safe.
+static_assert(std::atomic<int>::is_always_lock_free, "std::atomic<int> must be lock-free for use in signal handlers");
+
 static const size_t page_size = []() -> size_t {
     auto v = sysconf(_SC_PAGESIZE);
 
@@ -45,8 +48,6 @@ struct sigaction g_old_bus;
 // several threads consume the one-shot handler at most once, as the kernel does.
 static std::atomic<int> g_old_segv_reset{ 0 };
 static std::atomic<int> g_old_bus_reset{ 0 };
-// Lock-free atomics are required to be async-signal-safe.
-static_assert(std::atomic<int>::is_always_lock_free, "std::atomic<int> must be lock-free for use in signal handlers");
 
 thread_local ThreadAltStack t_altstack;
 
@@ -75,6 +76,7 @@ is_user_sent(const siginfo_t* info)
     if (info == nullptr) {
         return false;
     }
+
 #if defined PL_DARWIN
     return info->si_code == SI_USER || info->si_code == SI_QUEUE;
 #else
@@ -136,17 +138,20 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
         const struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
         std::atomic<int>& old_reset = (signo == SIGSEGV) ? g_old_segv_reset : g_old_bus_reset;
         const bool reset = old_reset.load();
+
         // sa_handler and sa_sigaction share storage, so this also covers SA_SIGINFO handlers.
         bool old_is_dfl = reset || old->sa_handler == SIG_DFL;
         const bool old_is_ign = !reset && old->sa_handler == SIG_IGN;
+
         // Consume the one-shot handler without uninstalling ours, which safe_memcpy
         // still needs. If another thread claimed it first, it is now SIG_DFL.
         if (!old_is_dfl && !old_is_ign && (old->sa_flags & SA_RESETHAND) && old_reset.exchange(1) != 0) {
             old_is_dfl = true;
         }
+
         if (!old_is_dfl && !old_is_ign) {
-            // A direct call bypasses the kernel, so emulate the delivery semantics
-            // the previous handler asked for.
+            // Call the previous handler, but emulate kernel delivery
+            // semantics based on the the previous handler configuration.
             // The mask is restored by sigreturn when we return.
             sigset_t mask = old->sa_mask;
             if (!(old->sa_flags & SA_NODEFER)) {
