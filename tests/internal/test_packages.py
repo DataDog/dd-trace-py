@@ -77,8 +77,7 @@ def test_get_distributions():
     assert pkg_resources_ws == importlib_pkgs
 
 
-def test_filename_to_package(packages):
-    # type: (...) -> None
+def test_filename_to_package(packages) -> None:
     package = packages.filename_to_package(packages.__file__)
     assert package is None or package.name == "ddtrace"
     package = packages.filename_to_package(pytest.__file__)

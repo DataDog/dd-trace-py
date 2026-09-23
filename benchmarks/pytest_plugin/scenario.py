@@ -1,40 +1,38 @@
+from collections.abc import Callable
+from collections.abc import Generator
 import os
 from pathlib import Path
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tempfile
 
 import bm
 
 
-class PytestPlugin(bm.Scenario):
+class PytestPlugin(bm.Scenario):  # type: ignore[misc]
     """Macrobenchmark for the ddtrace pytest (CI Visibility / Test Visibility) plugin.
 
-    Runs a generated corpus of trivial assert-True tests through pytest, with and
-    without --ddtrace, measuring whole-session wall time. The ddtrace run uses the
-    plugin's hermetic offline (payload-files) mode so no network is involved: the
-    backend connector is NoOp (all features off) and event payloads are written to a
-    temp directory instead of being sent over HTTP. This isolates the synchronous
-    per-test overhead -- span lifecycle, source-location discovery, the coverage
-    context manager, and per-test telemetry -- which is what adoption-sensitive
-    customers pay for fast unit-test suites.
+    Runs a generated corpus of trivial assert-True tests through pytest, measuring
+    whole-session wall time for pure pytest, the ddtrace plugin, and the plugin with
+    forced TIA file-level coverage. Runs use hermetic payload-files mode so no network
+    is involved. This isolates synchronous product overhead such as span lifecycle,
+    source discovery, per-test coverage contexts, and telemetry.
 
-    The benchmark platform compares a baseline ddtrace (PyPI) against the candidate
-    (local) build for each config, so a fix that lowers per-test overhead shows up as
-    a faster candidate session for the ddtrace config. The baseline config
-    (no --ddtrace) is a control: the plugin is disabled entirely, so both versions
-    should match.
+    The benchmark platform compares a baseline ddtrace build against the candidate
+    for each config. The pure-pytest and plugin-without-coverage configurations act as
+    controls for the coverage result.
     """
 
     ntests: int
     nmodules: int
     ddtrace: bool
+    coverage: bool
 
     # Subprocess benchmark: cProfile of the harness process would not attribute the
     # child's work, so disable the cProfile pstats generation.
     cprofile_loops: int = 0
 
-    def run(self):
+    def run(self) -> Generator[Callable[[int], None], None, None]:
         # Build a fresh corpus for this measurement. Setup runs before the yield, so
         # it is outside the pyperf-timed region (only the yielded callable is timed).
         workdir = tempfile.mkdtemp(prefix="ddbench_pytest_")
@@ -50,9 +48,8 @@ class PytestPlugin(bm.Scenario):
         payload_dir.mkdir(parents=True, exist_ok=True)
 
         env = os.environ.copy()
-        # Hermetic offline mode: NoOp backend connector (all features off), payloads to
-        # files instead of HTTP. Keeps the per-test path identical to a real agentless
-        # run while removing all network variance.
+        # Hermetic offline mode: payloads go to files instead of HTTP. This keeps
+        # the per-test product path while removing network variance.
         env.update(
             {
                 "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES": "true",
@@ -62,6 +59,10 @@ class PytestPlugin(bm.Scenario):
                 "DD_GIT_REPOSITORY_URL": "https://github.com/example/ddbench",
                 "DD_GIT_COMMIT_SHA": "01234567890abcdef01234567890abcdef0123456",
                 "DD_GIT_BRANCH": "main",
+                # Force the real TIA per-test collection path without a backend settings
+                # response. File-level mode exercises PY_START on Python 3.12+.
+                "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "true" if self.coverage else "false",
+                "_DD_COVERAGE_FILE_LEVEL": "true" if self.coverage else "false",
             }
         )
 
@@ -87,9 +88,9 @@ class PytestPlugin(bm.Scenario):
             args.append("-p")
             args.append("no:ddtrace")
 
-        def _(loops: int):
+        def _(loops: int) -> None:
             for _ in range(loops):
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603
                     args,
                     env=env,
                     cwd=corpus,
