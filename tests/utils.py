@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import contextlib
 from contextlib import contextmanager
@@ -484,7 +486,7 @@ class TestSpanContainer:
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self) -> "TestSpanNode":
+    def get_root_span(self) -> TestSpanNode:
         """
         Helper to get the root span from the list of spans in this container
 
@@ -697,7 +699,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
-    ) -> "DummyWriter":
+    ) -> DummyWriter:
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
@@ -1479,8 +1481,8 @@ def call_program(*args, **kwargs):
     else:
         # No explicit env: subprocess would inherit os.environ directly.
         cleaned_env = dict(os.environ)
-    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches normal
-    # riot CI, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
+    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches ordinary
+    # test runs, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
     kwargs["env"] = strip_ddtest_leaked_env(cleaned_env)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
