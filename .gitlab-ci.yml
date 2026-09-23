@@ -188,7 +188,7 @@ microbenchmarks:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
+            PYTHON_TAG: "cp312-cp312"
             IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
@@ -742,7 +742,7 @@ prof-correctness:
       gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
 
 lib_injection_tests:
-  # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
+  # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
@@ -794,7 +794,7 @@ lib_injection_tests:
 profiling_native:
   extends:
     - .profiling_native_base
-    - .retry_on_failure
+    - .retry_on_all_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
