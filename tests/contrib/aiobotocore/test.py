@@ -341,7 +341,7 @@ def test_schematized_env_specified_service(ddtrace_run_python_code_in_subprocess
     v1: use the env-specified service (if specified) else internal.schema.DEFAULT_SPAN_SERVICE_NAME
     """
     service_name, schema_version, expected_service_name, expected_operation_name = schema_params
-    code = """
+    code = f"""
 import asyncio
 from ddtrace.contrib.internal.aiobotocore.patch import patch
 from ddtrace.contrib.internal.aiobotocore.patch import unpatch
@@ -375,8 +375,8 @@ def test(tracer, test_spans):
         # Flatten traces to get all spans
         all_spans = [span for trace in traces for span in trace]
 
-        service_format = "{0}"
-        operation_format = "{1}"
+        service_format = "{expected_service_name}"
+        operation_format = "{expected_operation_name}"
         aws_services = ["ec2", "s3", "sqs", "kinesis", "lambda", "kms"]
         for aws_service in aws_services:
             operation_name = operation_format.format(aws_service)
@@ -395,7 +395,7 @@ def test(tracer, test_spans):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name, expected_operation_name)
+    """
     env = os.environ.copy()
     if service_name:
         env["DD_SERVICE"] = service_name

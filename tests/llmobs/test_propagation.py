@@ -246,21 +246,21 @@ print(json.dumps(headers))
 def test_inject_distributed_headers_simple(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         request_headers = llmobs.inject_distributed_headers({}, span=root_span)
-    assert "llmobs_parent_id:{}".format(root_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{root_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_nested_llmobs_non_llmobs(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         with llmobs._instance.tracer.trace("Non-LLMObs span") as child_span:
             request_headers = llmobs.inject_distributed_headers({}, span=child_span)
-    assert "llmobs_parent_id:{}".format(root_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{root_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_non_llmobs_root_span(llmobs):
     with llmobs._instance.tracer.trace("Non-LLMObs span"):
         with llmobs.workflow("LLMObs span") as child_span:
             request_headers = llmobs.inject_distributed_headers({}, span=child_span)
-    assert "llmobs_parent_id:{}".format(child_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{child_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
@@ -268,7 +268,7 @@ def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
         with llmobs.workflow("LLMObs child span"):
             with llmobs.workflow("LLMObs grandchild span") as last_llmobs_span:
                 request_headers = llmobs.inject_distributed_headers({}, span=last_llmobs_span)
-    assert "llmobs_parent_id:{}".format(last_llmobs_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{last_llmobs_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_activate_distributed_headers_propagate_simple(ddtrace_run_python_code_in_subprocess, llmobs_no_ml_app):
@@ -967,7 +967,7 @@ def test_inject_unsafe_agent_name_does_not_drop_header(llmobs):
     tags_header = headers.get("x-datadog-tags", "")
     # Header is present and still carries the pre-existing llmobs keys (not dropped).
     assert "_dd.p.llmobs_ml_app" in tags_header
-    assert "_dd.p.llmobs_pagent_span_id={}".format(agent_span.span_id) in tags_header
+    assert f"_dd.p.llmobs_pagent_span_id={agent_span.span_id}" in tags_header
     # The unsafe name was skipped, so no propagation error and no name key.
     assert "_dd.p.llmobs_pagent_name" not in tags_header
     assert "_dd.propagation_error" not in tags_header
@@ -1138,5 +1138,5 @@ def test_inject_agent_attribution_still_set_for_child_inside_agent(llmobs):
             with llmobs.tool(name="agent_tool"):
                 headers = llmobs.inject_distributed_headers({})
     tags_header = headers.get("x-datadog-tags", "")
-    assert "_dd.p.llmobs_pagent_span_id={}".format(agent_span.span_id) in tags_header
+    assert f"_dd.p.llmobs_pagent_span_id={agent_span.span_id}" in tags_header
     assert "_dd.p.llmobs_pagent_name=triage" in tags_header

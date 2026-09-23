@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pymysql
 
 from ddtrace.contrib.internal.pymysql.patch import patch
@@ -15,7 +16,7 @@ from ...contrib.config import MYSQL_CONFIG
 MYSQL_CONFIG["db"] = MYSQL_CONFIG["database"]
 
 
-class PyMySQLCore(object):
+class PyMySQLCore:
     """PyMySQL test case reuses the connection across tests"""
 
     conn = None
@@ -33,11 +34,11 @@ class PyMySQLCore(object):
     )
 
     def setUp(self):
-        super(PyMySQLCore, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
-        super(PyMySQLCore, self).tearDown()
+        super().tearDown()
         if self.conn and not self.conn._closed:
             self.conn.close()
         unpatch()

@@ -1,9 +1,9 @@
+from collections.abc import Sequence
 import ctypes
 import json
 import time
 from typing import Any
 from typing import Optional
-from typing import Sequence
 from typing import Union
 
 from ddtrace.appsec._constants import DEFAULT
