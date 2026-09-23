@@ -3,9 +3,9 @@
 Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
       https://datadoghq.atlassian.net/wiki/spaces/SAAL/pages/2118779066
 
-The IP tags are populated on the local root (service-entry) span only when an ``ai_guard``
-span is actually created during the request. ``set_http_meta`` by itself only stashes the
-candidate IP; ``AIGuardClient.evaluate()`` is the step that copies it onto the root span.
+When only AI Guard is enabled, set_http_meta stashes the (client_ip, peer_ip) pair.
+AIGuardClient.evaluate() copies these IPs onto the local root (service-entry) span
+only when an ai_guard span is actually created during the request.
 """
 
 from contextlib import nullcontext
@@ -162,6 +162,57 @@ class TestAIGuardPopulatesRootSpan:
         assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
         assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
 
+    @pytest.mark.parametrize("nested", [False, True], ids=["same-context", "nested-context"])
+    @pytest.mark.parametrize("headers", [{}, {"x-forwarded-for": "8.8.8.8"}], ids=["no-header", "forwarded"])
+    @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+    def test_later_metadata_without_peer_preserves_ip(
+        self, mock_execute_request, tracer, test_spans, integration_config, nested, headers
+    ):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        with (
+            override_ai_guard_config(AI_GUARD_CONFIG),
+            tracer.trace("web.request", span_type=SpanTypes.WEB) as root_span,
+        ):
+            client = new_ai_guard_client()
+            set_http_meta(root_span, integration_config, request_headers=headers, peer_ip="10.0.0.1")
+            # Mounted ASGI apps run in a child context; Django can update metadata in the same context.
+            with core.context_with_data("subapp.request") if nested else nullcontext():
+                set_http_meta(root_span, integration_config, request_headers=headers)
+                client.evaluate(MESSAGES)
+                assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) is None
+            assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) is None
+
+        expected_client_ip = headers.get("x-forwarded-for", "10.0.0.1")
+        assert root_span.get_tag(http.CLIENT_IP) == expected_client_ip
+        assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
+        ai_guard_span = next(s for s in test_spans.spans if s.name == AI_GUARD.RESOURCE_TYPE)
+        assert ai_guard_span.get_tag("ai_guard.http.client_ip") == expected_client_ip
+        assert ai_guard_span.get_tag("ai_guard.network.client.ip") == "10.0.0.1"
+
+    @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+    def test_evaluate_preserves_ip_collected_by_tracing(
+        self, mock_execute_request, tracer, test_spans, integration_config
+    ):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        with (
+            override_ai_guard_config(AI_GUARD_CONFIG),
+            override_global_config(dict(_retrieve_client_ip=True)),
+            tracer.trace("web.request", span_type=SpanTypes.WEB) as root_span,
+        ):
+            client = new_ai_guard_client()
+            set_http_meta(
+                root_span, integration_config, request_headers={"x-forwarded-for": "8.8.8.8"}, peer_ip="10.0.0.1"
+            )
+            assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+            assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
+            client.evaluate(MESSAGES)
+            assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+            assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
+
+        ai_guard_span = next(s for s in test_spans.spans if s.name == AI_GUARD.RESOURCE_TYPE)
+        assert ai_guard_span.get_tag("ai_guard.http.client_ip") == "8.8.8.8"
+        assert ai_guard_span.get_tag("ai_guard.network.client.ip") == "10.0.0.1"
+
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
     def test_dd_trace_client_ip_header_override(self, mock_execute_request, tracer, test_spans):
         # Spec: DD_TRACE_CLIENT_IP_HEADER forces the header used for IP extraction.
@@ -180,11 +231,11 @@ class TestAIGuardPopulatesRootSpan:
         # Chain walks from first to last; private IPs are skipped, first public wins.
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
         root_span = _run_request_with_evaluate(
-            tracer, request_headers={"x-forwarded-for": "10.0.0.1, 8.8.8.8, 9.9.9.9"}
+            tracer, request_headers={"x-forwarded-for": "10.0.0.1, 8.8.8.8, 9.9.9.9"}, peer_ip="10.0.0.2"
         )
 
         assert root_span.get_tag(http.CLIENT_IP) == "8.8.8.8"
-        assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.1"
+        assert root_span.get_tag(NETWORK_CLIENT_IP) == "10.0.0.2"
 
     @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
     def test_peer_ip_fallback(self, mock_execute_request, tracer, test_spans):

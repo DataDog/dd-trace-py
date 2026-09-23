@@ -1,4 +1,5 @@
 fixes:
   - |
-    AI Guard: Fixes an issue where ``network.client.ip`` contains an IP resolved
-    from proxy headers instead of the peer address of the incoming connection.
+    AI Guard: Fixes an issue where ``network.client.ip`` and ``ai_guard.network.client.ip``
+    contain an IP resolved from proxy headers instead of the peer address of the
+    incoming connection. These tags are omitted when the peer address is unavailable.
