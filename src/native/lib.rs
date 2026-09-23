@@ -41,9 +41,8 @@ pub extern "C" fn ddtrace_force_export_for_windows() {}
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // Runs on the importing (main) thread with the GIL held: capture the thread that
-    // may safely re-acquire the GIL during interpreter finalization. See gil module.
-    gil::record_main_thread();
+    // Capture the thread that may safely re-acquire the GIL during interpreter finalization
+    gil::record_main_thread(m.py());
 
     #[cfg(feature = "stats")]
     {

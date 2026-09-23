@@ -13,13 +13,19 @@
 //! hangs instead of re-acquiring the GIL. The finalizing thread itself (approximated
 //! by the main thread) re-acquires normally, so shutdown flushes still complete.
 //!
+//! This is a only best-effort check. If finalization starts after the
+//! check but before the GIL is re-acquired, take_gil can still exit the thread and
+//! abort. This cannot be fixed in Rust, since the forced unwind from pthread_exit
+//! cannot cross the PyO3 extern "C" trampoline. This window is extremely short, whereas
+//! the other bug window lasts potentially seconds, so the current state is acceptable.
+//!
 //! After fork, only the calling thread exists in the child, and CPython treats that
 //! thread as the main thread. A child handler re-records its ident. Without that,
 //! a child whose fork caller was not the parent main thread would park the thread
 //! that must finish finalization, and the process would never exit.
 
 use pyo3::marker::Ungil;
-use pyo3::{ffi, Python};
+use pyo3::prelude::*;
 use std::os::raw::c_ulong;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -40,9 +46,20 @@ extern "C" {
 static MAIN_THREAD_IDENT: AtomicU64 = AtomicU64::new(0);
 static MAIN_THREAD_SET: AtomicBool = AtomicBool::new(false);
 
-fn store_current_as_main_thread() {
-    MAIN_THREAD_IDENT.store(current_thread_ident(), Ordering::Relaxed);
+fn store_main_thread(ident: u64) {
+    MAIN_THREAD_IDENT.store(ident, Ordering::Relaxed);
     MAIN_THREAD_SET.store(true, Ordering::Release);
+}
+
+fn store_current_as_main_thread() {
+    store_main_thread(current_thread_ident());
+}
+
+fn python_main_thread_ident(py: Python<'_>) -> PyResult<u64> {
+    py.import("threading")?
+        .call_method0("main_thread")?
+        .getattr("ident")?
+        .extract()
 }
 
 // Runs in the forked child, on the only surviving thread.
@@ -52,11 +69,15 @@ unsafe extern "C" fn after_fork_child() {
     store_current_as_main_thread();
 }
 
-/// Record the interpreter's main thread. Call once from the module init function,
-/// which runs on the importing thread (normally the main thread) with the GIL held.
+/// Record the interpreter's main thread. Call once from the module init function.
+/// The module can be imported from any thread, so ask threading for the main thread
+/// and use the importing thread only if that fails.
 /// Also registers a fork child handler so the surviving thread stays the main thread.
-pub(crate) fn record_main_thread() {
-    store_current_as_main_thread();
+pub(crate) fn record_main_thread(py: Python<'_>) {
+    match python_main_thread_ident(py) {
+        Ok(ident) => store_main_thread(ident),
+        Err(_) => store_current_as_main_thread(),
+    }
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     unsafe {
         // libc fork, including os.fork and native forks such as uWSGI, runs this
@@ -72,7 +93,7 @@ fn current_thread_ident() -> u64 {
 fn interpreter_is_finalizing() -> bool {
     #[cfg(Py_3_13)]
     {
-        unsafe { ffi::Py_IsFinalizing() != 0 }
+        unsafe { pyo3::ffi::Py_IsFinalizing() != 0 }
     }
     #[cfg(not(Py_3_13))]
     {
@@ -101,25 +122,26 @@ fn must_hang_instead_of_reattach() -> bool {
 /// of re-acquiring the GIL. See the module docs for why.
 pub(crate) fn detach_or_hang_on_finalize<T, F>(py: Python<'_>, f: F) -> T
 where
-    F: Ungil + FnOnce() -> T,
-    T: Ungil,
+    F: Ungil + Send + FnOnce() -> T,
+    T: Ungil + Send,
 {
-    let _ = py; // The GIL is held on entry, which PyEval_SaveThread requires.
-    let save = unsafe { ffi::PyEval_SaveThread() };
+    // Use py.detach so PyO3 knows the GIL is released: values that f drops (for
+    // example PyBackedBytes) then defer their decref instead of running it unlocked.
+    let result = py.detach(move || {
+        // Catch a panic so the hang check below also runs on the panic path.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
-    // Guard against a panic in f so we never unwind across the ffi boundary before
-    // restoring (or deliberately not restoring) the thread state.
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-    if must_hang_instead_of_reattach() {
-        // Do not re-acquire the GIL: take_gil would exit this thread via pthread_exit
-        // and abort. Park until the process exits (matches CPython 3.14 gh-87135).
-        loop {
-            std::thread::park();
+        if must_hang_instead_of_reattach() {
+            // Do not re-acquire the GIL: take_gil would exit this thread via
+            // pthread_exit and abort. Park until the process exits (matches CPython
+            // 3.14 gh-87135). Never returning keeps py.detach from re-acquiring.
+            loop {
+                std::thread::park();
+            }
         }
-    }
 
-    unsafe { ffi::PyEval_RestoreThread(save) };
+        result
+    });
 
     match result {
         Ok(value) => value,
