@@ -1614,7 +1614,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=d51759558fe5bebb2384478748915558b3e4d558#d51759558fe5bebb2384478748915558b3e4d558"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1686,7 +1686,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "6.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=d51759558fe5bebb2384478748915558b3e4d558#d51759558fe5bebb2384478748915558b3e4d558"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1962,7 +1962,7 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=d51759558fe5bebb2384478748915558b3e4d558#d51759558fe5bebb2384478748915558b3e4d558"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1998,7 +1998,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=d51759558fe5bebb2384478748915558b3e4d558#d51759558fe5bebb2384478748915558b3e4d558"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "prost",
 ]
@@ -4476,7 +4476,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

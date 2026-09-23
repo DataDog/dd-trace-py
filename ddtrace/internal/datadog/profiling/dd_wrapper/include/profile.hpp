@@ -13,10 +13,13 @@
 namespace Datadog {
 
 struct ProfileBorrow;
+class ProfilerState;
 
 // Owns the active libdatadog Profile and serializes sample collection under profile_mtx.
 class Profile
 {
+    friend class ProfilerState;
+
   private:
     // Serialization for static state
     // - string table
@@ -50,8 +53,12 @@ class Profile
     bool one_time_init(SampleType type, unsigned int _max_nframes);
     void cleanup();
     void prefork();
-    void postfork_parent();
-    bool postfork_child(bool recreate_profile = true);
+
+    // Only safe in single-threaded context (after fork, before threads restart).
+    // Access restricted to ProfilerState via friend.
+    void unlock();
+    void reset_after_fork();
+    bool reinit_after_fork();
 
     // Getters
     size_t get_sample_type_length();

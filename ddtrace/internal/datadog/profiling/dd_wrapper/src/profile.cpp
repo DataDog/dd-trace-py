@@ -199,32 +199,26 @@ Datadog::Profile::prefork()
 }
 
 void
-Datadog::Profile::postfork_parent()
+Datadog::Profile::unlock()
 {
     profile_mtx.unlock();
 }
 
-bool
-Datadog::Profile::postfork_child(bool recreate_profile)
+void
+Datadog::Profile::reset_after_fork()
 {
-    // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
-
-    // Drop the old profile - it references the old (now-released) dictionary
     cur_profile.reset();
+}
 
-    bool ok = true;
-    if (recreate_profile) {
-        auto profile_result = make_profile(samplers, default_period);
-        if (const auto* err = Datadog::error_if_any(profile_result)) {
-            ok = false;
-            std::cerr << "Error re-initializing profile after fork: " << err->message << std::endl;
-        } else {
-            cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
-        }
+bool
+Datadog::Profile::reinit_after_fork()
+{
+    auto profile_result = make_profile(samplers, default_period);
+    if (const auto* err = Datadog::error_if_any(profile_result)) {
+        std::cerr << "Error re-initializing profile after fork: " << err->message << std::endl;
+        return false;
     }
-
-    // Unlock profile_mtx, which was locked by prefork.
-    profile_mtx.unlock();
-    return ok;
+    cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
+    return true;
 }

@@ -775,15 +775,3 @@ Datadog::Sample::profile_borrow()
 {
     return ProfilerState::get().profile_state.borrow();
 }
-
-void
-Datadog::Sample::postfork_child()
-{
-    ProfilerState::get().profile_state.postfork_child();
-}
-
-void
-Datadog::Sample::cleanup()
-{
-    ProfilerState::get().profile_state.cleanup();
-}

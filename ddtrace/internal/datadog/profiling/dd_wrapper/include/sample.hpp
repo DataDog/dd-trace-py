@@ -161,8 +161,6 @@ class Sample
     bool export_sample();
 
     static std::optional<ProfileBorrow> profile_borrow();
-    static void postfork_child();
-    static void cleanup();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
     friend class SampleManager;

@@ -145,7 +145,7 @@ ProfilerState::prefork()
 void
 ProfilerState::postfork_parent()
 {
-    profile_state.postfork_parent();
+    profile_state.unlock();
     profiles_dictionary_mtx.unlock();
     upload_cancellation.postfork_parent();
     upload_lock.unlock();
@@ -156,57 +156,32 @@ ProfilerState::postfork_child()
 {
     const bool was_initialized = initialized_.exchange(false, std::memory_order_acq_rel);
 
-    // profile_mtx was locked in prefork; ensure postfork_child is called on
-    // every exit path to unlock it.
-    // We need to call this at the end of the function because the Sampling Thread
-    // needs the ProfilerState to be consistent and waits on the profile_mtx that
-    // postfork_child releases.
-    struct ProfileGuard
-    {
-        ProfilerState& self;
-        bool active{ true };
-        ~ProfileGuard()
-        {
-            if (active) {
-                self.profile_state.postfork_child(false);
-            }
-        }
-        void dismiss() { active = false; }
-    } guard{ *this };
-
-    // Unlock mutexes that prefork() locked. The child inherits the forking
-    // thread's identity, so it can release them. Mirrors postfork_parent().
-    upload_lock.unlock();
+    // Step 1: Unlock all mutexes in reverse prefork order.
+    // Child is single-threaded — no locks needed after this.
+    profile_state.unlock();
     profiles_dictionary_mtx.unlock();
     upload_cancellation.postfork_child();
+    upload_lock.unlock();
 
-    // Re-init the native call registry mutex (data is preserved so forked
-    // children can still see native frames from the parent's warmup phase)
+    // Step 2: Reset state that is invalid in the child.
     native_call_registry.postfork_child();
-
-    // Free our copy of the ProfileDictionary - its String IDs refer to memory
-    // that doesn't exist in the child process
-    release_profiles_dictionary();
-
-    // Reset all caches that depend on the ProfileDictionary
+    profile_state.reset_after_fork();
+    profiles_dictionary.reset();
     reset_key_caches();
 
     if (!was_initialized) {
         return;
     }
 
-    // Re-initialize the ProfileDictionary in the child process
+    // Step 3: Reinitialize. No locks — child is single-threaded.
     if (!init_profiles_dictionary()) {
         std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
                   << std::endl;
         return;
     }
-
-    if (!profile_state.postfork_child()) {
-        guard.dismiss();
+    if (!profile_state.reinit_after_fork()) {
         return;
     }
-    guard.dismiss();
     initialized_.store(true, std::memory_order_release);
 }
 
