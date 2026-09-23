@@ -74,11 +74,25 @@
       "Same-zone edges, and edges into/out of unclassified (foundation) modules, are never flagged.",
       "'exceptions' lists zone-pairs that are exempt from the above -- e.g. if we later decide a",
       "product may import a security product directly, add {\"from_zone\": \"product:x\", \"to_zone\":",
-      "\"product:appsec\"} here rather than changing the detection logic."
+      "\"product:appsec\"} here rather than changing the detection logic. An exception may also carry",
+      "a \"file_pattern\" (glob, matched against the importing module's file path relative to the repo",
+      "root, e.g. \"ddtrace/contrib/internal/*/patch.py\") to scope it to specific files instead of the",
+      "whole zone pair -- use this for a one-off import that shouldn't set precedent for the rest of",
+      "the zone."
     ],
     "forbid_from_zones_into_products": ["internal-core", "contrib"],
     "exceptions": [
-      {"from_zone": "contrib", "to_zone": "product:tracing", "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"}
+      {
+        "from_zone": "contrib",
+        "to_zone": "product:tracing",
+        "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"
+      },
+      {
+        "from_zone": "contrib",
+        "to_zone": "product:llmobs",
+        "file_pattern": "ddtrace/contrib/__init__.py",
+        "//": "contrib/__init__ is the connection point for the event bus between llmobs and contrib"
+      }
     ]
   }
 }

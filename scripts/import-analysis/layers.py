@@ -5,6 +5,7 @@
 # ]
 # ///
 import argparse
+import fnmatch
 import json
 from pathlib import Path
 import sys
@@ -50,13 +51,30 @@ _PRODUCT_PRODUCT_WEIGHT = 1
 _CYCLE_BONUS = 5
 
 
-def _load_zones(config_path: Path) -> tuple[dict[str, str], set[str], set[tuple[str, str]], set[str]]:
+def _load_zones(config_path: Path) -> tuple[dict[str, str], set[str], list[dict[str, str]], set[str]]:
     config = json.loads(config_path.read_text())
     zones: dict[str, str] = config["zones"]
     forbid_from: set[str] = set(config["rules"]["forbid_from_zones_into_products"])
-    exceptions: set[tuple[str, str]] = {(e["from_zone"], e["to_zone"]) for e in config["rules"]["exceptions"]}
+    exceptions: list[dict[str, str]] = [
+        {k: v for k, v in e.items() if k != "//"} for e in config["rules"]["exceptions"]
+    ]
     foundation_top_level: set[str] = set(config["foundation"]["top_level"])
     return zones, forbid_from, exceptions, foundation_top_level
+
+
+def _module_path(module: str, repo_root: Path) -> str:
+    """Best-effort relative file path for a dotted module name, for file_pattern matching.
+
+    The dependency graph only carries dotted module names, so this reconstructs the path
+    the module was actually loaded from (module.py or module/__init__.py) relative to the
+    repo root, falling back to the module-as-file guess if neither exists (e.g. namespace
+    packages).
+    """
+    rel = Path(*module.split("."))
+    for candidate in (rel.with_suffix(".py"), rel / "__init__.py"):
+        if (repo_root / candidate).is_file():
+            return candidate.as_posix()
+    return rel.with_suffix(".py").as_posix()
 
 
 def _uncovered_top_level(root: Path, zones: dict[str, str], foundation_top_level: set[str]) -> list[str]:
@@ -88,13 +106,24 @@ def _zone_of(module: str, zones: dict[str, str], prefixes: list[str]) -> str | N
     return None
 
 
-def _violates(from_zone: str, to_zone: str, forbid_from: set[str], exceptions: set[tuple[str, str]]) -> bool:
-    if from_zone == to_zone or (from_zone, to_zone) in exceptions:
+def _violates(from_zone: str, to_zone: str, forbid_from: set[str]) -> bool:
+    if from_zone == to_zone:
         return False
     is_product = to_zone.startswith("product:")
     if from_zone in forbid_from:
         return is_product
     return from_zone.startswith("product:") and is_product
+
+
+def _is_exempted(from_zone: str, to_zone: str, importer_path: str, exceptions: list[dict[str, str]]) -> bool:
+    """Whether a zone-pair exception applies, optionally scoped to importer files matching file_pattern."""
+    for exception in exceptions:
+        if exception["from_zone"] != from_zone or exception["to_zone"] != to_zone:
+            continue
+        file_pattern = exception.get("file_pattern")
+        if file_pattern is None or fnmatch.fnmatch(importer_path, file_pattern):
+            return True
+    return False
 
 
 def _severity(from_zone: str, metrics: dict[str, ModuleMetrics], imported: str) -> int:
@@ -112,6 +141,7 @@ def analyze(args: argparse.Namespace) -> None:
     zones, forbid_from, exceptions, foundation_top_level = _load_zones(_CONFIG_PATH)
     prefixes = sorted(zones, key=len, reverse=True)
     metrics = compute_metrics(graph)
+    repo_root = root.parent
 
     violations: list[_Violation] = []
     for importer, imports in graph.data.items():
@@ -120,7 +150,9 @@ def analyze(args: argparse.Namespace) -> None:
             continue
         for imported in imports:
             to_zone = _zone_of(imported, zones, prefixes)
-            if to_zone is None or not _violates(from_zone, to_zone, forbid_from, exceptions):
+            if to_zone is None or not _violates(from_zone, to_zone, forbid_from):
+                continue
+            if _is_exempted(from_zone, to_zone, _module_path(importer, repo_root), exceptions):
                 continue
             target = metrics.get(imported)
             violations.append(
