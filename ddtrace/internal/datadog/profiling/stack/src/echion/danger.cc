@@ -86,10 +86,30 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
 
         // Chain to the previous handler
         const struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
-        if (old->sa_flags & SA_SIGINFO) {
-            old->sa_sigaction(signo, info, ucontext);
-        } else if (old->sa_handler != SIG_DFL && old->sa_handler != SIG_IGN) {
-            old->sa_handler(signo);
+        if ((old->sa_flags & SA_SIGINFO) || (old->sa_handler != SIG_DFL && old->sa_handler != SIG_IGN)) {
+            // A direct call bypasses the kernel, so emulate the delivery semantics
+            // the previous handler asked for.
+            // The mask is restored by sigreturn when we return.
+            sigset_t mask = old->sa_mask;
+            if (!(old->sa_flags & SA_NODEFER)) {
+                sigaddset(&mask, signo);
+            }
+
+            pthread_sigmask(SIG_BLOCK, &mask, nullptr);
+            if (old->sa_flags & SA_RESETHAND) {
+                struct sigaction dfl
+                {};
+                dfl.sa_handler = SIG_DFL;
+                sigemptyset(&dfl.sa_mask);
+                dfl.sa_flags = 0;
+                sigaction(signo, &dfl, nullptr);
+            }
+
+            if (old->sa_flags & SA_SIGINFO) {
+                old->sa_sigaction(signo, info, ucontext);
+            } else {
+                old->sa_handler(signo);
+            }
         } else {
             // SIG_IGN is treated like SIG_DFL: returning from a synchronous
             // SIGSEGV/SIGBUS re-executes the faulting instruction and would loop.
