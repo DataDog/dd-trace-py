@@ -130,14 +130,11 @@ Datadog::Uploader::upload_unlocked()
                                                                        strings::bytes(info_json),
                                                                        *cancel_for_request);
         if (!status.check_and_print()) {
-            profile_exporter.reset();
             return false;
         }
-        profile_exporter.reset();
         return true;
     } catch (const std::exception& err) {
         std::cerr << "Error uploading CXX profile: " << err.what() << std::endl;
-        profile_exporter.reset();
         return false;
     }
 }
