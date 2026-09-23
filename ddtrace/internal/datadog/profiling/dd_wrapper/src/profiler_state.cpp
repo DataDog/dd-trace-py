@@ -25,8 +25,8 @@ bool
 ProfilerState::init_profiles_dictionary()
 {
     // Guard against double-initialization: profiles_dictionary must be empty before we create a new one.
-    // This is guaranteed by call_once in start() for the initial call, and by release_profiles_dictionary()
-    // being called before this in postfork_child().
+    // This is guaranteed by call_once in start() for the initial call, and by
+    // profiles_dictionary.reset() being called before this in postfork_child().
     const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
     if (profiles_dictionary.has_value()) {
         std::cerr << "profiles dictionary already initialized" << std::endl;

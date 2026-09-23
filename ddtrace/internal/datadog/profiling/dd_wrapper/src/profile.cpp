@@ -14,8 +14,6 @@ using ProfileResult = Datadog::Result<rust::Box<Datadog::ddprof::Profile>>;
 ProfileResult
 make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const Datadog::ddprof::Period& period)
 {
-    // Private helper function for creating a CXX Profile from arguments
-
     auto dict = Datadog::ProfilerState::get().borrow_dictionary();
     if (!dict.has_value()) {
         return Datadog::ErrorMessage{ "CXX ProfileDictionary is not initialized" };
