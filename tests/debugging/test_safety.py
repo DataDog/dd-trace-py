@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import inspect
 
 import pytest
@@ -74,7 +72,7 @@ def test_get_args():
 # ---- Side effects ----
 
 
-class SideEffects(object):
+class SideEffects:
     class SideEffect(Exception):
         pass
 
@@ -97,7 +95,7 @@ def test_get_fields_side_effects():
 
 
 def test_get_fields_slots():
-    class A(object):
+    class A:
         __slots__ = ["a"]
 
         def __init__(self):
@@ -107,7 +105,7 @@ def test_get_fields_slots():
         __slots__ = ["b"]
 
         def __init__(self):
-            super(B, self).__init__()
+            super().__init__()
             self.b = "b"
 
     assert _safety.get_fields(A()) == {"a": "a"}
@@ -116,7 +114,7 @@ def test_get_fields_slots():
 
 def test_safe_dict():
     # Found in the FastAPI test suite
-    class Foo(object):
+    class Foo:
         @property
         def __dict__(self):
             raise NotImplementedError()

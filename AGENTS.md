@@ -19,7 +19,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
 14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
-15. **No automatic GitLab CI retries on `main`** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies with `retry: 0`. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
+15. **Automatic GitLab CI retries on `main` are allowed only for infrastructure failures** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies to infrastructure failures only. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
 16. **Keep tool output concise** — Avoid flooding the conversation with verbose command output. For noisy builds/tests, redirect output to a log file and print only a short pass/fail summary; on failure, show the relevant tail or error excerpt. Prefer quiet flags such as `-q`, `--success-output never`, or equivalent when available. Do not paste full logs, huge diffs, or long skipped-test lists unless explicitly requested.
 
 ## Docstrings and Comments
@@ -63,15 +63,6 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## AIDEV Anchor Comments
-
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
-
-- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
-- **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
-
 ## PR Guidelines
 
 Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
@@ -98,6 +89,12 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
 
 ## Troubleshooting
+
+OpenFeature tests use the checked-in canonical fixture snapshot under
+`tests/openfeature/ffe-system-test-data/`; no submodule setup is required. Change shared
+cases in `DataDog/ffe-system-test-data` first, then refresh with
+`python scripts/update-ffe-fixtures.py --ref <upstream-commit>`. See the OpenFeature
+fixtures section in `docs/contributing-testing.rst` for the update workflow.
 
 See `docs/troubleshooting.rst`. Covers common issues including:
 
@@ -141,3 +138,14 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+
+## AIDEV Anchor Comments
+
+The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
+Existing anchors were removed from the repository (#20143).
+
+- Do not add new `AIDEV-*` anchor comments. Use plain inline comments when
+  context is needed (see Docstrings and Comments above).
+- CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
+  lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
+  its tests are excluded because they document or exercise the deprecation.
