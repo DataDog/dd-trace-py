@@ -9,9 +9,6 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_STACK
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -115,20 +112,7 @@ class TraceTool(cherrypy.Tool):
             log.warning("cherrypy: tracing tool after_error_response hook called, but no active context found")
             return
 
-        span = span_from_context(ctx)
-        if span is None:
-            return
-
-        exc_info = cherrypy._cperror._exc_info()
-        span.error = 1
-        span._set_attribute(ERROR_TYPE, str(exc_info[0]))
-        span._set_attribute(ERROR_MSG, str(exc_info[1]))
-        span._set_attribute(
-            ERROR_STACK,
-            cherrypy._cperror.format_exc(),
-        )
-
-        self._close_request(ctx)
+        self._close_request(ctx, cherrypy._cperror._exc_info())
 
     def _on_end_request(self):
         ctx = getattr(cherrypy.request, "_datadog_context", None)
@@ -139,7 +123,7 @@ class TraceTool(cherrypy.Tool):
 
         self._close_request(ctx)
 
-    def _close_request(self, ctx):
+    def _close_request(self, ctx, exc_info=(None, None, None)):
         try:
             span = span_from_context(ctx)
             if span is None:
@@ -167,7 +151,7 @@ class TraceTool(cherrypy.Tool):
             event.response_status_code = status_code
             event.response_headers = cherrypy.response.headers
 
-            ctx.dispatch_ended_event()
+            ctx.dispatch_ended_event(*exc_info)
         finally:
             cherrypy.request._datadog_context = None
             cherrypy.request._datadog_span = None
