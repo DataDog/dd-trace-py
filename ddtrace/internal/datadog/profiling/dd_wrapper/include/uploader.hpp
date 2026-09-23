@@ -21,7 +21,6 @@ class Uploader
     std::optional<rust::Box<ddprof::EncodedProfile>> encoded_profile{};
     Datadog::ProfilerStats profiler_stats;
     std::string process_tags;
-    bool owns_upload_state{ true };
 
     bool export_to_file(const ddprof::EncodedProfile& encoded, std::string_view internal_metadata_json);
 
@@ -42,21 +41,11 @@ class Uploader
     Uploader(const Uploader&) = delete;
     Uploader& operator=(const Uploader&) = delete;
 
-    Uploader(Uploader&& other) noexcept
-      : output_filename{ std::move(other.output_filename) }
-      , profile_exporter{ std::move(other.profile_exporter) }
-      , encoded_profile{ std::move(other.encoded_profile) }
-      , profiler_stats{ other.profiler_stats }
-      , process_tags{ std::move(other.process_tags) }
-      , owns_upload_state{ other.owns_upload_state }
-    {
-        other.owns_upload_state = false;
-    }
-
+    Uploader(Uploader&&) noexcept = default;
     Uploader& operator=(Uploader&& other) noexcept
     {
         if (this != &other) {
-            if (owns_upload_state) {
+            if (profile_exporter.has_value()) {
                 cancel_inflight();
             }
             output_filename = std::move(other.output_filename);
@@ -64,8 +53,6 @@ class Uploader
             encoded_profile = std::move(other.encoded_profile);
             profiler_stats = other.profiler_stats;
             process_tags = std::move(other.process_tags);
-            owns_upload_state = other.owns_upload_state;
-            other.owns_upload_state = false;
         }
         return *this;
     }

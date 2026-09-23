@@ -29,7 +29,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
 
 Datadog::Uploader::~Uploader()
 {
-    if (owns_upload_state) {
+    if (profile_exporter.has_value()) {
         cancel_inflight();
     }
 }
