@@ -38,6 +38,12 @@ static const size_t page_size = []() -> size_t {
 struct sigaction g_old_segv;
 struct sigaction g_old_bus;
 
+// Set once a saved SA_RESETHAND handler has run, meaning its disposition is now
+// SIG_DFL. We cannot rewrite g_old_* from the handler: other threads may read it
+// concurrently and see a torn struct.
+static volatile sig_atomic_t g_old_segv_reset = 0;
+static volatile sig_atomic_t g_old_bus_reset = 0;
+
 thread_local ThreadAltStack t_altstack;
 
 // We "arm" by publishing a valid jmp env for this thread.
@@ -52,9 +58,38 @@ thread_local volatile sig_atomic_t t_handler_armed = 0;
 // We record the handler's frame address rather than a flag. If the previous
 // handler recovers with longjmp (as opposed to returning), we cannot reset the flag
 // and it would stay set forever.
-// A real cycle would always run deeper on the stack than the recorded frame, so we
-// check for this to confirm whether we are in a cycle.
+// A real cycle always runs deeper on the stack than the recorded frame, and
+// re-enters either through a direct call (same siginfo pointer) or a re-raise
+// (user-sent siginfo). A fresh hardware fault has neither, so a stale frame left
+// by a longjmp on a thread without an alt stack is not mistaken for a cycle.
 thread_local volatile uintptr_t t_unarmed_chain_frame = 0;
+thread_local siginfo_t* volatile t_unarmed_chain_info = nullptr;
+
+static inline bool
+is_user_sent(const siginfo_t* info)
+{
+    if (info == nullptr) {
+        return false;
+    }
+#if defined PL_DARWIN
+    return info->si_code == SI_USER || info->si_code == SI_QUEUE;
+#else
+    // SI_USER is 0; SI_QUEUE, SI_TKILL and other user-generated codes are negative.
+    return info->si_code <= 0;
+#endif
+}
+
+static inline void
+reset_to_default_and_reraise(int signo)
+{
+    struct sigaction dfl
+    {};
+    dfl.sa_handler = SIG_DFL;
+    sigemptyset(&dfl.sa_mask);
+    dfl.sa_flags = 0;
+    sigaction(signo, &dfl, nullptr);
+    pthread_kill(pthread_self(), signo);
+}
 
 static inline void
 arm_fault_handler()
@@ -75,25 +110,31 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
 {
     if (!t_handler_armed) {
         const uintptr_t frame = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-        if (t_unarmed_chain_frame != 0 && frame < t_unarmed_chain_frame) {
+        if (t_unarmed_chain_frame != 0 && frame < t_unarmed_chain_frame &&
+            (info == t_unarmed_chain_info || is_user_sent(info))) {
             // We are being re-entered while already chaining to a previous
             // handler: the handler chain has cycled back to us. Restore the
             // default disposition and re-raise to guarantee the process
             // terminates instead of looping forever.
-            struct sigaction dfl
-            {};
-            dfl.sa_handler = SIG_DFL;
-            sigemptyset(&dfl.sa_mask);
-            dfl.sa_flags = 0;
-            sigaction(signo, &dfl, nullptr);
-            pthread_kill(pthread_self(), signo);
+            reset_to_default_and_reraise(signo);
             return;
         }
+
+        // Saved and restored rather than cleared, so a legitimate nested fault
+        // (a previous handler with SA_NODEFER faulting itself) does not wipe the
+        // outer chain's state.
+        const uintptr_t prev_frame = t_unarmed_chain_frame;
+        siginfo_t* const prev_info = t_unarmed_chain_info;
         t_unarmed_chain_frame = frame;
+        t_unarmed_chain_info = info;
 
         // Chain to the previous handler
         const struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
-        if ((old->sa_flags & SA_SIGINFO) || (old->sa_handler != SIG_DFL && old->sa_handler != SIG_IGN)) {
+        volatile sig_atomic_t* old_reset = (signo == SIGSEGV) ? &g_old_segv_reset : &g_old_bus_reset;
+        // sa_handler and sa_sigaction share storage, so this also covers SA_SIGINFO handlers.
+        const bool old_is_dfl = *old_reset || old->sa_handler == SIG_DFL;
+        const bool old_is_ign = !*old_reset && old->sa_handler == SIG_IGN;
+        if (!old_is_dfl && !old_is_ign) {
             // A direct call bypasses the kernel, so emulate the delivery semantics
             // the previous handler asked for.
             // The mask is restored by sigreturn when we return.
@@ -101,15 +142,12 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
             if (!(old->sa_flags & SA_NODEFER)) {
                 sigaddset(&mask, signo);
             }
-
             pthread_sigmask(SIG_BLOCK, &mask, nullptr);
+
+            // Consume the one-shot handler without uninstalling ours, which
+            // safe_memcpy still needs.
             if (old->sa_flags & SA_RESETHAND) {
-                struct sigaction dfl
-                {};
-                dfl.sa_handler = SIG_DFL;
-                sigemptyset(&dfl.sa_mask);
-                dfl.sa_flags = 0;
-                sigaction(signo, &dfl, nullptr);
+                *old_reset = 1;
             }
 
             if (old->sa_flags & SA_SIGINFO) {
@@ -117,19 +155,18 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
             } else {
                 old->sa_handler(signo);
             }
+        } else if (old_is_ign && is_user_sent(info)) {
+            // A user-sent signal can be ignored as requested: returning does not
+            // re-execute a faulting instruction.
         } else {
-            // SIG_IGN is treated like SIG_DFL: returning from a synchronous
-            // SIGSEGV/SIGBUS re-executes the faulting instruction and would loop.
-            struct sigaction dfl
-            {};
-            dfl.sa_handler = SIG_DFL;
-            sigemptyset(&dfl.sa_mask);
-            dfl.sa_flags = 0;
-            sigaction(signo, &dfl, nullptr);
-            pthread_kill(pthread_self(), signo);
+            // SIG_IGN on a real fault is treated like SIG_DFL: returning from a
+            // synchronous SIGSEGV/SIGBUS re-executes the faulting instruction and
+            // would loop.
+            reset_to_default_and_reraise(signo);
         }
 
-        t_unarmed_chain_frame = 0;
+        t_unarmed_chain_frame = prev_frame;
+        t_unarmed_chain_info = prev_info;
         return;
     }
 
@@ -164,6 +201,7 @@ init_segv_catcher()
         if (sigaction(SIGSEGV, &sa, &g_old_segv) != 0) {
             return -1;
         }
+        g_old_segv_reset = 0;
     }
 
     bool need_bus = true;
@@ -178,6 +216,7 @@ init_segv_catcher()
             }
             return -1;
         }
+        g_old_bus_reset = 0;
     }
 
     return 0;
@@ -209,12 +248,18 @@ uninstall_segv_handler()
     // its own handler, so it saves the correct previous handler rather than ours.
     // After the other component installs, call init_segv_catcher to reinstall
     // ours on top, creating the correct non-cyclic chain.
+    struct sigaction dfl
+    {};
+    dfl.sa_handler = SIG_DFL;
+    sigemptyset(&dfl.sa_mask);
+    dfl.sa_flags = 0;
+
     struct sigaction current;
     if (sigaction(SIGSEGV, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
-        sigaction(SIGSEGV, &g_old_segv, nullptr);
+        sigaction(SIGSEGV, g_old_segv_reset ? &dfl : &g_old_segv, nullptr);
     }
     if (sigaction(SIGBUS, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
-        sigaction(SIGBUS, &g_old_bus, nullptr);
+        sigaction(SIGBUS, g_old_bus_reset ? &dfl : &g_old_bus, nullptr);
     }
 }
 
