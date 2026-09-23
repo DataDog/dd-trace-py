@@ -141,8 +141,6 @@ class _IdentityWeakKeyDictionary:
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
 
-_global_handlers = _CodeHandlers()
-
 
 class MonitoringEventHandler(ABC):
     """Base class for sys.monitoring event handlers.
@@ -249,6 +247,13 @@ def _events_for(handlers: _CodeHandlers) -> int:
     return events
 
 
+# Single global EXCEPTION_HANDLED subscriber.  A direct reference avoids the
+# per-event tuple iteration, NamedTuple field access, and bitwise AND that a
+# _CodeHandlers snapshot would add on every handled exception.  If a second
+# global subscriber is ever needed, restore the fan-out via _CodeHandlers.
+_global_exception_handler: Optional[MonitoringEventHandler] = None
+
+
 def _setup() -> int:
     """Claim a free tool ID and install the global callbacks (idempotent)."""
     global _tool_id
@@ -288,11 +293,11 @@ def _release_tool_if_unused() -> None:
     """Release the tool after the final registration; caller holds _registry_lock."""
     global _tool_id
 
-    if _tool_id is None or len(_registry) or _global_handlers:
+    if _tool_id is None or len(_registry) or _global_exception_handler is not None:
         return
 
     with _tool_lock:
-        if _tool_id is None or len(_registry) or _global_handlers:
+        if _tool_id is None or len(_registry) or _global_exception_handler is not None:
             return
         tool_id = _tool_id
         _sys_monitoring.set_events(tool_id, 0)
@@ -376,12 +381,12 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 
 
 def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-    for e in _global_handlers.snapshot:
-        if e.events & _E.EXCEPTION_HANDLED:
-            try:
-                e.handler.on_exception_handled(code, instruction_offset, exception)
-            except Exception:
-                log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
+    h = _global_exception_handler
+    if h is not None:
+        try:
+            h.on_exception_handled(code, instruction_offset, exception)
+        except Exception:
+            log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -448,8 +453,6 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
 def refresh(code: CodeType, events: int) -> None:
     """Re-arm disabled local *events* for *code* without changing unrelated events."""
     with _registry_lock:
-        if _global_handlers:
-            return
         handlers: Optional[_CodeHandlers] = _registry.get(code)
         if handlers and _tool_id is not None:
             local_events: int = _events_for(handlers) & _LOCAL_EVENTS
@@ -481,23 +484,26 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
 
 
 def register_global(handler: MonitoringEventHandler) -> None:
-    """Register handler for the global events it overrides."""
-    handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
-    if not handler_events:
+    """Register *handler* for process-wide EXCEPTION_HANDLED events."""
+    if not (_events_for_handler(handler) & _GLOBAL_EVENTS):
         raise ValueError("Handler overrides no global MonitoringEventHandler methods")
+
+    global _global_exception_handler
 
     with _registry_lock:
         tool_id = _setup()
-        _global_handlers.set_handler(id(handler), _Entry(handler, handler_events))
-        _sys_monitoring.set_events(tool_id, _events_for(_global_handlers) & _GLOBAL_EVENTS)
+        _global_exception_handler = handler
+        _sys_monitoring.set_events(tool_id, _E.EXCEPTION_HANDLED)
 
 
 def unregister_global(handler: MonitoringEventHandler) -> None:
-    """Remove handler from the global monitoring registry."""
+    """Remove *handler* from the global monitoring registry."""
+    global _global_exception_handler
+
     with _registry_lock:
-        entry = _global_handlers.pop_handler(id(handler))
-        if entry is None:
+        if _global_exception_handler is not handler:
             return
+        _global_exception_handler = None
         if _tool_id is not None:
-            _sys_monitoring.set_events(_tool_id, _events_for(_global_handlers) & _GLOBAL_EVENTS)
+            _sys_monitoring.set_events(_tool_id, 0)
         _release_tool_if_unused()

@@ -80,6 +80,19 @@ experiments:
           - name: djangosimple-exception-replay-enabled
             thresholds:
               - execution_time < 1.45 ms
+          # errortrackingmonitoring
+          - name: errortrackingmonitoring-direct_passive
+            thresholds:
+              - execution_time < 0.0007 ms
+          - name: errortrackingmonitoring-direct_active
+            thresholds:
+              - execution_time < 0.0018 ms
+          - name: errortrackingmonitoring-multiplexer_passive
+            thresholds:
+              - execution_time < 0.0008 ms
+          - name: errortrackingmonitoring-multiplexer_active
+            thresholds:
+              - execution_time < 0.0019 ms
           # errortrackingdjangosimple
           - name: errortrackingdjangosimple-baseline
             thresholds:

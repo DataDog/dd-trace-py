@@ -1,17 +1,20 @@
-# Microbenchmark configurations for the sys.monitoring multiplexer
-# EXCEPTION_HANDLED global-handler path used by error-tracking.
+# Microbenchmark: multiplexer vs. direct sys.monitoring for EXCEPTION_HANDLED.
+# The direct_* configs reproduce the pre-multiplexer code path (dedicated tool
+# slot, raw register_callback).  The multiplexer_* configs use the shared
+# multiplexer's register_global / unregister_global API.
 
-# Baseline: multiplexer tool claimed but no global handler registered.
-# Measures the cost of the empty-snapshot callback dispatch.
-no_handler:
-  handler: "none"
+# Direct sys.monitoring: callback does no work (pure callback overhead).
+direct_passive:
+  handler: "direct_passive"
 
-# Passive handler: global handler registered but does no work.
-# Measures the per-exception dispatch overhead of the multiplexer.
-passive_handler:
-  handler: "passive"
+# Direct sys.monitoring: callback records each exception (realistic path).
+direct_active:
+  handler: "direct_active"
 
-# Active handler: global handler records each exception.
-# Measures the realistic error-tracking reporting path.
-active_handler:
-  handler: "active"
+# Multiplexer: global handler does no work (measures dispatch overhead).
+multiplexer_passive:
+  handler: "multiplexer_passive"
+
+# Multiplexer: global handler records each exception (realistic path).
+multiplexer_active:
+  handler: "multiplexer_active"
