@@ -19,10 +19,24 @@ experiments:
         run: fail_on_breach
         scenarios:
 
+          # coveragemonitoring
+          - name: coveragemonitoring-baseline
+            thresholds:
+              - execution_time < 80 ms
+          - name: coveragemonitoring-line_level
+            thresholds:
+              - execution_time < 750 ms
+          - name: coveragemonitoring-file_level
+            thresholds:
+              - execution_time < 700 ms
+
           # pytestplugin
           - name: pytestplugin-baseline
             thresholds:
               - execution_time < 3000 ms
           - name: pytestplugin-ddtrace
+            thresholds:
+              - execution_time < 5000 ms
+          - name: pytestplugin-ddtrace_coverage
             thresholds:
               - execution_time < 5000 ms

@@ -355,7 +355,7 @@ variables:
 
 "build windows":
   stage: package
-  extends: .retry_on_failure
+  extends: .retry_on_all_failure
   tags: ["windows-v2:2022"]
   parallel:
     matrix:
