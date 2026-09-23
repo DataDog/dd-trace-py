@@ -8,14 +8,8 @@ from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
-from ddtrace.ext import kafka as kafkax
 from ddtrace.ext.kafka import CONSUME
-from ddtrace.ext.kafka import MESSAGE_KEY
-from ddtrace.ext.kafka import MESSAGE_OFFSET
-from ddtrace.ext.kafka import PARTITION
 from ddtrace.ext.kafka import PRODUCE
-from ddtrace.ext.kafka import RECEIVED_MESSAGE
-from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
@@ -128,15 +122,11 @@ async def traced_send(func, instance, args, kwargs):
     )
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        span = span_from_context(ctx)
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id:
-            span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
-
-        span._set_attribute(TOMBSTONE, str(value is None))
-        span.set_tag(MESSAGE_KEY, key.decode("utf-8") if key else None)
-        if partition is not None:
-            span._set_attribute(PARTITION, partition)
+        event.cluster_id = cluster_id
+        event.tombstone = value is None
+        event.message_key = key.decode("utf-8") if key else None
+        event.partition = partition
 
         for header_key, header_value in tracing_headers.items():
             headers.append((header_key, header_value.encode("utf-8")))
@@ -156,9 +146,9 @@ async def traced_send(func, instance, args, kwargs):
                 result_partition = getattr(record_metadata, "partition", None)
                 result_offset = getattr(record_metadata, "offset", None)
                 if isinstance(result_partition, int):
-                    span._set_attribute(PARTITION, result_partition)
+                    event.partition = result_partition
                 if isinstance(result_offset, int):
-                    span._set_attribute(MESSAGE_OFFSET, result_offset)
+                    event.message_offset = result_offset
                 core.dispatch("aiokafka.send.completed", (ctx, (None, None, None), record_metadata))
                 ctx.dispatch_ended_event()
             except Exception as error:
@@ -220,19 +210,18 @@ async def traced_getone(func, instance, args, kwargs):
         span = span_from_context(ctx)
         span.start_ns = start_ns
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id:
-            span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        event.cluster_id = cluster_id
+        event.received_message = message is not None
 
-        span._set_attribute(RECEIVED_MESSAGE, str(message is not None))
         if message is not None:
             message_key = message.key.decode("utf-8") if message.key else None
-            span._set_attribute(TOMBSTONE, str(message.value is None))
+            event.tombstone = message.value is None
             if isinstance(message_key, str):
-                span.set_tag(MESSAGE_KEY, message_key)
+                event.message_key = message_key
             if message.partition is not None:
-                span._set_attribute(PARTITION, message.partition)
+                event.partition = message.partition
             if message.offset is not None:
-                span._set_attribute(MESSAGE_OFFSET, message.offset)
+                event.message_offset = message.offset
 
         core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
         if err is not None:
@@ -260,7 +249,6 @@ async def traced_getmany(func, instance, args, kwargs):
     )
 
     with core.context_with_event(event) as ctx:
-        span = span_from_context(ctx)
         messages = await func(*args, **kwargs)
 
         topic = None
@@ -271,22 +259,24 @@ async def traced_getmany(func, instance, args, kwargs):
                     break
         cluster_id = await _get_cluster_id(instance._client, topic)
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id:
-            span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        event.cluster_id = cluster_id
+        event.received_message = messages is not None
 
-        span._set_attribute(RECEIVED_MESSAGE, str(messages is not None))
         if messages:
             first_topic = next(iter(messages)).topic
-            span._set_attribute(MESSAGING_DESTINATION_NAME, first_topic)
 
             topics_partitions = {}
             for topic_partition in messages:
                 partitions = topics_partitions.setdefault(topic_partition.topic, [])
                 partitions.append(topic_partition.partition)
 
-            span.set_tag(TOPIC, ",".join(topics_partitions))
+            additional_tags = {
+                MESSAGING_DESTINATION_NAME: first_topic,
+                TOPIC: ",".join(topics_partitions),
+            }
             for message_topic, partitions in topics_partitions.items():
-                span._set_attribute(f"kafka.partitions.{message_topic}", ",".join(map(str, sorted(partitions))))
+                additional_tags[f"kafka.partitions.{message_topic}"] = ",".join(map(str, sorted(partitions)))
+            ctx.set_item("additional_tags", additional_tags)
 
             for records in messages.values():
                 for record in records:

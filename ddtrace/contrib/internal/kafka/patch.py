@@ -185,6 +185,7 @@ def traced_produce(func, instance, args, kwargs):
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
     tracing_headers = {}
+    cluster_id = _get_cluster_id(instance, topic)
 
     event = KafkaProducerEvent(
         operation=schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
@@ -193,16 +194,16 @@ def traced_produce(func, instance, args, kwargs):
         distributed_headers=tracing_headers,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
+        cluster_id=cluster_id,
+        partition=partition,
+        tombstone=value is None,
     )
 
     ctx = core.context_with_event(event)
     ctx.set_item("service", trace_utils.ext_service(None, config.kafka))
     with ctx:
         span = span_from_context(ctx)
-        cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id:
-            span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
 
         core.dispatch(
             "kafka.produce.start",
@@ -212,12 +213,9 @@ def traced_produce(func, instance, args, kwargs):
         if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
             serialized_key = serialize_key(instance, topic, message_key, headers)
             if serialized_key is not None:
-                span._set_attribute(kafkax.MESSAGE_KEY, serialized_key)
+                event.message_key = serialized_key
         else:
-            span._set_attribute(kafkax.MESSAGE_KEY, message_key)
-
-        span.set_tag(kafkax.PARTITION, partition)
-        span._set_attribute(kafkax.TOMBSTONE, str(value is None))
+            event.message_key = message_key
 
         if tracing_headers:
             # Re-read after kafka.produce.start: DSM may have replaced kwargs["headers"]
@@ -310,9 +308,8 @@ def _instrument_message(messages, start_ns, instance, err):
                 core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, message, span))
 
-        if cluster_id:
-            span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
-        span._set_attribute(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
+        event.cluster_id = cluster_id
+        event.received_message = first_message is not None
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
@@ -324,15 +321,15 @@ def _instrument_message(messages, start_ns, instance, err):
                 or isinstance(message_key, str)
                 or isinstance(message_key, bytes)
             ):
-                span._set_attribute(kafkax.MESSAGE_KEY, message_key)
-            span.set_tag(kafkax.PARTITION, first_message.partition())
+                event.message_key = message_key
+            event.partition = first_message.partition()
             is_tombstone = False
             try:
                 is_tombstone = len(first_message) == 0
             except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
                 pass
-            span._set_attribute(kafkax.TOMBSTONE, str(is_tombstone))
-            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+            event.tombstone = is_tombstone
+            event.message_offset = message_offset
 
         if err is not None:
             span.set_exc_info(*sys.exc_info())

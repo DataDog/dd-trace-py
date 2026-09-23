@@ -5,29 +5,20 @@ from typing import Optional
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
-from ddtrace.ext.kafka import GROUP_ID
-from ddtrace.ext.kafka import HOST_LIST
-from ddtrace.ext.kafka import SERVICE
-from ddtrace.ext.kafka import TOPIC
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.core.events import event_field
 
 
 @dataclass
 class KafkaEvent(MessagingEvent):
+    """Raw Kafka request data. MessagingTracingSubscriber derives tags from it."""
+
     topic: Optional[str] = event_field(default=None)
     bootstrap_servers: Any = event_field(default=None)
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self.tags[MESSAGING_SYSTEM] = SERVICE
-        if self.topic is not None:
-            self.tags[TOPIC] = self.topic
-            if self.topic:
-                self.tags[MESSAGING_DESTINATION_NAME] = self.topic
-        if self.bootstrap_servers is not None:
-            self.tags[HOST_LIST] = self.bootstrap_servers
+    cluster_id: Optional[str] = event_field(default=None)
+    message_key: Any = event_field(default=None)
+    partition: Optional[int] = event_field(default=None)
+    tombstone: Optional[bool] = event_field(default=None)
+    message_offset: Optional[int] = event_field(default=None)
 
 
 @dataclass
@@ -38,8 +29,4 @@ class KafkaProducerEvent(MessagingProducerEvent, KafkaEvent):
 @dataclass
 class KafkaConsumeEvent(MessagingConsumeEvent, KafkaEvent):
     group_id: Optional[str] = event_field(default=None)
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.group_id is not None:
-            self.tags[GROUP_ID] = self.group_id
+    received_message: Optional[bool] = event_field(default=None)
