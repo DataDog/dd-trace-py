@@ -5,14 +5,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// Minimal reproducer for the TSan double-lock warning on profiles_dictionary_mtx
-// after fork. The sequence that triggers it:
-//   1. Parent: prefork() locks profiles_dictionary_mtx
-//   2. fork() — child inherits the locked mutex + TSan shadow state
-//   3. Child: postfork_child() placement-news the mutex (TSan doesn't see reset)
-//   4. Child: release_profiles_dictionary() tries to lock → TSan: double lock
-//
-// The fix: avoid locking in postfork_child (child is single-threaded).
+// Verify that postfork_child() correctly unlocks all mutexes and reinitializes
+// profiler state without triggering TSan warnings. The child is single-threaded
+// after fork, so postfork_child() unlocks everything first, then reinitializes
+// without holding any locks.
 TEST(TSanFork, DictionaryMutexNotDoubleLocked)
 {
     configure("test", "test", "0.1", "http://localhost:8126", "python", "3.12", "1.0.0", 64);
