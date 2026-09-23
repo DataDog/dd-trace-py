@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import gzip
 import io
 import json
 from pathlib import Path
@@ -79,7 +80,8 @@ def audio(message):
 
 @pytest.mark.parametrize("fixture,expected_turns", [("voice-session-1", 5), ("voice-session-2", 6)])
 def test_capture_replay(monkeypatch, fixture, expected_turns):
-    capture = json.loads((Path(__file__).parent / "fixtures" / (fixture + ".json")).read_text())
+    with gzip.open(Path(__file__).parent / "fixtures" / (fixture + ".json.gz"), "rt") as source:
+        capture = json.load(source)
     sonic, integration = state()
     now = [1_800_000_000_000_000_000]
     monkeypatch.setattr(_sonic.time, "time_ns", lambda: now[0])

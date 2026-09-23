@@ -10,3 +10,6 @@ The first capture used an application with a playback suppression bug; these
 fixtures describe provider events, not that application's playback behavior.
 The second covers multiple input windows per response, delayed final text,
 queued output and four interruptions under a shared completion ID.
+
+Fixtures use deterministic gzip compression to preserve every event while staying
+below the file-size limit. Read them with Python gzip.open(..., "rt").
