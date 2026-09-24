@@ -101,6 +101,11 @@ variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+    # Increase pip/uv timeout and retries to avoid transient network failures
+    PIP_DEFAULT_TIMEOUT: "120"
+    PIP_RETRIES: "10"
+    UV_HTTP_TIMEOUT: "120"
+    UV_HTTP_RETRIES: "10"
     # Use Python 3.12 for benchmark execution. The CI image ships both 3.9
     # (global default for BP tooling) and 3.12; PYENV_VERSION makes pyenv
     # shims resolve python3 to 3.12 for run-benchmarks.sh's venvs.
