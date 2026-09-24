@@ -16,6 +16,13 @@ class TestInstallConfig:
         monkeypatch.setenv("DD_PROFILING_INSTALL", "true")
         assert ProfilingConfig().install is True
 
+    def test_profiling_enabled_forces_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_ENABLED", "true")
+        monkeypatch.setenv("DD_PROFILING_INSTALL", "false")
+        config = ProfilingConfig()
+        assert config.enabled is True
+        assert config.install is True
+
 
 class TestMaxFramesConfig:
     def test_default(self) -> None:
