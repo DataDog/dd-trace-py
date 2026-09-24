@@ -706,3 +706,273 @@ assert seen == [runtime.get_runtime_id()]
 """
     _, err, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, err
+
+
+def test_tracer_microvm_identity_refresh_recreates_exporter_without_fork_side_effects():
+    """Tracer MicroVM refresh must not reuse fork recreation semantics."""
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal import runtime
+
+    with mock.patch("ddtrace._trace.tracer.store_metadata"):
+        tracer = Tracer()
+
+    try:
+        tracer._post_fork_writer_pending = True
+        with (
+            mock.patch.object(tracer, "_recreate") as recreate,
+            mock.patch.object(tracer, "_store_metadata") as store_metadata,
+        ):
+            tracer._refresh_runtime_identity(runtime.get_runtime_id())
+
+        recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
+        store_metadata.assert_called_once_with()
+        assert tracer._post_fork_writer_pending is False
+        assert tracer._new_process is False
+    finally:
+        tracer.shutdown()
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_tracer_microvm_identity_refresh_keeps_pending_after_recreate_failure():
+    from unittest import mock
+
+    import pytest
+
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal import runtime
+
+    with mock.patch("ddtrace._trace.tracer.store_metadata"):
+        tracer = Tracer()
+
+    try:
+        tracer._post_fork_writer_pending = True
+        with (
+            mock.patch.object(tracer, "_recreate", side_effect=RuntimeError("recreate failed")) as recreate,
+            mock.patch.object(tracer, "_store_metadata") as store_metadata,
+            pytest.raises(RuntimeError),
+        ):
+            tracer._refresh_runtime_identity(runtime.get_runtime_id())
+
+        recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
+        store_metadata.assert_not_called()
+        assert tracer._post_fork_writer_pending is True
+    finally:
+        tracer.shutdown()
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_identity_refresh_hook_notifies_global_tracer():
+    """The global tracer must rebuild its identity-bound state on the MicroVM /run hook."""
+    from unittest import mock
+
+    from ddtrace import tracer
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+
+    with (
+        mock.patch.object(tracer, "_recreate") as recreate,
+        mock.patch.object(tracer, "_store_metadata") as store_metadata,
+    ):
+        core.dispatch(
+            WebFrameworkEvents.WEB_REQUEST_STARTING.value,
+            (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH),
+        )
+
+    recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
+    store_metadata.assert_called_once_with()
+
+
+@pytest.mark.subprocess(
+    env={
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+        "_DD_GLOBAL_TRACER_INIT": "false",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+    },
+    err=None,
+)
+def test_deferred_global_tracer_registers_identity_refresh_callback():
+    """An explicitly imported global tracer must refresh after deferred initialization."""
+    from unittest import mock
+
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+    from ddtrace.trace import tracer
+
+    with (
+        mock.patch.object(tracer, "_recreate") as recreate,
+        mock.patch.object(tracer, "_store_metadata") as store_metadata,
+    ):
+        core.dispatch(
+            WebFrameworkEvents.WEB_REQUEST_STARTING.value,
+            (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH),
+        )
+
+    recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
+    store_metadata.assert_called_once_with()
+
+
+@pytest.mark.subprocess(
+    env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None, "_DD_GLOBAL_TRACER_INIT": "false"},
+    err=None,
+)
+def test_deferred_global_tracer_does_not_register_identity_refresh_callback_outside_microvm():
+    """Deferred global tracer initialization must not change non-MicroVM refresh behavior."""
+    from unittest import mock
+
+    import ddtrace.internal.runtime as runtime
+    from ddtrace.trace import tracer
+
+    with mock.patch.object(tracer, "_recreate") as recreate:
+        runtime.refresh_identity()
+
+    recreate.assert_not_called()
+
+
+def test_tracer_microvm_identity_refresh_drops_direct_and_indirect_trace_buffers():
+    """Identity refresh drops queued spans and active traces carrying the old runtime ID."""
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal import runtime
+    import ddtrace.internal._runtime_id as runtime_impl
+
+    class BufferedWriter:
+        def __init__(self):
+            self.traces = []
+            self.dropped = False
+
+        def write(self, spans):
+            self.traces.append(spans)
+
+        def drop_buffered_traces(self):
+            self.traces.clear()
+            self.dropped = True
+
+        def recreate(self, **kwargs):
+            self.recreate_kwargs = kwargs
+            return BufferedWriter()
+
+        def flush_queue(self):
+            raise AssertionError("identity refresh must drop buffered traces, not flush them")
+
+        def stop(self, timeout=None):
+            pass
+
+    writers = []
+
+    def create_writer(**kwargs):
+        writer = BufferedWriter()
+        writers.append(writer)
+        return writer
+
+    with (
+        mock.patch("ddtrace._trace.processor.create_trace_writer", side_effect=create_writer),
+        mock.patch("ddtrace._trace.tracer.store_metadata"),
+    ):
+        tracer = Tracer()
+
+    try:
+        old_writer = writers[-1]
+        queued_root = tracer.start_span("queued-root")
+        old_runtime_id = queued_root.get_tag("runtime-id")
+        queued_root.finish()
+
+        active_root = tracer.start_span("active-root")
+        active_child = tracer.start_span("active-child", child_of=active_root)
+        active_child.finish()
+        assert active_root.trace_id in tracer._span_aggregator._traces
+        assert tracer._span_aggregator._traces[active_root.trace_id].spans == [active_root, active_child]
+        assert old_writer.traces
+
+        runtime_impl._refresh_runtime_id()
+        tracer._refresh_runtime_identity(runtime.get_runtime_id())
+
+        assert old_writer.dropped is True
+        assert old_writer.traces == []
+        assert tracer._span_aggregator._traces == {}
+
+        refreshed_root = tracer.start_span("refreshed-root")
+        assert refreshed_root.get_tag("runtime-id") != old_runtime_id
+        refreshed_root.finish()
+    finally:
+        tracer.shutdown()
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_tracer_microvm_identity_refresh_drops_inflight_old_trace():
+    """A trace finishing across refresh must not enter the replacement writer."""
+    import threading
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal import runtime
+    import ddtrace.internal._runtime_id as runtime_impl
+
+    class BufferedWriter:
+        def __init__(self):
+            self.traces = []
+            self.dropped = False
+
+        def write(self, spans):
+            self.traces.append(spans)
+
+        def drop_buffered_traces(self):
+            self.traces.clear()
+            self.dropped = True
+
+        def recreate(self, **kwargs):
+            self.recreate_kwargs = kwargs
+            return BufferedWriter()
+
+        def flush_queue(self):
+            raise AssertionError("identity refresh must drop buffered traces, not flush them")
+
+        def stop(self, timeout=None):
+            pass
+
+    writers = []
+
+    def create_writer(**kwargs):
+        writer = BufferedWriter()
+        writers.append(writer)
+        return writer
+
+    processing_started = threading.Event()
+    release_processing = threading.Event()
+
+    class BlockingProcessor:
+        def process_trace(self, spans):
+            processing_started.set()
+            assert release_processing.wait(timeout=5)
+            return spans
+
+    with (
+        mock.patch("ddtrace._trace.processor.create_trace_writer", side_effect=create_writer),
+        mock.patch("ddtrace._trace.tracer.store_metadata"),
+    ):
+        tracer = Tracer()
+    old_writer = writers[0]
+
+    tracer._span_aggregator.dd_processors.insert(0, BlockingProcessor())
+    try:
+        span = tracer.start_span("old-runtime")
+        finish_thread = threading.Thread(target=span.finish)
+        finish_thread.start()
+        assert processing_started.wait(timeout=5)
+
+        runtime_impl._refresh_runtime_id()
+        tracer._refresh_runtime_identity(runtime.get_runtime_id())
+
+        new_writer = tracer._span_aggregator.writer
+        release_processing.set()
+        finish_thread.join(timeout=5)
+        assert not finish_thread.is_alive()
+        assert old_writer.traces == []
+        assert new_writer.traces == []
+    finally:
+        release_processing.set()
+        tracer.shutdown()
