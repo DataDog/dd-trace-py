@@ -16,8 +16,9 @@ Configurations (multiplexer vs. direct ``sys.monitoring``):
 The ``direct_*`` configs reproduce the pre-multiplexer code path (a dedicated
 tool slot with a single callback registered directly via
 ``sys.monitoring.register_callback``).  The ``multiplexer_*`` configs use the
-shared multiplexer's ``register_global`` / ``unregister_global`` API.  Comparing
-the two isolates the multiplexer dispatch overhead.
+shared multiplexer's ``register_global`` / ``unregister_global`` API, opting
+into direct delivery when supported. Comparing the two isolates dispatch
+overhead while keeping tool ownership centralized.
 
 On branches where ``register_global`` is not yet available, the
 ``multiplexer_*`` configurations use the equivalent direct callback as their
@@ -25,6 +26,7 @@ baseline so comparison output remains meaningful.
 """
 
 from collections.abc import Generator
+from inspect import signature
 from types import CodeType
 from typing import Any
 from typing import Callable
@@ -146,11 +148,17 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                         def on_exception_handled(
                             self, code: CodeType, instruction_offset: int, exception: BaseException
                         ) -> None:
-                            self.seen.append(exception)
+                            try:
+                                self.seen.append(exception)
+                            except Exception:
+                                pass
 
                     handler = _ActiveHandler()
 
-                register_global(handler)
+                if "direct" in signature(register_global).parameters:
+                    register_global(handler, direct=True)
+                else:
+                    register_global(handler)
 
                 def cleanup() -> None:
                     unregister_global(handler)

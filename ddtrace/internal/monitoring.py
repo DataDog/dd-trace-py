@@ -172,7 +172,8 @@ class MonitoringEventHandler(ABC):
         would deliver a callback failure. Catch your own exceptions if a
         handler must not affect the monitored function's behavior.
         ``on_py_line``, ``on_exception_handled``, and ``on_raise`` are caught
-        and logged instead so one sub-system cannot disrupt another.
+        and logged instead so one sub-system cannot disrupt another. Global
+        handlers registered with direct=True must handle their own failures.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -532,12 +533,16 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
         _release_tool_if_unused()
 
 
-def register_global(handler: MonitoringEventHandler) -> None:
-    """Register *handler* for the global events it overrides.
+def register_global(handler: MonitoringEventHandler, *, direct: bool = False) -> None:
+    """Register handler for the global events it overrides.
 
     Each global event (EXCEPTION_HANDLED, RAISE) supports a single subscriber.
     Registering the current owner is idempotent; a different owner is rejected
     without changing any event.
+
+    With direct=True, CPython calls the overridden methods directly. These
+    callbacks must handle their own failures and return None. The first
+    registration selects the delivery mode until that event is unregistered.
     """
     handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
     if not handler_events:
@@ -565,12 +570,24 @@ def register_global(handler: MonitoringEventHandler) -> None:
         if previous_exception_handled is _global_exception_handled_handler and previous_raise is _global_raise_handler:
             return
 
+        previous_callbacks: list[tuple[int, Any]] = []
         try:
             tool_id = _setup()
+            if direct:
+                for event, owner, callback in (
+                    (_E.EXCEPTION_HANDLED, previous_exception_handled, handler.on_exception_handled),
+                    (_E.RAISE, previous_raise, handler.on_raise),
+                ):
+                    if handler_events & event and owner is None:
+                        previous_callbacks.append(
+                            (event, _sys_monitoring.register_callback(tool_id, event, callback))
+                        )
             _sys_monitoring.set_events(tool_id, _compute_global_events())
         except Exception:
             _global_exception_handled_handler = previous_exception_handled
             _global_raise_handler = previous_raise
+            for event, callback in reversed(previous_callbacks):
+                _sys_monitoring.register_callback(tool_id, event, callback)
             _release_tool_if_unused()
             raise
 
@@ -581,15 +598,20 @@ def unregister_global(handler: MonitoringEventHandler) -> None:
     global _global_raise_handler
 
     with _registry_lock:
-        removed = False
+        removed_events = 0
         if _global_exception_handled_handler is handler:
             _global_exception_handled_handler = None
-            removed = True
+            removed_events |= _E.EXCEPTION_HANDLED
         if _global_raise_handler is handler:
             _global_raise_handler = None
-            removed = True
-        if not removed:
+            removed_events |= _E.RAISE
+        if not removed_events:
             return
         if _tool_id is not None:
             _sys_monitoring.set_events(_tool_id, _compute_global_events())
+            # Release direct bound callbacks even while another owner keeps the tool alive.
+            if removed_events & _E.EXCEPTION_HANDLED:
+                _sys_monitoring.register_callback(_tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
+            if removed_events & _E.RAISE:
+                _sys_monitoring.register_callback(_tool_id, _E.RAISE, _on_raise)
         _release_tool_if_unused()
