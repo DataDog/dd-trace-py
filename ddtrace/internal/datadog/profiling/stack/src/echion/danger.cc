@@ -200,25 +200,33 @@ init_segv_catcher()
 
     // Check each handler separately to avoid overwriting g_old_segv/g_old_bus
     // with our own handler (which would cause infinite loops on unhandled signals).
-    struct sigaction current;
+    // The kernel decides whether to restart an interrupted syscall from the installed
+    // action (ours), so mirror the previous handler's SA_RESTART.
+    struct sigaction current
+    {};
 
     bool need_segv = true;
     if (sigaction(SIGSEGV, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
         need_segv = false;
     }
     if (need_segv) {
-        if (sigaction(SIGSEGV, &sa, &g_old_segv) != 0) {
+        struct sigaction sa_segv = sa;
+        sa_segv.sa_flags |= current.sa_flags & SA_RESTART;
+        if (sigaction(SIGSEGV, &sa_segv, &g_old_segv) != 0) {
             return -1;
         }
         g_old_segv_reset.store(0);
     }
 
+    current = {};
     bool need_bus = true;
     if (sigaction(SIGBUS, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
         need_bus = false;
     }
     if (need_bus) {
-        if (sigaction(SIGBUS, &sa, &g_old_bus) != 0) {
+        struct sigaction sa_bus = sa;
+        sa_bus.sa_flags |= current.sa_flags & SA_RESTART;
+        if (sigaction(SIGBUS, &sa_bus, &g_old_bus) != 0) {
             if (need_segv) {
                 // Roll back SIGSEGV install on failure.
                 sigaction(SIGSEGV, &g_old_segv, nullptr);
@@ -249,6 +257,19 @@ segv_handler_installed()
     return true;
 }
 
+// A one-shot (SA_RESETHAND) previous handler is claimed with the same exchange
+// segv_handler uses, so a concurrent fault cannot run it while we also hand it
+// back to the kernel, which would let it run a second time.
+static const struct sigaction*
+restorable_old_action(const struct sigaction& old, std::atomic<int>& reset, const struct sigaction& dfl)
+{
+    if ((old.sa_flags & SA_RESETHAND) && reset.exchange(1) != 0) {
+        return &dfl;
+    }
+
+    return &old;
+}
+
 void
 uninstall_segv_handler()
 {
@@ -265,10 +286,10 @@ uninstall_segv_handler()
 
     struct sigaction current;
     if (sigaction(SIGSEGV, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
-        sigaction(SIGSEGV, g_old_segv_reset.load() ? &dfl : &g_old_segv, nullptr);
+        sigaction(SIGSEGV, restorable_old_action(g_old_segv, g_old_segv_reset, dfl), nullptr);
     }
     if (sigaction(SIGBUS, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
-        sigaction(SIGBUS, g_old_bus_reset.load() ? &dfl : &g_old_bus, nullptr);
+        sigaction(SIGBUS, restorable_old_action(g_old_bus, g_old_bus_reset, dfl), nullptr);
     }
 }
 
