@@ -1,9 +1,9 @@
 """Benchmark the production exception-profiler monitoring callback chain.
 
-The baseline ExceptionCollector owns a dedicated sys.monitoring tool and calls
-the Cython _on_exception callback directly. The candidate collector registers a
-RAISE adapter through the shared multiplexer. Both sides execute the same
-sampler, traceback filtering, and ddup recording code.
+ExceptionCollector determines whether delivery uses a dedicated tool, the
+shared Python dispatcher, or direct registration through the multiplexer.
+Both versions execute the same sampler, traceback filtering, and ddup recording
+code, so comparisons include the production callback rather than a Python stub.
 """
 
 from collections.abc import Generator

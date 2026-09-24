@@ -1,7 +1,8 @@
 # Microbenchmark: multiplexer vs. direct sys.monitoring for EXCEPTION_HANDLED.
 # The direct_* configs reproduce the pre-multiplexer code path (dedicated tool
 # slot, raw register_callback).  The multiplexer_* configs use the shared
-# multiplexer's register_global / unregister_global API.
+# multiplexer's register_global / unregister_global API, with direct delivery
+# when supported by the installed version.
 
 # Direct sys.monitoring: callback does no work (pure callback overhead).
 direct_passive:
