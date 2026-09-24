@@ -323,7 +323,7 @@ def iast_header_injection_vulnerability():
 def iast_header_injection_vulnerability_secure():
     header = request.args.get("header")
     resp = Response("OK")
-    resp.headers["X-Vulnerable-Header"] = "param={}".format(header)
+    resp.headers["X-Vulnerable-Header"] = f"param={header}"
     return resp
 
 
@@ -1040,7 +1040,7 @@ def return_headers(*args, **kwargs):
 @app.route("/vulnerablerequestdownstream", methods=["GET"])
 def vulnerable_request_downstream():
     _weak_hash_vulnerability()
-    port = str(request.args.get("port", "8050"))
+    port = str(request.args.get("port", os.getenv("FLASK_RUN_PORT", "8050")))
     # Propagate the received headers to the downstream service
     http_poolmanager = urllib3.PoolManager(num_pools=1)
     # Sending a GET request and getting back response as HTTPResponse object.

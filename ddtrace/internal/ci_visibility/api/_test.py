@@ -5,7 +5,6 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace._trace.context import Context
 from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -36,12 +35,13 @@ from ddtrace.internal.ci_visibility.constants import TEST_RETRY_REASON
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -128,8 +128,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
         module_name = self.parent.parent.name if self.parent is not None and self.parent.parent is not None else "none"
-        return "{}(name={}, suite={}, module={}, parameters={}, status={})".format(
-            self.__class__.__name__, self.name, suite_name, module_name, self._parameters, self._status
+        return (
+            f"{self.__class__.__name__}(name={self.name}, suite={suite_name},"
+            f" module={module_name}, parameters={self._parameters}, status={self._status})"
         )
 
     def _get_hierarchy_tags(self) -> dict[str, str]:

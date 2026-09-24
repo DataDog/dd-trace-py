@@ -1,3 +1,5 @@
+from collections.abc import Generator  # noqa:F401
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from email.encoders import encode_noop
@@ -5,13 +7,11 @@ from enum import Enum
 from json import loads
 import logging
 import re
+from re import Pattern  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
-from typing import Generator  # noqa:F401
-from typing import Mapping
 from typing import Optional  # noqa:F401
-from typing import Pattern  # noqa:F401
 from typing import Union  # noqa:F401
 from urllib import parse
 
@@ -19,6 +19,9 @@ from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
@@ -173,7 +176,7 @@ def w3c_get_dd_list_member(context):
     # Context -> str
     tags = []
     if context.sampling_priority is not None:
-        tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
+        tags.append(f"{W3C_TRACESTATE_SAMPLING_PRIORITY_KEY}:{context.sampling_priority}")
     if context.dd_origin:
         tags.append(
             "{}:{}".format(
@@ -185,7 +188,7 @@ def w3c_get_dd_list_member(context):
     sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if sampling_decision:
         tags.append(
-            "t.dm:{}".format((w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", sampling_decision))))
+            "t.dm:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", sampling_decision)))
         )
     # since this can change, we need to grab the value off the current span
     usr_id = context._meta.get(_USER_ID_KEY)
@@ -213,6 +216,111 @@ def w3c_get_dd_list_member(context):
     return ";".join(tags)
 
 
+def w3c_get_tracestate_list_member(tracestate: str, key: str) -> Optional[str]:
+    """Return the last value for key in a tracestate string."""
+    prefix = key + "="
+    value = None
+    for raw_member in tracestate.split(","):
+        member = raw_member.strip()
+        if member.startswith(prefix):
+            value = member[len(prefix) :]
+    return value
+
+
+def _w3c_tracestate_member_exceeds_item_char_cap(member: str) -> bool:
+    return len(member) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+
+
+def _w3c_tracestate_drop_items_until_count_prefer_oversized(items: list[str], max_count: int) -> None:
+    """Shrink items in place, preferring to remove oversized members first."""
+    if len(items) <= max_count:
+        return
+    excess = len(items) - max_count
+    removed = 0
+    kept: list[str] = []
+    for member in items:
+        if removed < excess and _w3c_tracestate_member_exceeds_item_char_cap(member):
+            removed += 1
+            continue
+        kept.append(member)
+    items[:] = kept
+    if len(items) > max_count:
+        del items[max_count:]
+
+
+def _w3c_tracestate_pack_members_to_byte_limit(members: list[str], protected_count: int) -> list[str]:
+    """Pack whole list-members into the W3C byte budget.
+
+    The first protected member is always retained. Additional protected members are
+    retained when they fit; if one does not fit, all members to its right are dropped.
+    """
+    packed: list[str] = []
+    total_bytes = 0
+    for index, member in enumerate(members):
+        segment_bytes = len(member.encode("utf-8")) + (1 if packed else 0)
+        if protected_count and index == 0:
+            packed.append(member)
+            total_bytes += segment_bytes
+            continue
+        if total_bytes + segment_bytes <= DD_TRACE_TRACESTATE_MAX_BYTES:
+            packed.append(member)
+            total_bytes += segment_bytes
+            continue
+        if index < protected_count:
+            break
+        if _w3c_tracestate_member_exceeds_item_char_cap(member):
+            log.debug("tracestate skipping list-member over item char limit while fitting byte budget")
+            continue
+        log.debug(
+            "tracestate byte length exceeds maximum (%d), truncating whole entries",
+            DD_TRACE_TRACESTATE_MAX_BYTES,
+        )
+        break
+    return packed
+
+
+def w3c_tracestate_members_after_limits(members: list[str]) -> list[str]:
+    """Apply W3C limits while protecting the last dd= and ot= members."""
+    members = [member.strip() for member in members if member.strip()]
+    protected: list[str] = []
+    protected_prefixes = ("dd=", "ot=")
+    for prefix in protected_prefixes:
+        for member in reversed(members):
+            if member.startswith(prefix):
+                protected.append(member)
+                break
+
+    others = [member for member in members if not member.startswith(protected_prefixes)]
+    max_others = DD_TRACE_TRACESTATE_MAX_ITEMS - len(protected)
+    if len(others) > max_others:
+        log.debug(
+            "tracestate list-member count exceeds maximum (%d), truncating",
+            DD_TRACE_TRACESTATE_MAX_ITEMS,
+        )
+        _w3c_tracestate_drop_items_until_count_prefer_oversized(others, max_others)
+
+    prioritized = protected + others
+    return _w3c_tracestate_pack_members_to_byte_limit(prioritized, len(protected))
+
+
+def w3c_build_tracestate_members(tracestate: str, dd_list_member: str = "") -> list[str]:
+    """Merge a rebuilt dd= member into canonical tracestate and enforce limits."""
+    members = tracestate.split(",") if tracestate else []
+    if dd_list_member:
+        members.append("dd=" + dd_list_member)
+    return w3c_tracestate_members_after_limits(members)
+
+
+def w3c_update_tracestate_list_member(tracestate: str, key: str, value: Optional[str]) -> str:
+    """Replace or remove a tracestate list-member and return canonical tracestate."""
+    prefix = key + "="
+    members = [member.strip() for member in tracestate.split(",") if member.strip()]
+    members = [member for member in members if not member.startswith(prefix)]
+    if value:
+        members.append(prefix + value)
+    return ",".join(w3c_tracestate_members_after_limits(members))
+
+
 @cached()
 def w3c_encode_tag(args: tuple[Pattern, str, str]) -> str:
     pattern, replacement, tag_val = args
@@ -223,7 +331,7 @@ def w3c_encode_tag(args: tuple[Pattern, str, str]) -> str:
 
 def w3c_tracestate_add_p(tracestate, span_id):
     # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
-    p_member = "{}:{:016x}".format(W3C_TRACESTATE_PARENT_ID_KEY, span_id)
+    p_member = f"{W3C_TRACESTATE_PARENT_ID_KEY}:{span_id:016x}"
     if "dd=" in tracestate:
         return tracestate.replace("dd=", f"dd={p_member};")
     elif tracestate:
@@ -231,7 +339,7 @@ def w3c_tracestate_add_p(tracestate, span_id):
     return f"dd={p_member}"
 
 
-class Response(object):
+class Response:
     """
     Custom API Response object to represent a response from calling the API.
 
@@ -290,12 +398,9 @@ class Response(object):
             log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
 
     def __repr__(self):
-        return "{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})".format(
-            self.__class__.__name__,
-            self.status,
-            self.body,
-            self.reason,
-            self.msg,
+        return (
+            f"{self.__class__.__name__}(status={self.status!r}, body={self.body!r},"
+            f" reason={self.reason!r}, msg={self.msg!r})"
         )
 
 
@@ -375,7 +480,7 @@ def _get_blocked_template(accept_header_value: str, security_response_id: str) -
             else:
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
             return _format_template(content, security_response_id)
-        except (OSError, IOError) as e:  # noqa: B014
+        except OSError as e:  # noqa: B014
             log.warning("Could not load custom template at %s: %s", template_path, str(e))
 
     # No user-defined template at this point

@@ -2,7 +2,6 @@ import os
 
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
@@ -14,6 +13,7 @@ from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges_on_splitted
 from ddtrace.appsec._iast._taint_tracking.aspects import _convert_escaped_text_to_tainted_text
+from ddtrace.appsec._iast_context import _get_iast_context_id
 
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
@@ -105,7 +105,7 @@ def _mapper_tag(text, taint_range, context_id):
     return escaped_text[len(":+-") : escaped_text.index(">") + 1]
 
 
-def test_as_formatted_evidence():  # type: () -> None
+def test_as_formatted_evidence() -> None:
     context_id = _get_iast_context_id()
 
     s = "abcdefgh"
@@ -130,7 +130,7 @@ def test_as_formatted_evidence():  # type: () -> None
     assert as_formatted_evidence(s) == ":+-<first>ab<first>-+:c:+-<second>de<second>-+:fgh"
 
 
-def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: () -> None
+def test_as_formatted_evidence_convert_escaped_text_to_tainted_text() -> None:
     context_id = _get_iast_context_id()
 
     s = "abcdefgh"
@@ -143,7 +143,7 @@ def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: 
 
 
 @pytest.mark.parametrize("literal_marker", ["a:+-b", "a-+:b", "a:+-b-+:c"])
-def test_convert_escaped_text_to_tainted_text_preserves_literal_markers(literal_marker):  # type: (str) -> None
+def test_convert_escaped_text_to_tainted_text_preserves_literal_markers(literal_marker: str) -> None:
     context_id = _get_iast_context_id()
 
     taint_range = _build_sample_range(0, len(literal_marker), "literal_marker")
@@ -156,7 +156,7 @@ def test_convert_escaped_text_to_tainted_text_preserves_literal_markers(literal_
     assert get_ranges(result) == [taint_range]
 
 
-def test_convert_escaped_text_to_tainted_text_preserves_outer_range_across_literal_marker():  # type: () -> None
+def test_convert_escaped_text_to_tainted_text_preserves_outer_range_across_literal_marker() -> None:
     context_id = _get_iast_context_id()
 
     template = "a:+-%s"
@@ -180,7 +180,7 @@ def test_convert_escaped_text_to_tainted_text_preserves_outer_range_across_liter
     ]
 
 
-def test_convert_escaped_text_to_tainted_text_preserves_mismatched_end_marker():  # type: () -> None
+def test_convert_escaped_text_to_tainted_text_preserves_mismatched_end_marker() -> None:
     context_id = _get_iast_context_id()
 
     other_range = _build_sample_range(0, 1, "other")

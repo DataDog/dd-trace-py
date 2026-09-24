@@ -1,0 +1,11 @@
+_v: 1
+name: cherrypy
+display_name: CherryPy
+description: Instruments inbound HTTP request handling in CherryPy applications, including distributed context extraction,
+  response metadata, timings, and errors.
+packages:
+- name: cherrypy
+category:
+- http.server
+systems: []
+creation_date: '2021-02-03'

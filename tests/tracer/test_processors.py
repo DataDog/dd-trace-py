@@ -1,6 +1,5 @@
-from typing import Any  # noqa:F401
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -10,6 +9,7 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
@@ -168,6 +168,156 @@ def test_aggregator_does_not_record_tp_drop_when_nothing_dropped():
 
     assert _dropped_points(mock_add) == []
     assert aggr.writer.pop() == [span]
+
+
+def test_sampling_processor_discard_drops_matching_rejected_trace():
+    """A discard=True rule that rejects the trace drops the whole chunk before the writer sees it."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(
+        rules=[TraceSamplingRule(sample_rate=0.0, service="noisy-service", discard=True)]
+    )
+
+    span = Span("span", service="noisy-service", on_finish=[aggr.on_span_finish])
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
+        aggr.on_span_start(span)
+        span.finish()
+
+    assert aggr.writer.pop() == []
+    assert _dropped_points(mock_add) == [1]
+
+
+def test_sampling_processor_discard_has_no_effect_when_rule_keeps_trace():
+    """discard=True only applies to chunks the rule rejects; a kept chunk still passes through."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(
+        rules=[TraceSamplingRule(sample_rate=1.0, service="noisy-service", discard=True)]
+    )
+
+    span = Span("span", service="noisy-service", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    span.finish()
+
+    assert aggr.writer.pop() == [span]
+
+
+def test_sampling_processor_non_matching_rule_passes_through():
+    """A rule that doesn't match the span leaves the trace chunk untouched, even with discard=True."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(
+        rules=[TraceSamplingRule(sample_rate=0.0, service="other-service", discard=True)]
+    )
+
+    span = Span("span", service="noisy-service", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    span.finish()
+
+    assert aggr.writer.pop() == [span]
+
+
+def test_sampling_processor_rejected_without_discard_is_kept():
+    """Default behavior (discard=False) is unchanged: a rejected trace is kept with a reject priority."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(
+        rules=[TraceSamplingRule(sample_rate=0.0, service="noisy-service")]
+    )
+
+    span = Span("span", service="noisy-service", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    span.finish()
+
+    assert aggr.writer.pop() == [span]
+    assert span.context.sampling_priority <= 0
+
+
+def test_sampling_processor_discard_decision_frozen_by_early_partial_flush():
+    """Documents a known limitation: the discard decision is made once, against whatever local-root
+    state exists at the time of the FIRST flushed chunk. If partial flushing flushes an early chunk
+    before the local root's matching metadata (e.g. resource) is set, that first chunk is evaluated
+    against the not-yet-updated root and the resulting sampling_priority (and discard decision) is
+    then reused as-is for every later chunk of the same trace, even after the root is updated to
+    match a discard rule.
+    """
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(
+        rules=[TraceSamplingRule(sample_rate=0.0, resource="health-check", discard=True)]
+    )
+
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(parent)
+    child1 = Span("child1", on_finish=[aggr.on_span_finish])
+    child1.trace_id = parent.trace_id
+    child1.parent_id = parent.span_id
+    child1._local_root = parent
+    aggr.on_span_start(child1)
+    child2 = Span("child2", on_finish=[aggr.on_span_finish])
+    child2.trace_id = parent.trace_id
+    child2.parent_id = parent.span_id
+    child2._local_root = parent
+    aggr.on_span_start(child2)
+
+    # Root doesn't match the discard rule yet: the early partial flush keeps its chunk.
+    child1.finish()
+    child2.finish()
+    assert aggr.writer.pop() == [child1, child2]
+    assert parent.context.sampling_priority is not None
+
+    # Root metadata now matches the discard rule, but the decision was already frozen above.
+    parent.resource = "health-check"
+    parent.finish()
+    assert aggr.writer.pop() == [parent], "the final chunk is NOT retroactively discarded"
+
+
+def test_sampling_processor_discard_persists_across_partial_flush_chunks():
+    """Once an early partial-flush chunk matches a discard=True rule and is dropped, later chunks of
+    the same trace must be dropped too, instead of falling through with the (already-set) reject
+    priority and reaching the writer.
+    """
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0, discard=True)])
+
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(parent)
+    child1 = Span("child1", on_finish=[aggr.on_span_finish])
+    child1.trace_id = parent.trace_id
+    child1.parent_id = parent.span_id
+    child1._local_root = parent
+    aggr.on_span_start(child1)
+    child2 = Span("child2", on_finish=[aggr.on_span_finish])
+    child2.trace_id = parent.trace_id
+    child2.parent_id = parent.span_id
+    child2._local_root = parent
+    aggr.on_span_start(child2)
+
+    child1.finish()
+    child2.finish()
+    assert aggr.writer.pop() == [], "first chunk matches the discard rule and is fully dropped"
+
+    parent.finish()
+    assert aggr.writer.pop() == [], "later chunk of the same trace must also be dropped"
+
+
+def test_sampling_processor_discard_still_reaches_llmobs_processor():
+    """A discarded chunk still reaches llmobs_processor: LLMObs is sampled independently of the
+    APM trace and must handle a discarded chunk the same way it handles an ordinary (non-discard)
+    rejected one -- discard only means the chunk never reaches stats or the writer.
+    """
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0, discard=True)])
+
+    with mock.patch.object(aggr.llmobs_processor, "process_trace", side_effect=lambda trace: trace) as mock_llmobs:
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
+        span.finish()
+
+    mock_llmobs.assert_called_once_with([span])
+    assert aggr.writer.pop() == [], "the chunk itself is still fully dropped from the writer"
 
 
 def test_aggregator_reset_default_args():
@@ -544,7 +694,7 @@ def test_trace_128bit_processor(trace_id, tracer):
     chunk_root = spans[0]
     assert chunk_root.trace_id == ctx.trace_id
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(chunk_root.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == f"{chunk_root.trace_id >> 64:016x}"
 
 
 @pytest.mark.subprocess(
@@ -558,7 +708,7 @@ def test_span_creation_metrics():
     no in-Python batching (the native worker aggregates the points). The integration_name tag is
     resolved at that moment, so a component set during the span is only reflected at finish.
     """
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.telemetry.metrics import MetricRecorder
     from ddtrace.trace import tracer
@@ -601,7 +751,7 @@ def test_span_dropped_metrics():
     There is no in-Python batching left to flush on shutdown - the native worker aggregates the
     points - so the drops arrive one per trace, carrying that trace's dropped span count.
     """
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.telemetry.metrics import MetricRecorder
     from ddtrace.trace import TraceFilter

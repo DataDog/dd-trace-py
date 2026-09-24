@@ -44,6 +44,7 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestOptWriter
+from tests.utils import reinitialize_agentless_config
 
 
 def get_mock_git_instance() -> Mock:
@@ -119,12 +120,12 @@ class SessionManagerMockBuilder:
         self._env_tags: dict[str, str] = {}
         self._itr_skipping_level = ITRSkippingLevel.TEST
 
-    def with_settings(self, settings: Settings) -> "SessionManagerMockBuilder":
+    def with_settings(self, settings: Settings) -> SessionManagerMockBuilder:
         """Set custom settings."""
         self._settings = settings
         return self
 
-    def with_skipping_enabled(self, enabled: bool) -> "SessionManagerMockBuilder":
+    def with_skipping_enabled(self, enabled: bool) -> SessionManagerMockBuilder:
         """Enable or disable test skipping."""
         self._settings = Settings(
             early_flake_detection=self._settings.early_flake_detection,
@@ -138,37 +139,37 @@ class SessionManagerMockBuilder:
         )
         return self
 
-    def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> "SessionManagerMockBuilder":
+    def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> SessionManagerMockBuilder:
         """Set skippable test/suite items."""
         self._skippable_items = items
         return self
 
-    def with_test_properties(self, properties: dict[TestRef, TestProperties]) -> "SessionManagerMockBuilder":
+    def with_test_properties(self, properties: dict[TestRef, TestProperties]) -> SessionManagerMockBuilder:
         """Set test properties."""
         self._test_properties = properties
         return self
 
-    def with_known_tests(self, tests: set[TestRef]) -> "SessionManagerMockBuilder":
+    def with_known_tests(self, tests: set[TestRef]) -> SessionManagerMockBuilder:
         """Set known tests."""
         self._known_tests = tests
         return self
 
-    def with_itr_correlation_id(self, correlation_id: str) -> "SessionManagerMockBuilder":
+    def with_itr_correlation_id(self, correlation_id: str) -> SessionManagerMockBuilder:
         """Set the ITR correlation ID returned by the skippable tests endpoint."""
         self._itr_correlation_id = correlation_id
         return self
 
-    def with_workspace_path(self, path: str) -> "SessionManagerMockBuilder":
+    def with_workspace_path(self, path: str) -> SessionManagerMockBuilder:
         """Set workspace path."""
         self._workspace_path = path
         return self
 
-    def with_env_tags(self, tags: dict[str, str]) -> "SessionManagerMockBuilder":
+    def with_env_tags(self, tags: dict[str, str]) -> SessionManagerMockBuilder:
         """Set tags extracted from environment."""
         self._env_tags = tags
         return self
 
-    def with_itr_skipping_level(self, level: ITRSkippingLevel) -> "SessionManagerMockBuilder":
+    def with_itr_skipping_level(self, level: ITRSkippingLevel) -> SessionManagerMockBuilder:
         """Set ITR skipping level (TEST or SUITE)."""
         self._itr_skipping_level = level
         return self
@@ -216,6 +217,12 @@ class SessionManagerMockBuilder:
                 "1" if self._itr_skipping_level == ITRSkippingLevel.SUITE else "0"
             )
 
+        from ddtrace.internal.settings._agentless import config as agentless_config
+
+        # NOTE: Preserve the exact singleton state: callers may have applied runtime or stable-config
+        # overrides that cannot be reconstructed from the ambient environment.
+        original_agentless_config_state = agentless_config.__dict__
+
         with patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
             # Configure API client mock
             mock_client = Mock()
@@ -228,21 +235,31 @@ class SessionManagerMockBuilder:
             mock_client.configuration_errors = {}
             mock_api_client.return_value = mock_client
 
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.get_env_tags",
-                    return_value=effective_env_tags,
-                ),
-                patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-                patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
-                patch.dict(os.environ, effective_env),
-            ):
-                # Create session manager
-                test_session = MockDefaults.test_session()
-                session_manager = SessionManager(session=test_session)
-                session_manager.skippable_items = self._skippable_items
+            try:
+                with (
+                    patch(
+                        "ddtrace.testing.internal.session_manager.get_env_tags",
+                        return_value=effective_env_tags,
+                    ),
+                    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+                    patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
+                    patch.dict(os.environ, effective_env),
+                ):
+                    # The agentless settings resolve once at import, so refresh them against the
+                    # environment just patched in -- SessionManager picks its backend connector from
+                    # them during __init__.
+                    reinitialize_agentless_config()
 
-                return session_manager
+                    # Create session manager
+                    test_session = MockDefaults.test_session()
+                    session_manager = SessionManager(session=test_session)
+                    session_manager.skippable_items = self._skippable_items
+
+                    return session_manager
+            finally:
+                # patch.dict has put os.environ back. Restore the exact object state that preceded
+                # this helper rather than re-reading process-global configuration.
+                agentless_config.__dict__ = original_agentless_config_state
 
 
 class TestMockBuilder:
@@ -257,22 +274,22 @@ class TestMockBuilder:
         self._start_ns = 1000000000
         self._last_test_run = Mock()
 
-    def as_attempt_to_fix(self, is_attempt: bool = True) -> "TestMockBuilder":
+    def as_attempt_to_fix(self, is_attempt: bool = True) -> TestMockBuilder:
         """Set whether this is an attempt to fix."""
         self._is_attempt_to_fix = is_attempt
         return self
 
-    def as_disabled(self, is_disabled: bool = True) -> "TestMockBuilder":
+    def as_disabled(self, is_disabled: bool = True) -> TestMockBuilder:
         """Set this test as disabled."""
         self._is_disabled = is_disabled
         return self
 
-    def as_quarantined(self, is_quarantined: bool = True) -> "TestMockBuilder":
+    def as_quarantined(self, is_quarantined: bool = True) -> TestMockBuilder:
         """Set whether this test is quarantined."""
         self._is_quarantined = is_quarantined
         return self
 
-    def with_test_runs(self, test_runs: list[Mock]) -> "TestMockBuilder":
+    def with_test_runs(self, test_runs: list[Mock]) -> TestMockBuilder:
         """Set test runs."""
         self._test_runs = test_runs
         return self
@@ -301,22 +318,22 @@ class PytestItemMockBuilder:
         self._location = ("/fake/path.py", 10, "test_name")
         self._additional_attrs: dict[str, t.Any] = {}
 
-    def with_user_properties(self, properties: list[tuple[str, t.Any]]) -> "PytestItemMockBuilder":
+    def with_user_properties(self, properties: list[tuple[str, t.Any]]) -> PytestItemMockBuilder:
         """Set user properties."""
         self._user_properties = properties
         return self
 
-    def with_keywords(self, keywords: dict[str, t.Any]) -> "PytestItemMockBuilder":
+    def with_keywords(self, keywords: dict[str, t.Any]) -> PytestItemMockBuilder:
         """Set keywords."""
         self._keywords = keywords
         return self
 
-    def with_location(self, path: str, lineno: int, testname: str) -> "PytestItemMockBuilder":
+    def with_location(self, path: str, lineno: int, testname: str) -> PytestItemMockBuilder:
         """Set test location info."""
         self._location = (path, lineno, testname)
         return self
 
-    def with_attribute(self, name: str, value: t.Any) -> "PytestItemMockBuilder":
+    def with_attribute(self, name: str, value: t.Any) -> PytestItemMockBuilder:
         """Add additional attribute."""
         self._additional_attrs[name] = value
         return self
@@ -388,49 +405,49 @@ class APIClientMockBuilder:
         self._skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
         self._known_tests: set[TestRef] = set()
 
-    def with_skipping_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
+    def with_skipping_enabled(self, enabled: bool = True) -> APIClientMockBuilder:
         """Enable/disable test skipping."""
         self._skipping_enabled = enabled
         return self
 
-    def with_coverage_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
+    def with_coverage_enabled(self, enabled: bool = True) -> APIClientMockBuilder:
         """Enable/disable code coverage."""
         self._coverage_enabled = enabled
         return self
 
-    def with_early_flake_detection(self, enabled: bool = True) -> "APIClientMockBuilder":
+    def with_early_flake_detection(self, enabled: bool = True) -> APIClientMockBuilder:
         """Enable/disable early flake detection."""
         self._efd_enabled = enabled
         return self
 
-    def with_auto_retries(self, enabled: bool = True) -> "APIClientMockBuilder":
+    def with_auto_retries(self, enabled: bool = True) -> APIClientMockBuilder:
         """Enable/disable auto retries."""
         self._auto_retries_enabled = enabled
         return self
 
-    def with_test_management(self, enabled: bool = True) -> "APIClientMockBuilder":
+    def with_test_management(self, enabled: bool = True) -> APIClientMockBuilder:
         """Enable/disable test management."""
         self._test_management_enabled = enabled
         return self
 
-    def with_coverage_report_upload_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
+    def with_coverage_report_upload_enabled(self, enabled: bool = True) -> APIClientMockBuilder:
         """Enable/disable coverage report upload."""
         self._coverage_report_upload_enabled = enabled
         return self
 
-    def with_known_tests(self, enabled: bool = True, tests: t.Optional[set[TestRef]] = None) -> "APIClientMockBuilder":
+    def with_known_tests(self, enabled: bool = True, tests: t.Optional[set[TestRef]] = None) -> APIClientMockBuilder:
         """Configure known tests."""
         self._known_tests_enabled = enabled
         if tests is not None:
             self._known_tests = tests
         return self
 
-    def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> "APIClientMockBuilder":
+    def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> APIClientMockBuilder:
         """Set skippable test items."""
         self._skippable_items = items
         return self
 
-    def with_test_management_properties(self, properties: dict[TestRef, TestProperties]) -> "APIClientMockBuilder":
+    def with_test_management_properties(self, properties: dict[TestRef, TestProperties]) -> APIClientMockBuilder:
         """Set test management properties."""
         self._test_management_properties = properties
         return self
@@ -480,17 +497,17 @@ class BackendConnectorMockBuilder:
         self._request_responses: dict[str, t.Any] = {}
         self._post_files_responses: dict[str, t.Any] = {}
 
-    def with_post_json_response(self, endpoint: str, response_data: t.Any) -> "BackendConnectorMockBuilder":
+    def with_post_json_response(self, endpoint: str, response_data: t.Any) -> BackendConnectorMockBuilder:
         """Mock a specific POST JSON endpoint response."""
         self._post_json_responses[endpoint] = response_data
         return self
 
-    def with_get_json_response(self, endpoint: str, response_data: t.Any) -> "BackendConnectorMockBuilder":
+    def with_get_json_response(self, endpoint: str, response_data: t.Any) -> BackendConnectorMockBuilder:
         """Mock a specific POST JSON endpoint response."""
         self._get_json_responses[endpoint] = response_data
         return self
 
-    def with_request_response(self, method: str, path: str, response_data: t.Any) -> "BackendConnectorMockBuilder":
+    def with_request_response(self, method: str, path: str, response_data: t.Any) -> BackendConnectorMockBuilder:
         """Mock a specific HTTP request response."""
         self._request_responses[f"{method}:{path}"] = response_data
         return self
@@ -542,7 +559,7 @@ def pytest_item_mock(nodeid: str) -> PytestItemMockBuilder:
     return PytestItemMockBuilder(nodeid)
 
 
-def session_manager_mock() -> "SessionManagerMockBuilder":
+def session_manager_mock() -> SessionManagerMockBuilder:
     """Create a SessionManagerMockBuilder with defaults."""
     return SessionManagerMockBuilder()
 
@@ -585,11 +602,11 @@ def mock_api_client_settings(
     coverage_report_upload_enabled: bool = False,
     skippable_items: t.Optional[set[t.Union[TestRef, SuiteRef]]] = None,
     known_tests: t.Optional[set[TestRef]] = None,
-    coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
+    coverage_upload_capture: t.Optional[CoverageReportUploadCapture] = None,
     test_management_properties: t.Optional[dict[TestRef, TestProperties]] = None,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
-    builder: "APIClientMockBuilder" = APIClientMockBuilder()
+    builder: APIClientMockBuilder = APIClientMockBuilder()
 
     if skipping_enabled:
         builder = builder.with_skipping_enabled()
@@ -619,7 +636,7 @@ def mock_api_client_settings(
     return mock_client
 
 
-def mock_backend_connector() -> "BackendConnectorMockBuilder":
+def mock_backend_connector() -> BackendConnectorMockBuilder:
     """Create a BackendConnectorMockBuilder."""
     return BackendConnectorMockBuilder()
 
@@ -799,7 +816,7 @@ class CoverageReportUploadCapture:
 
     @classmethod
     @contextlib.contextmanager
-    def capture(cls) -> t.Generator["CoverageReportUploadCapture", None, None]:
+    def capture(cls) -> t.Generator[CoverageReportUploadCapture, None, None]:
         """
         Create a CoverageReportUploadCapture instance for use in tests.
 

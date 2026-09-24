@@ -1,7 +1,7 @@
 use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::trace_exporter::{
-    agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
-    TraceExporterInputFormat, TraceExporterOutputFormat,
+    agent_response::AgentResponse, stats::CardinalityLimitConfig, TelemetryConfig, TraceExporter,
+    TraceExporterBuilder, TraceExporterInputFormat, TraceExporterOutputFormat,
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
@@ -72,6 +72,13 @@ impl TraceExporterBuilderPy {
         git_commit_sha: &'_ str,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_git_commit_sha(git_commit_sha);
+        Ok(slf.into())
+    }
+
+    /// Set the runtime id reported by the exporter. libdatadog generates a fresh UUID when it is
+    /// left unset.
+    fn set_runtime_id(mut slf: PyRefMut<'_, Self>, runtime_id: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_runtime_id(runtime_id);
         Ok(slf.into())
     }
 
@@ -168,6 +175,25 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_stats_cardinality_limit(
+        mut slf: PyRefMut<'_, Self>,
+        whole_key_limit: usize,
+        resource_limit: usize,
+        http_endpoint_limit: usize,
+        peer_tags_limit: usize,
+        additional_tags_limit: usize,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?
+            .set_stats_cardinality_limit(CardinalityLimitConfig {
+                whole_key_limit,
+                resource_limit,
+                http_endpoint_limit,
+                peer_tags_limit,
+                additional_tags_limit,
+            });
+        Ok(slf.into())
+    }
+
     fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_client_side_stats_obfuscation();
         Ok(slf.into())
@@ -204,6 +230,14 @@ impl TraceExporterBuilderPy {
     fn set_agentless_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?
             .set_agentless_timeout(Duration::from_millis(timeout_ms));
+        Ok(slf.into())
+    }
+
+    fn set_agentless_stats_endpoint(
+        mut slf: PyRefMut<'_, Self>,
+        url: &'_ str, // full stats intake url
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_agentless_stats_endpoint(url);
         Ok(slf.into())
     }
 
@@ -254,6 +288,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_restart_after_fork(
+        mut slf: PyRefMut<'_, Self>,
+        restart_after_fork: bool,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_restart_after_fork(restart_after_fork);
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
     /// The builder shouldn't be reused.
@@ -261,7 +303,7 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
-        let shared_runtime = shared_runtime.as_arc().clone();
+        let shared_runtime = shared_runtime.as_arc()?;
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
@@ -317,12 +359,11 @@ impl TraceExporterPy {
         &self,
         worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
     ) -> PyResult<()> {
-        self.inner
-            .as_ref()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
+            "TraceExporter has already been consumed",
+        ))?;
+        let telemetry_handle = worker.map(|worker| worker.clone_handle()).transpose()?;
+        exporter.set_telemetry_handle(telemetry_handle);
         Ok(())
     }
 

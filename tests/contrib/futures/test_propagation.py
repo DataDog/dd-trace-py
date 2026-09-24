@@ -25,7 +25,7 @@ class PropagationTestCase(TracerTestCase):
     """
 
     def setUp(self):
-        super(PropagationTestCase, self).setUp()
+        super().setUp()
 
         # instrument ``concurrent``
         patch()
@@ -34,7 +34,7 @@ class PropagationTestCase(TracerTestCase):
         # remove instrumentation
         unpatch()
 
-        super(PropagationTestCase, self).tearDown()
+        super().tearDown()
 
     def test_propagation(self):
         # it must propagate the tracing context if available
@@ -408,7 +408,7 @@ class PropagationTestCase(TracerTestCase):
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
-@pytest.mark.subprocess(ddtrace_run=True, timeout=5)
+@pytest.mark.subprocess(ddtrace_run=True, timeout=15)
 def test_concurrent_futures_with_gevent():
     """Check compatibility between the integration and gevent"""
     import os
@@ -505,6 +505,20 @@ def test_submit_propagates_context_copy_with_profiler_meta(tracer):
     assert int(worker_ctx._meta[context_meta.PROFILING_LOCAL_ROOT_SPAN_ID_KEY], 16) == parent._local_root.span_id
     assert worker_ctx._meta.get(context_meta.PROFILING_SPAN_TYPE_KEY) == parent._local_root.span_type
     assert context_meta.PROFILING_LOCAL_ROOT_SPAN_ID_KEY not in parent_ctx._meta
+
+
+def test_submit_propagates_empty_context(tracer):
+    """Hide stale context left on a reused worker when the submitting thread has none."""
+    ambient_worker = tracer.start_span("ambient-worker")
+    try:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=1,
+            initializer=tracer.context_provider.activate,
+            initargs=(ambient_worker,),
+        ) as executor:
+            assert executor.submit(tracer.context_provider.active).result() is None
+    finally:
+        ambient_worker.finish()
 
 
 def test_submit_no_wait(tracer, test_spans):

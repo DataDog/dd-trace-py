@@ -15,6 +15,7 @@ The tests spawn actual uwsgi processes and verify:
 2. Valid configurations produce actual profile samples in each worker
 """
 
+from collections.abc import Generator
 import glob
 from importlib.metadata import version
 import logging
@@ -30,7 +31,6 @@ import time
 from typing import IO
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Generator
 from typing import Optional
 
 import pytest
@@ -213,9 +213,40 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Pope
     proc = uwsgi("--enable-threads", "--processes", "2")
     stdout, _ = proc.communicate()
     assert (
-        b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
-        in stdout
+        b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes "
+        b"are used, unless the py-call-uwsgi-fork-hooks option is also enabled" in stdout
     )
+
+
+def test_uwsgi_threads_processes_fork_hooks_no_primary(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that --py-call-uwsgi-fork-hooks does NOT require --master.
+
+    Unlike the plain non-lazy, multi-process case (see
+    test_uwsgi_threads_processes_no_primary), --master is not needed here: with
+    --py-call-uwsgi-fork-hooks, uwsgi itself calls CPython's PyOS_BeforeFork/
+    AfterFork_* hooks around every worker fork, so the profiler doesn't need a
+    postfork hook registered via uwsgidecorators (which requires --master) --
+    ordinary os.register_at_fork-based fork-safety handles it instead.
+
+    The test verifies that:
+    - uwsgi starts successfully without --master
+    - Both workers independently collect wall-time samples
+    """
+    filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    proc = uwsgi("--enable-threads", "--py-call-uwsgi-fork-hooks", "--processes", "2")
+
+    try:
+        worker_pids = _get_worker_pids(proc.stdout, 2)
+        assert len(worker_pids) == 2, "expected 2 workers, saw %r" % worker_pids
+        for pid in worker_pids:
+            _wait_for_profile_samples(filename, pid, "wall-time")
+    finally:
+        proc.terminate()
+        proc.wait()
 
 
 def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
@@ -339,7 +370,7 @@ def _wait_for_profile_samples(
 def test_uwsgi_threads_processes_primary(
     uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that profiler works correctly with multiple workers and master process.
+    """Test that profiler works correctly with multiple workers, master, and fork hooks.
 
     This is the standard production configuration for multi-worker uwsgi:
     - --enable-threads: satisfies the threading requirement
@@ -347,8 +378,12 @@ def test_uwsgi_threads_processes_primary(
     - --py-call-uwsgi-fork-hooks: ensures Python fork hooks are called after fork
     - --processes 2: spawns 2 worker processes
 
-    With --master, the profiler can register postfork hooks via uwsgidecorators.postfork()
-    to restart the profiler in each worker after fork. The test verifies that:
+    With --py-call-uwsgi-fork-hooks active, check_uwsgi() treats this as an ordinary
+    forking process (like gunicorn without preload): uwsgi itself invokes CPython's
+    os.register_at_fork hooks around each worker fork, so the profiler's normal
+    fork-safety machinery (forksafe registry, PeriodicThread auto-restart) restarts
+    it in each worker -- no uwsgidecorators.postfork bridging is needed. The test
+    verifies that:
     - Both workers start successfully
     - Each worker independently collects wall-time samples
     - Profiles are written with each worker's PID suffix
@@ -467,29 +502,32 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
     # where Py_Finalize crashes in --lazy-apps mode (unbit/uwsgi#2726). --skip-atexit
     # makes non-master workers hard-exit via _exit(), but the *first* worker also
     # acts as the master (getpid() == masterpid), so end_me() still calls exit() ->
-    # atexit handlers -> uwsgi_python_atexit() -> Py_Finalize() for that worker.
-    # Native profiler threads (stack sampler in _stack.so, tokio blocking pool in
-    # the shared runtime) are still running while Py_Finalize's GC tears modules
-    # down, which can race and either segfault (SIGSEGV) or abort (SIGABRT). This
-    # race is pre-existing and orthogonal to what this test verifies (per-worker
-    # profile samples), so we tolerate ONLY those two signals AND only on the
-    # affected uwsgi versions. Any other signaled exit (SIGKILL, SIGBUS, etc.) or
-    # an uwsgi>=2.0.30 crash still fails the test -- see #19405.
+    # atexit handlers -> uwsgi_python_atexit() -> Py_Finalize() for that worker. That
+    # exit() path runs on the master-acting worker regardless of the uwsgi version,
+    # so uwsgi#2726 (fixed in 2.0.30) does not cover it. Native profiler threads
+    # (stack sampler in _stack.so, tokio blocking pool in the shared runtime) are
+    # still running while Py_Finalize's GC tears modules down, which can race and
+    # either segfault (SIGSEGV) or abort (SIGABRT). This race is pre-existing and
+    # orthogonal to what this test verifies (per-worker profile samples), so we
+    # tolerate ONLY those two signals on the master-acting worker, on any uwsgi
+    # version. Any other signaled exit (SIGKILL, SIGBUS, etc.) still fails the
+    # test -- see #19405.
     _uwsgi_ver = tuple(int(x) for x in version("uwsgi").split("."))
     _tolerated_signals = {signal.SIGSEGV, signal.SIGABRT}
     if os.WIFSIGNALED(res_status):
         term_sig = os.WTERMSIG(res_status)
-        if _uwsgi_ver < (2, 0, 30) and term_sig in _tolerated_signals:
+        if term_sig in _tolerated_signals:
             print(
-                "WARNING: uWSGI worker %d exited via signal %d (raw wait status %d). "
-                "This is a known race between native profiler shutdown and "
-                "Py_Finalize under uwsgi<2.0.30 with --skip-atexit; profile "
-                "samples should still be on disk from the last flush interval." % (parent_pid, term_sig, res_status)
+                "WARNING: uWSGI worker %d exited via signal %d (raw wait status %d, "
+                "uwsgi=%s). This is a known race between native profiler shutdown and "
+                "Py_Finalize on the master-acting worker's exit() path; profile "
+                "samples should still be on disk from the last flush interval."
+                % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
             )
         else:
             raise AssertionError(
                 "uWSGI worker %d crashed with signal %d (raw wait status %d, "
-                "uwsgi=%s). Only SIGSEGV/SIGABRT on uwsgi<2.0.30 is a known race."
+                "uwsgi=%s). Only SIGSEGV/SIGABRT is a known race."
                 % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
             )
 

@@ -3,9 +3,9 @@ import os
 import re
 import threading
 import time
+from unittest import mock
 import urllib.parse
 
-import mock
 import pytest
 
 import ddtrace
@@ -111,12 +111,16 @@ def test_service_enable_agent_service_precedence_over_service(tracer):
 
 def test_service_enable_service_used_as_ml_app_fallback(tracer):
     """When neither agent_service nor ml_app is set, service is used as the ml app."""
+    # Guard against leaked enabled=True from a prior failed test
+    llmobs_service.disable()
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app=None)):
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
-        with llmobs_service.workflow() as span:
-            pass
-        assert get_llmobs_ml_app(span) == "<service>"
-        llmobs_service.disable()
+        try:
+            with llmobs_service.workflow() as span:
+                pass
+            assert get_llmobs_ml_app(span) == "<service>"
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.mark.subprocess(
@@ -1656,8 +1660,7 @@ assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad
 def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1686,8 +1689,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1718,8 +1720,7 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1757,8 +1758,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
@@ -1789,8 +1789,7 @@ def test_llmobs_fork_evaluator_runner_run():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
     import sys
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
@@ -2359,10 +2358,8 @@ def test_submit_evaluation_span_incorrect_type_raises(llmobs):
     with pytest.raises(
         TypeError,
         match=re.escape(
-            (
-                "`span` must be a dictionary containing both span_id and trace_id keys. "
-                "LLMObs.export_span() can be used to generate this dictionary from a given span."
-            )
+            "`span` must be a dictionary containing both span_id and trace_id keys. "
+            "LLMObs.export_span() can be used to generate this dictionary from a given span."
         ),
     ):
         llmobs.submit_evaluation(span="asd", label="toxicity", metric_type="categorical", value="high")
@@ -2390,10 +2387,8 @@ def test_submit_evaluation_empty_span_or_trace_id_raises_error(llmobs, mock_llmo
     with pytest.raises(
         TypeError,
         match=re.escape(
-            (
-                "`span` must be a dictionary containing both span_id and trace_id keys. "
-                "LLMObs.export_span() can be used to generate this dictionary from a given span."
-            )
+            "`span` must be a dictionary containing both span_id and trace_id keys. "
+            "LLMObs.export_span() can be used to generate this dictionary from a given span."
         ),
     ):
         llmobs.submit_evaluation(span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high")
@@ -2531,7 +2526,7 @@ def test_submit_evaluation_metric_tags(llmobs, mock_llmobs_eval_metric_writer):
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
         )
     )
 
@@ -2554,7 +2549,7 @@ def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_wr
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:agent_service", "foo:bar"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:agent_service", "foo:bar"],
         )
     )
 
@@ -2668,7 +2663,7 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
         )
     )
@@ -2705,7 +2700,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2729,7 +2724,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2767,7 +2762,7 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             reasoning="the content of the message involved profanity",
         )
@@ -2922,7 +2917,7 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
             "metric_type": "score",
             "label": "quality",
             "tags": [
-                "ddtrace.version:{}".format(ddtrace.__version__),
+                f"ddtrace.version:{ddtrace.__version__}",
                 "ml_app:test_app",
             ],
             "join_on": {"span": {"span_id": "123", "trace_id": "456"}},
@@ -3067,7 +3062,7 @@ def test_submit_feedback_rejects_invalid_direct_identifier(
     record_telemetry.assert_called_once_with(
         target_type,
         "categorical",
-        "invalid_{}".format(target_type),
+        f"invalid_{target_type}",
     )
 
 
@@ -3287,7 +3282,7 @@ def test_submit_feedback_optional_fields_and_agent_service_precedence(llmobs, mo
             ml_app="feedback-service",
             timestamp_ms=1756910127022,
             tags=[
-                "ddtrace.version:{}".format(ddtrace.__version__),
+                f"ddtrace.version:{ddtrace.__version__}",
                 "ml_app:feedback-service",
                 "team:support",
                 "channel:chat",
@@ -3586,3 +3581,79 @@ class TestExperimentScope:
         with llmobs.task(name="standalone_task") as span:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
             assert "scope" not in data.get("_dd", {})
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agentless_via_keyword_argument_repoints_remote_configuration():
+    """Remote Configuration read the environment at import; the keyword argument came later."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True)
+
+    assert remoteconfig_poller._client.agentless is True
+    assert remoteconfig_poller._state == remoteconfig_poller._online
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": None,
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_an_api_key_passed_in_code_repoints_remote_configuration():
+    """The key exists nowhere in the environment, so only the late switch can supply it."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True, api_key="a-key-from-code")
+
+    assert remoteconfig_poller._client.agentless is True
+
+    captured = {}
+
+    def _fake_native(_runtime, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    import ddtrace.internal.native as native_mod
+
+    native_mod.RemoteConfigClient = _fake_native
+    remoteconfig_poller._client.ensure_native()
+    assert captured["api_key"] == "a-key-from-code"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agent_bound_llmobs_leaves_remote_configuration_on_the_agent():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+
+    assert remoteconfig_poller._client.agentless is False
+    assert remoteconfig_poller._state == remoteconfig_poller._agent_check

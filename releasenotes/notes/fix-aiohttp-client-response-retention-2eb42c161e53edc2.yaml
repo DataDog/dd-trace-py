@@ -1,0 +1,4 @@
+fixes:
+  - |
+    AAP: Fixes an issue where memory usage grows over time when AAP is enabled for
+    applications making traced outbound HTTP requests.

@@ -16,6 +16,8 @@ import typing as t
 from bytecode import Bytecode
 
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
@@ -23,8 +25,8 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_impor
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
 log = get_logger(__name__)
@@ -44,7 +46,7 @@ LOAD_SMALL_INT = dis.opmap.get("LOAD_SMALL_INT")
 # In Python 3.15 (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
 # bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
 # So the index is arg >> 2. On 3.12-3.14, arg is a plain index (shift by 0).
-_IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
+_IMPORT_NAME_ARG_SHIFT: int = 2 if is_at_least_py(3, 15) else 0
 
 # Detect empty modules: the bytecode pattern varies across Python versions.
 # Python 3.12-3.13: RESUME + RETURN_CONST
@@ -56,13 +58,21 @@ EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 # Check if file-level coverage is requested
 _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
 _ACCURATE_IMPORTS_REQUESTED = asbool(env.get("_DD_COVERAGE_ACCURATE_IMPORTS", "false"))
-_USE_ACCURATE_IMPORTS = sys.version_info < (3, 15) and _ACCURATE_IMPORTS_REQUESTED
+_USE_ACCURATE_IMPORTS: bool = not is_at_least_py(3, 15) and _ACCURATE_IMPORTS_REQUESTED
 if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
     log.info(
         "_DD_COVERAGE_ACCURATE_IMPORTS is enabled, but accurate import tracking is not supported on Python %s; "
         "using conservative static import tracking instead",
         sys.version.split()[0],
     )
+
+# TODO(py-315): Accurate import-hook injection (_DD_COVERAGE_ACCURATE_IMPORTS) is unsupported on
+# 3.15+ because the `bytecode` library's CALL codegen segfaults on exec under CPython 3.15.0rc1,
+# which is what ddtrace.internal.bytecode_injection.INJECTION_ASSEMBLY relies on to splice hook
+# calls after import opcodes (see import_instrumentation_py3_12.inject_import_hooks). Re-enabling
+# this needs either an upstream `bytecode` fix, or reimplementing injection on sys.monitoring
+# INSTRUCTION events. Static import tracking (iter_import_events/import_names_by_line) already
+# works on 3.15+ and is used as the fallback.
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
@@ -152,6 +162,14 @@ def _rearm_all_events() -> None:
     this no longer depends on careful timing to be safe — it cannot affect any other tool's
     disabled-event state regardless of when it runs.
     """
+    # Nothing to re-arm unless we actually own a registered tool slot. set_local_events() requires
+    # an integer tool id, so a None _DD_TOOL_ID (no slot ever claimed, or the slot was freed) would
+    # otherwise raise "'NoneType' object cannot be interpreted as an integer". In production this
+    # only happens when nothing was instrumented (so _CODE_HOOKS is empty and the loop is a no-op
+    # anyway); the guard also keeps us safe if our slot was released out from under us.
+    if _DD_TOOL_ID is None or sys.monitoring.get_tool(_DD_TOOL_ID) != "datadog":
+        return
+
     for code in _CODE_HOOKS:
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, 0)
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)
@@ -317,7 +335,7 @@ def _instrument_with_monitoring(
     # objects, not on the original nested constants that may be replaced below.
     new_consts: t.Optional[list[t.Any]] = None
     for const_index, nested_code in enumerate(code.co_consts):
-        if isinstance(nested_code, CodeType):
+        if isinstance(nested_code, CodeType) and not is_obfuscated_code(nested_code):
             new_nested_code, nested_lines = instrument_all_lines(nested_code, hook, path, package)
             lines.update(nested_lines)
             if new_nested_code is not nested_code:
@@ -404,7 +422,7 @@ def _extract_lines_and_imports(
     injection needs richer bytecode objects, but conservative import metadata and line extraction can be decoded from
     CPython wordcode directly with much lower overhead.
 
-    AIDEV-NOTE: This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
+    This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
     CACHE entries must not enter the argument history; 3.14+ LOAD_SMALL_INT stores the integer directly instead of
     indexing co_consts; dis.findlinestarts() owns the version-specific line table decoding; and 3.15+ PEP 810
     bit-packs IMPORT_NAME's co_names index behind lazy-import flag bits.
@@ -492,7 +510,7 @@ def _extract_lines_and_imports(
                 else:
                     import_names[line] = (current_import_package or package, (import_from_name,))
 
-            # AIDEV-NOTE: Decode argument value and shift history after opcode handling. IMPORT_NAME reads
+            # Decode argument value and shift history after opcode handling. IMPORT_NAME reads
             # prev_prev_value before this block because the import sequence is level, fromlist, IMPORT_NAME.
             if opcode == LOAD_CONST:
                 decoded = code.co_consts[current_arg]

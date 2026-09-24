@@ -3,14 +3,15 @@ from __future__ import annotations
 from copy import deepcopy
 import re
 import sys
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Literal  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Literal
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -32,6 +33,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
@@ -166,6 +168,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dogpile_cache",
         "pylibmc",
         "httpx",
+        "httpx2",
         "httplib",
         "rq",
         "jinja2",
@@ -415,17 +418,22 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_SAMPLE_RATE"],
             modifier=float,
         ),
+        "_llmobs_sampling_rules": _ConfigItem(
+            default=lambda: "",
+            envs=["DD_LLMOBS_SAMPLING_RULES"],
+            modifier=str,
+        ),
     }
 
 
-class Config(object):
+class Config:
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
 
-    class _HTTPServerConfig(object):
+    class _HTTPServerConfig:
         _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
@@ -467,6 +475,15 @@ class Config(object):
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
+
+        agentless = AgentlessConfig()
+        self._dd_api_key = agentless.api_key
+        self._dd_site = agentless.site
+        self._agentless_enabled = agentless.enabled
+        for _name, _value, _origin in agentless.reported_configuration():
+            telemetry_writer.add_configuration(_name, _value, _origin)
+
+        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
 
         self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
@@ -520,7 +537,7 @@ class Config(object):
 
         self._inferred_base_service = detect_service(sys.argv)
 
-        # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
+        # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
@@ -635,6 +652,13 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+
+        self._propagation_as_span_links = _get_config(
+            "DD_TRACE_PROPAGATION_AS_SPAN_LINKS",
+            set(),
+            # Expected format: comma-separated integration names (e.g. "kafka,google_cloud_pubsub").
+            lambda x: {name.strip() for name in x.split(",") if name.strip()},
+        )
         self._baggage_tag_keys = _get_config(
             "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
         )
@@ -650,10 +674,9 @@ class Config(object):
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
-
-        trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
+        trace_compute_stats_default = (
+            in_gcp_function() or in_azure_function() or is_at_least_py(3, 14) or agentless.enabled
+        )
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
@@ -663,6 +686,21 @@ class Config(object):
             [],
             lambda value: [tag.strip() for tag in value.split(",") if tag.strip()],
         )
+        # Cardinality limits for stats aggregation keys
+        self._trace_stats_cardinality_limits: dict[str, int] = {}
+        for env_name, field, limit_default in (
+            ("DD_TRACE_STATS_CARDINALITY_LIMIT", "whole_key_limit", 7000),
+            ("DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT", "resource_limit", 1024),
+            ("DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT", "http_endpoint_limit", 512),
+            ("DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT", "peer_tags_limit", 512),
+            ("DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT", "additional_tags_limit", 100),
+        ):
+            limit = _get_config(env_name, limit_default, int)
+            if limit <= 0:
+                log.warning("Invalid value %r provided for %s, only positive values allowed", limit, env_name)
+                limit = limit_default
+            self._trace_stats_cardinality_limits[field] = limit
+
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
@@ -683,7 +721,7 @@ class Config(object):
             log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
             self._http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
-        self._ci_visibility_agentless_enabled = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool)
+        self._ci_visibility_agentless_enabled = agentless.ci_visibility
         self._ci_visibility_agentless_url = _get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
         self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", True, asbool)
         self._ci_visibility_log_level = _get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
@@ -706,11 +744,7 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._dd_api_key = _get_config("DD_API_KEY", report_telemetry=False)
-        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
-        self._dd_site = _get_config("DD_SITE", "datadoghq.com")
-
-        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
+        self._llmobs_agentless_enabled = agentless.llmobs
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
@@ -766,14 +800,15 @@ class Config(object):
             "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
         # When True, traces are sent via the JSON span intake (agentless EvP), e.g. browser-intake-*.
-        self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
+        self._trace_agentless_enabled = agentless.apm_tracing
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless enabled: health metrics and client-side stats are disabled. "
-                "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
-                "bypassing the agent.",
+                "APM Agentless enabled: health metrics are disabled. Hostnames will be resolved by "
+                "ddtrace; spans will be sent directly to the Datadog intake, bypassing the agent. "
+                "Client-side stats, when enabled, are sent to the stats intake rather than the agent.",
             )
-            self._trace_compute_stats = False
+            # DD_TRACE_STATS_COMPUTATION_ENABLED stays honoured: libdatadog sends the stats to the
+            # stats intake instead of the agent's /v0.6/stats (see _resolve_agentless_stats_endpoint).
             self._report_hostname = True
             self._health_metrics_enabled = False
 
@@ -931,3 +966,5 @@ def _get_global_config() -> Config:
 
 
 config = Config()
+# Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
+config._raise = _get_config("DD_TESTING_RAISE", False, asbool)

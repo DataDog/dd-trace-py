@@ -5,8 +5,8 @@ import os
 import pprint
 import threading
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -283,27 +283,44 @@ def llmobs(
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
-        llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
-        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(llmobs_span_writer, tracer, keep_meta_struct=True)
-        yield llmobs_service
-    tracer.shutdown()
-    llmobs_service.disable()
+        # The cassette proxy stands in for intake, so keep this client in direct mode. Without an
+        # app key it would otherwise pick the agent proxy and prefix every path with /evp_proxy/v2,
+        # which no recording matches.
+        dne_client = llmobs_service._instance._dne_client
+        dne_client._agentless = True
+        dne_client._endpoint = dne_client.ENDPOINT
+        dne_client._intake = llmobs_api_proxy_url
+        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+            llmobs_span_writer,
+            tracer,
+            keep_meta_struct=True,
+            sampling_resolver=llmobs_service._instance._sampling_resolver,
+        )
+        try:
+            yield llmobs_service
+        finally:
+            tracer.shutdown()
+            llmobs_service.disable()
 
 
 @pytest.fixture
 def llmobs_no_ml_app(tracer):
     with override_global_config(dict(_llmobs_ml_app=None)):
         llmobs_service.enable(_tracer=tracer)
-        yield llmobs_service
-        llmobs_service.disable()
+        try:
+            yield llmobs_service
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.fixture
 def llmobs_empty_ml_app(tracer):
     with override_global_config(dict(_llmobs_ml_app="")):
         llmobs_service.enable(_tracer=tracer)
-        yield llmobs_service
-        llmobs_service.disable()
+        try:
+            yield llmobs_service
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.fixture
@@ -333,3 +350,13 @@ def no_agent_info():
 def no_agent():
     with mock.patch("ddtrace.internal.agent.info", side_effect=Exception):
         yield
+
+
+@pytest.fixture
+def patched_futures():
+    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+    from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+
+    patch_futures()
+    yield
+    unpatch_futures()

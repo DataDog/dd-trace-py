@@ -14,10 +14,13 @@ cannot run Python logic), not an edit here.
 
 import os
 import re
-import sys
+from typing import Any
 
+import _pytest.config
+import _pytest.nodes
 import pytest
 
+from ddtrace.internal.compat import is_at_least_py
 from tests.wrapping.mechanisms import ALL_MECHANISMS
 
 
@@ -27,11 +30,11 @@ _VERSION_SUFFIX = re.compile(r"_py(\d)(\d+)\.py$")
 collect_ignore = []
 for _name in os.listdir(_HERE):
     _match = _VERSION_SUFFIX.search(_name)
-    if _match and sys.version_info < (int(_match.group(1)), int(_match.group(2))):
+    if _match and not is_at_least_py(int(_match.group(1)), int(_match.group(2))):
         collect_ignore.append(_name)
 
 
-def pytest_configure(config):
+def pytest_configure(config: _pytest.config.Config) -> None:
     config.addinivalue_line(
         "markers",
         "mechanism_specific: this test targets one wrapping mechanism by name (e.g. tracer.wrap() "
@@ -39,7 +42,7 @@ def pytest_configure(config):
     )
 
 
-def pytest_collection_modifyitems(items):
+def pytest_collection_modifyitems(items: list[_pytest.nodes.Item]) -> None:
     """Guardrail: every matrix test must run over all wrapping mechanisms.
 
     A test that forgets the ``mech`` argument (and does not parametrize it via
@@ -53,6 +56,21 @@ def pytest_collection_modifyitems(items):
     this directory -- otherwise a broader run (e.g. ``pytest tests/``) would abort
     on every test that legitimately has no ``mech``.
     """
+    # On 3.15+ WrappingContext uses sys.monitoring instead of bytecode rewriting,
+    # so the strict xfails for wrapping_context t-string cases are obsolete. The
+    # markers live in test_tstrings_py314.py, which cannot be edited with a
+    # version-gated xfail condition (ruff rejects t-string syntax when the file
+    # is passed directly to the pre-commit hook).
+    if is_at_least_py(3, 15):
+        for item in items:
+            if not str(getattr(item, "path", "")).startswith(_HERE + os.sep):
+                continue
+            if not item.name.startswith("test_tstring"):
+                continue
+            if "wrapping_context" not in item.nodeid:
+                continue
+            item.own_markers = [m for m in item.own_markers if m.name != "xfail"]
+
     missing = [
         item.nodeid
         for item in items
@@ -68,7 +86,7 @@ def pytest_collection_modifyitems(items):
 
 
 @pytest.fixture(autouse=True)
-def _dummy_tracer(tracer):
+def _dummy_tracer(tracer: Any) -> None:
     """Ensure every test in this suite uses a DummyWriter, not the NativeWriter.
 
     ``tracer_wrap`` cases call ``ddtrace.tracer.wrap()`` which creates real spans.
@@ -80,7 +98,7 @@ def _dummy_tracer(tracer):
 
 
 @pytest.fixture(params=list(ALL_MECHANISMS.values()), ids=list(ALL_MECHANISMS))
-def mech(request):
+def mech(request: pytest.FixtureRequest) -> Any:
     """The wrapping mechanism under test. Every test taking a ``mech`` argument is
     automatically run once per mechanism (internal_wrap, tracer_wrap, wrapt, wrapping_context).
 

@@ -7,11 +7,11 @@ reads the highest N from ``InitialExecutionState.Operations`` to re-activate the
 Only runs on the suspend path; no-op when stable headers (``HTTP_HEADER_PARENT_ID``
 excluded) match the most recent prior checkpoint.
 
-AIDEV-NOTE: only Datadog-style headers are written — both writer and reader are
+Only Datadog-style headers are written — both writer and reader are
 Datadog code (this integration and ``datadog-lambda-python``), so W3C/B3 headers
 would just bloat the payload.
 
-AIDEV-NOTE: ``_datadog_*`` is a reserved step name; the SDK does not enforce this.
+``_datadog_*`` is a reserved step name; the SDK does not enforce this.
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ def _allocate_checkpoint_n(state: ExecutionState) -> int:
 
 def _step_id(name: str, execution_arn: str) -> str:
     """Deterministic blake2b-based step id so re-runs don't duplicate."""
-    digest = hashlib.blake2b(f"{name}:{execution_arn}".encode("utf-8"), digest_size=16).hexdigest()
+    digest = hashlib.blake2b(f"{name}:{execution_arn}".encode(), digest_size=16).hexdigest()
     return digest
 
 

@@ -1,6 +1,6 @@
+from collections.abc import Generator
+from collections.abc import Iterator
 from typing import Any
-from typing import Generator
-from typing import Iterator
 
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
@@ -72,6 +72,9 @@ SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 # 8-bit (min) case-insensitive hex mask, per the DD_TRACE_ENABLED RFC. See TraceSource.
 TRACE_SOURCE_PROPAGATION_KEY = "_dd.p.ts"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
+# Shared standalone switch: when false, security and AI products keep working but the tracer stops
+# billing APM. Owned by ddtrace.internal.settings.standalone, not by any single product.
+APM_TRACING_ENV = "DD_APM_TRACING_ENABLED"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
@@ -159,7 +162,7 @@ LOG_ATTR_VALUE_ZERO = "0"
 LOG_ATTR_VALUE_EMPTY = ""
 
 
-class SamplingMechanism(object):
+class SamplingMechanism:
     DEFAULT = 0
     AGENT_RATE_BY_SERVICE = 1
     REMOTE_RATE = 2  # not used, this mechanism is deprecated
@@ -176,7 +179,18 @@ class SamplingMechanism(object):
     AI_GUARD = 13
 
 
-class TraceSource(object):
+PROBABILISTIC_SAMPLING_MECHANISMS = frozenset(
+    (
+        SamplingMechanism.DEFAULT,
+        SamplingMechanism.AGENT_RATE_BY_SERVICE,
+        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
+    )
+)
+
+
+class TraceSource:
     """Bit values for the _dd.p.ts (trace source) propagation tag.
 
     Each enabled product ORs its bit into the mask to signal it originated or retained

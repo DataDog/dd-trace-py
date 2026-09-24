@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import itertools
-from typing import ClassVar  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
@@ -26,7 +27,7 @@ from .tag_collectors import TracerTagCollector
 log = get_logger(__name__)
 
 
-class RuntimeCollectorsIterable(object):
+class RuntimeCollectorsIterable:
     def __init__(self, enabled=None):
         self._enabled = enabled or self.ENABLED
         # Initialize the collectors.
@@ -36,11 +37,12 @@ class RuntimeCollectorsIterable(object):
         collected = (collector.collect(self._enabled) for collector in self._collectors)
         return itertools.chain.from_iterable(collected)
 
+    def stop(self) -> None:
+        for collector in self._collectors:
+            collector.stop()
+
     def __repr__(self):
-        return "{}(enabled={})".format(
-            self.__class__.__name__,
-            self._enabled,
-        )
+        return f"{self.__class__.__name__}(enabled={self._enabled})"
 
 
 class PlatformTags(RuntimeCollectorsIterable):
@@ -79,7 +81,7 @@ class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd client."""
 
     enabled = False
-    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
+    _instance: Optional[RuntimeWorker] = None
     _lock = Lock()
 
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url=None) -> None:
@@ -143,6 +145,10 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance = runtime_worker
             cls.enabled = True
 
+    def stop(self, *args, **kwargs) -> None:
+        super().stop(*args, **kwargs)
+        self._runtime_metrics.stop()
+
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
@@ -159,7 +165,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     def _format_tags(self, tags: RuntimeCollectorsIterable) -> list[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        return ["{}:{}".format(k, v) for k, v in tags]
+        return [f"{k}:{v}" for k, v in tags]
 
     periodic = flush
     on_shutdown = flush

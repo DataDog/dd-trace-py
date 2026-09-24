@@ -14,11 +14,14 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  # Build OpenTelemetry Operator-compatible Python images through one-pipeline.
+  CI_OTEL_OPERATOR_IMAGES_ENABLED: "true"
+  CI_OTEL_OPERATOR_LANGUAGE: python
   # VPA Template configuration
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "fe7159979b0265543bbd76210a7e120446e66642"
+  SYSTEM_TESTS_REF: "7826911341b566032de160372974ada85830df22"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -30,6 +33,10 @@ variables:
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+
+  # Globally configure all Python installs to go through Depot, an in-network PyPI mirror.
+  PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
+  UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 
 default:
   interruptible: true
@@ -59,6 +66,12 @@ workflow:
 
 include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
+  - local: ".gitlab/retry-policies.yml"
+  # Included after the base policies so main pipelines override them without
+  # duplicating concrete job definitions or changing job identities.
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -115,8 +128,13 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs:
+   - tests-gen
+   # Provides ddtrace wheels for running tests
+   - job: "upload manylinux2014_x86_64"
+     artifacts: false
  variables:
+   PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
@@ -156,7 +174,6 @@ serverless lambda tests:
   stage: tests
   needs: []
   script:
-  script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
       scripts/lint sg-test
@@ -174,8 +191,8 @@ microbenchmarks:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -196,18 +213,6 @@ microbenchmarks:
     # so downstream code must treat that literal as unset.
     BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
 
-apm-sdk-benchmarks:
-  stage: benchmarks
-  when: manual
-  allow_failure: true
-  needs:
-    - job: "upload all"
-  trigger:
-    project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
-  variables:
-    TARGET_REF: $CI_PIPELINE_ID
-
 macrobenchmarks:
   stage: benchmarks
   needs:
@@ -216,7 +221,7 @@ macrobenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
@@ -237,10 +242,45 @@ macrobenchmarks:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     # Always run on tagged releases and release branches
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: !reference [.is_release_branch]
       when: always
     - if: !reference [.is_release]
       when: always
+    # Otherwise, run manually
+    - when: manual
+      allow_failure: true
+
+apm-sdks-benchmarks:
+  stage: benchmarks
+  needs:
+    - job: "upload all"
+  variables:
+    # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
+    # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
+    # all". Inside a child pipeline that variable is the child's own ID, not
+    # this (parent) pipeline's, so it must be passed explicitly.
+    TARGET_REF: $CI_PIPELINE_ID
+  trigger:
+    include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
+    strategy: depend
+  rules:
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      when: on_success
+      allow_failure: true
+    # Always run on tagged releases and release branches
+    - if: !reference [.is_release_branch]
+      when: on_success
+    - if: !reference [.is_release]
+      when: on_success
+    - if: !reference [.is_main]
+      when: on_success
+    # Flaky benchmark monitoring runs this branch unattended from a parent pipeline,
+    # and pushes to it need the same automatic run while that setup is developed.
+    - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring"
+      when: on_success
+    # No $NIGHTLY_BUILD rule here: apm-sdks-benchmarks already runs its own nightly
+    # schedule in that project's own CI, independent of dd-trace-py's pipeline.
     # Otherwise, run manually
     - when: manual
       allow_failure: true
@@ -312,20 +352,9 @@ check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
-  variables:
-    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
-    # (see "overridden by VPA" in runner logs) and clamps the build container
-    # down to ~4 GiB based on its learned model. compile-and-prune-test-
-    # requirements pip-compiles every riot lockfile sequentially and peaks
-    # above that when resolving the full venv matrix (including 3.15 venvs),
-    # causing OOMKilled (exit 137).
-    DD_DISABLE_VPA: "true"
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
-    - pip install toml==0.10.2 pyyaml==6.0.2
-    - scripts/compile-and-prune-test-requirements
-    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+    - pip install toml==0.10.2
+    - scripts/test-requirements check
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
@@ -417,11 +446,10 @@ detect_circular_imports:
     - cat cycles-pr.json
     - |
       cd dd-trace-py
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
+      # resolve-base-branch.sh mints its own token only if it hits the API,
+      # so don't acquire one unconditionally here.
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
+      git fetch origin -- "${BASE_BRANCH}"
       MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
       git checkout "${MERGE_BASE}"
       cd ..
@@ -512,6 +540,87 @@ check_added_file_size:
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
 
+check_no_new_aidev_anchors:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+    - unset GH_TOKEN DDOCTOSTS_ID_TOKEN
+    - python3 scripts/check_no_new_aidev_anchors.py --base-ref FETCH_HEAD
+
+check_type_comments:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  variables:
+    # Needs full history to reliably compute a merge-base against the fetched
+    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
+    # common ancestor.
+    GIT_DEPTH: "0"
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
+      git fetch origin "${BASE_BRANCH}"
+    - python3 scripts/check_type_comments.py --base-ref FETCH_HEAD
+
+# Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
+# tests stub git/curl (no network), so we skip the heavier .testrunner setup.
+test_resolve_base_branch:
+  stage: tests
+  needs: []
+  image:
+    name: ${TESTRUNNER_IMAGE}
+    docker:
+      user: bits
+  tags: [ "arch:amd64" ]
+  timeout: 5m
+  script:
+    - .gitlab/scripts/resolve-base-branch.test.sh
+
 
 "summarize failures":
   stage: .post
@@ -570,19 +679,22 @@ deploy_to_di_backend:manual:
     UPSTREAM_PACKAGE_JOB: build
 
 # Trigger profiling correctness tests with just-built wheels.
-# Runs the prof-correctness test suite (Python scenarios) against the wheels
-# uploaded to S3 for this commit.
+# Runs the eight 3.14/3.15 migration scenarios in prof-correctness against the
+# wheels uploaded to S3 for this commit (Python-only; see downstream-python.yml).
 prof-correctness:
   stage: tests
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: ["arch:amd64"]
   needs:
     - job: "upload all"
-  allow_failure: true
+  timeout: 60m
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
-    - changes:
+    # Bare rules:changes is true for web/API/tag pipelines; require a push.
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
+        - .github/workflows/prof-correctness.yml
         - .gitlab-ci.yml
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
@@ -595,17 +707,46 @@ prof-correctness:
   script:
     - |
       if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+        export GH_TOKEN="$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)"
       fi
-    - |
-      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
-      # Trigger pipeline, but do not wait for the job to complete
+      if [ -z "${GH_TOKEN:-}" ]; then
+        echo "error: GH_TOKEN is empty after dd-octo-sts (policy dd-trace-py.gitlab.trigger-ci)" >&2
+        exit 1
+      fi
+      TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
+      # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
+      TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
       gh workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
-        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
+        -f "test_scenarios=${TEST_SCENARIOS}"
+
+      RUN_ID=""
+      for _ in $(seq 1 30); do
+        RUN_ID="$(gh run list \
+          --repo DataDog/prof-correctness \
+          --workflow=downstream-python.yml \
+          --event workflow_dispatch \
+          --limit 20 \
+          --json databaseId,displayTitle,headSha,event,createdAt \
+          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+        if [ -n "${RUN_ID}" ]; then
+          break
+        fi
+        sleep 2
+      done
+
+      if [ -z "${RUN_ID}" ]; then
+        echo "error: no DataDog/prof-correctness downstream-python run found for sha ${CI_COMMIT_SHA} (expected title 'dd-trace-py downstream (${CI_COMMIT_SHA})') dispatched at/after ${TRIGGERED_AT}" >&2
+        exit 1
+      fi
+
+      echo "Watching prof-correctness run ${RUN_ID}"
+      gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
 
 lib_injection_tests:
-  # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
+  # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
@@ -655,8 +796,9 @@ lib_injection_tests:
 # Extension-based patterns keep Python and docs out automatically; non-extension
 # build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
-  extends: .profiling_native_base
-  retry: 2
+  extends:
+    - .profiling_native_base
+    - .retry_on_all_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
@@ -726,6 +868,8 @@ package-oci:
       artifacts: true
     - job: "download_dependency_wheels"
       artifacts: true
+      # 3.15 cell is when: never until the python image is mirrored
+      optional: true
 
 configure_system_tests:
   variables:

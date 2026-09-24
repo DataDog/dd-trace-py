@@ -1,8 +1,11 @@
 #pragma once
 
+#include <Python.h>
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <mutex>
@@ -16,8 +19,6 @@
 
 #include "echion/task_name.h"
 #include "echion/timing.h"
-
-#include <Python.h>
 
 class EchionSampler;
 
@@ -96,8 +97,15 @@ class Sampler
     double target_overhead = g_target_overhead;
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
+    bool gc_tracking_enabled_ = false;
     std::minstd_rand rng{ std::random_device{}() };
-    std::vector<PyThreadState> thread_candidates;
+
+    struct ThreadCandidate
+    {
+        PyThreadState tstate;
+        PyObject* gc_frame;
+    };
+    std::vector<ThreadCandidate> thread_candidates;
     void adapt_sampling_interval();
 
     // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
@@ -166,6 +174,9 @@ class Sampler
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    bool set_max_frames(uint64_t value);
+    [[nodiscard]] size_t max_frames() const;
+    [[nodiscard]] size_t frame_cache_capacity() const;
     bool is_running() const { return thread_running.load(); }
 
     // Returns the error that terminated the sampling thread, clearing it so it is
@@ -180,6 +191,8 @@ class Sampler
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
     void set_max_tasks_per_sample(unsigned int value);
+    void set_gc_enabled(bool value) { gc_tracking_enabled_ = value; }
+    bool gc_enabled() const { return gc_tracking_enabled_; }
 
     // Set the absolute overhead floor as "core percent" units (1 = 0.01 core = 10 mcores).
     // Converted to us of CPU budget per adaptation window.

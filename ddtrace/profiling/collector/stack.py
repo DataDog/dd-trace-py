@@ -1,16 +1,16 @@
 """Simple wrapper around stack native extension module."""
 
 import logging
-import sys
 from types import ModuleType
 import typing
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -74,7 +74,9 @@ class StackCollector(collector.Collector):
         stack.set_p_stable_window_s(config.stack.adaptive_sampling_p_stable_window_s)
         stack.set_p_stable_percentile(config.stack.adaptive_sampling_p_stable_percentile)
         stack.set_max_threads(config.stack.max_threads)
+        stack.set_max_frames(self.nframes)
         stack.set_max_tasks(config.stack.max_tasks)
+        stack.set_gc_enabled(config.stack.gc_enabled)
         stack.set_fast_copy(config.stack.fast_copy)
         if stack.is_safe_copy_failed():
             LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")
@@ -84,7 +86,7 @@ class StackCollector(collector.Collector):
             raise collector.CollectorUnavailable
 
         # Start native C function call tracking (Python 3.12+ only)
-        if sys.version_info >= (3, 12) and config.stack.native_frames:
+        if is_at_least_py(3, 12) and config.stack.native_frames:
             try:
                 from ddtrace.internal.datadog.profiling import native_call_monitor
 

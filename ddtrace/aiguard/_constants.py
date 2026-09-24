@@ -19,8 +19,8 @@ class AI_GUARD(metaclass=Constant_Class):
     TOOL_NAME_TAG: str = TAG + ".tool_name"
     EVENT_TAG: str = TAG + ".event"
 
-    # core-context key used to stash the candidate client IP during an HTTP request, so it can be
-    # applied to the service-entry span only if an ai_guard span is actually created.
+    # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
+    # span only if an ai_guard span is created during the request.
     CLIENT_IP_CORE_KEY: Literal["ai_guard.http.client_ip"] = "ai_guard.http.client_ip"
 
     # Tags copied from the local root (service-entry) span to every AI Guard span with the
@@ -39,9 +39,59 @@ class AI_GUARD(metaclass=Constant_Class):
     STRUCT: Literal["ai_guard"] = "ai_guard"
 
     # metrics
-    METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
-    REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
-    TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
+    # Reported under the dedicated ai_guard telemetry namespace, so the full metric ids are
+    # ai_guard.<name>. Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6600426215
+    REQUESTS_METRIC: Literal["requests"] = "requests"
+    TRUNCATED_METRIC: Literal["truncated"] = "truncated"
+    ERROR_METRIC: Literal["error"] = "error"
+
+    # Values of the "type" tag on the error metric.
+    ERROR_CLIENT: Literal["client_error"] = "client_error"
+    ERROR_BAD_STATUS: Literal["bad_status"] = "bad_status"
+    ERROR_BAD_RESPONSE: Literal["bad_response"] = "bad_response"
+    # Transport failures, split out of client_error so a customer-side network problem is
+    # distinguishable from a request that reached the service and was rejected.
+    ERROR_CONNECTION: Literal["connection_failed"] = "connection_failed"
+    ERROR_TIMEOUT: Literal["timeout"] = "timeout"
+    ERROR_INVALID_CONFIG: Literal["invalid_config"] = "invalid_config"
+    ERROR_NETWORK: Literal["network_error"] = "network_error"
+    # Anything raised inside our own code rather than by the transport. Kept separate so tracer
+    # bugs do not inflate the transport buckets that customer-egress alerting reads.
+    ERROR_INTERNAL: Literal["internal_error"] = "internal_error"
+
+    # Values of the "http_status" tag, set only on bad_status errors. Clamped to this allowlist so
+    # the tag cannot grow a new series per status a service ever returns.
+    STATUSES: tuple[int, ...] = (401, 403, 404, 408, 413, 429, 500, 502, 503, 504)
+    STATUS_OTHER: Literal["other"] = "other"
+    # A replacement the service asked for could not be applied. Reported per affected path, and
+    # never fails the evaluation, see the redaction errors addendum of the AI Guard redaction RFC.
+    ERROR_REDACTION: Literal["redaction_error"] = "redaction_error"
+
+    # Values of the "source" tag: which call path reached the evaluation. sdk means the
+    # customer called evaluate() directly, auto means our AI package instrumentation did.
+    SOURCE_SDK: Literal["sdk"] = "sdk"
+    SOURCE_AUTO: Literal["auto"] = "auto"
+
+    # Values of the "integration" tag: the auto-instrumented AI package name, or none when
+    # the evaluation came from a direct SDK call.
+    INTEGRATION_NONE: Literal["none"] = "none"
+    INTEGRATION_OPENAI: Literal["openai"] = "openai"
+    INTEGRATION_ANTHROPIC: Literal["anthropic"] = "anthropic"
+    INTEGRATION_LANGCHAIN: Literal["langchain"] = "langchain"
+    INTEGRATION_LITELLM: Literal["litellm"] = "litellm"
+    INTEGRATION_STRANDS: Literal["strands"] = "strands"
+
+    # Closed tag sets: anything else reaching the metrics is clamped back to these defaults,
+    # so a bad value from a caller cannot invent telemetry series.
+    SOURCES: tuple[str, ...] = (SOURCE_SDK, SOURCE_AUTO)
+    INTEGRATIONS: tuple[str, ...] = (
+        INTEGRATION_NONE,
+        INTEGRATION_OPENAI,
+        INTEGRATION_ANTHROPIC,
+        INTEGRATION_LANGCHAIN,
+        INTEGRATION_LITELLM,
+        INTEGRATION_STRANDS,
+    )
 
     # environment variables
     ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"

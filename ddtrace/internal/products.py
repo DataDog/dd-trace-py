@@ -3,11 +3,11 @@ from collections import defaultdict
 from collections import deque
 from importlib.metadata import entry_points
 from itertools import chain
-import sys
 import typing as t
-from typing import Protocol  # noqa:F401
+from typing import Protocol
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
@@ -30,7 +30,7 @@ _TRUSTED_PRODUCT_DISTRIBUTIONS = frozenset({"ddtrace"})
 _TRUSTED_PRODUCT_MODULE_PREFIXES = frozenset({"ddtrace."})
 
 
-if sys.version_info >= (3, 10):
+if is_at_least_py(3, 10):
 
     def get_product_entry_points() -> list[t.Any]:
         return list(entry_points(group="ddtrace.products"))

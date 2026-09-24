@@ -14,12 +14,12 @@ from ..config import HTTPBIN_CONFIG
 
 HOST = HTTPBIN_CONFIG["host"]
 PORT = HTTPBIN_CONFIG["port"]
-SOCKET = "{}:{}".format(HOST, PORT)
-URL = "http://{}".format(SOCKET)
-URL_AUTH = "http://user:pass@{}".format(SOCKET)
-URL_200 = "{}/status/200".format(URL)
-URL_AUTH_200 = "{}/status/200".format(URL_AUTH)
-URL_500 = "{}/status/500".format(URL)
+SOCKET = f"{HOST}:{PORT}"
+URL = f"http://{SOCKET}"
+URL_AUTH = f"http://user:pass@{SOCKET}"
+URL_200 = f"{URL}/status/200"
+URL_AUTH_200 = f"{URL_AUTH}/status/200"
+URL_500 = f"{URL}/status/500"
 
 
 @pytest.mark.parametrize("qs,query_res", [("", None), ("?foo=bar&baz=quux", "foo=bar&baz=quux")])
@@ -260,6 +260,56 @@ async def test_base_url(snapshot_context):
         The full URL (base + path) is captured in the span
     """
     with snapshot_context():
-        async with aiohttp.ClientSession(base_url="http://{}".format(SOCKET)) as session:
+        async with aiohttp.ClientSession(base_url=f"http://{SOCKET}") as session:
             async with session.get("/status/200") as resp:
                 assert resp.status == 200
+
+
+@pytest.mark.asyncio
+async def test_client_response_not_retained_after_request():
+    """Regression test: tracer must not retain ClientResponse objects after a request.
+
+    RSS is used instead of weakref/tracemalloc because aiohttp holds ClientResponse
+    references in C extensions that are invisible to the Python GC. A retained body
+    shows up as ~1 MB of RSS growth per request.
+    """
+    import gc
+    import resource
+    import sys
+
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient
+    from aiohttp.test_utils import TestServer
+
+    PAYLOAD_SIZE = 1 * 1024 * 1024  # 1 MB
+    ITERS = 15
+    THRESHOLD_MB = 8  # bug retains all bodies: ~15 MB; fixed: ~2 MB
+
+    app = web.Application()
+    payload = b"x" * PAYLOAD_SIZE
+    app.router.add_get("/", lambda r: web.Response(body=payload))
+    server = TestServer(app)
+    client = TestClient(server)
+    await client.start_server()
+    url = str(client.make_url("/"))
+
+    try:
+        gc.collect()
+
+        def rss_mb():
+            usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            return int(usage / (1024 * 1024)) if sys.platform == "darwin" else int(usage / 1024)
+
+        before = rss_mb()
+        async with aiohttp.ClientSession() as session:
+            for _ in range(ITERS):
+                async with session.get(url) as resp:
+                    await resp.read()
+        gc.collect()
+        growth = rss_mb() - before
+        assert growth < THRESHOLD_MB, (
+            f"RSS grew {growth} MB over {ITERS} x {PAYLOAD_SIZE // (1024 * 1024)} MB requests "
+            f"(threshold {THRESHOLD_MB} MB) — tracer may be retaining ClientResponse objects"
+        )
+    finally:
+        await client.close()

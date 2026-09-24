@@ -1,11 +1,10 @@
+from collections.abc import Sequence
 import itertools
 from typing import Any
-from typing import Sequence
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import _is_iast_taint_source_enabled
+from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -13,6 +12,8 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import _taint_pyobject_base
+from ddtrace.appsec._iast_context import _get_iast_context_id
+from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled
 from ddtrace.internal.logger import get_logger
 
 
@@ -25,6 +26,9 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
             if source_origin is None:
                 source_origin = OriginType.PARAMETER
             res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin, contextid)
+            if res is not pyobject and isinstance(res, (str, bytes)):
+                if env := _get_iast_env():
+                    env.iast_taint_source_objects[id(res)] = res
             _set_metric_iast_executed_source(source_origin)
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
             return res

@@ -1,9 +1,17 @@
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
+#if PY_VERSION_HEX >= 0x030c0000
+// https://github.com/python/cpython/issues/108216#issuecomment-1696565797
+#undef _PyGC_FINALIZED
+#endif
+
 #include "cast_to_pyfunc.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
-#include "python_headers.hpp"
 #include "sampler.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
@@ -27,6 +35,11 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     }
 
     Sampler::get().set_interval(min_interval_s);
+
+    if (Sampler::get().gc_enabled() && !GCFrameTracker::get().install_current_interpreter()) {
+        return nullptr;
+    }
+
     if (Sampler::get().start()) {
         // Enable only after start() succeeds so one_time_setup() has completed
         // before executor work can mutate the origin-task map.
@@ -36,6 +49,12 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
+
+    if (Sampler::get().gc_enabled() && !GCFrameTracker::get().uninstall_current_interpreter()) {
+        // Do not surface the error, start() should return False in this case.
+        PyErr_Clear();
+    }
+
     Py_RETURN_FALSE;
 }
 
@@ -62,17 +81,21 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear ThreadSpanLinks. The memory should be cleared up
-    // when the program exits as ThreadSpanLinks is a static singleton instance.
+    // Explicitly clear SpanLinks. The memory should be cleared up
+    // when the program exits as SpanLinks is a static singleton instance.
     // However, this was necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
-    ThreadSpanLinks::get_instance().reset();
+    SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
     // Sampler above.
     ProfilerState::get().native_call_registry.reset();
 
     Py_END_ALLOW_THREADS; // Re-acquire GIL
+
+    if (Sampler::get().gc_enabled() && !GCFrameTracker::get().uninstall_current_interpreter()) {
+        return nullptr;
+    }
 
     Py_RETURN_NONE;
 }
@@ -125,7 +148,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
-    ThreadSpanLinks::get_instance().unlink_span(id);
+    SpanLinks::get_instance().unlink_span(id);
     OriginTaskLinks::get_instance().unlink_origin_task(id);
     Py_END_ALLOW_THREADS;
 
@@ -162,7 +185,7 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         span_type = empty_string.c_str();
     }
 
-    auto& links = ThreadSpanLinks::get_instance();
+    auto& links = SpanLinks::get_instance();
     links.on_link_start(span_id);
 
     Py_BEGIN_ALLOW_THREADS;
@@ -199,7 +222,7 @@ stack_unlink_span(PyObject* self, PyObject* args)
     uint64_t thread_id = state->thread_id;
 
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    SpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -217,7 +240,7 @@ stack_clear_span(PyObject* self, PyObject* args)
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
+    SpanLinks::get_instance().unlink_span(state->thread_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -233,7 +256,7 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    auto& links = ThreadSpanLinks::get_instance();
+    auto& links = SpanLinks::get_instance();
     if (links.on_span_finish(span_id)) {
         Py_BEGIN_ALLOW_THREADS;
         links.unlink_finished_span(span_id);
@@ -468,6 +491,23 @@ stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_max_frames(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long long max_frames;
+
+    if (!PyArg_ParseTuple(args, "K", &max_frames)) {
+        return NULL;
+    }
+
+    if (!Sampler::get().set_max_frames(max_frames)) {
+        PyErr_SetString(PyExc_RuntimeError, "cannot change max frames while the stack sampler is running");
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_max_tasks(PyObject* Py_UNUSED(self), PyObject* args)
 {
     unsigned int max_tasks;
@@ -478,6 +518,32 @@ stack_set_max_tasks(PyObject* Py_UNUSED(self), PyObject* args)
 
     Sampler::get().set_max_tasks_per_sample(max_tasks);
 
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_get_frame_limits(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    const auto& sampler = Sampler::get();
+    return Py_BuildValue("KK",
+                         static_cast<unsigned long long>(sampler.max_frames()),
+                         static_cast<unsigned long long>(sampler.frame_cache_capacity()));
+}
+
+static PyObject*
+stack_set_gc_enabled(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int enabled = 0;
+
+    if (!PyArg_ParseTuple(args, "p", &enabled)) {
+        return nullptr;
+    }
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError, "set_gc_enabled must be called before the sampler is started");
+        return nullptr;
+    }
+
+    Sampler::get().set_gc_enabled(static_cast<bool>(enabled));
     Py_RETURN_NONE;
 }
 
@@ -1111,10 +1177,19 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Set the percentile (0-100) used to compute p_stable from the rolling window" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
+    { "set_max_frames",
+      stack_set_max_frames,
+      METH_VARARGS,
+      "Set the collection limit for thread stacks without task or greenlet stitching" },
+    { "_get_frame_limits",
+      stack_get_frame_limits,
+      METH_NOARGS,
+      "Get the configured stack collection limit and frame cache capacity" },
     { "set_max_tasks",
       stack_set_max_tasks,
       METH_VARARGS,
       "Set max leaf tasks/greenlets to sample per cycle (0 = unlimited)" },
+    { "set_gc_enabled", stack_set_gc_enabled, METH_VARARGS, "Enable synthetic garbage-collection frames" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
     { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },
