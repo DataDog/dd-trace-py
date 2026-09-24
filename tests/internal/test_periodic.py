@@ -15,6 +15,83 @@ from ddtrace.internal import periodic
 from ddtrace.internal import service
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_thread_start_holding_forking_lock_at_fork_does_not_deadlock_child() -> None:
+    """A PeriodicThread.start on a non-forking thread can hold _forking_lock at fork time.
+
+    _before_fork releases _forking_lock before the fork, so another thread (for example
+    one lazily starting the trace writer) can take it in that window. The child must not
+    inherit it in the locked state, or the next PeriodicThread.start in the child blocks forever.
+    """
+    import os
+    import signal
+    import threading
+    import time
+    import typing
+
+    from ddtrace.internal import forksafe
+    from ddtrace.internal import threads as internal_threads
+
+    lock_held = threading.Event()
+    allow_start_to_finish = threading.Event()
+    starters: list[threading.Thread] = []
+
+    class SlowAppendList(list):
+        # PeriodicThread.start defers the start with this append while holding
+        # _forking_lock, which lets the test park the starting thread inside the critical section.
+        def append(self, item: typing.Any) -> None:
+            lock_held.set()
+            allow_start_to_finish.wait()
+            super().append(item)
+
+    internal_threads._threads_to_start_after_fork = SlowAppendList()
+
+    def noop() -> None:
+        pass
+
+    def start_while_forking() -> None:
+        worker = internal_threads.PeriodicThread(60.0, noop)
+        starter = threading.Thread(target=worker.start, daemon=True)
+        starters.append(starter)
+        starter.start()
+        assert lock_held.wait(5)
+
+    # Registered after ddtrace.internal.threads, so this runs after its _before_fork
+    # has released _forking_lock.
+    forksafe.register_before_fork(start_while_forking)
+
+    pid = os.fork()
+    if pid == 0:
+        child_worker = internal_threads.PeriodicThread(60.0, noop)
+        child_worker.start()
+        child_worker.stop()
+        child_worker.join()
+        os._exit(0)
+
+    forksafe.unregister_before_fork(start_while_forking)
+
+    status: typing.Optional[int] = None
+    deadline = time.monotonic() + 5
+    while status is None:
+        waited_pid, wait_status = os.waitpid(pid, os.WNOHANG)
+        if waited_pid:
+            status = wait_status
+        elif time.monotonic() > deadline:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+            break
+        else:
+            time.sleep(0.01)
+
+    allow_start_to_finish.set()
+    starters[0].join(5)
+    internal_threads._threads_to_start_after_fork.clear()
+
+    assert status is not None, "child deadlocked on _forking_lock"
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
 def test_periodic():
     x = {"OK": False}
 
