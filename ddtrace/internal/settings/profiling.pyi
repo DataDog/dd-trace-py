@@ -5,6 +5,7 @@ from ddtrace.internal.settings._core import DDConfig
 
 class ProfilingConfig(DDConfig):
     enabled: bool
+    install: bool
     agentless: bool
     code_provenance: bool
     endpoint_collection: bool

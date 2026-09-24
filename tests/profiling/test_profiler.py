@@ -776,6 +776,8 @@ def test_unavailable_profiler_raises_import_error() -> None:
         # using a bare instance created without calling __init__.
         bare: _UnavailableProfiler = _UnavailableProfiler.__new__(_UnavailableProfiler)
         with pytest.raises(ImportError):
+            bare.install()
+        with pytest.raises(ImportError):
             bare.start()
         with pytest.raises(ImportError):
             bare.stop()
@@ -785,3 +787,43 @@ def test_unavailable_profiler_raises_import_error() -> None:
             _ = bare.status  # delegated attribute on the real Profiler
     finally:
         _UnavailableProfiler._import_error = None
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_PROFILING_INSTALL="true", DD_PROFILING_ENABLED=None, DD_INJECTION_ENABLED=None),
+)
+def test_install_setting_does_not_start_profiler() -> None:
+    """DD_PROFILING_INSTALL applies patches without starting collection."""
+    from ddtrace.internal.service import ServiceStatus
+    import ddtrace.profiling.bootstrap as bootstrap
+    from ddtrace.profiling.collector.stack import StackCollector
+
+    prof = getattr(bootstrap, "profiler")
+    assert prof.status == ServiceStatus.STOPPED
+    assert prof._scheduler.status == ServiceStatus.STOPPED
+    stack_collectors = [c for c in prof._collectors if isinstance(c, StackCollector)]
+    assert stack_collectors
+    assert stack_collectors[0]._installed is True
+    assert stack_collectors[0].status == ServiceStatus.STOPPED
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED=None, DD_INJECTION_ENABLED=None))
+def test_install_then_start() -> None:
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.profiling.collector.stack import StackCollector
+    from ddtrace.profiling.profiler import Profiler
+
+    prof = Profiler()
+    prof.install()
+    assert prof.status == ServiceStatus.STOPPED
+    assert prof._scheduler.status == ServiceStatus.STOPPED
+    stack_collectors = [c for c in prof._collectors if isinstance(c, StackCollector)]
+    assert stack_collectors
+    assert stack_collectors[0]._installed is True
+
+    prof.start()
+    assert prof.status == ServiceStatus.RUNNING
+    assert stack_collectors[0].status == ServiceStatus.RUNNING
+    prof.stop()
+    assert prof.status == ServiceStatus.STOPPED
