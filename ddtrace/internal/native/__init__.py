@@ -37,6 +37,7 @@ from ._native import SharedRuntime  # noqa: F401
 from ._native import SymDBSender  # noqa: F401
 from ._native import TelemetryWorker  # noqa: F401
 from ._native import TimedOutError  # noqa: F401
+from ._native import TraceBuffer  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import config  # noqa: F401
