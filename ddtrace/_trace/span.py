@@ -45,6 +45,7 @@ from ddtrace.internal.utils.time import Time
 
 
 log = get_logger(__name__)
+_RUNTIME_IDENTITY_GENERATION_KEY = "_ddtrace_runtime_identity_generation"
 
 
 def _get_64_lowest_order_bits_as_int(large_int: int) -> int:

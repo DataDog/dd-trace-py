@@ -231,6 +231,8 @@ class CIVisibilityWriter(HTTPWriter):
     def recreate(
         self, appsec_enabled: Optional[bool] = None, llmobs_enabled: Optional[bool] = None
     ) -> "CIVisibilityWriter":
+        if self._writer_lock is not None:
+            self.stop()
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
