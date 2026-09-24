@@ -110,7 +110,9 @@ cases:
     expected_criteria:
       - Explains CancelledError is raised at the current await point inside the task.
       - Notes finally blocks still run, but shouldn't swallow CancelledError (re-raise it).
-      - Mentions that catching bare Exception without re-raising CancelledError breaks cancellation.
+      - Mentions that a bare `except:`/`except BaseException:` without re-raising CancelledError breaks
+        cancellation — `except Exception` alone won't catch it, since CancelledError derives from
+        BaseException (Python 3.8+).
     bad_signals:
       - Claims cancellation silently stops the task with no exception involved.
       - Recommends catching and discarding CancelledError as a normal pattern.
