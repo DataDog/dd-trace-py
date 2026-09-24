@@ -22,6 +22,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.standalone import standalone_config
@@ -354,7 +355,8 @@ class SpanAggregator(SpanProcessor):
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
         )
-        # Initialize the trace buffer and lock
+        # Only MicroVM identity refreshes need transition serialization.
+        self._runtime_identity_generation: Optional[int] = 0 if in_aws_lambda_microvm() else None
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
         super().__init__()
@@ -421,6 +423,8 @@ class SpanAggregator(SpanProcessor):
                     return
             else:
                 return
+            # Capture the generation before processing so an identity refresh can invalidate this trace.
+            identity_generation = self._runtime_identity_generation
 
         # perf: Process spans outside of the span aggregator lock
         if trace.discarded:
@@ -482,7 +486,14 @@ class SpanAggregator(SpanProcessor):
                     sampling_mechanism,
                     should_partial_flush,
                 )
-            self.writer.write(spans)
+            # Serialize MicroVM writes with identity refreshes; non-MicroVM keeps the lock-free path.
+            if identity_generation is None:
+                self.writer.write(spans)
+            else:
+                with self._lock:
+                    if identity_generation != self._runtime_identity_generation:
+                        return
+                    self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
@@ -571,6 +582,7 @@ class SpanAggregator(SpanProcessor):
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
         flush_writer: Optional[bool] = None,
+        drop_buffered_traces: bool = False,
     ) -> None:
         """
         Resets the internal state of the SpanAggregator, including the writer, sampling processor,
@@ -582,12 +594,32 @@ class SpanAggregator(SpanProcessor):
         """
         if flush_writer is None:
             flush_writer = not reset_buffer
-        if flush_writer:
-            # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
-            # are not dropped when the writer is recreated. This operation should not be handled after a fork.
-            self.writer.flush_queue()
-        # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
+
+        # Use the generation sentinel so reset and on_span_finish share the aggregator's initialization-time mode.
+        identity_refresh = drop_buffered_traces and not flush_writer and self._runtime_identity_generation is not None
+        if identity_refresh:
+            with self._lock:
+                # Keep the writer transition and trace-buffer reset atomic with in-flight writes.
+                self.writer.drop_buffered_traces()
+                self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
+                if reset_buffer:
+                    self.reset_trace_buffer_after_fork()
+                assert self._runtime_identity_generation is not None  # nosec B101
+                self._runtime_identity_generation += 1
+        else:
+            if flush_writer:
+                # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
+                # are not dropped when the writer is recreated. This operation should not be handled after a fork.
+                self.writer.flush_queue()
+            elif drop_buffered_traces:
+                self.writer.drop_buffered_traces()
+            # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
+            self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
+
+            # Reset the trace buffer.
+            # Useful when forking to prevent sending duplicate spans from parent and child processes.
+            if reset_buffer:
+                self.reset_trace_buffer_after_fork()
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
@@ -597,11 +629,6 @@ class SpanAggregator(SpanProcessor):
 
         if user_processors is not None:
             self.user_processors = user_processors
-
-        # Reset the trace buffer.
-        # Useful when forking to prevent sending duplicate spans from parent and child processes.
-        if reset_buffer:
-            self.reset_trace_buffer_after_fork()
 
     def reset_trace_buffer_after_fork(self) -> None:
         """Discard inherited traces without touching the fork-unsafe writer."""

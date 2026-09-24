@@ -57,6 +57,7 @@ from ..gitmetadata import get_git_tags
 from ..logger import get_logger
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
+from ..serverless import in_aws_lambda_microvm
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
@@ -150,6 +151,10 @@ class TraceWriter(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def flush_queue(self) -> None:
+        pass
+
+    def drop_buffered_traces(self) -> None:
+        """Discard traces buffered by the writer without flushing them."""
         pass
 
 
@@ -489,6 +494,15 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         finally:
             self._set_drop_rate()
 
+    def drop_buffered_traces(self) -> None:
+        for client in self._clients:
+            # Encoders without get(), such as CI Visibility encoders, clear their buffer during encode().
+            clear = getattr(client.encoder, "get", None)
+            if clear is None:
+                client.encoder.encode()
+            else:
+                clear()
+
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
         # Snapshot the number of buffered spans before encoding so we can attribute spans_dropped
@@ -711,8 +725,8 @@ def _build_base_exporter_builder(
         .set_language_version(compat.PYTHON_VERSION)
         .set_language_interpreter(compat.PYTHON_INTERPRETER)
         .set_tracer_version(__version__)
-        .set_git_commit_sha(commit_sha)
         .set_runtime_id(get_runtime_id())
+        .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
     # Python recreates the exporter lazily in the child, so its inherited workers
@@ -846,7 +860,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-
+        # Identity refresh disables this writer before clearing its buffer; the replacement writer accepts writes.
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
@@ -1122,6 +1138,17 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        # Identity refresh can discard the buffer concurrently; only MicroVM writers need this lock.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
@@ -1198,11 +1225,34 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
+        # Refresh must not encode or send stale payloads while the old buffer is being discarded.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._flush_queue_unlocked(raise_exc)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._flush_queue_unlocked(raise_exc)
+
+    def _flush_queue_unlocked(self, raise_exc: bool = False):
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        # Close the old writer before clearing its buffer so refresh cannot race with writes or flushes.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            for client in self._clients:
+                getattr(client.encoder, "flush")()
+            return
+        with writer_lock:
+            self._accepting_writes = False
+            for client in self._clients:
+                getattr(client.encoder, "flush")()
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)

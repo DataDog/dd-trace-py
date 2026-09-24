@@ -441,6 +441,14 @@ class CIVisibilityWriterTests(NativeWriterTests):
         os.environ.clear()
         os.environ.update(self.original_env)
 
+    def test_drop_buffered_traces_supports_ci_visibility_encoders(self):
+        writer = CIVisibilityWriter("http://dne:1234")
+        writer._clients[0].encoder.put([Span("span")])
+        assert len(writer._clients[0].encoder) == 1
+
+        writer.drop_buffered_traces()
+        assert len(writer._clients[0].encoder) == 0
+
     # NB these tests are skipped because they exercise max_payload_size and max_item_size functionality
     # that CIVisibilityWriter does not implement
     def test_drop_reason_buffer_full(self):
@@ -1088,6 +1096,64 @@ def test_writer_recreate_keeps_response_callback():
     assert writer._response_cb is response_callback
 
 
+def test_native_writer_drops_buffered_traces(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    try:
+        span = Span("span")
+        writer._clients[0].encoder.put([span])
+        assert len(writer._clients[0].encoder) == 1
+
+        writer.drop_buffered_traces()
+
+        assert len(writer._clients[0].encoder) == 0
+        with mock.patch.object(writer, "_write_with_client") as write_with_client:
+            writer.write([span])
+        write_with_client.assert_not_called()
+    finally:
+        writer.shutdown_exporter()
+
+
+def test_native_writer_drop_buffered_traces_serializes_with_write(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    try:
+        writer._clients = [mock.Mock()]
+        write_started = threading.Event()
+        release_write = threading.Event()
+        flush_started = threading.Event()
+
+        def blocked_write(*args, **kwargs):
+            write_started.set()
+            assert release_write.wait(timeout=5)
+
+        def blocked_flush():
+            flush_started.set()
+
+        with (
+            mock.patch.object(writer, "_write_with_client", side_effect=blocked_write) as write_with_client,
+            mock.patch.object(writer._clients[0].encoder, "flush", side_effect=blocked_flush),
+        ):
+            write_thread = threading.Thread(target=writer.write, args=([Span("span")],))
+            write_thread.start()
+            assert write_started.wait(timeout=5)
+
+            drop_thread = threading.Thread(target=writer.drop_buffered_traces)
+            drop_thread.start()
+            assert not flush_started.wait(timeout=0.05)
+
+            release_write.set()
+            write_thread.join(timeout=5)
+            drop_thread.join(timeout=5)
+
+            assert not write_thread.is_alive()
+            assert not drop_thread.is_alive()
+            assert flush_started.is_set()
+            write_with_client.assert_called_once()
+    finally:
+        writer.shutdown_exporter()
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
@@ -1264,6 +1330,7 @@ def test_writer_telemetry_enabled_on_linux(
         with mock_sys_platform(platform):
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
+        mock_builder.set_runtime_id.assert_called_once_with(get_runtime_id())
         if expected_enabled:
             mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
         else:
