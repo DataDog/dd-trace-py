@@ -131,6 +131,16 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  encoder_v05:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - benchmarks/encoder_v05/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   # events_api:
   #   paths:
   #     - '@bootstrap'
@@ -398,6 +408,15 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  coverage_monitoring:
+    # Python 3.12+ line- and file-level coverage costs with a no-coverage control.
+    paths:
+      - '@ci_visibility_benchmark'
+      - ddtrace/internal/monitoring.py
+      - benchmarks/coverage_monitoring/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   pytest_plugin:
     # Whole-session overhead of the ddtrace pytest plugin on a trivial-test corpus.
     # Subprocess-based (like `startup`); cProfile is disabled for this scenario.
@@ -413,6 +432,7 @@ suites:
     type: 'microbenchmark'
   openfeature_flagevaluation:
     paths:
+      - ddtrace/internal/openfeature/_flageval_pii.py
       - ddtrace/internal/openfeature/_flag_eval_evp_hook.py
       - ddtrace/internal/openfeature/_flagevaluation_writer.py
       - benchmarks/openfeature_flagevaluation/*

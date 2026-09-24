@@ -15,7 +15,7 @@ class SideEffect(Exception):
     pass
 
 
-class CustomObject(object):
+class CustomObject:
     def __init__(self, name, level=2):
         self.name = name
         self.myField = "hello"
@@ -29,7 +29,7 @@ class CustomObject(object):
         raise SideEffect("contains")
 
 
-class CustomAttr(object):
+class CustomAttr:
     def __init__(self):
         self.field = "x"
 

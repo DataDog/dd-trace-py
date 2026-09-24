@@ -18,7 +18,7 @@ except ImportError:
 
         def __init__(self, *args, **kwargs):
             # we accept any kind of interface
-            super(ThreadPoolExecutor, self).__init__()
+            super().__init__()
 
 
 if hasattr(tornado.gen, "sleep"):

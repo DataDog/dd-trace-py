@@ -2,16 +2,16 @@ import json
 import os
 from pathlib import Path
 import sys
+from unittest import mock
 from warnings import warn
 
-import mock
 import pytest
 
+import ddtrace
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
-from tests.utils import DDTRACE_PATH
 from tests.utils import _build_env
 
 
@@ -92,21 +92,12 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_after_module_imported_decorator(module_watchdog):
-    hook = mock.Mock()
-    module = sys.modules[__name__]
-    module_watchdog.after_module_imported(module.__name__)(hook)
-
-    hook.assert_called_once_with(module)
-
-
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
     import os
     from pathlib import Path
     import sys
-
-    from mock import mock
+    from unittest import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -139,8 +130,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
 @pytest.mark.subprocess
 def test_import_module_hook_for_module_not_yet_imported():
     import sys
-
-    from mock import mock
+    from unittest import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -184,7 +174,7 @@ def test_module_deleted():
     name = "json"
     path = Path(os.getenv("MODULE_ORIGIN")).resolve()
 
-    class Counter(object):
+    class Counter:
         count = 0
 
         def __call__(self, _):
@@ -291,7 +281,7 @@ def test_module_import_hierarchy():
 
         def after_import(self, module):
             self.imports.add(module.__name__)
-            return super(ImportCatcher, self).after_import(module)
+            return super().after_import(module)
 
     ImportCatcher.install()
 
@@ -331,13 +321,13 @@ def test_module_watchdog_propagation():
     class BaseCollector(ModuleWatchdog):
         def __init__(self):
             self.__modules__ = set()
-            super(BaseCollector, self).__init__()
+            super().__init__()
 
         def after_import(self, module):
             # We save the module name as proof that the after_import method
             # was called on the subclass instance.
             self.__modules__.add(module.__name__)
-            return super(BaseCollector, self).after_import(module)
+            return super().after_import(module)
 
     class Alice(BaseCollector):
         pass
@@ -369,17 +359,17 @@ def test_module_watchdog_after_import_hook_isolation():
 
     class Failing(ModuleWatchdog):
         def after_import(self, module):
-            super(Failing, self).after_import(module)
+            super().after_import(module)
             raise ValueError("boom")
 
     class Collector(ModuleWatchdog):
         def __init__(self):
             self.__modules__ = set()
-            super(Collector, self).__init__()
+            super().__init__()
 
         def after_import(self, module):
             self.__modules__.add(module.__name__)
-            return super(Collector, self).after_import(module)
+            return super().after_import(module)
 
     Failing.install()
     Collector.install()
@@ -577,7 +567,7 @@ def test_public_modules_in_ddtrace_contrib():
     """Ensures that integration implementation details are not accidentally added to our public api.
     By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/
     """
-    contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
+    contrib_dir = Path(ddtrace.__file__).resolve().parent / "contrib"
 
     public_modules = set()
     for directory, _, file_names in os.walk(contrib_dir):
@@ -739,7 +729,16 @@ def test_universal_module_watchdog_constant_find_spec_calls():
             sys.modules.pop("tests.submod.stuff", None)
 
 
+@pytest.mark.subprocess
 def test_universal_module_watchdog_first_registered_wins():
+    # DEV: Run in an isolated subprocess. Otherwise other pre_exec_module hooks
+    # already registered by product code elsewhere in the test session, or
+    # "tests.submod.stuff" already being cached in sys.modules from an unrelated
+    # test, can make this test flaky.
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+
     calls = []
 
     class First(ModuleWatchdog):
@@ -758,9 +757,6 @@ def test_universal_module_watchdog_first_registered_wins():
             lambda name: name == "tests.submod.stuff", lambda loader, module: calls.append("second")
         )
 
-        # Ensure the module is not already cached from a prior test so that the
-        # import below actually executes the module body and triggers the
-        # pre_exec hooks.
         sys.modules.pop("tests.submod.stuff", None)
         import tests.submod.stuff  # noqa:F401
 
