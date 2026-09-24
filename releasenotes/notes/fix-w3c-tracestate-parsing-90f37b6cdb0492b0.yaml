@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where W3C ``tracestate`` propagation loses valid Datadog sampling and origin
+    information when an adjacent entry is empty or malformed.
