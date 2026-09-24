@@ -7,11 +7,11 @@ loop so the ``on_exception_handled`` callback fires on every iteration.
 Configurations (direct ``sys.monitoring`` vs. multiplexer ``register_global``):
 
 - ``direct_passive`` — raw ``sys.monitoring`` callback that does no work
-- ``direct_active`` — raw ``sys.monitoring`` callback that records the exception
+- ``direct_active`` — raw ``sys.monitoring`` callback that counts exceptions
 - ``direct_global_passive`` — ``register_global`` handler, no work (falls back to
   direct callback when ``register_global`` is unavailable)
-- ``direct_global_active`` — ``register_global`` handler, records exception (falls
-  back to direct callback when ``register_global`` is unavailable)
+- ``direct_global_active`` — ``register_global`` handler that counts exceptions
+  (falls back to a direct callback when ``register_global`` is unavailable)
 - ``module_filter_miss`` — module-only filtering with high-cardinality rejected filenames
 - ``module_filter_hit`` — module-only filtering with configured filenames
 
@@ -100,12 +100,13 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                 sys_monitoring.free_tool_id(tool_id)
 
         elif self.handler == "direct_active":
-            seen: list[BaseException] = []
+            seen_count = 0
             sys_monitoring.use_tool_id(tool_id, "datadog_handled_exceptions")
             sys_monitoring.set_events(tool_id, event)
 
             def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-                seen.append(exception)
+                nonlocal seen_count
+                seen_count += 1
 
             sys_monitoring.register_callback(tool_id, event, _direct_callback)
 
@@ -125,10 +126,11 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                 sys_monitoring.set_events(tool_id, event)
 
                 if self.handler == "direct_global_active":
-                    seen_direct: list[BaseException] = []
+                    seen_direct_count = 0
 
                     def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-                        seen_direct.append(exception)
+                        nonlocal seen_direct_count
+                        seen_direct_count += 1
                 else:
 
                     def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
@@ -155,13 +157,13 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
 
                     class _ActiveHandler(monitoring.MonitoringEventHandler):
                         def __init__(self) -> None:
-                            self.seen: list[BaseException] = []
+                            self.seen_count = 0
 
                         def on_exception_handled(
                             self, code: CodeType, instruction_offset: int, exception: BaseException
                         ) -> None:
                             try:
-                                self.seen.append(exception)
+                                self.seen_count += 1
                             except Exception:  # nosec B110 - benchmark code
                                 pass
 

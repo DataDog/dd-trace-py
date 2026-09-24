@@ -9,7 +9,7 @@
 direct_passive:
   handler: "direct_passive"
 
-# Direct sys.monitoring: callback records each exception (realistic path).
+# Direct sys.monitoring: callback counts each exception (active path).
 direct_active:
   handler: "direct_active"
 
@@ -17,7 +17,7 @@ direct_active:
 direct_global_passive:
   handler: "direct_global_passive"
 
-# Multiplexer register_global: handler records each exception (realistic path).
+# Multiplexer register_global: handler counts each exception (active path).
 direct_global_active:
   handler: "direct_global_active"
 
