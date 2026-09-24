@@ -1,3 +1,5 @@
+from ddtrace import config
+
 # Importing trace handlers has the side effect of registering integration level
 # handlers. This is necessary to use the Core API in integrations.
 from ddtrace._trace import trace_handlers as _  # noqa: F401
@@ -17,4 +19,5 @@ def ensure_llmobs_integrations_loaded() -> None:
     import ddtrace.llmobs._integrations  # noqa: F401
 
 
-ensure_llmobs_integrations_loaded()
+if config._llmobs_enabled:
+    ensure_llmobs_integrations_loaded()
