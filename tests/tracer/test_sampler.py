@@ -697,7 +697,7 @@ def test_datadog_sampler_agent_rate_for_unmatched_rule(agent_rates, expected_rat
     assert_sampling_decision_tags(
         span,
         agent=expected_rate,
-        trace_tag="-{}".format(SamplingMechanism.AGENT_RATE_BY_SERVICE),
+        trace_tag=f"-{SamplingMechanism.AGENT_RATE_BY_SERVICE}",
     )
     assert span.context.sampling_priority == AUTO_KEEP
 
