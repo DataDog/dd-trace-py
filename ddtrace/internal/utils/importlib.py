@@ -1,7 +1,7 @@
 from importlib import import_module
 from types import TracebackType
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
+from typing import Any
+from typing import Callable
 from typing import Optional
 
 
