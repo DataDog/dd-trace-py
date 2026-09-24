@@ -406,7 +406,9 @@ TEST_F(SegvChain, ResetHandPreviousHandlerRunsAtMostOnceAcrossThreads)
     });
 
     EXPECT_TRUE(killed_by(status, SIGSEGV)) << "status=" << status;
-    EXPECT_EQ(shared_calls->load(), 1);
+    // 0 is possible: the thread that claimed the handler can be preempted before
+    // it increments, while the other delivery already terminates the process.
+    EXPECT_LE(shared_calls->load(), 1);
     unmap_shared_counter(shared_calls);
 }
 
