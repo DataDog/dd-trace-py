@@ -1,9 +1,12 @@
 from collections.abc import Iterator
 import contextlib
 import gc
+import sys
 import threading
+import types
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.runtime import gc_monitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
 
@@ -156,7 +159,11 @@ def test_reset_drops_window() -> None:
 
 
 def test_clears_reuse_the_start_list() -> None:
-    """release() and reset() must zero _start_ns in place."""
+    """release() and reset() must zero _start_ns in place.
+
+    Rebinding it allocates while the lock is held, and _on_gc skips the pause of a
+    collection that the allocation triggers.
+    """
     monitor: GCPauseMonitor = GCPauseMonitor()
     starts: list[int] = monitor._start_ns
 
@@ -218,4 +225,72 @@ def test_callback_does_not_wait_for_the_lock() -> None:
     thread.join(timeout=5)
 
     assert not thread.is_alive()
-    assert monitor.snapshot_and_reset().n_pauses == 1
+
+
+def test_snapshot_never_splits_a_pause(monkeypatch) -> None:
+    """A pause must land wholly in one snapshot, or in none.
+
+    Before Python 3.10, and on free-threaded builds, another thread can run _on_gc
+    between any two statements of snapshot_and_reset. A pause that lands between the
+    reads and the reset must not vanish or pair a new maximum with an old total.
+    """
+    clock: list[int] = [0]
+    monkeypatch.setattr(gc_monitor, "time", types.SimpleNamespace(monotonic_ns=lambda: clock[0]))
+    snapshot_code = GCPauseMonitor.snapshot_and_reset.__code__
+    previous_trace = sys.gettrace()
+    target: int = 0
+    while True:
+        monitor: GCPauseMonitor = GCPauseMonitor()
+        # Count as acquired without installing the hook, so that only the injected
+        # pause reaches _on_gc.
+        monitor._refcount = 1
+        monitor._count, monitor._total_ns, monitor._max_ns = 1, 5, 5
+        seen: list[int] = [0]
+        injected: list[bool] = [False]
+
+        def trace(frame, event, arg):
+            if frame.f_code is not snapshot_code:
+                return None
+            if event == "line":
+                if seen[0] == target:
+                    clock[0] = 100
+                    monitor._on_gc("start", {"generation": 0})
+                    clock[0] = 1100
+                    monitor._on_gc("stop", {"generation": 0})
+                    injected[0] = True
+                seen[0] += 1
+            return trace
+
+        sys.settrace(trace)
+        try:
+            first: GCPauseSnapshot = monitor.snapshot_and_reset()
+        finally:
+            sys.settrace(previous_trace)
+        if not injected[0]:
+            break
+        second: GCPauseSnapshot = monitor.snapshot_and_reset()
+
+        assert (tuple(first), tuple(second)) in {
+            ((2, 1005, 1000), (0, 0, 0)),
+            ((1, 5, 5), (1, 1000, 1000)),
+            ((1, 5, 5), (0, 0, 0)),
+        }, f"pause injected before line {target}: {first}, {second}"
+        target += 1
+    assert target > 0
+
+
+def test_skipped_stop_does_not_pair_with_a_later_stop() -> None:
+    """A stop that skips its sample must not leave its start for a later stop.
+
+    The later stop would otherwise report the whole gap since that start as one pause.
+    """
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    monitor._refcount = 1
+
+    monitor._on_gc("start", {"generation": 0})
+    with monitor._lock:
+        monitor._on_gc("stop", {"generation": 0})
+        monitor._on_gc("start", {"generation": 0})
+    monitor._on_gc("stop", {"generation": 0})
+
+    assert monitor.snapshot_and_reset().n_pauses == 0

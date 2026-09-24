@@ -70,8 +70,8 @@ class GCPauseMonitor:
     _max_ns: int
 
     def __init__(self) -> None:
-        # _on_gc must never take this lock. CPython can start a collection on a thread
-        # that holds the lock, and _on_gc would then wait for its own thread. That
+        # _on_gc must never wait for this lock. CPython can start a collection on a
+        # thread that holds the lock, and _on_gc would then wait for its own thread. That
         # collection would never finish, and CPython would start no other collection.
         # Forksafe because a fork can inherit the lock from a thread that the child
         # does not have.
@@ -136,20 +136,17 @@ class GCPauseMonitor:
             self._clear_window()
 
     def snapshot_and_reset(self) -> GCPauseSnapshot:
+        # Copy primitives under the lock and build the tuple outside it. Allocating
+        # can trigger a collection, and _on_gc would then run on this thread.
         with self._lock:
-            # _on_gc writes these fields without the lock. Under the GIL, CPython
-            # switches threads and runs a pending collection only at an eval-breaker
-            # check or inside a call. With no call between the reads and the writes,
-            # no pause can land between them and get lost.
             n_pauses: int = self._count
             total_ns: int = self._total_ns
             max_ns: int = self._max_ns
-            self._count = 0
-            self._total_ns = 0
-            self._max_ns = 0
+            self._clear_window()
         return GCPauseSnapshot(n_pauses, total_ns, max_ns)
 
     def _clear_starts(self) -> None:
+        # In place: rebinding to a fresh list would allocate while holding the lock.
         for gen in range(GEN_COUNT):
             self._start_ns[gen] = 0
 
@@ -164,32 +161,44 @@ class GCPauseMonitor:
         if not 0 <= gen < GEN_COUNT:
             return
 
-        if phase == _GCPhase.START:
-            # A start callback can run after release() uninstalls. Storing a timestamp
-            # then would leave it to pair with a stop after the next acquire, reporting
-            # the gap between them as one pause. Read the clock first, so that no call
-            # separates the refcount check from the write, as in snapshot_and_reset.
-            now_ns: int = time.monotonic_ns()
-            if self._refcount > 0:
-                self._start_ns[gen] = now_ns
+        # Skip the sample when another section holds the lock. Waiting could block
+        # forever, see __init__. Also drop the start of this generation, so that a
+        # later stop cannot pair with it. Writing zero without the lock is safe
+        # because every other writer holds the lock and only writes zero, or is
+        # _on_gc, and CPython runs one collection at a time.
+        if not self._lock.acquire(False):
+            self._start_ns[gen] = 0
             return
 
-        if phase != _GCPhase.STOP:
-            return
+        try:
+            if phase == _GCPhase.START:
+                # A start callback can run after release() uninstalls. Storing a
+                # timestamp then would leave it to pair with a stop after the next
+                # acquire, reporting the gap between them as one pause.
+                if self._refcount <= 0:
+                    return
 
-        start: int = self._start_ns[gen]
-        if start == 0:
-            return
+                self._start_ns[gen] = time.monotonic_ns()
+                return
 
-        self._start_ns[gen] = 0
-        pause_ns: int = time.monotonic_ns() - start
-        if pause_ns < 0:
-            return
+            if phase != _GCPhase.STOP:
+                return
 
-        self._count += 1
-        self._total_ns += pause_ns
-        if pause_ns > self._max_ns:
-            self._max_ns = pause_ns
+            start: int = self._start_ns[gen]
+            if start == 0:
+                return
+
+            self._start_ns[gen] = 0
+            pause_ns: int = time.monotonic_ns() - start
+            if pause_ns < 0:
+                return
+
+            self._count += 1
+            self._total_ns += pause_ns
+            if pause_ns > self._max_ns:
+                self._max_ns = pause_ns
+        finally:
+            self._lock.release()
 
 
 _MONITOR: Optional[GCPauseMonitor] = None
