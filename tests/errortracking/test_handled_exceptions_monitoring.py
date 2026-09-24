@@ -176,6 +176,23 @@ def test_reporting_uses_direct_callback():
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_direct_reporting_callback_contains_failures_in_user_code():
+    from unittest.mock import patch
+
+    from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
+
+    reporting._install_sys_monitoring_reporting()
+    try:
+        with patch.object(reporting.tracer, "current_span", side_effect=RuntimeError("reporting failed")):
+            try:
+                raise ValueError("application error")
+            except ValueError as exception:
+                assert exception.args == ("application error",)
+    finally:
+        reporting._uninstall_sys_monitoring_reporting()
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_reporting_callback_contains_failures():
     from unittest.mock import patch
 
