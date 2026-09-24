@@ -39,7 +39,7 @@ __all__ = [
 # from being started while forking, or to allow a thread to be started
 # completely if a fork comes in the middle of it.
 _forking = False
-_forking_lock = Lock()
+_forking_lock = forksafe.Lock()
 
 
 class BoundMethod(t.Protocol):
