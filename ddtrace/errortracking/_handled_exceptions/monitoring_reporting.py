@@ -19,18 +19,14 @@ from ddtrace.internal.settings.errortracking import config
 
 log = get_logger(__name__)
 
-INSTRUMENTED_FILE_PATHS = []
+INSTRUMENTED_FILE_PATHS: set[str] = set()
 
 
 def create_should_report_exception_optimized(checks: set[str | None]) -> Callable[[str, Path], bool]:
-    """
-    sys.monitoring reports EVERY handled exceptions, including python internal ones.
-    Therefore we need to filter based on the file_name/file_path. If this check is called
-    many times (it is the case), it becomes costly.
-    This function generates the version of `should_report_exception` that contains only the required checks
-    """
+    """Build the filename classifier required by the enabled checks."""
     if "modules" in checks:
-        # Specify the modules to instrument
+        # Preserve the helper's configured-module semantics for direct callers.
+        # Production caching strips this dynamic check before building its classifier.
         if "all_user" in checks:
 
             def should_report(file_name: str, file_path: Path) -> bool:
@@ -72,13 +68,28 @@ checks = {
     "all_third_party" if config._instrument_third_party_code else None,
     "modules" if (not config._configured_modules) is False else None,
 } - {None}
-_should_report_exception = create_should_report_exception_optimized(checks)
+_report_configured_modules = "modules" in checks
+_static_checks = checks - {"modules"}
+_should_report_exception = (
+    create_should_report_exception_optimized(_static_checks)
+    if _static_checks or not _report_configured_modules
+    else None
+)
 
 
 @cached(maxsize=4096)
-def cached_should_report_exception(file_name: str):
-    file_path = Path(file_name).resolve()
-    return _should_report_exception(file_name, file_path)
+def _cached_should_report_exception(file_name: str) -> bool:
+    """Cache only static path classification; configured module membership is dynamic."""
+    assert _should_report_exception is not None  # nosec
+    return _should_report_exception(file_name, Path(file_name).resolve())
+
+
+def cached_should_report_exception(file_name: str) -> bool:
+    if _report_configured_modules and file_name in INSTRUMENTED_FILE_PATHS:
+        return True
+    if _should_report_exception is None:
+        return False
+    return _cached_should_report_exception(file_name)
 
 
 class _HandledExceptionHandler(monitoring.MonitoringEventHandler):
@@ -122,8 +133,8 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
         for enabled_module in configured_modules:
             if module_name.startswith(enabled_module):
-                if hasattr(module, "__file__"):
-                    INSTRUMENTED_FILE_PATHS.append(module.__file__)
+                if file_path := getattr(module, "__file__", None):
+                    INSTRUMENTED_FILE_PATHS.add(file_path)
                 break
 
     def __init__(self):

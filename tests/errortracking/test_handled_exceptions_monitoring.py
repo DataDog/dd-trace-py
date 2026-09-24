@@ -83,6 +83,61 @@ def test_handled_exception_uninstall_releases_last_tool_registration():
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_module_only_filter_avoids_path_resolution_and_stale_negative_cache():
+    from unittest.mock import patch
+
+    from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
+
+    file_name = "/tmp/configured_module.py"
+    reporting.INSTRUMENTED_FILE_PATHS.clear()
+    reporting._report_configured_modules = True
+    reporting._should_report_exception = None
+    reporting._cached_should_report_exception.cache_clear()
+
+    with patch.object(reporting.Path, "resolve", side_effect=AssertionError("unexpected path resolution")):
+        assert not reporting.cached_should_report_exception(file_name)
+        reporting.INSTRUMENTED_FILE_PATHS.add(file_name)
+        assert reporting.cached_should_report_exception(file_name)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_filter_builder_preserves_configured_module_union():
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
+
+    configured_file = "/tmp/configured_module.py"
+    unconfigured_file = "/tmp/unconfigured_module.py"
+    configured_path = Path(configured_file)
+    unconfigured_path = Path(unconfigured_file)
+    reporting.INSTRUMENTED_FILE_PATHS.clear()
+    reporting.INSTRUMENTED_FILE_PATHS.add(configured_file)
+
+    modules_only = reporting.create_should_report_exception_optimized({"modules"})
+    assert modules_only(configured_file, configured_path)
+    assert not modules_only(unconfigured_file, unconfigured_path)
+
+    with patch.object(reporting, "is_user_code", return_value=False) as is_user_code:
+        modules_and_user = reporting.create_should_report_exception_optimized({"modules", "all_user"})
+        assert modules_and_user(configured_file, configured_path)
+        assert not modules_and_user(unconfigured_file, unconfigured_path)
+        is_user_code.return_value = True
+        assert modules_and_user(unconfigured_file, unconfigured_path)
+
+    with (
+        patch.object(reporting, "is_third_party", return_value=False) as is_third_party,
+        patch.object(reporting, "filename_to_package", return_value=SimpleNamespace(name="package")),
+    ):
+        modules_and_third_party = reporting.create_should_report_exception_optimized({"modules", "all_third_party"})
+        assert modules_and_third_party(configured_file, configured_path)
+        assert not modules_and_third_party(unconfigured_file, unconfigured_path)
+        is_third_party.return_value = True
+        assert modules_and_third_party(unconfigured_file, unconfigured_path)
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_handled_exception_reporting_preserves_external_tools_when_unavailable():
     import sys
 
