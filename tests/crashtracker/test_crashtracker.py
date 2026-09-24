@@ -409,6 +409,19 @@ sys.exit(-1)
 """
 
 
+auto_with_profiler_code = """
+import ctypes
+import sys
+
+import ddtrace.auto
+from ddtrace.internal.datadog.profiling import stack
+
+assert stack.segv_handler_installed()
+ctypes.string_at(0)
+sys.exit(-1)
+"""
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_auto_default(run_python_code_in_subprocess):
     # Call the program
@@ -427,6 +440,31 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
         _ping = utils.get_crash_ping(client, service=service)
 
         # Part 6, check for crash report
+        report = utils.get_crash_report(client, service=service)
+        assert b"string_at" in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_auto_with_profiler_handler_chain(run_python_code_in_subprocess):
+    service = "test_crashtracker_auto_with_profiler_handler_chain"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        env["DD_PROFILING_ENABLED"] = "true"
+        env["_DD_PROFILING_STACK_FAST_COPY"] = "true"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(
+            auto_with_profiler_code,
+            env=env,
+            timeout=15,
+        )
+
+        assert not stdout
+        assert not stderr
+        # A handler cycle would hang until call_program terminates the process,
+        # producing SIGTERM (-15) instead of the original SIGSEGV.
+        assert exitcode == -11
+
+        _ping = utils.get_crash_ping(client, service=service)
         report = utils.get_crash_report(client, service=service)
         assert b"string_at" in report["body"]
 
