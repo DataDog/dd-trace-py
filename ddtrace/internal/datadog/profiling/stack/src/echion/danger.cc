@@ -46,6 +46,8 @@ struct sigaction g_old_bus;
 // SIG_DFL. We cannot rewrite g_old_* from the handler: other threads may read it
 // concurrently and see a torn struct. Atomic so that concurrent faults on
 // several threads consume the one-shot handler at most once, as the kernel does.
+// macOS does not report SA_RESETHAND back through sigaction, so there a saved
+// one-shot handler is indistinguishable from a regular one.
 static std::atomic<int> g_old_segv_reset{ 0 };
 static std::atomic<int> g_old_bus_reset{ 0 };
 
@@ -70,6 +72,8 @@ thread_local volatile sig_atomic_t t_handler_armed = 0;
 thread_local volatile uintptr_t t_unarmed_chain_frame = 0;
 thread_local siginfo_t* volatile t_unarmed_chain_info = nullptr;
 
+// True only when the signal is known to come from kill/raise/pthread_kill rather
+// than a hardware fault.
 static inline bool
 is_user_sent(const siginfo_t* info)
 {
@@ -78,10 +82,26 @@ is_user_sent(const siginfo_t* info)
     }
 
 #if defined PL_DARWIN
+    // macOS reports user-sent SIGSEGV/SIGBUS with the same si_code as a real fault
+    // (e.g. SEGV_ACCERR) and si_pid 0, so this is never true in practice there.
     return info->si_code == SI_USER || info->si_code == SI_QUEUE;
 #else
     // SI_USER is 0; SI_QUEUE, SI_TKILL and other user-generated codes are negative.
     return info->si_code <= 0;
+#endif
+}
+
+// Weaker than is_user_sent, for cycle detection only: on macOS, a user-sent
+// SIGSEGV/SIGBUS has si_addr 0. A real fault at address 0 also matches, which at
+// worst makes a nested NULL dereference terminate instead of re-entering the
+// previous handler.
+static inline bool
+may_be_user_sent(const siginfo_t* info)
+{
+#if defined PL_DARWIN
+    return is_user_sent(info) || (info != nullptr && info->si_addr == nullptr);
+#else
+    return is_user_sent(info);
 #endif
 }
 
@@ -117,7 +137,7 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
     if (!t_handler_armed) {
         const uintptr_t frame = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
         if (t_unarmed_chain_frame != 0 && frame < t_unarmed_chain_frame &&
-            (info == t_unarmed_chain_info || is_user_sent(info))) {
+            (info == t_unarmed_chain_info || may_be_user_sent(info))) {
             // We are being re-entered while already chaining to a previous
             // handler: the handler chain has cycled back to us. Restore the
             // default disposition and re-raise to guarantee the process
@@ -166,7 +186,8 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
             }
         } else if (old_is_ign && is_user_sent(info)) {
             // A user-sent signal can be ignored as requested: returning does not
-            // re-execute a faulting instruction.
+            // re-execute a faulting instruction. On macOS we cannot tell, so we
+            // terminate rather than risk looping on a real fault.
         } else {
             // SIG_IGN on a real fault is treated like SIG_DFL: returning from a
             // synchronous SIGSEGV/SIGBUS re-executes the faulting instruction and
