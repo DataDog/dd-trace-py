@@ -42,19 +42,40 @@ def cache_key(prompt_id: str, label: Optional[str]) -> str:
     return f"{prompt_id}:{label or ''}"
 
 
+def _is_tool_item(value: object, field: str) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if field == "tool_calls":
+        if value.get("id") is not None and not isinstance(value["id"], str):
+            return False
+        function = value.get("function")
+        if function is not None:
+            if not isinstance(function, dict) or not all(
+                isinstance(function.get(key), str) for key in ("name", "arguments")
+            ):
+                return False
+    return True
+
+
 def _is_message(value: object) -> bool:
     if not isinstance(value, dict) or not isinstance(value.get("role"), str):
         return False
     if value.get("type") == "placeholder":
         return False
+    if value.get("tool_call_id") is not None and not isinstance(value["tool_call_id"], str):
+        return False
+    has_tools = False
+    for field in ("tool_calls", "tool_results"):
+        items = value.get(field)
+        if items is None:
+            continue
+        if not isinstance(items, list) or not all(_is_tool_item(item, field) for item in items):
+            return False
+        has_tools = has_tools or bool(items)
     content = value.get("content")
     if content is not None:
         return isinstance(content, str)
-    for field in ("tool_calls", "tool_results"):
-        items = value.get(field)
-        if isinstance(items, list) and items:
-            return True
-    return False
+    return has_tools
 
 
 def render_chat(messages: Sequence[Mapping[str, object]], variables: dict[str, Any]) -> list[Message]:

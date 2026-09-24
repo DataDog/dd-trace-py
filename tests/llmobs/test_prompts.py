@@ -195,6 +195,19 @@ class TestPrompts:
         tools = [
             {
                 "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "openai-1",
+                        "type": "function",
+                        "function": {"name": "lookup", "arguments": '{"id":"{{opaque}}"}'},
+                        "provider_field": "preserved",
+                    }
+                ],
+            },
+            {"role": "tool", "content": "found", "tool_call_id": "openai-1"},
+            {"role": "assistant", "content": "text", "tool_calls": [{"id": None, "function": None}]},
+            {
+                "role": "assistant",
                 "content": None,
                 "tool_calls": [{"name": "lookup", "arguments": {"id": 1}, "tool_id": "call-1"}],
             },
@@ -220,6 +233,19 @@ class TestPrompts:
             ({"history": [{"role": "user"}]}, "string role and text or tool content"),
             ({"history": [{"role": "assistant", "content": None}]}, "string role and text or tool content"),
             ({"history": [{"role": "assistant", "tool_calls": []}]}, "string role and text or tool content"),
+            (
+                {"history": [{"role": "assistant", "content": "text", "tool_calls": ["bad"]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"role": "assistant", "tool_calls": [{"function": {"name": "lookup", "arguments": {}}}]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"role": "tool", "content": "text", "tool_call_id": 1}]},
+                "string role and text or tool content",
+            ),
+            ({"history": [{"role": "assistant", "tool_calls": [{"id": 1}]}]}, "string role and text or tool content"),
             (
                 {"history": [{"role": "assistant", "content": [{"type": "image"}], "tool_calls": [{}]}]},
                 "string role and text or tool content",

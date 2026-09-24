@@ -30,11 +30,18 @@ class Document(TypedDict, total=False):
     score: float
 
 
+class ToolCallFunction(TypedDict):
+    name: str
+    arguments: str
+
+
 class ToolCall(TypedDict, total=False):
     name: str
     arguments: dict[str, Any]
     tool_id: str
     type: str
+    id: Optional[str]
+    function: Optional[ToolCallFunction]
 
 
 class ToolResult(TypedDict, total=False):
@@ -167,6 +174,7 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
+    tool_call_id: Optional[str]
     audio_parts: list[AudioPart]
     image_parts: list[ImagePart]
 
