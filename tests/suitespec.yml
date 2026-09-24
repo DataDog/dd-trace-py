@@ -309,8 +309,6 @@ suites:
       - ddtrace/internal/*
       - scripts/check_no_new_aidev_anchors.py
       - scripts/gen_gitlab_config.py
-      - scripts/run-tests
-      - scripts/llmobs_tia.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*

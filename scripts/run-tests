@@ -31,7 +31,6 @@ import shlex
 import subprocess
 import sys
 import tempfile
-import time
 from typing import Iterator
 from typing import TypeVar
 
@@ -582,15 +581,28 @@ class TestRunner:
         run: TestRun,
         pytest_args: list[str],
         forwarded_env: dict[str, str],
-        overrides: dict[str, str] | None = None,
     ) -> list[str]:
+        run_env = dict(forwarded_env)
+        run_env.update(run.environment)
+        if self._uses_testmon(environment):
+            # Reuse coverage across source edits, but separate dependency and command variants.
+            identity = _short_hash(
+                ((self.root / environment.lockfile).read_text() + repr(run) + TESTMON_REQUIREMENT).encode()
+            )
+            database = self.root / ".tia/databases" / environment.hash / identity / ".testmondata"
+            database.parent.mkdir(parents=True, exist_ok=True)
+            run_env.update(
+                TESTMON_DATAFILE=str(database),
+                DD_CIVISIBILITY_ITR_ENABLED="0",
+                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="false",
+                DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED="0",
+            )
+            pytest_args = [*pytest_args, "--testmon", "--no-cov"]
+
         command = run.command.replace("{cmdargs}", shlex.join(pytest_args))
         if not command.strip():
             raise ValueError(f"empty test command for {environment.hash}")
 
-        run_env = dict(forwarded_env)
-        run_env.update(run.environment)
-        run_env.update(overrides or {})
         run_env["TEST_SUITE"] = environment.integration_name
         if self.in_ci:
             _configure_ci_itr_environment(run_env, environment.python, environment.hash)
@@ -651,59 +663,14 @@ class TestRunner:
                 print("   ✅ Reusing current test environment")
 
             for run in environment.runs:
-                args = list(pytest_args)
-                run_environment = {}
-                report = None
-                if self._uses_testmon(environment):
-                    # Keep database identity stable across source edits, but invalidate it
-                    # when dependencies, the command, or its configuration changes.
-                    identity = _short_hash(
-                        ((self.root / environment.lockfile).read_text() + repr(run) + TESTMON_REQUIREMENT).encode()
-                    )
-                    database = self.root / ".tia/databases" / environment.hash / identity / ".testmondata"
-                    database.parent.mkdir(parents=True, exist_ok=True)
-                    report = self.root / ".tia/reports" / f"{environment.hash}-{identity}.json"
-                    report.parent.mkdir(parents=True, exist_ok=True)
-                    report.unlink(missing_ok=True)
-                    database_reused = database.is_file()
-                    run_environment.update(
-                        DD_LLMOBS_TIA_REPORT=str(report),
-                        DD_LLMOBS_TIA_DATABASE_REUSED="1" if database_reused else "0",
-                        TESTMON_DATAFILE=str(database),
-                        DD_CIVISIBILITY_ITR_ENABLED="0",
-                        _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING="1",
-                        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="false",
-                        DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED="0",
-                    )
-                    args += [
-                        "--no-cov",
-                        "-p",
-                        "scripts.llmobs_tia",
-                        f"--junitxml=test-results/junit-tia-{environment.hash}-{identity}.xml",
-                        "--testmon",
-                    ]
                 try:
-                    command = self._test_command(environment, prepared, run, args, forwarded_env, run_environment)
+                    command = self._test_command(environment, prepared, run, pytest_args, forwarded_env)
                 except ValueError as error:
                     print(f"❌ {error}")
                     return False
 
                 print(f"\n▶️  Executing {environment.hash}: {' '.join(command)}")
-                started = time.monotonic()
                 result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
-                if report is not None:
-                    metrics = json.loads(report.read_text()) if report.exists() else {}
-                    metrics.update(
-                        mode="testmon",
-                        environment=environment.hash,
-                        database_reused=database_reused,
-                        commit=os.environ.get("CI_COMMIT_SHA"),
-                        job_id=os.environ.get("CI_JOB_ID"),
-                        process_seconds=time.monotonic() - started,
-                        exit_code=result.returncode,
-                        database_bytes=sum(path.stat().st_size for path in database.parent.glob(".testmondata*")),
-                    )
-                    _atomic_write(report, json.dumps(metrics, indent=2) + "\n")
                 if result.returncode != 0:
                     print(f"❌ {environment.hash} failed with exit code {result.returncode}")
                     return False
