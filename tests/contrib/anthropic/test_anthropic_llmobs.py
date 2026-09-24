@@ -2078,6 +2078,7 @@ def test_shadow_tags_chat_when_llmobs_disabled(tracer):
     response.usage.output_tokens = 8
     response.usage.cache_creation_input_tokens = None
     response.usage.cache_read_input_tokens = None
+    response.usage.server_tool_use = None
 
     with tracer.trace("anthropic.request") as span:
         span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
@@ -2105,6 +2106,7 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
     response.usage.output_tokens = 8
     response.usage.cache_creation_input_tokens = 5
     response.usage.cache_read_input_tokens = 3
+    response.usage.server_tool_use = None
 
     with tracer.trace("anthropic.request") as span:
         span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
