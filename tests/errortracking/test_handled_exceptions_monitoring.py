@@ -120,3 +120,25 @@ def test_handled_exception_reporting_preserves_external_tools_when_unavailable()
     _uninstall_sys_monitoring_reporting()
     assert sys.monitoring.get_tool(4) == "external-4"
     assert sys.monitoring.get_tool(3) == "external-3"
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_direct_reporting_callback_contains_failures():
+    import sys
+    from unittest.mock import patch
+
+    from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
+    from ddtrace.internal import monitoring
+
+    reporting._install_sys_monitoring_reporting()
+    try:
+        tool_id = monitoring.get_tool_id()
+        callback = reporting._handler.on_exception_handled
+        assert sys.monitoring.register_callback(tool_id, sys.monitoring.events.EXCEPTION_HANDLED, callback) == callback
+        with patch.object(reporting.tracer, "current_span", side_effect=RuntimeError("reporting failed")):
+            try:
+                raise ValueError("application error")
+            except ValueError as exception:
+                assert exception.args == ("application error",)
+    finally:
+        reporting._uninstall_sys_monitoring_reporting()

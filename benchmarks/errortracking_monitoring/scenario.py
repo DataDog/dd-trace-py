@@ -16,8 +16,9 @@ Configurations (multiplexer vs. direct ``sys.monitoring``):
 The ``direct_*`` configs reproduce the pre-multiplexer code path (a dedicated
 tool slot with a single callback registered directly via
 ``sys.monitoring.register_callback``).  The ``multiplexer_*`` configs use the
-shared multiplexer's ``register_global`` / ``unregister_global`` API.  Comparing
-the two isolates the multiplexer dispatch overhead.
+shared multiplexer's ``register_global`` / ``unregister_global`` API, opting
+into direct delivery when supported. Comparing the two isolates dispatch
+overhead while keeping tool ownership centralized.
 
 On branches where ``register_global`` is not yet available, the
 ``multiplexer_*`` configurations use the equivalent direct callback as their
@@ -25,6 +26,7 @@ baseline so comparison output remains meaningful.
 """
 
 from collections.abc import Generator
+from inspect import signature
 from types import CodeType
 from typing import Any
 from typing import Callable
@@ -37,8 +39,6 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
 
     def run(self) -> Generator[Callable[[int], None], None]:
         import sys
-
-        from ddtrace.internal import monitoring
 
         sys_monitoring = getattr(sys, "monitoring")
         tool_id = 3
@@ -108,6 +108,11 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
         # -- shared multiplexer (new code path) --------------------------------
 
         elif self.handler in ("multiplexer_passive", "multiplexer_active"):
+            try:
+                from ddtrace.internal import monitoring
+            except ImportError:
+                monitoring = None  # type: ignore[assignment]
+
             register_global = getattr(monitoring, "register_global", None)
             unregister_global = getattr(monitoring, "unregister_global", None)
             if register_global is None or unregister_global is None:
@@ -128,6 +133,8 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                     sys_monitoring.free_tool_id(tool_id)
 
             else:
+                if monitoring is None:
+                    raise RuntimeError("monitoring direct registration unavailable")
                 if self.handler == "multiplexer_passive":
 
                     class _PassiveHandler(monitoring.MonitoringEventHandler):
@@ -146,11 +153,17 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                         def on_exception_handled(
                             self, code: CodeType, instruction_offset: int, exception: BaseException
                         ) -> None:
-                            self.seen.append(exception)
+                            try:
+                                self.seen.append(exception)
+                            except Exception:
+                                return
 
                     handler = _ActiveHandler()
 
-                register_global(handler)
+                if "direct" in signature(register_global).parameters:
+                    register_global(handler, direct=True)
+                else:
+                    register_global(handler)
 
                 def cleanup() -> None:
                     unregister_global(handler)

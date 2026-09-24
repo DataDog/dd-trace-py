@@ -106,18 +106,18 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     if _collecting:
         return
 
-    # Skip control-flow exceptions (iterator/generator termination).
-    if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
-        return
-
     # Set the reentrancy guard before any attribute access on the exception
     # object. A custom __getattribute__ that raises during the
-    # __traceback__ lookup would fire another RAISE callback; without the
+    # __class__ or __traceback__ lookup would fire another RAISE callback; without the
     # guard that secondary exception could recurse and leak back into user
     # code, replacing the original exception being raised.
     cdef _SamplerState state
     _collecting = True
     try:
+        # Skip control-flow exceptions (iterator/generator termination).
+        if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
+            return
+
         # RAISE fires in every frame the exception unwinds through, not just
         # at the raise site. Before invoking this callback CPython appends
         # the current frame to exception.__traceback__, so the traceback
@@ -155,11 +155,9 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
 
 
 if HAS_MONITORING:
-    # This object declares and owns RAISE. Production registration supplies
-    # _on_exception directly so the adapter method is not on the hot path.
     class _ExceptionMonitoringHandler(_monitoring.MonitoringEventHandler):
-        def on_raise(self, code, instruction_offset, exception):
-            _on_exception(code, instruction_offset, exception)
+        # Expose the guarded Cython callback without a Python forwarding method.
+        on_raise = staticmethod(_on_exception)
 
     _exception_handler = _ExceptionMonitoringHandler()
 else:
@@ -190,7 +188,7 @@ class ExceptionCollector(collector.Collector):
                 LOG.debug("ExceptionCollector already running, skipping")
                 return
             try:
-                _monitoring.register_global(_exception_handler, callback=_on_exception)
+                _monitoring.register_global(_exception_handler, direct=True)
             except _monitoring.MonitoringToolUnavailable:
                 LOG.exception("Failed to set up exception monitoring")
                 return

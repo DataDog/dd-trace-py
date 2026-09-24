@@ -352,12 +352,8 @@ _GLOBAL_RESTART_BLOCKING_EVENTS = 0
 # Dedicated references keep each global callback to one attribute load and one
 # direct method call. Each event has at most one subscriber; if fan-out is ever
 # needed, use an event-specific immutable snapshot rather than the local registry.
-_GlobalCallback = Callable[[CodeType, int, BaseException], object]
-
 _global_exception_handled_handler: Optional[MonitoringEventHandler] = None
 _global_raise_handler: Optional[MonitoringEventHandler] = None
-_global_exception_handled_callback: Optional[_GlobalCallback] = None
-_global_raise_callback: Optional[_GlobalCallback] = None
 
 
 def _compute_global_events() -> int:
@@ -805,35 +801,23 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
         _release_tool_if_unused()
 
 
-def _global_callback(event: int, direct_callback: Optional[_GlobalCallback]) -> _GlobalCallback:
-    if direct_callback is not None:
-        return direct_callback
-    if event == _E.EXCEPTION_HANDLED:
-        return _on_exception_handled
-    if event == _E.RAISE:
-        return _on_raise
-    raise ValueError(f"Unsupported global monitoring event: {event}")
-
-
-def register_global(handler: MonitoringEventHandler, *, callback: Optional[_GlobalCallback] = None) -> None:
+def register_global(handler: MonitoringEventHandler, *, direct: bool = False) -> None:
     """Register handler for the global events it overrides.
 
     Each global event (EXCEPTION_HANDLED, RAISE) supports a single subscriber.
     Registering the current owner is idempotent; a different owner is rejected
-    without changing any event. A single-event owner may provide an internally
-    guarded callback for direct CPython dispatch while this module retains
-    ownership and lifecycle management.
+    without changing any event.
+
+    With direct=True, CPython calls the overridden methods directly. These
+    callbacks must handle their own failures and return None. The first
+    registration selects the delivery mode until that event is unregistered.
     """
     handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
     if not handler_events:
         raise ValueError("Handler overrides no global MonitoringEventHandler methods")
-    if callback is not None and handler_events not in (_E.EXCEPTION_HANDLED, _E.RAISE):
-        raise ValueError("A direct callback requires a handler for exactly one global event")
 
     global _global_exception_handled_handler
     global _global_raise_handler
-    global _global_exception_handled_callback
-    global _global_raise_callback
 
     with _registry_lock:
         if (
@@ -847,101 +831,53 @@ def register_global(handler: MonitoringEventHandler, *, callback: Optional[_Glob
 
         previous_exception_handled = _global_exception_handled_handler
         previous_raise = _global_raise_handler
-        previous_exception_handled_callback = _global_exception_handled_callback
-        previous_raise_callback = _global_raise_callback
-
         if handler_events & _E.EXCEPTION_HANDLED:
             _global_exception_handled_handler = handler
-            _global_exception_handled_callback = callback
         if handler_events & _E.RAISE:
             _global_raise_handler = handler
-            _global_raise_callback = callback
-
-        if (
-            previous_exception_handled is _global_exception_handled_handler
-            and previous_raise is _global_raise_handler
-            and previous_exception_handled_callback is _global_exception_handled_callback
-            and previous_raise_callback is _global_raise_callback
-        ):
+        if previous_exception_handled is _global_exception_handled_handler and previous_raise is _global_raise_handler:
             return
 
-        installed_callbacks: list[tuple[int, Any]] = []
+        previous_callbacks: list[tuple[int, Any]] = []
         try:
             tool_id = _setup()
-            if handler_events & _E.EXCEPTION_HANDLED:
-                previous = _sys_monitoring.register_callback(
-                    tool_id,
-                    _E.EXCEPTION_HANDLED,
-                    _global_callback(_E.EXCEPTION_HANDLED, _global_exception_handled_callback),
-                )
-                installed_callbacks.append((_E.EXCEPTION_HANDLED, previous))
-            if handler_events & _E.RAISE:
-                previous = _sys_monitoring.register_callback(
-                    tool_id,
-                    _E.RAISE,
-                    _global_callback(_E.RAISE, _global_raise_callback),
-                )
-                installed_callbacks.append((_E.RAISE, previous))
+            if direct:
+                for event, owner, callback in (
+                    (_E.EXCEPTION_HANDLED, previous_exception_handled, handler.on_exception_handled),
+                    (_E.RAISE, previous_raise, handler.on_raise),
+                ):
+                    if handler_events & event and owner is None:
+                        previous_callbacks.append((event, _sys_monitoring.register_callback(tool_id, event, callback)))
             _sys_monitoring.set_events(tool_id, _compute_global_events())
         except Exception:
-            if _tool_id is not None:
-                for event, previous in reversed(installed_callbacks):
-                    _sys_monitoring.register_callback(_tool_id, event, previous)
             _global_exception_handled_handler = previous_exception_handled
             _global_raise_handler = previous_raise
-            _global_exception_handled_callback = previous_exception_handled_callback
-            _global_raise_callback = previous_raise_callback
+            for event, callback in reversed(previous_callbacks):
+                _sys_monitoring.register_callback(tool_id, event, callback)
             _release_tool_if_unused()
             raise
 
 
 def unregister_global(handler: MonitoringEventHandler) -> None:
-    """Remove handler from every global event it owns."""
+    """Remove *handler* from every global event it owns."""
     global _global_exception_handled_handler
     global _global_raise_handler
-    global _global_exception_handled_callback
-    global _global_raise_callback
 
     with _registry_lock:
         removed_events = 0
         if _global_exception_handled_handler is handler:
+            _global_exception_handled_handler = None
             removed_events |= _E.EXCEPTION_HANDLED
         if _global_raise_handler is handler:
+            _global_raise_handler = None
             removed_events |= _E.RAISE
         if not removed_events:
             return
-
-        previous_exception_handled = _global_exception_handled_handler
-        previous_raise = _global_raise_handler
-        previous_exception_handled_callback = _global_exception_handled_callback
-        previous_raise_callback = _global_raise_callback
-        installed_callbacks: list[tuple[int, Any]] = []
-
-        try:
-            if _tool_id is not None:
-                if removed_events & _E.EXCEPTION_HANDLED:
-                    previous = _sys_monitoring.register_callback(_tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
-                    installed_callbacks.append((_E.EXCEPTION_HANDLED, previous))
-                if removed_events & _E.RAISE:
-                    previous = _sys_monitoring.register_callback(_tool_id, _E.RAISE, _on_raise)
-                    installed_callbacks.append((_E.RAISE, previous))
-
+        if _tool_id is not None:
+            _sys_monitoring.set_events(_tool_id, _compute_global_events())
+            # Release direct bound callbacks even while another owner keeps the tool alive.
             if removed_events & _E.EXCEPTION_HANDLED:
-                _global_exception_handled_handler = None
-                _global_exception_handled_callback = None
+                _sys_monitoring.register_callback(_tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
             if removed_events & _E.RAISE:
-                _global_raise_handler = None
-                _global_raise_callback = None
-            if _tool_id is not None:
-                _sys_monitoring.set_events(_tool_id, _compute_global_events())
-        except Exception:
-            if _tool_id is not None:
-                for event, previous in reversed(installed_callbacks):
-                    _sys_monitoring.register_callback(_tool_id, event, previous)
-            _global_exception_handled_handler = previous_exception_handled
-            _global_raise_handler = previous_raise
-            _global_exception_handled_callback = previous_exception_handled_callback
-            _global_raise_callback = previous_raise_callback
-            raise
-
+                _sys_monitoring.register_callback(_tool_id, _E.RAISE, _on_raise)
         _release_tool_if_unused()

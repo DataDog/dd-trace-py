@@ -1,6 +1,6 @@
 # Production-shaped exception profiler workloads. The baseline and candidate
 # both use ExceptionCollector and its Cython _on_exception callback; they differ
-# only in direct versus multiplexed sys.monitoring RAISE delivery.
+# only in how sys.monitoring RAISE delivery reaches that callback.
 
 handled-interval-100:
   workload: "handled"

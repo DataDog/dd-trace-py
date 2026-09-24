@@ -8,6 +8,7 @@ from typing import Callable
 from ddtrace import tracer
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
 from ddtrace.internal import monitoring
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import filename_to_package  # noqa: F401
 from ddtrace.internal.packages import is_stdlib  # noqa: F401
@@ -15,6 +16,8 @@ from ddtrace.internal.packages import is_third_party  # noqa: F401
 from ddtrace.internal.packages import is_user_code  # noqa: F401
 from ddtrace.internal.settings.errortracking import config
 
+
+log = get_logger(__name__)
 
 INSTRUMENTED_FILE_PATHS: set[str] = set()
 
@@ -73,9 +76,12 @@ class _HandledExceptionHandler(monitoring.MonitoringEventHandler):
     """Report handled exceptions attached to an active span."""
 
     def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-        span = tracer.current_span()
-        if span and cached_should_report_exception(code.co_filename):
-            _default_errortracking_exc_callback(span=span, exc=exception)
+        try:
+            span = tracer.current_span()
+            if span and cached_should_report_exception(code.co_filename):
+                _default_errortracking_exc_callback(span=span, exc=exception)
+        except Exception:
+            log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
 
 
 _handler = _HandledExceptionHandler()
@@ -84,7 +90,7 @@ _handler = _HandledExceptionHandler()
 def _install_sys_monitoring_reporting() -> None:
     if (not config._configured_modules) is False:
         MonitorHandledExceptionReportingWatchdog.install()
-    monitoring.register_global(_handler)
+    monitoring.register_global(_handler, direct=True)
 
 
 def _uninstall_sys_monitoring_reporting() -> None:

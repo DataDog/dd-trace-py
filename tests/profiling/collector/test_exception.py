@@ -180,6 +180,7 @@ def test_poisson_sampling_distribution() -> None:
 def test_exception_profiler_shares_tool_with_handled_exceptions(profiler_first: bool) -> None:
     """Profiler and handled-error startup order does not change global event ownership."""
     from ddtrace.internal import monitoring
+    from ddtrace.profiling.collector._exception import _on_exception
 
     class HandledExceptionHandler(monitoring.MonitoringEventHandler):
         def on_exception_handled(
@@ -206,8 +207,24 @@ def test_exception_profiler_shares_tool_with_handled_exceptions(profiler_first: 
         assert events & getattr(sys, "monitoring").events.RAISE
         assert monitoring._global_exception_handled_handler is handled_handler
         assert monitoring._global_raise_handler is not None
-        assert monitoring._global_raise_callback is not None
-        assert monitoring._global_raise_callback is not monitoring._global_raise_handler.on_raise
+        sys_monitoring = getattr(sys, "monitoring")
+        assert sys_monitoring.register_callback(tool_id, sys_monitoring.events.RAISE, _on_exception) is _on_exception
+
+
+@pytest.mark.parametrize("attribute", ["__class__", "__traceback__"])
+def test_direct_exception_callback_contains_attribute_failure(attribute: str) -> None:
+    class FailingTracebackError(Exception):
+        def __getattribute__(self, name: str):
+            if name == attribute:
+                raise RuntimeError("attribute lookup failed")
+            return super().__getattribute__(name)
+
+    error = FailingTracebackError("application error")
+    with exception.ExceptionCollector(sampling_interval=100):
+        try:
+            raise error
+        except FailingTracebackError as caught:
+            assert caught is error
 
 
 # Pprof profile tests

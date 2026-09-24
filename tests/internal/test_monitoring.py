@@ -1,6 +1,8 @@
 """Tests for the multiplexed sys.monitoring layer on Python 3.12+."""
 
 from collections.abc import Iterator
+from contextlib import ExitStack
+import gc
 import sys
 import threading
 from types import CodeType
@@ -8,6 +10,7 @@ from typing import Any
 from typing import Callable
 from typing import Protocol
 from typing import cast
+import weakref
 
 import pytest
 
@@ -1492,42 +1495,6 @@ def test_raise_and_exception_handled_coexist(
     assert any(code is fn.__code__ and exc.args == ("both",) for code, exc in handled_handler.handled)
 
 
-def test_direct_raise_callback_coexists_with_exception_handled(
-    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
-) -> None:
-    """A managed direct RAISE callback stays installed when another global event is added."""
-    direct_raised: list[tuple[CodeType, BaseException]] = []
-
-    class DirectRaiseOwner(monitoring.MonitoringEventHandler):
-        def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-            raise AssertionError("the adapter must not be on the direct callback path")
-
-    def direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-        direct_raised.append((code, exception))
-
-    def fn() -> None:
-        try:
-            raise ValueError("direct")
-        except ValueError:
-            return
-
-    raise_owner = DirectRaiseOwner()
-    monitoring.register_global(raise_owner, callback=direct_callback)
-    try:
-        handled_handler = cast(HandledExceptionHandler, registered_global(HandledExceptionHandler()))
-        fn()
-
-        assert any(code is fn.__code__ and exc.args == ("direct",) for code, exc in direct_raised)
-        assert any(code is fn.__code__ and exc.args == ("direct",) for code, exc in handled_handler.handled)
-    finally:
-        monitoring.unregister_global(raise_owner)
-
-
-def test_register_global_rejects_direct_callback_for_multiple_events() -> None:
-    with pytest.raises(ValueError, match="exactly one"):
-        monitoring.register_global(HandledAndRaiseHandler(), callback=lambda *args: None)
-
-
 def test_register_global_rejects_different_raise_handler(
     registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
@@ -1626,3 +1593,128 @@ def test_raise_handler_failure_does_not_affect_user_code(
 
     registered_global(RaisingRaiseHandler())
     monitoring._on_raise(fn.__code__, 0, ValueError("raised"))
+
+
+@pytest.mark.parametrize("direct_raise,direct_handled", [(False, True), (True, False), (True, True)])
+@pytest.mark.parametrize("profiler_first", [False, True])
+def test_direct_global_callbacks_coexist(direct_raise: bool, direct_handled: bool, profiler_first: bool) -> None:
+    def target() -> None:
+        try:
+            raise ValueError("both")
+        except ValueError:
+            pass
+
+    raise_handler = RaiseHandler()
+    handled_handler = HandledExceptionHandler()
+    registrations = [(raise_handler, direct_raise), (handled_handler, direct_handled)]
+    if not profiler_first:
+        registrations.reverse()
+
+    with ExitStack() as cleanup:
+        for handler, direct in registrations:
+            monitoring.register_global(handler, direct=direct)
+            cleanup.callback(monitoring.unregister_global, handler)
+
+        tool_id = monitoring.get_tool_id()
+        expected_raise = raise_handler.on_raise if direct_raise else monitoring._on_raise
+        expected_handled = handled_handler.on_exception_handled if direct_handled else monitoring._on_exception_handled
+        assert _sys_monitoring.register_callback(tool_id, _E.RAISE, expected_raise) == expected_raise
+        assert _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, expected_handled) == expected_handled
+
+        target()
+        assert any(code is target.__code__ and exc.args == ("both",) for code, exc in raise_handler.raised)
+        assert any(code is target.__code__ and exc.args == ("both",) for code, exc in handled_handler.handled)
+
+        monitoring.unregister_global(handled_handler)
+        count = len(raise_handler.raised)
+        target()
+        assert len(raise_handler.raised) > count
+        assert _sys_monitoring.register_callback(tool_id, _E.RAISE, expected_raise) == expected_raise
+
+
+@pytest.mark.parametrize("direct", [False, True])
+def test_global_registration_keeps_original_delivery_mode(direct: bool) -> None:
+    handler = HandledAndRaiseHandler()
+    monitoring.register_global(handler, direct=direct)
+    try:
+        monitoring.register_global(handler, direct=not direct)
+        with pytest.raises(ValueError, match="already has a different"):
+            monitoring.register_global(HandledAndRaiseHandler(), direct=True)
+        tool_id = monitoring.get_tool_id()
+        expected_raise = handler.on_raise if direct else monitoring._on_raise
+        expected_handled = handler.on_exception_handled if direct else monitoring._on_exception_handled
+        assert _sys_monitoring.register_callback(tool_id, _E.RAISE, expected_raise) == expected_raise
+        assert _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, expected_handled) == expected_handled
+    finally:
+        monitoring.unregister_global(handler)
+
+
+@pytest.mark.parametrize("failure", ["callback", "events"])
+def test_direct_global_install_rolls_back_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    failure: str,
+) -> None:
+    def target() -> None:
+        pass
+
+    local = cast(LineHandler, registered(target.__code__, LineHandler()))
+    tool_id = monitoring.get_tool_id()
+    handler = HandledAndRaiseHandler()
+    register_callback = _sys_monitoring.register_callback
+    set_events = _sys_monitoring.set_events
+
+    def failing_register_callback(tool: int, event: int, callback: Any) -> Any:
+        if event == _E.RAISE and callback == handler.on_raise:
+            raise RuntimeError("callback install failed")
+        return register_callback(tool, event, callback)
+
+    def failing_set_events(tool: int, events: int) -> None:
+        if events:
+            raise RuntimeError("event install failed")
+        set_events(tool, events)
+
+    with monkeypatch.context() as patch:
+        if failure == "callback":
+            patch.setattr(_sys_monitoring, "register_callback", failing_register_callback)
+        else:
+            patch.setattr(_sys_monitoring, "set_events", failing_set_events)
+        with pytest.raises(RuntimeError, match="install failed"):
+            monitoring.register_global(handler, direct=True)
+
+    assert monitoring._global_exception_handled_handler is None
+    assert monitoring._global_raise_handler is None
+    assert _sys_monitoring.get_events(tool_id) == 0
+    assert (
+        register_callback(tool_id, _E.EXCEPTION_HANDLED, monitoring._on_exception_handled)
+        is monitoring._on_exception_handled
+    )
+    assert register_callback(tool_id, _E.RAISE, monitoring._on_raise) is monitoring._on_raise
+    target()
+    assert local.lines
+
+
+@pytest.mark.parametrize(
+    "handler_type,event", [(RaiseHandler, _E.RAISE), (HandledExceptionHandler, _E.EXCEPTION_HANDLED)]
+)
+def test_direct_global_unregister_releases_callback(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    handler_type: type[monitoring.MonitoringEventHandler],
+    event: int,
+) -> None:
+    def target() -> None:
+        pass
+
+    local = registered(target.__code__, LineHandler())
+    tool_id = monitoring.get_tool_id()
+    handler = handler_type()
+    handler_ref = weakref.ref(handler)
+    monitoring.register_global(handler, direct=True)
+    monitoring.unregister_global(handler)
+    del handler
+    gc.collect()
+
+    assert handler_ref() is None
+    assert not (_sys_monitoring.get_events(tool_id) & event)
+    monitoring.unregister(target.__code__, local)
+    assert monitoring._tool_id is None
