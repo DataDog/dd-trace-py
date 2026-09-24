@@ -30,8 +30,8 @@ MAX_EXCEPTION_MESSAGE_LEN = 128
 #   3 = used by the shared multiplexer (this module now registers through it)
 #   4 = used by the shared multiplexer as a fallback slot
 #   5 = OPTIMIZER_ID
-# The exception profiler no longer claims a slot directly; it registers its
-# RAISE callback through ddtrace.internal.monitoring.register_global().
+# The exception profiler no longer claims a slot directly. The multiplexer owns
+# the slot lifecycle while registering the guarded Cython RAISE callback directly.
 
 
 cdef class _SamplerState:
@@ -155,6 +155,8 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
 
 
 if HAS_MONITORING:
+    # This object declares and owns RAISE. Production registration supplies
+    # _on_exception directly so the adapter method is not on the hot path.
     class _ExceptionMonitoringHandler(_monitoring.MonitoringEventHandler):
         def on_raise(self, code, instruction_offset, exception):
             _on_exception(code, instruction_offset, exception)
@@ -188,7 +190,7 @@ class ExceptionCollector(collector.Collector):
                 LOG.debug("ExceptionCollector already running, skipping")
                 return
             try:
-                _monitoring.register_global(_exception_handler)
+                _monitoring.register_global(_exception_handler, callback=_on_exception)
             except _monitoring.MonitoringToolUnavailable:
                 LOG.exception("Failed to set up exception monitoring")
                 return

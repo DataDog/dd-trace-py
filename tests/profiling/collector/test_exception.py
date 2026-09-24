@@ -206,6 +206,8 @@ def test_exception_profiler_shares_tool_with_handled_exceptions(profiler_first: 
         assert events & getattr(sys, "monitoring").events.RAISE
         assert monitoring._global_exception_handled_handler is handled_handler
         assert monitoring._global_raise_handler is not None
+        assert monitoring._global_raise_callback is not None
+        assert monitoring._global_raise_callback is not monitoring._global_raise_handler.on_raise
 
 
 # Pprof profile tests

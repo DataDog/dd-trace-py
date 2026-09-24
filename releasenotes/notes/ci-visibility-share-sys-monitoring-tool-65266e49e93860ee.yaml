@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where coverage collection on Python 3.12+ can conflict with
+    other ``sys.monitoring`` consumers, including ``coverage.py`` and ``pytest-cov``.
