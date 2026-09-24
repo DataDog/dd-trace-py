@@ -105,6 +105,22 @@ def test_handled_exception_reporting_preserves_external_tools_when_unavailable()
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_reporting_uses_direct_callback():
+    import sys
+
+    from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
+    from ddtrace.internal import monitoring
+
+    reporting._install_sys_monitoring_reporting()
+    try:
+        tool_id = monitoring.get_tool_id()
+        callback = reporting._handler.on_exception_handled
+        assert sys.monitoring.register_callback(tool_id, sys.monitoring.events.EXCEPTION_HANDLED, callback) == callback
+    finally:
+        reporting._uninstall_sys_monitoring_reporting()
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_reporting_callback_contains_failures():
     from unittest.mock import patch
 

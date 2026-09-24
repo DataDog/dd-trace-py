@@ -99,7 +99,7 @@ _handler = _HandledExceptionHandler()
 def _install_sys_monitoring_reporting() -> None:
     if (not config._configured_modules) is False:
         MonitorHandledExceptionReportingWatchdog.install()
-    monitoring.register_global(_handler)
+    monitoring.register_global(_handler, direct=True)
 
 
 def _uninstall_sys_monitoring_reporting() -> None:
