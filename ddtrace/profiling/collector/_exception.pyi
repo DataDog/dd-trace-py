@@ -10,7 +10,7 @@ class ExceptionCollector(collector.Collector):
     _sampling_interval: int
     _collect_message: bool
     _monitoring_registered: bool
-    _owns_tool_id: bool
+
     def __init__(
         self,
         sampling_interval: Optional[int] = None,
