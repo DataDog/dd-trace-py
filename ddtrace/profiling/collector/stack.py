@@ -89,6 +89,36 @@ def _normalize_foreign_handler_owner(owner: str) -> str:
     return _normalize_foreign_handler_owner_component(owner)
 
 
+def _foreign_signal_names(owner: str) -> str:
+    """Name the signals the sampler did not own, from the owner string it recorded.
+
+    describe_signal_owner() in danger.cc reports exactly ``ddtrace`` when our handler owns
+    a signal and can deliver the recovery, so any other component - ``SIG_DFL`` and
+    ``ddtrace+missing_sa_siginfo`` included - is a signal we lost.
+    """
+    sigsegv_part: str
+    sep: str
+    sigbus_part: str
+    # rpartition so a comma inside the SIGSEGV path is not a field delimiter.
+    sigsegv_part, sep, sigbus_part = owner.rpartition(", SIGBUS=")
+    if not sep or not sigsegv_part.startswith("SIGSEGV="):
+        return ""
+    lost: list[str] = []
+    if sigsegv_part[len("SIGSEGV=") :] != "ddtrace":
+        lost.append("SIGSEGV")
+    if sigbus_part != "ddtrace":
+        lost.append("SIGBUS")
+    return " and ".join(lost)
+
+
+def _lost_ownership_clause(owner: str) -> str:
+    """Read as "does not own SIGBUS", for a message that must not claim both signals."""
+    foreign: str = _foreign_signal_names(owner)
+    if not foreign:
+        return "cannot confirm it owns SIGSEGV and SIGBUS"
+    return "does not own " + foreign
+
+
 def _unlink_finished_span(span: Span) -> None:
     """Remove physical-thread attribution derived from a finished span."""
     stack.unlink_finished_span(span.span_id)
@@ -212,19 +242,20 @@ class StackCollector(collector.Collector):
             already_owned: bool = foreign_handler[0]
             owner: str = foreign_handler[1]
             sampling_stopped: bool = foreign_handler[2]
-            ownership: str = (
-                "already foreign when the profiler finished warming up"
+            when: str = (
+                "already lost when the profiler finished warming up"
                 if already_owned
-                else "taken over after the profiler had upgraded to the faster copy"
+                else "lost after the profiler had upgraded to the faster copy"
             )
+            lost: str = _lost_ownership_clause(owner)
             normalized_owner: str = _normalize_foreign_handler_owner(owner)
             if sampling_stopped:
                 LOG.error(
-                    "Another component owns the SIGSEGV/SIGBUS handler and no safe memory-copy fallback is "
-                    "available, so the stack profiler has stopped sampling. CPU/wall-time profiles will be empty. "
-                    "Handler owners: %s (%s).",
+                    "The stack profiler %s and no safe memory-copy fallback is available, so it has stopped "
+                    "sampling. CPU/wall-time profiles will be empty. Handler owners: %s (%s).",
+                    lost,
                     owner,
-                    ownership,
+                    when,
                     extra={"send_to_telemetry": False},
                 )
                 telemetry_writer.add_log(
@@ -239,16 +270,16 @@ class StackCollector(collector.Collector):
                 )
             else:
                 LOG.warning(
-                    "Another component owns the SIGSEGV/SIGBUS handler, so the stack profiler is using the slower "
-                    "syscall-based memory copy for the rest of this process; sample quality may be reduced. "
-                    "Handler owners: %s (%s).",
+                    "The stack profiler %s, so it is using the slower syscall-based memory copy for the rest of "
+                    "this process; sample quality may be reduced. Handler owners: %s (%s).",
+                    lost,
                     owner,
-                    ownership,
+                    when,
                     extra={"send_to_telemetry": False},
                 )
                 telemetry_writer.add_log(
                     TELEMETRY_LOG_LEVEL.WARNING,
-                    "Another component owns the SIGSEGV/SIGBUS handler",
+                    "The stack profiler does not own both the SIGSEGV and SIGBUS handlers",
                     tags={
                         "error_type": "foreign_segv_handler",
                         "handler_owner": normalized_owner,

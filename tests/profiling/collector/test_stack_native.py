@@ -1516,26 +1516,37 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
 
 
 @pytest.mark.parametrize(
-    "already_owned,owner,expected_phrase,expected_already_owned,expected_handler_owner",
+    "already_owned,owner,expected_phrase,expected_lost,expected_already_owned,expected_handler_owner",
     [
         (
             False,
             "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace",
-            "taken over after the profiler had upgraded to the faster copy",
+            "lost after the profiler had upgraded to the faster copy",
+            "does not own SIGSEGV",
             "false",
             "libtorch_cpu.so",
         ),
         (
             True,
             "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace",
-            "already foreign when the profiler finished warming up",
+            "already lost when the profiler finished warming up",
+            "does not own SIGSEGV",
             "true",
             "libtorch_cpu.so",
         ),
         (
             False,
             "SIGSEGV=ddtrace, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
-            "taken over after the profiler had upgraded to the faster copy",
+            "lost after the profiler had upgraded to the faster copy",
+            "does not own SIGBUS",
+            "false",
+            "libfoo.so",
+        ),
+        (
+            False,
+            "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
+            "lost after the profiler had upgraded to the faster copy",
+            "does not own SIGSEGV and SIGBUS",
             "false",
             "libfoo.so",
         ),
@@ -1546,6 +1557,7 @@ def test_snapshot_names_foreign_segv_handler_owner(
     already_owned: bool,
     owner: str,
     expected_phrase: str,
+    expected_lost: str,
     expected_already_owned: str,
     expected_handler_owner: str,
 ) -> None:
@@ -1565,10 +1577,12 @@ def test_snapshot_names_foreign_segv_handler_owner(
     assert [r.levelname for r in caplog.records] == ["WARNING"]
     assert owner in caplog.text
     assert expected_phrase in caplog.text
+    # The message names the signals that actually changed hands, not both by default.
+    assert expected_lost in caplog.text
     mock_add_log.assert_called_once()
     call_args: mock._Call = mock_add_log.call_args
     assert call_args[0][0] == TELEMETRY_LOG_LEVEL.WARNING
-    assert call_args[0][1] == "Another component owns the SIGSEGV/SIGBUS handler"
+    assert call_args[0][1] == "The stack profiler does not own both the SIGSEGV and SIGBUS handlers"
     tags: dict[str, str] = call_args[1]["tags"]
     assert tags == {
         "error_type": "foreign_segv_handler",
@@ -1607,6 +1621,7 @@ def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: py
 
     assert [r.levelname for r in caplog.records] == ["ERROR"]
     assert owner in caplog.text
+    assert "does not own SIGSEGV" in caplog.text
     assert "stopped sampling" in caplog.text
     assert "syscall-based memory copy" not in caplog.text
     mock_add_log.assert_called_once()
@@ -1665,3 +1680,36 @@ def test_normalize_foreign_handler_owner_component(component: str, expected: str
 )
 def test_normalize_foreign_handler_owner(owner: str, expected: str) -> None:
     assert stack._normalize_foreign_handler_owner(owner) == expected
+
+
+@pytest.mark.parametrize(
+    "owner,expected",
+    [
+        ("SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "SIGSEGV"),
+        ("SIGSEGV=ddtrace, SIGBUS=SIG_DFL", "SIGBUS"),
+        ("SIGSEGV=SIG_DFL, SIGBUS=SIG_IGN", "SIGSEGV and SIGBUS"),
+        ("SIGSEGV=ddtrace, SIGBUS=ddtrace", ""),
+        # A stripped SA_SIGINFO leaves the handler pointing at us but unable to deliver
+        # the recovery, which is a signal we lost however the owner reads.
+        ("SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace", "SIGSEGV"),
+        # A comma inside the SIGSEGV path is not a field delimiter.
+        ("SIGSEGV=/opt/foo, bar/libfoo.so+0x1 (h), SIGBUS=ddtrace", "SIGSEGV"),
+        ("not the format the sampler emits", ""),
+    ],
+)
+def test_foreign_signal_names(owner: str, expected: str) -> None:
+    assert stack._foreign_signal_names(owner) == expected
+
+
+@pytest.mark.parametrize(
+    "owner,expected",
+    [
+        ("SIGSEGV=ddtrace, SIGBUS=SIG_DFL", "does not own SIGBUS"),
+        ("SIGSEGV=SIG_DFL, SIGBUS=SIG_IGN", "does not own SIGSEGV and SIGBUS"),
+        # Both read as ours: the sampler saw the loss, this read no longer does, so the
+        # message must not name a signal it cannot stand behind.
+        ("SIGSEGV=ddtrace, SIGBUS=ddtrace", "cannot confirm it owns SIGSEGV and SIGBUS"),
+    ],
+)
+def test_lost_ownership_clause(owner: str, expected: str) -> None:
+    assert stack._lost_ownership_clause(owner) == expected
