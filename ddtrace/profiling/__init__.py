@@ -27,6 +27,9 @@ class _UnavailableProfiler:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         raise ImportError(self._msg) from type(self)._import_error
 
+    def install(self) -> None:
+        raise ImportError(self._msg) from type(self)._import_error
+
     def start(self) -> None:
         raise ImportError(self._msg) from type(self)._import_error
 
