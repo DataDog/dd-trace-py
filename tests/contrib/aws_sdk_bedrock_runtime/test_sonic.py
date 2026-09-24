@@ -23,6 +23,7 @@ from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import InputAudio
 from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import SonicState
 from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import Turn
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import AwsSdkBedrockRuntimeIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.trace import Context
 from ddtrace.trace import Span
@@ -50,6 +51,8 @@ class RecordingIntegration(AwsSdkBedrockRuntimeIntegration):
         span = Span(
             operation_id, trace_id=getattr(parent, "trace_id", None), parent_id=getattr(parent, "span_id", None)
         )
+        # Real LLMObs initializes identity on span start; this recorder bypasses it.
+        _annotate_llmobs_span_data(span, trace_id=f"{span.trace_id:032x}")
         self.spans.append(span)
         return span
 

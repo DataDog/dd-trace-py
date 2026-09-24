@@ -235,3 +235,10 @@ bounded retained bytes; share the audio payload budget across both roles.
 Nova protocol state lives in llmobs/_integrations/_aws_sdk_bedrock_runtime.py.
 The product supplies it through the Bedrock core event only while enabled. Shared
 parent/trace identity stamping lives in BaseLLMIntegration._start_audio_span.
+
+Keep audio retention separate from timing validity. Dropping an oversized WAV
+must not remove a valid speech phase or its TTFA boundary. Never shorten gaps
+inside a retained clip without a matching timestamped segment contract. End
+interrupted generation at its observed interruption, even when emission waits
+for the next turn. Explicit LLMObs identity must come from an LLMObs ancestor,
+never from a plain APM span's identifiers.

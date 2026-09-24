@@ -36,7 +36,15 @@ class InputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy
         return self
 
     async def __aexit__(self, *args: Any) -> Any:
-        return await self.__wrapped__.__aexit__(*args)
+        try:
+            result = await self.__wrapped__.__aexit__(*args)
+        except BaseException:
+            self._self_state.finish_error()
+            raise
+        if args and args[0] is not None:
+            self._self_state.finish_error(args)
+        # A successful input exit only half-closes; output can still arrive.
+        return result
 
 
 class OutputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed proxy base.

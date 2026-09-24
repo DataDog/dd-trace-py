@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -111,11 +110,15 @@ class BaseLLMIntegration:
         # Duplex callbacks do not run under the turn's active context.
         # Stamp identity before optional message enrichment, as in OpenAI Realtime.
         identity: dict[str, Any] = {}
-        if isinstance(parent, Span):
-            identity = {
-                "parent_id": str(parent.span_id),
-                "trace_id": get_llmobs_trace_id(parent) or format_trace_id(parent.trace_id),
-            }
+        # APM request spans are not exported as LLMObs parents. Preserve their
+        # tracing relationship above, but only inherit real LLMObs identity.
+        llmobs_parent = parent
+        while isinstance(llmobs_parent, Span):
+            trace_id = get_llmobs_trace_id(llmobs_parent)
+            if trace_id:
+                identity = {"parent_id": str(llmobs_parent.span_id), "trace_id": trace_id}
+                break
+            llmobs_parent = llmobs_parent._parent
         _annotate_llmobs_span_data(
             span,
             name=name,

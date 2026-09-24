@@ -40,3 +40,7 @@ see the LLMObs implementation guide for parenting and finalization rules.
 The Bedrock wrapper dispatches a typed observer handoff event through core. The
 LLMObs service registers its handler on enable and removes it on disable; contrib
 does not import the product. Stream proxies depend only on the observer protocol.
+
+Input context-manager exits must record body and cleanup errors without changing
+exception propagation or suppression. A successful input exit only half-closes;
+it must not finalize the observer before the output stream drains.

@@ -43,6 +43,10 @@ Limitations
 Only mono, base64-encoded 16-bit LPCM with a supported negotiated sample rate
 is converted to WAV. Oversize, invalid, unavailable, or changed-format audio
 falls back to text. Input and output share the inline audio payload budget.
+Attachment limits preserve valid speech phases and their latency boundaries.
+When output audio is omitted, ``output_audio_omitted_reason`` records
+``retention_limit``, ``payload_limit``, or ``invalid_audio``. Long pauses keep
+their original timing; they are not shortened to fit an attachment.
 Per-turn usage is attributed when events arrive; cumulative session counters
 are converted to increments so they are not charged repeatedly.
 

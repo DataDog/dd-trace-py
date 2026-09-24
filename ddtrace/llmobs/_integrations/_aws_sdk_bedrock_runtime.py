@@ -96,6 +96,8 @@ class Turn:
         self.output_start_ns: Optional[int] = None
         self.output_end_ns: Optional[int] = None
         self.output_valid = True
+        self.output_timing_valid = True
+        self.output_audio_omitted_reason: Optional[str] = None
         self.output_bytes = 0
         self.generation_end_ns: Optional[int] = None
         self.interrupted_ns: Optional[int] = None
@@ -115,11 +117,15 @@ class Turn:
             raw = base64.b64decode(content, validate=True)
         except ValueError:
             self.output_valid = False
+            self.output_timing_valid = False
+            self.output_audio_omitted_reason = "invalid_audio"
             self.output_pcm.clear()
             raise
         self.output_bytes += len(raw)
         if not rate or len(raw) % 2 or (self.output_rate and self.output_rate != rate):
             self.output_valid = False
+            self.output_timing_valid = False
+            self.output_audio_omitted_reason = "invalid_audio"
         if self.interrupted_ns is not None:
             return
         if not self.output_rate:
@@ -140,6 +146,7 @@ class Turn:
             self.output_pcm.extend(raw)
         else:
             self.output_valid = False
+            self.output_audio_omitted_reason = self.output_audio_omitted_reason or "retention_limit"
             self.output_pcm.clear()
 
     def interrupt(self, now: int) -> None:
@@ -256,6 +263,7 @@ class SonicState:
     def _start_response(self, data: dict[str, Any], now: int) -> Turn:
         if self.current is None or self.pending.has_input:
             if self.current is not None:
+                self.current.partial = self.current.generation_end_ns is None
                 self._emit(self.current, now)
             turn = self.pending
             self.pending = Turn()
@@ -296,7 +304,13 @@ class SonicState:
             key = data.get("contentId", "")
             if key in self.blocks or key in self.completed_ids:
                 return
-            stage = json.loads(data.get("additionalModelFields") or "{}").get("generationStage")
+            fields = data.get("additionalModelFields")
+            if not isinstance(fields, dict):
+                try:
+                    fields = json.loads(fields or "{}")
+                except (ValueError, TypeError):
+                    fields = {}
+            stage = fields.get("generationStage") if isinstance(fields, dict) else None
             role = data.get("role")
             if role == "ASSISTANT":
                 # FINAL text can arrive after the next user's speechStart. It still
@@ -425,6 +439,8 @@ class SonicState:
                 if part:
                     message["audio_parts"] = [part]
                     budget -= len(part["content"])
+                elif role == "assistant":
+                    turn.output_audio_omitted_reason = "payload_limit"
             messages.append(message)
         if turn.tools:
             messages[1]["tool_calls"] = turn.tools
@@ -446,7 +462,7 @@ class SonicState:
             turn.input_pcm = self.audio.clip(turn.windows[0]["start_ms"], turn.windows[-1].get("end_ms"))
         start = turn.input_start_ns or turn.started_ns or now
         llm_start = turn.input_end_ns or turn.started_ns or start
-        response_end = max(llm_start, turn.generation_end_ns or now)
+        response_end = max(llm_start, turn.generation_end_ns or turn.interrupted_ns or now)
         end = max(response_end, turn.output_end_ns or 0, turn.input_end_ns or 0)
         root = self.integration.start_span(
             "nova sonic audio turn", "workflow", self.model, self.session_id, self.parent, start
@@ -471,6 +487,8 @@ class SonicState:
                 "session_configuration": self.configuration,
             }
             inputs, outputs = self._messages(turn)
+            if turn.output_audio_omitted_reason:
+                metadata["output_audio_omitted_reason"] = turn.output_audio_omitted_reason
             _annotate_llmobs_span_data(
                 response, input_messages=inputs, output_messages=outputs, metadata=metadata, metrics=turn.metrics
             )
@@ -486,7 +504,7 @@ class SonicState:
             ):
                 if begin is None or finish is None or finish < begin:
                     continue
-                if name == "agent speech" and not turn.output_valid:
+                if name == "agent speech" and not turn.output_timing_valid:
                     continue
                 phase = self.integration.start_span(name, "workflow", self.model, self.session_id, root, begin)
                 spans.append((phase, finish))
