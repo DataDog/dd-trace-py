@@ -19,6 +19,14 @@
 // init_segv_catcher, and check that faults we do not recover are chained to the
 // previous handler with the semantics the kernel would have applied to it.
 
+#if defined(__SANITIZE_THREAD__)
+#define DD_TSAN 1
+#elif defined(__has_feature)
+#if __has_feature(thread_sanitizer)
+#define DD_TSAN 1
+#endif
+#endif
+
 namespace {
 
 std::atomic<int> g_calls{ 0 };
@@ -354,6 +362,9 @@ TEST_F(SegvChain, PreviousHandlerMaskIsAppliedAndRestored)
 // while it runs, and we must not leave it blocked afterwards.
 TEST_F(SegvChain, PreviousHandlerWithNoDeferKeepsSignalUnblocked)
 {
+#if defined(DD_TSAN)
+    GTEST_SKIP() << "TSan installs every handler with a full sa_mask, so SA_NODEFER has no effect";
+#endif
     ASSERT_EQ(install_previous(mask_recording_handler, SA_NODEFER, nullptr), 0);
 
     pthread_kill(pthread_self(), SIGSEGV);
@@ -439,6 +450,11 @@ TEST_F(SegvChain, DirectCallCycleTerminates)
 // terminate the process instead of looping.
 TEST_F(SegvChain, ReraiseCycleTerminates)
 {
+#if defined(DD_TSAN)
+    // Without SA_NODEFER the re-raised signal stays pending until our handler returns
+    // and then arrives as a fresh delivery, which is not detectable as a cycle.
+    GTEST_SKIP() << "TSan installs every handler with a full sa_mask, so SA_NODEFER has no effect";
+#endif
     std::atomic<int>* shared_calls = map_shared_counter();
     ASSERT_NE(shared_calls, nullptr);
 

@@ -70,8 +70,12 @@ function(dd_wrapper_add_test name)
         set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
-    gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running
-                                                          # sanitizer-built executables during build
+    # Delay test discovery until test execution to avoid running sanitizer-built executables during build. The timeout
+    # makes a hung test fail on its own instead of running into the CI job timeout.
+    gtest_discover_tests(
+        ${name} DISCOVERY_MODE PRE_TEST
+        PROPERTIES
+        TIMEOUT 300)
 
     # Echion headers (vm.h, tasks.h) require PL_DARWIN or PL_LINUX to define proc_ref_t and copy_type. These are set
     # PRIVATE on ${EXTENSION_NAME} and don't propagate to test targets, so we replicate the logic here.
