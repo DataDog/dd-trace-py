@@ -5,7 +5,7 @@ stages:
 include:
   - project: 'DataDog/apm-reliability/apm-sdks-benchmarks'
     file: '.gitlab/ci-python-flask-realworld-parallel.yml'
-    ref: 'main'
+    ref: "12a3157e4e36ad5530c283c0e751f1fe71560192"
 
 linux-python-flask-realworld-parallel:
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7

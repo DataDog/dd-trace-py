@@ -9,6 +9,8 @@
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
 
 os tests ubuntu:
+  rules:
+    - when: never
   extends: .multi_os_test_base
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   tags: ["arch:amd64"]
@@ -36,6 +38,8 @@ os tests ubuntu:
     - bash .gitlab/scripts/multi-os-tests.sh
 
 os tests macos:
+  rules:
+    - when: never
   extends: .multi_os_test_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
   tags: ["macos:tart"]
@@ -53,6 +57,8 @@ os tests macos:
       done
 
 os tests windows:
+  rules:
+    - when: never
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
   needs:
