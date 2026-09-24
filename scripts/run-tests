@@ -160,13 +160,8 @@ class TestRunner:
             environment.hash: environment for environments in self.environments.values() for environment in environments
         }
 
-    def _tia_mode(self, environment: TestEnvironment) -> str:
-        if not self.in_ci or environment.suite != "llmobs::llmobs":
-            return ""
-        mode = os.environ.get("DD_LLMOBS_TIA_MODE", "")
-        if mode not in ("", "itr", "full", "collect", "testmon"):
-            raise TestEnvironmentError(f"Unknown DD_LLMOBS_TIA_MODE: {mode}")
-        return mode
+    def _uses_testmon(self, environment: TestEnvironment) -> bool:
+        return self.in_ci and environment.suite == "llmobs::llmobs"
 
     def _compose_command(self, *args: str) -> list[str]:
         """Return the Compose command for the selected container backend."""
@@ -432,7 +427,7 @@ class TestRunner:
             contents = "".join(f"{dependency}\n" for dependency in environment.direct_dependencies)
         else:
             contents = lockfile.read_text()
-        if self._tia_mode(environment) in ("collect", "testmon"):
+        if self._uses_testmon(environment):
             contents += f"\n{TESTMON_REQUIREMENT}\n"
         if project_artifact is None:
             project_file = self.root / "pyproject.toml"
@@ -656,11 +651,10 @@ class TestRunner:
                 print("   ✅ Reusing current test environment")
 
             for run in environment.runs:
-                mode = self._tia_mode(environment)
                 args = list(pytest_args)
                 run_environment = {}
                 report = None
-                if mode:
+                if self._uses_testmon(environment):
                     # Keep database identity stable across source edits, but invalidate it
                     # when dependencies, the command, or its configuration changes.
                     identity = _short_hash(
@@ -668,37 +662,26 @@ class TestRunner:
                     )
                     database = self.root / ".tia/databases" / environment.hash / identity / ".testmondata"
                     database.parent.mkdir(parents=True, exist_ok=True)
-                    report = self.root / ".tia/reports" / f"{environment.hash}-{identity}-{mode}.json"
+                    report = self.root / ".tia/reports" / f"{environment.hash}-{identity}.json"
                     report.parent.mkdir(parents=True, exist_ok=True)
                     report.unlink(missing_ok=True)
-                    if mode == "collect":
-                        for path in database.parent.glob(".testmondata*"):
-                            path.unlink()
-                    database_reused = mode == "testmon" and database.is_file()
+                    database_reused = database.is_file()
                     run_environment.update(
-                        DD_LLMOBS_TIA_MODE=mode,
                         DD_LLMOBS_TIA_REPORT=str(report),
                         DD_LLMOBS_TIA_DATABASE_REUSED="1" if database_reused else "0",
                         TESTMON_DATAFILE=str(database),
-                        DD_CIVISIBILITY_ITR_ENABLED="1" if mode == "itr" else "0",
-                        _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING="0" if mode == "itr" else "1",
+                        DD_CIVISIBILITY_ITR_ENABLED="0",
+                        _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING="1",
                         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="false",
                         DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED="0",
-                        DD_CIVISIBILITY_FLAKY_RETRY_ENABLED="0",
-                        DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED="0",
                     )
                     args += [
                         "--no-cov",
-                        "-n",
-                        "0",
                         "-p",
                         "scripts.llmobs_tia",
-                        f"--junitxml=test-results/junit-tia-{environment.hash}-{identity}-{mode}.xml",
+                        f"--junitxml=test-results/junit-tia-{environment.hash}-{identity}.xml",
+                        "--testmon",
                     ]
-                    if mode in ("collect", "testmon"):
-                        args.append("--testmon")
-                    if mode == "collect":
-                        args.append("--testmon-noselect")
                 try:
                     command = self._test_command(environment, prepared, run, args, forwarded_env, run_environment)
                 except ValueError as error:
@@ -711,7 +694,7 @@ class TestRunner:
                 if report is not None:
                     metrics = json.loads(report.read_text()) if report.exists() else {}
                     metrics.update(
-                        mode=mode,
+                        mode="testmon",
                         environment=environment.hash,
                         database_reused=database_reused,
                         commit=os.environ.get("CI_COMMIT_SHA"),

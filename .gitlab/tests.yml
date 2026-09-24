@@ -65,7 +65,7 @@ extract_test_artifacts:
       # TIA experiments retain sources for dependency tracking. Other test jobs
       # remove the checkout package so Python imports use the wheel.
       if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" &&
-            !( "${TEST_SUITE:-}" == "llmobs::llmobs" && -n "${DD_LLMOBS_TIA_MODE:-}" ) ]]; then
+            "${TEST_SUITE:-}" != "llmobs::llmobs" ]]; then
         rm -r "$CI_PROJECT_DIR/ddtrace"
       fi
     # Keep repository test helpers (and TIA experiment sources) importable.
@@ -232,6 +232,9 @@ extract_test_artifacts:
 # Databases are isolated by branch, job shard, dependency environment, and command.
 # Artifacts retain evidence; the cache supplies the next pipeline's starting database.
 .llmobs_tia:
+  variables:
+    DD_TRACE_PY_ENABLE_ITR_FOR_JOB: "false"
+    DD_CIVISIBILITY_ITR_ENABLED: "0"
   resource_group: tia-$CI_COMMIT_REF_SLUG-$CI_JOB_NAME_SLUG
   cache:
     key: tia-v1-$CI_COMMIT_REF_SLUG-$CI_JOB_NAME_SLUG
