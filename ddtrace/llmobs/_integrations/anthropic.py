@@ -258,7 +258,7 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         server_tool_use = _get_attr(usage, "server_tool_use", None)
         web_search_requests = _get_attr(server_tool_use, "web_search_requests", None) if server_tool_use else None
-        if web_search_requests:
+        if web_search_requests is not None and web_search_requests > 0:
             metrics[WEB_SEARCH_COUNT_METRIC_KEY] = web_search_requests
         return metrics
 

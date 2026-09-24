@@ -3,4 +3,4 @@ features:
   - |
     LLM Observability: The OpenAI and Anthropic integrations now track server-side tool usage on LLM
     spans. This includes ``web_search_count`` for OpenAI Responses API and Anthropic web searches, and
-    ``storage_search_count`` for OpenAI file searches. 
+    ``storage_search_count`` for OpenAI file searches.
