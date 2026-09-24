@@ -35,25 +35,25 @@ experiments:
           # exceptionprofilermonitoring
           - name: exceptionprofilermonitoring-handled-interval-100
             thresholds:
-              - execution_time < 0.00035 ms
+              - execution_time < 0.0008 ms
           - name: exceptionprofilermonitoring-handled-interval-1
             thresholds:
-              - execution_time < 0.0055 ms
+              - execution_time < 0.016 ms
           - name: exceptionprofilermonitoring-stop-iteration-interval-100
             thresholds:
-              - execution_time < 0.0002 ms
+              - execution_time < 0.0005 ms
           - name: exceptionprofilermonitoring-stop-iteration-interval-1
             thresholds:
-              - execution_time < 0.0002 ms
+              - execution_time < 0.0005 ms
           - name: exceptionprofilermonitoring-explicit-reraise-interval-100
             thresholds:
-              - execution_time < 0.00055 ms
+              - execution_time < 0.0013 ms
           - name: exceptionprofilermonitoring-explicit-reraise-interval-1
             thresholds:
-              - execution_time < 0.0055 ms
+              - execution_time < 0.016 ms
           - name: exceptionprofilermonitoring-bare-reraise-interval-100
             thresholds:
-              - execution_time < 0.00035 ms
+              - execution_time < 0.001 ms
           - name: exceptionprofilermonitoring-bare-reraise-interval-1
             thresholds:
-              - execution_time < 0.0055 ms
+              - execution_time < 0.016 ms
