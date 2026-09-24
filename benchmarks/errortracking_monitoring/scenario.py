@@ -38,8 +38,6 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
     def run(self) -> Generator[Callable[[int], None], None]:
         import sys
 
-        from ddtrace.internal import monitoring
-
         sys_monitoring = getattr(sys, "monitoring")
         tool_id = 3
         event = sys_monitoring.events.EXCEPTION_HANDLED
@@ -118,6 +116,11 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
         # -- shared multiplexer (new code path) --------------------------------
 
         elif self.handler in ("direct_global_passive", "direct_global_active"):
+            try:
+                from ddtrace.internal import monitoring
+            except ImportError:
+                monitoring = None  # type: ignore[assignment]
+
             register_global = getattr(monitoring, "register_global", None)
             unregister_global = getattr(monitoring, "unregister_global", None)
             if register_global is None or unregister_global is None:
@@ -144,6 +147,8 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                     sys_monitoring.free_tool_id(tool_id)
 
             else:
+                if monitoring is None:
+                    raise RuntimeError("monitoring direct registration unavailable")
                 if self.handler == "direct_global_passive":
 
                     class _PassiveHandler(monitoring.MonitoringEventHandler):
