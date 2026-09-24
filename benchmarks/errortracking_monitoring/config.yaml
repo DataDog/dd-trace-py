@@ -1,8 +1,9 @@
-# Microbenchmark: multiplexer vs. direct sys.monitoring for EXCEPTION_HANDLED.
-# The direct_* configs reproduce the pre-multiplexer code path (dedicated tool
-# slot, raw register_callback).  The multiplexer_* configs use the shared
-# multiplexer's register_global / unregister_global API, with direct delivery
-# when supported by the installed version.
+# Microbenchmark: direct sys.monitoring vs. multiplexer register_global for
+# EXCEPTION_HANDLED. The direct_* configs reproduce the pre-multiplexer code
+# path (dedicated tool slot, raw register_callback).  The direct_global_*
+# configs use the shared multiplexer's register_global / unregister_global API
+# when available, with direct delivery when supported; otherwise they fall
+# back to an equivalent direct callback.
 
 # Direct sys.monitoring: callback does no work (pure callback overhead).
 direct_passive:
@@ -12,13 +13,13 @@ direct_passive:
 direct_active:
   handler: "direct_active"
 
-# Multiplexer: global handler does no work (measures dispatch overhead).
-multiplexer_passive:
-  handler: "multiplexer_passive"
+# Multiplexer register_global: handler does no work (measures dispatch overhead).
+direct_global_passive:
+  handler: "direct_global_passive"
 
-# Multiplexer: global handler records each exception (realistic path).
-multiplexer_active:
-  handler: "multiplexer_active"
+# Multiplexer register_global: handler records each exception (realistic path).
+direct_global_active:
+  handler: "direct_global_active"
 
 # Module-only reporting: high-cardinality filenames not in the configured set.
 module_filter_miss:

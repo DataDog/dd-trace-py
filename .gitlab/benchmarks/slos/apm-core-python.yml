@@ -87,10 +87,10 @@ experiments:
           - name: errortrackingmonitoring-direct_active
             thresholds:
               - execution_time < 0.0018 ms
-          - name: errortrackingmonitoring-multiplexer_passive
+          - name: errortrackingmonitoring-direct_global_passive
             thresholds:
               - execution_time < 0.0008 ms
-          - name: errortrackingmonitoring-multiplexer_active
+          - name: errortrackingmonitoring-direct_global_active
             thresholds:
               - execution_time < 0.0019 ms
           - name: errortrackingmonitoring-module_filter_miss

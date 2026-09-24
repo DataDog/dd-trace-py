@@ -4,25 +4,23 @@ Measures the overhead of the ``EXCEPTION_HANDLED`` global-handler path used by
 error-tracking on Python 3.12+.  The benchmark exercises a tight try/except
 loop so the ``on_exception_handled`` callback fires on every iteration.
 
-Configurations (multiplexer vs. direct ``sys.monitoring``):
+Configurations (direct ``sys.monitoring`` vs. multiplexer ``register_global``):
 
 - ``direct_passive`` — raw ``sys.monitoring`` callback that does no work
 - ``direct_active`` — raw ``sys.monitoring`` callback that records the exception
-- ``multiplexer_passive`` — multiplexer ``register_global`` handler, no work
-- ``multiplexer_active`` — multiplexer ``register_global`` handler, records exception
+- ``direct_global_passive`` — ``register_global`` handler, no work (falls back to
+  direct callback when ``register_global`` is unavailable)
+- ``direct_global_active`` — ``register_global`` handler, records exception (falls
+  back to direct callback when ``register_global`` is unavailable)
 - ``module_filter_miss`` — module-only filtering with high-cardinality rejected filenames
 - ``module_filter_hit`` — module-only filtering with configured filenames
 
 The ``direct_*`` configs reproduce the pre-multiplexer code path (a dedicated
 tool slot with a single callback registered directly via
-``sys.monitoring.register_callback``).  The ``multiplexer_*`` configs use the
-shared multiplexer's ``register_global`` / ``unregister_global`` API, opting
-into direct delivery when supported. Comparing the two isolates dispatch
-overhead while keeping tool ownership centralized.
-
-On branches where ``register_global`` is not yet available, the
-``multiplexer_*`` configurations use the equivalent direct callback as their
-baseline so comparison output remains meaningful.
+``sys.monitoring.register_callback``).  The ``direct_global_*`` configs use the
+shared multiplexer's ``register_global`` / ``unregister_global`` API when
+available, opting into direct delivery when supported; otherwise they fall
+back to an equivalent direct callback so comparison output remains meaningful.
 """
 
 from collections.abc import Generator
@@ -109,7 +107,7 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
 
         # -- shared multiplexer (new code path) --------------------------------
 
-        elif self.handler in ("multiplexer_passive", "multiplexer_active"):
+        elif self.handler in ("direct_global_passive", "direct_global_active"):
             register_global = getattr(monitoring, "register_global", None)
             unregister_global = getattr(monitoring, "unregister_global", None)
             if register_global is None or unregister_global is None:
@@ -119,7 +117,7 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                 sys_monitoring.set_events(tool_id, event)
 
                 def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-                    if self.handler == "multiplexer_active":
+                    if self.handler == "direct_global_active":
                         seen.append(exception)
 
                 sys_monitoring.register_callback(tool_id, event, _direct_callback)
@@ -130,7 +128,7 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                     sys_monitoring.free_tool_id(tool_id)
 
             else:
-                if self.handler == "multiplexer_passive":
+                if self.handler == "direct_global_passive":
 
                     class _PassiveHandler(monitoring.MonitoringEventHandler):
                         def on_exception_handled(
