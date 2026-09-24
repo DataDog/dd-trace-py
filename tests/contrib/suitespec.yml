@@ -979,6 +979,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/ddtrace_api
       variants:
         - name: ddtrace_api
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['ddtrace-api==0.0.1', requests]
   django:
     venvs_per_job: 4
@@ -1821,8 +1822,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/logbook
       variants:
         - name: logbook
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['logbook~=1.0.0', pytest-randomly]
         - name: logbook
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [logbook, pytest-randomly]
   loguru:
     venvs_per_job: 4
@@ -1839,8 +1842,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/loguru
       variants:
         - name: loguru
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['loguru~=0.4.0', pytest-randomly]
         - name: loguru
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [loguru, pytest-randomly]
   mako:
     venvs_per_job: 6
@@ -2639,6 +2644,7 @@ suites:
     matrix:
       variants:
         - name: futures
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           integration: futures
           dependencies: [gevent, pytest-randomly]
           command: pytest {cmdargs} tests/contrib/futures
@@ -2673,7 +2679,7 @@ suites:
           dependencies: [pytest-randomly, uvloop, 'pytest-asyncio==0.21.1']
           command: pytest {cmdargs} tests/contrib/asyncio
         - name: asyncio
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           integration: asyncio
           dependencies: [pytest-randomly, uvloop, 'pytest-asyncio>=1.0.0']
           command: pytest {cmdargs} tests/contrib/asyncio
@@ -2690,8 +2696,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/structlog
       variants:
         - name: structlog
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['structlog~=20.2.0', pytest-randomly]
         - name: structlog
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [structlog, pytest-randomly]
   subprocess:
     paths:
@@ -2706,6 +2714,7 @@ suites:
       command: pytest -vvvv {cmdargs} --no-cov tests/contrib/subprocess
       variants:
         - name: subprocess
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly]
   logging:
     paths:
@@ -2720,6 +2729,7 @@ suites:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/logging
       variants:
         - name: logging
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist]
   tornado:
     venvs_per_job: 6
