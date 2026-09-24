@@ -44,7 +44,7 @@ class Profiler:
     """
 
     _active_instance: Optional["Profiler"] = None
-    _active_lock = forksafe.ResetLock()
+    _active_lock = forksafe.Lock()
 
     # The SIGTERM and SIGINT handlers in place after we last registered.
     _exit_signal_handler: Optional[tuple[Any, Any]] = None
