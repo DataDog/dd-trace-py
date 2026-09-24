@@ -48,7 +48,7 @@ class HandledExceptionCollector(Service):
     _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEventData]]] = {}
 
     def __init__(self) -> None:
-        super(HandledExceptionCollector, self).__init__()
+        super().__init__()
         log.debug("%s initialized", self.__class__.__name__)
 
     @classmethod

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: Code Coverage report uploads now apply ``[paths]`` aliases
+    from ``.coveragerc`` to ``SF:`` lines before uploading, fixing duplicate
+    file entries for installed packages.

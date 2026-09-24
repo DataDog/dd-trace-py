@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -9,7 +10,6 @@ from typing import Any
 from typing import Callable
 from typing import Literal
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 import urllib.parse
@@ -144,6 +144,7 @@ from ddtrace.llmobs._prompt_optimization import validate_task
 from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
+from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._sampler import LLMObsSamplingResolver
@@ -188,6 +189,7 @@ from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
+from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptAuthError
@@ -296,7 +298,7 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _EVALUATOR_REQUIRED_PARAMS):
-        raise TypeError("Evaluator function must have parameters {}.".format(tuple(_EVALUATOR_REQUIRED_PARAMS)))
+        raise TypeError(f"Evaluator function must have parameters {tuple(_EVALUATOR_REQUIRED_PARAMS)}.")
 
 
 def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> None:
@@ -320,9 +322,7 @@ def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> Non
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _SUMMARY_EVALUATOR_REQUIRED_PARAMS):
-        raise TypeError(
-            "Summary evaluator function must have parameters {}.".format(tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS))
-        )
+        raise TypeError(f"Summary evaluator function must have parameters {tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS)}.")
 
 
 class LLMObsExportSpanError(Exception):
@@ -357,7 +357,7 @@ class LLMObsActivateDistributedHeadersError(Exception):
 
 def _deprecate_prompt_label(method: str) -> None:
     deprecate(
-        prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
+        prefix=f"The 'label' parameter of LLMObs.{method}() is deprecated",
         message="Set DD_ENV instead; the prompt version is resolved for that environment.",
         category=DDTraceDeprecationWarning,
     )
@@ -565,7 +565,7 @@ def _normalize_llmobs_meta(
 
 
 class LLMObs(Service):
-    _instance = None  # type: LLMObs
+    _instance: "LLMObs"
     enabled = False
     _app_key: str = _env.get("DD_APP_KEY", "")
     _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
@@ -577,7 +577,7 @@ class LLMObs(Service):
         tracer: Optional[Tracer] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
     ) -> None:
-        super(LLMObs, self).__init__()
+        super().__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
@@ -835,7 +835,7 @@ class LLMObs(Service):
             if err_type:
                 tags["error_type"] = err_type
 
-        return sorted("{}:{}".format(k, v) for k, v in tags.items())
+        return sorted(f"{k}:{v}" for k, v in tags.items())
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
@@ -1256,7 +1256,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         page_limit: int = 100,
         max_results: Optional[int] = None,
-    ) -> "list[ExperimentSummary]":
+    ) -> list[ExperimentSummary]:
         """List experiments, optionally filtered by name, metadata, or parent experiment.
 
         Each returned summary carries ``aggregate_data`` (average eval scores, error rates, token
@@ -1288,12 +1288,12 @@ class LLMObs(Service):
             # Listing without a project_id would silently widen the query to every project in the
             # org, which a CI/CD comparison would then read as the baseline. Fail instead.
             raise ValueError(
-                "Failed to resolve project {!r} for list_experiments()".format(project_name or cls._project_name)
+                f"Failed to resolve project {project_name or cls._project_name!r} for list_experiments()"
             ) from e
         project_id = project.get("_id")
         if not project_id:
             raise ValueError(
-                "Got no project ID for project {!r} in list_experiments()".format(project_name or cls._project_name)
+                f"Got no project ID for project {project_name or cls._project_name!r} in list_experiments()"
             )
         return cls._instance._dne_client.experiment_list(
             experiment_name=experiment_name,
@@ -1391,7 +1391,7 @@ class LLMObs(Service):
 
         records = []
         try:
-            with open(csv_path, mode="r") as csvfile:
+            with open(csv_path) as csvfile:
                 content = csvfile.readline().strip()
                 if not content:
                     raise ValueError("CSV file appears to be empty or header is missing.")
@@ -2151,26 +2151,23 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
-        Args:
-            prompt_id: Unique identifier for the prompt.
-            template: List of chat messages defining the prompt template.
-            title: Optional human-readable title.
-            description: Optional description of the prompt.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy the first version to.
-
-        Returns:
-            The created prompt.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request (bad template, missing fields).
-            PromptConflictError: A prompt with this prompt_id already exists.
-            PromptServerError: Server-side error.
+        :param prompt_id: Unique identifier for the prompt.
+        :param template: List of chat messages defining the prompt template.
+        :param title: Optional human-readable title.
+        :param description: Optional description of the prompt.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy the first version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request (bad template, missing fields).
+        :raises PromptConflictError: A prompt with this prompt_id already exists.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt(
@@ -2181,6 +2178,7 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod
@@ -2193,25 +2191,22 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
-        Args:
-            prompt_id: The prompt identifier.
-            template: List of chat messages defining the new version's template.
-            description: Optional description of this version.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy this version to.
-
-        Returns:
-            The created prompt version.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request.
-            PromptNotFoundError: Prompt does not exist.
-            PromptServerError: Server-side error.
+        :param prompt_id: The prompt identifier.
+        :param template: List of chat messages defining the new version's template.
+        :param description: Optional description of this version.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy this version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt version.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request.
+        :raises PromptNotFoundError: Prompt does not exist.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt_version(
@@ -2221,6 +2216,7 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod
@@ -3488,10 +3484,10 @@ class LLMObs(Service):
         }
         for key, val in optional_filters:
             if val is not None:
-                base_params["filter[{}]".format(key)] = val
+                base_params[f"filter[{key}]"] = val
 
         for k, v in (tags or {}).items():
-            base_params["filter[tag][{}]".format(k)] = v
+            base_params[f"filter[tag][{k}]"] = v
 
         return cls._instance._api_client.get_spans(base_params)
 

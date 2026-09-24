@@ -44,7 +44,7 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
     if "__code__" not in dir(code_to_instr):
         return
 
-    original_code = code_to_instr.__code__  # type: CodeType
+    original_code: CodeType = code_to_instr.__code__
 
     if is_obfuscated_code(original_code):
         log.warning(
@@ -128,7 +128,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> list[int]:
         current_arg = co_code[idx + 1]
         # JUMP_IF_NOT_EXC_MATCH can indicate a potential except
         if current_opcode == JUMP_IF_NOT_EXC_MATCH:
-            potential_marks.add((current_arg << 1))
+            potential_marks.add(current_arg << 1)
             continue
 
         if idx in potential_marks:

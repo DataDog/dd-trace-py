@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from contextlib import asynccontextmanager
 import copy
@@ -489,7 +491,7 @@ async def test_double_async_for_with_exception():
     class StreamConsumed(Exception):
         pass
 
-    class AsyncIteratorByteStream(object):
+    class AsyncIteratorByteStream:
         def __init__(self, stream):
             self._stream = stream
             self._is_stream_consumed = False
@@ -1805,7 +1807,7 @@ def test_wrapping_context_thread_concurrent() -> None:
     errors: list[str] = []
 
     class ThreadIsolationContext(DummyWrappingContext):
-        def __enter__(self) -> "ThreadIsolationContext":
+        def __enter__(self) -> ThreadIsolationContext:
             super().__enter__()
             self.set("tid", threading.get_ident())
             return self
@@ -1853,7 +1855,7 @@ async def test_wrapping_context_async_recursive() -> None:
     values: list[tuple[str, int]] = []
 
     class AsyncRecursiveContext(DummyWrappingContext):
-        def __enter__(self) -> "AsyncRecursiveContext":
+        def __enter__(self) -> AsyncRecursiveContext:
             super().__enter__()
             n: int = self.__frame__.f_locals["n"]
             self.set("n", n)

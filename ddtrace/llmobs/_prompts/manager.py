@@ -43,6 +43,8 @@ from ddtrace.llmobs.types import PromptVersionResponse
 
 log = get_logger(__name__)
 
+_UNSET: Any = object()
+
 _STATUS_EXCEPTIONS: dict[int, type[PromptAPIError]] = {
     400: PromptValidationError,
     401: PromptAuthError,
@@ -526,6 +528,7 @@ class PromptManager:
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),
                 _version_uuid=data.get("prompt_version_uuid") or data.get("id") or data.get("ID"),
+                _config=data.get("config", {}),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
@@ -539,9 +542,9 @@ class PromptManager:
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         if fallback is None:
-            message = "Prompt '{}' could not be fetched and no fallback was provided".format(prompt_id)
+            message = f"Prompt '{prompt_id}' could not be fetched and no fallback was provided"
             if reason:
-                message = "{}: {}".format(message, reason)
+                message = f"{message}: {reason}"
             raise ValueError(message)
         log.debug("Using user-provided fallback for prompt %s", prompt_id)
         return ManagedPrompt.from_fallback(prompt_id, fallback)
@@ -608,6 +611,7 @@ class PromptManager:
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: object = _UNSET,
     ) -> PromptResponse:
         body: dict[str, Any] = {"prompt_id": prompt_id, "template": list(template)}
         if title:
@@ -620,6 +624,10 @@ class PromptManager:
             body["labels"] = labels
         if env_ids is not None:
             body["env_ids"] = env_ids
+        if isinstance(config, dict):
+            body["config"] = config
+        elif config is not _UNSET:
+            raise PromptValidationError(0, "config must be a dictionary")
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -633,6 +641,7 @@ class PromptManager:
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: object = _UNSET,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {"template": list(template)}
@@ -644,6 +653,10 @@ class PromptManager:
             body["labels"] = labels
         if env_ids is not None:
             body["env_ids"] = env_ids
+        if isinstance(config, dict):
+            body["config"] = config
+        elif config is not _UNSET:
+            raise PromptValidationError(0, "config must be a dictionary")
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
         self._evict_prompt_caches(prompt_id)
         return result

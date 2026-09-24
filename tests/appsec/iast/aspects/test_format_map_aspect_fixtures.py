@@ -1,6 +1,5 @@
-# -*- encoding: utf-8 -*-
 import math
-from typing import Any  # noqa:F401
+from typing import Any
 
 import pytest
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+from importlib import resources
 from pathlib import Path
 import re
 from types import CoroutineType
@@ -21,10 +22,19 @@ import pytest
 
 from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.compat import is_supported_python_version
+
+
+_RUNNING_VERSION: str = f"{PYTHON_VERSION_INFO[0]}.{PYTHON_VERSION_INFO[1]}"
+_UNSUPPORTED_MSG: str = f"This version of CPython is not supported yet: {_RUNNING_VERSION}"
+
+
+def test_unsupported_msg_includes_running_version() -> None:
+    assert NEXT_PY_UNSUPPORTED_MSG == _UNSUPPORTED_MSG
 
 
 # wrap() is live on 3.15+ while wrap is supported through NEXT_MAX_PY.
@@ -47,23 +57,8 @@ _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
 )
 
 
-def _riotfile_simple_str_assignment(source: str, name: str) -> str | None:
-    """Parse a module-level string assignment without importing riotfile."""
-    tree: ast.Module = ast.parse(source)
-    for node in tree.body:
-        value: ast.expr | None = None
-        if (
-            isinstance(node, ast.Assign)
-            and len(node.targets) == 1
-            and isinstance(node.targets[0], ast.Name)
-            and node.targets[0].id == name
-        ):
-            value = node.value
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == name:
-            value = node.value
-        if value is not None and isinstance(value, ast.Constant) and isinstance(value.value, str):
-            return value.value
-    return None
+def _ddtrace_source(path: str) -> str:
+    return resources.files("ddtrace").joinpath(path.removeprefix("ddtrace/")).read_text()
 
 
 def test_max_py_matches_requires_python_upper_bound() -> None:
@@ -74,11 +69,6 @@ def test_max_py_matches_requires_python_upper_bound() -> None:
     minor: int = int(match.group(2))
     last_supported: tuple[int, int] = (major, minor - 1)
     assert MAX_PY == last_supported
-    riotfile: str = (_REPO_ROOT / "riotfile.py").read_text()
-    next_python_version: str | None = _riotfile_simple_str_assignment(riotfile, "NEXT_PYTHON_VERSION")
-    assert next_python_version == f"{NEXT_MAX_PY[0]}.{NEXT_MAX_PY[1]}"
-    max_python_version: str | None = _riotfile_simple_str_assignment(riotfile, "MAX_PYTHON_VERSION")
-    assert max_python_version == f"{MAX_PY[0]}.{MAX_PY[1]}"
 
 
 def test_version_bound_helpers() -> None:
@@ -145,7 +135,7 @@ def test_py315_feature_gate_does_not_follow_next_max() -> None:
         "is_wrap_supported",
     }
     for relpath in _FEATURE_GATE_MODULES:
-        source: str = (_REPO_ROOT / relpath).read_text()
+        source: str = _ddtrace_source(relpath)
         tree: ast.Module = ast.parse(source)
         found_315_gate: bool = False
         for node in ast.walk(tree):

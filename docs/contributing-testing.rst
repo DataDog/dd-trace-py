@@ -94,6 +94,41 @@ after updating from main.
 An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
 remains supported for existing workflows.
 
+OpenFeature fixtures
+--------------------
+
+The OpenFeature suite loads the checked-in snapshot in
+``tests/openfeature/ffe-system-test-data/``. A fresh clone includes the fixtures;
+running the tests requires no submodule initialization or fixture download.
+
+Add or change shared evaluation cases in
+`DataDog/ffe-system-test-data <https://github.com/DataDog/ffe-system-test-data>`_
+first. To refresh the snapshot from a reviewed upstream commit, run:
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --ref <upstream-commit>
+    $ scripts/run-tests --list tests/openfeature/
+    $ scripts/run-tests --venv <environment-hash>
+
+``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
+locally. Only ``ufc-config.json`` and ``evaluation-cases/*.json`` are copied;
+unexpected entries inside ``evaluation-cases/`` are rejected.
+
+The ``Check FFE fixtures`` PR check fetches the exact commit recorded in
+``SOURCE.md`` and compares the copied filenames and contents. It does not update
+the snapshot. To run the same check locally (requires network access):
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --check
+
+The weekly or manually dispatched ``Update FFE fixtures`` workflow opens a signed
+draft PR when the copied contents change. If an update PR is already open, it
+leaves that branch untouched so evaluator fixes added there are preserved. New
+cases may expose evaluator bugs; fix those before merging the update, and change
+fixture expectations upstream only when the shared expectation is incorrect.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 
@@ -164,6 +199,11 @@ the locks and commit both changes:
 
 Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
 environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+On Apple Silicon, select that image architecture explicitly:
+
+.. code-block:: bash
+
+  $ DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/ddtest scripts/test-requirements lock <environment-name>
 
 Use ``scripts/test-requirements`` to inspect and maintain locks:
 
@@ -212,10 +252,6 @@ How do I add a new test suite?
 
 Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
 locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
-
-Until the test-runner migration is complete, mirror environment changes in ``riotfile.py``. The
-`test_uv_suitespec_matches_riot <https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py>`_
-regression test verifies that the suitespec and Riot definitions remain equivalent.
 
 How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------

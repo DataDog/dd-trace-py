@@ -1,6 +1,6 @@
+from collections.abc import Iterable  # noqa:F401
 import os
 from typing import TYPE_CHECKING
-from typing import Iterable  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
@@ -36,19 +36,17 @@ class RemoteConfigPoller(periodic.PeriodicService):
     _MAX_CONSECUTIVE_FAILURES = 3
 
     def __init__(self) -> None:
-        super(RemoteConfigPoller, self).__init__(
-            interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False
-        )
+        super().__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False)
         self._client = RemoteConfigClient()
         # Agentless fetches go straight to the Remote Config backend, so there is
         # no agent to negotiate the v0.7/config endpoint with.
         self._state = self._online if self._client.agentless else self._agent_check
         self._parent_id = os.getpid()
-        self._capabilities_map: "dict[RemoteConfigCapabilities, RemoteConfigProduct]" = dict()
+        self._capabilities_map: dict[RemoteConfigCapabilities, RemoteConfigProduct] = dict()
         self._consecutive_failures = 0
         # Child-process consumer of the SHM (created at fork); None in the
         # single-process case, where the poller dispatches directly.
-        self._subscriber: Optional["RemoteConfigSubscriber"] = None
+        self._subscriber: Optional[RemoteConfigSubscriber] = None
         self._before_fork_registered = False
 
     def _agent_check(self) -> None:
@@ -218,7 +216,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         if self.status == ServiceStatus.STOPPED or self._worker is None:
             return
 
-        super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
+        super()._stop_service(*args, **kwargs)
 
     def update_product_callback(self, product: "RemoteConfigProduct", callback: RCCallback) -> bool:
         """Update the callback for a registered product.

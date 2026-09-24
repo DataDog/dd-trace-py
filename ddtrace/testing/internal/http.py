@@ -578,7 +578,7 @@ class NoOpBackendConnectorSetup(BackendConnectorSetup):
     default because there is no agent to query.
     """
 
-    def get_connector_for_subdomain(self, subdomain: Subdomain) -> "NoOpBackendConnector":  # type: ignore[override]
+    def get_connector_for_subdomain(self, subdomain: Subdomain) -> NoOpBackendConnector:  # type: ignore[override]
         return NoOpBackendConnector()
 
 
