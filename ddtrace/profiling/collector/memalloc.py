@@ -46,11 +46,13 @@ class MemoryCollector:
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
         mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
-        self._installed: bool = False
 
     def install(self) -> None:
-        if self._installed:
-            return
+        # The allocator hooks record as soon as they are installed, so they wait for start.
+        return
+
+    def start(self) -> None:
+        """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
@@ -62,11 +64,6 @@ class MemoryCollector:
             # process. Therefore we stop and restart the collector instead.
             _memalloc.stop()
             _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
-        self._installed = True
-
-    def start(self) -> None:
-        """Start collecting memory profiles."""
-        self.install()
 
     def __enter__(self) -> Self:
         self.start()
@@ -89,7 +86,6 @@ class MemoryCollector:
                 _memalloc.stop()
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
-        self._installed = False
 
     def snapshot(self) -> None:
         """Take a snapshot of collected data, to be exported."""
