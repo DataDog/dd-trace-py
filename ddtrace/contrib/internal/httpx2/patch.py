@@ -19,6 +19,7 @@ config._add(  # type: ignore[no-untyped-call]
     },
 )
 
+# Keep the HTTPX 2 patcher shared across patch and unpatch calls.
 _patcher = HttpxPatcher(httpx2, config.httpx2)
 
 
