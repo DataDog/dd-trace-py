@@ -3,18 +3,16 @@ import re
 from typing import Any
 from typing import Mapping
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
-from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Message
 
 
 _VARIABLE_PATTERN = re.compile(r"\{\{?\s*(\w+)\s*\}\}?")
 
 
-def extract_template(
-    data: Mapping[str, Any], default: Union[str, list[ChatTemplateItem]] = ""
-) -> Union[str, list[ChatTemplateItem]]:
+def extract_template(data: Mapping[str, Any], default: Union[str, list[Message]] = "") -> Union[str, list[Message]]:
     """Extract template from a dict, checking both 'template' and 'chat_template' keys."""
     return data.get("template") or data.get("chat_template") or default
 
@@ -59,7 +57,7 @@ def _is_message(value: object) -> bool:
     return False
 
 
-def render_chat(messages: list[ChatTemplateItem], variables: dict[str, Any]) -> list[Message]:
+def render_chat(messages: Sequence[Mapping[str, object]], variables: dict[str, Any]) -> list[Message]:
     """Render authored messages and expand named runtime message lists."""
     rendered: list[Message] = []
     for msg in messages:

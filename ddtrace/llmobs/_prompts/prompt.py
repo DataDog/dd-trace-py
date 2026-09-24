@@ -4,7 +4,6 @@ from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Union
-from typing import cast
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -12,7 +11,6 @@ from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
 from ddtrace.llmobs._utils import attach_prompt
-from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
@@ -35,7 +33,7 @@ class ManagedPrompt:
     version: str
     label: Optional[str]
     source: Literal["registry", "cache", "fallback", "ff", "resolve"]
-    template: Union[str, list[ChatTemplateItem]]
+    template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
 
@@ -104,7 +102,7 @@ class ManagedPrompt:
         if isinstance(self.template, str):
             result["template"] = self.template
         else:
-            result["chat_template"] = cast(Union[list[dict[str, str]], list[Message]], self.template)
+            result["chat_template"] = self.template
 
         return result
 
@@ -158,7 +156,7 @@ class ManagedPrompt:
         Returns:
             A ManagedPrompt with source="fallback" and label=None.
         """
-        template: Union[str, list[ChatTemplateItem]] = ""
+        template: Union[str, list[Message]] = ""
         version = "fallback"
 
         if fallback is not None:
@@ -167,7 +165,7 @@ class ManagedPrompt:
                 template = extract_template(value)
                 version = value.get("version") or "fallback"
             else:
-                template = cast(Union[str, list[ChatTemplateItem]], value)
+                template = value
 
         return cls(
             id=prompt_id,

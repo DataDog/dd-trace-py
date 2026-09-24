@@ -98,16 +98,6 @@ class ChatMessage(TypedDict):
     content: str
 
 
-class MessagePlaceholder(TypedDict):
-    """A named insertion point for runtime messages in a chat prompt template."""
-
-    type: Literal["placeholder"]
-    name: str
-
-
-ChatTemplateItem = Union[ChatMessage, MessagePlaceholder]
-
-
 class PromptResponse(TypedDict, total=False):
     # Mirrors the backend PromptTemplate struct (dd-source domain/prompt.go);
     # not all fields are populated by every CRUD route.
@@ -179,6 +169,18 @@ class Message(TypedDict, total=False):
     tool_id: str
     audio_parts: list[AudioPart]
     image_parts: list[ImagePart]
+
+
+# TODO: Make MessagePlaceholder standalone in the next major release;
+# inheritance preserves the existing list[Message] template contract.
+class MessagePlaceholder(Message):
+    """A named insertion point for runtime messages in a chat prompt template."""
+
+    type: Literal["placeholder"]
+    name: str
+
+
+ChatTemplateItem = Union[ChatMessage, MessagePlaceholder]
 
 
 class _SpanField(TypedDict):
