@@ -263,18 +263,19 @@ apm-sdks-benchmarks:
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      when: on_success
       allow_failure: true
     # Always run on tagged releases and release branches
     - if: !reference [.is_release_branch]
-      when: always
+      when: on_success
     - if: !reference [.is_release]
-      when: always
+      when: on_success
     - if: !reference [.is_main]
-      when: always
+      when: on_success
     # Flaky benchmark monitoring runs this branch unattended from a parent pipeline,
     # and pushes to it need the same automatic run while that setup is developed.
     - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring"
-      when: always
+      when: on_success
     # No $NIGHTLY_BUILD rule here: apm-sdks-benchmarks already runs its own nightly
     # schedule in that project's own CI, independent of dd-trace-py's pipeline.
     # Otherwise, run manually
