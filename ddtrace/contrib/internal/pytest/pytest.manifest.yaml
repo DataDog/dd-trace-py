@@ -1,0 +1,11 @@
+_v: 1
+name: pytest
+display_name: pytest
+description: Instruments pytest test sessions and executions, recording their hierarchy, outcomes, retries, and code coverage
+  for Datadog Test Optimization.
+packages:
+- name: pytest
+category:
+- test.execution
+systems: []
+creation_date: '2020-11-13'

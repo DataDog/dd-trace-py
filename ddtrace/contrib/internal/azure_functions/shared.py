@@ -1,10 +1,10 @@
+from collections.abc import Coroutine
 import functools
 import inspect
 import json
 import time
 from typing import Any
 from typing import Callable
-from typing import Coroutine
 from typing import Optional
 from typing import Union
 

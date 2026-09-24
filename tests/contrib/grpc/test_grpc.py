@@ -115,7 +115,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         # checking spans written to the dummy tracer
         # see https://github.com/grpc/grpc/issues/14621
 
-        spans = super(GrpcTestCase, self).get_spans()
+        spans = super().get_spans()
 
         if _GRPC_VERSION >= (1, 14):
             assert len(spans) == size
@@ -132,11 +132,11 @@ class GrpcTestCase(GrpcBaseTestCase):
     def _check_client_span(self, span, service, method_name, method_kind):
         self.assert_is_measured(span)
         assert span.name == "grpc"
-        assert span.resource == "/helloworld.Hello/{}".format(method_name)
+        assert span.resource == f"/helloworld.Hello/{method_name}"
         assert span.service == service
         assert span.error == 0
         assert span.span_type == "grpc"
-        assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
+        assert span.get_tag("grpc.method.path") == f"/helloworld.Hello/{method_name}"
         assert span.get_tag("grpc.method.package") == "helloworld"
         assert span.get_tag("grpc.method.service") == "Hello"
         assert span.get_tag("grpc.method.name") == method_name
@@ -151,11 +151,11 @@ class GrpcTestCase(GrpcBaseTestCase):
     def _check_server_span(self, span, service, method_name, method_kind):
         self.assert_is_measured(span)
         assert span.name == "grpc"
-        assert span.resource == "/helloworld.Hello/{}".format(method_name)
+        assert span.resource == f"/helloworld.Hello/{method_name}"
         assert span.service == service
         assert span.error == 0
         assert span.span_type == "grpc"
-        assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
+        assert span.get_tag("grpc.method.path") == f"/helloworld.Hello/{method_name}"
         assert span.get_tag("grpc.method.package") == "helloworld"
         assert span.get_tag("grpc.method.service") == "Hello"
         assert span.get_tag("grpc.method.name") == method_name
@@ -329,7 +329,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert f"x-datadog-trace-id={str(client_span._trace_id_64bits)}" in response.message
         assert f"_dd.p.tid={_get_64_highest_order_bits_as_hex(client_span.trace_id)}" in response.message
-        assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
+        assert f"x-datadog-parent-id={client_span.span_id}" in response.message
         assert "x-datadog-sampling-priority=1" in response.message
 
     def test_unary_abort(self):
@@ -669,11 +669,11 @@ def test_handle_response_future_like():
     def finish_span():
         span.finish()
 
-    class FutureLike(object):
+    class FutureLike:
         def add_done_callback(self, fn):
             finish_span()
 
-    class NotFutureLike(object):
+    class NotFutureLike:
         pass
 
     _handle_response(span, NotFutureLike())
@@ -710,7 +710,7 @@ def test_method_service(patch_grpc):
         options=(("grpc.so_reuseport", 0),),
     )
     port = server.add_insecure_port("[::]:0")
-    channel = grpc.insecure_channel("[::]:{}".format(port))
+    channel = grpc.insecure_channel(f"[::]:{port}")
     server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
     try:
         server.start()

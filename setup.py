@@ -285,7 +285,7 @@ def retry_download(
 
 def verify_checksum_from_file(sha256_filename, filename):
     # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
+    expected_checksum, expected_filename = list(filter(None, open(sha256_filename).read().strip().split(" ")))
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
     try:
         assert expected_filename.endswith(Path(filename).name)
@@ -457,7 +457,7 @@ class CustomBuildRust(build_rust):
         """Run the build process with additional post-processing."""
 
         has_profiling_feature = False
-        for ext in self.distribution.rust_extensions:  # type: ignore[attr-defined]
+        for ext in self.distribution.rust_extensions:
             if ext.features and "profiling" in ext.features:
                 has_profiling_feature = True
                 break
@@ -605,9 +605,9 @@ class LibraryDownload:
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
             lib_dir = arch_dir / "lib"
             for suffix in suffixes:
-                original_file = lib_dir / "{}{}".format(cls.name, suffix)
+                original_file = lib_dir / f"{cls.name}{suffix}"
                 if original_file.exists():
-                    renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
+                    renamed_file = lib_dir / f"lib{cls.name}{suffix}"
                     original_file.rename(renamed_file)
 
             if not cls.USE_CACHE:
@@ -1249,13 +1249,9 @@ class CustomBuildExt(build_ext):
             try:
                 subprocess.run(["strip", "-g", so_file], check=True)
             except subprocess.CalledProcessError as e:
-                print(
-                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
-                )
+                print(f"WARNING: stripping '{so_file}' returned non-zero exit status ({e.returncode}), ignoring")
             except Exception as e:
-                print(
-                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
-                )
+                print(f"WARNING: An error occurred while stripping the symbols from '{so_file}', ignoring: {e}")
 
     @staticmethod
     def _should_strip_heap_gotter() -> bool:
@@ -1301,12 +1297,12 @@ class CustomBuildExt(build_ext):
             try:
                 self.build_extension_cmake(ext)
             except subprocess.CalledProcessError as e:
-                print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
+                print(f"WARNING: Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
                 if ext.optional:
                     return
                 raise
             except Exception as e:
-                print("WARNING: An error occurred while building the CMake extension {}, {}.".format(ext.name, e))
+                print(f"WARNING: An error occurred while building the CMake extension {ext.name}, {e}.")
                 if ext.optional:
                     return
                 raise
@@ -1502,22 +1498,22 @@ class CustomBuildExt(build_ext):
         # by setuptools/distutils
         if IS_EDITABLE:
             # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
-            cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
+            cmake_args.append(f"-DINPLACE_LIB_INSTALL_DIR={ext.source_dir}")
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
-        build_args += ["--config {}".format(ext.build_type)]
+        build_args += [f"--config {ext.build_type}"]
         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
             # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
             # self.parallel is a Python 3 only way to set parallel jobs by hand
             # using -j in the build_ext call, not supported by pip or PyPA-build.
             # DEV: -j is supported in CMake 3.12+ only.
             if hasattr(self, "parallel") and self.parallel:
-                build_args += ["-j{}".format(self.parallel)]
+                build_args += [f"-j{self.parallel}"]
 
         # Arguments to cmake --install command
         install_args = ext.install_args or []
-        install_args += ["--config {}".format(ext.build_type)]
+        install_args += [f"--config {ext.build_type}"]
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
@@ -1729,25 +1725,25 @@ def check_rust_toolchain():
         rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         cargo_res = subprocess.run(["cargo", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if rustc_res.returncode != 0:
-            raise EnvironmentError("rustc required to build Rust extensions")
+            raise OSError("rustc required to build Rust extensions")
         if cargo_res.returncode != 0:
-            raise EnvironmentError("cargo required to build Rust extensions")
+            raise OSError("cargo required to build Rust extensions")
 
         # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
         rustc_ver = rustc_res.stdout.decode().split(" ")[1]
         cargo_ver = cargo_res.stdout.decode().split(" ")[1]
         if rustc_ver < RUST_MINIMUM_VERSION:
-            raise EnvironmentError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
+            raise OSError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
         if cargo_ver < RUST_MINIMUM_VERSION:
-            raise EnvironmentError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
+            raise OSError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
     except FileNotFoundError:
-        raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
+        raise OSError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
 
 
 # Before adding any extensions, check that system pre-requisites are satisfied
 try:
     check_rust_toolchain()
-except EnvironmentError as e:
+except OSError as e:
     print(f"{e}")
     sys.exit(1)
 

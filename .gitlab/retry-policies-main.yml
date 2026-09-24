@@ -1,7 +1,17 @@
 # NOTE: This file must be included after retry-policies.yml and only on
-# main. Matching hidden job names override every automatic retry policy there.
-.retry_on_failure:
-  retry: 0
-
-.retry_on_infrastructure_failure:
-  retry: 0
+# main. It overrides .retry_on_all_failure to limit it to infrastructure failures.
+#
+# GitLab deep-merges hidden keys across includes rather than replacing them
+# wholesale, so an `extends:` here would not remove the base policy's
+# `retry: 2` -- a local `retry:` key always wins over one inherited through
+# `extends`. Define the structured, infrastructure-only value directly
+# instead.
+.retry_on_all_failure:
+  retry:
+    max: 2
+    when:
+      - unknown_failure
+      - data_integrity_failure
+      - runner_system_failure  # mostly machine failed to be provisioned
+      - scheduler_failure
+      - api_failure

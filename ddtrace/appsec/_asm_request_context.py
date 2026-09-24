@@ -117,13 +117,13 @@ class ASM_Environment:
         else:
             self.framework = self.span.name
         self.framework = self.framework.lower().replace(" ", "_")
-        self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
+        self.waf_info: Optional[Callable[[], DDWaf_info]] = None
         self.waf_addresses: dict[str, Any] = {}
         self.waf_callable: Optional[WafCallable] = waf_callable
         self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
-        self.waf_triggers: "list[WafEvent]" = []
+        self.waf_triggers: list[WafEvent] = []
         self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
