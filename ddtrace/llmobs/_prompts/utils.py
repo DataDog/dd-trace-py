@@ -1,6 +1,5 @@
 import json
 import re
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Mapping
 from typing import Optional
@@ -8,10 +7,6 @@ from typing import Union
 
 from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Message
-
-
-if TYPE_CHECKING:
-    from typing_extensions import TypeGuard
 
 
 _VARIABLE_PATTERN = re.compile(r"\{\{?\s*(\w+)\s*\}\}?")
@@ -49,7 +44,7 @@ def cache_key(prompt_id: str, label: Optional[str]) -> str:
     return f"{prompt_id}:{label or ''}"
 
 
-def _is_message(value: object) -> "TypeGuard[Message]":
+def _is_message(value: object) -> bool:
     if not isinstance(value, dict) or not isinstance(value.get("role"), str):
         return False
     if value.get("type") == "placeholder":
@@ -83,6 +78,7 @@ def render_chat(messages: list[ChatTemplateItem], variables: dict[str, Any]) -> 
                         f"Message placeholder '{name}' must contain messages with "
                         "a string role and text or tool content"
                     )
+                # Preserve provider payloads (including null content) without widening the public return annotation.
                 rendered.append(message.copy())
             continue
         role = msg.get("role")
