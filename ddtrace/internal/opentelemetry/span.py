@@ -1,10 +1,11 @@
-from collections.abc import Mapping
+from __future__ import annotations
+
 from time import time_ns
 import traceback
+from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
-from typing import Optional
 from typing import Protocol
-from typing import Union
 
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext
@@ -13,21 +14,29 @@ from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
-from opentelemetry.util.types import Attributes
-from opentelemetry.util.types import AttributeValue
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.trace import tracer as ddtracer
+
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Union  # noqa:F401
+
+    from opentelemetry.util.types import Attributes  # noqa:F401
+    from opentelemetry.util.types import AttributeValue  # noqa:F401
+
+    from ddtrace.internal.compat import NumericType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -58,7 +67,7 @@ class _DDSpanProtocol(Protocol):
     def trace_id(self) -> int: ...
 
     @property
-    def _local_root(self) -> "_DDSpanProtocol": ...
+    def _local_root(self) -> _DDSpanProtocol: ...
 
     def get_tag(self, key: str) -> Optional[str]: ...
 
@@ -140,29 +149,24 @@ class Span(OtelSpan):
             self.set_attributes(attributes)
 
     @property
-    def _record_exception(self):
-        # type: () -> bool
+    def _record_exception(self) -> bool:
         # default value is True, if record exception key is not set return True
         return self._ddspan._get_ctx_item("_dd.otel.record_exception") is not False
 
     @_record_exception.setter
-    def _record_exception(self, value):
-        # type: (bool) -> None
+    def _record_exception(self, value: bool) -> None:
         self._ddspan._set_ctx_item("_dd.otel.record_exception", value)
 
     @property
-    def _set_status_on_exception(self):
-        # type: () -> bool
+    def _set_status_on_exception(self) -> bool:
         # default value is True, if set status on exception key is not set return True
         return self._ddspan._get_ctx_item("_dd.otel.set_status_on_exception") is not False
 
     @_set_status_on_exception.setter
-    def _set_status_on_exception(self, value):
-        # type: (bool) -> None
+    def _set_status_on_exception(self, value: bool) -> None:
         self._ddspan._set_ctx_item("_dd.otel.set_status_on_exception", value)
 
-    def end(self, end_time=None):
-        # type: (Optional[int]) -> None
+    def end(self, end_time: Optional[int] = None) -> None:
         """
         Marks the end time of a span. This method should be called once.
 
@@ -176,15 +180,14 @@ class Span(OtelSpan):
         self._ddspan._finish_ns(end_time)
 
     @property
-    def kind(self):
+    def kind(self) -> str:
         """Gets span kind attribute"""
         # BUG: Span.kind is required by the otel library instrumentation (ex: flask, asgi, django) but
         # this property is only defined in the opentelemetry-sdk and NOT defined the opentelemetry-api.
         # TODO: Propose a fix in opentelemetry-python-contrib project
         return self._ddspan._get_str_attribute(SPAN_KIND) or SpanKind.INTERNAL.name.lower()
 
-    def get_span_context(self):
-        # type: () -> SpanContext
+    def get_span_context(self) -> SpanContext:
         """Returns an OpenTelemetry SpanContext"""
         if self._ddspan.context.sampling_priority is None:
             # With the introduction of lazy sampling, spans are now sampled on serialization. With this change
@@ -202,14 +205,12 @@ class Span(OtelSpan):
 
         return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 
-    def set_attributes(self, attributes):
-        # type: (Mapping[str, AttributeValue]) -> None
+    def set_attributes(self, attributes: Mapping[str, AttributeValue]) -> None:
         """Sets attributes/tags"""
         for k, v in attributes.items():
             self.set_attribute(k, v)
 
-    def set_attribute(self, key, value):
-        # type: (str, AttributeValue) -> None
+    def set_attribute(self, key: str, value: AttributeValue) -> None:
         """Sets an attribute or service name on a tag"""
         if not self.is_recording():
             return
@@ -237,8 +238,7 @@ class Span(OtelSpan):
             # TODO: get rid of this usage, `set_tag` only takes str values
             self._ddspan.set_tag(key, value)
 
-    def add_event(self, name, attributes=None, timestamp=None):
-        # type: (str, Optional[Attributes], Optional[int]) -> None
+    def add_event(self, name: str, attributes: Optional[Attributes] = None, timestamp: Optional[int] = None) -> None:
         """Records an event"""
         if not self.is_recording():
             return
@@ -249,20 +249,17 @@ class Span(OtelSpan):
 
         self._ddspan._add_event(name, attributes, timestamp)
 
-    def update_name(self, name):
-        # type: (str) -> None
+    def update_name(self, name: str) -> None:
         """Updates the name of a span"""
         if not self.is_recording():
             return
         self._ddspan.resource = name
 
-    def is_recording(self):
-        # type: () -> bool
+    def is_recording(self) -> bool:
         """Returns False if Span.end() is called."""
         return not self._ddspan.finished
 
-    def set_status(self, status, description=None):
-        # type: (Union[Status, StatusCode], Optional[str]) -> None
+    def set_status(self, status: Union[Status, StatusCode], description: Optional[str] = None) -> None:
         """
         Updates a Span from StatusCode.OK to StatusCode.ERROR.
         Note - The default status is OK. Setting the status to StatusCode.UNSET or updating the
@@ -348,14 +345,15 @@ class Span(OtelSpan):
                 )
         self.add_event(name="exception", attributes=attrs, timestamp=timestamp)
 
-    def __enter__(self):
-        # type: () -> Span
+    def __enter__(self) -> Span:
         """Invoked when `Span` is used as a context manager.
         Returns the `Span` itself.
         """
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exc_type: Optional[type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         """Ends Span context manager"""
         if exc_val:
             if self._record_exception:
@@ -367,7 +365,7 @@ class Span(OtelSpan):
         self.end()
 
     @property
-    def _datadog_operation_name(self):
+    def _datadog_operation_name(self) -> str:
         # Adapted from https://github.com/DataDog/dd-trace-java/blob/4131e509a94db430b47104769800ec14de5f0a0d/dd-java-agent/instrumentation/opentelemetry/opentelemetry-1.4/src/main/java/datadog/trace/instrumentation/opentelemetry14/trace/OtelConventions.java#L107  # noqa: E501
         ddspan = self._ddspan
         span_kind = self.kind
