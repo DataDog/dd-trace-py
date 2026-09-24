@@ -12,6 +12,11 @@ from ddtrace.profiling.collector._fast_poisson import PoissonSampler
 
 LOG = logging.getLogger(__name__)
 HAS_MONITORING = hasattr(sys, "monitoring")
+if HAS_MONITORING:
+    from ddtrace.internal import monitoring as _monitoring
+else:
+    _monitoring = None
+
 _GIL_DISABLED = _sysconfig.get_config_var("Py_GIL_DISABLED")
 _current_thread = threading.current_thread
 
@@ -22,10 +27,11 @@ MAX_EXCEPTION_MESSAGE_LEN = 128
 #   0 = DEBUGGER_ID
 #   1 = COVERAGE_ID (used by dd-trace-py coverage)
 #   2 = PROFILER_ID (used by the native stack profiler)
-#   3 = used by error tracking (handled exceptions) and the 3.15+ multiplexer
-#   4 = **used here**
+#   3 = used by the shared multiplexer (this module now registers through it)
+#   4 = used by the shared multiplexer as a fallback slot
 #   5 = OPTIMIZER_ID
-_MONITORING_TOOL_ID = 4
+# The exception profiler no longer claims a slot directly; it registers its
+# RAISE callback through ddtrace.internal.monitoring.register_global().
 
 
 cdef class _SamplerState:
@@ -100,18 +106,18 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     if _collecting:
         return
 
-    # Skip control-flow exceptions (iterator/generator termination).
-    if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
-        return
-
     # Set the reentrancy guard before any attribute access on the exception
     # object. A custom __getattribute__ that raises during the
-    # __traceback__ lookup would fire another RAISE callback; without the
+    # __class__ or __traceback__ lookup would fire another RAISE callback; without the
     # guard that secondary exception could recurse and leak back into user
     # code, replacing the original exception being raised.
     cdef _SamplerState state
     _collecting = True
     try:
+        # Skip control-flow exceptions (iterator/generator termination).
+        if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
+            return
+
         # RAISE fires in every frame the exception unwinds through, not just
         # at the raise site. Before invoking this callback CPython appends
         # the current frame to exception.__traceback__, so the traceback
@@ -148,6 +154,16 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
         _collecting = False
 
 
+if HAS_MONITORING:
+    class _ExceptionMonitoringHandler(_monitoring.MonitoringEventHandler):
+        # Expose the guarded Cython callback without a Python forwarding method.
+        on_raise = staticmethod(_on_exception)
+
+    _exception_handler = _ExceptionMonitoringHandler()
+else:
+    _exception_handler = None
+
+
 class ExceptionCollector(collector.Collector):
     """Collects exception samples using sys.monitoring (Python 3.12+)."""
 
@@ -159,7 +175,6 @@ class ExceptionCollector(collector.Collector):
 
         self._collect_message = collect_message if collect_message is not None else config.exception.collect_message
         self._monitoring_registered = False
-        self._owns_tool_id = False
 
     def _start_service(self) -> None:
         global _state
@@ -169,26 +184,16 @@ class ExceptionCollector(collector.Collector):
             return
 
         if HAS_MONITORING:
+            if _state is not None:
+                LOG.debug("ExceptionCollector already running, skipping")
+                return
             try:
-                # Claim the tool ID before writing _state so that a ValueError
-                # leaves the existing _state untouched. use_tool_id is the
-                # atomic claim.
-                sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
-                self._owns_tool_id = True
-                sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
-                sys.monitoring.register_callback(
-                    _MONITORING_TOOL_ID,
-                    sys.monitoring.events.RAISE,
-                    _on_exception,
-                )
-            except ValueError:
+                _monitoring.register_global(_exception_handler, direct=True)
+            except _monitoring.MonitoringToolUnavailable:
                 LOG.exception("Failed to set up exception monitoring")
-                if self._owns_tool_id:
-                    try:
-                        sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
-                    except Exception:
-                        LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
-                self._owns_tool_id = False
+                return
+            except ValueError:
+                LOG.exception("Failed to register exception monitoring handler")
                 return
 
             _state = _SamplerState(self._sampling_interval, self._collect_message)
@@ -206,27 +211,11 @@ class ExceptionCollector(collector.Collector):
             _state = None
             return
 
-        # Each cleanup step is independent.
         try:
-            sys.monitoring.register_callback(
-                _MONITORING_TOOL_ID,
-                sys.monitoring.events.RAISE,
-                None,
-            )
+            if _exception_handler is not None:
+                _monitoring.unregister_global(_exception_handler)
         except Exception:
-            LOG.debug("Failed to unregister exception monitoring callback", exc_info=True)
+            LOG.debug("Failed to unregister exception monitoring handler", exc_info=True)
 
-        try:
-            sys.monitoring.set_events(_MONITORING_TOOL_ID, 0)
-        except Exception:
-            LOG.debug("Failed to disable exception monitoring events", exc_info=True)
-
-        if self._owns_tool_id:
-            try:
-                sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
-            except Exception:
-                LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
-
-        self._owns_tool_id = False
         self._monitoring_registered = False
         _state = None

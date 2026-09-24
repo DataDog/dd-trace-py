@@ -398,8 +398,10 @@ Global handlers that contain their own failures can use
 handler's callback directly, avoiding the Python multiplexer dispatch on every
 event. Direct callbacks must handle their own exceptions and return `None`.
 Ownership checks, rollback, and teardown still belong to the multiplexer. The
-first registration selects the delivery mode until the event is unregistered.
-Error Tracking uses this mode with a guarded bound callback.
+first registration selects the delivery mode until the event is unregistered;
+registering another owner for a different event does not change that mode.
+Error Tracking uses a guarded bound method, and exception profiling exposes its
+guarded Cython callback as a static method to avoid an additional adapter call.
 
 The multiplexer keeps the tool claimed while registrations exist and releases
 it after the final local or global registration is removed. Releasing first
@@ -413,9 +415,10 @@ reuse the scarce slot.
 ### Local vs. Global Events
 
 PY_START, PY_RETURN, LINE, and Python 3.15+'s PY_UNWIND are enabled locally
-per code object. EXCEPTION_HANDLED is enabled globally only while at least one
-global handler is registered. On Python 3.12–3.14, PY_UNWIND is not available
-as a local event, so the multiplexer rejects handlers that request it.
+per code object. EXCEPTION_HANDLED and RAISE are enabled globally only while
+at least one global handler is registered for each. On Python 3.12–3.14,
+PY_UNWIND is not available as a local event, so the multiplexer rejects
+handlers that request it.
 
 ### `DISABLE` and `refresh()`
 
