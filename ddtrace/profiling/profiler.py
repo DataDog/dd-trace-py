@@ -402,7 +402,7 @@ class _ProfilerInstance(service.Service):
                 except Exception:
                     LOG.error("Failed to install collector %r", col, exc_info=True)
 
-    def _adopt_collector(self, col: collector.Collector | memalloc.MemoryCollector) -> bool:
+    def _adopt_collector(self, col: Union[collector.Collector, memalloc.MemoryCollector]) -> bool:
         """Install or start a collector created after profiler setup. Return False to drop it."""
         try:
             if self.status == service.ServiceStatus.RUNNING:
