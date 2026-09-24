@@ -13,7 +13,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
 
-def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
+def _build_sample_range(start: int, end: int, name: str) -> TaintRange:
     return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER))
 
 

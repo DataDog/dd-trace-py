@@ -41,6 +41,7 @@ from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
@@ -1134,3 +1135,6 @@ def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: O
             value = metrics.get(llmobs_key)
             if value is not None:
                 span._set_attribute(gen_ai_key, value)
+    # Without this tag, the backend processor identifies gen_ai tags on the APM span and creates
+    # a duplicate LLMObs span.
+    span.set_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY, "true")

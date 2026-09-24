@@ -104,12 +104,6 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-  # TODO(py-315): drop the cp315 allow_failure rule once #17849 ports the bytecode
-  # wrapping path to sys.monitoring (currently raises NotImplementedError on 3.15).
-  rules:
-    - if: $PYTHON_TAG == "cp315-cp315"
-      allow_failure: true
-    - when: on_success
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -205,6 +199,9 @@ variables:
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
 
 # Rewrites each wheel's version to major.minor.patch[rc].dev<pipeline_id>+<local>.<commit_sha>,
 # then uploads it to the private prerelease index.
@@ -345,7 +342,7 @@ variables:
 
 "build windows":
   stage: package
-  extends: .retry_on_failure
+  extends: .retry_on_all_failure
   tags: ["windows-v2:2022"]
   parallel:
     matrix:

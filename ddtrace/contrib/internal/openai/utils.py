@@ -18,14 +18,13 @@ class BaseOpenAIStreamHandler:
         return defaultdict(list)
 
     def finalize_stream(self, exception=None):
-        if not exception:
-            _process_finished_stream(
-                self.integration,
-                self.primary_span,
-                self.request_kwargs,
-                self.chunks,
-                self.options.get("operation_type", ""),
-            )
+        _process_finished_stream(
+            self.integration,
+            self.primary_span,
+            self.request_kwargs,
+            self.chunks,
+            self.options.get("operation_type", ""),
+        )
         self.primary_span.finish()
 
 
