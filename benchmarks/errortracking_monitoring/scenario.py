@@ -47,10 +47,14 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
 
         # -- module filename filtering -----------------------------------------
 
-        if self.handler in ("module_filter_miss", "module_filter_hit"):
+        if self.handler in ("module_filter_miss", "module_filter_hit", "module_filter_warm"):
             from ddtrace.errortracking._handled_exceptions import monitoring_reporting as reporting
 
-            file_names = tuple(f"errortracking_module_{index}.py" for index in range(8192))
+            if self.handler == "module_filter_warm":
+                # Small, repeatedly used set — exercises the warm-cache path.
+                file_names = tuple(f"errortracking_module_{index}.py" for index in range(16))
+            else:
+                file_names = tuple(f"errortracking_module_{index}.py" for index in range(8192))
             reporting.INSTRUMENTED_FILE_PATHS.clear()
             if hasattr(reporting, "_report_configured_modules"):
                 reporting._report_configured_modules = True
@@ -60,16 +64,21 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                 reporting._should_report_exception = reporting.create_should_report_exception_optimized({"modules"})
                 getattr(reporting.cached_should_report_exception, "cache_clear")()
 
-            if self.handler == "module_filter_hit":
+            if self.handler in ("module_filter_hit", "module_filter_warm"):
                 paths: Any = reporting.INSTRUMENTED_FILE_PATHS
                 if isinstance(paths, set):
                     paths.update(file_names)
                 else:
                     paths.extend(file_names)
 
+            if self.handler == "module_filter_warm":
+                mask = 15  # 16 filenames
+            else:
+                mask = 8191  # 8192 filenames
+
             def _(loops: int) -> None:
                 for index in range(loops):
-                    reporting.cached_should_report_exception(file_names[index & 8191])
+                    reporting.cached_should_report_exception(file_names[index & mask])
 
             yield _
             return
@@ -112,13 +121,18 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
             unregister_global = getattr(monitoring, "unregister_global", None)
             if register_global is None or unregister_global is None:
                 # Use the equivalent direct callback as the pre-multiplexer baseline.
-                seen = []
                 sys_monitoring.use_tool_id(tool_id, "datadog_handled_exceptions")
                 sys_monitoring.set_events(tool_id, event)
 
-                def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
-                    if self.handler == "direct_global_active":
-                        seen.append(exception)
+                if self.handler == "direct_global_active":
+                    seen_direct: list[BaseException] = []
+
+                    def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+                        seen_direct.append(exception)
+                else:
+
+                    def _direct_callback(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+                        pass
 
                 sys_monitoring.register_callback(tool_id, event, _direct_callback)
 

@@ -99,6 +99,9 @@ experiments:
           - name: errortrackingmonitoring-module_filter_hit
             thresholds:
               - execution_time < 0.067 ms
+          - name: errortrackingmonitoring-module_filter_warm
+            thresholds:
+              - execution_time < 0.067 ms
           # errortrackingdjangosimple
           - name: errortrackingdjangosimple-baseline
             thresholds:

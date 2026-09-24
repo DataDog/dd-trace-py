@@ -379,6 +379,7 @@ suites:
       - '@core'
       - '@vendor'
       - '@tracing'
+      - '@errortracking'
       - '@django'
       - benchmarks/errortracking_django_simple/*
       - benchmarks/suitespec.yml
@@ -390,6 +391,7 @@ suites:
       - '@core'
       - '@vendor'
       - '@tracing'
+      - '@errortracking'
       - '@flask'
       - benchmarks/errortracking_flask_sqli/*
       - benchmarks/suitespec.yml

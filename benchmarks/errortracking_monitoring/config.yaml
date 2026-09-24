@@ -28,3 +28,7 @@ module_filter_miss:
 # Module-only reporting: configured filenames in the dynamic module set.
 module_filter_hit:
   handler: "module_filter_hit"
+
+# Module-only reporting: small, repeatedly used filename set (warm-cache case).
+module_filter_warm:
+  handler: "module_filter_warm"
