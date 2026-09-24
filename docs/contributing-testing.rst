@@ -94,6 +94,79 @@ after updating from main.
 An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
 remains supported for existing workflows.
 
+LLMObs test impact analysis experiment
+-------------------------------------
+
+Set the pipeline variable ``DD_LLMOBS_TIA_MODE`` on an experiment branch to run
+the ``llmobs::llmobs`` environments in one of these modes. The generator embeds
+the mode in the child jobs; other suites, including LLM integrations, keep their
+normal configuration. Leaving the variable unset preserves the existing jobs.
+
+.. list-table:: Experiment modes
+   :header-rows: 1
+
+   * - Value
+     - Behavior
+   * - ``itr``
+     - Datadog pytest plugin with ITR and test skipping enabled.
+   * - ``full``
+     - Full run without ITR or testmon, for measuring collection overhead.
+   * - ``collect``
+     - Delete the environment's previous database and run all tests with
+       ``pytest-testmon==2.1.3 --testmon --testmon-noselect``.
+   * - ``testmon``
+     - Reuse the database and select affected tests with ``--testmon``.
+       A missing cache starts a cold collection run.
+
+All experiment modes retain the checkout's Python sources and the native
+extensions extracted from the CI wheel. Normal jobs import the installed wheel;
+testmon needs repository sources to track changes to ddtrace itself. All four
+modes run with one pytest worker and without pytest-cov, coverage-report uploads,
+or automatic test retries. Datadog test reporting remains enabled. Testmon and
+full modes explicitly disable ITR. Compare experiment modes to each other, since
+ordinary job times also include parallelism and different coverage settings.
+
+The database and JSON measurements are uploaded under ``.tia/`` as job artifacts
+for one week, including on failures. A branch- and job-specific GitLab cache
+restores ``.tia/databases/`` in subsequent pipelines; artifacts alone do not
+restore state across pipelines. A resource group serializes writers for each
+branch/job. Only successful jobs publish caches. Within that cache, databases
+are separated by dependency environment, lock contents, and command/environment
+configuration. Changing locks or the pinned testmon version starts a new
+database. Cache eviction or changes to job packing may also cause a cold run;
+consult ``database_reused`` before comparing results.
+
+Suggested measurement sequence, using the same environments and runner resources:
+
+1. Run ``full``, ``itr``, and ``collect`` on the same revision. Compare full and
+   collect process times to estimate the overhead of recording dependencies.
+2. Run ``testmon`` on the same revision after a successful collect pipeline to
+   measure the unchanged case. Then make a small Python implementation change
+   and rerun testmon to measure affected-test selection.
+3. Run ``full`` on that changed revision and compare failures against testmon.
+   Include changes to fixtures, parametrization, shared helpers, and cassettes
+   in the evaluation. Python dependency coverage does not guarantee detection
+   of changes to data files, native code, or subprocess-only execution.
+
+Each ``.tia/reports/*.json`` identifies the mode, environment, revision, job,
+plugin versions, raw pytest status, process exit code, database reuse, and database
+bytes (including SQLite sidecars). ``process_seconds`` measures the test process,
+excluding environment installation and artifact/cache transfer.
+``startup_and_selection_seconds`` measures from measurement-plugin import through
+collection completion, including initialization, imports, and selection; it is
+not an isolated testmon algorithm benchmark. ``collection_seconds`` measures the
+pytest collection hook. ``selected_tests`` counts items left after collection;
+``deselected_tests`` counts pytest deselection events, which may exclude entire
+files filtered before collection. Outcome counts distinguish calls from setup
+and teardown failures/skips; ITR skips happen during execution, so selected item
+counts alone cannot measure ITR savings.
+
+A warm testmon run with zero selected tests succeeds; cold empty suites and
+collection/test errors still fail. The first CI runs must verify compatibility
+of testmon with each locked pytest/coverage environment and check that a source
+change selects its expected tests. This is an opt-in feasibility experiment,
+not a replacement for the full-suite correctness check.
+
 OpenFeature fixtures
 --------------------
 

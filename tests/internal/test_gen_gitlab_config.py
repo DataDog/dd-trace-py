@@ -66,6 +66,30 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     assert "$DD_API_KEY" not in config
 
 
+@pytest.mark.parametrize("mode", ["itr", "full", "collect", "testmon"])
+def test_tia_is_scoped_to_llmobs(gen_gitlab_config_mod, monkeypatch, mode):
+    monkeypatch.setenv("DD_LLMOBS_TIA_MODE", mode)
+    config = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+    assert "extends: [.test_base, .llmobs_tia]" in config
+    assert f'DD_LLMOBS_TIA_MODE: "{mode}"' in config
+    other = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer"))
+    assert "DD_LLMOBS_TIA_MODE" not in other
+    assert ".llmobs_tia" not in other
+
+
+def test_tia_is_opt_in(gen_gitlab_config_mod, monkeypatch):
+    monkeypatch.delenv("DD_LLMOBS_TIA_MODE", raising=False)
+    config = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+    assert ".llmobs_tia" not in config
+    assert "DD_LLMOBS_TIA_MODE" not in config
+
+
+def test_tia_rejects_unknown_modes(gen_gitlab_config_mod, monkeypatch):
+    monkeypatch.setenv("DD_LLMOBS_TIA_MODE", 'testmon"; false')
+    with pytest.raises(ValueError, match="Unknown DD_LLMOBS_TIA_MODE"):
+        str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+
+
 @pytest.mark.parametrize(
     "config, message",
     [

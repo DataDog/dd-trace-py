@@ -250,3 +250,4 @@ ddtrace/profiling/collector/build-test/
 uv.lock
 .riot/*.installed
 benchmark-artifacts/
+.tia/
