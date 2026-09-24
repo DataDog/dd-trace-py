@@ -70,7 +70,6 @@ class StackCollector(collector.Collector):
         if not stack.is_safe_copy_failed():
             stack.reinstall_segv_handler()
 
-        threading.install_thread_hooks()
         self._installed = True
 
     def _init(self) -> None:
@@ -106,8 +105,9 @@ class StackCollector(collector.Collector):
             except Exception:
                 LOG.debug("Failed to start native call monitor", exc_info=True)
 
-        # one_time_setup() inside stack.start clears registrations made earlier.
-        threading.register_existing_threads()
+        # Now patch the Threading module and register existing threads/asyncio loops.
+        # TODO take the `threading` import out of here and just handle it in v2 startup
+        threading.init_stack()
 
         # Register only after every fallible initialization step. A failed collector is dropped without
         # _stop_service(), so registering earlier could leave process-wide tracing listeners behind.

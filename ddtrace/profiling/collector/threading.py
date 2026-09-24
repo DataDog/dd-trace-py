@@ -69,65 +69,41 @@ class ThreadingConditionCollector(_lock.LockCollector):
     PATCHED_LOCK_NAME: str = "Condition"
 
 
-_thread_hooks_installed: bool = False
-
-
-def _stack_hooks_active() -> bool:
-    return bool(config.stack.enabled and stack.is_available)
-
-
-# Patch threading.Thread so the stack sampler can track thread lifetimes.
-# Existing threads are registered separately, after the sampler's one-time setup.
-def install_thread_hooks() -> None:
-    global _thread_hooks_installed
-
-    if _thread_hooks_installed or not _stack_hooks_active():
-        return
-
-    _thread_hooks_installed = True
-
-    _thread_set_native_id = typing.cast(
-        typing.Callable[[threading.Thread], None],
-        ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
-    )
-    _thread_bootstrap_inner = typing.cast(
-        typing.Callable[[threading.Thread], None],
-        ddtrace_threading.Thread._bootstrap_inner,  # type: ignore[attr-defined]
-    )
-
-    def thread_set_native_id(self: threading.Thread) -> None:
-        _thread_set_native_id(self)
-        if self.ident is not None and self.native_id is not None:
-            stack.register_thread(self.ident, self.native_id, self.name)
-
-    def thread_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
-        _thread_bootstrap_inner(self, *args, **kwargs)
-        if self.ident is not None:
-            stack.unregister_thread(self.ident)
-
-    ddtrace_threading.Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
-    ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
-
-    # Import _faulthandler to ensure faulthandler.enable wrapper is initialised.
-    # This reinstalls our SIGSEGV handler when faulthandler overwrites it.
-    # Import _asyncio to ensure asyncio post-import wrappers are initialised.
-    from ddtrace.profiling import _asyncio  # noqa: F401
-    from ddtrace.profiling import _faulthandler  # noqa: F401
-
-
-def register_existing_threads() -> None:
-    if not _stack_hooks_active():
-        return
-
-    from ddtrace.profiling import _asyncio
-    from ddtrace.profiling._threading import get_thread_native_id
-
-    for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
-        stack.register_thread(thread_id, get_thread_native_id(thread_id), thread.name)
-
-    _asyncio.link_existing_loop_to_current_thread()
-
-
+# Also patch threading.Thread so echion can track thread lifetimes
 def init_stack() -> None:
-    install_thread_hooks()
-    register_existing_threads()
+    if config.stack.enabled and stack.is_available:
+        from ddtrace.profiling._threading import get_thread_native_id
+
+        _thread_set_native_id = typing.cast(
+            typing.Callable[[threading.Thread], None],
+            ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
+        )
+        _thread_bootstrap_inner = typing.cast(
+            typing.Callable[[threading.Thread], None],
+            ddtrace_threading.Thread._bootstrap_inner,  # type: ignore[attr-defined]
+        )
+
+        def thread_set_native_id(self: threading.Thread) -> None:
+            _thread_set_native_id(self)
+            if self.ident is not None and self.native_id is not None:
+                stack.register_thread(self.ident, self.native_id, self.name)
+
+        def thread_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+            _thread_bootstrap_inner(self, *args, **kwargs)
+            if self.ident is not None:
+                stack.unregister_thread(self.ident)
+
+        ddtrace_threading.Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
+        ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
+
+        # Instrument any living threads
+        for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
+            stack.register_thread(thread_id, get_thread_native_id(thread_id), thread.name)
+
+        # Import _faulthandler to ensure faulthandler.enable wrapper is initialised.
+        # This reinstalls our SIGSEGV handler when faulthandler overwrites it.
+        # Import _asyncio to ensure asyncio post-import wrappers are initialised
+        from ddtrace.profiling import _asyncio  # noqa: F401
+        from ddtrace.profiling import _faulthandler  # noqa: F401
+
+        _asyncio.link_existing_loop_to_current_thread()
