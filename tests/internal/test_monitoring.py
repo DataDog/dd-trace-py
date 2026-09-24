@@ -371,6 +371,44 @@ def test_on_py_line_disables_when_all_handlers_return_disable(
     assert result is _DISABLE
 
 
+def test_concurrent_event_callbacks_retain_each_disabled_event(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """Concurrent event kinds cannot overwrite each other's disabled-event state."""
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.barrier = threading.Barrier(2)
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            self.barrier.wait()
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            self.barrier.wait()
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, Handler())
+    results: list[object | None] = []
+    start_thread = threading.Thread(target=lambda: results.append(monitoring._on_py_start(fn.__code__, 0)))
+    line_thread = threading.Thread(
+        target=lambda: results.append(monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno))
+    )
+
+    start_thread.start()
+    line_thread.start()
+    start_thread.join()
+    line_thread.join()
+
+    handlers = monitoring._registry.get(fn.__code__)
+    assert handlers is not None
+    assert monitoring._possibly_disabled_events(handlers) == _E.PY_START | _E.LINE
+    assert results == [_DISABLE, _DISABLE]
+
+
 def test_on_py_line_continues_when_any_handler_declines_disable(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
 ) -> None:
@@ -601,6 +639,27 @@ def test_multiplexer_uses_only_tool_id_3() -> None:
     assert monitoring.get_tool_id() == 3
 
 
+@pytest.mark.subprocess(timeout=10, out=None, err=None)
+def test_batch_registration_materializes_one_shot_iterable_before_locking() -> None:
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    def codes():
+        yield compile("pass", "<first>", "exec")
+        yield compile("pass", "<second>", "exec")
+
+    monitoring._register_many(codes(), Handler(), events=monitoring._E.LINE)
+
+    # The batch tuple is released after the registry lock. Both code objects can
+    # then be collected and weakref cleanup releases the now-unused tool.
+    assert monitoring._tool_id is None
+
+
 @pytest.mark.subprocess(out=None, err=None)
 def test_tool_reservation_releases_unregistered_slot() -> None:
     import sys
@@ -614,6 +673,36 @@ def test_tool_reservation_releases_unregistered_slot() -> None:
 
     assert monitoring._tool_id is None
     assert sys_monitoring.get_tool(tool_id) is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_last_collected_code_releases_tool_and_callbacks() -> None:
+    import gc
+    import sys
+    from types import CodeType
+    import weakref
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    code = compile("pass", "<collected>", "exec")
+    collected = weakref.ref(code)
+    monitoring.register(code, Handler())
+    tool_id = monitoring._tool_id
+    assert tool_id == 3
+
+    del code
+    gc.collect()
+
+    assert collected() is None
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
 
 
 @pytest.mark.subprocess(out=None, err=None)
@@ -655,6 +744,56 @@ def test_last_unregister_releases_tool_and_callbacks() -> None:
     monitoring.register(target.__code__, handler)
     assert monitoring._tool_id == tool_id
     monitoring.unregister(target.__code__, handler)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_weak_cleanup_can_reenter_registry_lock_during_gc() -> None:
+    import gc
+    import threading
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    gc.disable()
+    first_code = compile("pass", "<cyclic-first>", "exec")
+    first_handler = Handler()
+    monitoring.register(first_code, first_handler)
+
+    cycle: list[object] = [first_code]
+    cycle.append(cycle)
+    del first_code
+    del cycle
+
+    second_code = compile("pass", "<cyclic-second>", "exec")
+    second_handler = Handler()
+    original_set_local_events = monitoring._set_local_events
+    errors: list[BaseException] = []
+
+    def collect_during_registration(tool_id: int, code: CodeType, events: int) -> None:
+        gc.collect()
+        original_set_local_events(tool_id, code, events)
+
+    def register_second() -> None:
+        try:
+            monitoring.register(second_code, second_handler)
+        except BaseException as error:
+            errors.append(error)
+
+    monitoring._set_local_events = collect_during_registration
+    thread = threading.Thread(target=register_second, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "weak cleanup deadlocked while re-entering the registry lock"
+    assert not errors
+
+    monitoring._set_local_events = original_set_local_events
+    monitoring.unregister(second_code, second_handler)
+    gc.enable()
 
 
 @pytest.mark.subprocess(out=None, err=None)
@@ -802,16 +941,28 @@ def test_register_rearms_disabled_py_start_for_new_handler(
     assert passive.count == 2
 
 
+@pytest.mark.parametrize("callback_name", ["_on_py_start", "_on_py_line"])
 def test_register_invalidates_inflight_disable(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
 ) -> None:
     """A handler registered during dispatch is not hidden by that dispatch's DISABLE."""
     started = threading.Event()
     release = threading.Event()
     results: list[object | None] = []
 
-    class BlockingLineHandler(monitoring.MonitoringEventHandler):
+    class BlockingHandler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.count = 0
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
+            self.count += 1
+            started.set()
+            release.wait()
+            return _DISABLE
+
         def on_py_line(self, code: CodeType, line_number: int) -> object | None:
+            self.count += 1
             started.set()
             release.wait()
             return _DISABLE
@@ -819,10 +970,11 @@ def test_register_invalidates_inflight_disable(
     def fn() -> None:
         pass
 
-    registered(fn.__code__, BlockingLineHandler())
-    second = LineHandler(disable=True)
+    first = registered(fn.__code__, BlockingHandler())
+    second = BlockingHandler()
+    callback = getattr(monitoring, callback_name)
 
-    thread = threading.Thread(target=lambda: results.append(monitoring._on_py_line(fn.__code__, 1)))
+    thread = threading.Thread(target=lambda: results.append(callback(fn.__code__, 1)))
     thread.start()
     try:
         assert started.wait(timeout=5)
@@ -833,8 +985,57 @@ def test_register_invalidates_inflight_disable(
 
     assert not thread.is_alive()
     assert results == [None]
-    assert monitoring._on_py_line(fn.__code__, 1) is _DISABLE
-    assert second.lines == [1]
+    assert second.count == 0
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert second.count == 1
+    monitoring.unregister(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert second.count == 2
+
+
+@pytest.mark.parametrize("callback_name", ["_on_py_start", "_on_py_line"])
+def test_callback_snapshots_follow_registration_order(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            calls.append((self.name, "_on_py_start"))
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            calls.append((self.name, "_on_py_line"))
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    first = registered(fn.__code__, Handler("first"))
+    second = registered(fn.__code__, Handler("second"))
+    callback = getattr(monitoring, callback_name)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name), ("second", callback_name)]
+
+    calls.clear()
+    registered(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name), ("second", callback_name)]
+
+    calls.clear()
+    monitoring.unregister(fn.__code__, first)
+    registered(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("second", callback_name), ("first", callback_name)]
+
+    calls.clear()
+    monitoring.unregister(fn.__code__, second)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name)]
 
 
 @pytest.mark.parametrize(("callback_name", "event"), [("_on_py_start", _E.PY_START), ("_on_py_line", _E.LINE)])

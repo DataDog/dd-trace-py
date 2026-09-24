@@ -17,7 +17,7 @@ def _restore_coverage_state():
     orig_hooks = [(code, m._CODE_HOOKS[code]) for code in m._CODE_HOOKS]
     orig_seen = [(code, set(m._seen_event_locations[code])) for code in m._seen_event_locations]
     orig_rearm_generation = m._rearm_generation
-    orig_exclusive_restart_version = m._exclusive_restart_version
+    orig_exclusive_restart_token = m._exclusive_restart_token
     orig_warned = m._warned_tool_unavailable
 
     try:
@@ -31,7 +31,7 @@ def _restore_coverage_state():
             for code, locations in orig_seen:
                 m._seen_event_locations[code] = locations
             m._rearm_generation = orig_rearm_generation
-        m._exclusive_restart_version = orig_exclusive_restart_version
+        m._exclusive_restart_token = orig_exclusive_restart_token
         m._warned_tool_unavailable = orig_warned
 
 
@@ -123,7 +123,7 @@ def test_inflight_dispatch_does_not_disable_after_rearm(handler_name, shared, mo
 
     code_obj = compile("x = 1", "<inflight>", "exec")
     m._CODE_HOOKS[code_obj] = (hook, "/test/path.py", {}, None, None, None)
-    m._exclusive_restart_version = None
+    m._exclusive_restart_token = None
     coverage_handler = getattr(m, handler_name)()
     blocking_handler = BlockingHandler()
     event = monitoring._E.LINE if handler_name == "_CoverageLineHandler" else monitoring._E.PY_START
@@ -148,7 +148,7 @@ def test_inflight_dispatch_does_not_disable_after_rearm(handler_name, shared, mo
         try:
             assert started.wait(timeout=5)
             m._rearm_disabled()
-            assert (m._exclusive_restart_version is None) is shared
+            assert (m._exclusive_restart_token is None) is shared
         finally:
             release.set()
             thread.join(timeout=5)
@@ -310,10 +310,10 @@ def test_failed_old_callback_does_not_release_new_generation_claim(monkeypatch):
     monkeypatch.setattr(monitoring, "refresh", lambda _code, _events: None)
     code_obj = compile("a = 1", "<generation>", "exec")
 
-    claimed, old_generation = m._claim_event(code_obj, 1)
+    claimed, old_generation = m._claim_shared_event(code_obj, 1)
     assert claimed
     m._rearm_disabled()
-    assert m._claim_event(code_obj, 1)[0]
+    assert m._claim_shared_event(code_obj, 1)[0]
 
     m._release_event(code_obj, 1, old_generation)
 
@@ -332,8 +332,8 @@ def test_rearm_disabled_refreshes_each_touched_code_object(monkeypatch):
 
     code_a = compile("a = 1", "<a>", "exec")
     code_b = compile("b = 2", "<b>", "exec")
-    assert m._claim_event(code_a, 1)[0]
-    assert m._claim_event(code_b, 2)[0]
+    assert m._claim_shared_event(code_a, 1)[0]
+    assert m._claim_shared_event(code_b, 2)[0]
 
     m._rearm_disabled()
 
@@ -365,10 +365,11 @@ def test_rearm_disabled_uses_global_restart_for_single_subscriber(monkeypatch):
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
     restarted = []
+    token = monitoring._SubscriberToken()
 
     def restart_events(handler):
         restarted.append(handler)
-        return 42
+        return token
 
     monkeypatch.setattr(monitoring, "restart_events", restart_events)
     monkeypatch.setattr(
@@ -378,27 +379,30 @@ def test_rearm_disabled_uses_global_restart_for_single_subscriber(monkeypatch):
     )
 
     code_obj = compile("a = 1", "<a>", "exec")
-    m._exclusive_restart_version = None
-    assert m._claim_event(code_obj, 1)[0]
+    m._exclusive_restart_token = None
+    assert m._claim_shared_event(code_obj, 1)[0]
 
     m._rearm_disabled()
 
     assert restarted == [m._handler]
-    assert m._exclusive_restart_version == 42
+    assert m._exclusive_restart_token is token
     assert len(m._seen_event_locations) == 0
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_claim_event_skips_software_deduplication_for_single_subscriber(monkeypatch):
+def test_exclusive_handler_skips_software_deduplication():
     from ddtrace.internal import monitoring
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    monkeypatch.setattr(monitoring, "subscriber_version_is_current", lambda version: version == 42)
-    m._exclusive_restart_version = 42
+    m._exclusive_restart_token = monitoring._SubscriberToken()
     code_obj = compile("a = 1", "<a>", "exec")
+    calls = []
+    m._CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test.py", {}, None, None, None)
+    handler = m._CoverageLineHandler()
 
-    assert m._claim_event(code_obj, 1)[0]
-    assert m._claim_event(code_obj, 1)[0]
+    assert handler.on_py_line(code_obj, 1) is monitoring._DISABLE
+    assert handler.on_py_line(code_obj, 1) is monitoring._DISABLE
+    assert calls == [(1, "/test.py", None), (1, "/test.py", None)]
     assert len(m._seen_event_locations) == 0
 
 
@@ -412,7 +416,7 @@ def test_rearm_disabled_refreshes_all_code_after_single_subscriber_state_ends(mo
     hook_data = (lambda info: None, "/test.py", {}, None, None, None)
     m._CODE_HOOKS[code_a] = hook_data
     m._CODE_HOOKS[code_b] = hook_data
-    m._exclusive_restart_version = 42
+    m._exclusive_restart_token = monitoring._SubscriberToken()
 
     refreshed = []
     monkeypatch.setattr(monitoring, "restart_events", lambda _handler: None)
@@ -422,7 +426,7 @@ def test_rearm_disabled_refreshes_all_code_after_single_subscriber_state_ends(mo
 
     assert sorted(id(code) for code, _events in refreshed) == sorted((id(code_a), id(code_b)))
     assert all(events == m._EVENT for _code, events in refreshed)
-    assert m._exclusive_restart_version is None
+    assert m._exclusive_restart_token is None
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
@@ -450,7 +454,7 @@ def test_instrument_all_lines_retries_after_multiplexer_unavailable(monkeypatch)
     monkeypatch.setattr(
         m,
         "_instrument_with_monitoring",
-        lambda code, hook, path, package: (code, instrumented_lines),
+        lambda code, hook, path, package, registrations: (code, instrumented_lines),
     )
 
     code_obj = compile("x = 1", "<test_degrade>", "exec")
