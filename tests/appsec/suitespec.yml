@@ -236,6 +236,7 @@ suites:
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
     retry: 2
+    no_proxy: true
     matrix:
       command: 'pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ '
       variants:
