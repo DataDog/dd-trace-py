@@ -43,7 +43,7 @@ class Profiler:
     """
 
     _active_instance: Optional["Profiler"] = None
-    _active_lock = forksafe.ResetLock()
+    _active_lock = forksafe.Lock()
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
