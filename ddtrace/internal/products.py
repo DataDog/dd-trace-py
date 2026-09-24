@@ -4,7 +4,7 @@ from collections import deque
 from importlib.metadata import entry_points
 from itertools import chain
 import typing as t
-from typing import Protocol  # noqa:F401
+from typing import Protocol
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import is_at_least_py

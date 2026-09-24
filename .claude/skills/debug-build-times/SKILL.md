@@ -81,7 +81,7 @@ run_build() {
 }
 
 header "Clearing test state"
-rm -rf ".cache/uv-test-environments/${SMOKE_HASH}-"*
+rm -rf ".cache/test-environments/${SMOKE_HASH}" ".cache/test-environments/${SMOKE_HASH}.txt"
 rm -rf "$CACHE_ROOT"
 rm -rf .eggs  # stale eggs cause ENOTEMPTY on Python ≤3.10's legacy setuptools
 # Remove compiled .so files for a true cold state
@@ -89,7 +89,7 @@ find ddtrace -name "*.so" -o -name "*.dylib" -o -name "*.pyd" | grep -v "_vendor
 
 run_build "COLD" "$METADATA_COLD"
 header "Clearing smoke test environment for warm run"
-rm -rf ".cache/uv-test-environments/${SMOKE_HASH}-"*
+rm -rf ".cache/test-environments/${SMOKE_HASH}" ".cache/test-environments/${SMOKE_HASH}.txt"
 run_build "WARM" "$METADATA_WARM"
 
 header "Summary"
@@ -121,7 +121,7 @@ smoke_hash=$(
   scripts/run-tests --all-suites --list |
     jq -r '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == "3.13") | .hash'
 )
-rm -rf ".cache/uv-test-environments/${smoke_hash}-"*
+rm -rf ".cache/test-environments/${smoke_hash}" ".cache/test-environments/${smoke_hash}.txt"
 _DD_DEBUG_EXT=1 scripts/run-tests --venv "$smoke_hash" 2>&1 | grep "DEBUG\|skipping\|building"
 ```
 

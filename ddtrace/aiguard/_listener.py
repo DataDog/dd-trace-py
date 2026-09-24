@@ -459,7 +459,7 @@ def _on_set_http_meta_for_ai_guard(
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
-    # Stash the candidate client IP so it can be applied to the service-entry span
+    # Stash the client and peer IPs so they can be applied to the service-entry span
     # only if an ai_guard span is actually created during the request. Restricted to
     # inbound server (WEB/SERVERLESS) spans so outbound HTTP client spans can't overwrite
     # the key with forwarded-IP headers from downstream calls.
@@ -468,6 +468,9 @@ def _on_set_http_meta_for_ai_guard(
         return
     if span.span_type not in (SpanTypes.WEB, SpanTypes.SERVERLESS):
         return
+    # Later metadata calls (e.g. mounted ASGI apps) can omit the peer captured earlier.
+    if not peer_ip and core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY):
+        return
     candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
     if candidate_ip:
-        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, candidate_ip)
+        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, (candidate_ip, peer_ip))

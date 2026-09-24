@@ -26,6 +26,17 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
+MAX_TOTAL_TEST_JOBS = 600
+# Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
+NO_PROXY_ADDITIONS = (
+    "icanhazdadjoke.com",
+    "doesnotexist.google.com",
+    "api.stripe.com",
+    "us-central1-aiplatform.googleapis.com",
+    "github.com",
+    "api.github.com",
+    ".amazonaws.com",
+)
 
 
 def _ddtest_module():
@@ -82,6 +93,7 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False  # ignored
+    no_proxy: bool = False
     suite: t.Optional[str] = None
 
     environment_hashes: t.Optional[tuple[str, ...]] = None
@@ -127,6 +139,14 @@ class JobSpec:
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
+        if self.no_proxy:
+            no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
+            lines.append("    - |")
+            lines.append(f'      no_proxy_additions="{no_proxy_additions}"')
+            lines.append('      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"')
+            lines.append('      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      echo "NO_PROXY=${NO_PROXY}"')
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             wait_environment = ""
@@ -458,6 +478,23 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
         else:
             final_jobs[suite] = 1
 
+    total_test_jobs = 0
+    for suite in non_skipped:
+        config = suites[suite]
+        if config.get("ddtest"):
+            info = suite_venv_info.get(suite)
+            if info is None:
+                continue
+            k = _ddtest_module().ddtest_k(config)
+            total_test_jobs += 1 + len(info.environments) * k  # plan job + K run instances per venv
+        else:
+            total_test_jobs += final_jobs.get(suite, 1)
+    if total_test_jobs >= MAX_TOTAL_TEST_JOBS:
+        raise ValueError(
+            f"Generated pipeline would produce {total_test_jobs} test job instances, "
+            f">= the {MAX_TOTAL_TEST_JOBS} limit. Reduce suite count or increase venvs_per_job packing."
+        )
+
     # === PASS 2: Emit YAML ===
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
@@ -662,6 +699,7 @@ def gen_pre_checks() -> None:
     if not checks:
         return
 
+    no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
     with TESTS_GEN.open("a") as f:
         f.write(
             """
@@ -669,6 +707,15 @@ prechecks:
   extends: .testrunner
   stage: setup
   needs: []
+  before_script:
+    - !reference [.testrunner, before_script]
+    - |
+      no_proxy_additions="""
+            + no_proxy_additions
+            + """
+      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"
+      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
+      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:
