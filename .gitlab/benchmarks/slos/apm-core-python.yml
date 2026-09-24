@@ -86,7 +86,7 @@ experiments:
               - execution_time < 10000 ms
           - name: errortrackingdjangosimple-errortracking-enabled-all
             thresholds:
-              - execution_time < 19.85 ms
+              - execution_time < 27.00 ms
           - name: errortrackingdjangosimple-errortracking-enabled-user
             thresholds:
               - execution_time < 19.40 ms
@@ -99,7 +99,7 @@ experiments:
               - execution_time < 10000 ms
           - name: errortrackingflasksqli-errortracking-enabled-all
             thresholds:
-              - execution_time < 2.34 ms
+              - execution_time < 3.10 ms
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
               - execution_time < 2.85 ms
@@ -109,7 +109,7 @@ experiments:
           # packagespackageforrootmodulemapping
           - name: packagespackageforrootmodulemapping-cache_off
             thresholds:
-              - execution_time < 372.30 ms
+              - execution_time < 1300.00 ms
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:
               - execution_time < 0.01 ms

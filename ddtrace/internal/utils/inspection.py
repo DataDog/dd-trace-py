@@ -1,7 +1,6 @@
 from collections import deque
 from collections.abc import Iterator
 from dis import findlinestarts
-from functools import lru_cache
 from functools import partial
 from functools import singledispatch
 from pathlib import Path
@@ -14,7 +13,9 @@ import weakref
 
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.cache import miss
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
@@ -162,11 +163,31 @@ def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
             q.append(new_code)
 
 
-@lru_cache(maxsize=(1 << 14))  # 16k entries
+# CodeType.__eq__ treats structurally-identical code objects (e.g. the code
+# objects produced by reloading a module whose source hasn't changed) as
+# equal, which a plain lru_cache or weakref.WeakKeyDictionary would conflate,
+# returning a stale functions list computed for the old, possibly dead, code
+# object. IdentityWeakKeyDictionary keys on id(code) instead. The cached
+# value additionally holds the functions only weakly: a function keeps its
+# own __code__ alive, so a cache that held them strongly would keep the old
+# code object (and thus its own entry) reachable forever, defeating the
+# point of keying on the code's liveness.
+_functions_for_code_gc_cache: "IdentityWeakKeyDictionary[CodeType, list[weakref.ref[FunctionType]]]" = (
+    IdentityWeakKeyDictionary()
+)
+
+
 def _functions_for_code_gc(code: CodeType) -> list[FunctionType]:
     import gc
 
-    return [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+    cached_refs = _functions_for_code_gc_cache.get(code, miss)
+    if cached_refs is not miss:
+        return [f for f in (ref() for ref in cached_refs) if f is not None]
+
+    functions = [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+    _functions_for_code_gc_cache[code] = [weakref.ref(f) for f in functions]
+
+    return functions
 
 
 def functions_for_code(code: CodeType) -> list[FunctionType]:
@@ -182,10 +203,14 @@ def functions_for_code(code: CodeType) -> list[FunctionType]:
 def clear():
     """Clear the inspection state.
 
-    This should be called when modules are reloaded to ensure that the mappings
-    stay relevant.
+    Both caches this clears are already self-cleaning on garbage collection, so
+    this is not required for correctness on module reload. It remains as an
+    explicit, immediate reset for tests and other callers that don't want to
+    wait on GC.
     """
-    _functions_for_code_gc.cache_clear()
+    global _functions_for_code_gc_cache
+
+    _functions_for_code_gc_cache = IdentityWeakKeyDictionary()
     _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()
 
 
