@@ -176,7 +176,7 @@ class ProfilingConfig(DDConfig):
         help=(
             "Install the profiler without starting it. Installation applies the patches and "
             "signal handlers the profiler needs. ``DD_PROFILING_ENABLED`` controls whether the "
-            "profiler runs. When profiling is enabled, installation happens as part of startup."
+            "profiler runs. When profiling is enabled, this is forced to true."
         ),
     )
 
@@ -189,6 +189,11 @@ class ProfilingConfig(DDConfig):
         if not self.enabled and _injection_enabled_has_profiler():
             self.enabled = True
             self._value_source["DD_PROFILING_ENABLED"] = ValueSource.ENV_VAR
+
+        # The profiler cannot run without its patches and signal handlers.
+        if self.enabled and not self.install:
+            self.install = True
+            self._value_source["DD_PROFILING_INSTALL"] = ValueSource.CODE
 
     agentless = DDConfig.v(
         bool,
