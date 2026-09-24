@@ -443,9 +443,11 @@ does not receive an event that began before registration; it receives subsequent
 events without the old callback immediately disabling them again.
 
 `restart_events(handler)` provides a best-effort global shortcut when `handler`
-is the sole local ddtrace subscriber, no global ddtrace subscriber exists, and
-no external monitoring tool is visible. The
-handler argument is an ownership check, not a scope: the underlying restart is
+is the sole local ddtrace subscriber, no active ddtrace event can return
+`DISABLE`, and no external monitoring tool is visible. RAISE and
+EXCEPTION_HANDLED do not return `DISABLE`, so their owners do not block this
+shortcut. The handler argument is an ownership check, not a scope: the
+underlying restart is
 still global. If either condition fails, callers must use the selective refresh
 path above, which only toggles ddtrace's tool ID for the requested code and event
 bits.

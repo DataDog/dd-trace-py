@@ -344,6 +344,10 @@ def _events_for(handlers: _CodeHandlers) -> int:
 
 
 _GLOBAL_EVENTS = _E.EXCEPTION_HANDLED | _E.RAISE
+# RAISE and EXCEPTION_HANDLED cannot return DISABLE, so restarting their event
+# state cannot reactivate consumed callbacks. Add future global events such as
+# CALL here if their callbacks use DISABLE.
+_GLOBAL_RESTART_BLOCKING_EVENTS = 0
 
 # Dedicated references keep each global callback to one attribute load and one
 # direct method call. Each event has at most one subscriber; if fan-out is ever
@@ -742,8 +746,7 @@ def restart_events(handler: MonitoringEventHandler) -> Optional[_SubscriberToken
         if (
             len(_subscriber_codes) != 1
             or _tool_id is None
-            or _global_exception_handled_handler is not None
-            or _global_raise_handler is not None
+            or _compute_global_events() & _GLOBAL_RESTART_BLOCKING_EVENTS
         ):
             return None
         subscriber = next(iter(_subscriber_codes.values()))

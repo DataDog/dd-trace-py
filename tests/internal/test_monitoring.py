@@ -1320,7 +1320,6 @@ def test_global_and_local_events_share_the_same_tool(
     assert tool_id is not None
     assert _sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED
     assert _sys_monitoring.get_local_events(tool_id, fn.__code__) & _E.LINE
-    assert monitoring.restart_events(line_handler) is None
 
     fn()
 
@@ -1334,6 +1333,34 @@ def test_global_and_local_events_share_the_same_tool(
 
     fn()
     assert len(exception_handler.handled) == handled_count
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_non_disabling_global_owner_allows_sole_local_subscriber_restart() -> None:
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class LocalHandler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    class GlobalHandler(monitoring.MonitoringEventHandler):
+        def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+            pass
+
+    code = compile("pass", "<local-with-global>", "exec")
+    local_handler = LocalHandler()
+    global_handler = GlobalHandler()
+    monitoring.register(code, local_handler)
+    monitoring.register_global(global_handler)
+
+    token = monitoring.restart_events(local_handler)
+    assert token is not None
+    assert monitoring.subscriber_version_is_current(token)
+
+    monitoring.unregister_global(global_handler)
+    monitoring.unregister(code, local_handler)
 
 
 def test_global_registration_preserves_disabled_local_events(
