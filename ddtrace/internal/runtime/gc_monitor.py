@@ -70,15 +70,16 @@ class GCPauseMonitor:
     _max_ns: int
 
     def __init__(self) -> None:
-        # Forksafe because _on_gc runs on whichever thread triggered the collection,
-        # so a fork can inherit a lock held by a thread the child does not have.
-        # Non-reentrant is sufficient because no critical section below allocates a
-        # GC-tracked object while the callback is installed; see _gc_hook.
+        # _on_gc must never take this lock. CPython can start a collection on a thread
+        # that holds the lock, and _on_gc would then wait for its own thread. That
+        # collection would never finish, and CPython would start no other collection.
+        # Forksafe because a fork can inherit the lock from a thread that the child
+        # does not have.
         self._lock: threading_Lock = forksafe.Lock()
         self._refcount: int = 0
         self._fork_registered: bool = False
-        # Bind once. Evaluating self._on_gc builds a bound method, which is a
-        # GC-tracked allocation, and acquire/release must not allocate.
+        # Bind once. Each evaluation of self._on_gc builds a new bound method, and
+        # _remove_gc_callback finds the installed hook by identity.
         self._gc_hook: Callable[[str, dict[str, int]], None] = self._on_gc
         self._fork_hook: Callable[[], None] = self.reset
         self._start_ns: list[int] = [0] * GEN_COUNT
@@ -94,9 +95,6 @@ class GCPauseMonitor:
             if not _gc_callbacks_supported():
                 return
 
-        # Install hooks without holding _lock: forksafe.register and
-        # gc.callbacks.append can allocate and trigger a collection, and _on_gc
-        # would deadlock if it tried to take _lock while we hold it here.
         with self._lock:
             fork_registered: bool = self._fork_registered
         if not fork_registered:
@@ -138,17 +136,20 @@ class GCPauseMonitor:
             self._clear_window()
 
     def snapshot_and_reset(self) -> GCPauseSnapshot:
-        # Copy primitives under the lock and build the tuple outside it. Allocating
-        # can trigger a collection, and _on_gc would then run on this thread.
         with self._lock:
+            # _on_gc writes these fields without the lock. Under the GIL, CPython
+            # switches threads and runs a pending collection only at an eval-breaker
+            # check or inside a call. With no call between the reads and the writes,
+            # no pause can land between them and get lost.
             n_pauses: int = self._count
             total_ns: int = self._total_ns
             max_ns: int = self._max_ns
-            self._clear_window()
+            self._count = 0
+            self._total_ns = 0
+            self._max_ns = 0
         return GCPauseSnapshot(n_pauses, total_ns, max_ns)
 
     def _clear_starts(self) -> None:
-        # In place: rebinding to a fresh list would allocate while holding the lock.
         for gen in range(GEN_COUNT):
             self._start_ns[gen] = 0
 
@@ -164,33 +165,31 @@ class GCPauseMonitor:
             return
 
         if phase == _GCPhase.START:
-            with self._lock:
-                # A start callback can be waiting here while release() uninstalls.
-                # Storing a timestamp then would leave it to pair with a stop after
-                # the next acquire, reporting the gap between them as one pause.
-                if self._refcount <= 0:
-                    return
-
-                self._start_ns[gen] = time.monotonic_ns()
+            # A start callback can run after release() uninstalls. Storing a timestamp
+            # then would leave it to pair with a stop after the next acquire, reporting
+            # the gap between them as one pause. Read the clock first, so that no call
+            # separates the refcount check from the write, as in snapshot_and_reset.
+            now_ns: int = time.monotonic_ns()
+            if self._refcount > 0:
+                self._start_ns[gen] = now_ns
             return
 
         if phase != _GCPhase.STOP:
             return
 
-        with self._lock:
-            start: int = self._start_ns[gen]
-            if start == 0:
-                return
+        start: int = self._start_ns[gen]
+        if start == 0:
+            return
 
-            self._start_ns[gen] = 0
-            pause_ns: int = time.monotonic_ns() - start
-            if pause_ns < 0:
-                return
+        self._start_ns[gen] = 0
+        pause_ns: int = time.monotonic_ns() - start
+        if pause_ns < 0:
+            return
 
-            self._count += 1
-            self._total_ns += pause_ns
-            if pause_ns > self._max_ns:
-                self._max_ns = pause_ns
+        self._count += 1
+        self._total_ns += pause_ns
+        if pause_ns > self._max_ns:
+            self._max_ns = pause_ns
 
 
 _MONITOR: Optional[GCPauseMonitor] = None
