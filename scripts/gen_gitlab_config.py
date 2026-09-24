@@ -30,6 +30,16 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
+# Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
+NO_PROXY_ADDITIONS = (
+    "icanhazdadjoke.com",
+    "doesnotexist.google.com",
+    "api.stripe.com",
+    "us-central1-aiplatform.googleapis.com",
+    "github.com",
+    "api.github.com",
+    ".amazonaws.com",
+)
 
 
 def _ddtest_module():
@@ -79,6 +89,7 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False
+    no_proxy: bool = False
     suite: t.Optional[str] = None
     uses_uv: bool = False
 
@@ -138,6 +149,14 @@ class JobSpec:
         lines.append(f"    - !reference [{base}, before_script]")
         if not self.uses_uv:
             lines.append("    - pip cache info")
+        if self.no_proxy:
+            no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
+            lines.append("    - |")
+            lines.append(f'      no_proxy_additions="{no_proxy_additions}"')
+            lines.append('      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"')
+            lines.append('      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"')
+            lines.append('      echo "NO_PROXY=${NO_PROXY}"')
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             # Retry up to twice on transient pip network failures; service-check
@@ -851,6 +870,7 @@ def gen_pre_checks() -> None:
     if not checks:
         return
 
+    no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
     with TESTS_GEN.open("a") as f:
         f.write(
             """
@@ -858,6 +878,15 @@ prechecks:
   extends: .testrunner
   stage: setup
   needs: []
+  before_script:
+    - !reference [.testrunner, before_script]
+    - |
+      no_proxy_additions="""
+            + no_proxy_additions
+            + """
+      no_proxy_existing="${NO_PROXY:-${no_proxy:-}}"
+      export NO_PROXY="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
+      export no_proxy="${no_proxy_existing:+${no_proxy_existing},}${no_proxy_additions}"
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:
