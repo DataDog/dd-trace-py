@@ -1,0 +1,5 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where transient connection failures during event delivery produce
+    misleading error logs even when a retry succeeds. Error logs are now emitted only when all delivery
+    attempts fail and the payload is dropped.
