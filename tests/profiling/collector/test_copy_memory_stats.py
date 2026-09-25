@@ -237,11 +237,12 @@ def test_fast_copy_fork_during_warmup() -> None:
         # The atfork hook restarts the sampler here. Deriving the fast-copy intent from
         # the transient flag left the child on the syscall copy for its whole life.
         try:
-            child_upgraded = wait_for_fast_copy_state(_stack, True, timeout=20.0)
+            child_upgraded: bool = wait_for_fast_copy_state(_stack, True, timeout=20.0)
         except BaseException:
             os._exit(2)
         os._exit(0 if child_upgraded else 1)
 
+    status: int
     _, status = os.waitpid(pid, 0)
     p.stop()
 
@@ -289,8 +290,8 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     time.sleep(4)
     p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = pprof_utils.get_internal_metadata_files(output_filename)
+    output_filename: str = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
     metadata: Optional[dict[str, Any]] = None
