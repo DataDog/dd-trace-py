@@ -228,10 +228,6 @@ class _ProfilerInstance(service.Service):
         profiler_config = config_str(profiling_config)
         self.tags.update({"profiler_config": profiler_config})
 
-        endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
-        if self.endpoint_collection_enabled:
-            endpoint_call_counter_span_processor.enable()
-
         ddup.config(
             env=self.env,
             service=self.service,
@@ -408,6 +404,10 @@ class _ProfilerInstance(service.Service):
         """Start the profiler."""
         self.install()
 
+        # Only the running scheduler resets the counter, so enabling it earlier would grow it without bound.
+        if self.endpoint_collection_enabled:
+            self.tracer._endpoint_call_counter_span_processor.enable()
+
         # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
         # inherit the patched GOT (and the activator skips a redundant re-install).
         # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED
@@ -461,6 +461,9 @@ class _ProfilerInstance(service.Service):
             if flush:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
                 self._scheduler.flush()
+
+        if self.endpoint_collection_enabled:
+            self.tracer._endpoint_call_counter_span_processor.disable()
 
         for col in reversed(self._collectors):
             try:
