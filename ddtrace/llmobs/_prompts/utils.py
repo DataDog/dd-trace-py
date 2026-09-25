@@ -45,16 +45,14 @@ def cache_key(prompt_id: str, label: Optional[str]) -> str:
 def _is_tool_item(value: object, field: str) -> bool:
     if not isinstance(value, dict):
         return False
-    if field == "tool_calls":
-        if value.get("id") is not None and not isinstance(value["id"], str):
-            return False
-        function = value.get("function")
-        if function is not None:
-            if not isinstance(function, dict) or not all(
-                isinstance(function.get(key), str) for key in ("name", "arguments")
-            ):
-                return False
-    return True
+    if field != "tool_calls":
+        return True
+    if value.get("id") is not None and not isinstance(value["id"], str):
+        return False
+    function = value.get("function")
+    if function is None:
+        return True
+    return isinstance(function, dict) and all(isinstance(function.get(key), str) for key in ("name", "arguments"))
 
 
 def _is_message(value: object) -> bool:

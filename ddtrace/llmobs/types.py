@@ -40,8 +40,8 @@ class ToolCall(TypedDict, total=False):
     arguments: dict[str, Any]
     tool_id: str
     type: str
-    id: Optional[str]
-    function: Optional[ToolCallFunction]
+    id: str
+    function: ToolCallFunction
 
 
 class ToolResult(TypedDict, total=False):
@@ -176,7 +176,7 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
-    tool_call_id: Optional[str]
+    tool_call_id: str
     audio_parts: list[AudioPart]
     image_parts: list[ImagePart]
 
