@@ -28,6 +28,7 @@ def set_kafka_meta(
     message_offset: Optional[int] = None,
     group_id: Optional[str] = None,
     received_message: Optional[bool] = None,
+    topics_partitions: Optional[dict[str, list[int]]] = None,
 ) -> None:
     """Set Kafka metas on the span from raw KafkaEvent data.
 
@@ -39,6 +40,12 @@ def set_kafka_meta(
         span._set_attribute(kafkax.TOPIC, topic)
         if topic:
             span._set_attribute(MESSAGING_DESTINATION_NAME, topic)
+
+    if topics_partitions:
+        span._set_attribute(MESSAGING_DESTINATION_NAME, next(iter(topics_partitions)))
+        span._set_attribute(kafkax.TOPIC, ",".join(topics_partitions))
+        for message_topic, partitions in topics_partitions.items():
+            span._set_attribute(f"kafka.partitions.{message_topic}", ",".join(map(str, sorted(partitions))))
 
     if bootstrap_servers is not None:
         span._set_attribute(kafkax.HOST_LIST, bootstrap_servers)
@@ -100,4 +107,5 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
             message_offset=event.message_offset,
             group_id=event.group_id,
             received_message=event.received_message,
+            topics_partitions=event.topics_partitions,
         )

@@ -10,7 +10,7 @@ from ddtrace.internal.core.events import event_field
 
 @dataclass
 class KafkaEvent(MessagingEvent):
-    """Raw Kafka request data. MessagingTracingSubscriber derives tags from it."""
+    """Raw Kafka request data. KafkaProduceSubscriber/KafkaConsumeSubscriber derive tags from it."""
 
     topic: Optional[str] = event_field(default=None)
     bootstrap_servers: Any = event_field(default=None)
@@ -23,16 +23,13 @@ class KafkaEvent(MessagingEvent):
 
 @dataclass
 class KafkaProducerEvent(MessagingProducerEvent, KafkaEvent):
-    # Own event name (rather than inheriting messaging.produce) so KafkaTracingSubscriber
-    # can register independently, without double-running span start/finish alongside
-    # MessagingTracingSubscriber.
     event_name = "kafka.produce"
 
 
 @dataclass
 class KafkaConsumeEvent(MessagingConsumeEvent, KafkaEvent):
-    # See KafkaProducerEvent.event_name.
     event_name = "kafka.consume"
 
     group_id: Optional[str] = event_field(default=None)
     received_message: Optional[bool] = event_field(default=None)
+    topics_partitions: Optional[dict[str, list[int]]] = event_field(default=None)

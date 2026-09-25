@@ -10,9 +10,7 @@ from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import PRODUCE
-from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -261,17 +259,11 @@ async def traced_getmany(func, instance, args, kwargs):
         event.received_message = messages is not None
 
         if messages:
-            first_topic = next(iter(messages)).topic
-
-            topics_partitions = {}
+            topics_partitions: dict[str, list[int]] = {}
             for topic_partition in messages:
                 partitions = topics_partitions.setdefault(topic_partition.topic, [])
                 partitions.append(topic_partition.partition)
-
-            event.additional_tags[MESSAGING_DESTINATION_NAME] = first_topic
-            event.additional_tags[TOPIC] = ",".join(topics_partitions)
-            for message_topic, partitions in topics_partitions.items():
-                event.additional_tags[f"kafka.partitions.{message_topic}"] = ",".join(map(str, sorted(partitions)))
+            event.topics_partitions = topics_partitions
 
             for records in messages.values():
                 for record in records:
