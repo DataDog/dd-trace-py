@@ -4,4 +4,5 @@ import cython
 cdef class CaptureSampler:
     cdef readonly double capture_pct
     cdef double _counter
+    cdef public bint enabled
     cpdef bint capture(self)
