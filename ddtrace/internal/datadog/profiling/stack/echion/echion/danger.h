@@ -32,9 +32,21 @@ uninstall_segv_handler();
 bool
 segv_handler_installed();
 
-// Not async-signal-safe; allocation failure returns "unknown".
-std::string
-describe_segv_handler_owners() noexcept;
+struct SegvHandlerOwnership
+{
+    // Per-signal owner: "SIGSEGV=<owner>, SIGBUS=<owner>".
+    std::string owners;
+    // The signals our handler does not own, by the same criterion
+    // segv_handler_installed() applies: "SIGSEGV", "SIGBUS" or "SIGSEGV and SIGBUS".
+    // Empty when both are ours.
+    std::string foreign;
+};
+
+// Both fields come from one pass over the dispositions, so the names and the
+// ownership verdict cannot contradict each other.
+// Not async-signal-safe; allocation failure returns {"unknown", ""}.
+SegvHandlerOwnership
+describe_segv_handler_ownership() noexcept;
 
 #if defined PL_LINUX
 ssize_t

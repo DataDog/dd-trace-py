@@ -167,12 +167,12 @@ TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
     sa.sa_handler = SIG_IGN;
     ASSERT_EQ(sigaction(SIGBUS, &sa, nullptr), 0);
 
-    const std::string def_ign = describe_segv_handler_owners();
+    const std::string def_ign = describe_segv_handler_ownership().owners;
     EXPECT_NE(def_ign.find("SIGSEGV=SIG_DFL"), std::string::npos);
     EXPECT_NE(def_ign.find("SIGBUS=SIG_IGN"), std::string::npos);
 
     ASSERT_EQ(init_segv_catcher(), 0);
-    EXPECT_EQ(describe_segv_handler_owners(), "SIGSEGV=ddtrace, SIGBUS=ddtrace");
+    EXPECT_EQ(describe_segv_handler_ownership().owners, "SIGSEGV=ddtrace, SIGBUS=ddtrace");
 
     struct sigaction stripped_sa
     {};
@@ -182,7 +182,7 @@ TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
     ASSERT_EQ(sigaction(SIGBUS, nullptr, &stripped_sa), 0);
     stripped_sa.sa_flags &= ~SA_SIGINFO;
     ASSERT_EQ(sigaction(SIGBUS, &stripped_sa, nullptr), 0);
-    const std::string stripped = describe_segv_handler_owners();
+    const std::string stripped = describe_segv_handler_ownership().owners;
     EXPECT_EQ(stripped, "SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace+missing_sa_siginfo");
     EXPECT_EQ(stripped.find("+0x"), std::string::npos);
     uninstall_segv_handler();
@@ -195,7 +195,7 @@ TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
     ASSERT_EQ(sigaction(SIGSEGV, &foreign, nullptr), 0);
     ASSERT_EQ(sigaction(SIGBUS, &foreign, nullptr), 0);
 
-    const std::string named = describe_segv_handler_owners();
+    const std::string named = describe_segv_handler_ownership().owners;
     EXPECT_NE(named.find("test_alt_stack_ownership"), std::string::npos);
     EXPECT_NE(named.find("+0x"), std::string::npos);
     EXPECT_EQ(named.find("missing_sa_siginfo"), std::string::npos);
@@ -210,8 +210,52 @@ TEST(DescribeSegvHandlerOwners, NamesDefaultIgnoredDdtraceAndForeign)
     ASSERT_EQ(sigaction(SIGSEGV, &one_arg, nullptr), 0);
     ASSERT_EQ(sigaction(SIGBUS, &one_arg, nullptr), 0);
 
-    const std::string one = describe_segv_handler_owners();
+    const std::string one = describe_segv_handler_ownership().owners;
     EXPECT_NE(one.find("test_alt_stack_ownership"), std::string::npos);
     EXPECT_NE(one.find("+missing_sa_siginfo"), std::string::npos);
     EXPECT_EQ(one.find("SIGSEGV=ddtrace"), std::string::npos);
+}
+
+// The fallback message used to say "SIGSEGV/SIGBUS" whichever signal had actually
+// changed hands, which left an on-call engineer unable to tell one loss from two.
+TEST(DescribeSegvHandlerOwners, NamesOnlyTheSignalsWeDoNotOwn)
+{
+    RestoreSignalHandlers restore;
+
+    ASSERT_EQ(init_segv_catcher(), 0);
+    EXPECT_EQ(describe_segv_handler_ownership().foreign, "");
+
+    struct sigaction foreign
+    {};
+    foreign.sa_sigaction = foreign_siginfo_handler;
+    sigemptyset(&foreign.sa_mask);
+    foreign.sa_flags = SA_SIGINFO;
+
+    struct sigaction ours
+    {};
+    ASSERT_EQ(sigaction(SIGSEGV, nullptr, &ours), 0);
+
+    ASSERT_EQ(sigaction(SIGSEGV, &foreign, nullptr), 0);
+    EXPECT_EQ(describe_segv_handler_ownership().foreign, "SIGSEGV");
+
+    ASSERT_EQ(sigaction(SIGSEGV, &ours, nullptr), 0);
+    ASSERT_EQ(sigaction(SIGBUS, &foreign, nullptr), 0);
+    EXPECT_EQ(describe_segv_handler_ownership().foreign, "SIGBUS");
+
+    ASSERT_EQ(sigaction(SIGSEGV, &foreign, nullptr), 0);
+    EXPECT_EQ(describe_segv_handler_ownership().foreign, "SIGSEGV and SIGBUS");
+
+    // Our own handler with SA_SIGINFO stripped cannot deliver the recovery, so the
+    // verdict has to match segv_handler_installed() and count the signal as lost even
+    // though the owner still reads as ddtrace.
+    ASSERT_EQ(sigaction(SIGBUS, &ours, nullptr), 0);
+    struct sigaction stripped = ours;
+    stripped.sa_flags &= ~SA_SIGINFO;
+    ASSERT_EQ(sigaction(SIGSEGV, &stripped, nullptr), 0);
+    const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+    EXPECT_EQ(ownership.foreign, "SIGSEGV");
+    EXPECT_EQ(ownership.owners, "SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace");
+
+    ASSERT_EQ(sigaction(SIGSEGV, &ours, nullptr), 0);
+    uninstall_segv_handler();
 }
