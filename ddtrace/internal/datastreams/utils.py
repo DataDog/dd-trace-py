@@ -4,6 +4,21 @@ from typing import Any
 
 
 def _calculate_byte_size(data: Any) -> int:
+    # Exact-type fast paths: this runs for every key, value and header of every message.
+    # ASCII strings are one byte per character, so they don't need encoding to be measured.
+    data_type = type(data)
+    if data_type is bytes:
+        return len(data)
+    if data_type is str and data.isascii():
+        return len(data)
+    if data_type is dict:
+        total = 0
+        for k, v in data.items():
+            kt, vt = type(k), type(v)
+            total += len(k) if kt is bytes or (kt is str and k.isascii()) else _calculate_byte_size(k)
+            total += len(v) if vt is bytes or (vt is str and v.isascii()) else _calculate_byte_size(v)
+        return total
+
     if isinstance(data, str):
         # We encode here to handle non-ascii characters
         # If there are non-unicode characters, we replace

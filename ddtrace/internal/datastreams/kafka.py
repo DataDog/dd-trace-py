@@ -1,10 +1,12 @@
 import time
 from typing import Any
 
-from confluent_kafka import TopicPartition
-
 from ddtrace import config
 from ddtrace.internal import core
+
+# The package, not its data_streams_processor function: this module is imported while
+# ddtrace.internal.datastreams is still initializing, before that function is defined.
+from ddtrace.internal import datastreams as _datastreams
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
@@ -26,7 +28,7 @@ log = get_logger(__name__)
 def dsm_kafka_message_produce(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any], is_serializing: bool, span: Any
 ) -> None:
-    from . import data_streams_processor as processor
+    processor = _datastreams.data_streams_processor
 
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
@@ -83,7 +85,7 @@ def dsm_kafka_message_produce(
 
 
 def dsm_kafka_message_consume(instance, message, span):
-    from . import data_streams_processor as processor
+    processor = _datastreams.data_streams_processor
 
     if message.error() is not None:
         return
@@ -134,23 +136,29 @@ def dsm_kafka_message_consume(instance, message, span):
 
 
 def dsm_kafka_message_commit(instance, args, kwargs):
-    from . import data_streams_processor as processor
-
-    cluster_id = core.find_item("kafka_cluster_id") or ""
-    message = get_argument_value(args, kwargs, 0, "message", optional=True)
-
-    offsets = []
-    if message is not None:
-        # the commit offset is the next message to read. So last message read + 1
-        reported_offset = message.offset() + 1 if isinstance(message.offset(), INT_TYPES) else -1
-        offsets = [TopicPartition(message.topic(), message.partition(), reported_offset)]
-    else:
-        offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
+    processor = _datastreams.data_streams_processor
 
     p = processor()
     if p is None:
         return
 
+    cluster_id = core.find_item("kafka_cluster_id") or ""
+    message = get_argument_value(args, kwargs, 0, "message", optional=True)
+
+    if message is not None:
+        # the commit offset is the next message to read. So last message read + 1
+        offset = message.offset()
+        p.track_kafka_commit(
+            instance._group_id,
+            message.topic(),
+            message.partition(),
+            offset + 1 if isinstance(offset, INT_TYPES) else -1,
+            time.time(),
+            cluster_id=cluster_id,
+        )
+        return
+
+    offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1
         p.track_kafka_commit(
