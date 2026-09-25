@@ -8,6 +8,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
@@ -72,7 +73,7 @@ def _parse_queue_start_time(header_value: str, now: float) -> Optional[float]:
     return time_value
 
 
-def get_request_queue_start_time(headers: Mapping[str, str], now: Optional[float] = None) -> Optional[float]:
+def get_request_queue_start_time(headers: dict[str, str], now: Optional[float] = None) -> Optional[float]:
     """Return the Unix timestamp (seconds) at which an upstream proxy received this request.
 
     ``headers`` must already be normalized to lowercase keys.
@@ -92,7 +93,7 @@ def _tag_proxy_span(span: Span, operation: str) -> None:
     span._set_attribute(TAG_OPERATION, operation)
 
 
-def create_request_queuing_spans_if_headers_exist(ctx, headers: Mapping[str, str]) -> None:
+def create_request_queuing_spans_if_headers_exist(ctx: core.ExecutionContext, headers: Mapping[str, str]) -> None:
     """Create the `http.proxy.request` / `http.proxy.queue` span pair if a queue-start header is present.
 
     This mirrors the Ruby tracer's Rack `request_queuing` feature: a virtual parent span
