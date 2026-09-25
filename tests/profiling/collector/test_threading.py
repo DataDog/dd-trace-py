@@ -764,6 +764,25 @@ def test_assertion_error_raised_with_enable_asserts():
             lock.acquire()
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_acquire_after_stop_with_outstanding_sample_skips_asserts() -> None:
+    import threading
+
+    from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_acquire_after_stop_with_outstanding_sample_skips_asserts")
+
+    with ThreadingRLockCollector(capture_pct=100):
+        lock: threading.RLock = threading.RLock()
+        lock.acquire()
+
+    # acquired_time is still set from the sampled acquire; this must not raise.
+    lock.acquire()
+    lock.release()
+    lock.release()
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"), timeout=30)
 def test_internal_lock_skips_asserts() -> None:
     """Ensure internal locks don't trigger assert failures when asserts are enabled."""
@@ -1963,6 +1982,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 "capture_sampler",
                 "init_location",
                 "acquired_time",
+                "acquired_generation",
                 "name",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
@@ -2055,6 +2075,135 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             f"Expected exactly 1 acquire sample (the successful one), got {len(acquire_samples)}"
         )
         assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
+
+    def test_lock_not_sampled_after_collector_stop(self) -> None:
+        """A lock created while the collector ran must not sample once the collector is stopped."""
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        lock.acquire()
+        lock.release()
+        with lock:
+            pass
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 0, f"Expected no acquire samples after stop, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_lock_not_sampled_on_release_after_collector_stop(self) -> None:
+        """A lock acquired before stop and released after stop must not produce a release sample."""
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+
+        lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_blocked_acquire_finishing_after_collector_stop_not_sampled(self) -> None:
+        """An acquire that blocks across collector stop must not be sampled when it completes."""
+        acquired: threading.Event = threading.Event()
+
+        def _contend(lock: LockTypeInst) -> None:
+            lock.acquire()
+            acquired.set()
+            lock.release()
+
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            t: threading.Thread = threading.Thread(target=_contend, args=(lock,))
+            t.start()
+            # Give the thread time to block on the held lock.
+            time.sleep(0.1)
+            assert not acquired.is_set()
+
+        lock.release()
+        t.join(5.0)
+        assert acquired.is_set()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        # Only the main thread's acquire, made while the collector ran, is recorded.
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_blocked_acquire_finishing_after_collector_restart_not_sampled(self) -> None:
+        """An acquire that blocks across collector stop and restart must not be sampled when it completes."""
+        acquired: threading.Event = threading.Event()
+
+        def _contend(lock: LockTypeInst) -> None:
+            lock.acquire()
+            acquired.set()
+            lock.release()
+
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+            t: threading.Thread = threading.Thread(target=_contend, args=(lock,))
+            t.start()
+            # Give the thread time to block on the held lock.
+            time.sleep(0.1)
+            assert not acquired.is_set()
+
+        with self.collector_class(capture_pct=100):
+            lock.release()
+            t.join(5.0)
+            assert acquired.is_set()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        # Only the main thread's acquire, made under the first collector run, is recorded.
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples, got {len(release_samples)}"
+
+    def test_hold_spanning_collector_restart_not_sampled_on_release(self) -> None:
+        """A lock acquired before stop and released after restart must not produce a release sample."""
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+
+        with self.collector_class(capture_pct=100):
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples, got {len(release_samples)}"
+
+    def test_lock_sampled_by_new_collector_after_restart(self) -> None:
+        """A lock created under a stopped collector samples again when a new collector starts."""
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        with self.collector_class(capture_pct=100):
+            lock.acquire()
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 1, f"Expected 1 release sample, got {len(release_samples)}"
 
 
 class TestThreadingLockCollector(LockCollectorTestBase):
