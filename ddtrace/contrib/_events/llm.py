@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import Protocol
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
@@ -12,8 +12,29 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import event_field
 
 
-if TYPE_CHECKING:
-    from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+class LLMObsIntegrationLike(Protocol):
+    """Structural type for the LLMObs integration object an LlmRequestEvent carries.
+
+    Matches ddtrace.llmobs._integrations.base.BaseLLMIntegration without importing it, since
+    ddtrace.contrib must not depend on the llmobs product package.
+    """
+
+    integration_config: Any
+    llmobs_enabled: bool
+
+    def _set_base_span_tags(self, span: Any, **kwargs: Any) -> None: ...
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]: ...
+    def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool: ...
+    def _annotate_integration_tag(self, span: Any) -> None: ...
+    def _stamp_llmobs_span_kind_at_start(self, span: Any, operation_id: str = "", **kwargs: Any) -> None: ...
+    def llmobs_set_tags(
+        self,
+        span: Any,
+        args: list,
+        kwargs: dict,
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None: ...
 
 
 @dataclass
@@ -30,7 +51,7 @@ class LlmRequestEvent(TracingEvent):
 
     provider: str = event_field()
     model: Optional[str] = event_field(default=None)
-    llmobs_integration: BaseLLMIntegration = event_field()
+    llmobs_integration: LLMObsIntegrationLike = event_field()
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
     instance: Optional[Any] = event_field(default=None)
