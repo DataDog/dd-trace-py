@@ -85,7 +85,6 @@ def _notify_runtime_identity_refresh_callbacks(*, raise_on_error: bool = False) 
         except Exception:
             log.exception("Exception ignored in runtime ID callback %r", cb)
 
-
 def _refresh_runtime_id() -> None:
     global _RUNTIME_ID
 
@@ -168,6 +167,38 @@ def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> No
             _IDENTITY_REFRESH_HOOK_RUNTIME_ID = _RUNTIME_ID
         else:
             _notify_runtime_identity_refresh_callbacks(raise_on_error=True)
+        _IDENTITY_REFRESH_HOOK_REFRESHED.set()
+
+
+# Multiple request layers can observe the same /run hook. Refresh identity once per
+# process so a single logical MicroVM instance gets one runtime-id rotation.
+_IDENTITY_REFRESH_HOOK_REFRESHED = forksafe.Event()
+_IDENTITY_REFRESH_HOOK_REFRESH_LOCK = forksafe.Lock()
+
+
+def listen_for_identity_refresh_hooks(
+    on_event: t.Callable[[str, t.Callable[[t.Optional[str], t.Optional[str]], None]], None],
+) -> None:
+    """Refresh MicroVM identity from request events emitted before root span creation."""
+    if not in_aws_lambda_microvm():
+        return
+
+    on_event(WEB_REQUEST_STARTING_EVENT, maybe_refresh_identity)
+
+
+def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
+    """Call refresh_identity() if this request is the AWS Lambda MicroVM /run hook."""
+    if not in_aws_lambda_microvm():
+        return
+    if not method or not path:
+        return
+    if method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
+        return
+
+    with _IDENTITY_REFRESH_HOOK_REFRESH_LOCK:
+        if _IDENTITY_REFRESH_HOOK_REFRESHED.is_set():
+            return
+        refresh_identity()
         _IDENTITY_REFRESH_HOOK_REFRESHED.set()
 
 
