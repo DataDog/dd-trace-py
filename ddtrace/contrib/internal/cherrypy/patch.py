@@ -11,7 +11,6 @@ from cherrypy.lib.httputil import valid_status
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
@@ -69,16 +68,15 @@ class TraceTool(cherrypy.Tool):
         service = trace_utils.int_service(
             None,
             config.cherrypy,
-            default="cherrypy",
         )
-        url = str(cherrypy.request.base + cherrypy.request.path_info)
 
         event = WebFrameworkRequestEvent(
             http_operation="cherrypy.request",
             component=config.cherrypy.integration_name,
             integration_config=config.cherrypy,
+            service=service,
             request_method=cherrypy.request.method,
-            request_url=url,
+            request_url=str(cherrypy.request.base + cherrypy.request.path_info),
             request_headers=cherrypy.request.headers,
             query=None,
             trace_query_string=False,
@@ -91,19 +89,7 @@ class TraceTool(cherrypy.Tool):
             event,
             dispatch_end_event=False,
         ) as ctx:
-            request_span = span_from_context(ctx)
-
-            if request_span is not None:
-                # Apply the service after event creation to preserve CherryPy
-                # as the service source.
-                set_service_and_source(
-                    request_span,
-                    service,
-                    config.cherrypy,
-                )
-
             cherrypy.request._datadog_context = ctx
-            cherrypy.request._datadog_span = request_span
 
     def _after_error_response(self):
         ctx = getattr(cherrypy.request, "_datadog_context", None)
@@ -154,7 +140,6 @@ class TraceTool(cherrypy.Tool):
             ctx.dispatch_ended_event(*exc_info)
         finally:
             cherrypy.request._datadog_context = None
-            cherrypy.request._datadog_span = None
 
 
 class TraceMiddleware:
@@ -167,5 +152,4 @@ class TraceMiddleware:
                 category=DDTraceDeprecationWarning,
                 removal_version="5.0.0",
             )
-
         self.app.tools.tracer = TraceTool(app, service, distributed_tracing)
