@@ -268,13 +268,10 @@ async def traced_getmany(func, instance, args, kwargs):
                 partitions = topics_partitions.setdefault(topic_partition.topic, [])
                 partitions.append(topic_partition.partition)
 
-            additional_tags = {
-                MESSAGING_DESTINATION_NAME: first_topic,
-                TOPIC: ",".join(topics_partitions),
-            }
+            event.additional_tags[MESSAGING_DESTINATION_NAME] = first_topic
+            event.additional_tags[TOPIC] = ",".join(topics_partitions)
             for message_topic, partitions in topics_partitions.items():
-                additional_tags[f"kafka.partitions.{message_topic}"] = ",".join(map(str, sorted(partitions)))
-            ctx.set_item("additional_tags", additional_tags)
+                event.additional_tags[f"kafka.partitions.{message_topic}"] = ",".join(map(str, sorted(partitions)))
 
             for records in messages.values():
                 for record in records:

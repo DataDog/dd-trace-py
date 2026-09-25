@@ -58,7 +58,7 @@ class MessagingTracingSubscriber(TracingSubscriber[MessagingEvent]):
                 received_message=event.received_message if isinstance(event, KafkaConsumeEvent) else None,
             )
 
-        span.set_tags(ctx.get_item("additional_tags", default=dict()))
+        span.set_tags(event.additional_tags)
 
         if not isinstance(event, MessagingConsumeEvent):
             return

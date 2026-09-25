@@ -114,17 +114,16 @@ def traced_receive(func, instance, args, kwargs):
         service=pin.service,
         resource=exchange,
     )
+    event.additional_tags.update(
+        {
+            kombux.EXCHANGE: exchange,
+            kombux.ROUTING_KEY: message.delivery_info["routing_key"],
+            **extract_conn_tags(message.channel.connection),
+        }
+    )
 
     with core.context_with_event(event) as ctx:
         span = span_from_context(ctx)
-        ctx.set_item(
-            "additional_tags",
-            {
-                kombux.EXCHANGE: exchange,
-                kombux.ROUTING_KEY: message.delivery_info["routing_key"],
-                **extract_conn_tags(message.channel.connection),
-            },
-        )
         result = func(*args, **kwargs)
         core.dispatch("kombu.amqp.receive.post", (instance, message, span))
         return result
@@ -146,19 +145,20 @@ def traced_publish(func, instance, args, kwargs):
         service=pin.service,
         resource=exchange_name,
     )
-
-    with core.context_with_event(event) as ctx:
-        span = span_from_context(ctx)
-        additional_tags = {
+    event.additional_tags.update(
+        {
             kombux.EXCHANGE: exchange_name,
             kombux.ROUTING_KEY: get_routing_key_from_args(args),
             **extract_conn_tags(instance.channel.connection),
         }
-        if pin.tags:
-            additional_tags.update(pin.tags)
+    )
+    if pin.tags:
+        event.additional_tags.update(pin.tags)
+
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
         # Has to happen after trace injection for actual payload size
-        additional_tags[kombux.BODY_LEN] = get_body_length_from_args(args)
-        ctx.set_item("additional_tags", additional_tags)
+        event.additional_tags[kombux.BODY_LEN] = get_body_length_from_args(args)
 
         core.dispatch("kombu.amqp.publish.pre", (args, kwargs, span))
         return func(*args, **kwargs)
