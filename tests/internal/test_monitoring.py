@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 import sys
+import threading
 from types import CodeType
 from typing import Any
 from typing import Callable
@@ -131,6 +132,122 @@ def registered() -> Iterator[
         monitoring.unregister(code, handler)
 
 
+@pytest.mark.subprocess(out=None, err=None)
+def test_global_restart_requires_sole_requester_and_no_external_tool() -> None:
+    """The best-effort global shortcut rejects non-owners, visible tools, and siblings."""
+    import sys
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    first_code = compile("pass", "<first>", "exec")
+    first = Handler()
+    monitoring.register(first_code, first)
+
+    outsider = Handler()
+    assert monitoring.restart_events(outsider) is None
+
+    version = monitoring.restart_events(first)
+    assert version is not None
+    assert monitoring.subscriber_version_is_current(version)
+
+    # Registering more code for the same subscriber must keep the ownership version valid.
+    # Coverage instruments many code objects between contexts; invalidating here would make
+    # each restart rescan the entire registry and turn that workload quadratic.
+    same_subscriber_code = compile("pass", "<same-subscriber>", "exec")
+    monitoring.register(same_subscriber_code, first)
+    assert monitoring.subscriber_version_is_current(version)
+    assert monitoring.restart_events(first) == version
+
+    own_tool = monitoring.get_tool_id()
+    external_tool = next(
+        tool_id for tool_id in range(6) if tool_id != own_tool and sys_monitoring.get_tool(tool_id) is None
+    )
+    sys_monitoring.use_tool_id(external_tool, "external")
+    try:
+        assert monitoring.restart_events(first) is None
+    finally:
+        sys_monitoring.free_tool_id(external_tool)
+
+    second_code = compile("pass", "<second>", "exec")
+    second = Handler()
+    monitoring.register(second_code, second)
+    assert monitoring.restart_events(first) is None
+    assert monitoring.restart_events(second) is None
+    assert not monitoring.subscriber_version_is_current(version)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_subscriber_version_tracks_distinct_subscribers() -> None:
+    """The version changes only when the set of distinct subscribers changes."""
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    sole = Handler()
+    codes = [compile("pass", f"<code{index}>", "exec") for index in range(3)]
+
+    monitoring.register(codes[0], sole)
+    version = monitoring.restart_events(sole)
+    assert version is not None
+
+    for code in codes[1:]:
+        monitoring.register(code, sole)
+    monitoring.register(codes[0], sole)
+    assert monitoring.subscriber_version_is_current(version)
+    assert monitoring.restart_events(sole) == version
+
+    for code in codes[1:]:
+        monitoring.unregister(code, sole)
+    assert monitoring.subscriber_version_is_current(version)
+
+    monitoring.unregister(codes[0], sole)
+    assert not monitoring.subscriber_version_is_current(version)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_sole_subscriber_survives_collected_code_objects() -> None:
+    """Collected code must not permanently hide the remaining sole subscriber."""
+    import gc
+    from types import CodeType
+    import weakref
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            pass
+
+    sole = Handler()
+    sole_code = compile("pass", "<sole>", "exec")
+    monitoring.register(sole_code, sole)
+
+    ghost = Handler()
+    ghost_code = compile("pass", "<ghost>", "exec")
+    monitoring.register(ghost_code, ghost)
+    assert monitoring.restart_events(sole) is None
+
+    collected = weakref.ref(ghost_code)
+    del ghost_code
+    gc.collect()
+    assert collected() is None
+
+    version = monitoring.restart_events(sole)
+    assert version is not None
+    assert monitoring.restart_events(sole) == version
+    assert ghost is not None
+
+
 @_py315
 def test_register_unwind_handler_does_not_raise(
     registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
@@ -252,6 +369,44 @@ def test_on_py_line_disables_when_all_handlers_return_disable(
 
     result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
     assert result is _DISABLE
+
+
+def test_concurrent_event_callbacks_retain_each_disabled_event(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """Concurrent event kinds cannot overwrite each other's disabled-event state."""
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.barrier = threading.Barrier(2)
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            self.barrier.wait()
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            self.barrier.wait()
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, Handler())
+    results: list[object | None] = []
+    start_thread = threading.Thread(target=lambda: results.append(monitoring._on_py_start(fn.__code__, 0)))
+    line_thread = threading.Thread(
+        target=lambda: results.append(monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno))
+    )
+
+    start_thread.start()
+    line_thread.start()
+    start_thread.join()
+    line_thread.join()
+
+    handlers = monitoring._registry.get(fn.__code__)
+    assert handlers is not None
+    assert monitoring._possibly_disabled_events(handlers) == _E.PY_START | _E.LINE
+    assert results == [_DISABLE, _DISABLE]
 
 
 def test_on_py_line_continues_when_any_handler_declines_disable(
@@ -478,17 +633,172 @@ def test_propagating_handler_skips_later_handlers_for_same_event(
     assert not sibling.started, "a sibling handler after a propagating raiser must not run"
 
 
-def test_multiplexer_does_not_claim_exception_profiler_tool_id() -> None:
-    """Tool ID 4 is reserved for ExceptionCollector; the multiplexer must not take it."""
-    candidates: tuple[int, ...] = cast(tuple[int, ...], monitoring._CANDIDATE_TOOL_IDS)  # type: ignore[has-type]
-    assert 4 not in candidates
-    tool_id: int = monitoring.get_tool_id()
-    assert tool_id != 4
+def test_multiplexer_uses_only_tool_id_3() -> None:
+    """Coverage uses only slot 3 until handled-exception ownership is finalized."""
+    assert monitoring._CANDIDATE_TOOL_IDS == (3,)
+    assert monitoring.get_tool_id() == 3
+
+
+@pytest.mark.subprocess(timeout=10, out=None, err=None)
+def test_batch_registration_materializes_one_shot_iterable_before_locking() -> None:
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    def codes():
+        yield compile("pass", "<first>", "exec")
+        yield compile("pass", "<second>", "exec")
+
+    monitoring._register_many(codes(), Handler(), events=monitoring._E.LINE)
+
+    # The batch tuple is released after the registry lock. Both code objects can
+    # then be collected and weakref cleanup releases the now-unused tool.
+    assert monitoring._tool_id is None
 
 
 @pytest.mark.subprocess(out=None, err=None)
-def test_ensure_tool_falls_back_without_disturbing_occupied_slot() -> None:
-    """Tool setup uses the remaining custom slot without disturbing its owner."""
+def test_tool_reservation_releases_unregistered_slot() -> None:
+    import sys
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+    with monitoring._reserve_tool_id() as tool_id:
+        assert tool_id == 3
+        assert sys_monitoring.get_tool(tool_id) == "ddtrace"
+
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_last_collected_code_releases_tool_and_callbacks() -> None:
+    import gc
+    import sys
+    from types import CodeType
+    import weakref
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    code = compile("pass", "<collected>", "exec")
+    collected = weakref.ref(code)
+    monitoring.register(code, Handler())
+    tool_id = monitoring._tool_id
+    assert tool_id == 3
+
+    del code
+    gc.collect()
+
+    assert collected() is None
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_last_unregister_releases_tool_and_callbacks() -> None:
+    import sys
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    sys_monitoring = getattr(sys, "monitoring")
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    def target() -> None:
+        pass
+
+    handler = Handler()
+    monitoring.register(target.__code__, handler)
+    tool_id = monitoring._tool_id
+    assert tool_id == 3
+
+    monitoring.unregister(target.__code__, handler)
+
+    assert monitoring._tool_id is None
+    assert sys_monitoring.get_tool(tool_id) is None
+    assert sys_monitoring.get_events(tool_id) == 0
+
+    sys_monitoring.use_tool_id(tool_id, "external")
+
+    def callback(code: CodeType, line_number: int) -> None:
+        pass
+
+    assert sys_monitoring.register_callback(tool_id, sys_monitoring.events.LINE, callback) is None
+    sys_monitoring.register_callback(tool_id, sys_monitoring.events.LINE, None)
+    sys_monitoring.free_tool_id(tool_id)
+
+    monitoring.register(target.__code__, handler)
+    assert monitoring._tool_id == tool_id
+    monitoring.unregister(target.__code__, handler)
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_weak_cleanup_can_reenter_registry_lock_during_gc() -> None:
+    import gc
+    import threading
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    gc.disable()
+    first_code = compile("pass", "<cyclic-first>", "exec")
+    first_handler = Handler()
+    monitoring.register(first_code, first_handler)
+
+    cycle: list[object] = [first_code]
+    cycle.append(cycle)
+    del first_code
+    del cycle
+
+    second_code = compile("pass", "<cyclic-second>", "exec")
+    second_handler = Handler()
+    original_set_local_events = monitoring._set_local_events
+    errors: list[BaseException] = []
+
+    def collect_during_registration(tool_id: int, code: CodeType, events: int) -> None:
+        gc.collect()
+        original_set_local_events(tool_id, code, events)
+
+    def register_second() -> None:
+        try:
+            monitoring.register(second_code, second_handler)
+        except BaseException as error:
+            errors.append(error)
+
+    monitoring._set_local_events = collect_during_registration
+    thread = threading.Thread(target=register_second, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "weak cleanup deadlocked while re-entering the registry lock"
+    assert not errors
+
+    monitoring._set_local_events = original_set_local_events
+    monitoring.unregister(second_code, second_handler)
+    gc.enable()
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_get_tool_id_ignores_occupied_non_candidate_slot() -> None:
+    """An owner of non-candidate slot 4 does not affect multiplexer setup on slot 3."""
     import sys
 
     sys_monitoring = getattr(sys, "monitoring")
@@ -496,29 +806,28 @@ def test_ensure_tool_falls_back_without_disturbing_occupied_slot() -> None:
 
     from ddtrace.internal import monitoring
 
-    assert monitoring.ensure_tool() == 3
+    assert monitoring.get_tool_id() == 3
     assert sys_monitoring.get_tool(4) == "external"
     assert sys_monitoring.get_tool(3) == "ddtrace"
 
 
 @pytest.mark.subprocess(out=None, err=None)
-def test_ensure_tool_fails_without_disturbing_occupied_slots() -> None:
-    """Tool setup raises only after preserving both external custom-slot owners."""
+def test_get_tool_id_fails_without_falling_back_to_slot_4() -> None:
+    """Tool setup preserves slot 3's owner and does not fall back to slot 4."""
     import sys
 
     import pytest
 
     sys_monitoring = getattr(sys, "monitoring")
-    sys_monitoring.use_tool_id(4, "external-4")
-    sys_monitoring.use_tool_id(3, "external-3")
+    sys_monitoring.use_tool_id(3, "external")
 
     from ddtrace.internal import monitoring
 
     with pytest.raises(monitoring.MonitoringToolUnavailable):
-        monitoring.ensure_tool()
+        monitoring.get_tool_id()
 
-    assert sys_monitoring.get_tool(4) == "external-4"
-    assert sys_monitoring.get_tool(3) == "external-3"
+    assert sys_monitoring.get_tool(3) == "external"
+    assert sys_monitoring.get_tool(4) is None
 
 
 def test_py_start_disable_forwarded_when_all_handlers_return_disable(
@@ -630,6 +939,146 @@ def test_register_rearms_disabled_py_start_for_new_handler(
 
     assert disabling.count == 3
     assert passive.count == 2
+
+
+@pytest.mark.parametrize("callback_name", ["_on_py_start", "_on_py_line"])
+def test_register_invalidates_inflight_disable(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
+) -> None:
+    """A handler registered during dispatch is not hidden by that dispatch's DISABLE."""
+    started = threading.Event()
+    release = threading.Event()
+    results: list[object | None] = []
+
+    class BlockingHandler(monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.count = 0
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object | None:
+            self.count += 1
+            started.set()
+            release.wait()
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object | None:
+            self.count += 1
+            started.set()
+            release.wait()
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    first = registered(fn.__code__, BlockingHandler())
+    second = BlockingHandler()
+    callback = getattr(monitoring, callback_name)
+
+    thread = threading.Thread(target=lambda: results.append(callback(fn.__code__, 1)))
+    thread.start()
+    try:
+        assert started.wait(timeout=5)
+        registered(fn.__code__, second)
+    finally:
+        release.set()
+        thread.join(timeout=5)
+
+    assert not thread.is_alive()
+    assert results == [None]
+    assert second.count == 0
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert second.count == 1
+    monitoring.unregister(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert second.count == 2
+
+
+@pytest.mark.parametrize("callback_name", ["_on_py_start", "_on_py_line"])
+def test_callback_snapshots_follow_registration_order(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            calls.append((self.name, "_on_py_start"))
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            calls.append((self.name, "_on_py_line"))
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    first = registered(fn.__code__, Handler("first"))
+    second = registered(fn.__code__, Handler("second"))
+    callback = getattr(monitoring, callback_name)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name), ("second", callback_name)]
+
+    calls.clear()
+    registered(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name), ("second", callback_name)]
+
+    calls.clear()
+    monitoring.unregister(fn.__code__, first)
+    registered(fn.__code__, first)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("second", callback_name), ("first", callback_name)]
+
+    calls.clear()
+    monitoring.unregister(fn.__code__, second)
+    assert callback(fn.__code__, 1) is _DISABLE
+    assert calls == [("first", callback_name)]
+
+
+@pytest.mark.parametrize(("callback_name", "event"), [("_on_py_start", _E.PY_START), ("_on_py_line", _E.LINE)])
+def test_refresh_after_disable_publication_observes_pending_vote(
+    monkeypatch: pytest.MonkeyPatch,
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    callback_name: str,
+    event: int,
+) -> None:
+    """A refresh between DISABLE publication and validation observes the pending vote."""
+
+    class DisablingHandler(monitoring.MonitoringEventHandler):
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> object:
+            return _DISABLE
+
+        def on_py_line(self, code: CodeType, line_number: int) -> object:
+            return _DISABLE
+
+    def fn() -> None:
+        pass
+
+    registered(fn.__code__, DisablingHandler())
+    rearmed: list[int] = []
+    monkeypatch.setattr(
+        monitoring,
+        "_rearm_local_events",
+        lambda _tool_id, _code, _events, rearm_events: rearmed.append(rearm_events),
+    )
+
+    class RefreshingEpoch(int):
+        refreshed = False
+
+        def __eq__(self, other: object) -> bool:
+            if not self.refreshed:
+                self.refreshed = True
+                monitoring.refresh(fn.__code__, event)
+            return False
+
+    monkeypatch.setattr(monitoring, "_event_mutation_epoch", RefreshingEpoch(monitoring._event_mutation_epoch))
+
+    callback = getattr(monitoring, callback_name)
+    assert callback(fn.__code__, 1) is None
+    assert rearmed == [event]
 
 
 def test_py_start_continues_when_any_handler_declines_disable(

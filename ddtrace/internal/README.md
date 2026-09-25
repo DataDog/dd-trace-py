@@ -386,6 +386,13 @@ monitoring.register(code, handler)
 monitoring.unregister(code, handler)
 ```
 
+The multiplexer keeps the tool claimed while registrations exist and releases
+it after the final registration is removed or its code object is collected.
+Releasing first disables events and removes callbacks, so another monitoring
+consumer can safely reuse the scarce slot. Instrumentation that must transform
+code before registering holds a short reservation across that preparation to
+prevent teardown from racing registration.
+
 > [!WARNING]
 > Do not call `register()` or `unregister()` from inside a handler method —
 > doing so mutates the handler list while it is being iterated.
@@ -399,18 +406,44 @@ event, so the multiplexer rejects handlers that request it.
 ### `DISABLE` and `refresh()`
 
 A `DISABLE` returned from a local event callback is sticky in CPython until
-the local event set changes or `restart_events()` resets it. The multiplexer
-forwards `DISABLE` only when every handler for that event requests it. A
-handler must therefore tolerate repeated delivery when a sibling still needs
-the event.
+the local event set changes or `sys.monitoring.restart_events()` resets it. The
+multiplexer forwards `DISABLE` only when every handler for that event requests
+it. A handler must therefore tolerate repeated delivery when a sibling still
+needs the event.
 
-Because `restart_events()` is global and would clear other tools' disabled
-state, the multiplexer re-arms only requested event bits by toggling those bits
-off and back on. It tracks events for which the aggregate callback has returned
-`DISABLE`, so a rejected request does not cause a physical re-arm. `register()`
-does this automatically when a new handler shares an event that may already be
-disabled. Call `monitoring.refresh(code, events)` when a handler becomes
-interested in those event bits again.
+Because `sys.monitoring.restart_events()` is global and would clear other tools'
+disabled state, the multiplexer re-arms only requested event bits by toggling
+those bits off and back on. It tracks events for which the aggregate callback
+has returned `DISABLE`, so a rejected request does not cause a physical re-arm.
+`register()` does this automatically when a new handler shares an event that may
+already be disabled. Call `monitoring.refresh(code, events)` when a handler
+becomes interested in those event bits again.
+
+Registration binds callbacks into immutable tuples for each event, so dispatch
+does not repeatedly filter unrelated handlers or look up their methods. Re-register
+a handler after replacing its methods to update these callbacks.
+
+Callbacks run from an immutable callback snapshot. If event configuration changes
+while a callback is running, its handlers still complete, but the multiplexer
+drops that callback's stale aggregate `DISABLE` vote. A newly registered handler
+does not receive an event that began before registration; it receives subsequent
+events without the old callback immediately disabling them again.
+
+`restart_events(handler)` provides a best-effort global shortcut when `handler`
+is the sole ddtrace subscriber and no external monitoring tool is visible. The
+handler argument is an ownership check, not a scope: the underlying restart is
+still global. If either condition fails, callers must use the selective refresh
+path above, which only toggles ddtrace's tool ID for the requested code and event
+bits.
+
+On success, `restart_events()` returns a subscriber token. The token remains
+valid while the set of distinct subscribers is unchanged, including when an
+existing subscriber registers more code objects. Weak-reference cleanup prunes
+dead registrations and invalidates the token when the last code object for a
+subscriber is collected. Callers can retain the token and inspect its `valid`
+attribute without scanning all registered code objects after ordinary imports;
+`subscriber_version_is_current()` remains as a compatibility helper for existing
+internal callers.
 
 ### Error Isolation
 

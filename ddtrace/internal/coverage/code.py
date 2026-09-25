@@ -5,7 +5,6 @@ from copy import deepcopy
 from inspect import getmodule
 import os
 from pathlib import Path
-import sys
 import threading as _threading
 from types import CodeType
 from types import ModuleType
@@ -13,6 +12,7 @@ import typing as t
 
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.instrumentation import _rearm_disabled
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -37,7 +37,6 @@ _original_exec = exec
 # Compiled at import time so it matches the running Python version.
 _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
-_PY_GE_312 = is_at_least_py(3, 12)
 _PY_GE_313 = is_at_least_py(3, 13)
 _PY_GE_314 = is_at_least_py(3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
@@ -390,22 +389,12 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.covered = ctx_covered.get()[-1]
                 _tls_coverage.covered_files = ctx_covered_files.get()[-1]
 
-            # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
-            # active and update the DISABLE optimisation flag accordingly.  Then re-enable
-            # monitoring only when the optimisation is active (restart_events is global and
-            # would corrupt other tools' state if called unnecessarily).
-            # NOTE: This global restart_events() call is safe specifically because it is
-            # gated on update_disable_optimization() having *just* confirmed no other tool is
-            # registered -- there is no other tool's disabled-event state for it to corrupt at
-            # this instant. Once another tool is detected, this branch stops firing for the rest
-            # of the run. This is deliberately different from the tool-scoped set_local_events()
-            # toggle in instrumentation_py3_12._rearm_all_events(), which handles the one case
-            # where a *known* other tool is present and must be left untouched.
-            if _PY_GE_312:
-                from ddtrace.internal.coverage.instrumentation_py3_12 import update_disable_optimization
-
-                if update_disable_optimization():
-                    sys.monitoring.restart_events()
+            # NOTE: Re-arm the LINE/PY_START events this collector silenced with DISABLE during
+            # the previous context. A sole subscriber with no external tool uses one global
+            # restart; shared monitoring uses the tool-scoped, event-selective fallback so another
+            # subscriber's disabled-event state is preserved. Re-arming on every context entry
+            # also preserves transitive coverage when later imports call code from an earlier module.
+            _rearm_disabled()
 
             return self
 
@@ -451,6 +440,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             return
         cls._instance._covered_files.clear()
         cls._instance._coverage_enabled = True
+        # Code can execute while session coverage is inactive and consume the
+        # handler's DISABLE callback. Re-arm it when collection starts.
+        _rearm_disabled()
 
     @classmethod
     def stop_coverage(cls):
