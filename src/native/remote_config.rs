@@ -152,7 +152,7 @@ impl RemoteConfigClient {
         timeout_ms: u64,
         test_session_token: Option<String>,
     ) -> PyResult<Self> {
-        let rt = runtime.as_arc().clone();
+        let rt = runtime.as_arc()?;
 
         let mut endpoint = Endpoint::from_slice(&agent_url);
         endpoint.timeout_ms = timeout_ms;
