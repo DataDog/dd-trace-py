@@ -29,11 +29,11 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
-    # 60m S3 poll + 60m downstream watch = 120, plus ~10m slack
+    # 120m S3 poll + 60m downstream watch = 180, plus ~10m slack
     # for octo-sts / trigger / GHA overhead.
     # Job timeout must stay strictly above POLL_TIMEOUT so a late upload
     # does not consume the entire budget before downstream-python starts.
-    timeout-minutes: 130
+    timeout-minutes: 190
     steps:
       - name: Resolve commit SHA
         id: sha
@@ -71,8 +71,8 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # GitLab uploads install.sh after wheel build (often 20–63+ min under
-      # load). This workflow uses its own 60m poll budget for late GitLab
+      # GitLab uploads install.sh after wheel build (often 20–78+ min under
+      # load). This workflow uses its own 120m poll budget for late GitLab
       # uploads (independent of scripts/download-s3-wheels.sh). Poll before
       # dispatch so downstream does not 404.
       - name: Wait for S3 install.sh
@@ -81,20 +81,25 @@ jobs:
           DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
         run: |
           INSTALL_URL="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}/install.sh"
-          POLL_TIMEOUT="${POLL_TIMEOUT:-3800}"
+          POLL_TIMEOUT="${POLL_TIMEOUT:-7200}"
           POLL_INTERVAL="${POLL_INTERVAL:-30}"
           echo "Polling for: ${INSTALL_URL}"
+          echo "Timeout: ${POLL_TIMEOUT}s, Interval: ${POLL_INTERVAL}s"
           elapsed=0
+          last_status="none"
           while true; do
-            if curl -sf -o /dev/null "${INSTALL_URL}"; then
+            last_status="$(curl -sS -o /dev/null -w '%{http_code}' "${INSTALL_URL}" || true)"
+            last_status="${last_status:-curl_error}"
+            if [ "$last_status" = "200" ]; then
               echo "install.sh found after ${elapsed}s"
               break
             fi
             if [ "$elapsed" -ge "$POLL_TIMEOUT" ]; then
-              echo "error: timed out after ${POLL_TIMEOUT}s waiting for ${INSTALL_URL}" >&2
+              echo "error: timed out after ${POLL_TIMEOUT}s waiting for ${INSTALL_URL} (last HTTP ${last_status})" >&2
+              echo "GitLab may still be publishing wheels. Re-run this job after ${INSTALL_URL} returns 200." >&2
               exit 1
             fi
-            echo "Not available yet (${elapsed}s elapsed), retrying in ${POLL_INTERVAL}s..."
+            echo "Not available yet (${elapsed}s elapsed, HTTP ${last_status}), retrying in ${POLL_INTERVAL}s..."
             sleep "${POLL_INTERVAL}"
             elapsed=$((elapsed + POLL_INTERVAL))
           done
