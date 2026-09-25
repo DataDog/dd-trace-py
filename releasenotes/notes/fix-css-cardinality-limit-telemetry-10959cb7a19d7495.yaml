@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes incorrect telemetry being collected when hitting cardinality limits during stats computation.
