@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
+from tests.utils import override_config
 from tests.webclient import Client
 
 
@@ -64,8 +65,11 @@ def _wait_for_server_ready(client: Client, server_process, port: int, use_multip
                     sock.settimeout(0.2)
                     sock.connect(("0.0.0.0", int(port)))
             else:
-                response = client.get_ignored("/", timeout=max(0.5, deadline - time.monotonic()))
+                with override_config("requests", dict(distributed_tracing=False)):
+                    # Never cap this: a timed-out probe is still served, so a retry would be served twice.
+                    response = client.get_ignored("/", timeout=max(0.5, deadline - time.monotonic()))
                 assert response.status_code == 200, f"server answered {response.status_code}"
+            assert _process_exit_code(server_process) is None, "server process exited during startup"
             return
         except Exception:
             # A server that died on import is never going to answer, so spending the rest of

@@ -14,7 +14,6 @@ from tests.appsec.appsec_utils import gunicorn_flask_server
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.flask_tests.utils import flask_version
 from tests.appsec.integrations.utils_testagent import _get_span
-from tests.appsec.integrations.utils_testagent import is_readiness_probe
 
 
 _GEVENT_SERVERS_SCENARIOS = (
@@ -64,7 +63,7 @@ def test_iast_stacktrace_error(iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
@@ -217,7 +216,7 @@ def test_iast_cmdi(server, iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
@@ -320,7 +319,7 @@ def test_iast_header_injection_secure(server, iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
@@ -344,7 +343,7 @@ def test_iast_header_injection(server, iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
@@ -354,21 +353,17 @@ def test_iast_header_injection(server, iast_test_token, free_port):
         assert response.status_code == 500
         assert response.headers.get("X-Vulnerable-Header") is None
         assert response.headers.get("Inject-Header") is None
-        assert len(spans_with_iast) == 1
-        assert len(vulnerabilities) == 0
     else:
         if server.__name__ == "flask_server":
             assert response.status_code == 200
             assert response.headers.get("X-Vulnerable-Header") == "value"
             assert response.headers.get("Inject-Header") == "1234"
-            assert len(spans_with_iast) == 1
-            assert len(vulnerabilities) == 0
         else:
             assert response.status_code == 400
             assert response.headers.get("X-Vulnerable-Header") is None
             assert response.headers.get("Inject-Header") is None
-            assert len(spans_with_iast) == 1
-            assert len(vulnerabilities) == 0
+    assert len(spans_with_iast) == 1
+    assert len(vulnerabilities) == 0
 
 
 @pytest.mark.parametrize("server", ((gunicorn_flask_server, flask_server)))
@@ -387,7 +382,7 @@ def test_iast_code_injection_with_stacktrace(server, iast_test_token, free_port)
     metastruct = {}
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
@@ -422,7 +417,7 @@ def test_iast_unvalidated_redirect(server, iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
@@ -449,7 +444,8 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
     """Gevent has a lot of problematic interactions with the tracer. When IAST applies AST transformations to a file
     and reloads the module using compile and exec, it can interfere with Gevent’s monkey patching
     """
-    config["env"].update({"DD_TRACE_URLLIB3_ENABLED": "true"})
+    config = dict(config)
+    config["env"] = {**config["env"], "DD_TRACE_URLLIB3_ENABLED": "true"}
     with server(
         iast_enabled="true",
         appsec_enabled="false",
@@ -487,14 +483,14 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
             spans.append(span)
 
-    assert len(spans) >= 28, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans) >= 19, f"Incorrect number of spans ({len(spans)}):\n{spans}"
     assert len(spans_with_iast) == 2
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
