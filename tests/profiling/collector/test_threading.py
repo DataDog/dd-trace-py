@@ -1982,6 +1982,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 "capture_sampler",
                 "init_location",
                 "acquired_time",
+                "acquired_generation",
                 "name",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
