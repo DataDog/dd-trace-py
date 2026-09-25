@@ -7,9 +7,9 @@ from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContex
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
 
 config._add("pydantic_ai", {})
@@ -116,7 +116,7 @@ def patch():
 
     pydantic_ai._datadog_patch = True
 
-    pydantic_ai._datadog_integration = PydanticAIIntegration(integration_config=config.pydantic_ai)
+    core.dispatch("pydantic_ai.integration.create", (config.pydantic_ai,))
 
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter)
     wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream)

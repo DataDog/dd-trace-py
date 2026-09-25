@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIAsyncStreamH
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIStreamHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.llmobs._integrations import GoogleGenAIIntegration
+from ddtrace.internal import core
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -134,8 +134,7 @@ def patch():
         return
 
     genai._datadog_patch = True
-    integration = GoogleGenAIIntegration(integration_config=config.google_genai)
-    genai._datadog_integration = integration
+    core.dispatch("google_genai.integration.create", (config.google_genai,))
 
     wrap("google.genai", "models.Models.generate_content", traced_generate)
     wrap("google.genai", "models.Models.generate_content_stream", traced_generate_stream)

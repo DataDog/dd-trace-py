@@ -39,7 +39,6 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
-from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.propagation.http import HTTPPropagator
 
 from .services.bedrock import _resolve_inference_profile_in_progress
@@ -246,7 +245,7 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
+    core.dispatch("bedrock.integration.create", (config.botocore,))
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)

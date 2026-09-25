@@ -1,4 +1,5 @@
 import sys
+from typing import Any
 
 import wrapt
 
@@ -6,7 +7,6 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.llmobs._integrations import BedrockIntegration
 
 
 log = get_logger(__name__)
@@ -18,7 +18,7 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, args, kwargs):
         super().__init__(wrapped)
         self._stream_chunks = []
-        self._dd_integration: BedrockIntegration = integration
+        self._dd_integration: Any = integration
         self._dd_span = span
         self._args = args
         self._kwargs = kwargs

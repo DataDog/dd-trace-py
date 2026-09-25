@@ -15,7 +15,6 @@ from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations import OpenAIIntegration
 from ddtrace.trace import tracer
 
 
@@ -102,8 +101,7 @@ def patch():
         log.warning("openai version %s is not supported, please upgrade to openai version 1.0 or later", OPENAI_VERSION)
         return
 
-    integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
-    openai._datadog_integration = integration
+    core.dispatch("openai.integration.create", (config.openai,))
 
     if OPENAI_VERSION >= (1, 8, 0):
         wrap(openai, "_base_client.SyncAPIClient._process_response", traced_convert)

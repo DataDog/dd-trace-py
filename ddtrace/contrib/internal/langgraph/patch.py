@@ -1,16 +1,17 @@
 import sys
+from typing import Any
 
 import langgraph
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
-from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.trace import tracer
 
 
@@ -105,7 +106,7 @@ def traced_runnable_seq_invoke(func, instance, args, kwargs):
     One caveat is that if the node represents a subgraph (LangGraph), we should skip tracing at this step, as
     we will trace the graph invocation separately with `traced_pregel_stream`.
     """
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
 
     should_trace, node_name = _should_trace_node(instance, args, kwargs)
     if not should_trace:
@@ -130,7 +131,7 @@ def traced_runnable_seq_invoke(func, instance, args, kwargs):
 
 async def traced_runnable_seq_ainvoke(func, instance, args, kwargs):
     """Async version of traced_runnable_seq_invoke."""
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
 
     should_trace, node_name = _should_trace_node(instance, args, kwargs)
     if not should_trace:
@@ -158,7 +159,7 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
     This function returns a generator wrapper that yields the results of RunnableSeq.astream(),
     ending the span after the stream is consumed, otherwise following the logic of traced_runnable_seq_ainvoke().
     """
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
 
     should_trace, node_name = _should_trace_node(instance, args, kwargs)
     if not should_trace:
@@ -232,7 +233,7 @@ async def traced_runnable_seq_consume_aiter(func, instance, args, kwargs):
     does not yield the final output in versions >=0.3.29. Instead, the final output is aggregated
     and returned as a single value by _consume_aiter().
     """
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
     output = await func(*args, **kwargs)
 
     if integration.llmobs_enabled:
@@ -256,7 +257,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
 
     Calling `invoke` on a graph calls `stream` under the hood.
     """
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
     name = getattr(instance, "name", "LangGraph")
     span = integration.trace(
         "%s.%s.%s" % (_get_module_name(instance.__module__), instance.__class__.__name__, name),
@@ -304,7 +305,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
 
 def traced_pregel_astream(func, instance, args, kwargs):
     """Async version of traced_pregel_stream."""
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
     name = getattr(instance, "name", "LangGraph")
     span = integration.trace(
         "%s.%s.%s" % (_get_module_name(instance.__module__), instance.__class__.__name__, name),
@@ -351,7 +352,7 @@ def traced_pregel_astream(func, instance, args, kwargs):
 
 
 def patched_create_react_agent(func, instance, args, kwargs):
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
     agent = func(*args, **kwargs)
 
     integration.llmobs_handle_agent_manifest(agent, args, kwargs)
@@ -361,7 +362,7 @@ def patched_create_react_agent(func, instance, args, kwargs):
 
 def patched_pregel_loop_tick(func, instance, args, kwargs):
     """No tracing is done, and processing only happens if LLM Observability is enabled."""
-    integration: LangGraphIntegration = langgraph._datadog_integration
+    integration: Any = langgraph._datadog_integration
     if not integration.llmobs_enabled:
         return func(*args, **kwargs)
 
@@ -398,8 +399,7 @@ def patch():
 def _patch_graph_modules(langgraph):
     langgraph._datadog_patch = True
 
-    integration = LangGraphIntegration(integration_config=config.langgraph)
-    langgraph._datadog_integration = integration
+    core.dispatch("langgraph.integration.create", (config.langgraph,))
 
     from langgraph.pregel import Pregel
 

@@ -11,9 +11,9 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.internal.claude_agent_sdk.utils import force_include_partial_messages
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
 
 
 log = get_logger(__name__)
@@ -212,8 +212,7 @@ def patch():
 
     claude_agent_sdk._datadog_patch = True
 
-    integration = ClaudeAgentSdkIntegration(integration_config=config.claude_agent_sdk)
-    claude_agent_sdk._datadog_integration = integration
+    core.dispatch("claude_agent_sdk.integration.create", (config.claude_agent_sdk,))
 
     wrap("claude_agent_sdk", "query", traced_query_async_generator)
     wrap("claude_agent_sdk", "ClaudeAgentOptions.__init__", traced_options_init)
