@@ -1,6 +1,7 @@
 class CaptureSampler:
     capture_pct: float
     _counter: float
+    enabled: bool
 
     def __init__(self, capture_pct: float = ...) -> None: ...
     def __repr__(self) -> str: ...

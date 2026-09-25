@@ -552,6 +552,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original_lock: Optional[Callable[..., Any]] = None
         self._reimport_hook: Optional[Callable[[ModuleType], None]] = None
         self._installed: bool = False
+        self._capture_sampler.enabled = False
 
     def _get_patch_target(self) -> Callable[..., Any]:
         return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
@@ -603,10 +604,12 @@ class LockCollector(collector.CaptureSamplerCollector):
     def _start_service(self) -> None:
         self.install()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
+        self._capture_sampler.enabled = True
 
     def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
+        self._capture_sampler.enabled = False
         self.unpatch()
         self._installed = False
         LockCollector._active_collectors.discard(self)

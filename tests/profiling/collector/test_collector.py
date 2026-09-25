@@ -36,6 +36,15 @@ def test_capture_sampler() -> None:
     assert cs.capture() is False  # 15
 
 
+def test_capture_sampler_disabled() -> None:
+    cs: collector.CaptureSampler = collector.CaptureSampler(100)
+    assert cs.enabled is True
+    cs.enabled = False
+    assert cs.capture() is False
+    cs.enabled = True
+    assert cs.capture() is True
+
+
 def test_capture_sampler_bad_value() -> None:
     with pytest.raises(ValueError):
         collector.CaptureSampler(-1)
@@ -58,6 +67,8 @@ def test_capture_sampler_pure_python_fallback() -> None:
         cs: collector.CaptureSampler = mod.CaptureSampler(50)
         assert cs.capture() is False  # 50
         assert cs.capture() is True  # 0
+        cs.enabled = False
+        assert cs.capture() is False
         assert repr(cs) == "CaptureSampler(capture_pct=50)"
         with pytest.raises(ValueError):
             mod.CaptureSampler(-1)

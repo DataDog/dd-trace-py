@@ -8,6 +8,7 @@ from typing import Any
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -87,6 +88,10 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
 
         def profiler_init(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> Any:
             profiler = wrapped(*args, **kwargs)
+
+            if self.status != ServiceStatus.RUNNING:
+                return profiler
+
             return self.PROFILED_TORCH_CLASS(
                 profiler,
                 self.tracer,
