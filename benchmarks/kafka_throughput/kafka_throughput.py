@@ -86,7 +86,9 @@ def _run_worker(topic, group_id):
 
     try:
         # Phase 1: produce all messages.
-        headers = [("key%d" % j, ("value%d" % j).encode("utf-8")) for j in range(NUM_HEADERS)]
+        # A dict, not a list of tuples: ddtrace's DSM produce hook only injects its
+        # pathway header into dict headers, and silently skips it for lists.
+        headers = {"key%d" % j: ("value%d" % j).encode("utf-8") for j in range(NUM_HEADERS)}
         produce_start = time.perf_counter()
         for i in range(MESSAGE_COUNT):
             producer.produce(
