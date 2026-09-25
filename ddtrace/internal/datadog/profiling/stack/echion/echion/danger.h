@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -30,6 +31,10 @@ uninstall_segv_handler();
 // Returns true only if our signal handler owns both SIGSEGV and SIGBUS; false on any error.
 bool
 segv_handler_installed();
+
+// Not async-signal-safe; allocation failure returns "unknown".
+std::string
+describe_segv_handler_owners() noexcept;
 
 #if defined PL_LINUX
 ssize_t

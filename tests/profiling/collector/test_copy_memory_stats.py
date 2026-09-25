@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 
@@ -154,3 +156,69 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        _DD_PROFILING_STACK_FAST_COPY="1",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_foreign_handler_after_warmup_fallback_and_oneshot_drain() -> None:
+    import signal
+    import time
+    from typing import Optional
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    _stack._set_fast_copy_warmup_seconds(1.0)
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+
+    try:
+        # Wait for warmup (False) before treating True as the upgrade.
+        saw_warmup: bool = False
+        saw_upgrade: bool = False
+        upgrade_deadline: float = time.monotonic() + 10
+        while time.monotonic() < upgrade_deadline:
+            active: bool = _stack.fast_copy_memory_active()
+            if not saw_warmup:
+                if active is False:
+                    saw_warmup = True
+            elif active is True:
+                saw_upgrade = True
+                break
+            time.sleep(0.05)
+        assert saw_warmup, "sampler never dropped to the syscall copy during warmup"
+        assert saw_upgrade, "sampler never upgraded to safe_memcpy after warmup"
+
+        signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+        assert _stack.segv_handler_installed() is False
+
+        # Fallback flips before record_foreign_segv_handler(), so poll the notice.
+        notice: Optional[tuple[bool, str, bool]] = None
+        notice_deadline: float = time.monotonic() + 10
+        while time.monotonic() < notice_deadline:
+            notice = stack.take_foreign_segv_handler()
+            if notice is not None:
+                break
+            time.sleep(0.05)
+        assert notice is not None, "sampler never recorded the foreign SIGSEGV notice"
+        already_owned: bool = notice[0]
+        owner: str = notice[1]
+        sampling_stopped: bool = notice[2]
+        assert already_owned is False
+        assert "SIGSEGV=SIG_DFL" in owner
+        assert sampling_stopped is False
+        assert _stack.fast_copy_memory_active() is False
+        assert stack.take_foreign_segv_handler() is None
+    finally:
+        stack.stop()
