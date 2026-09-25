@@ -1,0 +1,5 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where formatting managed text or chat prompts
+    substitutes variables inside mismatched or extra braces. Only ``{name}`` and
+    ``{{name}}`` placeholders are substituted; malformed forms are left unchanged.

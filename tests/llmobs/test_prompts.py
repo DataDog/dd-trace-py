@@ -150,6 +150,29 @@ def assert_prompt_matches_response(prompt, response, expected_source):
 class TestPrompts:
     """Tests for the Managed Prompt Registry SDK."""
 
+    @pytest.mark.parametrize("chat", [False, True])
+    @pytest.mark.parametrize(
+        "template, expected",
+        [
+            ("Hello {name}!", "Hello Ada!"),
+            ("Hello {{ name }}!", "Hello Ada!"),
+            ("Hello {{name}!", "Hello {{name}!"),
+            ("Hello {name}}!", "Hello {name}}!"),
+            ("Keep the token {{{name}}} intact.", "Keep the token {{{name}}} intact."),
+            ("Hello {name}; {{missing}}", "Hello Ada; {{missing}}"),
+        ],
+    )
+    def test_format_balanced_placeholders(self, chat, template, expected):
+        prompt = ManagedPrompt(
+            id="greeting",
+            version="v1",
+            label=None,
+            source="registry",
+            template=[{"role": "user", "content": template}] if chat else template,
+        )
+
+        assert prompt.format(name="Ada") == ([{"role": "user", "content": expected}] if chat else expected)
+
     def test_fetch_and_render_text_prompt(self):
         """Fetch a text prompt from registry and render with variables."""
         with mock_api(200, TEXT_PROMPT_RESPONSE):
