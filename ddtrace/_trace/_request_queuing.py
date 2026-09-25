@@ -135,7 +135,12 @@ def create_request_queuing_spans_if_headers_exist(ctx: core.ExecutionContext, he
     # not the time spent processing the request itself.
     queue_span.finish()
 
-    def finish_callback(_: object) -> None:
+    def finish_callback(finished_span: Span) -> None:
+        # Mirror the wrapped request's resource onto the virtual proxy span, matching
+        # the Ruby tracer's `trace.resource = request_span.resource` behavior, so trace
+        # search/APM service pages group by the actual endpoint instead of the literal
+        # "http.proxy.request" span name.
+        request_span.resource = finished_span.resource
         request_span.finish()
 
     ctx.set_item("inferred_proxy_span", request_span)

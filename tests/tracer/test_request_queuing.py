@@ -71,8 +71,12 @@ def test_create_request_queuing_spans_if_headers_exist(tracer) -> None:
 
     finish_callback = ctx.get_item("inferred_proxy_finish_callback")
     assert finish_callback is not None
-    finish_callback(None)
+    finished_span = tracer.start_span("wsgi.request", child_of=request_span)
+    finished_span.resource = "GET 200"
+    finished_span.finish()
+    finish_callback(finished_span)
     assert request_span.duration_ns is not None
+    assert request_span.resource == "GET 200"
 
 
 def test_create_request_queuing_spans_creates_finished_queue_span(tracer) -> None:
