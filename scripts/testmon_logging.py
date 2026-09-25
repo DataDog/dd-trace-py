@@ -20,6 +20,7 @@ class TestmonLogging:
         self.worker = hasattr(config, "workerinput")
         self.selected = set()
         self.deselected = set()
+        self.deselection_notifications_without_nodeid = 0
         self.failed = set()
         self.skipped = set()
         self.collection_errors = 0
@@ -75,7 +76,13 @@ class TestmonLogging:
             self.collection_errors += 1
 
     def pytest_deselected(self, items):
-        self.deselected.update(item.nodeid for item in items)
+        for item in items:
+            nodeid = getattr(item, "nodeid", None)
+            if nodeid is None:
+                # Testmon can report synthetic deselections without a test ID.
+                self.deselection_notifications_without_nodeid += 1
+            else:
+                self.deselected.add(nodeid)
 
     @pytest.hookimpl(optionalhook=True)
     def pytest_xdist_node_collection_finished(self, node, ids):
@@ -87,6 +94,7 @@ class TestmonLogging:
     def pytest_testnodedown(self, node, error):
         data = node.workeroutput.get("tia", {})
         self.deselected.update(data.get("deselected", []))
+        self.deselection_notifications_without_nodeid += data.get("deselection_notifications_without_nodeid", 0)
         self.worker_collection_seconds[node.gateway.id] = data.get("collection_seconds")
 
     def pytest_runtest_logreport(self, report):
@@ -104,6 +112,7 @@ class TestmonLogging:
         data = {
             "selected": sorted(self.selected),
             "deselected": sorted(self.deselected),
+            "deselection_notifications_without_nodeid": self.deselection_notifications_without_nodeid,
             "failed": sorted(self.failed),
             "skipped": sorted(self.skipped),
             "outcomes": dict(self.outcomes),
@@ -121,13 +130,17 @@ class TestmonLogging:
             exit_code=int(exitstatus),
             selected_count=len(self.selected),
             observed_deselected=sorted(self.deselected),
+            deselection_notifications_without_nodeid=self.deselection_notifications_without_nodeid,
             outcomes=dict(self.outcomes),
             collection_errors=self.collection_errors,
             collection_seconds=self.collection_seconds,
             worker_collection_seconds=self.worker_collection_seconds,
             startup_and_selection_seconds=self.startup_selection_seconds,
             summed_test_report_seconds=self.test_report_seconds,
-            scope="deselections may omit whole files; startup timing starts at plugin import and includes collection",
+            scope=(
+                "deselections may omit whole files; unidentified notifications include worker duplicates; "
+                "startup timing starts at plugin import and includes collection"
+            ),
         )
         output = os.environ.get("DD_LLMOBS_TIA_INVENTORY")
         if output:

@@ -108,6 +108,20 @@ def test_diagnostics_preserve_incoming_database_and_exit_code(
         assert estimate["seconds"] is None
 
 
+def test_deselection_without_nodeid_is_counted_and_does_not_hide_known_tests():
+    logger = testmon_logging.TestmonLogging(SimpleNamespace(workerinput={}))
+    logger.pytest_deselected([SimpleNamespace(nodeid="before"), SimpleNamespace(), SimpleNamespace(nodeid="after")])
+    logger.pytest_deselected([SimpleNamespace(nodeid="before"), SimpleNamespace()])
+    assert logger.deselected == {"before", "after"}
+    assert logger.deselection_notifications_without_nodeid == 2
+    hook = logger.pytest_sessionfinish(None, 0)
+    logger.config.workeroutput = {}
+    next(hook)
+    assert logger.config.workeroutput["tia"]["deselection_notifications_without_nodeid"] == 2
+    with pytest.raises(StopIteration):
+        next(hook)
+
+
 def test_worker_results_are_deduplicated_and_only_controller_writes_inventory(monkeypatch, tmp_path):
     reporter = mock.Mock()
     config = SimpleNamespace(pluginmanager=SimpleNamespace(getplugin=lambda name: reporter))
@@ -115,7 +129,13 @@ def test_worker_results_are_deduplicated_and_only_controller_writes_inventory(mo
     for _ in range(2):
         logger.pytest_xdist_node_collection_finished(None, ["keep"])
         node = SimpleNamespace(
-            workeroutput={"tia": {"deselected": ["exclude"], "collection_seconds": 1.0}},
+            workeroutput={
+                "tia": {
+                    "deselected": ["exclude"],
+                    "deselection_notifications_without_nodeid": 2,
+                    "collection_seconds": 1.0,
+                }
+            },
             gateway=SimpleNamespace(id="gw0"),
         )
         logger.pytest_testnodedown(node, None)
@@ -128,6 +148,9 @@ def test_worker_results_are_deduplicated_and_only_controller_writes_inventory(mo
     data = json.loads(output.read_text())
     assert data["selected"] == ["keep"]
     assert data["deselected"] == ["exclude"]
+    assert data["deselection_notifications_without_nodeid"] == 4
+    event = json.loads(reporter.write_line.call_args.args[0].removeprefix("[TIA] "))
+    assert event["deselection_notifications_without_nodeid"] == 4
     assert data["collection_seconds"] is None
     output.unlink()
     worker = testmon_logging.TestmonLogging(SimpleNamespace(workerinput={}, workeroutput={}))
