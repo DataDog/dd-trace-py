@@ -39,7 +39,10 @@ update_fast_copy_stats(ProfilerStats& stats)
 void
 Datadog::seed_fast_copy_profiler_stats()
 {
-    update_fast_copy_stats(Sample::profile_borrow().stats());
+    auto borrow = Sample::profile_borrow();
+    if (borrow.has_value()) {
+        update_fast_copy_stats(borrow->stats);
+    }
 }
 
 // Helper class for spawning a std::thread with control over its default stack size
@@ -248,7 +251,12 @@ Sampler::adapt_sampling_interval()
     }
 
     sample_interval_us.store(new_interval);
-    Sample::profile_borrow().stats().set_sampling_interval_us(new_interval);
+    {
+        auto borrow = Sample::profile_borrow();
+        if (borrow.has_value()) {
+            borrow->stats.set_sampling_interval_us(new_interval);
+        }
+    }
 
     // Update the counters for the next iteration
     process_count = new_process_count;
@@ -270,7 +278,10 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
                 auto gc_frame_scope = echion->use_gc_frame(gc_frame);
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
-                    Sample::profile_borrow().stats().increment_sample_count();
+                    auto borrow = Sample::profile_borrow();
+                    if (borrow.has_value()) {
+                        borrow->stats.increment_sample_count();
+                    }
                 }
             });
         });
@@ -350,7 +361,10 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
             auto gc_frame_scope = echion->use_gc_frame(thread_candidates[i].gc_frame);
             auto success = it->second->sample(*echion, &thread_candidates[i].tstate, effective_wall_time_us);
             if (success) {
-                Sample::profile_borrow().stats().increment_sample_count();
+                auto borrow = Sample::profile_borrow();
+                if (borrow.has_value()) {
+                    borrow->stats.increment_sample_count();
+                }
             }
         }
     }
@@ -521,21 +535,25 @@ Sampler::sampling_thread(const uint64_t seq_num)
             // could swap cur_profiler_stats between two separate borrow calls, silently
             // shifting some counters (including sample_capture_cpu_time_us) into the next window.
             {
-                auto borrow = Sample::profile_borrow();
+                auto maybe_borrow = Sample::profile_borrow();
+                if (!maybe_borrow.has_value()) {
+                    break;
+                }
+                auto& borrow = *maybe_borrow;
 
-                borrow.stats().increment_sampling_event_count();
-                borrow.stats().set_string_table_count(echion->string_table().size());
-                update_fast_copy_stats(borrow.stats());
-                borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
-                borrow.stats().set_greenlet_count(greenlet_count);
+                borrow.stats.increment_sampling_event_count();
+                borrow.stats.set_string_table_count(echion->string_table().size());
+                update_fast_copy_stats(borrow.stats);
+                borrow.stats.set_asyncio_task_count(echion->asyncio_task_count());
+                borrow.stats.set_greenlet_count(greenlet_count);
 
                 if (copy_errors > 0) {
-                    borrow.stats().add_copy_memory_error_count(copy_errors);
+                    borrow.stats.add_copy_memory_error_count(copy_errors);
                 }
 
                 size_t cpu_diff = sample_capture_cpu_after - sample_capture_cpu_before;
                 if (cpu_diff > 0) {
-                    borrow.stats().add_sample_capture_cpu_time_us(cpu_diff);
+                    borrow.stats.add_sample_capture_cpu_time_us(cpu_diff);
                 }
             }
         } catch (const std::exception& e) {
@@ -580,7 +598,12 @@ Sampler::set_interval(double new_interval_s)
 {
     microsecond_t new_interval_us = static_cast<microsecond_t>(new_interval_s * 1e6);
     sample_interval_us.store(new_interval_us);
-    Sample::profile_borrow().stats().set_sampling_interval_us(new_interval_us);
+    {
+        auto borrow = Sample::profile_borrow();
+        if (borrow.has_value()) {
+            borrow->stats.set_sampling_interval_us(new_interval_us);
+        }
+    }
 }
 
 bool

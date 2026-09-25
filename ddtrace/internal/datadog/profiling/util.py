@@ -1,4 +1,3 @@
-from sys import version_info
 from typing import Any
 
 from ddtrace.internal.logger import get_logger
@@ -7,23 +6,16 @@ from ddtrace.internal.logger import get_logger
 LOG = get_logger(__name__)
 
 
-# 3.11 and above
-def _sanitize_string_check(value: Any) -> str:
-    if isinstance(value, str):
+def sanitize_string(value: Any):
+    """Coerce value to str or bytes for the profiling C++ layer.
+
+    str and bytes pass through unchanged — the C++ / Rust side handles
+    lossy UTF-8 conversion for bytes. Other types get a placeholder so
+    frames remain visible in profiles rather than being silently dropped.
+    """
+    if isinstance(value, (str, bytes)):
         return value
     elif value is None:
         return ""
-    try:
-        return value.decode("utf-8", "ignore")
-    except Exception:
-        LOG.warning("Got object of type '%s' instead of str during profile serialization", type(value).__name__)
-        return "[invalid string]%s" % type(value).__name__
-
-
-# 3.10 and below (the noop version)
-def _sanitize_string_identity(value: Any) -> str:
-    return value or ""
-
-
-# Assign based on version
-sanitize_string: object = _sanitize_string_check if version_info[:2] > (3, 10) else _sanitize_string_identity
+    LOG.warning("Got object of type '%s' instead of str during profile serialization", type(value).__name__)
+    return "[invalid string]%s" % type(value).__name__

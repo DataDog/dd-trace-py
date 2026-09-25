@@ -114,7 +114,7 @@ checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -254,7 +254,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "syn",
+ "syn 2.0.118",
  "tempfile",
  "toml",
 ]
@@ -340,6 +340,17 @@ name = "clap_lex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
+
+[[package]]
+name = "codespan-reporting"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
+dependencies = [
+ "serde",
+ "termcolor",
+ "unicode-width",
+]
 
 [[package]]
 name = "colorchoice"
@@ -480,15 +491,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam-queue"
-version = "0.3.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -502,6 +504,68 @@ checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
  "typenum",
+]
+
+[[package]]
+name = "cxx"
+version = "1.0.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d93a9baeb9798b2e8ff0de24463b9e5cf9a0dd0a88f5ea02afc9ea35e7abae7"
+dependencies = [
+ "cc",
+ "cxx-build",
+ "cxxbridge-cmd",
+ "cxxbridge-flags",
+ "cxxbridge-macro",
+ "foldhash 0.2.0",
+ "link-cplusplus",
+]
+
+[[package]]
+name = "cxx-build"
+version = "1.0.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d32b61d087102ad38552a458eb61d24ff13cdf29d6e06f1ec85c1e1c066c0457"
+dependencies = [
+ "cc",
+ "codespan-reporting",
+ "indexmap 2.14.0",
+ "proc-macro2",
+ "quote",
+ "scratch",
+ "syn 3.0.5",
+]
+
+[[package]]
+name = "cxxbridge-cmd"
+version = "1.0.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25784b9f840a76b9b5151553ad70fc2abb3ec3b21fe379c5c7b029b2e0b91faf"
+dependencies = [
+ "clap",
+ "codespan-reporting",
+ "indexmap 2.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.5",
+]
+
+[[package]]
+name = "cxxbridge-flags"
+version = "1.0.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c6fafa9a47c12b9a48140893e4850480bd64a091b6f6467b9b6d30df61c3ec5"
+
+[[package]]
+name = "cxxbridge-macro"
+version = "1.0.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83246854d73be26cb7c32e35779698a8828a8f17654bd7fd1ebf4cbca414dfb2"
+dependencies = [
+ "indexmap 2.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.5",
 ]
 
 [[package]]
@@ -524,7 +588,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -535,7 +599,7 @@ checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
 dependencies = [
  "darling_core",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -556,7 +620,7 @@ dependencies = [
  "http 1.4.2",
  "libdd-capabilities",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-data-pipeline",
  "libdd-remote-config",
  "percent-encoding",
@@ -581,7 +645,7 @@ dependencies = [
  "datadog-live-debugger",
  "libc",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-crashtracker",
  "libdd-data-pipeline",
  "libdd-ddsketch",
@@ -591,7 +655,7 @@ dependencies = [
  "libdd-library-config",
  "libdd-log",
  "libdd-otel-thread-ctx",
- "libdd-profiling-ffi",
+ "libdd-profiling",
  "libdd-remote-config",
  "libdd-shared-runtime",
  "libdd-telemetry",
@@ -641,7 +705,7 @@ checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -662,7 +726,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc_version",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -702,7 +766,7 @@ checksum = "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -831,21 +895,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "function_name"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1ab577a896d09940b5fe12ec5ae71f9d8211fff62c919c03a3750a9901e98a7"
-dependencies = [
- "function_name-proc-macro",
-]
-
-[[package]]
-name = "function_name-proc-macro"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "673464e1e314dd67a0fd9544abc99e8eb28d0c7e3b69b033bcff9b2d00b87333"
-
-[[package]]
 name = "futures"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -901,7 +950,7 @@ checksum = "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1016,12 +1065,6 @@ dependencies = [
  "equivalent",
  "foldhash 0.1.5",
 ]
-
-[[package]]
-name = "hashbrown"
-version = "0.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 
 [[package]]
 name = "hashbrown"
@@ -1174,9 +1217,9 @@ checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
 name = "hyper"
-version = "1.10.1"
+version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55281c53a1894c864990125767da440a4e630446785086f52523b20033b74498"
+checksum = "27b501faa50e7a26c3d3560ca625132f4078a17771f4810baf70475ae48cbe43"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -1242,7 +1285,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core",
 ]
 
 [[package]]
@@ -1489,7 +1532,7 @@ dependencies = [
  "quote",
  "rustc_version",
  "simd_cesu8",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1517,7 +1560,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264"
 dependencies = [
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1571,7 +1614,7 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1601,7 +1644,7 @@ dependencies = [
  "http 1.4.2",
  "http-body-util",
  "libdd-capabilities",
- "libdd-common",
+ "libdd-common 5.2.0",
  "tokio",
 ]
 
@@ -1621,18 +1664,13 @@ dependencies = [
  "http 1.4.2",
  "http-body",
  "http-body-util",
- "httparse",
  "hyper",
  "hyper-rustls",
  "hyper-util",
  "libc",
- "mime",
- "multer",
  "nix 0.29.0",
  "pin-project",
- "rand 0.8.6",
  "regex",
- "reqwest",
  "rustls",
  "rustls-native-certs",
  "rustls-platform-verifier 0.6.2",
@@ -1646,17 +1684,37 @@ dependencies = [
 ]
 
 [[package]]
-name = "libdd-common-ffi"
-version = "43.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+name = "libdd-common"
+version = "6.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "anyhow",
- "build_common",
- "chrono",
- "crossbeam-queue",
+ "bytes",
+ "cc",
+ "const_format",
+ "futures",
+ "futures-util",
+ "hex",
+ "http 1.4.2",
+ "http-body",
+ "http-body-util",
+ "httparse",
  "hyper",
- "libdd-common",
+ "hyper-util",
+ "libc",
+ "mime",
+ "multer",
+ "nix 0.29.0",
+ "pin-project",
+ "rand 0.8.6",
+ "regex",
+ "reqwest",
  "serde",
+ "static_assertions",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower-service",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1673,7 +1731,7 @@ dependencies = [
  "libc",
  "libdd-capabilities",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-gotter",
  "libdd-libunwind-sys",
  "libdd-telemetry",
@@ -1711,7 +1769,7 @@ dependencies = [
  "http-body-util",
  "libdd-capabilities",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-data-pipeline-core",
  "libdd-ddsketch",
  "libdd-dogstatsd-client",
@@ -1741,30 +1799,11 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f
 dependencies = [
  "http 1.4.2",
  "libdd-capabilities",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-trace-obfuscation",
  "libdd-trace-utils",
  "serde_json",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "libdd-data-pipeline-ffi"
-version = "43.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
-dependencies = [
- "build_common",
- "libdd-capabilities-impl",
- "libdd-common-ffi",
- "libdd-data-pipeline",
- "libdd-shared-runtime",
- "libdd-tinybytes",
- "libdd-trace-obfuscation",
- "libdd-trace-utils",
- "rmp",
- "serde_json",
- "tokio-util",
- "tracing",
 ]
 
 [[package]]
@@ -1784,7 +1823,7 @@ dependencies = [
  "async-trait",
  "cadence",
  "http 1.4.2",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-shared-runtime",
  "serde",
  "tokio",
@@ -1799,7 +1838,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "faststr",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-remote-config",
  "log",
  "md5",
@@ -1831,7 +1870,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "libdd-common",
+ "libdd-common 5.2.0",
  "reqwest",
  "thiserror 2.0.18",
  "tokio",
@@ -1848,7 +1887,7 @@ dependencies = [
  "glibc_version",
  "io-lifetimes",
  "libc",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-ddsketch",
  "libdd-ipc-macros",
  "libdd-trace-protobuf",
@@ -1873,7 +1912,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1891,19 +1930,6 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_yaml",
-]
-
-[[package]]
-name = "libdd-library-config-ffi"
-version = "0.0.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
-dependencies = [
- "anyhow",
- "build_common",
- "constcat",
- "libdd-common",
- "libdd-common-ffi",
- "libdd-library-config",
 ]
 
 [[package]]
@@ -1934,41 +1960,27 @@ version = "1.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
 
 [[package]]
-name = "libdd-otel-thread-ctx-ffi"
-version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
-dependencies = [
- "build_common",
- "libdd-common-ffi",
- "libdd-otel-thread-ctx",
-]
-
-[[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "allocator-api2",
  "anyhow",
  "bitmaps",
  "byteorder",
- "bytes",
  "chrono",
  "crossbeam-channel",
  "crossbeam-utils",
- "futures",
- "hashbrown 0.16.1",
+ "cxx",
+ "cxx-build",
+ "hashbrown 0.17.1",
  "http 1.4.2",
- "http-body-util",
- "httparse",
  "indexmap 2.14.0",
  "libdd-alloc",
- "libdd-common",
+ "libdd-common 6.0.0",
  "libdd-profiling-protobuf",
- "mime",
  "parking_lot",
  "prost",
- "rand 0.8.6",
  "reqwest",
  "rustc-hash 2.1.2",
  "rustls",
@@ -1984,34 +1996,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "libdd-profiling-ffi"
-version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
-dependencies = [
- "allocator-api2",
- "anyhow",
- "build_common",
- "function_name",
- "futures",
- "http-body-util",
- "hyper",
- "libc",
- "libdd-common",
- "libdd-common-ffi",
- "libdd-data-pipeline-ffi",
- "libdd-library-config-ffi",
- "libdd-otel-thread-ctx-ffi",
- "libdd-profiling",
- "libdd-shared-runtime-ffi",
- "serde_json",
- "thiserror 2.0.18",
- "tokio-util",
-]
-
-[[package]]
 name = "libdd-profiling-protobuf"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
+source = "git+https://github.com/DataDog/libdatadog?rev=8ac892e2c78323d0d2046bf4996585f16fa1cfd5#8ac892e2c78323d0d2046bf4996585f16fa1cfd5"
 dependencies = [
  "prost",
 ]
@@ -2033,7 +2020,7 @@ dependencies = [
  "http-body-util",
  "libdd-capabilities",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-trace-protobuf",
  "libdd-tuf",
  "manual_future",
@@ -2064,21 +2051,11 @@ dependencies = [
  "futures-util",
  "libdd-capabilities",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "tokio",
  "tokio-util",
  "tracing",
  "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "libdd-shared-runtime-ffi"
-version = "43.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f656782d59b1be00f09138e26"
-dependencies = [
- "build_common",
- "libdd-shared-runtime",
- "tracing",
 ]
 
 [[package]]
@@ -2096,7 +2073,7 @@ dependencies = [
  "http 1.4.2",
  "libc",
  "libdd-capabilities",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-ddsketch",
  "libdd-shared-runtime",
  "serde",
@@ -2136,7 +2113,7 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v43.0.0#8c3d06ba9ff2a61f
 dependencies = [
  "anyhow",
  "fluent-uri",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-trace-protobuf",
  "libdd-trace-utils",
  "log",
@@ -2168,7 +2145,7 @@ dependencies = [
  "http 1.4.2",
  "libdd-capabilities",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-ddsketch",
  "libdd-dogstatsd-client",
  "libdd-shared-runtime",
@@ -2202,7 +2179,7 @@ dependencies = [
  "itoa 1.0.18",
  "libdd-capabilities",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-tinybytes",
  "libdd-trace-normalization",
  "libdd-trace-protobuf",
@@ -2230,7 +2207,7 @@ dependencies = [
  "bytes",
  "http 1.4.2",
  "libdd-capabilities-impl",
- "libdd-common",
+ "libdd-common 5.2.0",
  "libdd-remote-config",
  "libdd-trace-utils",
  "serde_json",
@@ -2263,6 +2240,15 @@ dependencies = [
  "thiserror 1.0.69",
  "untrusted 0.7.1",
  "url",
+]
+
+[[package]]
+name = "link-cplusplus"
+version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f78c730aaa7d0b9336a299029ea49f9ee53b0ed06e9202e8cb7db9bae7b8c82"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -2441,7 +2427,7 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2489,7 +2475,7 @@ checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2760,7 +2746,7 @@ checksum = "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2848,7 +2834,7 @@ dependencies = [
  "itertools",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2894,7 +2880,7 @@ dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2907,7 +2893,7 @@ dependencies = [
  "proc-macro2",
  "pyo3-build-config",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3033,7 +3019,7 @@ checksum = "b7186006dcb21920990093f30e3dea63b7d6e977bf1256be20c3563a5db070da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3360,7 +3346,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_derive_internals",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3368,6 +3354,12 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "scratch"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68f2ec51b097e4c1a75b681a8bec621909b5e91f15bb7b840c4f2f7b01148b2"
 
 [[package]]
 name = "security-framework"
@@ -3463,7 +3455,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3474,7 +3466,7 @@ checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3538,7 +3530,7 @@ dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3664,7 +3656,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3793,6 +3785,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12df2e0110f65b775f769bb17ef989067a1d931b2eb822bd4346631eeada89f9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3809,7 +3812,7 @@ checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3875,6 +3878,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "termcolor"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
 name = "thin-vec"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3906,7 +3918,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -3917,7 +3929,7 @@ checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -4007,7 +4019,7 @@ checksum = "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -4205,6 +4217,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 
 [[package]]
+name = "unicode-width"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
+
+[[package]]
 name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4388,7 +4406,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "wasm-bindgen-shared",
 ]
 
@@ -4458,7 +4476,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -4482,7 +4500,7 @@ version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f919aee0a93304be7f62e8e5027811bbba96bcb1de84d6618be56e43f8a32a1"
 dependencies = [
- "windows-core 0.59.0",
+ "windows-core",
  "windows-targets 0.53.5",
 ]
 
@@ -4492,24 +4510,11 @@ version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "810ce18ed2112484b0d4e15d022e5f598113e220c53e373fb31e67e21670c1ce"
 dependencies = [
- "windows-implement 0.59.0",
+ "windows-implement",
  "windows-interface",
  "windows-result 0.3.4",
  "windows-strings 0.3.1",
  "windows-targets 0.53.5",
-]
-
-[[package]]
-name = "windows-core"
-version = "0.62.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb"
-dependencies = [
- "windows-implement 0.60.2",
- "windows-interface",
- "windows-link 0.2.1",
- "windows-result 0.4.1",
- "windows-strings 0.5.1",
 ]
 
 [[package]]
@@ -4520,18 +4525,7 @@ checksum = "83577b051e2f49a058c308f17f273b570a6a758386fc291b5f6a934dd84e48c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
-]
-
-[[package]]
-name = "windows-implement"
-version = "0.60.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -4542,7 +4536,7 @@ checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -4935,7 +4929,7 @@ checksum = "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -4956,7 +4950,7 @@ checksum = "1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -4976,7 +4970,7 @@ checksum = "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -5016,7 +5010,7 @@ checksum = "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]

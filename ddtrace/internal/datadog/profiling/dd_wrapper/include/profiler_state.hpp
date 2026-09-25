@@ -1,20 +1,21 @@
 #pragma once
 
+#include "borrow.hpp"
 #include "constants.hpp"
 #include "libdatadog_helpers.hpp"
 #include "native_call_tracker.hpp"
 #include "profile.hpp"
 #include "types.hpp"
+#include "upload_cancellation.hpp"
 
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
 namespace Datadog {
-
-class Sample;
 
 // ProfilerState is a singleton class that holds all Profiler "global" state.
 // Consolidating it here makes lifecycle management (init, cleanup, fork handling) clearer.
@@ -38,14 +39,17 @@ class ProfilerState
     void postfork_parent();
     void postfork_child();
 
-    // Query state
+    // Cheap check to avoid locking when the profiler isn't running.
+    // Can briefly return true during cleanup; borrow() rechecks under lock.
     bool is_initialized() const { return initialized_.load(std::memory_order_acquire); }
 
     // ========================================================================
-    // Profiles Dictionary state
+    // ProfileDictionary state
     // ========================================================================
-    std::optional<ddog_prof_ProfilesDictionaryHandle> get_profiles_dictionary();
-    void release_profiles_dictionary();
+
+    // Returns nullopt if the dictionary is not initialized.
+    // The lock is held for the lifetime of the returned Borrow.
+    std::optional<Borrow<ddprof::ProfileDictionary>> borrow_dictionary();
 
     // ========================================================================
     // Uploader configuration
@@ -95,23 +99,18 @@ class ProfilerState
     // Upload state
     // ========================================================================
     std::mutex upload_lock{};
-    // ddog_CancellationToken is documented as an opaque type, but we access .inner directly to
-    // zero-initialize it: the C API provides no constructor, and the default value of .inner
-    // is undefined. We check .inner != nullptr as a sentinel for "a token is in flight".
-    std::atomic<ddog_CancellationToken> upload_cancel{ { .inner = nullptr } };
+    UploadCancellation upload_cancellation{};
     std::atomic<uint64_t> upload_seq{ 0 };
 
     // ========================================================================
     // Interned string caches
     // ========================================================================
     static constexpr size_t kNumLabelKeys = static_cast<size_t>(ExportLabelKey::Length_);
-    std::array<std::atomic<ddog_prof_StringId2>, kNumLabelKeys> label_cache{};
-    // Written only during single-threaded init/postfork; read freely after initialized_ is set
-    ddog_prof_StringId2 cached_empty_string_id{ nullptr };
+    std::array<std::atomic<ddprof::DictionaryStringId>, kNumLabelKeys> label_cache{};
 
     // Internal helpers
     bool init_profiles_dictionary();
-    bool init_interned_strings();
+    void release_profiles_dictionary();
     void reset_key_caches();
 
   private:
@@ -128,8 +127,9 @@ class ProfilerState
     std::atomic<bool> initialized_{ false };
     std::once_flag init_flag_;
 
-    // Profiles Dictionary handle
-    std::atomic<ddog_prof_ProfilesDictionaryHandle> dict_handle_{ nullptr };
+    // ProfileDictionary handle
+    std::mutex profiles_dictionary_mtx{};
+    std::optional<rust::Box<ddprof::ProfileDictionary>> profiles_dictionary{};
 };
 
 } // namespace Datadog

@@ -12,7 +12,7 @@ codegen-units = 1
 
 [features]
 crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
-profiling = ["dep:libdd-profiling-ffi"]
+profiling = ["dep:libdd-profiling"]
 ffe = ["dep:libdd-ffe"]
 stats = ["dep:libdd-ddsketch"]
 
@@ -60,8 +60,8 @@ libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v43.
   "hyper-proxy",
 ] }
 libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
-libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", optional = true, features = [
-    "cbindgen",
+libdd-profiling = { git = "https://github.com/DataDog/libdatadog", rev = "8ac892e2c78323d0d2046bf4996585f16fa1cfd5", optional = true, features = [
+    "cxx",
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }

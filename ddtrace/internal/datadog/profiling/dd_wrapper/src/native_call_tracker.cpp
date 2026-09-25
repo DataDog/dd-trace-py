@@ -1,5 +1,6 @@
 #include "native_call_tracker.hpp"
 
+#include "fork_utils.hpp"
 #include <functional>
 #include <mutex>
 #include <shared_mutex>
@@ -49,12 +50,16 @@ NativeCallRegistry::reset()
 void
 NativeCallRegistry::postfork_child()
 {
-    // NB placement-new to re-init the mutex because doing anything else is UB.
+    // TODO: Lock mtx in prefork() and unlock here instead of placement-new.
+    // Currently mtx is not quiesced before fork, so if another thread holds it
+    // during fork the child inherits a locked mutex owned by a dead thread.
+    // Placement-new is the workaround until prefork covers this mutex.
+    //
     // We intentionally do NOT clear call_sites: after fork the code objects live
     // at the same addresses, and sys.monitoring has already returned DISABLE for
     // every call site seen in the parent. Clearing would lose native frame info
     // with no way to re-populate it.
-    new (&mtx) std::shared_mutex();
+    reset_mutex_after_fork(mtx);
 }
 
 size_t
