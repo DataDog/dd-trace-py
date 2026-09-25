@@ -9,7 +9,6 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -51,6 +50,7 @@ from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _LLMObsAnnotatableSpan
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
@@ -495,7 +495,7 @@ def _openai_finish_reason_metadata(finish_reasons: list[Any]) -> dict[str, Any]:
 
 
 def openai_set_meta_tags_from_completion(
-    span: Span, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
+    span: _LLMObsAnnotatableSpan, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
@@ -666,7 +666,7 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[Imag
 
 
 def openai_set_meta_tags_from_chat(
-    span: Span, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+    span: _LLMObsAnnotatableSpan, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
@@ -794,7 +794,7 @@ def openai_set_meta_tags_from_chat(
 
 
 def _openai_extract_tool_calls_and_results_chat(
-    message: dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+    message: dict[str, Any], llm_span: Optional[_LLMObsAnnotatableSpan] = None, dispatch_llm_choice: bool = False
 ) -> tuple[list[ToolCall], list[ToolResult]]:
     tool_calls = []
     tool_results = []
@@ -859,7 +859,7 @@ def _openai_extract_tool_calls_and_results_chat(
 
 
 def capture_plain_text_tool_usage(
-    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
+    tool_calls_info: Any, tool_results_info: Any, content: str, span: _LLMObsAnnotatableSpan, is_input: bool = False
 ) -> None:
     """
     Captures plain text tool calls and tool results from a content string.
@@ -1348,7 +1348,7 @@ def _has_multimodal_inputs(variables: dict[str, Any]) -> bool:
     return False
 
 
-def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None:
+def set_prompt_tracking_tags(span: _LLMObsAnnotatableSpan, *, is_multimodal: bool = False) -> None:
     """Set prompt tracking telemetry tags on a span.
 
     Args:
@@ -1363,7 +1363,7 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
 
 
 def openai_set_meta_tags_from_response(
-    span: Span, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
+    span: _LLMObsAnnotatableSpan, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])

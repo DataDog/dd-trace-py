@@ -11,6 +11,7 @@ import re
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import Protocol
 from typing import Union
 from typing import cast
 
@@ -405,7 +406,25 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
     return parent_span._get_ctx_item(INPUT_PROMPT)
 
 
-def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
+class _LLMObsAnnotatableSpan(Protocol):
+    """Structural span interface required to annotate llmobs data on a span.
+
+    Callers that only hold a bare SpanData (which lacks _set_ctx_item) cannot satisfy this
+    protocol, so passing one here is a type error instead of a silently swallowed exception.
+    """
+
+    error: int
+    span_id: int
+    trace_id: int
+
+    def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+
+    def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
+
+    def _set_ctx_item(self, key: str, val: Any) -> None: ...
+
+
+def _get_llmobs_data_metastruct(span: _LLMObsAnnotatableSpan) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
@@ -578,7 +597,7 @@ def get_llmobs_parent_id(span: Span) -> Optional[str]:
     return parent_id
 
 
-def get_llmobs_trace_id(span: Span) -> Optional[str]:
+def get_llmobs_trace_id(span: _LLMObsAnnotatableSpan) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
@@ -710,11 +729,11 @@ def get_llmobs_metadata(span: Span) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA)
 
 
-def get_llmobs_tool_definitions(span: Span) -> Optional[list[ToolDefinition]]:
+def get_llmobs_tool_definitions(span: _LLMObsAnnotatableSpan) -> Optional[list[ToolDefinition]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
 
 
-def get_tool_version_from_llm_span(llm_span: Span, tool_name: str) -> Optional[str]:
+def get_tool_version_from_llm_span(llm_span: _LLMObsAnnotatableSpan, tool_name: str) -> Optional[str]:
     """Return the version of the named tool from the LLM span's tool_definitions, if any."""
     if not tool_name:
         return None
@@ -749,7 +768,7 @@ def _sanitize_metric_key(key):
 
 
 def _annotate_llmobs_span_data(
-    span: Span,
+    span: _LLMObsAnnotatableSpan,
     name: Optional[str] = None,
     kind: Optional[str] = None,
     ml_app: Optional[str] = None,
