@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    tracing: Adds support for HTTP request queuing time. When ``DD_TRACE_REQUEST_QUEUING_ENABLED``
+    is set to ``true`` and an upstream proxy or load balancer (nginx, Heroku's router, Apache, HAProxy, etc.)
+    sets an ``X-Request-Start`` or ``X-Queue-Start`` header, the tracer creates an ``http.proxy.request``
+    span representing the request from the proxy's point of view, and a child ``http.proxy.queue`` span
+    whose duration is the time spent queued upstream before the request reached application code.
+    This mirrors the existing feature in the Ruby tracer.

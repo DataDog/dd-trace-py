@@ -16,6 +16,7 @@ from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace._trace._request_queuing import create_request_queuing_spans_if_headers_exist
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -170,7 +171,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
-    if config._inferred_proxy_services_enabled:
+    if config._inferred_proxy_services_enabled or config._request_queuing_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
         core.dispatch("inferred_proxy.start", (ctx, span_kwargs, call_trace))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
@@ -192,7 +193,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     set_service_and_source(span, ctx.get_item("service"), integration_config or dict())
     store_span_on_context(ctx, span)
 
-    if config._inferred_proxy_services_enabled:
+    if config._inferred_proxy_services_enabled or config._request_queuing_enabled:
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
 
@@ -358,12 +359,16 @@ def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
         integration_config = getattr(event, "integration_config", None)
 
     # Inferred Proxy Spans
-    if integration_config and headers is not None:
+    if config._inferred_proxy_services_enabled and integration_config and headers is not None:
         create_inferred_proxy_span_if_headers_exist(ctx, headers=headers)
 
     # GCP Pub/Sub push subscriptions
-    if not ctx.get_item("inferred_proxy_span") and headers is not None:
+    if config._inferred_proxy_services_enabled and not ctx.get_item("inferred_proxy_span") and headers is not None:
         _create_inferred_pubsub_push_span_if_headers_exist(ctx, headers=headers)
+
+    # HTTP request queuing (X-Request-Start / X-Queue-Start), e.g. nginx, Heroku, Apache
+    if config._request_queuing_enabled and not ctx.get_item("inferred_proxy_span") and headers is not None:
+        create_request_queuing_spans_if_headers_exist(ctx, headers=headers)
 
     inferred_proxy_span = ctx.get_item("inferred_proxy_span")
 
@@ -374,7 +379,7 @@ def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
 
 
 def _on_inferred_proxy_finish(ctx):
-    if not config._inferred_proxy_services_enabled:
+    if not (config._inferred_proxy_services_enabled or config._request_queuing_enabled):
         return
 
     inferred_proxy_span = ctx.get_item("inferred_proxy_span")

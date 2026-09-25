@@ -1,4 +1,5 @@
 import os
+import time
 
 import pytest
 from webtest import TestApp
@@ -9,6 +10,7 @@ from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -99,6 +101,50 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
+
+
+def test_request_queuing_disabled_by_default(tracer, test_spans):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    start_time = time.time() - 3
+    resp = app.get("/", headers={"X-Request-Start": str(int(start_time * 1000))})
+    assert resp.status_int == 200
+
+    spans = test_spans.pop()
+    names = [s.name for s in spans]
+    assert "http.proxy.request" not in names
+    assert "http.proxy.queue" not in names
+
+    wsgi_span = next(s for s in spans if s.name == "wsgi.request")
+    assert wsgi_span.parent_id is None
+
+
+def test_request_queuing_enabled(tracer, test_spans):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    start_time = time.time() - 3
+    headers = {"X-Request-Start": str(int(start_time * 1000))}
+
+    with override_global_config(dict(_request_queuing_enabled=True)):
+        resp = app.get("/", headers=headers)
+    assert resp.status_int == 200
+
+    spans = test_spans.pop()
+    proxy_request_span = next(s for s in spans if s.name == "http.proxy.request")
+    proxy_queue_span = next(s for s in spans if s.name == "http.proxy.queue")
+    wsgi_span = next(s for s in spans if s.name == "wsgi.request")
+
+    assert proxy_request_span.parent_id is None
+    assert proxy_queue_span.parent_id == proxy_request_span.span_id
+    assert wsgi_span.parent_id == proxy_request_span.span_id
+
+    assert proxy_queue_span.duration_ns >= 2_000_000_000  # ~3s queue wait, allow slack
+    assert proxy_queue_span.get_tag("span.kind") == "proxy"
+    assert proxy_queue_span.get_tag("component") == "http_proxy"
+    assert proxy_queue_span.get_metric("_dd.measured") == 1
+
+    assert proxy_request_span.get_tag("span.kind") == "proxy"
+    # the wrapper span covers the proxy timestamp through wsgi request completion,
+    # so it should be at least as long as the pure queue wait.
+    assert proxy_request_span.duration_ns >= proxy_queue_span.duration_ns
 
 
 def test_distributed_tracing(tracer, test_spans):
