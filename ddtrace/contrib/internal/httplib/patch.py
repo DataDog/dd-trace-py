@@ -6,9 +6,9 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -46,15 +46,8 @@ def _supported_versions() -> dict[str, str]:
     return {"http.client": "*"}
 
 
-def _wrap_init(func, instance, args, kwargs):
-    Pin(service=None, _config=config.httplib).onto(instance)
-    return func(*args, **kwargs)
-
-
 def _wrap_getresponse(func, instance, args, kwargs):
-    # Use any attached tracer if available, otherwise use the global tracer
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     resp = None
@@ -97,17 +90,13 @@ def _finish_span(instance, exc_info=None):
 
 
 def _wrap_request(func, instance, args, kwargs):
-    # Use any attached tracer if available, otherwise use the global tracer
     if asm_config._asm_enabled and asm_config._ep_enabled:
         func_to_call = functools.partial(_call_asm_wrap, func, instance)
     else:
         func_to_call = func
 
-    pin = Pin.get_from(instance)
-    if should_skip_request(pin, instance):
+    if should_skip_request(instance):
         return func_to_call(*args, **kwargs)
-
-    cfg = pin._config
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
@@ -121,7 +110,7 @@ def _wrap_request(func, instance, args, kwargs):
         instance._datadog_span = span
 
         # propagate distributed tracing headers
-        if cfg.get("distributed_tracing"):
+        if config.httplib.get("distributed_tracing"):
             if len(args) > 3:
                 headers = args[3]
             else:
@@ -141,9 +130,7 @@ def _wrap_request(func, instance, args, kwargs):
 
 
 def _wrap_putrequest(func, instance, args, kwargs):
-    # Use any attached tracer if available, otherwise use the global tracer
-    pin = Pin.get_from(instance)
-    if should_skip_request(pin, instance):
+    if should_skip_request(instance):
         return func(*args, **kwargs)
 
     try:
@@ -203,12 +190,12 @@ def _wrap_putheader(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def should_skip_request(pin, request):
+def should_skip_request(request):
     """Helper to determine if the provided request should be traced"""
     if getattr(request, _HTTPLIB_NO_TRACE_REQUEST, False):
         return True
 
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return True
 
     # httplib is used to send apm events (profiling,di, tracing, etc.) to the datadog agent
@@ -228,7 +215,6 @@ def patch():
     httplib.__datadog_patch = True
 
     # Patch the desired methods
-    httplib.HTTPConnection.__init__ = wrapt.FunctionWrapper(httplib.HTTPConnection.__init__, _wrap_init)
     httplib.HTTPConnection.getresponse = wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse)
     httplib.HTTPConnection.request = wrapt.FunctionWrapper(httplib.HTTPConnection.request, _wrap_request)
     httplib.HTTPConnection.putrequest = wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest)
@@ -241,7 +227,6 @@ def unpatch():
         return
     httplib.__datadog_patch = False
 
-    _u(httplib.HTTPConnection, "__init__")
     _u(httplib.HTTPConnection, "getresponse")
     _u(httplib.HTTPConnection, "request")
     _u(httplib.HTTPConnection, "putrequest")
