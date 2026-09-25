@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import sys
 from types import TracebackType
@@ -44,11 +46,11 @@ def _supported_versions() -> dict[str, str]:
     return {"sanic": ">=20.12.0"}
 
 
-def _get_request_context(request: "Request") -> Optional[core.ExecutionContext[WebFrameworkRequestEvent]]:
+def _get_request_context(request: Request) -> Optional[core.ExecutionContext[WebFrameworkRequestEvent]]:
     return getattr(request.ctx, _REQUEST_CONTEXT_ATTR, None)
 
 
-def _get_request_span(request: "Request") -> Optional["Span"]:
+def _get_request_span(request: Request) -> Optional[Span]:
     ctx = _get_request_context(request)
     if ctx is None:
         return None
@@ -66,7 +68,7 @@ def _update_request_event(ctx: core.ExecutionContext[WebFrameworkRequestEvent], 
 
 
 def _finish_request(
-    request: "Request",
+    request: Request,
     exc_type: Optional[type] = None,
     exc_value: Optional[BaseException] = None,
     traceback: Optional[TracebackType] = None,
@@ -106,9 +108,7 @@ def _wrap_response_callback(ctx: core.ExecutionContext[WebFrameworkRequestEvent]
     return wrap_sync(callback)
 
 
-async def patch_request_respond(
-    wrapped: Callable, instance: "Request", args: tuple, kwargs: dict
-) -> "BaseHTTPResponse":
+async def patch_request_respond(wrapped: Callable, instance: Request, args: tuple, kwargs: dict) -> BaseHTTPResponse:
     # Only for sanic 21 and newer
     # Wrap the framework response to set HTTP response span tags
     response = await wrapped(*args, **kwargs)
@@ -125,7 +125,7 @@ async def patch_request_respond(
     return response
 
 
-def _get_path(request: "Request") -> str:
+def _get_path(request: Request) -> str:
     """Get path and replace path parameter values with names if route exists."""
     path = request.path
     try:
@@ -202,7 +202,7 @@ async def patch_handle_request(wrapped: Callable, instance: sanic.Sanic, args: t
     """Wrapper for Sanic.handle_request"""
 
     def unwrap(
-        request: "Request",
+        request: Request,
         write_callback: Optional[Callable] = None,
         stream_callback: Optional[Callable] = None,
         **kwargs,
@@ -227,7 +227,7 @@ async def patch_handle_request(wrapped: Callable, instance: sanic.Sanic, args: t
         _finish_request(request, exc_type, exc_value, traceback)
 
 
-def _create_sanic_request_context(request: "Request") -> core.ExecutionContext[WebFrameworkRequestEvent]:
+def _create_sanic_request_context(request: Request) -> core.ExecutionContext[WebFrameworkRequestEvent]:
     """Create the Sanic request event and retain its context until the response."""
     headers = request.headers.copy()
     query_string = request.query_string
@@ -261,12 +261,12 @@ def _create_sanic_request_context(request: "Request") -> core.ExecutionContext[W
         return ctx
 
 
-async def sanic_http_lifecycle_handle(request: "Request") -> None:
+async def sanic_http_lifecycle_handle(request: Request) -> None:
     """Lifecycle signal called when a new request is started."""
     _create_sanic_request_context(request)
 
 
-async def sanic_http_routing_after(request: "Request", route: "Route", kwargs: dict, handler: Callable) -> None:
+async def sanic_http_routing_after(request: Request, route: Route, kwargs: dict, handler: Callable) -> None:
     """Lifecycle signal called after routing has been resolved."""
     ctx = _get_request_context(request)
     if ctx is None:
@@ -283,7 +283,7 @@ async def sanic_http_routing_after(request: "Request", route: "Route", kwargs: d
     ctx.set_item("additional_tags", {"sanic.route.name": route.name})
 
 
-async def sanic_http_lifecycle_response(request: "Request", response: "BaseHTTPResponse") -> None:
+async def sanic_http_lifecycle_response(request: Request, response: BaseHTTPResponse) -> None:
     """Lifecycle signal called when a response is starting.
 
     Note: This signal does not get called when exceptions occur
@@ -296,7 +296,7 @@ async def sanic_http_lifecycle_response(request: "Request", response: "BaseHTTPR
     _finish_request(request)
 
 
-async def sanic_http_lifecycle_exception(request: "Request", exception: BaseException) -> None:
+async def sanic_http_lifecycle_exception(request: Request, exception: BaseException) -> None:
     """Lifecycle signal called when an exception occurs."""
     span = _get_request_span(request)
     if not span:
