@@ -92,6 +92,48 @@ def test_chat_stream_collision_passthrough(mock_execute_request, openai_client_s
     mock_execute_request.assert_not_called()
 
 
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_chat_stream_request_phase_claim_still_evaluates_response(
+    mock_execute_request, openai_client_stream_buffered, aiguard_request_phase_context
+):
+    """A framework covering only the request MUST NOT disable response buffering.
+
+    Regression for APPSEC-70286: LangChain streaming claims the request phase and
+    has no after-event, so the provider's buffered stream is the only thing left
+    that can scan the response. The old all-or-nothing flag turned it off.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = openai_client_stream_buffered.chat.completions.create(
+        model=CHAT_MODEL, messages=_user_messages(), stream=True
+    )
+    assert isinstance(stream, BufferedAIGuardStream)
+    assert list(stream)  # chunks replayed after evaluation
+
+    # Exactly one: the request evaluation is suppressed by the framework's claim,
+    # the response evaluation is not.
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_chat_stream_request_phase_claim_still_blocks_response(
+    mock_execute_request, openai_client_stream_buffered, aiguard_request_phase_context, decision
+):
+    """And the response verdict still blocks: no chunk reaches the caller."""
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    stream = openai_client_stream_buffered.chat.completions.create(
+        model=CHAT_MODEL, messages=_user_messages(), stream=True
+    )
+    delivered = []
+    with pytest.raises(AIGuardAbortError):
+        for chunk in stream:
+            delivered.append(chunk)
+
+    assert delivered == []
+
+
 @patch("ddtrace.aiguard.integrations._openai_chat_streaming.openai_construct_message_from_streamed_chunks")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_chat_stream_reconstruction_failure_fails_open(

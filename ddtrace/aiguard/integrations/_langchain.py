@@ -12,6 +12,7 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
@@ -550,7 +551,9 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: Any) -> Optional[Any]:
-    set_aiguard_context_active()
+    # Both phases: the matching .after listener evaluates the response, so the
+    # provider must skip its own request and response evaluation alike.
+    set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
     for messages in message_lists:
         result = _evaluate_langchain_messages(client, messages)
         if result is not None:
@@ -562,7 +565,7 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optio
     """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
-    set_aiguard_context_active()
+    set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
     for prompt in prompts:
         result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
         if result is not None:
@@ -580,7 +583,7 @@ def _langchain_generate_finally(*args: Any, **kwargs: Any) -> None:
     counter reset is a no-op when the counter is already zero, so listener
     invocations that don't pair with a ``.before`` set are safe.
     """
-    reset_aiguard_context_active_current()
+    reset_aiguard_context_active_current(Phase.REQUEST, Phase.RESPONSE)
 
 
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
@@ -606,9 +609,24 @@ def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
     by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
     iteration entry — so a stream created but never iterated cannot bump
     the depth. The matching reset happens in
-    :func:`_langchain_generate_finally` via the ``.stream.finally`` event.
+    :func:`_langchain_stream_finally` via the .stream.finally event.
+
+    REQUEST only. LangChain has no stream after-event, so it cannot evaluate a
+    streamed response; claiming RESPONSE too would switch off the provider's
+    buffered-stream evaluation and leave the response scanned by nobody
+    (APPSEC-70286).
     """
-    set_aiguard_context_active()
+    set_aiguard_context_active(Phase.REQUEST)
+
+
+def _langchain_stream_finally(*args: Any, **kwargs: Any) -> None:
+    """Paired .stream.finally listener, releasing what .stream.started claimed.
+
+    Releases REQUEST only, to match the claim. Releasing RESPONSE here as well
+    would decrement a counter this path never raised, and could cancel an outer
+    framework's claim.
+    """
+    reset_aiguard_context_active_current(Phase.REQUEST)
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> Optional[Any]:
