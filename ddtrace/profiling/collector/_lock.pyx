@@ -198,7 +198,11 @@ class _ProfiledLock:
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
-        if not self._profiling_enabled or not sampler.capture():
+        if not self._profiling_enabled:
+            # acquired_time may still be set by an acquire sampled before stop, so skip the assert below.
+            return inner_func(*args, **kwargs)
+
+        if not sampler.capture():
             if config.enable_asserts:
                 # Ensure acquired_time is not set when acquire is not sampled
                 # (else a bogus release sample is produced)
@@ -209,6 +213,7 @@ class _ProfiledLock:
             return inner_func(*args, **kwargs)
 
         cdef long long start = time.monotonic_ns()
+        cdef long long end
         result: Any = None
         error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
         try:
@@ -219,16 +224,20 @@ class _ProfiledLock:
         if result is False and error_info is None:
             return result
 
-        cdef long long end = time.monotonic_ns()
-        self.acquired_time = end
-        try:
-            self._update_name()
-            self._flush_sample(start, end, True)
-        except AssertionError:
-            if config.enable_asserts:
-                raise
-        except Exception:
-            pass  # nosec
+        # A blocking acquire can finish after the collector stopped, so check
+        # if profiling is still enabled before flushing the sample.
+        if self._profiling_enabled:
+            end = time.monotonic_ns()
+            self.acquired_time = end
+            try:
+                self._update_name()
+                self._flush_sample(start, end, True)
+            except AssertionError:
+                if config.enable_asserts:
+                    raise
+            except Exception:
+                pass  # nosec
+
         if error_info is not None:
             err: BaseException
             tb: Optional[TracebackType]
