@@ -1,11 +1,21 @@
+from contextlib import asynccontextmanager
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
 import threading
 import time
 
-from mcp.server.fastmcp import FastMCP
-from mcp.shared.memory import create_connected_server_and_client_session
+
+try:
+    from mcp.server.fastmcp import FastMCP
+    from mcp.shared.memory import create_connected_server_and_client_session as _create_connected_client
+
+    _MCP_V2 = False
+except ImportError:
+    from mcp.client import Client
+    from mcp.server.mcpserver import MCPServer as FastMCP
+
+    _MCP_V2 = True
 import pytest
 
 from ddtrace.contrib.internal.mcp.patch import patch
@@ -14,6 +24,18 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
 from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
+
+
+@asynccontextmanager
+async def connected_client(server, client_info=None):
+    if _MCP_V2:
+        async with Client(server, mode="legacy", client_info=client_info) as client:
+            yield client
+    else:
+        async with _create_connected_client(
+            server._mcp_server if hasattr(server, "_mcp_server") else server, client_info=client_info
+        ) as client:
+            yield client
 
 
 class LLMObsServer(BaseHTTPRequestHandler):
@@ -117,9 +139,7 @@ def mcp_call_tool(mcp_server):
 
     def _call_tool(tool_name, arguments):
         async def run_test():
-            from mcp.shared.memory import create_connected_server_and_client_session
-
-            async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            async with connected_client(mcp_server) as client:
                 return await client.call_tool(tool_name, arguments)
 
         return run_test()
@@ -130,7 +150,7 @@ def mcp_call_tool(mcp_server):
 @pytest.fixture
 async def mcp_client(mcp_server):
     """Connected MCP client-server session."""
-    async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+    async with connected_client(mcp_server) as client:
         yield client
 
 
@@ -145,7 +165,7 @@ def mcp_server_initialized():
 
     async def run_init():
         client_info = Implementation(name="test-client", version="1.2.3")
-        async with create_connected_server_and_client_session(mcp_server._mcp_server, client_info=client_info):
+        async with connected_client(mcp_server, client_info=client_info):
             pass
 
     asyncio.run(run_init())
@@ -189,5 +209,15 @@ def llmobs_backend(_llmobs_backend):
                 time.sleep(0.001)
             else:
                 raise TimeoutError(f"Expected {num} events, got {len(reqs)}: {pprint.pprint(reqs)}")
+
+        def wait_for_num_traces(self, num, attempts=1000):
+            for _ in range(attempts):
+                traces = [trace for request in reqs for trace in json.loads(request["body"])]
+                if len(traces) == num:
+                    return traces
+                # time.sleep will yield the GIL so the server can process the request
+                time.sleep(0.001)
+            else:
+                raise TimeoutError(f"Expected {num} traces, got {len(traces)}: {pprint.pformat(reqs)}")
 
     return _LLMObsBackend()
