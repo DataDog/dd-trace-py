@@ -89,24 +89,20 @@ args_are_text_and_same_type(PyObject* first, PyObject* second, Args... args)
         return false;
     }
 
-    const auto type_first = PyObject_Type(first);
-    const auto type_second = PyObject_Type(second);
-
     // Check if both first and second are valid text types and of the same type
-    if (!is_text(first) || !is_text(second) || type_first != type_second) {
-        Py_XDECREF(type_first);
-        Py_XDECREF(type_second);
+    if (!is_text(first) || !is_text(second) || Py_TYPE(first) != Py_TYPE(second)) {
         return false;
     }
 
-    Py_XDECREF(type_first);
-    Py_XDECREF(type_second);
     // Recursively check the rest of the arguments
     return args_are_text_and_same_type(second, args...);
 }
 
 PyTextType
 get_pytext_type(PyObject* obj);
+
+py::object
+new_pyobject_id_owned(const py::handle& tainted_object);
 
 PyObject*
 new_pyobject_id(PyObject* tainted_object);

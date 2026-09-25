@@ -100,9 +100,9 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return return_candidate_result();
     }
 
-    auto res_pyobject = api_convert_escaped_text_to_taint_text(applied_params.ptr(), ranges_orig, py_str_type);
-    if (res_pyobject == nullptr) {
+    py::object res_pyobject = api_convert_escaped_text_to_taint_text(applied_params.ptr(), ranges_orig, py_str_type);
+    if (!res_pyobject) {
         return return_candidate_result();
     }
-    return res_pyobject;
+    return res_pyobject.release().ptr();
 }
