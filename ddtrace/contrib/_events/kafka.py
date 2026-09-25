@@ -23,10 +23,16 @@ class KafkaEvent(MessagingEvent):
 
 @dataclass
 class KafkaProducerEvent(MessagingProducerEvent, KafkaEvent):
-    pass
+    # Own event name (rather than inheriting messaging.produce) so KafkaTracingSubscriber
+    # can register independently, without double-running span start/finish alongside
+    # MessagingTracingSubscriber.
+    event_name = "kafka.produce"
 
 
 @dataclass
 class KafkaConsumeEvent(MessagingConsumeEvent, KafkaEvent):
+    # See KafkaProducerEvent.event_name.
+    event_name = "kafka.consume"
+
     group_id: Optional[str] = event_field(default=None)
     received_message: Optional[bool] = event_field(default=None)

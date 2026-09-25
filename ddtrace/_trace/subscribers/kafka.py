@@ -21,9 +21,7 @@ def set_kafka_meta(
 ) -> None:
     """Set Kafka metas on the span from raw KafkaEvent data.
 
-    Called from MessagingTracingSubscriber.on_ended: KafkaProducerEvent/KafkaConsumeEvent
-    reuse the generic messaging.produce/messaging.consume event names, so Kafka tagging can't
-    live in its own registered TracingSubscriber without double-running span start/finish.
+    Called from KafkaProduceSubscriber/KafkaConsumeSubscriber.on_ended.
     """
     span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
 
