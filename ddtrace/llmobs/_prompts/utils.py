@@ -8,7 +8,12 @@ from typing import Union
 from ddtrace.llmobs.types import Message
 
 
-_VARIABLE_PATTERN = re.compile(r"\{\{?\s*(\w+)\s*\}\}?")
+# Match double braces first so {{name}} is consumed as one placeholder.
+# Keep surrounding braces intact, e.g. the object-closing brace in {"age": {age}}.
+_VARIABLE_PATTERN = re.compile(
+    r"\{\{\s*(\w+)\s*\}\}"  # Group 1: {{name}}
+    r"|\{\s*(\w+)\s*\}"  # Group 2: {name}
+)
 
 
 def extract_template(data: Mapping[str, Any], default: Union[str, list[Message]] = "") -> Union[str, list[Message]]:
@@ -20,11 +25,11 @@ def safe_substitute(template: str, variables: dict[str, str]) -> str:
     """
     Substitute {variable} or {{variable}} placeholders with values from variables dict.
 
-    Missing variables are left as-is (safe substitution).
+    Missing variables and braces surrounding a placeholder are left as-is.
     """
 
     def replace_var(match: re.Match) -> str:
-        var_name = match.group(1)
+        var_name = match.group(1) or match.group(2)
         return str(variables.get(var_name, match.group(0)))
 
     return _VARIABLE_PATTERN.sub(replace_var, template)
