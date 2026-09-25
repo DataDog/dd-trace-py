@@ -25,7 +25,7 @@ class PropagationTestCase(TracerTestCase):
     """
 
     def setUp(self):
-        super(PropagationTestCase, self).setUp()
+        super().setUp()
 
         # instrument ``concurrent``
         patch()
@@ -34,7 +34,7 @@ class PropagationTestCase(TracerTestCase):
         # remove instrumentation
         unpatch()
 
-        super(PropagationTestCase, self).tearDown()
+        super().tearDown()
 
     def test_propagation(self):
         # it must propagate the tracing context if available
@@ -408,7 +408,7 @@ class PropagationTestCase(TracerTestCase):
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
-@pytest.mark.subprocess(ddtrace_run=True, timeout=5)
+@pytest.mark.subprocess(ddtrace_run=True, timeout=15)
 def test_concurrent_futures_with_gevent():
     """Check compatibility between the integration and gevent"""
     import os

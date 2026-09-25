@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
+from tests.utils import override_config
 from tests.webclient import Client
 
 
@@ -64,9 +65,11 @@ def _wait_for_server_ready(client: Client, server_process, port: int, use_multip
                     sock.settimeout(0.2)
                     sock.connect(("0.0.0.0", int(port)))
             else:
-                timeout = min(10.0, max(0.5, deadline - time.monotonic()))
-                response = client.get_ignored("/", timeout=timeout)
+                with override_config("requests", dict(distributed_tracing=False)):
+                    # Never cap this: a timed-out probe is still served, so a retry would be served twice.
+                    response = client.get_ignored("/", timeout=max(0.5, deadline - time.monotonic()))
                 assert response.status_code == 200, f"server answered {response.status_code}"
+            assert _process_exit_code(server_process) is None, "server process exited during startup"
             return
         except Exception:
             # A server that died on import is never going to answer, so spending the rest of
@@ -427,7 +430,7 @@ def appsec_application_server(
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
-        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
+        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = f"X-Datadog-Test-Session-Token:{token}"
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
     else:
@@ -456,8 +459,8 @@ def appsec_application_server(
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
     env["PYTHONFAULTHANDLER"] = "1"
-    env["MALLOC_PERTURB_"] = "glibc.malloc.tcache_max=0"
-    env["GLIBC_TUNABLES"] = "255"
+    env["MALLOC_PERTURB_"] = "255"
+    env["GLIBC_TUNABLES"] = "glibc.malloc.tcache_max=0"
     env["MALLOC_CHECK_"] = "3"
 
     subprocess_kwargs = {
@@ -512,12 +515,15 @@ def appsec_application_server(
             print("Server started in %.3fs" % (time.monotonic() - startup_started))
         except Exception as exc:
             # Elapsed time separates a slow contended start from a server that died on import.
+            diagnostics = _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+            # Still running means it stalled rather than died, and its stacks are the only record
+            # of where. A server that died has none, and signalling it would only add noise.
+            if _process_exit_code(server_process) is None:
+                diagnostics += "\n" + _dump_server_stacks(server_process)
             raise AssertionError(
                 "Server failed to start within %.3fs (of a %.1fs budget, override with "
                 "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
-                "above.\n"
-                % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT)
-                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+                "above.\n" % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT) + diagnostics
             ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py

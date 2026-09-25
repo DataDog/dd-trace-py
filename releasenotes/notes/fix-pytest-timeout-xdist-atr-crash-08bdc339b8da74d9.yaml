@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where Auto Test Retries do not retry tests that use
+    ``pytest-timeout`` thread mode and terminate a pytest-xdist worker.

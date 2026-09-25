@@ -111,7 +111,7 @@ class BaseLLMObsWriter(PeriodicService):
         _override_url: str = "",
         _default_project: Project = Project(name="", _id=""),
     ) -> None:
-        super(BaseLLMObsWriter, self).__init__(interval=interval)
+        super().__init__(interval=interval)
         self._lock = RLock()
         self._buffer: list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
         self._buffer_size: int = 0
@@ -151,17 +151,20 @@ class BaseLLMObsWriter(PeriodicService):
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, Response),
+            initial_wait=0.618 * self._timeout / (1.618**self.RETRY_ATTEMPTS) / 2,
+            # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
+            until=lambda result: (
+                isinstance(result, Response) and result.status not in (408, 429) and result.status < 500
+            ),
         )(self._send_payload)
 
     def start(self, *args, **kwargs):
-        super(BaseLLMObsWriter, self).start()
+        super().start()
         logger.debug("started %r to %r", self.__class__.__name__, self._url)
         atexit.register(self.on_shutdown)
 
     def stop(self, timeout=None):
-        super(BaseLLMObsWriter, self).stop(timeout=timeout)
+        super().stop(timeout=timeout)
         logger.debug("stopped %r to %r", self.__class__.__name__, self._url)
         atexit.unregister(self.on_shutdown)
 
@@ -213,9 +216,16 @@ class BaseLLMObsWriter(PeriodicService):
         if not enc_llm_events:
             return
         try:
-            self._send_payload_with_retry(enc_llm_events, len(events))
-        except Exception:
-            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
+            response = self._send_payload_with_retry(enc_llm_events, len(events))
+            if response.status >= 300:
+                telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="http_error")
+        except Exception as error:
+            error_type = (
+                "http_error"
+                if isinstance(error, RetryError) and error.args and isinstance(error.args[0], Response)
+                else "connection_error"
+            )
+            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error=error_type)
             logger.error(
                 "failed to send %d LLMObs %s events to %s",
                 len(events),
@@ -240,7 +250,6 @@ class BaseLLMObsWriter(PeriodicService):
                     resp.read(),
                     extra={"send_to_telemetry": False},
                 )
-                telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
             return Response.from_http_response(resp)
@@ -319,16 +328,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         try:
             return self._request_with_retry(method, path, body, timeout)
         except RetryError as e:
-            # Return the last response if all retries were exhausted on 5xx
+            # Return the last response if all retries were exhausted on a retryable HTTP error.
             if isinstance(e.args[0], Response):
                 return e.args[0]
             raise
 
     @fibonacci_backoff_with_jitter(
         attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
-        # Retries on 5xx server errors and connection failures, returns immediately on 2xx/4xx
+        # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
         initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
-        until=lambda result: isinstance(result, Response) and result.status < 500,
+        until=lambda result: isinstance(result, Response) and result.status not in (408, 429) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {"Content-Type": "application/json", **self._auth_headers()}
@@ -763,7 +772,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         :raises ValueError: If ``max_results`` is less than 1, or the backend request fails.
         """
         if max_results is not None and max_results < 1:
-            raise ValueError("max_results must be at least 1, got {}".format(max_results))
+            raise ValueError(f"max_results must be at least 1, got {max_results}")
         limit = max(1, min(page_limit, 5000))
         base_params: list[tuple[str, str]] = [("page[limit]", str(limit))]
         if experiment_name:
@@ -1014,7 +1023,7 @@ class LLMObsAPIClient:
         self._app_key: str = app_key
         _site: str = site or config._dd_site
         _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
-        self._base_url: str = _override_url or "https://api.{}".format(_site)
+        self._base_url: str = _override_url or f"https://api.{_site}"
 
     def get_spans(self, base_params: dict) -> list[dict]:
         if not self._api_key:
@@ -1032,7 +1041,7 @@ class LLMObsAPIClient:
             params = dict(base_params)
             if cursor:
                 params["page[cursor]"] = cursor
-            path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
+            path = f"/api/v2/llm-obs/v1/spans/events?{urllib.parse.urlencode(params)}"
             logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
             conn = HTTPConnection(self._base_url, timeout=self.TIMEOUT)
             try:
@@ -1042,9 +1051,7 @@ class LLMObsAPIClient:
             finally:
                 conn.close()
             if response.status != 200:
-                raise ValueError(
-                    "LLMObs.get_spans() request failed with status {}: {}".format(response.status, response.body)
-                )
+                raise ValueError(f"LLMObs.get_spans() request failed with status {response.status}: {response.body}")
             body = response.get_json() or {}
             spans.extend(item.get("attributes", {}) for item in body.get("data", []))
             cursor = ((body.get("meta") or {}).get("page") or {}).get("after")

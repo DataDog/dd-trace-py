@@ -9,7 +9,7 @@ from ddtrace.internal.test_visibility.coverage_report_utils import log
 
 @pytest.fixture(autouse=True)
 def reset_code_coverage_flags_cache():
-    # AIDEV-NOTE: EFD/ATR retries rerun test calls without rerunning function fixtures. Tests that
+    # EFD/ATR retries rerun test calls without rerunning function fixtures. Tests that
     # assert cached or logged behavior clear the cache and install fresh logger mocks in their bodies.
     _get_code_coverage_flags.cache_clear()
     yield

@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import AsyncGenerator
 from typing import Generator
+from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -17,14 +18,13 @@ class BaseOpenAIStreamHandler:
         return defaultdict(list)
 
     def finalize_stream(self, exception=None):
-        if not exception:
-            _process_finished_stream(
-                self.integration,
-                self.primary_span,
-                self.request_kwargs,
-                self.chunks,
-                self.options.get("operation_type", ""),
-            )
+        _process_finished_stream(
+            self.integration,
+            self.primary_span,
+            self.request_kwargs,
+            self.chunks,
+            self.options.get("operation_type", ""),
+        )
         self.primary_span.finish()
 
 
@@ -75,8 +75,7 @@ class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
             return
 
 
-def _format_openai_api_key(openai_api_key):
-    # type: (Optional[str]) -> Optional[str]
+def _format_openai_api_key(openai_api_key: Optional[str]) -> Optional[str]:
     """
     Returns `sk-...XXXX`, where XXXX is the last 4 characters of the provided OpenAI API key.
     This mimics how OpenAI UI formats the API key.
@@ -86,8 +85,7 @@ def _format_openai_api_key(openai_api_key):
     return "sk-...%s" % openai_api_key[-4:]
 
 
-def _is_generator(resp):
-    # type: (...) -> bool
+def _is_generator(resp: object) -> bool:
     import openai
 
     # In OpenAI v1, the response is type `openai.Stream` instead of Generator.
@@ -98,8 +96,7 @@ def _is_generator(resp):
     return False
 
 
-def _is_async_generator(resp):
-    # type: (...) -> bool
+def _is_async_generator(resp: object) -> bool:
     import openai
 
     # In OpenAI v1, the response is type `openai.AsyncStream` instead of AsyncGenerator.

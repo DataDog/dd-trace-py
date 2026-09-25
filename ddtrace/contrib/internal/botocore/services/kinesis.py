@@ -56,7 +56,7 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
 def select_records_for_injection(params: list[Any], inject_trace_context: bool) -> list[tuple[Any, bool]]:
     records_to_inject_into = []
     if "Records" in params and params["Records"]:
-        # AIDEV-NOTE: Kinesis PutRecords originally injected trace context into only the
+        # Kinesis PutRecords originally injected trace context into only the
         # first record in the batch (see PR #3178 for the original discussion). We now
         # inject every record because downstream consumers can receive records
         # individually rather than as the original producer batch.
@@ -145,9 +145,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 endpoint_name=endpoint_name,
                 child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 operation=operation,
-                service=schematize_service_name(
-                    "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
-                ),
+                service=schematize_service_name(f"{ext_service(pin, int_config=config.botocore)}.{endpoint_name}"),
                 call_trace=False,
                 pin=pin,
                 span_name=span_name,

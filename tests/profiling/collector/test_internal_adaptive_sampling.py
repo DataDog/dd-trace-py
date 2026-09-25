@@ -63,7 +63,7 @@ def test_internal_adaptive_sampling():
     found_at_least_one_with_sampling_interval = False
     total_sample_count = 0
     for f in files:
-        with open(f, "r") as fp:
+        with open(f) as fp:
             internal_metadata = json.load(fp)
 
             assert internal_metadata is not None

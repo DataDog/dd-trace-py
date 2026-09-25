@@ -3,13 +3,14 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 
+from collections.abc import Mapping
 import json
 from json.decoder import JSONDecodeError
-from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
@@ -47,7 +48,7 @@ class RateSampler:
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
-    def sample(self, span: Span) -> bool:
+    def sample(self, span: SpanData) -> bool:
         sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
 

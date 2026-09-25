@@ -1,9 +1,10 @@
-import sys
 import typing as t
+from typing import Callable
 from typing import NamedTuple
+from typing import Protocol
 
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
@@ -17,10 +18,31 @@ class SpanEventData(NamedTuple):
     time_unix_nano: t.Optional[int] = None
 
 
+class HandledExceptionSpanProtocol(Protocol):
+    """Structural span interface for handled-exception tracking.
+
+    Lets this module type-annotate spans without a runtime dependency on the concrete
+    ``ddtrace._trace.span.Span`` class.
+    """
+
+    span_id: int
+
+    def _set_attribute(self, key: str, value: t.Union[str, int, float]) -> None: ...
+
+    def _add_event(
+        self,
+        name: str,
+        attributes: t.Optional[t.Mapping[str, t.Any]] = None,
+        time_unix_nano: t.Optional[int] = None,
+    ) -> None: ...
+
+    def _add_on_finish_exception_callback(self, callback: Callable[["HandledExceptionSpanProtocol"], None]) -> None: ...
+
+
 log = get_logger(__name__)
 
 
-def _add_span_events(span: Span) -> None:
+def _add_span_events(span: HandledExceptionSpanProtocol) -> None:
     """
     If the same error is handled/rethrown multiple times, we want
     to report only one span events. Therefore, we do not add directly
@@ -48,7 +70,7 @@ class HandledExceptionCollector(Service):
     _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEventData]]] = {}
 
     def __init__(self) -> None:
-        super(HandledExceptionCollector, self).__init__()
+        super().__init__()
         log.debug("%s initialized", self.__class__.__name__)
 
     @classmethod
@@ -79,7 +101,7 @@ class HandledExceptionCollector(Service):
         try:
             if config.enabled is False:
                 return
-            if sys.version_info >= (3, 12):
+            if is_at_least_py(3, 12):
                 from ddtrace.errortracking._handled_exceptions.monitoring_reporting import (
                     _install_sys_monitoring_reporting,
                 )
@@ -91,7 +113,7 @@ class HandledExceptionCollector(Service):
                 we need to add a filtering step which can be time efficient.
                 """
                 _install_sys_monitoring_reporting()
-            elif sys.version_info >= (3, 10):
+            elif is_at_least_py(3, 10):
                 from ddtrace.errortracking._handled_exceptions.bytecode_reporting import (
                     _install_bytecode_injection_reporting,
                 )
@@ -109,13 +131,15 @@ class HandledExceptionCollector(Service):
             log.error("Failed to enable HandledExceptionCollector", exc_info=True)
 
     def _stop_service(self) -> None:
-        if sys.version_info >= (3, 12):
-            from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _disable_monitoring
+        if is_at_least_py(3, 12):
+            from ddtrace.errortracking._handled_exceptions.monitoring_reporting import (
+                _uninstall_sys_monitoring_reporting,
+            )
 
-            _disable_monitoring()
+            _uninstall_sys_monitoring_reporting()
 
     @classmethod
-    def capture_exception_event(cls, span: Span, exc: Exception, event: SpanEventData):
+    def capture_exception_event(cls, span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData):
         span_id = span.span_id
         events_dict = cls._span_exception_events.setdefault(span_id, {})
         if not events_dict:

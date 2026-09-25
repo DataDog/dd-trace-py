@@ -1,6 +1,6 @@
+from collections.abc import Iterable  # noqa:F401
 import os
 from typing import TYPE_CHECKING
-from typing import Iterable  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
@@ -36,20 +36,19 @@ class RemoteConfigPoller(periodic.PeriodicService):
     _MAX_CONSECUTIVE_FAILURES = 3
 
     def __init__(self) -> None:
-        super(RemoteConfigPoller, self).__init__(
-            interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False
-        )
+        super().__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False)
         self._client = RemoteConfigClient()
         # Agentless fetches go straight to the Remote Config backend, so there is
         # no agent to negotiate the v0.7/config endpoint with.
         self._state = self._online if self._client.agentless else self._agent_check
         self._parent_id = os.getpid()
-        self._capabilities_map: "dict[RemoteConfigCapabilities, RemoteConfigProduct]" = dict()
+        self._capabilities_map: dict[RemoteConfigCapabilities, RemoteConfigProduct] = dict()
         self._consecutive_failures = 0
         # Child-process consumer of the SHM (created at fork); None in the
         # single-process case, where the poller dispatches directly.
-        self._subscriber: Optional["RemoteConfigSubscriber"] = None
+        self._subscriber: Optional[RemoteConfigSubscriber] = None
         self._before_fork_registered = False
+        self._start_deferred = False
 
     def _agent_check(self) -> None:
         try:
@@ -117,10 +116,15 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             if not self._before_fork_registered:
-                # Initialize early to avoid race-conditions with forking operations.
+                # NOTE: Initialize and register the fork hook before honoring
+                # the startup barrier. Polling can wait for product registration,
+                # but fork safety must be established as early as possible.
                 self._client.ensure_native()
                 forksafe.register_before_fork(self._before_fork)
                 self._before_fork_registered = True
+
+            if self._start_deferred:
+                return False
 
             self.start()
 
@@ -139,6 +143,19 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._state = self._online
         log.debug("Remote configuration switched to the intake")
         return True
+
+    def defer_start(self) -> None:
+        """Delay polling so bootstrap can register every enabled product first."""
+        if self.status != ServiceStatus.RUNNING:
+            self._start_deferred = True
+
+    def start_deferred(self) -> bool:
+        """Release the bootstrap barrier and start polling."""
+        if not self._start_deferred:
+            return self.status == ServiceStatus.RUNNING
+
+        self._start_deferred = False
+        return self.enable()
 
     def _before_fork(self) -> None:
         """Origin hook: enable SHM before forking so children inherit the SHM."""
@@ -202,6 +219,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def disable(self, join: bool = False) -> None:
         self.stop_subscriber(join=join)
         self._client.reset_products()
+        self._start_deferred = False
 
         if self._before_fork_registered:
             forksafe.unregister_before_fork(self._before_fork)
@@ -218,7 +236,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         if self.status == ServiceStatus.STOPPED or self._worker is None:
             return
 
-        super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
+        super()._stop_service(*args, **kwargs)
 
     def update_product_callback(self, product: "RemoteConfigProduct", callback: RCCallback) -> bool:
         """Update the callback for a registered product.
