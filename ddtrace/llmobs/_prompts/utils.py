@@ -8,7 +8,12 @@ from typing import Union
 from ddtrace.llmobs.types import Message
 
 
-_VARIABLE_PATTERN = re.compile(r"\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}")
+# Match double braces first so {{name}} is consumed as one placeholder.
+# Keep surrounding braces intact, e.g. the object-closing brace in {"age": {age}}.
+_VARIABLE_PATTERN = re.compile(
+    r"\{\{\s*(\w+)\s*\}\}"  # Group 1: {{name}}
+    r"|\{\s*(\w+)\s*\}"  # Group 2: {name}
+)
 
 
 def extract_template(data: Mapping[str, Any], default: Union[str, list[Message]] = "") -> Union[str, list[Message]]:
