@@ -1,4 +1,28 @@
+from collections.abc import Iterable
+from types import ModuleType
+from typing import TYPE_CHECKING
 from typing import Any
+
+
+if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2
+
+
+def gc_sample_task_names(
+    profile: "pprof_pb2.Profile", pprof_utils: ModuleType, samples: Iterable["pprof_pb2.Sample"]
+) -> set[str]:
+    """Return the set of task-name labels attached to the given GC samples.
+
+    Samples rendered through the thread-stack fallback (when the sampler catches the
+    thread before its asyncio loop is linked, or no leaf task resolves for the cycle)
+    carry no task-name label; those are skipped rather than reported as an empty name.
+    """
+    names: set[str] = set()
+    for sample in samples:
+        task_name = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if task_name is not None:
+            names.add(profile.string_table[task_name.str])
+    return names
 
 
 def ddtrace_gc_callbacks(gc: Any) -> list[Any]:
