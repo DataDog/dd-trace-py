@@ -1,0 +1,4 @@
+fixes:
+  - |
+    CI visibility: Fixes pytest sessions being reported as passed instead of skipped
+    when no tests are collected.

@@ -469,11 +469,12 @@ class TestOptPlugin(TestOptPluginProtocol):
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
-        self.session.set_status(
-            TestStatus.FAIL
-            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
-            else TestStatus.PASS
-        )
+        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
+            self.session.set_status(TestStatus.SKIP)
+        elif session.exitstatus == pytest.ExitCode.OK:
+            self.session.set_status(TestStatus.PASS)
+        else:
+            self.session.set_status(TestStatus.FAIL)
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
