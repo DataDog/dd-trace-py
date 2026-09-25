@@ -2038,7 +2038,7 @@ class Dataset:
         column_tuples = set()
         data_rows = []
         for record in self._records:
-            flat_record = {}  # type: dict[Union[str, tuple[str, str]], Any]
+            flat_record: dict[Union[str, tuple[str, str]], Any] = {}
 
             input_data = record.get("input_data", {})
             if isinstance(input_data, dict):
