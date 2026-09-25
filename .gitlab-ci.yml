@@ -30,6 +30,10 @@ variables:
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
   CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v130207166-153cbe2-ci-utils@sha256:816d1defebb9f049f3bc2e9987ce90d47f7a6c0316b7fc720c30f56376be63ed"
 
+  # Only trunk pipelines publish to the compiled-extension cache. Feature branches read it
+  # but never write, so a branch that touches native code cannot evict trunk's entries.
+  EXT_CACHE_POLICY: "pull"
+
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
@@ -55,11 +59,14 @@ workflow:
     on_new_commit: interruptible
   rules:
     - if: !reference [.is_main]
+      variables:
+        EXT_CACHE_POLICY: "pull-push"
       auto_cancel:
         on_new_commit: none
     - if: !reference [.is_release_branch]
       variables:
         DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
+        EXT_CACHE_POLICY: "pull-push"
       auto_cancel:
         on_new_commit: none
     - when: always
