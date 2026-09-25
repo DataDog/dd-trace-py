@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: The ``agent`` argument of ``LLMObs.annotate()`` and
+    ``LLMObs.annotation_context()`` now accepts ``name``, ``instructions``, ``model``,
+    ``model_settings`` and ``tools`` alongside ``version``, and reports them as the agent's
+    manifest on agent spans for manual annotation.
