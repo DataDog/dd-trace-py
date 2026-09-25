@@ -78,6 +78,7 @@ DDTRACE_TEST_WHEEL_ROOT = Path(".cache/ddtrace-test-wheels")
 TEST_ENVIRONMENT_ROOT = Path(".cache/test-environments")
 TEST_ENVIRONMENT_COMPLETE = ".complete"
 TESTMON_REQUIREMENT = "pytest-testmon==2.2.0"
+_TESTMON_MIN_PYTHON_VERSION = Version("3.10")
 _ITR_MIN_PYTHON_VERSION = Version("3.12")
 Selection = TypeVar("Selection")
 
@@ -160,7 +161,13 @@ class TestRunner:
         }
 
     def _uses_testmon(self, environment: TestEnvironment) -> bool:
-        return self.in_ci and environment.suite == "llmobs::llmobs"
+        python_version = _python_hint_to_version(environment.python)
+        return (
+            self.in_ci
+            and environment.suite == "llmobs::llmobs"
+            and python_version is not None
+            and python_version >= _TESTMON_MIN_PYTHON_VERSION
+        )
 
     def _compose_command(self, *args: str) -> list[str]:
         """Return the Compose command for the selected container backend."""
