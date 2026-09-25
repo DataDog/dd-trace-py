@@ -2056,6 +2056,55 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         )
         assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
 
+    def test_lock_not_sampled_after_collector_stop(self) -> None:
+        """A lock created while the collector ran must not sample once the collector is stopped."""
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        lock.acquire()
+        lock.release()
+        with lock:
+            pass
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 0, f"Expected no acquire samples after stop, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_lock_not_sampled_on_release_after_collector_stop(self) -> None:
+        """A lock acquired before stop and released after stop must not produce a release sample."""
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+            lock.acquire()
+
+        lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    def test_lock_sampled_by_new_collector_after_restart(self) -> None:
+        """A lock created under a stopped collector samples again when a new collector starts."""
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        with self.collector_class(capture_pct=100):
+            lock.acquire()
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 1, f"Expected 1 release sample, got {len(release_samples)}"
+
 
 class TestThreadingLockCollector(LockCollectorTestBase):
     """Test Lock-specific profiling behavior.

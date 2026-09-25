@@ -107,6 +107,11 @@ class _ProfiledLock:
         "name",
     )
 
+    # Set on subclassses by LockCollector start/stop.
+    # Locks may outlive the collector that created them, and Locks need to know
+    # that they should not emit samples after the Profiler has stopped.
+    _profiling_enabled: ClassVar[bool] = False
+
     def __init__(
         self,
         wrapped: Any,
@@ -193,7 +198,7 @@ class _ProfiledLock:
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
-        if not sampler.capture():
+        if not self._profiling_enabled or not sampler.capture():
             if config.enable_asserts:
                 # Ensure acquired_time is not set when acquire is not sampled
                 # (else a bogus release sample is produced)
@@ -253,7 +258,7 @@ class _ProfiledLock:
         # release, so it is irrelevant if it fails.
         result = inner_func(*args, **kwargs)
 
-        if start is None:
+        if start is None or not self._profiling_enabled:
             return result
 
         try:
@@ -562,6 +567,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Start collecting lock usage."""
         _c_initialize_gevent_support()
         self.patch()
+        self.PROFILED_LOCK_CLASS._profiling_enabled = True
 
         LockCollector._active_collectors.add(self)
         LockCollector._ensure_gevent_monkey_hook()
@@ -601,6 +607,7 @@ class LockCollector(collector.CaptureSamplerCollector):
     def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
+        self.PROFILED_LOCK_CLASS._profiling_enabled = False
         self.unpatch()
         LockCollector._active_collectors.discard(self)
         if self._reimport_hook is not None:
