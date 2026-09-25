@@ -59,6 +59,9 @@ _ALWAYS_EXCLUDED_MODULES: frozenset = frozenset({
 # are invisible, so the caller's frame is at index 0, not 3.
 cdef int _CALLER_FRAME_INDEX = 0
 
+# Source of _ProfiledLock._profiling_generation values; never reused, so 0 always means stopped.
+cdef unsigned long long _last_profiling_generation = 0
+
 
 cdef tuple _current_thread():
     thread_id: int = _thread.get_ident()
@@ -104,13 +107,16 @@ class _ProfiledLock:
         "capture_sampler",
         "init_location",
         "acquired_time",
+        "acquired_generation",
         "name",
     )
 
     # Set on subclassses by LockCollector start/stop.
     # Locks may outlive the collector that created them, and Locks need to know
     # that they should not emit samples after the Profiler has stopped.
-    _profiling_enabled: ClassVar[bool] = False
+    # 0 means stopped; each start sets a new value, so an operation that began under
+    # a previous collector run is not recorded after a restart.
+    _profiling_generation: ClassVar[int] = 0
 
     def __init__(
         self,
@@ -133,6 +139,7 @@ class _ProfiledLock:
             code: CodeType = frame.f_code
             self.init_location = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self.acquired_time: Optional[int] = None
+        self.acquired_generation: int = 0
         self.name: Optional[str] = None
 
     # gevent compatibility — gevent's _patch_existing_locks calls
@@ -198,7 +205,8 @@ class _ProfiledLock:
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
-        if not self._profiling_enabled:
+        cdef unsigned long long generation = self._profiling_generation
+        if generation == 0:
             # acquired_time may still be set by an acquire sampled before stop, so skip the assert below.
             return inner_func(*args, **kwargs)
 
@@ -206,7 +214,7 @@ class _ProfiledLock:
             if config.enable_asserts:
                 # Ensure acquired_time is not set when acquire is not sampled
                 # (else a bogus release sample is produced)
-                assert self.acquired_time is None, (
+                assert self.acquired_time is None or self.acquired_generation != generation, (
                     "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
                 )  # nosec
 
@@ -224,11 +232,12 @@ class _ProfiledLock:
         if result is False and error_info is None:
             return result
 
-        # A blocking acquire can finish after the collector stopped, so check
-        # if profiling is still enabled before flushing the sample.
-        if self._profiling_enabled:
+        # A blocking acquire can finish after the collector stopped (or stopped and
+        # restarted), so check that the same collector run is still active.
+        if self._profiling_generation == generation:
             end = time.monotonic_ns()
             self.acquired_time = end
+            self.acquired_generation = generation
             try:
                 self._update_name()
                 self._flush_sample(start, end, True)
@@ -267,7 +276,8 @@ class _ProfiledLock:
         # release, so it is irrelevant if it fails.
         result = inner_func(*args, **kwargs)
 
-        if start is None or not self._profiling_enabled:
+        # Skip holds that began under a previous collector run: the duration would span the stopped interval.
+        if start is None or self.acquired_generation != self._profiling_generation:
             return result
 
         try:
@@ -576,7 +586,9 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Start collecting lock usage."""
         _c_initialize_gevent_support()
         self.patch()
-        self.PROFILED_LOCK_CLASS._profiling_enabled = True
+        global _last_profiling_generation
+        _last_profiling_generation += 1
+        self.PROFILED_LOCK_CLASS._profiling_generation = _last_profiling_generation
 
         LockCollector._active_collectors.add(self)
         LockCollector._ensure_gevent_monkey_hook()
@@ -616,7 +628,7 @@ class LockCollector(collector.CaptureSamplerCollector):
     def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
-        self.PROFILED_LOCK_CLASS._profiling_enabled = False
+        self.PROFILED_LOCK_CLASS._profiling_generation = 0
         self.unpatch()
         LockCollector._active_collectors.discard(self)
         if self._reimport_hook is not None:

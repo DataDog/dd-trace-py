@@ -18,7 +18,8 @@ class _ProfiledLock:
     init_location: str
     acquired_time: typing.Optional[int]
     name: typing.Optional[str]
-    _profiling_enabled: typing.ClassVar[bool]
+    acquired_generation: int
+    _profiling_generation: typing.ClassVar[int]
 
     def __init__(
         self,
