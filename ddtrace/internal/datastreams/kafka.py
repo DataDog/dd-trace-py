@@ -23,6 +23,16 @@ disable_header_injection = False
 log = get_logger(__name__)
 
 
+def _as_header_dict(headers: Any) -> Any:
+    if not isinstance(headers, (list, tuple)):
+        return headers
+    try:
+        return dict(headers)
+    except (TypeError, ValueError):
+        log.debug("Error converting headers for payload size calculation", exc_info=True)
+        return {}
+
+
 def dsm_kafka_message_produce(
     instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any], is_serializing: bool, span: Any
 ) -> None:
@@ -32,12 +42,12 @@ def dsm_kafka_message_produce(
     cluster_id = core.find_item("kafka_cluster_id")
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
     key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
-    headers = kwargs.get("headers", {})
+    headers = kwargs.get("headers") or {}
 
     payload_size = 0
     payload_size += _calculate_byte_size(message)
     payload_size += _calculate_byte_size(key)
-    payload_size += _calculate_byte_size(headers)
+    payload_size += _calculate_byte_size(_as_header_dict(headers))
 
     edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
     if cluster_id:
@@ -46,7 +56,14 @@ def dsm_kafka_message_produce(
     if (p := processor()) is not None:
         ctx = p.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
         if not disable_header_injection:
-            DsmPathwayCodec.encode(ctx, headers)
+            if isinstance(headers, (list, tuple)):
+                # confluent-kafka also accepts headers as a list of (key, value) tuples.
+                # Build a new list: callers commonly reuse one headers list across produce() calls.
+                dsm_headers: dict[str, str] = {}
+                DsmPathwayCodec.encode(ctx, dsm_headers)
+                headers = list(headers) + list(dsm_headers.items())
+            else:
+                DsmPathwayCodec.encode(ctx, headers)
             kwargs["headers"] = headers
 
     on_delivery_kwarg = "on_delivery"

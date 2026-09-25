@@ -319,6 +319,43 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     assert message.headers()[0][1] is not None
 
 
+@pytest.mark.parametrize("sequence_type", [list, tuple])
+def test_data_streams_propagation_with_sequence_headers(
+    dsm_processor, fresh_consumer, producer, empty_kafka_topic, sequence_type
+):
+    # confluent-kafka also accepts headers as a sequence of (key, value) tuples, and
+    # applications often reuse the same headers object across produce() calls.
+    user_headers = sequence_type([("app-header", b"app-value")])
+    with override_config("kafka", dict(distributed_tracing_enabled=False)):
+        for i in range(2):
+            producer.produce(empty_kafka_topic, b"payload", key="key-%d" % i, headers=user_headers)
+        producer.flush()
+
+    assert list(user_headers) == [("app-header", b"app-value")], "caller's headers must not be mutated"
+
+    messages = []
+    deadline = time.monotonic() + 10
+    while len(messages) < 2 and time.monotonic() < deadline:
+        polled = fresh_consumer.poll(timeout=1.0)
+        if polled is not None and polled.error() is None:
+            messages.append(polled)
+    assert len(messages) == 2, "Consumer did not receive both produced messages within 10s"
+
+    for message in messages:
+        headers = message.headers()
+        assert [k for k, _ in headers].count(PROPAGATION_KEY_BASE_64) == 1
+        assert ("app-header", b"app-value") in headers
+
+    stat_keys = all_pathway_stat_keys(dsm_processor)
+    produce_hashes = {hash_value for tags, hash_value, _ in stat_keys if "direction:out" in tags}
+    consume_parents = {parent for tags, _, parent in stat_keys if "direction:in" in tags}
+    assert consume_parents, "Consumer DSM checkpoint missing"
+    assert consume_parents <= produce_hashes, "consume checkpoint did not continue the producer's pathway"
+
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
+    assert max_produce_offset(dsm_processor, PartitionKey(empty_kafka_topic, 0, cluster_id)) == 1
+
+
 def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
