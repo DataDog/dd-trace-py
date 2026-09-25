@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from tests.utils import override_env
@@ -26,6 +27,19 @@ def test_is_azure_function():
 
 def test_not_azure_function():
     assert in_azure_function() is False
+
+
+@pytest.mark.parametrize(
+    "environment,expected",
+    [
+        ({"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1:123456789012:image:test"}, True),
+        ({}, False),
+        ({"AWS_LAMBDA_MICROVM_IMAGE_ARN": "   "}, False),
+    ],
+)
+def test_is_aws_lambda_microvm(environment, expected):
+    with override_env(environment, replace_os_env=True):
+        assert in_aws_lambda_microvm() is expected
 
 
 standard_blocklist = [
