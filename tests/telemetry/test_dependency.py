@@ -452,8 +452,56 @@ class TestWriterReReporting:
 
             result = tracker.collect_report()
 
-        # No new deps, no new metadata -> None
         assert result is None
+
+    def test_refresh_preserves_and_rereports_dependency_metadata(self):
+        from unittest.mock import patch
+
+        _, tracker = _make_writer_and_tracker(sca_enabled=True)
+        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
+        entry.add_metadata("CVE-1", "requests.sessions", "send", 10)
+        entry.mark_initial_sent()
+        entry.mark_all_metadata_sent()
+        tracker._imported_dependencies["requests"] = entry
+
+        tracker.refresh()
+
+        with (
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            mock_modules.get_newly_imported_modules.return_value = set()
+
+            result = tracker.collect_report()
+
+        assert result is not None
+        assert result[0]["name"] == "requests"
+        assert len(result[0]["metadata"]) == 1
+        assert json.loads(result[0]["metadata"][0]["value"])["id"] == "CVE-1"
+
+    def test_refresh_rereports_dependencies_when_sca_disabled(self):
+        from unittest.mock import patch
+
+        _, tracker = _make_writer_and_tracker(sca_enabled=False)
+        entry = DependencyEntry(name="requests", version="2.28.0")
+        entry.mark_initial_sent()
+        tracker._imported_dependencies["requests"] = entry
+
+        tracker.refresh()
+
+        with (
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+            patch("ddtrace.internal.telemetry.dependency_tracker.telemetry_config") as mock_config,
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            mock_modules.get_newly_imported_modules.return_value = set()
+
+            result = tracker.collect_report()
+            second_result = tracker.collect_report()
+
+        assert result == [{"name": "requests", "version": "2.28.0"}]
+        assert second_result is None
 
     def test_rereport_includes_all_metadata_per_rfc(self):
         """Re-report includes ALL metadata (sent + unsent) per RFC."""
