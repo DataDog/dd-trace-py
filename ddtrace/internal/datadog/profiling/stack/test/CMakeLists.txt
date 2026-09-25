@@ -101,6 +101,17 @@ configure_stack_internal_test(test_sample_lifecycle)
 dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
 configure_stack_internal_test(test_sampling_cycle_state)
 
+dd_wrapper_add_test(test_segv_chain test_segv_chain.cpp)
+# ThreadAltStack and safe_memcpy_wrapper live in the vendored echion header tree.
+target_include_directories(test_segv_chain PRIVATE ../echion)
+# safe_memcpy_wrapper's platform-specific signature (declared in echion/danger.h) requires PL_DARWIN/PL_LINUX; these are
+# PRIVATE on ${EXTENSION_NAME} and don't propagate to test targets.
+if(APPLE)
+    target_compile_definitions(test_segv_chain PRIVATE PL_DARWIN)
+else()
+    target_compile_definitions(test_segv_chain PRIVATE PL_LINUX)
+endif()
+
 # vm.cc is compiled into the test binary: the fast-copy state lives in inline variables, so the copy in the test
 # executable is distinct from the one in the _stack library and only the constructor linked here initializes it.
 dd_wrapper_add_test(test_embedded_fast_copy test_embedded_fast_copy.cpp ../src/echion/vm.cc)
