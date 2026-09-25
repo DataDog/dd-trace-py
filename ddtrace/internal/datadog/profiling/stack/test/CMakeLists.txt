@@ -110,3 +110,13 @@ configure_stack_internal_test(test_embedded_fast_copy)
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
+
+dd_wrapper_add_test(test_segv_chain test_segv_chain.cpp)
+target_include_directories(test_segv_chain PRIVATE ../echion)
+# safe_memcpy_wrapper's platform-specific signature (declared in echion/danger.h) requires PL_DARWIN/PL_LINUX; these are
+# PRIVATE on ${EXTENSION_NAME} and don't propagate to test targets.
+if(APPLE)
+    target_compile_definitions(test_segv_chain PRIVATE PL_DARWIN)
+else()
+    target_compile_definitions(test_segv_chain PRIVATE PL_LINUX)
+endif()
