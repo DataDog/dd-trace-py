@@ -6,10 +6,10 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.llmobs._integrations import LlamaIndexIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
@@ -28,7 +28,7 @@ class _BaseLlamaIndexStreamHandler:
     which provide the attributes below via BaseStreamHandler.__init__.
     """
 
-    integration: LlamaIndexIntegration
+    integration: LLMObsIntegrationLike
     primary_span: Span
     request_args: tuple
     request_kwargs: dict[str, Any]
@@ -63,7 +63,7 @@ class LlamaIndexAsyncStreamHandler(_BaseLlamaIndexStreamHandler, AsyncStreamHand
 
 
 def handle_streamed_response(
-    integration: LlamaIndexIntegration,
+    integration: LLMObsIntegrationLike,
     resp: Any,
     args: tuple,
     kwargs: dict[str, Any],

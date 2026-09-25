@@ -7,10 +7,11 @@ from typing import Optional
 import vllm
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.trace import tracer
 
 
@@ -122,7 +123,7 @@ def _capture_request_states(
 
 
 def _create_finished_spans(
-    integration: VLLMIntegration,
+    integration: LLMObsIntegrationLike,
     model_name: Optional[str],
     instance: OutputProcessor,
     spans_data: dict[str, dict[str, Any]],
@@ -216,8 +217,7 @@ def patch():
 
     setattr(vllm, ATTR_DATADOG_PATCH, True)
 
-    integration = VLLMIntegration(integration_config=config.vllm)
-    setattr(vllm, ATTR_DATADOG_INTEGRATION, integration)
+    core.dispatch("vllm.integration.create", (config.vllm,))
 
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)

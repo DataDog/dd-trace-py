@@ -7,8 +7,8 @@ from ddtrace import config
 from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.trace import tracer
 
 
@@ -74,9 +74,8 @@ def patch():
 
     agents._datadog_patch = True
 
-    integration = OpenAIAgentsIntegration(integration_config=config.openai_agents)
-    add_trace_processor(LLMObsTraceProcessor(integration))
-    agents._datadog_integration = integration
+    core.dispatch("openai_agents.integration.create", (config.openai_agents,))
+    add_trace_processor(LLMObsTraceProcessor(agents._datadog_integration))
 
     if _has_module_level_run_loop():
         for module_path, attr_name, wrapper in _MODULE_RUN_LOOP_WRAP_TARGETS:

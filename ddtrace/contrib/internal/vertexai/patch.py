@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
 from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
-from ddtrace.llmobs._integrations import VertexAIIntegration
+from ddtrace.internal import core
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -118,8 +118,7 @@ def patch():
 
     vertexai._datadog_patch = True
 
-    integration = VertexAIIntegration(integration_config=config.vertexai)
-    vertexai._datadog_integration = integration
+    core.dispatch("vertexai.integration.create", (config.vertexai,))
 
     wrap("vertexai", "generative_models.GenerativeModel.generate_content", traced_generate)
     wrap("vertexai", "generative_models.GenerativeModel.generate_content_async", traced_agenerate)

@@ -8,9 +8,9 @@ from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
-from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
@@ -174,8 +174,7 @@ def patch():
 
     litellm._datadog_patch = True
 
-    integration = LiteLLMIntegration(integration_config=config.litellm)
-    litellm._datadog_integration = integration
+    core.dispatch("litellm.integration.create", (config.litellm,))
 
     wrap("litellm", "completion", traced_completion)
     wrap("litellm", "acompletion", traced_acompletion)

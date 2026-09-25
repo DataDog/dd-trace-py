@@ -5,6 +5,7 @@ from typing import Optional
 import langchain_core
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -14,7 +15,6 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -87,7 +87,7 @@ def _extract_model_provider(instance: Any) -> str:
 
 def traced_llm_generate(func, instance, args, kwargs):
     llm_provider = instance._llm_type
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     model = _extract_model_name(instance)
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     span = integration.trace(
@@ -123,7 +123,7 @@ def traced_llm_generate(func, instance, args, kwargs):
 async def traced_llm_agenerate(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     prompts = get_argument_value(args, kwargs, 0, "prompts")
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     model = _extract_model_name(instance)
     span = integration.trace(
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
@@ -158,7 +158,7 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 def traced_chat_model_generate(func, instance, args, kwargs):
     llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     span = integration.trace(
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
@@ -192,7 +192,7 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 async def traced_chat_model_agenerate(func, instance, args, kwargs):
     llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     span = integration.trace(
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
@@ -236,7 +236,7 @@ def traced_lcel_runnable_sequence(func, instance, args, kwargs):
 
     This method captures the initial inputs to the chain, as well as the final outputs, and tags them appropriately.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     span = integration.trace(
         f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
@@ -269,7 +269,7 @@ async def traced_lcel_runnable_sequence_async(func, instance, args, kwargs):
     """
     Similar to `traced_lcel_runnable_sequence`, but for async chaining calls.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     span = integration.trace(
         f"{instance.__module__}.{instance.__class__.__name__}",
         submit_to_llmobs=True,
@@ -299,7 +299,7 @@ async def traced_lcel_runnable_sequence_async(func, instance, args, kwargs):
 
 
 def traced_chain_stream(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
@@ -339,7 +339,7 @@ def traced_chain_stream(func, instance, args, kwargs):
 
 
 def traced_chat_stream(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
@@ -374,7 +374,7 @@ def traced_chat_stream(func, instance, args, kwargs):
 
 
 def traced_llm_stream(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
@@ -485,7 +485,7 @@ def patched_base_prompt_template_invoke(func, instance, args, kwargs):
     """
     No actual tracing happens here--we just need to move the prompt template to somewhere it can be accessed later.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return func(*args, **kwargs)
 
@@ -498,7 +498,7 @@ async def patched_base_prompt_template_ainvoke(func, instance, args, kwargs):
     """
     async version of above patched_base_prompt_template_invoke
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return await func(*args, **kwargs)
 
@@ -517,7 +517,7 @@ def patched_language_model_invoke(func, instance, args, kwargs):
     that templating information before it is consumed.
     Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return func(*args, **kwargs)
 
@@ -530,7 +530,7 @@ async def patched_language_model_ainvoke(func, instance, args, kwargs):
     """
     async version of above patched_language_model_invoke
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     if integration.llmobs_enabled is False:
         return await func(*args, **kwargs)
 
@@ -544,7 +544,7 @@ def traced_embedding(func, instance, args, kwargs):
     if provider == "openai" and func.__name__ == "embed_query":
         return func(*args, **kwargs)  # we previously did not trace OpenAIEmbeddings.embed_query
 
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     span = integration.trace(
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
@@ -569,7 +569,7 @@ def traced_embedding(func, instance, args, kwargs):
 
 
 def traced_similarity_search(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
+    integration: LLMObsIntegrationLike = langchain_core._datadog_integration
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
@@ -623,7 +623,7 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
 
 def traced_runnable_lambda_operation(is_batch: bool = False):
     def _traced_runnable_lambda_impl(func, instance, args, kwargs):
-        integration: LangChainIntegration = langchain_core._datadog_integration
+        integration: LLMObsIntegrationLike = langchain_core._datadog_integration
 
         instance_name = getattr(instance, "name", None)
         default_name = f"{instance.__class__.__name__}.{func.__name__}"
@@ -657,7 +657,7 @@ def traced_runnable_lambda_operation(is_batch: bool = False):
 
 def traced_runnable_lambda_operation_async(is_batch: bool = False):
     async def _traced_runnable_lambda_impl(func, instance, args, kwargs):
-        integration: LangChainIntegration = langchain_core._datadog_integration
+        integration: LLMObsIntegrationLike = langchain_core._datadog_integration
 
         instance_name = getattr(instance, "name", None)
         default_name = f"{instance.__class__.__name__}.{func.__name__}"
@@ -694,8 +694,7 @@ def patch():
         return
 
     langchain_core._datadog_patch = True
-    integration = LangChainIntegration(integration_config=config.langchain)
-    langchain_core._datadog_integration = integration
+    core.dispatch("langchain.integration.create", (config.langchain,))
 
     from langchain_core.embeddings import Embeddings
     from langchain_core.language_models.chat_models import BaseChatModel
