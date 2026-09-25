@@ -1,0 +1,3824 @@
+{
+  "schema_version": 1,
+  "old": "v3.14.0",
+  "new": "v3.15.0a7",
+  "work_item_count": 90,
+  "work_items": [
+    {
+      "symbol": "FRAME_CLEARED",
+      "change_kind": "renumbered_enum",
+      "priority": "breaks_build",
+      "inventory_key": "enum_macro:FRAME_CLEARED",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 386
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 87
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 111
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Modules/_remote_debugging/asyncio.c",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ ",
+        "Objects/genobject.c:@@ -145,16 +166,41 @@ _PyGen_Finalize(PyObject *self)",
+        "Objects/genobject.c:@@ -179,7 +225,10 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -254,21 +276,37 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -281,47 +319,97 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)",
+        "Objects/genobject.c:@@ -759,17 +914,36 @@ static PyObject *"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_CREATED",
+      "change_kind": "renumbered_enum",
+      "priority": "breaks_build",
+      "inventory_key": "enum_macro:FRAME_CREATED",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 387
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 109
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Objects/genobject.c:@@ -145,16 +166,41 @@ _PyGen_Finalize(PyObject *self)",
+        "Objects/genobject.c:@@ -188,58 +237,31 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -281,47 +319,97 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)",
+        "Objects/genobject.c:@@ -464,10 +623,32 @@ static PyObject *",
+        "Objects/genobject.c:@@ -759,17 +914,36 @@ static PyObject *",
+        "Objects/genobject.c:@@ -1123,44 +1302,35 @@ coro_await(PyObject *coro)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_EXECUTING",
+      "change_kind": "renumbered_enum",
+      "priority": "breaks_build",
+      "inventory_key": "enum_macro:FRAME_EXECUTING",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 130
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 110
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Objects/frameobject.c",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Objects/frameobject.c:@@ -1996,30 +2014,20 @@ frame_clear_impl(PyFrameObject *self)",
+        "Objects/genobject.c:@@ -145,16 +166,41 @@ _PyGen_Finalize(PyObject *self)",
+        "Objects/genobject.c:@@ -188,58 +237,31 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -254,21 +276,37 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -281,47 +319,97 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)",
+        "Objects/genobject.c:@@ -441,15 +535,80 @@ gen_close(PyObject *self, PyObject *args)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_SUSPENDED_YIELD_FROM",
+      "change_kind": "renumbered_enum",
+      "priority": "breaks_build",
+      "inventory_key": "enum_macro:FRAME_SUSPENDED_YIELD_FROM",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 248
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 296
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 355
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 81
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 85
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 89
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 220
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 233
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 243
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Modules/_remote_debugging/_remote_debugging.h",
+        "Modules/_remote_debugging/asyncio.c",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Modules/_remote_debugging/_remote_debugging.h:@@ -0,0 +1,693 @@ ",
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ ",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)",
+        "Objects/genobject.c:@@ -464,10 +623,32 @@ static PyObject *",
+        "Objects/genobject.c:@@ -740,18 +875,38 @@ gen_set_qualname(PyObject *self, PyObject *value, void *Py_UNUSED(ignored))",
+        "Objects/genobject.c:@@ -759,17 +914,36 @@ static PyObject *",
+        "Objects/genobject.c:@@ -1123,44 +1302,35 @@ coro_await(PyObject *coro)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_SUSPENDED_YIELD_FROM_LOCKED",
+      "change_kind": "renumbered_enum",
+      "priority": "breaks_build",
+      "inventory_key": "enum_macro:FRAME_SUSPENDED_YIELD_FROM_LOCKED",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 228
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 243
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 244
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 250
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 4
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 68
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 72
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 76
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Objects/genobject.c:@@ -36,6 +37,26 @@ static PyObject* async_gen_athrow_new(PyAsyncGenObject *, PyObject *);",
+        "Objects/genobject.c:@@ -740,18 +875,38 @@ gen_set_qualname(PyObject *self, PyObject *value, void *Py_UNUSED(ignored))",
+        "Objects/genobject.c:@@ -759,17 +914,36 @@ static PyObject *",
+        "Objects/genobject.c:@@ -1123,44 +1302,35 @@ coro_await(PyObject *coro)",
+        "Objects/genobject.c:@@ -1588,13 +1762,23 @@ ag_getcode(PyObject *gen, void *Py_UNUSED(ignored))"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "asyncio private / task APIs",
+      "change_kind": "semantics_change",
+      "priority": "breaks_build",
+      "inventory_key": "python_api:asyncio_internals",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 119
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 120
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 185
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 198
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 282
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 285
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 287
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 288
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 298
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 300
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 323
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 325
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 345
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 348
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 382
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 384
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 386
+        }
+      ],
+      "cpython_paths": [
+        "Lib/asyncio/__main__.py",
+        "Lib/asyncio/base_events.py",
+        "Lib/asyncio/base_subprocess.py",
+        "Lib/asyncio/futures.py",
+        "Lib/asyncio/proactor_events.py",
+        "Lib/asyncio/queues.py",
+        "Lib/asyncio/selector_events.py",
+        "Lib/asyncio/staggered.py",
+        "Lib/asyncio/streams.py",
+        "Lib/asyncio/tools.py",
+        "Lib/asyncio/unix_events.py",
+        "Lib/asyncio/windows_utils.py",
+        "Python/instrumentation.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_task_traversal.cpp + asyncio hook probe (verify_profiler_compatibility)",
+      "hunk_summaries": [
+        "Lib/asyncio/__main__.py:@@ -74,7 +74,8 @@ def callback():",
+        "Lib/asyncio/__main__.py:@@ -85,16 +86,17 @@ def run(self):",
+        "Lib/asyncio/__main__.py:@@ -106,13 +108,17 @@ def run(self):",
+        "Lib/asyncio/__main__.py:@@ -235,4 +241,5 @@ def interrupt(self) -> None:",
+        "Lib/asyncio/base_events.py:@@ -949,7 +949,7 @@ async def sock_sendfile(self, sock, file, offset=0, count=None,",
+        "Lib/asyncio/base_events.py:@@ -1270,7 +1270,7 @@ async def sendfile(self, transport, file, offset=0, count=None,",
+        "Lib/asyncio/base_events.py:@@ -1345,6 +1345,17 @@ async def start_tls(self, transport, protocol, sslcontext, *,",
+        "Lib/asyncio/base_subprocess.py:@@ -26,6 +26,7 @@ def __init__(self, loop, protocol, args, shell,"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "ddtrace.internal.wrapping.wrap",
+      "change_kind": "semantics_change",
+      "priority": "breaks_build",
+      "inventory_key": "python_api:wrapping.wrap",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 21
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 88
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 185
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 198
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 214
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 230
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 258
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 283
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 300
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 325
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 365
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 386
+        }
+      ],
+      "cpython_paths": [
+        "Lib/asyncio/__main__.py",
+        "Lib/asyncio/base_events.py",
+        "Lib/asyncio/base_subprocess.py",
+        "Lib/asyncio/futures.py",
+        "Lib/asyncio/proactor_events.py",
+        "Lib/asyncio/queues.py",
+        "Lib/asyncio/selector_events.py",
+        "Lib/asyncio/staggered.py",
+        "Lib/asyncio/streams.py",
+        "Lib/asyncio/tools.py",
+        "Lib/asyncio/unix_events.py",
+        "Lib/asyncio/windows_utils.py",
+        "Python/instrumentation.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Lib/asyncio/__main__.py:@@ -74,7 +74,8 @@ def callback():",
+        "Lib/asyncio/__main__.py:@@ -85,16 +86,17 @@ def run(self):",
+        "Lib/asyncio/__main__.py:@@ -106,13 +108,17 @@ def run(self):",
+        "Lib/asyncio/__main__.py:@@ -235,4 +241,5 @@ def interrupt(self) -> None:",
+        "Lib/asyncio/base_events.py:@@ -949,7 +949,7 @@ async def sock_sendfile(self, sock, file, offset=0, count=None,",
+        "Lib/asyncio/base_events.py:@@ -1270,7 +1270,7 @@ async def sendfile(self, transport, file, offset=0, count=None,",
+        "Lib/asyncio/base_events.py:@@ -1345,6 +1345,17 @@ async def start_tls(self, transport, protocol, sslcontext, *,",
+        "Lib/asyncio/base_subprocess.py:@@ -26,6 +26,7 @@ def __init__(self, loop, protocol, args, shell,"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "localsplus",
+      "change_kind": "removed",
+      "priority": "breaks_build",
+      "inventory_key": "field_access:localsplus",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 306
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 321
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -48,13 +103,13 @@ static inline _PyStackRef *_PyFrame_Stackbase(_PyInterpreterFrame *f) {"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "sys.monitoring",
+      "change_kind": "semantics_change",
+      "priority": "breaks_build",
+      "inventory_key": "python_api:sys.monitoring",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/native_call_monitor.py",
+          "line": 2
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/native_call_monitor.py",
+          "line": 4
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/native_call_monitor.py",
+          "line": 25
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/native_call_monitor.py",
+          "line": 39
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/native_call_monitor.py",
+          "line": 45
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/native_call_monitor.py",
+          "line": 57
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 14
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 25
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 37
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 41
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 55
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 68
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 78
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 79
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 85
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 91
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 283
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 298
+        },
+        {
+          "file": "ddtrace/profiling/_asyncio.py",
+          "line": 323
+        }
+      ],
+      "cpython_paths": [
+        "Lib/asyncio/__main__.py",
+        "Lib/asyncio/base_events.py",
+        "Lib/asyncio/base_subprocess.py",
+        "Lib/asyncio/futures.py",
+        "Lib/asyncio/proactor_events.py",
+        "Lib/asyncio/queues.py",
+        "Lib/asyncio/selector_events.py",
+        "Lib/asyncio/staggered.py",
+        "Lib/asyncio/streams.py",
+        "Lib/asyncio/tools.py",
+        "Lib/asyncio/unix_events.py",
+        "Lib/asyncio/windows_utils.py",
+        "Python/instrumentation.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Lib/asyncio/__main__.py:@@ -74,7 +74,8 @@ def callback():",
+        "Lib/asyncio/__main__.py:@@ -85,16 +86,17 @@ def run(self):",
+        "Lib/asyncio/__main__.py:@@ -106,13 +108,17 @@ def run(self):",
+        "Lib/asyncio/__main__.py:@@ -235,4 +241,5 @@ def interrupt(self) -> None:",
+        "Lib/asyncio/base_events.py:@@ -949,7 +949,7 @@ async def sock_sendfile(self, sock, file, offset=0, count=None,",
+        "Lib/asyncio/base_events.py:@@ -1270,7 +1270,7 @@ async def sendfile(self, transport, file, offset=0, count=None,",
+        "Lib/asyncio/base_events.py:@@ -1345,6 +1345,17 @@ async def start_tls(self, transport, protocol, sslcontext, *,",
+        "Lib/asyncio/base_subprocess.py:@@ -26,6 +26,7 @@ def __init__(self, loop, protocol, args, shell,"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_OWNED_BY_CSTACK",
+      "change_kind": "renumbered_enum",
+      "priority": "silent_misread",
+      "inventory_key": "enum_macro:FRAME_OWNED_BY_CSTACK",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_frame_read.cpp",
+          "line": 32
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 124
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 130
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_sampling_cycle_state.cpp",
+          "line": 176
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe_structs.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe_structs.h:@@ -24,7 +24,6 @@ enum _frameowner {"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_OWNED_BY_GENERATOR",
+      "change_kind": "renumbered_enum",
+      "priority": "silent_misread",
+      "inventory_key": "enum_macro:FRAME_OWNED_BY_GENERATOR",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h",
+          "line": 101
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 119
+        }
+      ],
+      "cpython_paths": [
+        "Modules/_remote_debugging/asyncio.c",
+        "Modules/_remote_debugging/frames.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ ",
+        "Modules/_remote_debugging/frames.c:@@ -0,0 +1,610 @@ "
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "PyStackRef_IsNull",
+      "change_kind": "semantics_change",
+      "priority": "silent_misread",
+      "inventory_key": "stackref:PyStackRef_IsNull",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 307
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h",
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -24,6 +24,36 @@ static inline PyCodeObject *_PyFrame_GetCode(_PyInterpreterFrame *f) {",
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -203,28 +303,56 @@ PyStackRef_Borrow(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };",
+        "Include/internal/pycore_stackref.h:@@ -516,6 +538,8 @@ PyStackRef_Borrow(_PyStackRef ref)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "PyStackRef_NULL",
+      "change_kind": "semantics_change",
+      "priority": "silent_misread",
+      "inventory_key": "stackref:PyStackRef_NULL",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 235
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 118
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 163
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 165
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 205
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 209
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 224
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "Py_TAG_REFCNT",
+      "change_kind": "semantics_change",
+      "priority": "silent_misread",
+      "inventory_key": "stackref:Py_TAG_REFCNT",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 212
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -203,28 +303,56 @@ PyStackRef_Borrow(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };",
+        "Include/internal/pycore_stackref.h:@@ -528,14 +552,18 @@ static inline _PyStackRef",
+        "Include/internal/pycore_stackref.h:@@ -552,9 +580,15 @@ static inline _PyStackRef"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "BITS_TO_PTR_MASKED",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": "stackref:BITS_TO_PTR_MASKED",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 262
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 288
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 314
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 348
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 134
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 206
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -600,7 +634,15 @@ PyStackRef_DUP(_PyStackRef ref)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_COMPLETED",
+      "change_kind": "renumbered_enum",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "FRAME_OWNED_BY_INTERPRETER",
+      "change_kind": "new_field_or_enum",
+      "priority": "advisory",
+      "inventory_key": "enum_macro:FRAME_OWNED_BY_INTERPRETER",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 127
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 130
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_sampling_cycle_state.cpp",
+          "line": 174
+        }
+      ],
+      "cpython_paths": [
+        "Modules/_remote_debugging/_remote_debugging.h",
+        "Modules/_remote_debugging/frame_cache.c",
+        "Modules/_remote_debugging/frames.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Modules/_remote_debugging/_remote_debugging.h:@@ -0,0 +1,693 @@ ",
+        "Modules/_remote_debugging/frame_cache.c:@@ -0,0 +1,266 @@ ",
+        "Modules/_remote_debugging/frames.c:@@ -0,0 +1,610 @@ "
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_OWNED_BY_THREAD",
+      "change_kind": "new_field_or_enum",
+      "priority": "advisory",
+      "inventory_key": "enum_macro:FRAME_OWNED_BY_THREAD",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h",
+          "line": 101
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 118
+        }
+      ],
+      "cpython_paths": [
+        "Modules/_remote_debugging/frames.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Modules/_remote_debugging/frames.c:@@ -0,0 +1,610 @@ "
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "FRAME_STATE_FINISHED",
+      "change_kind": "renumbered_enum",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Objects/genobject.c:@@ -145,16 +166,41 @@ _PyGen_Finalize(PyObject *self)",
+        "Objects/genobject.c:@@ -188,58 +237,31 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -281,47 +319,97 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)",
+        "Objects/genobject.c:@@ -464,10 +623,32 @@ static PyObject *",
+        "Objects/genobject.c:@@ -778,9 +952,11 @@ _gen_getframe(PyGenObject *gen, const char *const name)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "FRAME_STATE_SUSPENDED",
+      "change_kind": "renumbered_enum",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Objects/frameobject.c",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Objects/frameobject.c:@@ -1996,30 +2014,20 @@ frame_clear_impl(PyFrameObject *self)",
+        "Objects/genobject.c:@@ -145,16 +166,41 @@ _PyGen_Finalize(PyObject *self)",
+        "Objects/genobject.c:@@ -188,58 +237,31 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -254,21 +276,37 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -281,47 +319,97 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)",
+        "Objects/genobject.c:@@ -464,10 +623,32 @@ static PyObject *"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "FRAME_SUSPENDED",
+      "change_kind": "renumbered_enum",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_frame.h",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_frame.h:@@ -44,17 +44,16 @@ extern PyFrameObject* _PyFrame_New_NoTrack(PyCodeObject *code);",
+        "Objects/genobject.c:@@ -759,17 +914,36 @@ static PyObject *",
+        "Objects/genobject.c:@@ -1123,44 +1302,35 @@ coro_await(PyObject *coro)",
+        "Objects/genobject.c:@@ -1588,13 +1762,23 @@ ag_getcode(PyObject *gen, void *Py_UNUSED(ignored))"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_AsPyObjectBorrow",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h",
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -24,6 +24,36 @@ static inline PyCodeObject *_PyFrame_GetCode(_PyInterpreterFrame *f) {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -680,7 +721,13 @@ PyStackRef_XCLOSE(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -688,42 +735,30 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_AsPyObjectNew",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)",
+        "Objects/genobject.c:@@ -464,10 +623,32 @@ static PyObject *",
+        "Objects/genobject.c:@@ -740,18 +875,38 @@ gen_set_qualname(PyObject *self, PyObject *value, void *Py_UNUSED(ignored))"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_AsPyObjectSteal",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -616,6 +658,13 @@ PyStackRef_MakeHeapSafe(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_AsStrongReference",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -616,6 +658,13 @@ PyStackRef_MakeHeapSafe(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_BoolCheck",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -688,42 +735,30 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_Borrow",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_CLEAR",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_CLOSE",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_CLOSE_SPECIALIZED",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_CheckValid",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_CodeCheck",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -688,42 +735,30 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_DUP",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_ERROR",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_ExceptionInstanceCheck",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -688,42 +735,30 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_False",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_FromPyObjectBorrow",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -575,9 +609,9 @@ _PyStackRef_FromPyObjectNewMortal(PyObject *obj)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_FromPyObjectImmortal",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -575,9 +609,9 @@ _PyStackRef_FromPyObjectNewMortal(PyObject *obj)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_FromPyObjectNew",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_FromPyObjectNewMortal",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_FromPyObjectSteal",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -616,6 +658,13 @@ PyStackRef_MakeHeapSafe(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_FromPyObjectStealMortal",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_FunctionCheck",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -688,42 +735,30 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_GenCheck",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -688,42 +735,30 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IncrementTaggedIntNoOverflow",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsDeferred",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsError",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsFalse",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsHeapSafe",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -203,28 +303,56 @@ PyStackRef_Borrow(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsMalformed",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsNone",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsNullOrInt",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };",
+        "Include/internal/pycore_stackref.h:@@ -633,12 +682,6 @@ PyStackRef_CLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsTaggedInt",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };",
+        "Include/internal/pycore_stackref.h:@@ -516,6 +538,8 @@ PyStackRef_Borrow(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -633,12 +682,6 @@ PyStackRef_CLOSE(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -680,7 +721,13 @@ PyStackRef_XCLOSE(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -688,42 +735,30 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsTrue",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -459,13 +470,24 @@ static const _PyStackRef PyStackRef_NULL = { .bits = PyStackRef_NULL_BITS };"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_IsValid",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_MakeHeapSafe",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -203,28 +303,56 @@ PyStackRef_Borrow(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_NULL_BITS",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -600,7 +634,15 @@ PyStackRef_DUP(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_None",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Objects/genobject.c:@@ -922,6 +1100,7 @@ make_gen(PyTypeObject *type, PyFunctionObject *func)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_NotDeferred_AsPyObject",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_RefcountOnObject",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)",
+        "Include/internal/pycore_stackref.h:@@ -203,28 +303,56 @@ PyStackRef_Borrow(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_TYPE",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -680,7 +721,13 @@ PyStackRef_XCLOSE(_PyStackRef ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_TagInt",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_True",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_UntagInt",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_Unwrap",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_Wrap",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_XCLOSE",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -775,6 +821,13 @@ _Py_TryXGetStackRef(PyObject **src, _PyStackRef *out)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_XSETREF",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -775,6 +821,13 @@ _Py_TryXGetStackRef(PyObject **src, _PyStackRef *out)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "PyStackRef_ZERO_BITS",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "Py_AsyncioModuleDebugOffsets",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Modules/_asynciomodule.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_task_traversal.cpp + asyncio hook probe (verify_profiler_compatibility)",
+      "hunk_summaries": [
+        "Modules/_asynciomodule.c:@@ -119,7 +119,7 @@ typedef struct _Py_AsyncioModuleDebugOffsets {"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "Py_INT_TAG",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "Py_TAGGED_SHIFT",
+      "change_kind": "new_field_or_enum",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "Py_TAG_BITS",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h",
+        "Modules/_remote_debugging/_remote_debugging.h",
+        "Modules/_remote_debugging/object_reading.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -203,28 +303,56 @@ PyStackRef_Borrow(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -600,7 +634,15 @@ PyStackRef_DUP(_PyStackRef ref)",
+        "Modules/_remote_debugging/_remote_debugging.h:@@ -0,0 +1,693 @@ ",
+        "Modules/_remote_debugging/object_reading.c:@@ -0,0 +1,259 @@ "
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "Py_TAG_DEFERRED",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);",
+        "Include/internal/pycore_stackref.h:@@ -746,13 +781,24 @@ _PyThreadState_PopCStackRef(PyThreadState *tstate, _PyCStackRef *ref)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "Py_TAG_INVALID",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "Py_TAG_PTR",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -233,217 +361,100 @@ extern intptr_t PyStackRef_UntagInt(_PyStackRef ref);"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "TaskObj",
+      "change_kind": "semantics_change",
+      "priority": "advisory",
+      "inventory_key": "type:TaskObj",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 70
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 89
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 169
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 184
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 195
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 207
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 218
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/tasks.h",
+          "line": 112
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/tasks.h",
+          "line": 137
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/threads.h",
+          "line": 124
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/threads.h",
+          "line": 140
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_task_unwind.cpp",
+          "line": 34
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_tasks.cpp",
+          "line": 5
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_tasks.cpp",
+          "line": 31
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_tasks.cpp",
+          "line": 36
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 150
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 156
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 162
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 183
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 459
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 485
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 494
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 511
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 531
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 532
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 578
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 602
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 637
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 658
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 673
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 32
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 33
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 73
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 75
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 86
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 101
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 102
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 112
+        }
+      ],
+      "cpython_paths": [
+        "Modules/_asynciomodule.c",
+        "Modules/_remote_debugging/asyncio.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_task_traversal.cpp + asyncio hook probe (verify_profiler_compatibility)",
+      "hunk_summaries": [
+        "Modules/_asynciomodule.c:@@ -2076,8 +2068,8 @@ class _asyncio.Task \"TaskObj *\" \"&Task_Type\"",
+        "Modules/_asynciomodule.c:@@ -2195,15 +2187,14 @@ static  PyMethodDef TaskWakeupDef = {",
+        "Modules/_asynciomodule.c:@@ -2990,16 +2975,12 @@ static PyType_Spec Task_spec = {",
+        "Modules/_asynciomodule.c:@@ -3480,10 +3459,10 @@ task_step(asyncio_state *state, TaskObj *task, PyObject *exc)",
+        "Modules/_asynciomodule.c:@@ -3716,7 +3695,8 @@ _asyncio__register_task_impl(PyObject *module, PyObject *task)",
+        "Modules/_asynciomodule.c:@@ -3749,7 +3729,8 @@ _asyncio__register_eager_task_impl(PyObject *module, PyObject *task)",
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ "
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "_AsyncioDebug",
+      "change_kind": "renamed",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Modules/_asynciomodule.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_task_traversal.cpp + asyncio hook probe (verify_profiler_compatibility)",
+      "hunk_summaries": [
+        "Modules/_asynciomodule.c:@@ -119,7 +119,7 @@ typedef struct _Py_AsyncioModuleDebugOffsets {",
+        "Modules/_asynciomodule.c:@@ -4324,7 +4322,7 @@ module_init(asyncio_state *state)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "_PyFrame_SafeGetCode",
+      "change_kind": "new_field_or_enum",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -24,6 +24,36 @@ static inline PyCodeObject *_PyFrame_GetCode(_PyInterpreterFrame *f) {",
+        "Include/internal/pycore_interpframe.h:@@ -37,6 +67,31 @@ _PyFrame_GetBytecode(_PyInterpreterFrame *f)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "_PyFrame_SafeGetLasti",
+      "change_kind": "new_field_or_enum",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -37,6 +67,31 @@ _PyFrame_GetBytecode(_PyInterpreterFrame *f)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "_PyFrame_StackPeek",
+      "change_kind": "moved_header",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Objects/genobject.c:@@ -10,6 +10,7 @@ ",
+        "Objects/genobject.c:@@ -36,6 +37,26 @@ static PyObject* async_gen_athrow_new(PyAsyncGenObject *, PyObject *);",
+        "Objects/genobject.c:@@ -83,8 +104,8 @@ gen_traverse(PyObject *self, visitproc visit, void *arg)",
+        "Objects/genobject.c:@@ -145,16 +166,41 @@ _PyGen_Finalize(PyObject *self)",
+        "Objects/genobject.c:@@ -179,7 +225,10 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -188,58 +237,31 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -254,21 +276,37 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,",
+        "Objects/genobject.c:@@ -281,47 +319,97 @@ gen_send_ex2(PyGenObject *gen, PyObject *arg, PyObject **presult,"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "_PyInterpreterFrame",
+      "change_kind": "moved_header",
+      "priority": "advisory",
+      "inventory_key": "type:_PyInterpreterFrame",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/version_compat.h",
+          "line": 27
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/version_compat.h",
+          "line": 28
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/version_compat.h",
+          "line": 48
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 256
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 268
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 300
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 320
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 359
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 372
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 390
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 409
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/frame.h",
+          "line": 71
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/frame.h",
+          "line": 72
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_frame_read.cpp",
+          "line": 4
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_frame_read.cpp",
+          "line": 36
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_frame_read.cpp",
+          "line": 37
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_greenlet.cpp",
+          "line": 41
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_greenlet.cpp",
+          "line": 60
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_stacks.cpp",
+          "line": 42
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_thread_unwind.cpp",
+          "line": 26
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_thread_unwind_tasks.cpp",
+          "line": 26
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 80
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 91
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 93
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 102
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 114
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/stack_chunk.cc",
+          "line": 86
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/stack_chunk.cc",
+          "line": 90
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/stacks.cc",
+          "line": 89
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/stacks.cc",
+          "line": 90
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/gc_frame_tracker.cpp",
+          "line": 342
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 127
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 130
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 157
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 158
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 160
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_sampling_cycle_state.cpp",
+          "line": 171
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h",
+        "Include/internal/pycore_tstate.h",
+        "Modules/_remote_debugging/_remote_debugging.h",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -24,6 +24,36 @@ static inline PyCodeObject *_PyFrame_GetCode(_PyInterpreterFrame *f) {",
+        "Include/internal/pycore_interpframe.h:@@ -37,6 +67,31 @@ _PyFrame_GetBytecode(_PyInterpreterFrame *f)",
+        "Include/internal/pycore_interpframe.h:@@ -340,6 +395,10 @@ _PyEvalFramePushAndInit(PyThreadState *tstate, _PyStackRef func,",
+        "Include/internal/pycore_tstate.h:@@ -10,9 +10,11 @@ extern \"C\" {",
+        "Include/internal/pycore_tstate.h:@@ -28,6 +31,10 @@ typedef struct _PyThreadStateImpl {",
+        "Modules/_remote_debugging/_remote_debugging.h:@@ -0,0 +1,693 @@ ",
+        "Objects/genobject.c:@@ -188,58 +237,31 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -370,51 +458,52 @@ is_resume(_Py_CODEUNIT *instr)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "_PyStackRef",
+      "change_kind": "new_field_or_enum",
+      "priority": "advisory",
+      "inventory_key": "type:_PyStackRef",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h",
+          "line": 66
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/version_compat.h",
+          "line": 8
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/version_compat.h",
+          "line": 38
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/version_compat.h",
+          "line": 42
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 269
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 278
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 283
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 284
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 292
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 322
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 333
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 341
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 342
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 346
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc",
+          "line": 176
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 124
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 130
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 131
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 161
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 165
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 166
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 171
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 209
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_code.h",
+        "Include/internal/pycore_dict.h",
+        "Include/internal/pycore_interpframe.h",
+        "Include/internal/pycore_long.h",
+        "Include/internal/pycore_stackref.h"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (stackref alignment)",
+      "hunk_summaries": [
+        "Include/internal/pycore_code.h:@@ -272,52 +278,51 @@ extern void _PyLineTable_InitAddressRange(",
+        "Include/internal/pycore_dict.h:@@ -113,6 +114,9 @@ extern Py_ssize_t _Py_dict_lookup(PyDictObject *mp, PyObject *key, Py_hash_t has",
+        "Include/internal/pycore_interpframe.h:@@ -340,6 +395,10 @@ _PyEvalFramePushAndInit(PyThreadState *tstate, _PyStackRef func,",
+        "Include/internal/pycore_long.h:@@ -112,9 +112,9 @@ PyAPI_DATA(PyObject*) _PyLong_Rshift(PyObject *, int64_t);",
+        "Include/internal/pycore_stackref.h:@@ -50,26 +50,62 @@ extern \"C\" {",
+        "Include/internal/pycore_stackref.h:@@ -77,6 +113,25 @@ PyStackRef_IsNull(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -95,67 +150,86 @@ PyStackRef_IsNone(_PyStackRef ref)",
+        "Include/internal/pycore_stackref.h:@@ -166,31 +240,57 @@ _PyStackRef_XCLOSE(_PyStackRef ref, const char *filename, int linenumber)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "_PyThreadStateImpl",
+      "change_kind": "moved_header",
+      "priority": "advisory",
+      "inventory_key": "type:_PyThreadStateImpl",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 447
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 449
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/threads.cc",
+          "line": 1032
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 123
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 149
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 181
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_stackref.h",
+        "Modules/_asynciomodule.c",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_stackref.h:@@ -746,13 +781,24 @@ _PyThreadState_PopCStackRef(PyThreadState *tstate, _PyCStackRef *ref)",
+        "Modules/_asynciomodule.c:@@ -2076,8 +2068,8 @@ class _asyncio.Task \"TaskObj *\" \"&Task_Type\"",
+        "Modules/_asynciomodule.c:@@ -2195,15 +2187,14 @@ static  PyMethodDef TaskWakeupDef = {",
+        "Modules/_asynciomodule.c:@@ -2241,10 +2232,8 @@ unregister_task(TaskObj *task)",
+        "Modules/_asynciomodule.c:@@ -2264,10 +2253,8 @@ enter_task(PyObject *loop, PyObject *task)",
+        "Modules/_asynciomodule.c:@@ -2286,10 +2273,8 @@ leave_task(PyObject *loop, PyObject *task)",
+        "Modules/_asynciomodule.c:@@ -2384,7 +2369,7 @@ _asyncio_Task___init___impl(TaskObj *self, PyObject *coro, PyObject *loop,",
+        "Modules/_asynciomodule.c:@@ -3456,7 +3433,9 @@ task_step(asyncio_state *state, TaskObj *task, PyObject *exc)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "_Py_AsyncioDebug",
+      "change_kind": "renamed",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Modules/_asynciomodule.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_task_traversal.cpp + asyncio hook probe (verify_profiler_compatibility)",
+      "hunk_summaries": [
+        "Modules/_asynciomodule.c:@@ -119,7 +119,7 @@ typedef struct _Py_AsyncioModuleDebugOffsets {",
+        "Modules/_asynciomodule.c:@@ -4324,7 +4322,7 @@ module_init(asyncio_state *state)"
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "asyncio_tasks_head",
+      "change_kind": "moved_header",
+      "priority": "advisory",
+      "inventory_key": "field_access:asyncio_tasks_head",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 124
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 150
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 182
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_task_traversal.cpp",
+          "line": 183
+        }
+      ],
+      "cpython_paths": [
+        "Modules/_asynciomodule.c",
+        "Modules/_remote_debugging/_remote_debugging.h",
+        "Modules/_remote_debugging/asyncio.c",
+        "Modules/_remote_debugging/module.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_task_traversal.cpp + asyncio hook probe (verify_profiler_compatibility)",
+      "hunk_summaries": [
+        "Modules/_asynciomodule.c:@@ -2195,15 +2187,14 @@ static  PyMethodDef TaskWakeupDef = {",
+        "Modules/_asynciomodule.c:@@ -4079,30 +4063,44 @@ _asyncio_all_tasks_impl(PyObject *module, PyObject *loop)",
+        "Modules/_remote_debugging/_remote_debugging.h:@@ -0,0 +1,693 @@ ",
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ ",
+        "Modules/_remote_debugging/module.c:@@ -0,0 +1,1855 @@ "
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "base_frame",
+      "change_kind": "new_field_shifting_offsets",
+      "priority": "advisory",
+      "inventory_key": null,
+      "ddtrace_sites": [],
+      "cpython_paths": [
+        "Include/internal/pycore_debug_offsets.h",
+        "Include/internal/pycore_tstate.h",
+        "Modules/_remote_debugging/threads.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp (offset asserts)",
+      "hunk_summaries": [
+        "Include/internal/pycore_debug_offsets.h:@@ -102,12 +102,23 @@ typedef struct _Py_DebugOffsets {",
+        "Include/internal/pycore_debug_offsets.h:@@ -269,10 +281,19 @@ typedef struct _Py_DebugOffsets {",
+        "Include/internal/pycore_tstate.h:@@ -28,6 +31,10 @@ typedef struct _PyThreadStateImpl {",
+        "Modules/_remote_debugging/threads.c:@@ -0,0 +1,798 @@ "
+      ],
+      "notes": "CPython change; no direct inventory site matched"
+    },
+    {
+      "symbol": "f_executable",
+      "change_kind": "new_field_or_enum",
+      "priority": "advisory",
+      "inventory_key": "field_access:f_executable",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h",
+          "line": 71
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/profiling_helpers/frame_accessors.h",
+          "line": 75
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 262
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 314
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h",
+        "Modules/_remote_debugging/asyncio.c",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -24,6 +24,36 @@ static inline PyCodeObject *_PyFrame_GetCode(_PyInterpreterFrame *f) {",
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ ",
+        "Objects/genobject.c:@@ -922,6 +1100,7 @@ make_gen(PyTypeObject *type, PyFunctionObject *func)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "gi_frame_state",
+      "change_kind": "moved_header",
+      "priority": "advisory",
+      "inventory_key": "field_access:gi_frame_state",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 248
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 250
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 296
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 355
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 386
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 387
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 87
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 105
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/src/echion/tasks.cc",
+          "line": 130
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp",
+          "line": 60
+        }
+      ],
+      "cpython_paths": [
+        "Modules/_remote_debugging/asyncio.c",
+        "Objects/frameobject.c",
+        "Objects/genobject.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_frame_state_315.cpp / test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ ",
+        "Objects/frameobject.c:@@ -1996,30 +2014,20 @@ frame_clear_impl(PyFrameObject *self)",
+        "Objects/genobject.c:@@ -10,6 +10,7 @@ ",
+        "Objects/genobject.c:@@ -36,6 +37,26 @@ static PyObject* async_gen_athrow_new(PyAsyncGenObject *, PyObject *);",
+        "Objects/genobject.c:@@ -83,8 +104,8 @@ gen_traverse(PyObject *self, visitproc visit, void *arg)",
+        "Objects/genobject.c:@@ -145,16 +166,41 @@ _PyGen_Finalize(PyObject *self)",
+        "Objects/genobject.c:@@ -179,7 +225,10 @@ gen_dealloc(PyObject *self)",
+        "Objects/genobject.c:@@ -188,58 +237,31 @@ gen_dealloc(PyObject *self)"
+      ],
+      "notes": ""
+    },
+    {
+      "symbol": "stackpointer",
+      "change_kind": "moved_header",
+      "priority": "advisory",
+      "inventory_key": "field_access:stackpointer",
+      "ddtrace_sites": [
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 271
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 306
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 307
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 311
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 324
+        },
+        {
+          "file": "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h",
+          "line": 340
+        }
+      ],
+      "cpython_paths": [
+        "Include/internal/pycore_interpframe.h",
+        "Modules/_remote_debugging/_remote_debugging.h",
+        "Modules/_remote_debugging/asyncio.c",
+        "Modules/_remote_debugging/frames.c"
+      ],
+      "suggested_guard": "#if PY_VERSION_HEX >= 0x030f0000",
+      "suggested_test": "test_cpython_layout_contracts.cpp",
+      "hunk_summaries": [
+        "Include/internal/pycore_interpframe.h:@@ -48,13 +103,13 @@ static inline _PyStackRef *_PyFrame_Stackbase(_PyInterpreterFrame *f) {",
+        "Modules/_remote_debugging/_remote_debugging.h:@@ -0,0 +1,693 @@ ",
+        "Modules/_remote_debugging/asyncio.c:@@ -0,0 +1,1028 @@ ",
+        "Modules/_remote_debugging/frames.c:@@ -0,0 +1,610 @@ "
+      ],
+      "notes": ""
+    }
+  ],
+  "stable_inventory": [
+    {
+      "key": "enum_macro:FRAME_OWNED_BY_FRAME_OBJECT",
+      "symbol": "FRAME_OWNED_BY_FRAME_OBJECT",
+      "kind": "enum_macro",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyBytesObject.ob_sval",
+      "symbol": "PyBytesObject.ob_sval",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyCFunctionObject.m_module",
+      "symbol": "PyCFunctionObject.m_module",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field:PyCFunctionObject.m_weakreflist",
+      "symbol": "PyCFunctionObject.m_weakreflist",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field:PyCFunctionObject.vectorcall",
+      "symbol": "PyCFunctionObject.vectorcall",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field:PyCodeObject.co_code_adaptive",
+      "symbol": "PyCodeObject.co_code_adaptive",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyCodeObject.co_firstlineno",
+      "symbol": "PyCodeObject.co_firstlineno",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyCodeObject.co_nlocalsplus",
+      "symbol": "PyCodeObject.co_nlocalsplus",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyFrameObject.f_localsplus",
+      "symbol": "PyFrameObject.f_localsplus",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyGenObject.gi_iframe",
+      "symbol": "PyGenObject.gi_iframe",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyInterpreterState.asyncio_tasks_head",
+      "symbol": "PyInterpreterState.asyncio_tasks_head",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyInterpreterState.id",
+      "symbol": "PyInterpreterState.id",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyInterpreterState.next",
+      "symbol": "PyInterpreterState.next",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:PyInterpreterState.tstate_head",
+      "symbol": "PyInterpreterState.tstate_head",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:TaskObj.task_node",
+      "symbol": "TaskObj.task_node",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:_PyInterpreterFrame.f_executable",
+      "symbol": "_PyInterpreterFrame.f_executable",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:_PyInterpreterFrame.localsplus",
+      "symbol": "_PyInterpreterFrame.localsplus",
+      "kind": "struct_field",
+      "site_count": 5
+    },
+    {
+      "key": "field:_PyInterpreterFrame.stackpointer",
+      "symbol": "_PyInterpreterFrame.stackpointer",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:_PyThreadStateImpl.asyncio_tasks_head",
+      "symbol": "_PyThreadStateImpl.asyncio_tasks_head",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field:__pyx_CoroutineObject.gi_code",
+      "symbol": "__pyx_CoroutineObject.gi_code",
+      "kind": "struct_field",
+      "site_count": 2
+    },
+    {
+      "key": "field:__pyx_CoroutineObject.gi_modulename",
+      "symbol": "__pyx_CoroutineObject.gi_modulename",
+      "kind": "struct_field",
+      "site_count": 2
+    },
+    {
+      "key": "field:__pyx_CoroutineObject.gi_weakreflist",
+      "symbol": "__pyx_CoroutineObject.gi_weakreflist",
+      "kind": "struct_field",
+      "site_count": 2
+    },
+    {
+      "key": "field:__pyx_CoroutineObject.yieldfrom",
+      "symbol": "__pyx_CoroutineObject.yieldfrom",
+      "kind": "struct_field",
+      "site_count": 2
+    },
+    {
+      "key": "field:__pyx_CyFunctionObject.func_dict",
+      "symbol": "__pyx_CyFunctionObject.func_dict",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field:__pyx_CyFunctionObject.func_vectorcall",
+      "symbol": "__pyx_CyFunctionObject.func_vectorcall",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field:__pyx_CyFunctionObject.func_weakreflist",
+      "symbol": "__pyx_CyFunctionObject.func_weakreflist",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field:type.member",
+      "symbol": "type.member",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field_access:cframe",
+      "symbol": "cframe",
+      "kind": "struct_field",
+      "site_count": 9
+    },
+    {
+      "key": "field_access:co_nlocalsplus",
+      "symbol": "co_nlocalsplus",
+      "kind": "struct_field",
+      "site_count": 4
+    },
+    {
+      "key": "field_access:current_frame",
+      "symbol": "current_frame",
+      "kind": "struct_field",
+      "site_count": 13
+    },
+    {
+      "key": "field_access:frame",
+      "symbol": "frame",
+      "kind": "struct_field",
+      "site_count": 39
+    },
+    {
+      "key": "field_access:gi_iframe",
+      "symbol": "gi_iframe",
+      "kind": "struct_field",
+      "site_count": 2
+    },
+    {
+      "key": "field_access:owner",
+      "symbol": "owner",
+      "kind": "struct_field",
+      "site_count": 6
+    },
+    {
+      "key": "field_access:previous",
+      "symbol": "previous",
+      "kind": "struct_field",
+      "site_count": 9
+    },
+    {
+      "key": "field_access:task_coro",
+      "symbol": "task_coro",
+      "kind": "struct_field",
+      "site_count": 1
+    },
+    {
+      "key": "field_access:task_fut_waiter",
+      "symbol": "task_fut_waiter",
+      "kind": "struct_field",
+      "site_count": 2
+    },
+    {
+      "key": "field_access:task_name",
+      "symbol": "task_name",
+      "kind": "struct_field",
+      "site_count": 8
+    },
+    {
+      "key": "field_access:task_node",
+      "symbol": "task_node",
+      "kind": "struct_field",
+      "site_count": 24
+    },
+    {
+      "key": "include:cpython/genobject.h",
+      "symbol": "cpython/genobject.h",
+      "kind": "include",
+      "site_count": 2
+    },
+    {
+      "key": "include:internal/pycore_code.h",
+      "symbol": "internal/pycore_code.h",
+      "kind": "include",
+      "site_count": 2
+    },
+    {
+      "key": "include:internal/pycore_dict.h",
+      "symbol": "internal/pycore_dict.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "include:internal/pycore_frame.h",
+      "symbol": "internal/pycore_frame.h",
+      "kind": "include",
+      "site_count": 18
+    },
+    {
+      "key": "include:internal/pycore_gc.h",
+      "symbol": "internal/pycore_gc.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "include:internal/pycore_interp.h",
+      "symbol": "internal/pycore_interp.h",
+      "kind": "include",
+      "site_count": 2
+    },
+    {
+      "key": "include:internal/pycore_interpframe.h",
+      "symbol": "internal/pycore_interpframe.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "include:internal/pycore_interpframe_structs.h",
+      "symbol": "internal/pycore_interpframe_structs.h",
+      "kind": "include",
+      "site_count": 4
+    },
+    {
+      "key": "include:internal/pycore_llist.h",
+      "symbol": "internal/pycore_llist.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "include:internal/pycore_long.h",
+      "symbol": "internal/pycore_long.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "include:internal/pycore_opcode.h",
+      "symbol": "internal/pycore_opcode.h",
+      "kind": "include",
+      "site_count": 2
+    },
+    {
+      "key": "include:internal/pycore_pystate.h",
+      "symbol": "internal/pycore_pystate.h",
+      "kind": "include",
+      "site_count": 3
+    },
+    {
+      "key": "include:internal/pycore_runtime.h",
+      "symbol": "internal/pycore_runtime.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "include:internal/pycore_stackref.h",
+      "symbol": "internal/pycore_stackref.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "include:internal/pycore_tstate.h",
+      "symbol": "internal/pycore_tstate.h",
+      "kind": "include",
+      "site_count": 1
+    },
+    {
+      "key": "mirror:FutureObj",
+      "symbol": "FutureObj",
+      "kind": "c_file_mirror",
+      "site_count": 12
+    },
+    {
+      "key": "mirror:GenObject",
+      "symbol": "GenObject",
+      "kind": "c_file_mirror",
+      "site_count": 30
+    },
+    {
+      "key": "mirror:Modules/_remote_debugging",
+      "symbol": "Modules/_remote_debugging",
+      "kind": "c_file_mirror",
+      "site_count": 2
+    },
+    {
+      "key": "mirror:Objects/genobject.c",
+      "symbol": "Objects/genobject.c",
+      "kind": "c_file_mirror",
+      "site_count": 1
+    },
+    {
+      "key": "mirror:genobject",
+      "symbol": "genobject",
+      "kind": "c_file_mirror",
+      "site_count": 4
+    },
+    {
+      "key": "py_version_guard:sys.version_info < (3, 12)",
+      "symbol": "sys.version_info < (3, 12)",
+      "kind": "version_guard",
+      "site_count": 1
+    },
+    {
+      "key": "py_version_guard:sys.version_info >= (3, 15)",
+      "symbol": "sys.version_info >= (3, 15)",
+      "kind": "version_guard",
+      "site_count": 1
+    },
+    {
+      "key": "type:FutureObj",
+      "symbol": "FutureObj",
+      "kind": "struct_type",
+      "site_count": 1
+    },
+    {
+      "key": "type:PyCodeObject",
+      "symbol": "PyCodeObject",
+      "kind": "struct_type",
+      "site_count": 103
+    },
+    {
+      "key": "type:PyFrameObject",
+      "symbol": "PyFrameObject",
+      "kind": "struct_type",
+      "site_count": 42
+    },
+    {
+      "key": "type:PyGenObject",
+      "symbol": "PyGenObject",
+      "kind": "struct_type",
+      "site_count": 23
+    },
+    {
+      "key": "type:PyThreadState",
+      "symbol": "PyThreadState",
+      "kind": "struct_type",
+      "site_count": 209
+    },
+    {
+      "key": "type:llist_node",
+      "symbol": "llist_node",
+      "kind": "struct_type",
+      "site_count": 12
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x03080000",
+      "symbol": "PY_VERSION_HEX < 0x03080000",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030800B1",
+      "symbol": "PY_VERSION_HEX < 0x030800B1",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x03090000",
+      "symbol": "PY_VERSION_HEX < 0x03090000",
+      "kind": "version_guard",
+      "site_count": 26
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030900B1",
+      "symbol": "PY_VERSION_HEX < 0x030900B1",
+      "kind": "version_guard",
+      "site_count": 12
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030A0000",
+      "symbol": "PY_VERSION_HEX < 0x030A0000",
+      "kind": "version_guard",
+      "site_count": 24
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030A00A3",
+      "symbol": "PY_VERSION_HEX < 0x030A00A3",
+      "kind": "version_guard",
+      "site_count": 10
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030A00F0",
+      "symbol": "PY_VERSION_HEX < 0x030A00F0",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030B0000",
+      "symbol": "PY_VERSION_HEX < 0x030B0000",
+      "kind": "version_guard",
+      "site_count": 3
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030C0000",
+      "symbol": "PY_VERSION_HEX < 0x030C0000",
+      "kind": "version_guard",
+      "site_count": 56
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030C00A5",
+      "symbol": "PY_VERSION_HEX < 0x030C00A5",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030C00A6",
+      "symbol": "PY_VERSION_HEX < 0x030C00A6",
+      "kind": "version_guard",
+      "site_count": 16
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030C00A7",
+      "symbol": "PY_VERSION_HEX < 0x030C00A7",
+      "kind": "version_guard",
+      "site_count": 20
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030C00B2",
+      "symbol": "PY_VERSION_HEX < 0x030C00B2",
+      "kind": "version_guard",
+      "site_count": 6
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030E0000",
+      "symbol": "PY_VERSION_HEX < 0x030E0000",
+      "kind": "version_guard",
+      "site_count": 30
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030F00a3",
+      "symbol": "PY_VERSION_HEX < 0x030F00a3",
+      "kind": "version_guard",
+      "site_count": 12
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030a0000",
+      "symbol": "PY_VERSION_HEX < 0x030a0000",
+      "kind": "version_guard",
+      "site_count": 15
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030b0000",
+      "symbol": "PY_VERSION_HEX < 0x030b0000",
+      "kind": "version_guard",
+      "site_count": 1
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030d0000",
+      "symbol": "PY_VERSION_HEX < 0x030d0000",
+      "kind": "version_guard",
+      "site_count": 61
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030d00A1",
+      "symbol": "PY_VERSION_HEX < 0x030d00A1",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030e00A6",
+      "symbol": "PY_VERSION_HEX < 0x030e00A6",
+      "kind": "version_guard",
+      "site_count": 7
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX < 0x030f0000",
+      "symbol": "PY_VERSION_HEX < 0x030f0000",
+      "kind": "version_guard",
+      "site_count": 11
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX <= 0x030A00A1",
+      "symbol": "PY_VERSION_HEX <= 0x030A00A1",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX > 0x030900B1",
+      "symbol": "PY_VERSION_HEX > 0x030900B1",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX > 0x030F0000",
+      "symbol": "PY_VERSION_HEX > 0x030F0000",
+      "kind": "version_guard",
+      "site_count": 1
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX > 0x030F00A8",
+      "symbol": "PY_VERSION_HEX > 0x030F00A8",
+      "kind": "version_guard",
+      "site_count": 6
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x03080000",
+      "symbol": "PY_VERSION_HEX >= 0x03080000",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030800B1",
+      "symbol": "PY_VERSION_HEX >= 0x030800B1",
+      "kind": "version_guard",
+      "site_count": 1
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030800B2",
+      "symbol": "PY_VERSION_HEX >= 0x030800B2",
+      "kind": "version_guard",
+      "site_count": 1
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030800b4",
+      "symbol": "PY_VERSION_HEX >= 0x030800b4",
+      "kind": "version_guard",
+      "site_count": 3
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x03090000",
+      "symbol": "PY_VERSION_HEX >= 0x03090000",
+      "kind": "version_guard",
+      "site_count": 26
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030900A4",
+      "symbol": "PY_VERSION_HEX >= 0x030900A4",
+      "kind": "version_guard",
+      "site_count": 4
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030900B1",
+      "symbol": "PY_VERSION_HEX >= 0x030900B1",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030900F0",
+      "symbol": "PY_VERSION_HEX >= 0x030900F0",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030A0000",
+      "symbol": "PY_VERSION_HEX >= 0x030A0000",
+      "kind": "version_guard",
+      "site_count": 7
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030A00B1",
+      "symbol": "PY_VERSION_HEX >= 0x030A00B1",
+      "kind": "version_guard",
+      "site_count": 32
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030A00b1",
+      "symbol": "PY_VERSION_HEX >= 0x030A00b1",
+      "kind": "version_guard",
+      "site_count": 10
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030B0000",
+      "symbol": "PY_VERSION_HEX >= 0x030B0000",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030B00A1",
+      "symbol": "PY_VERSION_HEX >= 0x030B00A1",
+      "kind": "version_guard",
+      "site_count": 2
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030B00A2",
+      "symbol": "PY_VERSION_HEX >= 0x030B00A2",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030B00a4",
+      "symbol": "PY_VERSION_HEX >= 0x030B00a4",
+      "kind": "version_guard",
+      "site_count": 31
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030C0000",
+      "symbol": "PY_VERSION_HEX >= 0x030C0000",
+      "kind": "version_guard",
+      "site_count": 77
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030C00A5",
+      "symbol": "PY_VERSION_HEX >= 0x030C00A5",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030C00A6",
+      "symbol": "PY_VERSION_HEX >= 0x030C00A6",
+      "kind": "version_guard",
+      "site_count": 36
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030C00A7",
+      "symbol": "PY_VERSION_HEX >= 0x030C00A7",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030E0000",
+      "symbol": "PY_VERSION_HEX >= 0x030E0000",
+      "kind": "version_guard",
+      "site_count": 116
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030F0000",
+      "symbol": "PY_VERSION_HEX >= 0x030F0000",
+      "kind": "version_guard",
+      "site_count": 24
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030a0000",
+      "symbol": "PY_VERSION_HEX >= 0x030a0000",
+      "kind": "version_guard",
+      "site_count": 28
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030b0000",
+      "symbol": "PY_VERSION_HEX >= 0x030b0000",
+      "kind": "version_guard",
+      "site_count": 69
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030b00a6",
+      "symbol": "PY_VERSION_HEX >= 0x030b00a6",
+      "kind": "version_guard",
+      "site_count": 10
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030c0000",
+      "symbol": "PY_VERSION_HEX >= 0x030c0000",
+      "kind": "version_guard",
+      "site_count": 23
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030c00A1",
+      "symbol": "PY_VERSION_HEX >= 0x030c00A1",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030d0000",
+      "symbol": "PY_VERSION_HEX >= 0x030d0000",
+      "kind": "version_guard",
+      "site_count": 87
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030d00A1",
+      "symbol": "PY_VERSION_HEX >= 0x030d00A1",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030d00A2",
+      "symbol": "PY_VERSION_HEX >= 0x030d00A2",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030d00A4",
+      "symbol": "PY_VERSION_HEX >= 0x030d00A4",
+      "kind": "version_guard",
+      "site_count": 43
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030d00A6",
+      "symbol": "PY_VERSION_HEX >= 0x030d00A6",
+      "kind": "version_guard",
+      "site_count": 20
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030d00B1",
+      "symbol": "PY_VERSION_HEX >= 0x030d00B1",
+      "kind": "version_guard",
+      "site_count": 8
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030e0000",
+      "symbol": "PY_VERSION_HEX >= 0x030e0000",
+      "kind": "version_guard",
+      "site_count": 25
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030f0000",
+      "symbol": "PY_VERSION_HEX >= 0x030f0000",
+      "kind": "version_guard",
+      "site_count": 7
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x030f00a6",
+      "symbol": "PY_VERSION_HEX >= 0x030f00a6",
+      "kind": "version_guard",
+      "site_count": 9
+    },
+    {
+      "key": "version_guard:PY_VERSION_HEX >= 0x30b0000",
+      "symbol": "PY_VERSION_HEX >= 0x30b0000",
+      "kind": "version_guard",
+      "site_count": 1
+    }
+  ],
+  "awareness_hunks_sample": [
+    {
+      "path": "Include/internal/pycore_code.h",
+      "header": "typedef struct {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_code.h",
+      "header": "extern PyObject* _PyCode_GetFreevars(PyCodeObject *);",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_code.h",
+      "header": "write_location_entry_start(uint8_t *ptr, int code, int length)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_code.h",
+      "header": "typedef struct {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_code.h",
+      "header": "_PyCode_GetTLBCFast(PyThreadState *tstate, PyCodeObject *co)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_code.h",
+      "header": "PyAPI_FUNC(int) _PyCode_VerifyStateless(",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_debug_offsets.h",
+      "header": "typedef struct _Py_DebugOffsets {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_debug_offsets.h",
+      "header": "typedef struct _Py_DebugOffsets {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "PyAPI_FUNC(int) _PyDict_SetItem_KnownHash(PyObject *mp, PyObject *key,",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "extern int _PyDict_HasOnlyStringKeys(PyObject *mp);",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "PyAPI_FUNC(int) _PyDict_SetItem_KnownHash_LockHeld(PyDictObject *mp, PyObject *k",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "extern void _PyDict_Clear_LockHeld(PyObject *op);",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "static inline PyDictUnicodeEntry* DK_UNICODE_ENTRIES(PyDictKeysObject *dk) {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "_PyDict_SendEvent(int watcher_bits,",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "_PyDict_UniqueId(PyDictObject *mp)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "_Py_INCREF_DICT(PyObject *op)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_dict.h",
+      "header": "_Py_DECREF_BUILTINS(PyObject *op)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_gc.h",
+      "header": "static inline void _PyGC_CLEAR_FINALIZED(PyObject *op) {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_gc.h",
+      "header": "static inline void _PyObject_GC_TRACK(",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_gc.h",
+      "header": "static inline void _PyObject_GC_UNTRACK(",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_gc.h",
+      "header": "extern PyObject *_PyGC_GetReferrers(PyInterpreterState *interp, PyObject *objs);",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_interpframe.h",
+      "header": "_PyThreadState_GetFrame(PyThreadState *tstate)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_long.h",
+      "header": "extern int _PyLong_FormatWriter(",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_long.h",
+      "header": "_PyLong_BothAreCompact(const PyLongObject* a, const PyLongObject* b) {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_long.h",
+      "header": "_PyLong_FlipSign(PyLongObject *op) {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_pystate.h",
+      "header": "_Py_ThreadCanHandleSignals(PyInterpreterState *interp)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_pystate.h",
+      "header": "PyAPI_FUNC(PyThreadState *) _PyThreadState_GetCurrent(void);",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_pystate.h",
+      "header": "_Py_EnsureFuncTstateNotNULL(const char *func, PyThreadState *tstate)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_pystate.h",
+      "header": "_Py_RecursionLimit_GetMargin(PyThreadState *tstate)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_stackref.h",
+      "header": "PyStackRef_XCLOSE(_PyStackRef ref)",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_tstate.h",
+      "header": "struct _gc_thread_state {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_tstate.h",
+      "header": "typedef struct _PyThreadStateImpl {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Include/internal/pycore_tstate.h",
+      "header": "typedef struct _PyThreadStateImpl {",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/__main__.py",
+      "header": "def callback():",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/__main__.py",
+      "header": "def run(self):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/__main__.py",
+      "header": "def run(self):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/__main__.py",
+      "header": "def interrupt(self) -> None:",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/base_events.py",
+      "header": "async def sock_sendfile(self, sock, file, offset=0, count=None,",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/base_events.py",
+      "header": "async def sendfile(self, transport, file, offset=0, count=None,",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/base_events.py",
+      "header": "async def start_tls(self, transport, protocol, sslcontext, *,",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/base_subprocess.py",
+      "header": "def __init__(self, loop, protocol, args, shell,",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/base_subprocess.py",
+      "header": "async def _connect_pipes(self, waiter):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/base_subprocess.py",
+      "header": "def _try_finish(self):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/base_subprocess.py",
+      "header": "def _call_connection_lost(self, exc):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/futures.py",
+      "header": "def __init__(self, *, loop=None):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/futures.py",
+      "header": "def _set_concurrent_future_state(concurrent, source):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/futures.py",
+      "header": "def _set_state(future, other):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/futures.py",
+      "header": "def _call_set_state(source):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/proactor_events.py",
+      "header": "def _pipe_closed(self, fut):",
+      "note": "diff hunk with no recognized symbols"
+    },
+    {
+      "path": "Lib/asyncio/proactor_events.py",
+      "header": "def sendto(self, data, addr=None):",
+      "note": "diff hunk with no recognized symbols"
+    }
+  ],
+  "hunk_count": 213,
+  "backtest_recall": {
+    "expected": 8,
+    "matched": 8,
+    "recall_pct": 100.0,
+    "rows": [
+      {
+        "id": "frame_state_renumber",
+        "source": "analysis_314_to_315.md \u00a71 / #19269 tasks.h",
+        "hit": true,
+        "matched_symbols": [
+          "FRAME_CREATED",
+          "FRAME_SUSPENDED_YIELD_FROM_LOCKED",
+          "FRAME_COMPLETED",
+          "FRAME_STATE_FINISHED",
+          "FRAME_STATE_SUSPENDED"
+        ]
+      },
+      {
+        "id": "frame_owned_by_cstack",
+        "source": "analysis_314_to_315.md \u00a72 / #19269 frame.cc",
+        "hit": true,
+        "matched_symbols": [
+          "FRAME_OWNED_BY_CSTACK"
+        ]
+      },
+      {
+        "id": "stackref_tags",
+        "source": "analysis_314_to_315.md \u00a73",
+        "hit": true,
+        "matched_symbols": [
+          "PyStackRef_IsNull",
+          "PyStackRef_NULL",
+          "Py_TAG_REFCNT",
+          "PyStackRef_AsPyObjectBorrow",
+          "PyStackRef_AsPyObjectNew",
+          "PyStackRef_AsPyObjectSteal",
+          "PyStackRef_AsStrongReference",
+          "PyStackRef_BoolCheck",
+          "PyStackRef_Borrow",
+          "PyStackRef_CLEAR",
+          "PyStackRef_CLOSE",
+          "PyStackRef_CLOSE_SPECIALIZED",
+          "PyStackRef_CheckValid",
+          "PyStackRef_CodeCheck",
+          "PyStackRef_DUP",
+          "PyStackRef_ERROR",
+          "PyStackRef_ExceptionInstanceCheck",
+          "PyStackRef_False",
+          "PyStackRef_FromPyObjectBorrow",
+          "PyStackRef_FromPyObjectImmortal",
+          "PyStackRef_FromPyObjectNew",
+          "PyStackRef_FromPyObjectNewMortal",
+          "PyStackRef_FromPyObjectSteal",
+          "PyStackRef_FromPyObjectStealMortal",
+          "PyStackRef_FunctionCheck",
+          "PyStackRef_GenCheck",
+          "PyStackRef_IncrementTaggedIntNoOverflow",
+          "PyStackRef_IsDeferred",
+          "PyStackRef_IsError",
+          "PyStackRef_IsFalse",
+          "PyStackRef_IsHeapSafe",
+          "PyStackRef_IsMalformed",
+          "PyStackRef_IsNone",
+          "PyStackRef_IsNullOrInt",
+          "PyStackRef_IsTaggedInt",
+          "PyStackRef_IsTrue",
+          "PyStackRef_IsValid",
+          "PyStackRef_MakeHeapSafe",
+          "PyStackRef_NULL_BITS",
+          "PyStackRef_None",
+          "PyStackRef_NotDeferred_AsPyObject",
+          "PyStackRef_RefcountOnObject",
+          "PyStackRef_TYPE",
+          "PyStackRef_TagInt",
+          "PyStackRef_True",
+          "PyStackRef_UntagInt",
+          "PyStackRef_Unwrap",
+          "PyStackRef_Wrap",
+          "PyStackRef_XCLOSE",
+          "PyStackRef_XSETREF",
+          "PyStackRef_ZERO_BITS",
+          "Py_TAGGED_SHIFT",
+          "Py_TAG_BITS",
+          "Py_TAG_DEFERRED",
+          "Py_TAG_INVALID",
+          "Py_TAG_PTR",
+          "_PyStackRef"
+        ]
+      },
+      {
+        "id": "base_frame",
+        "source": "analysis_314_to_315.md \u00a75",
+        "hit": true,
+        "matched_symbols": [
+          "base_frame"
+        ]
+      },
+      {
+        "id": "asyncio_debug_sym",
+        "source": "analysis_314_to_315.md \u00a76",
+        "hit": true,
+        "matched_symbols": [
+          "_AsyncioDebug",
+          "_Py_AsyncioDebug"
+        ]
+      },
+      {
+        "id": "genobject_stack_peek",
+        "source": "tasks.h cites Objects/genobject.c / #19269",
+        "hit": true,
+        "matched_symbols": [
+          "_PyFrame_StackPeek",
+          "gi_frame_state",
+          "stackpointer"
+        ]
+      },
+      {
+        "id": "remote_debugging",
+        "source": "tasks.h cites Modules/_remote_debugging",
+        "hit": true,
+        "matched_symbols": [
+          "_AsyncioDebug",
+          "_Py_AsyncioDebug"
+        ]
+      },
+      {
+        "id": "asyncio_monitoring",
+        "source": "#19272 _asyncio.py sys.monitoring path",
+        "hit": true,
+        "matched_symbols": [
+          "asyncio private / task APIs",
+          "ddtrace.internal.wrapping.wrap",
+          "sys.monitoring"
+        ]
+      }
+    ]
+  }
+}

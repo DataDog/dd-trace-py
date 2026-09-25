@@ -171,6 +171,9 @@ After running this skill, you should have:
 - **migrate-profiling-new-cpython skill**: Orchestrator for the next minor (phase
   checklist, gotchas, hard stops). Prefer it when adding profiling support for a
   new CPython version.
+- **scripts/cpython_delta/**: Inventory + CPython diff join that emits
+  `docs/cpython-diffs/work_<old>_to_<new>.md`. Prefer this over hand-assembling
+  a work list from greps; still run this skill's header compares for context.
 - **find-cpython-usage skill**: Use to identify what to compare
 
 Profiling hotspots for compare (also listed in PROFILING_STACK / the orchestrator):

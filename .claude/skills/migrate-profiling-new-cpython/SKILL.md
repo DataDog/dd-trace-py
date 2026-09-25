@@ -50,7 +50,16 @@ Print which rows apply before doing work.
 2. Skill **find-cpython-usage** (profiling file list below).
 3. Skill **compare-cpython-versions** (prev → target tags). Hotspots:
    `tasks.h`, frame state / `pycore_frame*`, `_asyncio.py`.
-4. Follow-up (stacked PR / later): `scripts/cpython_delta/` worklist when present.
+4. **`scripts/cpython_delta/` worklist** (itemized, preferred over hand-grep):
+   ```bash
+   python3 scripts/cpython_delta/inventory.py
+   python3 scripts/cpython_delta/diff.py v<PREV>.0 v<TARGET>aN --backtest   # first alpha
+   # Rerun at each aN/bN/rcN; diff consecutive work_*.json for new rows only.
+   ```
+   Read `docs/cpython-diffs/work_<old>_to_<new>.md`. For every
+   `breaks_build` / `silent_misread` row: open the CPython hunk + ddtrace
+   sites, confirm or downgrade, write the fix plan. Py-315 recall baseline:
+   8/8 vs `analysis_314_to_315.md` + #19269/#19272 on `v3.14.0..v3.15.0a7`.
 5. Native ABI PR pattern: #19269. PASS: layout contract tests compile on target.
 
 ### Beta
@@ -122,6 +131,7 @@ scripts/profiles/compatibility_baselines.json
 
 - Runbook: `docs/contributing-profiling-new-cpython.rst`
 - Catalog: `docs/cpython-diffs/py315_pr_catalog.md`
+- CPython delta pipeline: `scripts/cpython_delta/` → `docs/cpython-diffs/work_*.md`
 - Stack map: `scripts/py315-stack/PROFILING_STACK.md`
 - Skills: `find-cpython-usage`, `compare-cpython-versions`, `run-tests`, `releasenote`
 - Rule: `.cursor/rules/profiling-new-cpython.mdc`
