@@ -252,14 +252,6 @@ async def test_openai_llm_async_block(mock_execute_request, langchain_openai, op
     mock_execute_request.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# Response-side evaluation (APPSEC-70274)
-#
-# LangChain marks the AI Guard context active for the whole model call, so the
-# OpenAI / Anthropic listeners skip their own response evaluation. These tests
-# pin the replacement: the response is evaluated, and a block on it aborts the
-# call instead of handing the answer back.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
