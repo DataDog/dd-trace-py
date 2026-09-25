@@ -93,6 +93,9 @@ experiments:
           - name: errortrackingmonitoring-direct_global_active
             thresholds:
               - execution_time < 0.0019 ms
+          - name: errortrackingmonitoring-production_handler
+            thresholds:
+              - execution_time < 0.033 ms
           - name: errortrackingmonitoring-module_filter_miss
             thresholds:
               - execution_time < 0.042 ms

@@ -117,7 +117,7 @@ struct ThreadAltStack
         // owner's alt stack and break its fault handling. We free our own mapping regardless.
         stack_t cur{};
         if (sigaltstack(nullptr, &cur) == 0 && cur.ss_sp == mem && !(cur.ss_flags & SS_DISABLE)) {
-            stack_t disable{};
+            stack_t disable = cur;
             disable.ss_flags = SS_DISABLE;
             (void)sigaltstack(&disable, nullptr);
         }

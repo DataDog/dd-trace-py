@@ -21,6 +21,10 @@ direct_global_passive:
 direct_global_active:
   handler: "direct_global_active"
 
+# Production Error Tracking collector with an active span and real reporting callback.
+production_handler:
+  handler: "production_handler"
+
 # Module-only reporting: high-cardinality filenames not in the configured set.
 module_filter_miss:
   handler: "module_filter_miss"

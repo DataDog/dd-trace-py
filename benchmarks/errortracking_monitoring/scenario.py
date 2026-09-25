@@ -12,6 +12,8 @@ Configurations (direct ``sys.monitoring`` vs. multiplexer ``register_global``):
   direct callback when ``register_global`` is unavailable)
 - ``direct_global_active`` — ``register_global`` handler that counts exceptions
   (falls back to a direct callback when ``register_global`` is unavailable)
+- ``production_handler`` — the real Error Tracking collector and reporting callback
+  with an active span
 - ``module_filter_miss`` — module-only filtering with high-cardinality rejected filenames
 - ``module_filter_hit`` — module-only filtering with configured filenames
 
@@ -25,6 +27,7 @@ back to an equivalent direct callback so comparison output remains meaningful.
 
 from collections.abc import Generator
 from inspect import signature
+import os
 from types import CodeType
 from typing import Any
 from typing import Callable
@@ -81,9 +84,42 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
             yield _
             return
 
+        # -- production Error Tracking handler ---------------------------------
+
+        if self.handler == "production_handler":
+            # These settings are read when ddtrace is first imported below. Disable
+            # trace export while retaining a real active span for the reporting path.
+            os.environ["DD_ERROR_TRACKING_HANDLED_ERRORS"] = "all"
+            os.environ["DD_TRACE_ENABLED"] = "false"
+
+            from ddtrace import tracer
+            from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+            HandledExceptionCollector.enable()
+            span = tracer.trace("errortracking-monitoring-benchmark")
+
+            def cleanup() -> None:
+                try:
+                    span.finish()
+                finally:
+                    HandledExceptionCollector.disable()
+
+            # Fail the benchmark setup rather than silently measuring an inactive
+            # collector if production registration or filtering stops working.
+            try:
+                try:
+                    raise ValueError("benchmark setup")
+                except ValueError:
+                    pass
+                if not HandledExceptionCollector.get_exception_events(span.span_id):
+                    raise RuntimeError("production handled-exception callback did not report an event")
+            except Exception:
+                cleanup()
+                raise
+
         # -- direct sys.monitoring (pre-multiplexer code path) -----------------
 
-        if self.handler == "direct_passive":
+        elif self.handler == "direct_passive":
             sys_monitoring.use_tool_id(tool_id, "datadog_handled_exceptions")
             sys_monitoring.set_events(tool_id, event)
 
