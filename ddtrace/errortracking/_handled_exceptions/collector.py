@@ -132,9 +132,11 @@ class HandledExceptionCollector(Service):
 
     def _stop_service(self) -> None:
         if is_at_least_py(3, 12):
-            from ddtrace.errortracking._handled_exceptions.monitoring_reporting import _disable_monitoring
+            from ddtrace.errortracking._handled_exceptions.monitoring_reporting import (
+                _uninstall_sys_monitoring_reporting,
+            )
 
-            _disable_monitoring()
+            _uninstall_sys_monitoring_reporting()
 
     @classmethod
     def capture_exception_event(cls, span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData):
