@@ -100,9 +100,8 @@ def parse_send(instance, args, kwargs):
     return topic, value, headers, partition, key, servers
 
 
-def _dispatch_send_error(ctx, error):
-    exc_info = (type(error), error, error.__traceback__)
-    core.dispatch("aiokafka.send.completed", (ctx, exc_info, None))
+def _dispatch_send_result(ctx, exc_info=(None, None, None), record_metadata=None):
+    core.dispatch("aiokafka.send.completed", (ctx, exc_info, record_metadata))
     ctx.dispatch_ended_event(*exc_info)
 
 
@@ -119,14 +118,14 @@ async def traced_send(func, instance, args, kwargs):
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
         service=trace_utils.ext_service(None, config.aiokafka),
+        cluster_id=cluster_id,
+        tombstone=value is None,
+        message_key=key.decode("utf-8") if key else "None",
+        partition=partition,
     )
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         core.set_item("kafka_cluster_id", cluster_id)
-        event.cluster_id = cluster_id
-        event.tombstone = value is None
-        event.message_key = key.decode("utf-8") if key else "None"
-        event.partition = partition
 
         for header_key, header_value in tracing_headers.items():
             headers.append((header_key, header_value.encode("utf-8")))
@@ -137,7 +136,7 @@ async def traced_send(func, instance, args, kwargs):
         try:
             result = await func(*args, **kwargs)
         except BaseException as error:
-            _dispatch_send_error(ctx, error)
+            _dispatch_send_result(ctx, (type(error), error, error.__traceback__))
             raise
 
         def sent_callback(future):
@@ -149,10 +148,9 @@ async def traced_send(func, instance, args, kwargs):
                     event.partition = result_partition
                 if isinstance(result_offset, int):
                     event.message_offset = result_offset
-                core.dispatch("aiokafka.send.completed", (ctx, (None, None, None), record_metadata))
-                ctx.dispatch_ended_event()
+                _dispatch_send_result(ctx, record_metadata=record_metadata)
             except Exception as error:
-                _dispatch_send_error(ctx, error)
+                _dispatch_send_result(ctx, (type(error), error, error.__traceback__))
 
         result.add_done_callback(sent_callback)
         return result
