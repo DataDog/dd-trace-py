@@ -49,6 +49,8 @@ if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# Worker-termination status from uwsgi.h in uWSGI 2.0.29 and 2.0.31.
+UWSGI_END_CODE = 30
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
     b"number of threads must be set"
@@ -241,12 +243,18 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
 
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
-        assert len(worker_pids) == 2, "expected 2 workers, saw %r" % worker_pids
+        assert len(worker_pids) == 2, "expected 2 workers, saw %r (uwsgi returncode=%r)" % (
+            worker_pids,
+            proc.poll(),
+        )
         for pid in worker_pids:
             _wait_for_profile_samples(filename, pid, "wall-time")
     finally:
         proc.terminate()
-        proc.wait()
+        exit_code = proc.wait()
+
+    # Without --master, SIGTERM terminates a worker via uWSGI's end_me() handler.
+    assert exit_code == UWSGI_END_CODE
 
 
 def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
@@ -354,17 +362,42 @@ def _wait_for_profile_samples(
                 raise FileNotFoundError(f"No profile files found for {filename_prefix}")
 
             profiles = [pprof_utils.parse_profile(f) for f in files]
-            profile = pprof_utils.merge_profiles(profiles)
         except _retry_exc:
             time.sleep(interval)
             continue
 
-        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
+        samples: list["pprof_pb2.Sample"] = []
+        for profile in profiles:
+            try:
+                samples.extend(pprof_utils.get_samples_with_value_type(profile, value_type))
+            except StopIteration:
+                continue
+
         if samples:
             return samples
         time.sleep(interval)
 
     assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
+
+
+def test_wait_for_profile_samples_retries_missing_sample_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wait for a later profile when an early flush lacks the requested sample type."""
+    sample = object()
+    profile_polls = iter([["early.pprof"], ["early.pprof", "ready.pprof"]])
+    inspected_profiles: list[str] = []
+
+    def get_samples_with_value_type(profile: str, _value_type: str) -> list[object]:
+        inspected_profiles.append(profile)
+        if profile == "early.pprof":
+            raise StopIteration
+        return [sample]
+
+    monkeypatch.setattr(glob, "glob", lambda _pattern: next(profile_polls))
+    monkeypatch.setattr(pprof_utils, "parse_profile", lambda filename: filename)
+    monkeypatch.setattr(pprof_utils, "get_samples_with_value_type", get_samples_with_value_type)
+
+    assert _wait_for_profile_samples("prefix", 123, "wall-time", interval=0) == [sample]
+    assert inspected_profiles == ["early.pprof", "early.pprof", "ready.pprof"]
 
 
 def test_uwsgi_threads_processes_primary(
