@@ -19,7 +19,6 @@ import sys
 from types import CodeType
 from typing import Any
 from typing import Callable
-from typing import Iterable
 from typing import Iterator
 from typing import NamedTuple
 from typing import Optional
@@ -267,6 +266,7 @@ class _CodeHandlers:
 
     __slots__ = (
         "_by_handler",
+        "possibly_disabled_events",
         "line_possibly_disabled",
         "py_start_possibly_disabled",
         "start_callbacks",
@@ -280,6 +280,7 @@ class _CodeHandlers:
         # Event bits for which the aggregate callback has returned DISABLE at
         # least once. This is intentionally conservative: stale bits can cause
         # an unnecessary targeted re-arm, while missing a bit can lose events.
+        self.possibly_disabled_events: int = 0
         # Separate flags avoid lost read-modify-write updates when different
         # event callbacks run concurrently on free-threaded Python.
         self.py_start_possibly_disabled: bool = False
@@ -306,23 +307,11 @@ class _CodeHandlers:
     def _update_callbacks(self) -> None:
         # Bind and filter at registration time, not on every delivered event.
         # Each immutable tuple also preserves the in-flight dispatch snapshot.
-        start_callbacks: list[Callable[[CodeType, int], Optional[object]]] = []
-        return_callbacks: list[Callable[[CodeType, int, object], None]] = []
-        unwind_callbacks: list[Callable[[CodeType, int, BaseException], None]] = []
-        line_callbacks: list[Callable[[CodeType, int], Optional[object]]] = []
-        for entry in self._by_handler.values():
-            if entry.events & _E.PY_START:
-                start_callbacks.append(entry.handler.on_py_start)
-            if entry.events & _E.PY_RETURN:
-                return_callbacks.append(entry.handler.on_py_return)
-            if entry.events & _E.PY_UNWIND:
-                unwind_callbacks.append(entry.handler.on_py_unwind)
-            if entry.events & _E.LINE:
-                line_callbacks.append(entry.handler.on_py_line)
-        self.start_callbacks = tuple(start_callbacks)
-        self.return_callbacks = tuple(return_callbacks)
-        self.unwind_callbacks = tuple(unwind_callbacks)
-        self.line_callbacks = tuple(line_callbacks)
+        entries = self._by_handler.values()
+        self.start_callbacks = tuple(e.handler.on_py_start for e in entries if e.events & _E.PY_START)
+        self.return_callbacks = tuple(e.handler.on_py_return for e in entries if e.events & _E.PY_RETURN)
+        self.unwind_callbacks = tuple(e.handler.on_py_unwind for e in entries if e.events & _E.PY_UNWIND)
+        self.line_callbacks = tuple(e.handler.on_py_line for e in entries if e.events & _E.LINE)
 
 
 def _events_for(handlers: _CodeHandlers) -> int:
