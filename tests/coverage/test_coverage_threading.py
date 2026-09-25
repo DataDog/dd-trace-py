@@ -114,16 +114,7 @@ def test_coverage_concurrent_futures_threadpool_session():
 
 @pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_context_isolated_across_threads():
-    """Regression: ctx_covered and ctx_covered_files must be context-local, not shared defaults.
-
-    A background thread entering its own CollectInContext must not push onto (or pop from) the
-    main thread's coverage stacks. Previously ctx_covered and ctx_covered_files used default=[]
-    (a single shared list object returned by ContextVar.get() in every thread), so the
-    CollectInContext.__init__ ``is None`` guard never fired and every thread shared one stack.
-    A thread's push/pop then corrupted the main stack and could mutate the dict that
-    get_coverage_bitmaps() was iterating, raising ``RuntimeError: dictionary changed size
-    during iteration``.
-    """
+    """A worker collecting coverage must not share the parent's context stacks."""
     import os
     from pathlib import Path
     import threading
@@ -135,57 +126,42 @@ def test_coverage_context_isolated_across_threads():
 
     cwd = os.getcwd()
     install(include_paths=[Path(cwd) / "tests/coverage/included_path/"])
-    ModuleCodeCollector.start_coverage()
-
     thread_entered = threading.Event()
     thread_can_exit = threading.Event()
-    observed = {}
 
     with ModuleCodeCollector.CollectInContext():
-        main_top_dict = ctx_covered.get()[-1]
-        main_top_files = ctx_covered_files.get()[-1]
+        main_lines_stack = ctx_covered.get()
+        main_files_stack = ctx_covered_files.get()
+        main_lines = main_lines_stack[-1]
+        main_files = main_files_stack[-1]
 
         def worker():
-            # threading_coverage auto-enters a CollectInContext in _bootstrap_inner before
-            # running this target, so the thread's context is active by the time we signal.
-            thread_entered.set()
+            # The patched _bootstrap_inner enters a coverage context before calling the target.
             from tests.coverage.included_path.callee import called_in_context_main
 
             called_in_context_main(1, 2)
-            thread_can_exit.wait()
+            thread_entered.set()
+            thread_can_exit.wait(timeout=10)
 
-        t = threading.Thread(target=worker)
-        t.start()
-        thread_entered.wait()
+        thread = threading.Thread(target=worker)
+        thread.start()
+        try:
+            assert thread_entered.wait(timeout=5), "Worker did not enter its coverage context"
+            # On Python 3.14 the target runs in a snapshot context, so inspect the
+            # parent's stacks while the patched bootstrap's context is still active.
+            assert hasattr(thread, "_coverage_context")
+            assert ctx_covered.get() is main_lines_stack
+            assert ctx_covered_files.get() is main_files_stack
+            assert len(main_lines_stack) == len(main_files_stack) == 1
+            assert main_lines_stack[-1] is main_lines
+            assert main_files_stack[-1] is main_files
+        finally:
+            thread_can_exit.set()
+            thread.join(timeout=5)
 
-        # While the thread's CollectInContext is active, the main thread must still observe its
-        # OWN stacks and top entries, unaffected by the thread's push. CollectInContext.__enter__
-        # appends to both ctx_covered and ctx_covered_files unconditionally, so both must remain
-        # isolated. (With the buggy default=[] the thread's push lands on the shared stack and
-        # the main thread sees the thread's entry on top.)
-        observed["top_is_main"] = ctx_covered.get()[-1] is main_top_dict
-        observed["stack_len"] = len(ctx_covered.get())
-        observed["files_top_is_main"] = ctx_covered_files.get()[-1] is main_top_files
-        observed["files_stack_len"] = len(ctx_covered_files.get())
-
-        thread_can_exit.set()
-        t.join()
-
-    assert observed["top_is_main"], (
-        "Main thread's ctx_covered stack was corrupted by a background thread: "
-        "ctx_covered is shared across threads instead of being context-local"
-    )
-    assert observed["stack_len"] == 1, (
-        f"Main thread's ctx_covered stack should contain only its own context, got len={observed['stack_len']}"
-    )
-    assert observed["files_top_is_main"], (
-        "Main thread's ctx_covered_files stack was corrupted by a background thread: "
-        "ctx_covered_files is shared across threads instead of being context-local"
-    )
-    assert observed["files_stack_len"] == 1, (
-        f"Main thread's ctx_covered_files stack should contain only its own context, "
-        f"got len={observed['files_stack_len']}"
-    )
+        assert not thread.is_alive(), "Worker did not exit its coverage context"
+        assert main_lines_stack[-1] is main_lines
+        assert main_files_stack[-1] is main_files
 
 
 @pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
