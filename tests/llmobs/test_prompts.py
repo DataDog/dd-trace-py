@@ -150,6 +150,55 @@ def assert_prompt_matches_response(prompt, response, expected_source):
 class TestPrompts:
     """Tests for the Managed Prompt Registry SDK."""
 
+    @pytest.mark.parametrize("chat", [False, True])
+    @pytest.mark.parametrize(
+        "template, expected",
+        [
+            ("Hello {name}!", "Hello Ada!"),
+            ("Hello {{ name }}!", "Hello Ada!"),
+            ("Hello {{name}!", "Hello {Ada!"),
+            ("Hello {name}}!", "Hello Ada}!"),
+            ("{{name}}}", "Ada}"),
+            ("{{{name}}}", "{Ada}"),
+            ("User {user_id}", "User 123"),
+            ("Hello {name}; {{missing}}", "Hello Ada; {{missing}}"),
+        ],
+    )
+    def test_format_balanced_placeholders(self, chat, template, expected):
+        prompt = ManagedPrompt(
+            id="greeting",
+            version="v1",
+            label=None,
+            source="registry",
+            template=[{"role": "user", "content": template}] if chat else template,
+        )
+
+        assert prompt.format(name="Ada", user_id="123") == (
+            [{"role": "user", "content": expected}] if chat else expected
+        )
+
+    @pytest.mark.parametrize("chat", [False, True])
+    @pytest.mark.parametrize(
+        "template",
+        [
+            '{"user": {"age": {age}}}',
+            '{"user": {"age": {{age}}}}',
+        ],
+    )
+    def test_format_preserves_json_braces(self, chat, template):
+        prompt = ManagedPrompt(
+            id="profile",
+            version="v1",
+            label=None,
+            source="registry",
+            template=[{"role": "user", "content": template}] if chat else template,
+        )
+
+        rendered = prompt.format(age="42")
+        text = rendered[0]["content"] if chat else rendered
+        assert text == '{"user": {"age": 42}}'
+        assert json.loads(text) == {"user": {"age": 42}}
+
     def test_fetch_and_render_text_prompt(self):
         """Fetch a text prompt from registry and render with variables."""
         with mock_api(200, TEXT_PROMPT_RESPONSE):
