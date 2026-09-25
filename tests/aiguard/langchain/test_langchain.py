@@ -1063,16 +1063,6 @@ def test_streamed_llm_resets_context_after_success(mock_execute_request, langcha
     assert is_aiguard_context_active() is False
 
 
-# ``filterwarnings`` suppresses an orthogonal pre-existing
-# span-lifecycle warning: when a langchain stream is created but never
-# iterated, ``shared_stream`` has already started the LLMObs span via
-# ``integration.trace(...)`` but ``TracedStream.__iter__``'s ``finally``
-# (which runs ``finalize_stream``) never executes, so the span is left
-# open and the test runner's "Context was not cleared after test" warning
-# fires. That span leak is a separate base stream-handler concern. These
-# tests intentionally pin the *counter* contract: an unconsumed stream
-# must not leave the AI Guard active-context counter incremented,
-# regardless of whether the span itself is finalized.
 # ---------------------------------------------------------------------------
 # Phase scoping for streaming (APPSEC-70286)
 #
@@ -1081,6 +1071,71 @@ def test_streamed_llm_resets_context_after_success(mock_execute_request, langcha
 # phase too would switch off the provider's buffered-stream evaluation and
 # leave the streamed response scanned by nobody.
 # ---------------------------------------------------------------------------
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_response_evaluated_by_provider(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url
+):
+    """LangChain evaluates the request, the OpenAI buffered stream evaluates the response."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    chunks = list(model.stream(input="how can langsmith help with testing?"))
+
+    assert chunks
+    assert mock_execute_request.call_count == 2
+    response_eval = _evaluated_messages(mock_execute_request, 1)
+    assert response_eval[-1]["role"] == "assistant"
+    assert response_eval[-1]["content"]
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_chat_async_response_evaluated_by_provider(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url
+):
+    """Async variant -- see the sync test."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    chunks = [chunk async for chunk in model.astream(input="how can langsmith help with testing?")]
+
+    assert chunks
+    assert mock_execute_request.call_count == 2
+    assert _evaluated_messages(mock_execute_request, 1)[-1]["role"] == "assistant"
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_response_blocked_by_provider(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url, decision
+):
+    """A blocked streamed response raises before any chunk reaches the caller."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    received = []
+    with pytest.raises(AIGuardAbortError):
+        for chunk in model.stream(input="how can langsmith help with testing?"):
+            received.append(chunk)
+
+    assert received == []
+    assert mock_execute_request.call_count == 2
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_response_not_evaluated_when_flag_disabled(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url
+):
+    """Turning the flag off at runtime stops stream response evaluation: only the request is evaluated."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=False)):
+        assert list(model.stream(input="how can langsmith help with testing?"))
+
+    mock_execute_request.assert_called_once()
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
@@ -1147,6 +1202,16 @@ def test_non_streamed_chat_claims_both_phases(mock_execute_request, langchain_op
     assert is_aiguard_context_active() is False
 
 
+# ``filterwarnings`` suppresses an orthogonal pre-existing
+# span-lifecycle warning: when a langchain stream is created but never
+# iterated, ``shared_stream`` has already started the LLMObs span via
+# ``integration.trace(...)`` but ``TracedStream.__iter__``'s ``finally``
+# (which runs ``finalize_stream``) never executes, so the span is left
+# open and the test runner's "Context was not cleared after test" warning
+# fires. That span leak is a separate base stream-handler concern. These
+# tests intentionally pin the *counter* contract: an unconsumed stream
+# must not leave the AI Guard active-context counter incremented,
+# regardless of whether the span itself is finalized.
 @pytest.mark.filterwarnings("ignore:Context was not cleared after test:UserWarning")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_streamed_chat_unconsumed_stream_does_not_leak_context(mock_execute_request, langchain_openai, openai_url):
