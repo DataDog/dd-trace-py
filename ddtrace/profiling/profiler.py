@@ -48,6 +48,10 @@ class Profiler:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
 
+    def install(self) -> None:
+        """Install profiler patches and signal handlers. Do not start collection."""
+        self._profiler.install()
+
     def start(self) -> None:
         """Start the profiler."""
         with Profiler._active_lock:
@@ -202,6 +206,7 @@ class _ProfilerInstance(service.Service):
         self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = _env.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._installed: bool = False
 
         self.process_tags: Optional[str] = process_tags.process_tags or None
 
@@ -222,10 +227,6 @@ class _ProfilerInstance(service.Service):
         # Build the list of enabled Profiling features and send along as a tag
         profiler_config = config_str(profiling_config)
         self.tags.update({"profiler_config": profiler_config})
-
-        endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
-        if self.endpoint_collection_enabled:
-            endpoint_call_counter_span_processor.enable()
 
         ddup.config(
             env=self.env,
@@ -281,19 +282,8 @@ class _ProfilerInstance(service.Service):
                     if any(type(c) is collector_class for c in self._collectors):
                         return
                     col = collector_class(tracer=self.tracer)
-
-                    if self.status == service.ServiceStatus.RUNNING:
-                        # The profiler is already running so we need to start the collector
-                        try:
-                            col.start()
-                            LOG.debug("Started collector %r", col)
-                        except collector.CollectorUnavailable:
-                            LOG.debug("Collector %r is unavailable, disabling", col)
-                            return
-                        except Exception:
-                            LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
-                            return
-
+                    if not self._adopt_collector(col):
+                        return
                     self._collectors.append(col)
 
             self._collectors_on_import = [
@@ -318,19 +308,8 @@ class _ProfilerInstance(service.Service):
                     if any(type(c) is collector_class for c in self._collectors):
                         return
                     col = collector_class()
-
-                    if self.status == service.ServiceStatus.RUNNING:
-                        # The profiler is already running so we need to start the collector
-                        try:
-                            col.start()
-                            LOG.debug("Started pytorch collector %r", col)
-                        except collector.CollectorUnavailable:
-                            LOG.debug("Collector %r pytorch is unavailable, disabling", col)
-                            return
-                        except Exception:
-                            LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
-                            return
-
+                    if not self._adopt_collector(col):
+                        return
                     self._collectors.append(col)
 
             if self._collectors_on_import is None:
@@ -376,8 +355,59 @@ class _ProfilerInstance(service.Service):
             }
         )
 
+    def install(self) -> None:
+        """Install profiler patches and signal handlers. Do not start collection."""
+        if self._installed:
+            return
+        # Set this before collector installation so import hooks created during
+        # installation adopt new collectors instead of leaving them unpatched.
+        self._installed = True
+        self._install_collectors()
+
+    def _install_collectors(self) -> None:
+        seen: set[int] = set()
+        while True:
+            pending = [col for col in self._collectors if id(col) not in seen]
+            if not pending:
+                return
+            for col in pending:
+                seen.add(id(col))
+                install_fn = getattr(col, "install", None)
+                if not callable(install_fn):
+                    continue
+                try:
+                    install_fn()
+                except collector.CollectorUnavailable:
+                    LOG.debug("Collector %r is unavailable, skipping install", col)
+                except Exception:
+                    LOG.error("Failed to install collector %r", col, exc_info=True)
+
+    def _adopt_collector(self, col: Union[collector.Collector, memalloc.MemoryCollector]) -> bool:
+        """Install or start a collector created after profiler setup. Return False to drop it."""
+        try:
+            if self.status == service.ServiceStatus.RUNNING:
+                col.start()
+                LOG.debug("Started collector %r", col)
+            elif self._installed:
+                install_fn = getattr(col, "install", None)
+                if callable(install_fn):
+                    install_fn()
+        except collector.CollectorUnavailable:
+            LOG.debug("Collector %r is unavailable, disabling", col)
+            return False
+        except Exception:
+            LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+            return False
+        return True
+
     def _start_service(self) -> None:
         """Start the profiler."""
+        self.install()
+
+        # Only the running scheduler resets the counter, so enabling it earlier would grow it without bound.
+        if self.endpoint_collection_enabled:
+            self.tracer._endpoint_call_counter_span_processor.enable()
+
         # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
         # inherit the patched GOT (and the activator skips a redundant re-install).
         # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED
@@ -431,6 +461,9 @@ class _ProfilerInstance(service.Service):
             if flush:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
                 self._scheduler.flush()
+
+        if self.endpoint_collection_enabled:
+            self.tracer._endpoint_call_counter_span_processor.disable()
 
         for col in reversed(self._collectors):
             try:

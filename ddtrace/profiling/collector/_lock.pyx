@@ -551,6 +551,8 @@ class LockCollector(collector.CaptureSamplerCollector):
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Optional[Callable[..., Any]] = None
         self._reimport_hook: Optional[Callable[[ModuleType], None]] = None
+        self._installed: bool = False
+        self._capture_sampler.enabled = False
 
     def _get_patch_target(self) -> Callable[..., Any]:
         return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
@@ -558,8 +560,10 @@ class LockCollector(collector.CaptureSamplerCollector):
     def _set_patch_target(self, value: Union[_LockAllocatorWrapper, Callable[..., Any], None]) -> None:
         setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
 
-    def _start_service(self) -> None:
-        """Start collecting lock usage."""
+    def install(self) -> None:
+        if self._installed:
+            return
+
         _c_initialize_gevent_support()
         self.patch()
 
@@ -595,13 +599,19 @@ class LockCollector(collector.CaptureSamplerCollector):
 
         self._reimport_hook = _on_module_reimport
         ModuleWatchdog.register_module_hook(module_name, self._reimport_hook)
+        self._installed = True
 
+    def _start_service(self) -> None:
+        self.install()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
+        self._capture_sampler.enabled = True
 
     def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
+        self._capture_sampler.enabled = False
         self.unpatch()
+        self._installed = False
         LockCollector._active_collectors.discard(self)
         if self._reimport_hook is not None:
             ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)

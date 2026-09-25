@@ -168,6 +168,18 @@ class ProfilingConfig(DDConfig):
         help="Enable Datadog profiling when using ``ddtrace-run``",
     )
 
+    install = DDConfig.v(
+        bool,
+        "install",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Install the profiler without starting it. Installation applies the patches and "
+            "signal handlers the profiler needs. ``DD_PROFILING_ENABLED`` controls whether the "
+            "profiler runs. When profiling is enabled, this is forced to true."
+        ),
+    )
+
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
 
@@ -177,6 +189,11 @@ class ProfilingConfig(DDConfig):
         if not self.enabled and _injection_enabled_has_profiler():
             self.enabled = True
             self._value_source["DD_PROFILING_ENABLED"] = ValueSource.ENV_VAR
+
+        # The profiler cannot run without its patches and signal handlers.
+        if self.enabled and not self.install:
+            self.install = True
+            self._value_source["DD_PROFILING_INSTALL"] = ValueSource.CODE
 
     agentless = DDConfig.v(
         bool,
@@ -672,13 +689,14 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
     msg = ddup_failure_msg or "libdd not available"
-    if config.enabled:
+    if config.enabled or config.install:
         logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
         f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
     )
     config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.install = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # We also need to check if stack module is available, and turn if off
 # if it s not.
@@ -686,7 +704,7 @@ stack_failure_msg, stack_is_available = _check_for_stack_available()
 if not stack_is_available:
     msg = stack_failure_msg or "stack not available"
     if config.stack.enabled:
-        if config.enabled:
+        if config.enabled or config.install:
             logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
         telemetry_writer.add_log(
             TELEMETRY_LOG_LEVEL.ERROR,

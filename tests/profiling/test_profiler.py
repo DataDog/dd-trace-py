@@ -776,6 +776,8 @@ def test_unavailable_profiler_raises_import_error() -> None:
         # using a bare instance created without calling __init__.
         bare: _UnavailableProfiler = _UnavailableProfiler.__new__(_UnavailableProfiler)
         with pytest.raises(ImportError):
+            bare.install()
+        with pytest.raises(ImportError):
             bare.start()
         with pytest.raises(ImportError):
             bare.stop()
@@ -785,3 +787,130 @@ def test_unavailable_profiler_raises_import_error() -> None:
             _ = bare.status  # delegated attribute on the real Profiler
     finally:
         _UnavailableProfiler._import_error = None
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_PROFILING_INSTALL="true", DD_PROFILING_ENABLED=None, DD_INJECTION_ENABLED=None),
+)
+def test_install_setting_does_not_start_profiler() -> None:
+    """DD_PROFILING_INSTALL applies patches without starting collection."""
+    from ddtrace.internal.service import ServiceStatus
+    import ddtrace.profiling.bootstrap as bootstrap
+    from ddtrace.profiling.collector.stack import StackCollector
+
+    prof = getattr(bootstrap, "profiler")
+    assert prof.status == ServiceStatus.STOPPED
+    assert prof._scheduler.status == ServiceStatus.STOPPED
+    stack_collectors = [c for c in prof._collectors if isinstance(c, StackCollector)]
+    assert stack_collectors
+    assert stack_collectors[0]._installed is True
+    assert stack_collectors[0].status == ServiceStatus.STOPPED
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED=None, DD_INJECTION_ENABLED=None))
+def test_install_then_start() -> None:
+    from ddtrace.internal.service import ServiceStatus
+    from ddtrace.profiling.collector.stack import StackCollector
+    from ddtrace.profiling.profiler import Profiler
+
+    prof = Profiler()
+    prof.install()
+    assert prof.status == ServiceStatus.STOPPED
+    assert prof._scheduler.status == ServiceStatus.STOPPED
+    stack_collectors = [c for c in prof._collectors if isinstance(c, StackCollector)]
+    assert stack_collectors
+    assert stack_collectors[0]._installed is True
+
+    prof.start()
+    assert prof.status == ServiceStatus.RUNNING
+    assert stack_collectors[0].status == ServiceStatus.RUNNING
+    prof.stop(flush=False)
+    assert prof.status == ServiceStatus.STOPPED
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED=None, DD_INJECTION_ENABLED=None, DD_PROFILING_ENDPOINT_COLLECTION_ENABLED="true")
+)
+def test_install_does_not_enable_endpoint_counter() -> None:
+    from ddtrace.profiling.profiler import Profiler
+    from ddtrace.trace import tracer
+
+    processor = tracer._endpoint_call_counter_span_processor
+
+    def counter_enabled() -> bool:
+        return processor._enabled
+
+    prof: Profiler = Profiler()
+    prof.install()
+    assert counter_enabled() is False
+
+    prof.start()
+    assert counter_enabled() is True
+    processor.endpoint_counts["GET /"] = 1
+    processor.endpoint_to_span_ids["GET /"] = [1]
+    prof.stop(flush=False)
+    assert counter_enabled() is False
+    assert processor.endpoint_counts == {}
+    assert processor.endpoint_to_span_ids == {}
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED=None, DD_INJECTION_ENABLED=None))
+def test_installed_lock_collector_does_not_sample() -> None:
+    import threading
+    from typing import cast
+
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from ddtrace.profiling.collector.threading import _ProfiledThreadingLock
+
+    col: ThreadingLockCollector = ThreadingLockCollector(capture_pct=100)
+    col.install()
+    try:
+        lock = cast(_ProfiledThreadingLock, threading.Lock())
+
+        def sampler_enabled() -> bool:
+            return lock.capture_sampler.enabled
+
+        assert sampler_enabled() is False
+        with lock:
+            pass
+        assert lock.acquired_time is None
+
+        col.start()
+        assert sampler_enabled() is True
+        col.stop()
+        assert sampler_enabled() is False
+    finally:
+        if col._installed:
+            col.unpatch()
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED=None, DD_INJECTION_ENABLED=None))
+def test_installed_pytorch_collector_keeps_user_callback() -> None:
+    import sys
+    import types
+    from typing import Any
+
+    from ddtrace.profiling.collector import pytorch
+
+    class FakeProfile:
+        def __init__(self, on_trace_ready: Any = None) -> None:
+            self.on_trace_ready: Any = on_trace_ready
+
+    fake_torch: types.ModuleType = types.ModuleType("torch")
+    fake_torch.profiler = types.SimpleNamespace(profile=FakeProfile)  # type: ignore[attr-defined]
+    sys.modules["torch"] = fake_torch
+
+    def user_callback(prof: Any) -> None:
+        pass
+
+    col: pytorch.TorchProfilerCollector = pytorch.TorchProfilerCollector()
+    col.install()
+    stopped_prof: Any = fake_torch.profiler.profile(on_trace_ready=user_callback)
+    assert type(stopped_prof) is FakeProfile
+    assert stopped_prof.on_trace_ready is user_callback
+
+    col.start()
+    running_prof: Any = fake_torch.profiler.profile(on_trace_ready=user_callback)
+    assert isinstance(running_prof, pytorch._WrappedTorchProfiler)
+    col.stop()

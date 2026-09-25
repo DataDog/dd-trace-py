@@ -7,6 +7,23 @@ import pytest
 from ddtrace.internal.settings.profiling import ProfilingConfig
 
 
+class TestInstallConfig:
+    def test_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_INSTALL", raising=False)
+        assert ProfilingConfig().install is False
+
+    def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_INSTALL", "true")
+        assert ProfilingConfig().install is True
+
+    def test_profiling_enabled_forces_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_ENABLED", "true")
+        monkeypatch.setenv("DD_PROFILING_INSTALL", "false")
+        config = ProfilingConfig()
+        assert config.enabled is True
+        assert config.install is True
+
+
 class TestMaxFramesConfig:
     def test_default(self) -> None:
         assert ProfilingConfig().max_frames == 64

@@ -18,11 +18,15 @@ class CaptureSampler:
             raise ValueError("Capture percentage should be between 0 and 100 included")
         self.capture_pct: float = capture_pct
         self._counter: float = 0.0
+        self.enabled: bool = True
 
     def __repr__(self) -> str:
         return f"CaptureSampler(capture_pct={self.capture_pct})"
 
     def capture(self) -> bool:
+        if not self.enabled:
+            return False
+
         self._counter += self.capture_pct
         if self._counter >= 100:
             self._counter -= 100

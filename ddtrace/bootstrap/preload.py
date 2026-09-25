@@ -60,6 +60,14 @@ if profiling_config.enabled:
         import ddtrace.profiling.auto  # noqa: F401
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
+elif profiling_config.install:
+    log.debug("profiler install requested via environment variable")
+    try:
+        from ddtrace.profiling._install import install_profiler
+
+        install_profiler()
+    except Exception:
+        log.error("failed to install profiling", exc_info=True)
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()

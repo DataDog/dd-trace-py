@@ -35,6 +35,7 @@ class StackCollector(collector.Collector):
         "nframes",
         "tracer",
         "_native_call_monitor",
+        "_installed",
     )
 
     def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
@@ -43,6 +44,7 @@ class StackCollector(collector.Collector):
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
         self._native_call_monitor: typing.Optional[ModuleType] = None
+        self._installed: bool = False
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -54,19 +56,26 @@ class StackCollector(collector.Collector):
 
         return f"{class_name}({attrs_str}, {slot_attrs_str})"
 
-    def _init(self) -> None:
+    def install(self) -> None:
+        if self._installed:
+            return
+
         _task.initialize_gevent_support()
 
-        # Import _faulthandler BEFORE starting the sampler. This ensures that if
-        # faulthandler.enable was already called (e.g., by pytest), we reinstall
-        # our SIGSEGV handler before sampling begins. Our handler chains to
-        # faulthandler's for non-recovery faults.
+        # Import _faulthandler before any later sampler start. If faulthandler.enable
+        # was already called, the wrapper reinstalls our handler on top.
         from ddtrace.profiling import _faulthandler  # noqa: F401
 
-        # Start the native stack sampler first. This ensures one_time_setup() runs
-        # (which handles any fork that happened since library load) before we
-        # register threads and asyncio loops - otherwise those registrations would
-        # be wiped out by _stack_atfork_child() in one_time_setup().
+        stack.set_fast_copy(config.stack.fast_copy)
+        if not stack.is_safe_copy_failed():
+            stack.reinstall_segv_handler()
+
+        self._installed = True
+
+    def _init(self) -> None:
+        # Configure the sampler before installation so the fault handler matches
+        # the copy strategy, then start sampling. one_time_setup() inside start
+        # clears thread registrations, so existing threads are registered after it.
         stack.set_adaptive_sampling(config.stack.adaptive_sampling)
         stack.set_target_overhead(config.stack.adaptive_sampling_target_overhead)
         stack.set_max_sampling_period(config.stack.adaptive_sampling_max_interval)
@@ -81,6 +90,7 @@ class StackCollector(collector.Collector):
         if stack.is_safe_copy_failed():
             LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")
             raise collector.CollectorUnavailable
+        self.install()
         if not stack.start():
             LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
             raise collector.CollectorUnavailable
