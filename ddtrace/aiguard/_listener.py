@@ -18,9 +18,11 @@ from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
+from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
+from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
@@ -75,6 +77,16 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.generate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
+
+    # LangChain marks the AI Guard context active for the whole model call, which
+    # makes the OpenAI / Anthropic listeners skip their own response evaluation.
+    # These listeners are what replaces it -- without them a LangChain model
+    # response reaches the caller unevaluated (APPSEC-70274). Streaming has no
+    # matching after event and is still uncovered; see the follow-up ticket.
+    core.on("langchain.chatmodel.generate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
+    core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
 
     # ``.stream.started`` is dispatched lazily from
     # ``BaseLangchainStreamHandler.start_stream`` (called by
