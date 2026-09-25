@@ -391,7 +391,23 @@ def extract_messages_from_adk_events(events) -> list[Message]:
     if not isinstance(events, list):
         events = [events]
 
+    # Streaming yields partial text chunks plus a non-partial event carrying the assembled text, so
+    # skip partials only when assembled text exists. Runs without it (e.g. run_live turns, whose
+    # non-partial events are contentless control events or tool calls) keep all events as before.
+    has_assembled_text = False
     for event in events:
+        if _get_attr(event, "partial", False):
+            continue
+        parts = _get_attr(_get_attr(event, "content", None), "parts", None) or []
+        if not isinstance(parts, list):
+            parts = [parts]
+        if any(_get_attr(part, "text", None) for part in parts):
+            has_assembled_text = True
+            break
+
+    for event in events:
+        if has_assembled_text and _get_attr(event, "partial", False):
+            continue
         content = _get_attr(event, "content", None)
         if not content:
             continue
