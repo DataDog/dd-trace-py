@@ -112,8 +112,63 @@ configure_stack_internal_test(test_sample_lifecycle)
 dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
 configure_stack_internal_test(test_sampling_cycle_state)
 
+dd_wrapper_add_test(test_asyncio_debug test_asyncio_debug.cpp)
+configure_stack_internal_test(test_asyncio_debug)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Link the reader into the test executable so --wrap can observe direct memory reads and inject syscall failures
+    # without changing the extension.
+    target_sources(test_asyncio_debug PRIVATE ../src/echion/asyncio_debug.cc)
+    # Exercise /proc/self/exe identity validation when the executable has no GNU build ID.
+    target_link_options(
+        test_asyncio_debug
+        PRIVATE
+        -Wl,--wrap=pread
+        -Wl,--wrap=pread64
+        -Wl,--wrap=__pread_chk
+        -Wl,--wrap=__pread64_chk
+        -Wl,--wrap=process_vm_readv
+        -Wl,--build-id=none
+        -Wl,--undefined=process_asyncio_debug_offsets)
+    if(DO_VALGRIND)
+        target_compile_definitions(test_asyncio_debug PRIVATE TEST_RUNNING_ON_VALGRIND)
+    endif()
+endif()
+
+if(APPLE)
+    dd_wrapper_add_test(test_asyncio_debug_macos test_asyncio_debug_macos.cpp ../src/echion/asyncio_debug.cc)
+    configure_stack_internal_test(test_asyncio_debug_macos)
+    # Isolate fixture discovery from the host's Python images. Metadata parsing and guarded reads stay real.
+    target_compile_definitions(
+        test_asyncio_debug_macos
+        PRIVATE _dyld_image_count=test_asyncio_dyld_image_count
+                _dyld_get_image_header=test_asyncio_dyld_get_image_header
+                mach_vm_read_overwrite=test_asyncio_mach_vm_read_overwrite)
+    foreach(kind missing undersized invalid valid)
+        set(fixture "_asyncio_debug_${kind}")
+        string(TOUPPER "${kind}" upper_kind)
+        add_library(${fixture} SHARED asyncio_debug_macos_fixture.cpp)
+        target_include_directories(${fixture} PRIVATE ../echion)
+        target_compile_definitions(${fixture} PRIVATE "ASYNCIO_FIXTURE_${upper_kind}")
+        add_ddup_config(${fixture})
+        target_compile_definitions(test_asyncio_debug_macos
+                                   PRIVATE "ASYNCIO_${upper_kind}_FIXTURE_PATH=\"$<TARGET_FILE:${fixture}>\"")
+        add_dependencies(test_asyncio_debug_macos ${fixture})
+    endforeach()
+endif()
+
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
+
+if(Python3_VERSION VERSION_GREATER_EQUAL "3.14")
+    # Compile the real harness and traversal with the fuzz reader so seeds prove both native list sources are reached.
+    dd_wrapper_add_test(test_task_fuzz_coverage test_task_fuzz_coverage.cpp ../fuzz/fuzz_echion_thread_unwind_tasks.cpp
+                        ../src/echion/threads.cc ../src/echion/stacks.cc)
+    configure_stack_internal_test(test_task_fuzz_coverage)
+    target_link_libraries(test_task_fuzz_coverage PRIVATE dd_wrapper)
+    target_include_directories(test_task_fuzz_coverage PRIVATE ../fuzz)
+    target_compile_definitions(test_task_fuzz_coverage PRIVATE ECHION_FUZZING ECHION_FUZZ_TEST
+                                                               FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
+endif()
 
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.

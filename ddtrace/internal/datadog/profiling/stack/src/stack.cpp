@@ -17,6 +17,8 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <cstring>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -352,6 +354,24 @@ stack_init_asyncio(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    auto& echion = Sampler::get().get_echion();
+    // Successful offsets remain valid for the process lifetime. Retry failures on later initialization calls.
+    // Discovery is optional, so do not release and reacquire the GIL once finalization is visible. CPython 3.14+ may
+    // hang a non-finalizing thread that tries to reacquire it.
+    if ((echion.asyncio_thread_tasks_head_offset() == 0 || echion.asyncio_interpreter_tasks_head_offset() == 0) &&
+        !Py_IsFinalizing()) {
+        std::optional<AsyncioOffsets> offsets;
+        // Linux discovery reads ELF metadata from the filesystem. Release the GIL so a slow read does not prevent
+        // unrelated Python threads from running. The calling initialization thread still waits for the result.
+        Py_BEGIN_ALLOW_THREADS;
+        offsets = find_asyncio_debug_offsets();
+        Py_END_ALLOW_THREADS;
+        if (offsets) {
+            echion.set_asyncio_offsets(*offsets);
+        }
+    }
+#endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
     Py_RETURN_NONE;
