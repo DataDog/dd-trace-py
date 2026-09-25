@@ -470,7 +470,7 @@ class DebuggerSenderError(Exception):
 class DebuggerSender:
     """Sender for debugger-related payloads.
 
-    Wraps the ``datadog-live-debugger`` sender.
+    Wraps the ``libdd-live-debugger`` sender.
 
     All constructor parameters after ``runtime`` are keyword-only.
     """

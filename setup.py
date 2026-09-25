@@ -138,7 +138,7 @@ CARGO_TARGET_DIR = Path(
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 # TODO(py-315): locked pyo3 is 0.28.3 (ABI3_MAX_MINOR = 14). Native 3.15
-# support is pyo3 0.29.0, but libdatadog v43.0.0 libdd-ffe still requires
+# support is pyo3 0.29.0, but libdatadog v44.0.0 libdd-ffe still requires
 # pyo3 = "^0.28" and cargo cannot unify (both crates links = "python").
 # Keep this env-var workaround until libdd publishes a tag that allows ^0.29.
 if sys.version_info >= (3, 15):
