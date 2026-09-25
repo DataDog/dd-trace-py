@@ -9,6 +9,7 @@ from typing import Optional
 import llama_index.core as llama_core
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.llama_index._streaming import handle_streamed_response
 from ddtrace.contrib.internal.llama_index._utils import build_agent_call_tool_request_kwargs
@@ -22,7 +23,6 @@ from ddtrace.contrib.internal.llama_index._utils import get_model_provider
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations import LlamaIndexIntegration
 
 
 log = get_logger(__name__)
@@ -43,7 +43,7 @@ _wrapped_classes: set[type] = set()
 _DD_WRAPPED = "__dd_wrapped__"
 
 
-def _get_integration() -> LlamaIndexIntegration:
+def _get_integration() -> LLMObsIntegrationLike:
     """Retrieve the integration instance stored on the ``llama_index.core`` module by ``patch()``."""
     return llama_core._datadog_integration
 
@@ -289,8 +289,7 @@ def patch():
         return
     llama_core._datadog_patch = True
 
-    integration = LlamaIndexIntegration(integration_config=config.llama_index)
-    llama_core._datadog_integration = integration
+    core.dispatch("llama_index.integration.create", (config.llama_index,))
 
     # LlamaIndex LLM methods (chat, complete, etc.) are abstract on BaseLLM —
     # concrete subclasses override them entirely, so we must wrap each subclass.

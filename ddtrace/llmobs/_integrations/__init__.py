@@ -61,3 +61,23 @@ def _on_anthropic_integration_create(integration_config: Any) -> None:
 # dispatches "anthropic.integration.create" and this listener builds and stashes the integration
 # object, instead of contrib importing and constructing AnthropicIntegration itself.
 core.on("anthropic.integration.create", _on_anthropic_integration_create)
+
+
+def _on_llama_index_integration_create(integration_config: Any) -> None:
+    # llama_index.core is guaranteed to already be imported by the time this listener runs: it's
+    # dispatched from within ddtrace/contrib/internal/llama_index/patch.py's own patch() function,
+    # after that module's own `import llama_index.core as llama_core` at the top of the file.
+    import llama_index.core as llama_core
+
+    # getattr() on this module (not a bare name reference) is required so it goes through
+    # __getattr__ above and only imports the concrete integration module when this listener runs.
+    llama_core._datadog_integration = getattr(sys.modules[__name__], "LlamaIndexIntegration")(
+        integration_config=integration_config
+    )
+
+
+# Registered here (rather than by contrib patch modules importing the concrete integration classes
+# directly) so contrib -> ddtrace.llmobs stays a one-way, event-based notification: contrib
+# dispatches "llama_index.integration.create" and this listener builds and stashes the integration
+# object, instead of contrib importing and constructing LlamaIndexIntegration itself.
+core.on("llama_index.integration.create", _on_llama_index_integration_create)
