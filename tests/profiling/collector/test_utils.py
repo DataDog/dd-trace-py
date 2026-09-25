@@ -55,7 +55,7 @@ def wait_for_fast_copy_state(stack_module: Any, want_active: bool, timeout: floa
     constructor activates safe_memcpy, then the sampling thread drops to the syscall copy
     for the warmup duration before deciding whether to upgrade.
     """
-    deadline = time.monotonic() + timeout
+    deadline: float = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if stack_module.fast_copy_memory_active() is want_active:
             return True
