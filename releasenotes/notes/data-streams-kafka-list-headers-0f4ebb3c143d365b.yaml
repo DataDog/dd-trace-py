@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    data streams monitoring: Fixes the ``confluent-kafka`` integration dropping the DSM pathway
+    context when ``Producer.produce()`` is given ``headers`` as a list or tuple of ``(key, value)``
+    pairs. The header was not injected, so consumers started a new pathway, and produce offsets
+    were not tracked. The DSM header is added to a copy, leaving the caller's list unchanged.
