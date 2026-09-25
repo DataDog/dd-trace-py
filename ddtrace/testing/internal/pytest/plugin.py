@@ -441,7 +441,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # AIDEV-NOTE: Under xdist only one process should upload -- see _should_upload_coverage_report for which one
+        # NOTE: Under xdist only one process should upload -- see _should_upload_coverage_report for which one
         # and why that depends on whether pytest-cov owns the coverage.py instance.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             if self._should_upload_coverage_report(session.config):
