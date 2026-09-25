@@ -47,14 +47,26 @@ def wait_for_es(host: str, port: int):
     # Wait for up to 160 seconds for ES to start.
     # DEV: Elasticsearch is pretty quick, but OpenSearch can take a long time to start.
     for _ in range(80):
+        conn = HTTPConnection(host, port, timeout=2)
         try:
-            conn = HTTPConnection(f"{host}:{port}")
             conn.request("GET", "/")
             conn.getresponse()
             return
         except Exception:
             time.sleep(2)
+        finally:
+            conn.close()
     raise Exception(f"Could not connect to ES at {host}:{port}")
+
+
+def test_wait_for_es_closes_connection():
+    with mock.patch(f"{__name__}.HTTPConnection") as connection:
+        wait_for_es("elasticsearch", 9200)
+
+    connection.assert_called_once_with("elasticsearch", 9200, timeout=2)
+    conn = connection.return_value
+    conn.request.assert_called_once_with("GET", "/")
+    conn.close.assert_called_once_with()
 
 
 class ElasticsearchPatchTest(TracerTestCase):
