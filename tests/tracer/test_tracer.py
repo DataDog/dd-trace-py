@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 tests for Tracer and utilities.
 """
@@ -10,9 +9,9 @@ from os import getpid
 import sys
 import threading
 import time
+from unittest import mock
 from unittest.case import SkipTest
 
-import mock
 import pytest
 
 import ddtrace
@@ -213,7 +212,7 @@ class TracerTestCases(TracerTestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            class Foo(object):
+            class Foo:
                 @staticmethod
                 @self.tracer.wrap()
                 def s():
@@ -245,7 +244,7 @@ class TracerTestCases(TracerTestCase):
         """With DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true the class name is included in the span name."""
         with self.override_global_config({"_trace_wrap_span_name_include_class": True}):
 
-            class Foo(object):
+            class Foo:
                 @staticmethod
                 @self.tracer.wrap()
                 def s():
@@ -740,6 +739,111 @@ class TracerTestCases(TracerTestCase):
         # After shutdown, the wrap executor should be reset
         assert self.tracer._wrap_executor is None
 
+    def test_tracer_defers_writer_recreation_after_fork(self):
+        aggregator = self.tracer._span_aggregator
+        inherited_writer = aggregator.writer
+        with (
+            mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate,
+            mock.patch.object(
+                aggregator, "reset_trace_buffer_after_fork", wraps=aggregator.reset_trace_buffer_after_fork
+            ) as reset_trace_buffer,
+            mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as flush_queue,
+        ):
+            self.tracer._child_after_fork()
+            recreate.assert_not_called()
+            reset_trace_buffer.assert_called_once_with()
+
+            for _ in range(10):
+                with self.trace("child-span"):
+                    pass
+
+            recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
+            reset_trace_buffer.assert_called_once_with()
+            flush_queue.assert_not_called()
+
+    def test_tracer_flush_recreates_writer_after_fork(self):
+        inherited_writer = self.tracer._span_aggregator.writer
+        with (
+            mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate,
+            mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as inherited_flush,
+        ):
+            self.tracer._child_after_fork()
+            self.tracer.flush()
+
+        recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
+        inherited_flush.assert_not_called()
+        assert self.tracer._span_aggregator.writer is not inherited_writer
+        assert not self.tracer._post_fork_writer_pending
+        assert self.tracer._new_process
+
+    def test_tracer_flush_preserves_inherited_context_cleanup_after_fork(self):
+        parent = self.tracer.trace("parent")
+        self.tracer._child_after_fork()
+
+        self.tracer.flush()
+        child = self.tracer.trace("child")
+
+        assert child.parent_id == parent.span_id
+        assert child._parent is None
+        assert child._local_root is child
+        assert not self.tracer._new_process
+
+        child.finish()
+        self.tracer.context_provider.activate(None)
+
+    def test_tracer_post_fork_writer_recreation_is_single_flight(self):
+        self.tracer._child_after_fork()
+        recreate_entered = threading.Event()
+        release_recreate = threading.Event()
+        second_thread_started = threading.Event()
+        recreate_calls = []
+        errors = []
+        recreate = self.tracer._recreate
+
+        def blocking_recreate(*args, **kwargs):
+            recreate_calls.append(1)
+            recreate_entered.set()
+            assert release_recreate.wait(timeout=2)
+            recreate(*args, **kwargs)
+
+        def start_span(started=None):
+            if started is not None:
+                started.set()
+            try:
+                self.tracer.start_span("post-fork-concurrent").finish()
+            except Exception as e:
+                errors.append(e)
+
+        with mock.patch.object(self.tracer, "_recreate", side_effect=blocking_recreate):
+            first = threading.Thread(target=start_span)
+            first.start()
+            assert recreate_entered.wait(timeout=2)
+
+            second = threading.Thread(target=start_span, args=(second_thread_started,))
+            second.start()
+            assert second_thread_started.wait(timeout=2)
+            time.sleep(0.05)
+            release_recreate.set()
+
+            first.join(timeout=2)
+            second.join(timeout=2)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert len(recreate_calls) == 1
+        assert not self.tracer._new_process
+
+    def test_tracer_shutdown_after_fork_does_not_recreate_writer(self):
+        writer = self.tracer._span_aggregator.writer
+        with mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate:
+            self.tracer._child_after_fork()
+            self.tracer.shutdown()
+
+        recreate.assert_not_called()
+        assert self.tracer._span_aggregator.writer is writer
+        assert not self.tracer._new_process
+
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
         self.tracer.context_provider.activate(context)
@@ -757,7 +861,7 @@ def test_tracer_url_default():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_no_timeout():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -771,7 +875,7 @@ def test_tracer_shutdown_no_timeout():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_timeout():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -790,8 +894,7 @@ def test_tracer_shutdown_timeout():
 )
 def test_tracer_shutdown():
     import os
-
-    import mock
+    from unittest import mock
 
     from ddtrace._trace.span import Span
     from ddtrace.trace import tracer as t
@@ -1249,7 +1352,7 @@ def test_runtime_id_fork():
 
 
 def test_filters(tracer, test_spans):
-    class FilterAll(object):
+    class FilterAll:
         def process_trace(self, trace):
             return None
 
@@ -1262,7 +1365,7 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 0
 
-    class FilterMutate(object):
+    class FilterMutate:
         def __init__(self, key, value):
             self.key = key
             self.value = value
@@ -1297,7 +1400,7 @@ def test_filters(tracer, test_spans):
         assert s.get_tag("boop") == "beep"
         assert s.get_tag("mats") == "sundin"
 
-    class FilterBroken(object):
+    class FilterBroken:
         def process_trace(self, trace):
             _ = 1 / 0
 
@@ -2066,7 +2169,7 @@ def test_gc_not_used_on_root_spans():
 
 @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
 def test_detect_agent_config_with_lambda_extension():
-    import mock
+    from unittest import mock
 
     def mock_os_path_exists(path):
         return path == "/opt/extensions/datadog-agent"
@@ -2086,7 +2189,7 @@ def test_detect_agent_config_with_lambda_extension():
 
 @pytest.mark.subprocess()
 def test_multiple_tracer_instances():
-    import mock
+    from unittest import mock
 
     import ddtrace
 
@@ -2139,7 +2242,8 @@ def test_activate_context_nesting_and_restoration(tracer):
     1. A context can be activated and its values are accessible
     2. A nested context can be activated and its values override the outer context
     3. When the nested context exits, the outer context is properly restored
-    4. When all contexts exit, the active context is None
+    4. An empty nested context clears and then restores the outer context
+    5. When all contexts exit, the active context is None
     """
 
     with tracer._activate_context(Context(trace_id=1, span_id=1)):
@@ -2155,5 +2259,10 @@ def test_activate_context_nesting_and_restoration(tracer):
         active = tracer.context_provider.active()
         assert active.trace_id == 1
         assert active.span_id == 1
+
+        with tracer._activate_context(None):
+            assert tracer.context_provider.active() is None
+
+        assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None

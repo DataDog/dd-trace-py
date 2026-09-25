@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 import json
+import re
 from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
@@ -24,6 +25,11 @@ from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.native import HttpClientError
+from ddtrace.internal.native import HttpIoError
+from ddtrace.internal.native import InvalidConfigError
+from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -106,6 +112,52 @@ class AIGuardAbortError(DDBlockException):
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
+# Transport failures the native HTTP client distinguishes. Ordered most specific first so a
+# subclass is never shadowed by its base.
+_TRANSPORT_ERROR_TYPES: tuple[tuple[type[BaseException], str], ...] = (
+    (ConnectionFailedError, AI_GUARD.ERROR_CONNECTION),
+    (TimedOutError, AI_GUARD.ERROR_TIMEOUT),
+    (InvalidConfigError, AI_GUARD.ERROR_INVALID_CONFIG),
+    (HttpIoError, AI_GUARD.ERROR_NETWORK),
+)
+
+
+def _classify_transport_error(exc: BaseException) -> str:
+    """Map a failure from the evaluate request onto an error metric type.
+
+    Splitting these apart is what separates "never reached the service" from "reached it and was
+    rejected"; client_error remains the catch-all for an unrecognised transport failure, and
+    anything that is not a transport failure at all is reported as an internal error.
+    """
+    for error_cls, error_type in _TRANSPORT_ERROR_TYPES:
+        if isinstance(exc, error_cls):
+            return error_type
+    return AI_GUARD.ERROR_CLIENT if isinstance(exc, HttpClientError) else AI_GUARD.ERROR_INTERNAL
+
+
+def _status_tag(status: Optional[int]) -> str:
+    """Clamp a response status to the declared allowlist, keeping the tag bounded."""
+    return str(status) if status in AI_GUARD.STATUSES else AI_GUARD.STATUS_OTHER
+
+
+# What replaces an endpoint anywhere it would otherwise be reported.
+_REDACTED = "<endpoint>"
+
+# A URL in any shape an endpoint override reaches the transport as: absolute, scheme-relative, or
+# the bare authority left when the scheme is missing. The last character cannot be punctuation, so
+# a URL ending a sentence does not swallow what closes it.
+_URL_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//[^\s'\"]*[^\s'\"(),.;]")
+
+
+def _scrub_urls(text: str) -> str:
+    """Replace every URL in text with a placeholder.
+
+    A credential can sit in the userinfo, in a path segment or in a query parameter, so no part of
+    the endpoint is kept.
+    """
+    return _URL_RE.sub(_REDACTED, text)
+
+
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
@@ -132,21 +184,39 @@ class AIGuardClient:
         self._timeout = aiguard_config._ai_guard_timeout // 1000
 
     @staticmethod
+    def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
+        """Tags identifying the call path that reached the evaluation, required on every metric.
+
+        Clamped to the declared values: the spec pins integration to none for direct SDK calls,
+        and evaluate is public API, so an off-spec value must not reach telemetry as a new series.
+        """
+        if source not in AI_GUARD.SOURCES:
+            source = AI_GUARD.SOURCE_SDK
+        if source != AI_GUARD.SOURCE_AUTO or integration not in AI_GUARD.INTEGRATIONS:
+            integration = AI_GUARD.INTEGRATION_NONE
+        return (("source", source), ("integration", integration))
+
+    @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _add_error_to_telemetry(error_type: str) -> None:
+    def _add_error_to_telemetry(error_type: str, tags: tuple[tuple[str, str], ...], count: int = 1) -> None:
         telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, 1, (("type", error_type),)
+            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, count, (("type", error_type),) + tags
         )
 
     @staticmethod
-    def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
+    def _messages_for_meta_struct(
+        messages: list[Message], call_path_tags: tuple[tuple[str, str], ...]
+    ) -> list[Message]:
         max_messages_length = aiguard_config._ai_guard_max_messages_length
         if len(messages) > max_messages_length:
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
+                TELEMETRY_NAMESPACE.AI_GUARD,
+                AI_GUARD.TRUNCATED_METRIC,
+                1,
+                (("type", "messages"),) + call_path_tags,
             )
         messages = messages[-max_messages_length:]
 
@@ -175,7 +245,10 @@ class AIGuardClient:
         result = [truncate_message(message) for message in messages]
         if content_truncated:
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
+                TELEMETRY_NAMESPACE.AI_GUARD,
+                AI_GUARD.TRUNCATED_METRIC,
+                1,
+                (("type", "content"),) + call_path_tags,
             )
         return result
 
@@ -227,7 +300,13 @@ class AIGuardClient:
             return True
         return options.get("block", True)
 
-    def evaluate(self, messages: list[Message], options: Optional[Options] = None) -> Evaluation:
+    def evaluate(
+        self,
+        messages: list[Message],
+        options: Optional[Options] = None,
+        source: str = AI_GUARD.SOURCE_SDK,
+        integration: str = AI_GUARD.INTEGRATION_NONE,
+    ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
         Args:
@@ -235,6 +314,11 @@ class AIGuardClient:
             options: Optional configuration with 'block' parameter. By default, block follows
                 the AI Guard response is_blocking_enabled setting; set block=False to force
                 non-blocking behavior.
+            source: Which call path triggered the evaluation, reported as the source telemetry
+                tag. Defaults to sdk (a direct customer call); our AI package
+                auto-instrumentation passes auto.
+            integration: Name of the auto-instrumented AI package, reported as the integration
+                telemetry tag. Only meaningful when source is auto; otherwise reported as none.
 
         Returns:
             EvaluationResult containing action and reason
@@ -248,9 +332,13 @@ class AIGuardClient:
 
         from ddtrace.trace import tracer
 
-        # Classifies the error metric when a raise below escapes. Transport failures and
-        # unexpected internal errors keep the default; response-driven raises narrow it.
-        error_type: str = AI_GUARD.ERROR_CLIENT
+        # Classifies the error metric when a raise below escapes. Transport and response paths
+        # each set their own type, so anything still holding the default failed inside our own
+        # code, which is what internal_error means; client_error is reserved for a transport
+        # failure the native client reports but we do not recognise.
+        error_type: str = AI_GUARD.ERROR_INTERNAL
+        error_status: Optional[int] = None
+        call_path_tags = self._call_path_tags(source, integration)
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             try:
@@ -263,17 +351,27 @@ class AIGuardClient:
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
 
+                transport_error = None
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except Exception as e:
-                    raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
+                    error_type = _classify_transport_error(e)
+                    transport_error = AIGuardClientError(message=self._describe_transport_error(e))
+                if transport_error is not None:
+                    # Raised outside the handler on purpose: that leaves __cause__ and __context__
+                    # empty, so nothing can render the transport failure or its endpoint again.
+                    raise transport_error
 
                 try:
                     result = response.get_json() or {}  # type: ignore[no-untyped-call]
                 except Exception as e:
                     # A body we cannot decode is a response problem, not a transport one, unless
                     # the status code already explains the failure.
-                    error_type = AI_GUARD.ERROR_BAD_RESPONSE if response.status == 200 else AI_GUARD.ERROR_BAD_STATUS
+                    if response.status == 200:
+                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
+                    else:
+                        error_type = AI_GUARD.ERROR_BAD_STATUS
+                        error_status = response.status
                     raise AIGuardClientError(
                         message=f"AI Guard service returned an undecodable response body: {e}",
                         status=response.status,
@@ -290,8 +388,8 @@ class AIGuardClient:
                         sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                         tag_probs = attributes.get("tag_probs")
-                        # Presence of a non-empty array is the signal to redact; sds_findings are
-                        # detection metadata only and never drive redaction.
+                        # Presence of the field is the signal to redact; sds_findings are detection
+                        # metadata only and never drive redaction.
                         redaction_replacements = attributes.get("redaction_replacements")
                     except Exception as e:
                         error_type = AI_GUARD.ERROR_BAD_RESPONSE
@@ -311,14 +409,19 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
                     redacted_messages = messages
                     redaction_enabled = aiguard_config._ai_guard_redaction_enabled
-                    if redaction_enabled and redaction_replacements:
-                        redacted_messages = redact_messages(messages, redaction_replacements)
+                    # Not truthiness: a present but malformed payload has redaction errors to report.
+                    if redaction_enabled and redaction_replacements is not None:
+                        redacted_messages, redaction_errors = redact_messages(messages, redaction_replacements)
+                        # A replacement we cannot apply is reported and then forgotten: redaction is
+                        # best effort and must never fail the evaluation it rode in on.
+                        if redaction_errors:
+                            self._add_error_to_telemetry(AI_GUARD.ERROR_REDACTION, call_path_tags, redaction_errors)
                     # redact_messages returns the very same list when nothing was applied.
                     redacted = redacted_messages is not messages
                     if redaction_enabled:
                         span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
 
-                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages)}
+                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                     if tags:
@@ -331,6 +434,7 @@ class AIGuardClient:
                         meta_struct.update({"tag_probs": tag_probs})
                 else:
                     error_type = AI_GUARD.ERROR_BAD_STATUS
+                    error_status = response.status
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
                         status=response.status,
@@ -346,21 +450,24 @@ class AIGuardClient:
                 # No tag at all when redaction is off, so absent is distinguishable from "nothing redacted".
                 if redaction_enabled:
                     telemetry_tags.append(("redacted", "true" if redacted else "false"))
+                telemetry_tags.extend(call_path_tags)
                 self._add_request_to_telemetry(tuple(telemetry_tags))
                 root_span = span_bus.get_root_span()
                 if root_span:
                     _aiguard_manual_keep(root_span)
                     root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
-                    # Populate client IP on the service-entry span only when an ai_guard span
-                    # is actually created, mirroring the AppSec spec. The candidate IP was
+                    # Populate client IPs on the service-entry span only when an ai_guard span
+                    # is actually created, mirroring the AppSec spec. The candidate IPs were
                     # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
                     # Discard the key after use so a later evaluate() call can't inherit a
                     # stale IP from an earlier request that shared this context tree.
-                    client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    client_ips = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
-                    if client_ip:
+                    if client_ips:
+                        client_ip, peer_ip = client_ips
                         root_span._set_attribute(http.CLIENT_IP, client_ip)
-                        root_span._set_attribute("network.client.ip", client_ip)
+                        if peer_ip:
+                            root_span._set_attribute("network.client.ip", peer_ip)
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
                     # even when the root span arrives in a later trace chunk.
@@ -391,16 +498,49 @@ class AIGuardClient:
                 raise
 
             except Exception:
-                self._add_request_to_telemetry((("error", "true"),))
-                self._add_error_to_telemetry(error_type)
-                # Log the size only: the messages may carry sensitive data that redaction would have
-                # removed, and this runs before any redaction decision is known.
-                logger.debug("AI Guard evaluation failed for %d messages", len(messages), exc_info=True)
+                self._add_request_to_telemetry((("error", "true"),) + call_path_tags)
+                error_tags = call_path_tags
+                # Only bad_status has a status to report, and an absent tag stays distinguishable
+                # from a status we deliberately clamped away.
+                if error_status is not None:
+                    error_tags += (("http_status", _status_tag(error_status)),)
+                self._add_error_to_telemetry(error_type, error_tags)
+                # Log the classification and only the size of the conversation: the messages may
+                # carry sensitive data that redaction would have removed, and this runs before any
+                # redaction decision is known.
+                logger.debug(
+                    "AI Guard evaluation failed (%s) for %d messages", error_type, len(messages), exc_info=True
+                )
                 raise
+
+    def _scrub(self, text: str) -> str:
+        """Remove the configured endpoint from text this client is about to report."""
+        # The literal value goes first: an endpoint too malformed to match a URL still reaches the
+        # transport, which quotes it back in its own messages.
+        if self._endpoint:
+            text = text.replace(self._endpoint, _REDACTED)
+        return _scrub_urls(text)
+
+    def _describe_transport_error(self, exc: BaseException) -> str:
+        """Describe a transport failure as the only text this client reports about it.
+
+        The exception is never chained, so this string is the whole report: an endpoint is quoted
+        not just by the message but by notes, by group members and by every link a traceback walks,
+        and scrubbing each of those is chasing a graph that keeps growing.
+        """
+        header = f"Unexpected error calling AI Guard service ({type(exc).__name__})"
+        try:
+            return f"{header}: {self._scrub(str(exc))}"
+        except Exception:
+            # No exc_info: rendering this failure's context would quote the message we could not read.
+            logger.debug("Could not render AI Guard transport error message (%s)", type(exc).__name__)
+            return header
 
     def _execute_request(self, url: str, payload: Any) -> Response:
         parsed = urlparse(url)
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        # Userinfo is dropped rather than forwarded: AI Guard authenticates with the DD-API-KEY and
+        # DD-APPLICATION-KEY headers, and the transport logs and quotes the base URL it is given.
+        base_url = f"{parsed.scheme}://{parsed.netloc.rpartition('@')[2]}"
         conn = HTTPConnection(base_url, timeout=self._timeout)
         try:
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)

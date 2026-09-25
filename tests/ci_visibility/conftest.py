@@ -28,7 +28,7 @@ def _ci_visibility_isolation():
     Unlike the old save_state/restore_state approach, _suspend() does NOT call
     stop() on the outer instance, so the outer session's tracer keeps running.
     """
-    # AIDEV-NOTE: This fixture must run before the module-level _disable_ci_visibility
+    # This fixture must run before the module-level _disable_ci_visibility
     # fixtures defined in individual test files. pytest runs conftest fixtures first,
     # so ordering is guaranteed.
     suspended = CIVisibility._suspend()

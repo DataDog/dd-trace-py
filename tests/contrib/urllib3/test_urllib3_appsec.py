@@ -1,18 +1,19 @@
-import mock
+from unittest import mock
+
 import pytest
 import urllib3
 
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from tests.contrib.config import HTTPBIN_CONFIG
 from tests.contrib.urllib3.test_urllib3 import BaseUrllib3TestCase
 
 
 HOST = HTTPBIN_CONFIG["host"]
 PORT = HTTPBIN_CONFIG["port"]
-SOCKET = "{}:{}".format(HOST, PORT)
-URL_200 = "http://{}/status/200".format(SOCKET)
+SOCKET = f"{HOST}:{PORT}"
+URL_200 = f"http://{SOCKET}/status/200"
 
 
 class TestUrllib3(BaseUrllib3TestCase):
@@ -25,7 +26,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         self.tracer.enabled = False
         # Ensure the ASM SpanProcessor is set
         self.tracer.configure(apm_tracing_disabled=True, appsec_enabled=True)
-        assert asm_config._apm_opt_out
+        assert standalone_config.apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:
@@ -38,10 +39,10 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "x-datadog-trace-id": str(s._trace_id_64bits),
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
-                "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
+                "x-datadog-tags": f"_dd.p.dm=-0,_dd.p.tid={_get_64_highest_order_bits_as_hex(s.trace_id)}",
                 "traceparent": s.context._traceparent,
                 # outgoing headers must contain last parent span id in tracestate
-                "tracestate": s.context._tracestate.replace("dd=", "dd=p:{:016x};".format(s.span_id)),
+                "tracestate": s.context._tracestate.replace("dd=", f"dd=p:{s.span_id:016x};"),
             }
 
             if int(urllib3.__version__.split(".")[0]) >= 2:
@@ -75,7 +76,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         # Ensure the ASM SpanProcessor is set.
         self.tracer.configure(apm_tracing_disabled=False, appsec_enabled=True)
         self.tracer.enabled = False
-        assert not asm_config._apm_opt_out
+        assert not standalone_config.apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:

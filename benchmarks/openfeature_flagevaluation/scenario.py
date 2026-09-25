@@ -39,13 +39,16 @@ def _make_hook_context(flag_key, targeting_key, attrs):
     )
 
 
-def _make_details(flag_key, variant, allocation_key):
+def _make_details(flag_key, variant, allocation_key, observe_full_evaluation_data):
     return FlagEvaluationDetails(
         flag_key=flag_key,
         value=True,
         variant=variant,
         reason=Reason.TARGETING_MATCH,
-        flag_metadata={"allocation_key": allocation_key},
+        flag_metadata={
+            "allocation_key": allocation_key,
+            "__dd_observe_full_evaluation_data": observe_full_evaluation_data,
+        },
     )
 
 
@@ -58,6 +61,8 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
     num_users: int
     # Number of evaluation-context attributes per evaluation.
     num_context_fields: int
+    # Whether the evaluated configuration permits full evaluation data.
+    observe_full_evaluation_data: bool
 
     def run(self):
         from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
@@ -67,11 +72,15 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         num_flags = max(1, self.num_flags)
         num_users = max(1, self.num_users)
         num_fields = max(0, self.num_context_fields)
+        observe_full_evaluation_data = self.observe_full_evaluation_data
         cycle_count = max(num_flags, num_users)
 
-        attrs = {"attr_{}".format(i): "value_{}".format(i) for i in range(num_fields)}
-        flag_keys = ["flag-{}".format(i) for i in range(num_flags)]
-        targeting_keys = ["user-{}".format(i) for i in range(num_users)]
+        if mode == "hook_enqueue_adversarial":
+            attrs = {"discarded": ["x" * 257 for _ in range(num_fields)]}
+        else:
+            attrs = {f"attr_{i}": f"value_{i}" for i in range(num_fields)}
+        flag_keys = [f"flag-{i}" for i in range(num_flags)]
+        targeting_keys = [f"user-{i}" for i in range(num_users)]
         hook_contexts = [
             _make_hook_context(
                 flag_key=flag_keys[i % num_flags],
@@ -83,8 +92,9 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         details_list = [
             _make_details(
                 flag_key=flag_keys[i % num_flags],
-                variant="variant-{}".format(i % 4),
-                allocation_key="alloc-{}".format(i % num_flags),
+                variant=f"variant-{i % 4}",
+                allocation_key=f"alloc-{i % num_flags}",
+                observe_full_evaluation_data=observe_full_evaluation_data,
             )
             for i in range(cycle_count)
         ]
@@ -92,7 +102,7 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         writer = FlagEvaluationWriter(interval=3600.0)
         hook = FlagEvalEVPHook(writer)
 
-        if mode == "hook_enqueue":
+        if mode in ("hook_enqueue", "hook_enqueue_adversarial"):
             # Preserve Queue.put_nowait locking and notification overhead without
             # periodically draining and aggregating events in this isolated mode.
             writer._queue = _DiscardingQueue(maxsize=writer._queue.maxsize)
@@ -108,20 +118,31 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
             from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
             from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
 
-            bounded_attrs = flatten_and_prune_context(attrs)
+            bounded_result = flatten_and_prune_context(attrs)
+            if isinstance(bounded_result, tuple):
+                bounded_attrs, truncation_reasons = bounded_result
+                assert not truncation_reasons
+            else:
+                # Released versions return only the bounded mapping.
+                bounded_attrs = bounded_result
             events = [
                 _EvalEvent(
                     flag_key=flag_keys[i % num_flags],
-                    variant="variant-{}".format(i % 4),
-                    allocation_key="alloc-{}".format(i % num_flags),
+                    variant=f"variant-{i % 4}",
+                    allocation_key=f"alloc-{i % num_flags}",
                     targeting_key=targeting_keys[i % num_users],
-                    attrs=dict(bounded_attrs),
+                    attrs=bounded_attrs,
                     runtime_default=False,
                     error_message="",
                     eval_time_ms=1_760_000_000_000 + i,
                 )
                 for i in range(cycle_count)
             ]
+            # The released baseline predates evaluation-time consent and represents
+            # the legacy full-data behavior. Set the field only when the candidate
+            # event type exposes it, so both distributions run the same scenario.
+            if observe_full_evaluation_data and "observe_full_evaluation_data" in _EvalEvent._fields:
+                events = [event._replace(observe_full_evaluation_data=True) for event in events]
 
             def _(loops):
                 for i in range(loops):
@@ -137,19 +158,30 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
             yield _
 
         elif mode == "hook_plus_drain":
+            # One complete scale cycle must fit without using queue state to decide
+            # when the benchmark drains. enqueue() already checks backpressure.
+            assert cycle_count <= writer._queue.maxsize
+
+            def _drain_and_reset() -> None:
+                writer._drain_queue()
+                writer._full.clear()
+                writer._degraded.clear()
+                writer._per_flag_count.clear()
+                writer._global_count = 0
 
             def _(loops):
                 for i in range(loops):
                     idx = i % cycle_count
                     hook.finally_after(hook_contexts[idx], details_list[idx], {})
-                    if writer._queue.full() or (i % cycle_count) == (cycle_count - 1):
-                        writer._drain_queue()
-                        writer._full.clear()
-                        writer._degraded.clear()
-                        writer._per_flag_count.clear()
-                        writer._global_count = 0
+                    if (i + 1) % cycle_count == 0:
+                        _drain_and_reset()
+
+                # pyperf can calibrate a loop count that is not a whole scale cycle.
+                # Drain the remainder so every measured enqueue is also aggregated.
+                if loops % cycle_count:
+                    _drain_and_reset()
 
             yield _
 
         else:
-            raise ValueError("unknown mode: {}".format(mode))
+            raise ValueError(f"unknown mode: {mode}")

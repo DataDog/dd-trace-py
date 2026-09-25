@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -21,6 +22,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_complet
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.trace import Span
@@ -111,7 +113,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         provider = span.get_tag("openai.request.provider") or "OpenAI"
-        span_name = "{}.{}".format(provider, span.resource) if span.resource else None
+        span_name = f"{provider}.{span.resource}" if span.resource else None
         # Set kind before helpers so that input/output messages are routed correctly
         _annotate_llmobs_span_data(
             span,
@@ -151,9 +153,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
-            output_value = "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+            output_value = f"[{len(resp.data)} embedding(s) returned with size {embedding_dim}]"
         else:
-            output_value = "[{} embedding(s) returned]".format(len(resp.data))
+            output_value = f"[{len(resp.data)} embedding(s) returned]"
         _annotate_llmobs_span_data(span, output_value=output_value)
 
     @staticmethod
@@ -163,7 +165,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         tool_name = kwargs.get("name", "unknown_tool")
         tool_arguments = kwargs.get("arguments")
 
-        span_name = "MCP Client Tool Call: {}".format(tool_name)
+        span_name = f"MCP Client Tool Call: {tool_name}"
         span.name = span_name
 
         _annotate_llmobs_span_data(
@@ -184,17 +186,26 @@ class OpenAIIntegration(BaseLLMIntegration):
         metadata: Optional[dict[str, Any]],
         metrics: Optional[dict[str, Any]],
         session_id: Optional[str] = None,
+        parent_span: Optional[Span] = None,
     ) -> None:
-        """Tag a per-turn Realtime span (llm kind) built by the realtime state machine.
+        """Tag a per-turn Realtime llm span (the model's generation work) built by the state machine.
 
-        Each turn is its own trace; ``session_id`` groups all turns of one connection into a single
-        conversation in the UI (there is no parent session span).
+        Nested under its turn root (a workflow span) via explicit `parent_id`/`trace_id` when
+        `parent_span` is given, the same way the tool span nests (the active context has moved on by
+        finalize). `session_id` groups all turns of one connection into a single conversation in the
+        UI. The turn's timing lives on the span boundaries (the user-speech, llm, and agent-speech
+        spans), so there is no separate timing metadata to merge here.
         """
         provider = span.get_tag("openai.request.provider") or "OpenAI"
         model_provider = self._get_model_provider(span)
+        parent_id = None
+        trace_id = None
+        if parent_span is not None:
+            parent_id = str(parent_span.span_id)
+            trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
         _annotate_llmobs_span_data(
             span,
-            name="{}.{}".format(provider, span.resource) if span.resource else None,
+            name=f"{provider}.{span.resource}" if span.resource else None,
             kind="llm",
             model_name=model_name or "unknown_model",
             model_provider=model_provider,
@@ -203,6 +214,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             metadata=metadata or {},
             metrics=metrics or None,
             session_id=session_id,
+            parent_id=parent_id,
+            trace_id=trace_id,
         )
         # Mirror the base llmobs_set_tags path: also stamp the LLMObs->APM shadow token metrics so
         # realtime spans are consistent with every other OpenAI span for APM-only users.
@@ -210,6 +223,41 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._apply_shadow_metrics(span, metrics, "llm", model_name=model_name, model_provider=model_provider)
         except Exception:
             log.debug("Error applying shadow metrics for realtime span %s", span, exc_info=True)
+
+    def _llmobs_set_tags_from_realtime_workflow(
+        self,
+        span: Span,
+        name: str,
+        session_id: Optional[str] = None,
+        parent_span: Optional[Span] = None,
+        input_value: Any = None,
+        output_value: Any = None,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Tag a workflow-kind span in the realtime turn tree.
+
+        Used for the turn root (the whole perceived turn), the user-speech window, and the agent-speech
+        window. Nested under `parent_span` via explicit `parent_id`/`trace_id` when a parent is
+        given; the turn root has none (it is the root of the turn's trace, grouped by `session_id`).
+        These are timing regions, so the audio bytes ride on the llm span, not here.
+        """
+        parent_id = None
+        trace_id = None
+        if parent_span is not None:
+            parent_id = str(parent_span.span_id)
+            trace_id = get_llmobs_trace_id(parent_span) or format_trace_id(parent_span.trace_id)
+        _annotate_llmobs_span_data(
+            span,
+            name=name,
+            kind="workflow",
+            parent_id=parent_id,
+            trace_id=trace_id,
+            session_id=session_id,
+            # Pass raw values; _annotate_llmobs_span_data serializes them (avoid double-encoding).
+            input_value=input_value if input_value is not None else "",
+            output_value=output_value if output_value is not None else "",
+            metadata=metadata,
+        )
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         span_kind = (
@@ -278,7 +326,12 @@ class OpenAIIntegration(BaseLLMIntegration):
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
             metrics.update(get_openrouter_cost_metrics(token_usage))
             return metrics
-        elif kwargs.get("stream") and resp is not None:
+        elif kwargs.get("stream") and isinstance(resp, list):
+            # `_compute_completion_tokens` expects the chat/completion shape: a list of message
+            # dicts. A Responses API `resp` is a single pydantic object, and iterating one yields
+            # (field, value) tuples, so estimating from it raises and loses every tag on the span.
+            # A completed Responses stream never reaches here (it carries `usage`); a truncated one
+            # does, which is why this only surfaces when a stream ends early.
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
             completion_tokens = _compute_completion_tokens(resp)
             total_tokens = prompt_tokens + completion_tokens

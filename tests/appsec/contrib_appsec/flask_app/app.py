@@ -121,6 +121,22 @@ def rasp(endpoint: str):
 
                     r = requests.get(urlname, timeout=0.15)
                     res.append(f"Url: {r.text}")
+                elif param.startswith("url_httpx2_async"):
+                    import asyncio
+
+                    import httpx2
+
+                    async def _request():
+                        async with httpx2.AsyncClient() as client:
+                            return await client.get(urlname, timeout=0.15)
+
+                    r = asyncio.run(_request())
+                    res.append(f"Url: {r.text}")
+                elif param.startswith("url_httpx2"):
+                    import httpx2
+
+                    r = httpx2.get(urlname, timeout=0.15)
+                    res.append(f"Url: {r.text}")
                 elif param.startswith("url_httpx_async"):
                     import asyncio
 
@@ -253,9 +269,13 @@ def redirect_requests(route: str, port: int):
     return payload
 
 
+@app.route("/redirect_httpx2/<string:route>/<int:port>", methods=["GET", "POST"])
 @app.route("/redirect_httpx/<string:route>/<int:port>", methods=["GET", "POST"])
 def redirect_httpx(route: str, port: int):
-    import httpx
+    if f"{request.script_root}{request.path}".startswith("/redirect_httpx2/"):
+        import httpx2 as httpx_client
+    else:
+        import httpx as httpx_client
 
     full_url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.data.decode()
@@ -268,7 +288,7 @@ def redirect_httpx(route: str, port: int):
     if body is not None:
         headers["Content-Type"] = "application/json"
     try:
-        with httpx.Client() as client:
+        with httpx_client.Client() as client:
             response = client.request(
                 method,
                 full_url,
@@ -285,11 +305,15 @@ def redirect_httpx(route: str, port: int):
     return payload
 
 
+@app.route("/redirect_httpx2_async/<string:route>/<int:port>", methods=["GET", "POST"])
 @app.route("/redirect_httpx_async/<string:route>/<int:port>", methods=["GET", "POST"])
 def redirect_httpx_async(route: str, port: int):
     import asyncio
 
-    import httpx
+    if f"{request.script_root}{request.path}".startswith("/redirect_httpx2_async/"):
+        import httpx2 as httpx_client
+    else:
+        import httpx as httpx_client
 
     full_url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.data.decode()
@@ -304,7 +328,7 @@ def redirect_httpx_async(route: str, port: int):
     try:
 
         async def _request():
-            async with httpx.AsyncClient() as client:
+            async with httpx_client.AsyncClient() as client:
                 return await client.request(
                     method,
                     full_url,

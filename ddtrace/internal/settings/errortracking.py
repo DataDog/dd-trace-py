@@ -1,6 +1,6 @@
-import sys
 import typing as t
 
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.settings._core import DDConfig
 
 
@@ -19,7 +19,7 @@ class ErrorTrackingConfig(DDConfig):
     # Specify the modules (user and third party mixed) for which we report handled exceptions
     _modules_to_report = DDConfig.v(list, "handled.errors.include", parser=parse_modules, default=[])
 
-    if sys.version_info >= (3, 12):
+    if is_at_least_py(3, 12):
         """
         TOOL_ID must be in range 0 to 5 inclusive with
         sys.monitoring.DEBUGGER_ID = 0

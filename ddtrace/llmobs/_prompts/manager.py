@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from dataclasses import field
 import hashlib
 import json
-import threading
 from typing import Any
 from typing import Literal
 from typing import Optional
@@ -15,6 +14,8 @@ import warnings
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import Thread
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
@@ -40,6 +41,8 @@ from ddtrace.llmobs.types import PromptVersionResponse
 
 
 log = get_logger(__name__)
+
+_UNSET: Any = object()
 
 _STATUS_EXCEPTIONS: dict[int, type[PromptAPIError]] = {
     400: PromptValidationError,
@@ -136,9 +139,9 @@ class PromptManager:
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
 
-        self._refresh_threads: dict[str, threading.Thread] = {}
-        self._refresh_lock = threading.Lock()
-        self._ffe_lock = threading.Lock()
+        self._refresh_threads: dict[str, Thread] = {}
+        self._refresh_lock = Lock()
+        self._ffe_lock = Lock()
         self._ffe_rc_enabled = False
         self._ffe_provider_set = False
         if file_cache_enabled:
@@ -306,12 +309,12 @@ class PromptManager:
         with self._refresh_lock:
             if key in self._refresh_threads:
                 return
-            thread = threading.Thread(target=run_refresh, daemon=True)
+            thread = Thread(run_refresh, name=f"{__name__}:{self.__class__.__name__}:refresh:{key}")
             self._refresh_threads[key] = thread
 
         try:
             thread.start()
-        except RuntimeError:
+        except (RuntimeError, OSError):
             with self._refresh_lock:
                 self._refresh_threads.pop(key, None)
             log.debug("Failed to start background refresh thread for prompt %s", req.prompt_id)
@@ -524,6 +527,7 @@ class PromptManager:
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),
                 _version_uuid=data.get("prompt_version_uuid") or data.get("id") or data.get("ID"),
+                _config=data.get("config", {}),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
@@ -537,9 +541,9 @@ class PromptManager:
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         if fallback is None:
-            message = "Prompt '{}' could not be fetched and no fallback was provided".format(prompt_id)
+            message = f"Prompt '{prompt_id}' could not be fetched and no fallback was provided"
             if reason:
-                message = "{}: {}".format(message, reason)
+                message = f"{message}: {reason}"
             raise ValueError(message)
         log.debug("Using user-provided fallback for prompt %s", prompt_id)
         return ManagedPrompt.from_fallback(prompt_id, fallback)
@@ -606,6 +610,7 @@ class PromptManager:
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: object = _UNSET,
     ) -> PromptResponse:
         body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
         if title:
@@ -618,6 +623,10 @@ class PromptManager:
             body["labels"] = labels
         if env_ids is not None:
             body["env_ids"] = env_ids
+        if isinstance(config, dict):
+            body["config"] = config
+        elif config is not _UNSET:
+            raise PromptValidationError(0, "config must be a dictionary")
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -631,6 +640,7 @@ class PromptManager:
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: object = _UNSET,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {"template": template}
@@ -642,6 +652,10 @@ class PromptManager:
             body["labels"] = labels
         if env_ids is not None:
             body["env_ids"] = env_ids
+        if isinstance(config, dict):
+            body["config"] = config
+        elif config is not _UNSET:
+            raise PromptValidationError(0, "config must be a dictionary")
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
         self._evict_prompt_caches(prompt_id)
         return result

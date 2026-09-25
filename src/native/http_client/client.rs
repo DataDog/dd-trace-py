@@ -31,7 +31,7 @@ const TLS_DESTROYED_PANIC: &str = "Tokio context thread-local variable has been 
 /// Run `f`, retrying once on a fresh thread if it panics with the specific
 /// "TLS destroyed" message below — never for any other panic.
 ///
-/// AIDEV-NOTE: this exists for requests issued at interpreter shutdown. Some
+/// This exists for requests issued at interpreter shutdown. Some
 /// embedders tear down their threads *before* Python runs its `atexit` hooks,
 /// so a request made from such a hook runs on a thread whose thread-local
 /// storage is already destroyed, and `Runtime::block_on` panics with "The Tokio
@@ -196,7 +196,7 @@ impl HttpClientPy {
         treat_http_errors_as_errors: bool,
     ) -> PyResult<Self> {
         ensure_crypto_provider();
-        let rt = runtime.as_arc().clone();
+        let rt = runtime.as_arc()?;
 
         // Parse the base URL to validate it and extract the canonical base origin.
         // unix:// is not a registered URL scheme so we handle it first; http/https

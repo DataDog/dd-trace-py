@@ -124,12 +124,15 @@ def test_rule_init_via_env_no_name_or_service_logs_warning_and_continues(
 
 
 def test_rule_init_via_env_service_pattern_contains_unsupported_char():
-    with override_global_config(dict(_sampling_rules='[{"service":"h[!a]i"}]')):
+    # Unsupported glob chars are only rejected when config._raise is True (testing mode). _raise is
+    # a process-global bridged to the native config, and other tests in the same worker can flip it,
+    # so force it here to keep this test order-independent instead of relying on the ambient value.
+    with override_global_config(dict(_sampling_rules='[{"service":"h[!a]i"}]', _raise=True)):
         assert get_span_sampling_rules() == []
 
 
 def test_rule_init_via_env_name_pattern_contains_unsupported_char():
-    with override_global_config(dict(_sampling_rules='[{"name":"h[!a]i"}]')):
+    with override_global_config(dict(_sampling_rules='[{"name":"h[!a]i"}]', _raise=True)):
         assert get_span_sampling_rules() == []
 
 

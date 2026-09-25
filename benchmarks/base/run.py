@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 import queue
 import subprocess
 import sys
@@ -16,7 +17,7 @@ SHOULD_PROFILE = os.environ.get("PROFILE_BENCHMARKS", "0") == "1"
 
 
 def read_config(path):
-    with open(path, "r") as fp:
+    with open(path) as fp:
         return yaml.load(fp, Loader=yaml.FullLoader)
 
 
@@ -49,8 +50,8 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
 
     if SHOULD_PROFILE:
         # viztracer won't create the missing directory itself
-        viztracer_output_dir = os.path.join(output_dir, "viztracer")
-        os.makedirs(viztracer_output_dir, exist_ok=True)
+        viztracer_output_dir = Path(output_dir) / "viztracer"
+        viztracer_output_dir.mkdir(parents=True, exist_ok=True)
 
         cmd += [
             "viztracer",
@@ -60,7 +61,7 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
             "--max_stack_depth",
             "200",
             "--output_file",
-            os.path.join(output_dir, "viztracer", "{}.json".format(cname)),
+            str(viztracer_output_dir / f"{cname}.json"),
             "--",
         ]
     else:
@@ -71,12 +72,12 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
         # necessary to copy PYTHONPATH for venvs
         "--copy-env",
         "--output",
-        os.path.join(output_dir, f"results.{cname}.json"),
+        str(Path(output_dir) / f"results.{cname}.json"),
         "--name",
         cname,
     ]
     for cvarname, cvarval in cvars.items():
-        cmd.append("--{}".format(cvarname))
+        cmd.append(f"--{cvarname}")
         if isinstance(cvarval, (dict, list)):
             # convert dicts and lists to JSON strings
             cmd.append(json.dumps(cvarval))
@@ -89,11 +90,11 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: {} <output dir>".format(sys.argv[0]))
+        print(f"Usage: {sys.argv[0]} <output dir>")
         sys.exit(1)
 
     output_dir = sys.argv[1]
-    print("Saving results to {}".format(output_dir))
+    print(f"Saving results to {output_dir}")
     config = read_config("config.yaml")
 
     # Filter configs if BENCHMARK_CONFIGS is set

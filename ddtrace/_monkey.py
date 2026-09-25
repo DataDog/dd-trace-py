@@ -27,6 +27,7 @@ log = get_logger(__name__)
 PATCH_MODULES = {
     "aiokafka": True,
     "aiomysql": True,
+    "anyio": True,
     "aredis": True,
     "asyncio": True,
     "avro": True,
@@ -106,6 +107,7 @@ PATCH_MODULES = {
     "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
+    "trio": True,
     "openai": True,
     "langchain": True,
     "anthropic": True,

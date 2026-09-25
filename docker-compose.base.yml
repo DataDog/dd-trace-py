@@ -143,7 +143,7 @@ services:
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:4d842eb2d0671790e4dc3e30309a8e3ffe91ac8b
+        image: ghcr.io/datadog/dd-trace-py/testrunner:a69a6a13fa670f2055d5b68da9d2c017be9b0a7d
         command: bash
         # Resource limits: defaults to 0 (unlimited, uses all available system resources)
         # Set DD_TEST_CPUS (e.g., "4") and DD_TEST_MEMORY (e.g., "8g") to apply limits
@@ -157,15 +157,11 @@ services:
           CMAKE_BUILD_PARALLEL_LEVEL: "12"
           CARGO_BUILD_JOBS: "12"
           CYTHON_CACHE_DIR: "/home/bits/.cache/cython"
+          # CMake caches record absolute paths, so the host and container must not share them.
+          DD_SETUP_CACHE_DIR: "/home/bits/project/.cache/download_cache"
           DD_USE_SCCACHE: "1"
           SCCACHE_DIR: "/home/bits/.cache/sccache"
           DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
-          # Store riot venvs in a subdir separate from the host's .riot/venv* dirs
-          # (shared via the project bind mount below). Without this, venvs built
-          # inside the Linux container and venvs built natively on the host (e.g.
-          # macOS) collide in the same path, and riot picks up incompatible
-          # prebuilt binaries.
-          RIOT_ENV_BASE_PATH: ".riot/docker"
         userns_mode: host
         working_dir: /home/bits/project/
         volumes:

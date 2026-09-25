@@ -1,11 +1,17 @@
+from unittest import mock
+
 import pytest
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.vertica.patch import _dispatch_query_event
 from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.settings._config import _deepmerge
@@ -33,13 +39,13 @@ def test_conn(request, test_tracer):
     conn = vertica_python.connect(**VERTICA_CONFIG)
 
     cur = conn.cursor()
-    cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+    cur.execute(f"DROP TABLE IF EXISTS {TEST_TABLE}")
     cur.execute(
-        """CREATE TABLE {} (
+        f"""CREATE TABLE {TEST_TABLE} (
         a INT,
         b VARCHAR(32)
         )
-        """.format(TEST_TABLE)
+        """
     )
     TracerSpanContainer(test_tracer).pop()
 
@@ -49,8 +55,27 @@ def test_conn(request, test_tracer):
 
 class TestVerticaPatching(TracerTestCase):
     def tearDown(self):
-        super(TestVerticaPatching, self).tearDown()
+        super().tearDown()
         unpatch()
+
+    def test_query_event_can_block(self):
+        cases = (
+            ("execute", ("SELECT 1",)),
+            ("copy", ("COPY test_table (a, b) FROM STDIN DELIMITER ','", "1,foo")),
+        )
+
+        for method, args in cases:
+            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+                with pytest.raises(BlockingException):
+                    _dispatch_query_event(method, args, {})
+
+            dispatch_event.assert_called_once_with(DbQueryEvent(query=args[0], span_name_prefix="vertica"))
+
+    def test_non_string_query_does_not_dispatch_event(self):
+        with mock.patch.object(core, "dispatch_event") as dispatch_event:
+            _dispatch_query_event("execute", (b"SELECT 1",), {})
+
+        dispatch_event.assert_not_called()
 
     def test_patch_before_import(self):
         patch()
@@ -117,7 +142,7 @@ class TestVerticaPatching(TracerTestCase):
 @pytest.mark.usefixtures("test_tracer", "test_conn")
 class TestVertica(TracerTestCase):
     def tearDown(self):
-        super(TestVertica, self).tearDown()
+        super().tearDown()
 
         unpatch()
 
@@ -130,7 +155,7 @@ class TestVertica(TracerTestCase):
             conn = vertica_python.connect(**VERTICA_CONFIG)
             cur = conn.cursor()
             with conn:
-                cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+                cur.execute(f"DROP TABLE IF EXISTS {TEST_TABLE}")
         spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].service == "test_svc_name"
@@ -170,8 +195,8 @@ class TestVertica(TracerTestCase):
         conn, cur = self.test_conn
 
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -199,8 +224,8 @@ class TestVertica(TracerTestCase):
         conn, cur = self.test_conn
 
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -255,8 +280,8 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.execute(
-                """
-                INSERT INTO {} (a, b)
+                f"""
+                INSERT INTO {TEST_TABLE} (a, b)
                 SELECT 1, 'a'
                 UNION ALL
                 SELECT 2, 'b'
@@ -266,11 +291,11 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(TEST_TABLE)
+                """
             )
             assert cur.rowcount == -1
 
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
             cur.fetchone()
             assert cur.rowcount == 1
             cur.fetchone()
@@ -314,7 +339,7 @@ class TestVertica(TracerTestCase):
         conn, cur = self.test_conn
 
         with conn:
-            cur.execute("SELECT * FROM {0}; SELECT * FROM {0}".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE}; SELECT * FROM {TEST_TABLE}")
             cur.nextset()
 
         spans = self.pop_spans()
@@ -334,7 +359,7 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.copy(
-                "COPY {0} (a, b) FROM STDIN DELIMITER ','".format(TEST_TABLE),
+                f"COPY {TEST_TABLE} (a, b) FROM STDIN DELIMITER ','",
                 "1,foo\n2,bar",
             )
 
@@ -361,8 +386,8 @@ class TestVertica(TracerTestCase):
         assert config.service == "mysvc"
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -384,8 +409,8 @@ class TestVertica(TracerTestCase):
         assert config.service == "mysvc"
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -407,8 +432,8 @@ class TestVertica(TracerTestCase):
         assert config.service == "mysvc"
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -424,8 +449,8 @@ class TestVertica(TracerTestCase):
         """
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -441,8 +466,8 @@ class TestVertica(TracerTestCase):
         """
         conn, cur = self.test_conn
         with conn:
-            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"INSERT INTO {TEST_TABLE} (a, b) VALUES (1, 'aa');")
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
 
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -459,8 +484,8 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.execute(
-                """
-                INSERT INTO {} (a, b)
+                f"""
+                INSERT INTO {TEST_TABLE} (a, b)
                 SELECT 1, 'a'
                 UNION ALL
                 SELECT 2, 'b'
@@ -470,11 +495,11 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(TEST_TABLE)
+                """
             )
             assert cur.rowcount == -1
 
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
             cur.fetchone()
             assert cur.rowcount == 1
             cur.fetchone()
@@ -503,8 +528,8 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.execute(
-                """
-                INSERT INTO {} (a, b)
+                f"""
+                INSERT INTO {TEST_TABLE} (a, b)
                 SELECT 1, 'a'
                 UNION ALL
                 SELECT 2, 'b'
@@ -514,11 +539,11 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(TEST_TABLE)
+                """
             )
             assert cur.rowcount == -1
 
-            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+            cur.execute(f"SELECT * FROM {TEST_TABLE};")
             cur.fetchone()
             assert cur.rowcount == 1
             cur.fetchone()

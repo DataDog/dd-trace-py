@@ -45,12 +45,12 @@ class _SyntheticDDConfig(DDConfig):
 
 @pytest.fixture(autouse=True)
 def _no_inherited_api_key(monkeypatch):
-    """Keep subprocess telemetry writers in non-agentless mode.
+    """Keep the developer's real ``DD_API_KEY`` out of the subprocesses these tests spawn.
 
-    A ``DD_API_KEY`` present in the test environment is inherited by the subprocesses these tests
-    spawn (``os.environ.copy()``) and flips their telemetry writer into agentless mode, diverting
-    requests to the Datadog intake instead of the local test agent. Tests that genuinely need an
-    api key set it explicitly via the subprocess marker env / mock.patch.dict, which overrides
+    They inherit the environment wholesale (``os.environ.copy()``), so a key present locally
+    would otherwise be a live credential inside every test process — one stray agentless
+    setting away from shipping test telemetry to a real org. Tests that genuinely need an api
+    key set it explicitly via the subprocess marker env / mock.patch.dict, which overrides
     this removal.
     """
     monkeypatch.delenv("DD_API_KEY", raising=False)
@@ -376,6 +376,36 @@ def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     validate_request_body(events[0], {}, "app-closing")
 
 
+def test_app_shutdown_sends_a_single_closing_flush(telemetry_writer, test_agent_session, mock_time):
+    """asserts the full lifecycle of an empty app sends exactly two telemetry requests
+
+    Regression test for the shutdown double-flush: app_shutdown() used to force a data flush
+    before stopping the worker, which emitted a spurious heartbeat batch
+    (["app-dependencies-loaded", "app-heartbeat"]) ahead of a separate ["app-closing"] batch.
+    The native stop() drains the buffered events itself, so an empty app must send only:
+      1. ["app-started"], emitted eagerly on start()
+      2. ["app-dependencies-loaded", "app-closing"], drained by stop()
+    """
+    # The ddtrace Test Optimization plugin force-disables telemetry dependency
+    # collection. This test asserts the full app lifecycle including dependency
+    # discovery, so re-enable it for the duration of the test.
+    with mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True):
+        telemetry_writer.app_started()
+        telemetry_writer.app_shutdown()
+
+    # get_requests() returns requests in reverse seq_id order. Restore
+    # chronological order and collapse each request into the list of the event
+    # types it carried.
+    requests = list(reversed(test_agent_session.get_requests(filter_heartbeats=False)))
+    batches = [
+        [payload["request_type"] for payload in req["body"]["payload"]]
+        if req["body"]["request_type"] == "message-batch"
+        else [req["body"]["request_type"]]
+        for req in requests
+    ]
+    assert batches == [["app-started"], ["app-dependencies-loaded", "app-closing"]], batches
+
+
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_integration() queues a valid telemetry request"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
@@ -629,17 +659,47 @@ def test_telemetry_writer_agentless_disabled_without_api_key():
 
 
 @pytest.mark.subprocess(env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey"})
-def test_telemetry_writer_is_using_agentless_by_default_if_api_key_is_available():
+def test_telemetry_writer_stays_on_the_agent_when_only_an_api_key_is_set():
     from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
-    from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
-    # When an api key is present (and agentless not explicitly disabled) the writer defaults
-    # to agentless mode.
+    # An api key says nothing about how data should be submitted: without an agentless
+    # setting, telemetry keeps going through the agent.
+    assert telemetry_writer._enabled
+    assert telemetry_writer._agentless is False
+    assert config._dd_api_key == "foobarkey"
+
+
+@pytest.mark.parametrize(
+    "agentless_env_var",
+    [
+        "DD_AGENTLESS_ENABLED",
+        "DD_CIVISIBILITY_AGENTLESS_ENABLED",
+        "DD_LLMOBS_AGENTLESS_ENABLED",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED",
+    ],
+)
+def test_any_agentless_setting_turns_telemetry_agentless(agentless_env_var):
+    """Telemetry has no transport setting of its own, so any agentless config turns it agentless."""
+    from ddtrace.internal.settings._agentless import AgentlessConfig
+    from tests.utils import override_env
+
+    with override_env({"DD_API_KEY": "foobarkey"}, replace_os_env=True):
+        assert AgentlessConfig().any_enabled is False
+
+    with override_env({"DD_API_KEY": "foobarkey", agentless_env_var: "true"}, replace_os_env=True):
+        assert AgentlessConfig().any_enabled is True
+
+    with override_env({"DD_API_KEY": "foobarkey", agentless_env_var: "false"}, replace_os_env=True):
+        assert AgentlessConfig().any_enabled is False
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "DD_AGENTLESS_ENABLED": "true"})
+def test_telemetry_writer_agentless_setup_from_the_global_setting():
+    from ddtrace.internal.telemetry import telemetry_writer
+
     assert telemetry_writer._enabled
     assert telemetry_writer._agentless is True
-    assert config._dd_api_key == "foobarkey"
-    assert _agentless_endpoint_url(config._dd_site) == "https://all-http-intake.logs.datad0g.com"
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false"})

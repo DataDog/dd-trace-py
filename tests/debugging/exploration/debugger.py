@@ -24,6 +24,7 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
 
 if not config.capture:
@@ -43,7 +44,7 @@ _debugger.remoteconfig_poller = NoopRemoteConfig()
 
 class ModuleCollector(DebuggerModuleWatchdog):
     def __init__(self, *args, **kwargs):
-        super(ModuleCollector, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._imported_modules: set[str] = set()
 
@@ -83,7 +84,7 @@ class ModuleCollector(DebuggerModuleWatchdog):
 
         self._on_new_module(module)
 
-        super(ModuleCollector, self).after_import(module)
+        super().after_import(module)
 
         if config.elusive:
             # Handle any new modules that have been imported since the last time
@@ -102,10 +103,10 @@ class ModuleCollector(DebuggerModuleWatchdog):
                 if name not in self._imported_modules:
                     self._imported_modules.add(name)
                     self._on_new_module(m)
-                    super(ModuleCollector, self).after_import(m)
+                    super().after_import(m)
 
 
-class NoopDebuggerRC(object):
+class NoopDebuggerRC:
     def __init__(self, *args, **kwargs):
         pass
 
@@ -137,7 +138,7 @@ class NoopSnapshotJsonEncoder(LogSignalJsonEncoder):
 
 class ExplorationSignalCollector(SignalCollector):
     def __init__(self, *args, **kwargs):
-        super(ExplorationSignalCollector, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
@@ -210,7 +211,11 @@ class ExplorationDebugger(Debugger):
         di_config.global_rate_limit = float("inf")
         di_config.metrics = False
 
-        super(ExplorationDebugger, cls).enable()
+        # We are not managed by the product manager, so we have to register
+        # with the shared code collector ourselves, before enabling.
+        ModuleCodeCollector.register("di")
+
+        super().enable()
 
         cls._instance._probe_registry = LightProbeRegistry(cls._instance._status_logger)
 
@@ -219,8 +224,6 @@ class ExplorationDebugger(Debugger):
         # Register the debugger to be disabled at exit manually because we are
         # not being managed by the product manager.
         atexit.register(cls.disable)
-
-        cls.__watchdog__.install()
 
     @classmethod
     def disable(cls, join: bool = True) -> None:
@@ -236,8 +239,6 @@ class ExplorationDebugger(Debugger):
         log("")
 
         cls.on_disable()
-
-        cls.__watchdog__.uninstall()
 
         failed = False
         if not nprobes:
@@ -255,7 +256,7 @@ class ExplorationDebugger(Debugger):
                 log(f"  - {e.error_type}: {e.message}, in {probe_id}")
                 log(f"    >>> {linecache.getline(file, int(line))}")
 
-        super(ExplorationDebugger, cls).disable(join=join)
+        super().disable(join=join)
 
         if failed:
             os._exit(2)

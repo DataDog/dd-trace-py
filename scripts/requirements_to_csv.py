@@ -10,7 +10,7 @@ def requirements_to_csv():
     Reads dependencies from pyproject.toml and writes them to a CSV file
     in the root directory and in the lib-injection/sources directory.
     """
-    with open("pyproject.toml", "r") as f:
+    with open("pyproject.toml") as f:
         data = toml.load(f)
 
     rows = [["Dependency", "Version Specifier", "Python Version"]]

@@ -16,9 +16,14 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_at_most_py
+from ddtrace.internal.compat import is_supported_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
 from ddtrace.internal.wrapping import get_function_code
@@ -42,14 +47,14 @@ class _ContextRecord:
     __slots__ = ("_uwc_ref", "lazy_contexts")
 
     def __init__(self) -> None:
-        self._uwc_ref: t.Optional[weakref.ref["_UniversalWrappingContext"]] = None
+        self._uwc_ref: t.Optional[weakref.ref[_UniversalWrappingContext]] = None
         # WeakSet so that LazyWrappingContext instances (which also hold
         # __wrapped__ = f) do not prevent the function from being collected.
-        self.lazy_contexts: weakref.WeakSet["LazyWrappingContext"] = weakref.WeakSet()
+        self.lazy_contexts: weakref.WeakSet[LazyWrappingContext] = weakref.WeakSet()
 
     @property
     def uwc(self) -> t.Optional["_UniversalWrappingContext"]:
-        ref: t.Optional[weakref.ref["_UniversalWrappingContext"]] = self._uwc_ref
+        ref: t.Optional[weakref.ref[_UniversalWrappingContext]] = self._uwc_ref
         return ref() if ref is not None else None
 
     @uwc.setter
@@ -58,7 +63,7 @@ class _ContextRecord:
 
     @classmethod
     def get_or_create(cls, f: FunctionType) -> "_ContextRecord":
-        record: t.Optional["_ContextRecord"] = _registry.get(f)
+        record: t.Optional[_ContextRecord] = _registry.get(f)
         if record is None:
             with _registry_lock:
                 record = _registry.get(f)
@@ -220,13 +225,13 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 16):
+if not is_supported_python_version():
     raise NotImplementedError("This version of Python is not supported yet")
-elif sys.version_info >= (3, 15):
+elif is_at_least_py(3, 15):
     # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
     # needed.
     pass
-elif sys.version_info >= (3, 13):
+elif is_at_least_py(3, 13):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context_enter}
@@ -272,7 +277,7 @@ elif sys.version_info >= (3, 13):
         """
     )
 
-elif sys.version_info >= (3, 12):
+elif is_at_least_py(3, 12):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -320,7 +325,7 @@ elif sys.version_info >= (3, 12):
     )
 
 
-elif sys.version_info >= (3, 11):
+elif is_at_least_py(3, 11):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -371,7 +376,7 @@ elif sys.version_info >= (3, 11):
         """
     )
 
-elif sys.version_info >= (3, 10):
+elif is_at_least_py(3, 10):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -402,7 +407,7 @@ elif sys.version_info >= (3, 10):
         """
     )
 
-elif sys.version_info >= (3, 9):
+elif is_at_least_py(3, 9):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -439,9 +444,9 @@ elif sys.version_info >= (3, 9):
 # (3.15+) the stack is:
 #   monitored function → monitoring._on_py_start → uwc.on_py_start → __enter__
 # so the monitored frame is three levels up.
-_ENTER_FRAME_DEPTH = 3 if sys.version_info >= (3, 15) else 1
+_ENTER_FRAME_DEPTH: int = 3 if is_at_least_py(3, 15) else 1
 
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
     # Keyed by code object: drives sys.monitoring dispatch and is_wrapped/extract lookup.
@@ -591,9 +596,9 @@ class WrappingContext(BaseWrappingContext):
             raise ValueError(msg)
 
     def wrap(self) -> None:
-        t.cast(
-            _UniversalWrappingContext, _UniversalWrappingContext.wrapped(t.cast(FunctionType, self.__wrapped__))
-        ).register(self)
+        f = t.cast(FunctionType, self.__wrapped__)
+        context = t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(f))
+        context.register(self)
 
     def unwrap(self) -> None:
         f = t.cast(FunctionType, self.__wrapped__)
@@ -604,7 +609,7 @@ class WrappingContext(BaseWrappingContext):
             pass
 
 
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
     # Monitoring-based instrumentation has negligible per-function overhead, so
     # there is no benefit to deferring wrapping until first call. On Python 3.15+
     # this is a transparent alias for WrappingContext kept only for API compatibility.
@@ -612,7 +617,7 @@ if sys.version_info >= (3, 15):
 
 else:
 
-    class LazyWrappingContext(WrappingContext):
+    class LazyWrappingContext(WrappingContext):  # type: ignore[no-redef]
         def __init__(self, f: FunctionType):
             super().__init__(f)
 
@@ -699,12 +704,38 @@ class ContextWrappedFunction(Protocol):
 
 # On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
 # it can be registered directly with the multiplexer via register(code, self).
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
     from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
 
     _UWC_BASES: tuple[type, ...] = (BaseWrappingContext, _MonitoringEventHandler)
 else:
     _UWC_BASES = (BaseWrappingContext,)
+
+
+# Below 3.11 the wrapped function enters through a real `with` statement, and Python does not call
+# __exit__ when __enter__ raises, so a propagating __enter__ is the only place left to clean up.
+# From 3.11 the injected exception handler reaches _exit() instead, which does it.
+_ENTER_MUST_RELEASE_ON_RAISE: bool = is_at_most_py(3, 10)
+
+
+def _held_storage(contexts: "list[WrappingContext]") -> dict[int, t.Any]:
+    """Snapshot the storage each context currently holds, to detect which ones still hold it."""
+    return {id(context): context._storage.get() for context in contexts}
+
+
+def _release_storage(contexts: "list[WrappingContext]", held: dict[int, t.Any]) -> None:
+    """Pop the storage of contexts that never got to pop their own.
+
+    Identity comparison against the snapshot is what makes this safe: a context that already
+    popped now holds a different object, so popping again would discard an outer re-entrant
+    call's storage.
+    """
+    for context in contexts:
+        if context._storage.get() is held.get(id(context)):
+            try:
+                context._pop_storage()
+            except Exception:  # nosec: cleanup must not mask the original exception
+                log.debug("Failed to release storage for wrapping context %r", context, exc_info=True)
 
 
 # This class provides an interface between single bytecode wrapping and multiple
@@ -757,9 +788,24 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         entered: list[WrappingContext] = []
         storage["__contexts__"] = entered
         for context in self._contexts:
+            # A context that raises is left out of `entered`, so its __exit__ never runs. If its
+            # __enter__ pushed storage before failing, nothing else would ever pop it and the
+            # ContextVar would chain one dict per call. Compare identity to pop only what this
+            # call pushed, leaving an outer re-entrant call's storage alone.
+            before = context._storage.get()
             try:
                 context.__enter__()
-            except Exception:
+            except BaseException as exc:
+                if context._storage.get() is not before:
+                    context._pop_storage()
+                if not isinstance(exc, Exception):
+                    if _ENTER_MUST_RELEASE_ON_RAISE:
+                        # Nothing downstream will run, so release what this call pushed: the
+                        # contexts that did enter, and this universal context itself.
+                        _release_storage(entered, _held_storage(entered))
+                        self._pop_storage()
+                    # A BaseException (e.g. a deliberate blocking decision) is the caller's to see.
+                    raise
                 log.debug("Failed to enter wrapping context %r", context, exc_info=True)
                 continue
             entered.append(context)
@@ -812,12 +858,18 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             # wrapped function body -- it never gets to run, so __exit__ must
             # not run for it either. See _exit and on_py_unwind, which consume
             # this flag on the bytecode and sys.monitoring paths respectively.
+            #
+            # NOTE: this path still leaks the storage of this call, including the universal one
+            # holding __frame__, because the suppressed __exit__ was what would have popped it.
+            # Releasing it here is not correct: _exit and on_py_unwind read the flag back off
+            # this same storage, so popping first makes them act on the enclosing call's storage
+            # instead. Tracked in APPSEC-69961.
             storage[_SKIP_EXIT_KEY] = True
             raise
 
         return t.cast(T, super().__return__(value))
 
-    if sys.version_info >= (3, 15):
+    if is_at_least_py(3, 15):
         # Exceptions here are deliberately left uncaught (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
         # with-statement semantics -- safe because this is the only handler
@@ -862,7 +914,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         @classmethod
         def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
-            ctx: t.Optional["_UniversalWrappingContext"] = _ctx_registry.get(get_function_code(f))
+            ctx: t.Optional[_UniversalWrappingContext] = _ctx_registry.get(get_function_code(f))
             if ctx is None:
                 raise ValueError("Function is not wrapped")
             # Monitoring dispatches per code object, so a fresh function instance
@@ -880,7 +932,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             original_code: CodeType = get_function_code(f)
             with _ctx_registry_lock:
                 if original_code in _ctx_registry:
-                    existing: "_UniversalWrappingContext" = _ctx_registry[original_code]
+                    existing: _UniversalWrappingContext = _ctx_registry[original_code]
                     if _fn_registry.get(f) is existing:
                         raise ValueError("Function already wrapped")
                     # Only replace a registry entry when the prior wrapped function
@@ -919,7 +971,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         def unwrap(self) -> None:
             f: FunctionType = self.__wrapped__
-            finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)
+            finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)  # type: ignore[type-arg]
             if finalize is not None:
                 finalize.detach()
                 del self._finalize
@@ -970,6 +1022,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     raise ValueError("Function already wrapped")
 
                 code = get_function_code(f)
+                if is_obfuscated_code(code):
+                    raise ObfuscatedCodeError(
+                        f"Cannot wrap {code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                    )
 
                 # Closures created from repeated calls to the same factory share
                 # the same code object: _build_template is memoized so the
@@ -1242,7 +1298,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             _registry.pop(f, None)
 
 
-if sys.version_info >= (3, 15):
+if is_at_least_py(3, 15):
 
     def _finalize_monitoring_wrap(
         self_ref: "weakref.ref[_UniversalWrappingContext]",
@@ -1255,7 +1311,7 @@ if sys.version_info >= (3, 15):
         of self.__wrapped__) cannot be used here. Clean up via the cloned monitor code
         object instead, which the finalizer callback captures directly.
         """
-        self: t.Optional["_UniversalWrappingContext"] = self_ref()
+        self: t.Optional[_UniversalWrappingContext] = self_ref()
         if self is None:
             return
         try:
