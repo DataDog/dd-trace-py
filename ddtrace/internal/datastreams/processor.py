@@ -33,8 +33,9 @@ from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from .encoding import decode_var_int_64
+from .encoding import decode_var_int_64_at
 from .encoding import encode_var_int_64
+from .encoding import var_int_64_len
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
 
@@ -339,9 +340,8 @@ class DataStreamsProcessor(PeriodicService):
     def decode_pathway(self, data: bytes) -> DataStreamsCtx:
         try:
             hash_value = struct.unpack("<Q", data[:8])[0]
-            data = data[8:]
-            pathway_start_ms, data = decode_var_int_64(data)
-            current_edge_start_ms, data = decode_var_int_64(data)
+            pathway_start_ms, pos = decode_var_int_64_at(data, 8)
+            current_edge_start_ms, _ = decode_var_int_64_at(data, pos)
             ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
             # reset context of current thread every time we decode
             self._current_context.value = ctx
@@ -397,7 +397,7 @@ class DataStreamsProcessor(PeriodicService):
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
-            payload_size += len(ctx.encode_b64()) + len(PROPAGATION_KEY_BASE_64)
+            payload_size += ctx.encoded_b64_len() + len(PROPAGATION_KEY_BASE_64)
         ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
@@ -444,6 +444,15 @@ class DataStreamsCtx:
         binary_pathway = base64.b64encode(encoded_pathway)
         data_streams_context = binary_pathway.decode("utf-8")
         return data_streams_context
+
+    def encoded_b64_len(self) -> int:
+        """``len(self.encode_b64())``, computed without encoding."""
+        n = (
+            8
+            + var_int_64_len(int(self.pathway_start_sec * 1e3))
+            + var_int_64_len(int(self.current_edge_start_sec * 1e3))
+        )
+        return 4 * ((n + 2) // 3)
 
     def _compute_hash(self, tags, parent_hash):
         # base_hash_bytes is part of the key: it changes at runtime once the agent
