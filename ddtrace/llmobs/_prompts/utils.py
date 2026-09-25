@@ -8,7 +8,7 @@ from typing import Union
 from ddtrace.llmobs.types import Message
 
 
-_VARIABLE_PATTERN = re.compile(r"(?<!\{)(?:\{\{\s*(\w+)\s*\}\}(?!\})|\{\s*(\w+)\s*\}(?!\}))")
+_VARIABLE_PATTERN = re.compile(r"\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}")
 
 
 def extract_template(data: Mapping[str, Any], default: Union[str, list[Message]] = "") -> Union[str, list[Message]]:
@@ -20,7 +20,7 @@ def safe_substitute(template: str, variables: dict[str, str]) -> str:
     """
     Substitute {variable} or {{variable}} placeholders with values from variables dict.
 
-    Missing variables and placeholders with mismatched or extra braces are left as-is.
+    Missing variables and braces surrounding a placeholder are left as-is.
     """
 
     def replace_var(match: re.Match) -> str:
