@@ -1,0 +1,10 @@
+_v: 1
+name: asyncio
+display_name: asyncio
+description: Instruments asyncio task creation and callback context switches to propagate Datadog trace, LLM observation,
+  and OpenTelemetry context across concurrent execution.
+packages: []
+category:
+- task.execution
+systems: []
+creation_date: '2017-01-27'
