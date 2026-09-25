@@ -41,6 +41,7 @@ ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 # Guild
 # Repository tooling defaults. Domain-specific rules below take precedence.
 AGENTS.md                           @DataDog/python-guild
+.agents/                            @DataDog/python-guild
 .claude/                            @DataDog/python-guild
 .cursor/                            @DataDog/python-guild
 .sg/                                @DataDog/python-guild
