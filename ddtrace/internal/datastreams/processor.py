@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from collections import defaultdict
+from functools import lru_cache
 from functools import partial
 import gzip
 import struct
@@ -67,6 +68,23 @@ PathwayAggrKey = tuple[
     int,  # hash_value
     int,  # parent hash
 ]
+
+
+# Pathway hashes are recomputed on every checkpoint, but their inputs repeat: one
+# entry per (edge tags, parent hash) pair a process sees. Bounded, since parent
+# hashes grow with the number of distinct upstream pathways.
+PATHWAY_HASH_CACHE_SIZE = 1024
+
+
+@lru_cache(maxsize=PATHWAY_HASH_CACHE_SIZE)
+def _compute_pathway_hash(
+    service: str, env: str, base_hash_bytes: bytes, tags: tuple[str, ...], parent_hash: int
+) -> int:
+    b = bytes(service, encoding="utf-8") + bytes(env, encoding="utf-8") + base_hash_bytes
+    for t in tags:
+        b += bytes(t, encoding="utf-8")
+    node_hash = fnv1_64(b)
+    return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
 
 class PathwayStats:
@@ -428,15 +446,9 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        def get_bytes(s):
-            return bytes(s, encoding="utf-8")
-
-        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
-
-        for t in tags:
-            b += get_bytes(t)
-        node_hash = fnv1_64(b)
-        return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
+        # base_hash_bytes is part of the key: it changes at runtime once the agent
+        # reports container tags (process_tags.compute_base_hash).
+        return _compute_pathway_hash(self.service, self.env, process_tags.base_hash_bytes, tuple(tags), parent_hash)
 
     def set_checkpoint(
         self,
