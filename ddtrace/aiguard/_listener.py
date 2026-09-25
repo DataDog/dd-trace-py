@@ -18,9 +18,11 @@ from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
+from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
+from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
@@ -75,6 +77,16 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.generate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
+
+    # LangChain marks the AI Guard context active for the whole model call, which
+    # makes the OpenAI / Anthropic listeners skip their own response evaluation.
+    # These listeners are what replaces it -- without them a LangChain model
+    # response reaches the caller unevaluated (APPSEC-70274). Streaming has no
+    # matching after event and is still uncovered; see the follow-up ticket.
+    core.on("langchain.chatmodel.generate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
+    core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
 
     # ``.stream.started`` is dispatched lazily from
     # ``BaseLangchainStreamHandler.start_stream`` (called by
@@ -459,7 +471,7 @@ def _on_set_http_meta_for_ai_guard(
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
-    # Stash the candidate client IP so it can be applied to the service-entry span
+    # Stash the client and peer IPs so they can be applied to the service-entry span
     # only if an ai_guard span is actually created during the request. Restricted to
     # inbound server (WEB/SERVERLESS) spans so outbound HTTP client spans can't overwrite
     # the key with forwarded-IP headers from downstream calls.
@@ -468,6 +480,9 @@ def _on_set_http_meta_for_ai_guard(
         return
     if span.span_type not in (SpanTypes.WEB, SpanTypes.SERVERLESS):
         return
+    # Later metadata calls (e.g. mounted ASGI apps) can omit the peer captured earlier.
+    if not peer_ip and core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY):
+        return
     candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
     if candidate_ip:
-        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, candidate_ip)
+        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, (candidate_ip, peer_ip))

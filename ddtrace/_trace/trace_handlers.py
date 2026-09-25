@@ -861,13 +861,13 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
         ctx.set_item("num_generations", str(request_params["n"]))
 
 
-def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
+def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info, response=None):
     span = span_from_context(ctx)
     span.set_exc_info(*exc_info)
     model_name = ctx.get_item("model_name")
     integration = ctx.get_item("bedrock_integration")
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=response)
     span.finish()
 
 
@@ -1084,19 +1084,6 @@ def _on_azure_message_modifier(
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
     _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count)
-
-
-def _on_router_match(route):
-    req_span = core.get_item("req_span")
-    core.set_item("set_resource", False)
-    req_span.resource = f"{route.method} {route.template}"
-
-    MOLTEN_ROUTE = "molten.route"
-
-    if not req_span.get_tag(MOLTEN_ROUTE):
-        req_span._set_attribute(MOLTEN_ROUTE, route.name)
-    if not req_span.get_tag(http.ROUTE):
-        req_span._set_attribute(http.ROUTE, route.template)
 
 
 def _set_websocket_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
@@ -2003,8 +1990,6 @@ def listen():
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
-    core.on("molten.router.match", _on_router_match)
-
     core.on("mlflow.new.run", _on_mlflow_new_run)
     core.on("mlflow.end.run", _on_mlflow_end_run)
     core.on("mlflow.new.step", _on_mlflow_new_step)
@@ -2026,8 +2011,6 @@ def listen():
     for context_name in (
         # web frameworks
         "cherrypy.request",
-        "molten.request",
-        "molten.trace_func",
         "pyramid.request",
         "tornado.request",
         "flask.call",
@@ -2104,7 +2087,6 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
-        "molten.trace_func",
         "redis.execute_pipeline",
         "redis.command",
         "azure.durable_functions.patched_activity",
