@@ -524,6 +524,7 @@ class TestSkippingAndITRFeatures:
             plugin.pytest_sessionfinish(mock_session)
 
         assert mock_session.exitstatus == pytest.ExitCode.OK
+        plugin.session.set_status.assert_called_once_with(TestStatus.SKIP)
         if coverage_pct is not None:
             assert plugin.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] == coverage_pct
 
