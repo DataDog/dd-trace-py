@@ -525,7 +525,7 @@ class Config:
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
 
-        self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
+        self._span_traceback_max_size: int = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
@@ -533,7 +533,9 @@ class Config:
         self._propagation_http_baggage_enabled = _get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
-        self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
+        self.service: Optional[str] = _get_config(
+            "DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME"
+        )
 
         self._inferred_base_service = detect_service(sys.argv)
 
@@ -704,7 +706,7 @@ class Config:
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
-        self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
+        self._data_streams_enabled: bool = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
@@ -749,7 +751,7 @@ class Config:
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
-        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+        self._model_lab_enabled: bool = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
 
         self._llmobs_payload_size_limit = _get_config(
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int

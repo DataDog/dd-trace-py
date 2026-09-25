@@ -861,13 +861,13 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
         ctx.set_item("num_generations", str(request_params["n"]))
 
 
-def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
+def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info, response=None):
     span = span_from_context(ctx)
     span.set_exc_info(*exc_info)
     model_name = ctx.get_item("model_name")
     integration = ctx.get_item("bedrock_integration")
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=response)
     span.finish()
 
 
@@ -2012,7 +2012,6 @@ def listen():
         # web frameworks
         "cherrypy.request",
         "pyramid.request",
-        "sanic.request",
         "tornado.request",
         "flask.call",
         "flask.jsonify",
