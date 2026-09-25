@@ -679,6 +679,29 @@ def test_datadog_sampler_sample_no_rules(mock_sample, tracer, test_spans):
     )
 
 
+@pytest.mark.parametrize(
+    "agent_rates, expected_rate",
+    [
+        ({"service:,env:": 0.25}, 0.25),
+        ({"service:,env:": 0.25, "service:test,env:": 0.75}, 0.75),
+    ],
+)
+def test_datadog_sampler_agent_rate_for_unmatched_rule(agent_rates, expected_rate):
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, service="other")])
+    sampler.update_rate_by_service_sample_rates(agent_rates)
+    span = Span("span", service="test")
+
+    with mock.patch("ddtrace._trace.sampler.RateSampler.sample", return_value=True):
+        assert sampler.sample(span) is True
+
+    assert_sampling_decision_tags(
+        span,
+        agent=expected_rate,
+        trace_tag=f"-{SamplingMechanism.AGENT_RATE_BY_SERVICE}",
+    )
+    assert span.context.sampling_priority == AUTO_KEEP
+
+
 class MatchSample(SamplingRule):
     def matches(self, span):
         return True
