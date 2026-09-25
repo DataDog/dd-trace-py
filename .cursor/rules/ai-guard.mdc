@@ -51,25 +51,32 @@ ddtrace/aiguard/
 ├── __init__.py             # PUBLIC SDK: re-exports new_ai_guard_client,
 │                           #   AIGuardClient, AIGuardClientError,
 │                           #   AIGuardAbortError, Message, Evaluation, Options,
-│                           #   ToolCall, Function, … (Strands plugins lazily)
-├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport + types
+│                           #   ToolCall, Function, … (lazily via __getattr__)
+├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport
+├── _types.py               # Message / ToolCall / Function / ContentPart TypedDicts
+├── _constants.py           # AI_GUARD constants: env var names, tags, metrics
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
-├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks
+├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks,
+│                           #   gated per integration by DD_AI_GUARD_<LLM>_ENABLED
 ├── _context.py             # contextvar depth counter to avoid double-scanning
-├── _common.py              # _get(), wrap_abort_error() shared helpers
-├── _streaming.py           # streaming response evaluation
+├── _common.py              # _get(), wrap_abort_error(), evaluate_auto() helpers
+├── _redaction.py           # applies the service's redaction_replacements
+├── _trace_utils.py         # _aiguard_manual_keep(): force-keep the AI Guard trace
+├── _streaming.py           # buffer-then-evaluate stream proxies
 ├── messages.py             # message formatting helpers
 └── integrations/           # provider listeners/converters + framework plugins
     ├── litellm.py
     ├── strands.py          # AIGuardStrandsPlugin / AIGuardStrandsHookProvider
-    ├── openai.py           # OpenAI common helpers
+    ├── _openai.py          # OpenAI common helpers (_wrap_abort_error)
     ├── _openai_chat.py     # Chat Completions API converters + listeners
-    ├── _openai_responses.py# Responses API converters + listeners
+    ├── _openai_chat_streaming.py      # Chat Completions stream reconstruction
+    ├── _openai_responses.py           # Responses API converters + listeners
+    ├── _openai_responses_streaming.py # Responses stream reconstruction
     ├── _openai_errors.py   # OpenAI-compatible abort error class
-    ├── anthropic.py        # Anthropic Messages API converters + listeners
+    ├── _anthropic.py       # Anthropic Messages API converters + listeners
     ├── _anthropic_streaming.py # Anthropic stream reconstruction
     ├── _anthropic_errors.py    # Anthropic-compatible abort error class
-    └── langchain.py        # LangChain agent/chatmodel/llm listeners
+    └── _langchain.py       # LangChain agent/chatmodel/llm listeners
 ```
 
 The old import path `ddtrace.appsec.ai_guard` remains as a deprecated re-export
@@ -126,8 +133,9 @@ Events currently consumed:
 |----------|--------|
 | OpenAI Chat | `openai.chat.completions.create.before` / `.after` |
 | OpenAI Responses | `openai.responses.create.before` / `.after` |
-| Anthropic | `anthropic.messages.create.before` / `.after` |
-| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate,stream}.{before,started,finally}` |
+| OpenAI (stream wrappers) | `openai.patch` / `.unpatch` |
+| Anthropic | `anthropic.messages.create.before` / `.after`, `anthropic.patch` / `.unpatch` |
+| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate,stream}.before` / `.finally`, `langchain.{chatmodel,llm}.stream.started`, `langchain.patch` / `.unpatch` |
 | HTTP (client IP) | `set_http_meta_for_asm` |
 
 ### 3. Provider converters → canonical `Message` shape
@@ -178,11 +186,21 @@ All configuration is via environment variables, parsed in
 | Environment Variable | Default | Description |
 |----------------------|---------|-------------|
 | `DD_AI_GUARD_ENABLED` | `false` | Master switch; nothing loads unless `true`. |
-| `DD_AI_GUARD_ENDPOINT` | (derived from site) | Override the AI Guard service endpoint. |
+| `DD_AI_GUARD_ENDPOINT` | (derived from `DD_SITE`) | Override the AI Guard service endpoint. |
 | `DD_AI_GUARD_BLOCK` | `true` | Whether non-`ALLOW` decisions raise `AIGuardAbortError`. |
-| `DD_AI_GUARD_MAX_CONTENT_SIZE` | `524288` | Per-message content truncation threshold (bytes). |
-| `DD_AI_GUARD_MAX_MESSAGES_LENGTH` | `16` | Max trailing messages sent to the service. |
-| `DD_AI_GUARD_TIMEOUT` | `10000` | HTTP request timeout (ms). |
+| `DD_AI_GUARD_MAX_CONTENT_SIZE` | `524288` | Per-message content truncation on the span (characters). |
+| `DD_AI_GUARD_MAX_MESSAGES_LENGTH` | `16` | Max trailing messages reported on the span. |
+| `DD_AI_GUARD_TIMEOUT` | `10000` | HTTP request timeout (ms), currently floored to whole seconds. |
+| `DD_AI_GUARD_REDACTION_ENABLED` | `true` | Apply the service's redaction replacements to reported messages. |
+| `DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED` | `false` | Buffer and evaluate streamed responses before replaying chunks. |
+| `DD_AI_GUARD_OPENAI_ENABLED` | `true` | Per-provider kill switch for the OpenAI integration. |
+| `DD_AI_GUARD_ANTHROPIC_ENABLED` | `true` | Per-provider kill switch for the Anthropic integration. |
+| `DD_AI_GUARD_LANGCHAIN_ENABLED` | `true` | Per-framework kill switch for the LangChain integration. |
+
+Truncation only affects what is reported on the span; the service always
+evaluates the full conversation. User-facing descriptions live in the AI Guard
+section of `docs/configuration.rst`; keep both in sync when adding a variable
+(see the `add-new-configuration` skill).
 
 `new_ai_guard_client()` additionally requires `DD_API_KEY` and `DD_APP_KEY`.
 
@@ -200,9 +218,11 @@ except AIGuardAbortError as e:
     ...
 ```
 
-Framework plugins (`AIGuardStrandsPlugin`, `AIGuardStrandsHookProvider`) are
-re-exported lazily from `ai_guard/__init__.py` via a module-level
-`__getattr__`; read the inline comment there before changing import timing.
+The public names in `ddtrace/aiguard/__init__.py` are re-exported lazily via a
+module-level `__getattr__` so the disabled path stays zero-overhead; read the
+inline comment there before changing import timing. Framework plugins
+(`AIGuardStrandsPlugin`, `AIGuardStrandsHookProvider`) are not re-exported and
+must be imported from `ddtrace.aiguard.integrations.strands`.
 
 ## Development guidelines
 
@@ -210,7 +230,8 @@ re-exported lazily from `ai_guard/__init__.py` via a module-level
   `core.dispatch(...)` (producer) / `core.on(...)` (consumer). See
   `.cursor/rules/isolated-responsibility.mdc`.
 - **Keep public/private boundaries.** New user-facing API goes through
-  `ai_guard/__init__.py.__all__`; internals stay in `_ai_guard/`.
+  `ddtrace/aiguard/__init__.py` `__all__`; internals stay in `_`-prefixed
+  modules under `ddtrace/aiguard/`.
 - **Converters must be defensive.** Use `_get()`; wrap conversion in
   `try/except` and `logger.debug(...)` so a malformed SDK object degrades
   gracefully instead of breaking the user's LLM call. Surface anomalies via
