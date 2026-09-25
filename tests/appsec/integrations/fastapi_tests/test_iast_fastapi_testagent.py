@@ -11,6 +11,7 @@ from ddtrace.appsec._iast.constants import VULN_SSRF
 from tests.appsec.appsec_utils import uvicorn_server
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.utils_testagent import _get_span
+from tests.appsec.integrations.utils_testagent import is_readiness_probe
 
 
 # Common environment configuration for IAST tests
@@ -36,13 +37,13 @@ def test_iast_header_injection_secure_attack(iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 0
 
 
@@ -90,13 +91,13 @@ def test_iast_header_injection_attack(iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 0
 
 
@@ -183,13 +184,13 @@ def test_iast_cmdi_form_request_fastapi(iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
@@ -225,13 +226,13 @@ def test_iast_cmdi_form_multiple_fastapi(iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
@@ -265,13 +266,13 @@ def test_iast_cmdi_form_uvicorn(iast_test_token, free_port):
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -406,13 +407,13 @@ def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token, free_port
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0 and not is_readiness_probe(span):
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 

@@ -64,8 +64,7 @@ def _wait_for_server_ready(client: Client, server_process, port: int, use_multip
                     sock.settimeout(0.2)
                     sock.connect(("0.0.0.0", int(port)))
             else:
-                timeout = min(10.0, max(0.5, deadline - time.monotonic()))
-                response = client.get_ignored("/", timeout=timeout)
+                response = client.get_ignored("/", timeout=max(0.5, deadline - time.monotonic()))
                 assert response.status_code == 200, f"server answered {response.status_code}"
             return
         except Exception:

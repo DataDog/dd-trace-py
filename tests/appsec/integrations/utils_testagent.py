@@ -32,6 +32,10 @@ def _get_span(token):
     return json.loads(resp.read())
 
 
+def is_readiness_probe(span):
+    return parse.urlparse(span.get("meta", {}).get("http.url", "")).path == "/"
+
+
 def _get_agent_client():
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
