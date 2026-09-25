@@ -1,0 +1,615 @@
+"""
+Tests for LLMObs routing context — multi-tenant routing and dual-shipping.
+
+Use case 1 (multi-tenant): A platform routes LLMObs spans per-request to different customer orgs.
+Use case 2 (dual-shipping): Internal teams send the same spans to multiple staging environments.
+"""
+
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import json
+import os
+import time
+
+import pytest
+
+from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
+from ddtrace.llmobs._constants import SPAN_ENDPOINT
+from ddtrace.llmobs._context import get_routing_context
+from ddtrace.llmobs._routing import RoutingTarget
+from ddtrace.llmobs._writer import LLMObsSpanWriter
+
+
+DD_SITE = "datad0g.com"
+DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
+TENANT_A_KEY = "tenant-a-api-key-1234"
+TENANT_B_KEY = "tenant-b-api-key-5678"
+TENANT_SITE = "us5.datadoghq.com"
+
+
+# ===========================================================================
+# routing_context() validation
+# ===========================================================================
+
+
+def test_routing_context_requires_api_key():
+    with pytest.raises(ValueError, match="dd_api_key is required"):
+        with llmobs_service.routing_context(dd_api_key=""):
+            pass
+
+
+def test_routing_context_requires_api_key_or_targets():
+    with pytest.raises(ValueError):
+        with llmobs_service.routing_context():
+            pass
+
+
+def test_routing_context_cannot_specify_both_api_key_and_targets():
+    with pytest.raises(ValueError, match="Cannot specify both"):
+        with llmobs_service.routing_context(
+            dd_api_key=TENANT_A_KEY,
+            targets=[{"dd_api_key": TENANT_B_KEY}],
+        ):
+            pass
+
+
+def test_routing_context_targets_must_have_api_key():
+    with pytest.raises(ValueError, match="dd_api_key.*required"):
+        with llmobs_service.routing_context(targets=[{"dd_site": "foo.com"}]):
+            pass
+
+
+def test_routing_context_empty_targets_raises():
+    with pytest.raises(ValueError):
+        with llmobs_service.routing_context(targets=[]):
+            pass
+
+
+# ===========================================================================
+# routing_context() lifecycle
+# ===========================================================================
+
+
+def test_routing_context_sets_and_clears():
+    assert get_routing_context() is None
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY, dd_site=TENANT_SITE):
+        ctx = get_routing_context()
+        assert ctx is not None
+        assert ctx["targets"][0]["api_key"] == TENANT_A_KEY
+        assert ctx["targets"][0]["site"] == TENANT_SITE
+    assert get_routing_context() is None
+
+
+def test_routing_context_site_is_optional():
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        ctx = get_routing_context()
+        assert ctx["targets"][0]["api_key"] == TENANT_A_KEY
+        assert "site" not in ctx["targets"][0]
+
+
+def test_routing_context_single_target_normalized_to_targets_list():
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY, dd_site=TENANT_SITE):
+        ctx = get_routing_context()
+        assert len(ctx["targets"]) == 1
+
+
+def test_routing_context_nested_warns_and_restores(mock_llmobs_logs):
+    with llmobs_service.routing_context(dd_api_key="outer-key"):
+        with llmobs_service.routing_context(dd_api_key="inner-key-5678"):
+            assert get_routing_context()["targets"][0]["api_key"] == "inner-key-5678"
+            mock_llmobs_logs.warning.assert_called_once()
+            assert "Nested routing_context" in mock_llmobs_logs.warning.call_args[0][0]
+        assert get_routing_context()["targets"][0]["api_key"] == "outer-key"
+    assert get_routing_context() is None
+
+
+def test_routing_context_cleans_up_on_exception():
+    with pytest.raises(RuntimeError):
+        with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+            raise RuntimeError("boom")
+    assert get_routing_context() is None
+
+
+def test_routing_context_multiple_targets():
+    targets = [
+        {"dd_api_key": "key-ddstaging", "dd_site": "ddstaging.datadoghq.com"},
+        {"dd_api_key": "key-datad0g", "dd_site": "datad0g.com"},
+    ]
+    with llmobs_service.routing_context(targets=targets):
+        ctx = get_routing_context()
+        assert len(ctx["targets"]) == 2
+        assert ctx["targets"][0]["api_key"] == "key-ddstaging"
+        assert ctx["targets"][1]["api_key"] == "key-datad0g"
+    assert get_routing_context() is None
+
+
+# ===========================================================================
+# Span routing — single tenant
+# ===========================================================================
+
+
+def _api_key(req, default=None):
+    """Read the API key header regardless of casing, which the HTTP client decides."""
+    for name, value in req["headers"].items():
+        if name.lower() == "dd-api-key":
+            return value
+    return default
+
+
+def _wait_for_requests(reqs, num, attempts=1000):
+    """Helper: poll until `num` requests have been captured by the test server."""
+    for _ in range(attempts):
+        if len(reqs) >= num:
+            return reqs[:num]
+        time.sleep(0.001)
+    raise TimeoutError(f"Expected {num} requests, got {len(reqs)}")
+
+
+def test_routed_span_sent_with_tenant_api_key(llmobs, _llmobs_backend):
+    """A span created inside routing_context is sent with the tenant's API key."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY, dd_site=TENANT_SITE):
+        with llmobs.workflow(name="routed-workflow"):
+            llmobs.annotate(input_data="hello", output_data="world")
+
+    # Wait for both the default flush and the routing flush
+    _wait_for_requests(reqs, initial_count + 1)
+
+    # Find the request with the tenant API key
+    tenant_reqs = [r for r in reqs if _api_key(r) == TENANT_A_KEY]
+    assert len(tenant_reqs) >= 1, f"Expected request with tenant API key, got headers: {[r['headers'] for r in reqs]}"
+
+    # Verify the payload contains our span
+    body = json.loads(tenant_reqs[0]["body"])
+    span_names = []
+    for event in body if isinstance(body, list) else [body]:
+        for s in event.get("spans", []):
+            span_names.append(s.get("name"))
+    assert "routed-workflow" in span_names
+
+
+def test_unrouted_span_sent_with_default_api_key(llmobs, _llmobs_backend):
+    """A span created outside routing_context is sent with the default API key."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs.workflow(name="default-workflow"):
+        llmobs.annotate(input_data="hello")
+
+    _wait_for_requests(reqs, initial_count + 1)
+
+    # No request should have the tenant API key
+    tenant_reqs = [r for r in reqs if _api_key(r) == TENANT_A_KEY]
+    assert len(tenant_reqs) == 0
+
+
+def test_routed_and_unrouted_spans_go_to_different_keys(llmobs, _llmobs_backend):
+    """Routed and unrouted spans in the same flush cycle have different API keys."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    # Create one routed span and one unrouted span
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="tenant-span"):
+            llmobs.annotate(input_data="tenant")
+
+    with llmobs.workflow(name="default-span"):
+        llmobs.annotate(input_data="default")
+
+    _wait_for_requests(reqs, initial_count + 2)
+
+    api_keys_seen = set()
+    for r in reqs[initial_count:]:
+        key = _api_key(r, "<default>")
+        api_keys_seen.add(key)
+
+    assert TENANT_A_KEY in api_keys_seen, f"Tenant API key not found in: {api_keys_seen}"
+
+
+def test_child_span_inherits_routing(llmobs, _llmobs_backend):
+    """Child spans inherit routing from parent — both end up at tenant."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="parent"):
+            with llmobs.llm(name="child", model_name="gpt-4") as child:
+                llmobs.annotate(child, input_data="hello", output_data="world")
+
+    _wait_for_requests(reqs, initial_count + 1)
+
+    tenant_reqs = [r for r in reqs[initial_count:] if _api_key(r) == TENANT_A_KEY]
+    assert len(tenant_reqs) >= 1
+
+    # Both parent and child should be in the tenant payload
+    span_names = set()
+    for r in tenant_reqs:
+        body = json.loads(r["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for s in event.get("spans", []):
+                span_names.add(s.get("name"))
+    assert "parent" in span_names
+    assert "child" in span_names
+
+
+def test_span_after_routing_context_is_unrouted(llmobs, _llmobs_backend):
+    """Spans created after a routing context exits go to the default destination."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="routed"):
+            pass
+
+    with llmobs.workflow(name="after"):
+        llmobs.annotate(input_data="not routed")
+
+    _wait_for_requests(reqs, initial_count + 2)
+
+    # The "after" span should NOT have the tenant API key
+    for r in reqs[initial_count:]:
+        body = json.loads(r["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for s in event.get("spans", []):
+                if s.get("name") == "after":
+                    assert _api_key(r) != TENANT_A_KEY
+
+
+# ===========================================================================
+# Dual-shipping — same spans to multiple destinations
+# ===========================================================================
+
+
+def test_dual_ship_sends_to_both_destinations(llmobs, _llmobs_backend):
+    """Dual-shipped spans appear in requests with both API keys."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    targets = [
+        {"dd_api_key": "key-staging-a", "dd_site": "ddstaging.datadoghq.com"},
+        {"dd_api_key": "key-staging-b", "dd_site": "datad0g.com"},
+    ]
+    with llmobs_service.routing_context(targets=targets):
+        with llmobs.workflow(name="dual-shipped"):
+            llmobs.annotate(input_data="hello")
+
+    # Expect requests to both targets
+    _wait_for_requests(reqs, initial_count + 2)
+
+    api_keys = [_api_key(r) for r in reqs[initial_count:]]
+    assert "key-staging-a" in api_keys, f"key-staging-a not found in: {api_keys}"
+    assert "key-staging-b" in api_keys, f"key-staging-b not found in: {api_keys}"
+
+
+def test_dual_ship_both_payloads_contain_span(llmobs, _llmobs_backend):
+    """Both destinations receive the same span data."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    targets = [
+        {"dd_api_key": "key-staging-a"},
+        {"dd_api_key": "key-staging-b"},
+    ]
+    with llmobs_service.routing_context(targets=targets):
+        with llmobs.workflow(name="dual-shipped-span"):
+            llmobs.annotate(input_data="payload")
+
+    _wait_for_requests(reqs, initial_count + 2)
+
+    for r in reqs[initial_count:]:
+        body = json.loads(r["body"])
+        span_names = []
+        for event in body if isinstance(body, list) else [body]:
+            for s in event.get("spans", []):
+                span_names.append(s.get("name"))
+        assert "dual-shipped-span" in span_names, f"Span not found in payload for key {_api_key(r)}"
+
+
+# ===========================================================================
+# Multi-tenant isolation
+# ===========================================================================
+
+
+def test_concurrent_tenants_isolated(llmobs, _llmobs_backend):
+    """Spans from different routing contexts don't mix."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="tenant-a-span"):
+            llmobs.annotate(input_data="a")
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_B_KEY):
+        with llmobs.workflow(name="tenant-b-span"):
+            llmobs.annotate(input_data="b")
+
+    _wait_for_requests(reqs, initial_count + 2)
+
+    for r in reqs[initial_count:]:
+        body = json.loads(r["body"])
+        span_names = set()
+        for event in body if isinstance(body, list) else [body]:
+            for s in event.get("spans", []):
+                span_names.add(s.get("name"))
+        key = _api_key(r)
+        if key == TENANT_A_KEY:
+            assert "tenant-a-span" in span_names
+            assert "tenant-b-span" not in span_names
+        elif key == TENANT_B_KEY:
+            assert "tenant-b-span" in span_names
+            assert "tenant-a-span" not in span_names
+
+
+def test_api_key_not_in_payload_body(llmobs, _llmobs_backend):
+    """The tenant API key appears in headers only, never in the JSON payload body."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="secret-key-check"):
+            llmobs.annotate(input_data="check")
+
+    _wait_for_requests(reqs, initial_count + 1)
+
+    tenant_reqs = [r for r in reqs[initial_count:] if _api_key(r) == TENANT_A_KEY]
+    for r in tenant_reqs:
+        assert TENANT_A_KEY not in r["body"]
+
+
+# ===========================================================================
+# Async propagation
+# ===========================================================================
+
+
+def test_routing_context_propagates_to_async_tasks(llmobs):
+    results = {}
+
+    async def inner(key):
+        results[key] = get_routing_context()
+
+    async def main():
+        with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+            await inner("inside")
+        await inner("outside")
+
+    asyncio.run(main())
+    assert results["inside"] is not None
+    assert results["inside"]["targets"][0]["api_key"] == TENANT_A_KEY
+    assert results["outside"] is None
+
+
+def test_concurrent_async_routing_contexts_are_isolated(llmobs):
+    results = {}
+
+    async def tenant_work(api_key, result_key):
+        with llmobs_service.routing_context(dd_api_key=api_key):
+            await asyncio.sleep(0.01)
+            results[result_key] = get_routing_context()
+
+    async def main():
+        await asyncio.gather(
+            tenant_work(TENANT_A_KEY, "a"),
+            tenant_work(TENANT_B_KEY, "b"),
+        )
+
+    asyncio.run(main())
+    assert results["a"]["targets"][0]["api_key"] == TENANT_A_KEY
+    assert results["b"]["targets"][0]["api_key"] == TENANT_B_KEY
+
+
+# ===========================================================================
+# Regressions from review of #20193
+# ===========================================================================
+
+
+def test_routing_survives_thread_pool(llmobs, _llmobs_backend):
+    """A span created in a worker thread must not fall back to the default org.
+
+    Contextvars do not cross into a worker thread, so the routing context set by the caller is
+    invisible there. The trace context does cross (that is what the futures integration is for),
+    so routing is inherited from the ancestor span instead. Without that, part of a routed trace
+    would go to the default org -- one tenant's data landing in another org.
+    """
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    def background_work():
+        with llmobs.workflow(name="child-in-thread"):
+            llmobs.annotate(input_data="threaded")
+
+    patch_futures()
+    try:
+        with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+            with llmobs.workflow(name="parent"):
+                with ThreadPoolExecutor() as pool:
+                    pool.submit(background_work).result()
+    finally:
+        unpatch_futures()
+
+    # Both spans route to the same tenant, so they batch into a single request.
+    _wait_for_requests(reqs, initial_count + 1)
+
+    sent = {}
+    for r in reqs[initial_count:]:
+        body = json.loads(r["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for span in event.get("spans", []):
+                sent[span.get("name")] = _api_key(r)
+
+    assert sent.get("parent") == TENANT_A_KEY, f"parent span went to {sent.get('parent')}"
+    assert sent.get("child-in-thread") == TENANT_A_KEY, (
+        f"threaded child span went to {sent.get('child-in-thread')} instead of the tenant org"
+    )
+
+
+def test_routed_span_survives_disable_before_trace_flush(llmobs, _llmobs_backend):
+    """A routed span already finished must reach its org even if LLMObs is disabled after.
+
+    The span is shipped at finish rather than when the enclosing trace is processed, so
+    disabling in between cannot strand it (or leave its payload on the trace).
+    """
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    request = llmobs._instance.tracer.trace("request")
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="tenant-work"):
+            llmobs.annotate(input_data="before-disable")
+    llmobs_service.flush()
+    request.finish()
+
+    _wait_for_requests(reqs, initial_count + 1)
+    tenant_reqs = [r for r in reqs[initial_count:] if _api_key(r) == TENANT_A_KEY]
+    assert tenant_reqs, f"routed span never reached the tenant org; keys: {[_api_key(r) for r in reqs[initial_count:]]}"
+
+
+def test_routed_requests_use_direct_path_not_the_agent_proxy(monkeypatch):
+    """Routed batches must not go through the Agent proxy path, which stamps the Agent's key."""
+    writer = LLMObsSpanWriter(1.0, 1.0, is_agentless=False, _site=DD_SITE, _api_key=DD_API_KEY)
+
+    intake, endpoint, headers = writer._destination(RoutingTarget(api_key=TENANT_A_KEY))
+
+    assert endpoint == SPAN_ENDPOINT, f"routed batch used the Agent proxy path: {endpoint}"
+    assert not endpoint.startswith(EVP_PROXY_AGENT_BASE_PATH)
+    assert headers["DD-API-KEY"] == TENANT_A_KEY
+    assert EVP_SUBDOMAIN_HEADER_NAME not in headers
+    assert intake == f"{AGENTLESS_SPAN_BASE_URL}.{DD_SITE}"
+
+
+def test_routed_requests_to_tenant_site_do_not_carry_extra_headers(monkeypatch):
+    """Configured extra headers may hold credentials, so a tenant-supplied site must not see them."""
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "Authorization:Bearer-secret-token")
+    writer = LLMObsSpanWriter(1.0, 1.0, is_agentless=False, _site=DD_SITE, _api_key=DD_API_KEY)
+
+    _, _, headers = writer._destination(RoutingTarget(api_key=TENANT_A_KEY, site="us5.datadoghq.com"))
+
+    assert "Authorization" not in headers, "extra headers leaked to a tenant-supplied site"
+    assert set(headers) == {"Content-Type", "DD-API-KEY"}
+
+
+def test_routed_requests_keep_extra_headers_on_override_origin(monkeypatch):
+    """An override origin is operator-supplied, and is what those headers exist for."""
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "Authorization:Bearer-custom-token")
+    writer = LLMObsSpanWriter(
+        1.0, 1.0, is_agentless=False, _site=DD_SITE, _api_key=DD_API_KEY, _override_url="http://127.0.0.1:9126"
+    )
+
+    intake, endpoint, headers = writer._destination(RoutingTarget(api_key=TENANT_A_KEY))
+
+    assert headers["Authorization"] == "Bearer-custom-token"
+    assert headers["DD-API-KEY"] == TENANT_A_KEY
+    assert intake == "http://127.0.0.1:9126"
+    assert endpoint == SPAN_ENDPOINT
+
+
+def test_tenant_buffers_are_keyed_on_api_key_and_site():
+    """Same key, different sites are distinct destinations and must not share a buffer."""
+    writer = LLMObsSpanWriter(1.0, 1.0, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    shared_key = "shared-key-1234"
+
+    writer.enqueue({"span_id": "default-site"}, [RoutingTarget(api_key=shared_key)])
+    writer.enqueue({"span_id": "us5"}, [RoutingTarget(api_key=shared_key, site="us5.datadoghq.com")])
+
+    assert len(writer._tenant_buffers) == 2, "targets sharing an API key collapsed into one buffer"
+    sites = {t.site for t in writer._tenant_buffers}
+    assert sites == {None, "us5.datadoghq.com"}
+
+
+@pytest.mark.parametrize(
+    "bad_site",
+    ["http://evil.example", "evil.example/path", "evil.example:8080", "user@evil.example", "evil example", "EVIL.com"],
+)
+def test_routing_context_rejects_non_hostname_site(bad_site):
+    """dd_site is interpolated into the intake hostname, so only a bare hostname is accepted."""
+    with pytest.raises(ValueError, match="bare Datadog site hostname"):
+        with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY, dd_site=bad_site):
+            pass
+
+
+@pytest.mark.parametrize("site", ["datadoghq.com", "us5.datadoghq.com", "datadoghq.eu", "ddog-gov.com", "datad0g.com"])
+def test_routing_context_accepts_real_sites(site):
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY, dd_site=site):
+        assert get_routing_context()["targets"][0]["site"] == site
+
+
+def test_routing_survives_thread_pool_when_worker_creates_first_llm_span(llmobs, _llmobs_backend):
+    """The worker creates the first LLM span of the trace, so nothing seeded routing before it.
+
+    This is the shape of a web handler that opens a routing context and then offloads the model
+    call, e.g. via run_in_executor: the request span exists, but the first LLM span of the trace
+    is created inside the worker.
+    """
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    def background_work():
+        with llmobs.workflow(name="first-llm-span-in-thread"):
+            llmobs.annotate(input_data="threaded")
+
+    patch_futures()
+    try:
+        with llmobs._instance.tracer.trace("web.request"):
+            with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    pool.submit(background_work).result()
+    finally:
+        unpatch_futures()
+
+    _wait_for_requests(reqs, initial_count + 1)
+
+    sent = {}
+    for request in reqs[initial_count:]:
+        body = json.loads(request["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for span in event.get("spans", []):
+                sent[span.get("name")] = _api_key(request)
+
+    assert sent.get("first-llm-span-in-thread") == TENANT_A_KEY, (
+        f"worker-created span went to {sent.get('first-llm-span-in-thread')} instead of the tenant org"
+    )
+
+
+def test_thread_pool_worker_does_not_reuse_routing(llmobs, _llmobs_backend):
+    """An unrouted job must not inherit routing left on a reused worker."""
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+    default_api_key = llmobs._instance._llmobs_span_writer._api_key
+
+    def background_work(name):
+        with llmobs.workflow(name=name):
+            pass
+
+    patch_futures()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+                pool.submit(background_work, "tenant").result()
+
+            # Flush separately so both destinations produce observable requests
+            # even when the second job is incorrectly routed to the first.
+            llmobs_service.flush()
+            _wait_for_requests(reqs, initial_count + 1)
+
+            pool.submit(background_work, "default").result()
+    finally:
+        unpatch_futures()
+
+    llmobs_service.flush()
+    _wait_for_requests(reqs, initial_count + 2)
+
+    sent = {}
+    for request in reqs[initial_count:]:
+        body = json.loads(request["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for span in event.get("spans", []):
+                sent[span["name"]] = _api_key(request)
+
+    assert sent["tenant"] == TENANT_A_KEY
+    assert sent["default"] == default_api_key
