@@ -252,8 +252,6 @@ async def test_openai_llm_async_block(mock_execute_request, langchain_openai, op
     mock_execute_request.assert_called_once()
 
 
-
-
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_openai_chat_sync_response_block(mock_execute_request, langchain_openai, openai_url, decision):
