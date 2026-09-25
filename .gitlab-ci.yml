@@ -65,6 +65,9 @@ workflow:
     - when: always
 
 include:
+  - project: 'ddoghq/llm-validation-platform'
+    ref: 4bb157a2cbb50ef608b9ec8e14b886e0cf838ca3  # v0.1.4
+    file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/retry-policies.yml"
   # Included after the base policies so main pipelines override them without
@@ -888,3 +891,9 @@ deploy_to_reliability_env:
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
   needs: null
+
+"llm validation":
+  variables:
+    LLMVAL_PLATFORM_PROJECT: "ddoghq/llm-validation-platform"  # canonical mirror; the DataDog/ mirror is stale (frozen ~v0.1.1)
+    LLMVAL_BASE_REF: "main"
+    LLMVAL_PLATFORM_REF: "4bb157a2cbb50ef608b9ec8e14b886e0cf838ca3"  # v0.1.4 (keep identical to the include ref above)
