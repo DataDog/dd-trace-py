@@ -285,10 +285,10 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio==0.23.7', 'pytest-aiohttp==1.0.5', aiohttp]
         - name: aiohttp
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, 'aiohttp~=3.7']
         - name: aiohttp
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, aiohttp]
   aiohttp_jinja2:
     venvs_per_job: 5
@@ -321,16 +321,16 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, aiohttp_jinja2, jinja2, 'pytest-asyncio==0.23.7']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, 'aiohttp~=3.7', 'aiohttp_jinja2~=1.5.0', jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, 'aiohttp~=3.7', aiohttp_jinja2, jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, 'aiohttp_jinja2~=1.5.0', jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, aiohttp_jinja2, jinja2, 'pytest-asyncio>=1.0.0']
   aiomysql:
     venvs_per_job: 7
@@ -429,6 +429,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/algoliasearch
       variants:
         - name: algoliasearch
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['urllib3~=1.26.15', pytest-randomly, 'algoliasearch~=2.6']
   anyio:
     paths:
@@ -492,10 +493,13 @@ suites:
       command: pytest {cmdargs} tests/contrib/asgi
       variants:
         - name: asgi
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', 'httpx<0.28.0', 'asgiref~=3.0.0', pytest-randomly]
         - name: asgi
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', 'httpx<0.28.0', 'asgiref~=3.0', pytest-randomly]
         - name: asgi
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', 'httpx<0.28.0', asgiref, pytest-randomly]
   asyncpg:
     venvs_per_job: 7
@@ -876,7 +880,7 @@ suites:
           python: ['3.9']
           dependencies: [WebTest, pytest-randomly, 'bottle>=0.12,<0.13']
         - name: bottle
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [WebTest, pytest-randomly, bottle]
   celery:
     venvs_per_job: 2
@@ -932,8 +936,10 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, 'cherrypy>=17,<18', 'more_itertools<8.11.0', typing-extensions]
         - name: cherrypy
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'cherrypy>=18.0,<19', 'more_itertools<8.11.0']
         - name: cherrypy
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, cherrypy, 'more_itertools<8.11.0']
   consul:
     venvs_per_job: 8
@@ -1327,9 +1333,10 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'falcon~=3.0']
         - name: falcon
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, falcon]
         - name: falcon
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'falcon~=4.0']
   fastapi:
     venvs_per_job: 6
@@ -1368,7 +1375,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['httpx<=0.27.2', 'pytest-asyncio==0.21.1', python-multipart, pytest-randomly, requests, aiofiles, cloudpickle, fastapi, 'anyio>=3.4.0,<4.0']
         - name: fastapi
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [hypothesis, 'httpx<=0.27.2', 'pytest-asyncio==0.21.1', python-multipart, pytest-randomly, requests, aiofiles, cloudpickle, fastapi]
   flask:
     venvs_per_job: 3
@@ -1409,9 +1416,11 @@ suites:
             DD_SERVICE: test.flask.service
           command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch
         - name: flask
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [blinker, requests, 'werkzeug>=3.0', 'urllib3~=1.0', pytest-randomly, importlib_metadata, flask-openapi3, 'flask~=2.0']
           command: pytest {cmdargs} tests/contrib/flask
         - name: flask
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [blinker, requests, 'werkzeug>=3.0', 'urllib3~=1.0', pytest-randomly, importlib_metadata, flask-openapi3, 'flask~=3.0.0']
           runs:
             - command: pytest {cmdargs} tests/contrib/flask
@@ -1420,6 +1429,7 @@ suites:
                 DD_PATCH_MODULES: jinja2:false
                 DD_SERVICE: test.flask.service
         - name: flask
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [blinker, requests, 'werkzeug>=3.0', 'urllib3~=1.0', pytest-randomly, importlib_metadata, flask-openapi3, flask]
           runs:
             - command: pytest {cmdargs} tests/contrib/flask
@@ -1638,8 +1648,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/gunicorn
       variants:
         - name: gunicorn
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, gevent, 'gunicorn==20.0.4', pytest-randomly]
         - name: gunicorn
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, gevent, gunicorn, pytest-randomly]
   httplib:
     venvs_per_job: 4
@@ -1658,6 +1670,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/httplib
       variants:
         - name: httplib
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly]
   httpx:
     venvs_per_job: 6
@@ -1686,13 +1699,13 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, httpx]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'httpx~=0.25.0', legacy-cgi]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'httpx~=0.27.0', legacy-cgi]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, httpx, legacy-cgi]
   httpx2:
     venvs_per_job: 7
@@ -1712,9 +1725,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/httpx2
       variants:
         - name: httpx2
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, 'httpx2~=2.0.0']
         - name: httpx2
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, httpx2]
   integration_registry:
     paths:
@@ -1859,8 +1873,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/mako
       variants:
         - name: mako
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['mako~=1.0.0', pytest-randomly]
         - name: mako
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [mako, pytest-randomly]
   mariadb:
     venvs_per_job: 5
@@ -1928,8 +1944,10 @@ suites:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten
       variants:
         - name: molten
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['cattrs<23.1.1', 'molten>=1.0,<1.1', pytest-randomly, pytest-xdist]
         - name: molten
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['cattrs<23.1.1', molten, pytest-randomly, pytest-xdist]
   mysqlpython:
     paths:
@@ -2287,7 +2305,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid]
         - name: pyramid
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid, legacy-cgi]
   ray:
     venvs_per_job: 3
@@ -2417,6 +2435,7 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, 'urllib3~=1.0', 'requests-mock>=1.4', 'requests~=2.25.0']
         - name: requests
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'urllib3~=1.0', 'requests-mock>=1.4', requests]
         - name: requests
           python: ['3.10']
@@ -2615,7 +2634,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', starlette, 'httpx~=0.22.0']
         - name: starlette
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, anyio, starlette, httpx2]
   stdlib:
     venvs_per_job: 9
@@ -2752,7 +2771,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'tornado==6.3.1']
         - name: tornado
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'tornado==6.4.1']
   trio:
     paths:
@@ -2799,6 +2818,7 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.25.8']
         - name: urllib3
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, urllib3]
         - name: urllib3
           python: ['3.10']
@@ -2807,7 +2827,7 @@ suites:
           python: ['3.11']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.8']
         - name: urllib3
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
   vertica:
     paths:
@@ -2846,7 +2866,7 @@ suites:
           dependencies: [WebTest, pytest-randomly]
           python: ['3.9', '3.10', '3.11', '3.12']
         - name: wsgi
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [WebTest, pytest-randomly, legacy-cgi]
   yaaredis:
     paths:
