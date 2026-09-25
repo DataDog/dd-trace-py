@@ -9,6 +9,7 @@ from _ddtrace_internal.modules import check_module_path
 import google.adk as adk
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
@@ -49,7 +50,7 @@ def _tool_dispatch_target(version):
 
 def _traced_agent_run_async(wrapped, instance, args, kwargs):
     """Trace the main execution of an agent (async generator)."""
-    integration: Any = adk._datadog_integration
+    integration: LLMObsIntegrationLike = adk._datadog_integration
     agent = getattr(instance, "agent", None)
     model = getattr(agent, "model", None)
     provider_name, model_name = extract_provider_and_model_name(instance=model, model_name_attr="model")
@@ -106,7 +107,7 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
 
 
 async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
-    integration: Any = adk._datadog_integration
+    integration: LLMObsIntegrationLike = adk._datadog_integration
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
         logger.warning("Unable to trace google adk tool call, could not extract agent from tool context.")
@@ -207,7 +208,7 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
 
         return
 
-    integration: Any = adk._datadog_integration
+    integration: LLMObsIntegrationLike = adk._datadog_integration
 
     provider_name, model_name = extract_provider_and_model_name(
         instance=getattr(agent, "model", {}), model_name_attr="model"
@@ -237,7 +238,7 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
 
 def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
     """Trace the execution of code by the agent (sync)."""
-    integration: Any = adk._datadog_integration
+    integration: LLMObsIntegrationLike = adk._datadog_integration
     invocation_context = get_argument_value(args, kwargs, 0, "invocation_context")
     agent = getattr(getattr(invocation_context, "agent", None), "model", {})
     provider_name, model_name = extract_provider_and_model_name(instance=agent, model_name_attr="model")

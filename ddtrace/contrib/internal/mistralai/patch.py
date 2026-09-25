@@ -10,6 +10,7 @@ from mistralai.client.models.chatcompletionresponse import ChatCompletionRespons
 from mistralai.client.models.embeddingresponse import EmbeddingResponse
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -48,7 +49,7 @@ def traced_chat_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> ChatCompletionResponse:
-    integration: Any = client._datadog_integration
+    integration: LLMObsIntegrationLike = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -73,7 +74,7 @@ async def traced_async_chat_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> ChatCompletionResponse:
-    integration: Any = client._datadog_integration
+    integration: LLMObsIntegrationLike = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -98,7 +99,7 @@ def traced_generate_stream(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
-    integration: Any = client._datadog_integration
+    integration: LLMObsIntegrationLike = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -125,7 +126,7 @@ async def traced_async_generate_stream(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
-    integration: Any = client._datadog_integration
+    integration: LLMObsIntegrationLike = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -152,7 +153,7 @@ def traced_embed_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> EmbeddingResponse:
-    integration: Any = client._datadog_integration
+    integration: LLMObsIntegrationLike = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -179,7 +180,7 @@ async def async_traced_embed_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> EmbeddingResponse:
-    integration: Any = client._datadog_integration
+    integration: LLMObsIntegrationLike = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")

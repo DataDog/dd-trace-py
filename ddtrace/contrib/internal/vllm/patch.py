@@ -7,6 +7,7 @@ from typing import Optional
 import vllm
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
@@ -122,7 +123,7 @@ def _capture_request_states(
 
 
 def _create_finished_spans(
-    integration: Any,
+    integration: LLMObsIntegrationLike,
     model_name: Optional[str],
     instance: OutputProcessor,
     spans_data: dict[str, dict[str, Any]],

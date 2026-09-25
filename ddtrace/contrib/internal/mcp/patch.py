@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Optional
 
 import mcp
@@ -15,6 +14,7 @@ if TYPE_CHECKING:
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.contrib.trace_utils import unwrap
@@ -114,7 +114,7 @@ def traced_send_request(func, instance, args: tuple, kwargs: dict):
 
 
 async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
-    integration: Any = mcp._datadog_integration
+    integration: LLMObsIntegrationLike = mcp._datadog_integration
 
     span: Span = integration.trace(CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
@@ -145,7 +145,7 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
 
 
 async def traced_client_session_initialize(func, instance, args: tuple, kwargs: dict):
-    integration: Any = mcp._datadog_integration
+    integration: LLMObsIntegrationLike = mcp._datadog_integration
 
     with integration.trace("%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
         response = None
@@ -157,7 +157,7 @@ async def traced_client_session_initialize(func, instance, args: tuple, kwargs: 
 
 
 async def traced_client_session_list_tools(func, instance, args: tuple, kwargs: dict):
-    integration: Any = mcp._datadog_integration
+    integration: LLMObsIntegrationLike = mcp._datadog_integration
 
     with integration.trace("%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
         response = None
@@ -169,7 +169,7 @@ async def traced_client_session_list_tools(func, instance, args: tuple, kwargs: 
 
 
 async def traced_client_session_aenter(func, instance, args: tuple, kwargs: dict):
-    integration: Any = mcp._datadog_integration
+    integration: LLMObsIntegrationLike = mcp._datadog_integration
     span = integration.trace(instance.__class__.__name__, submit_to_llmobs=True, type="client_session")
 
     setattr(instance, "_dd_span", span)
@@ -182,7 +182,7 @@ async def traced_client_session_aenter(func, instance, args: tuple, kwargs: dict
 
 
 async def traced_client_session_aexit(func, instance, args: tuple, kwargs: dict):
-    integration: Any = mcp._datadog_integration
+    integration: LLMObsIntegrationLike = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
     try:
@@ -210,7 +210,7 @@ def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
     from mcp.types import CallToolRequest
     from mcp.types import InitializeRequest
 
-    integration: Any = mcp._datadog_integration
+    integration: LLMObsIntegrationLike = mcp._datadog_integration
     request_wrapper = _get_attr(instance, "request", None)
     request_root = _get_attr(request_wrapper, "root", None)
 
@@ -265,7 +265,7 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
 
     response_arg = args[0] if len(args) > 0 else None
     response = getattr(response_arg, "root", None)
-    integration: Any = mcp._datadog_integration
+    integration: LLMObsIntegrationLike = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
     if config.mcp.capture_intent and isinstance(response, ListToolsResult):
