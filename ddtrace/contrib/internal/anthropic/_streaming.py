@@ -240,6 +240,9 @@ def _on_message_delta_chunk(chunk, message):
             message_usage["cache_creation_input_tokens"] = cache_creation_tokens
         if cache_read_tokens is not None:
             message_usage["cache_read_input_tokens"] = cache_read_tokens
+        server_tool_use = _get_attr(chunk_usage, "server_tool_use", None)
+        if server_tool_use is not None:
+            message_usage["server_tool_use"] = server_tool_use
 
         message["usage"] = message_usage
 

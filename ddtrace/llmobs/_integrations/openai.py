@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
+from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
@@ -325,6 +326,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             if reasoning_output_tokens is not None:
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
             metrics.update(get_openrouter_cost_metrics(token_usage))
+            metrics.update(get_openai_server_tool_usage_metrics(resp))
             return metrics
         elif kwargs.get("stream") and isinstance(resp, list):
             # `_compute_completion_tokens` expects the chat/completion shape: a list of message
