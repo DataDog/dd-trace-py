@@ -19,6 +19,8 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.native import decode_pathway_b64 as native_decode_pathway_b64
+from ddtrace.internal.native import encode_pathway_b64 as native_encode_pathway_b64
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -342,17 +344,26 @@ class DataStreamsProcessor(PeriodicService):
             hash_value = struct.unpack("<Q", data[:8])[0]
             pathway_start_ms, pos = decode_var_int_64_at(data, 8)
             current_edge_start_ms, _ = decode_var_int_64_at(data, pos)
-            ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
-            # reset context of current thread every time we decode
-            self._current_context.value = ctx
-            return ctx
         except (EOFError, TypeError, struct.error):
             return self.new_pathway()
+        return self._activate_decoded(hash_value, pathway_start_ms, current_edge_start_ms)
+
+    def _activate_decoded(self, hash_value: int, pathway_start_ms: int, current_edge_start_ms: int) -> DataStreamsCtx:
+        ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
+        # reset context of current thread every time we decode
+        self._current_context.value = ctx
+        return ctx
 
     def decode_pathway_b64(self, data: Optional[Union[str, bytes]]) -> DataStreamsCtx:
         if not data:
             return self.new_pathway()
 
+        decoded = native_decode_pathway_b64(data)
+        if decoded is not None:
+            return self._activate_decoded(*decoded)
+
+        # Strict native decoding failed: take the lenient Python path, which also decides
+        # what malformed input does.
         if isinstance(data, str):
             binary_pathway = data.encode("utf-8")
         else:
@@ -440,6 +451,13 @@ class DataStreamsCtx:
         )
 
     def encode_b64(self) -> str:
+        try:
+            return native_encode_pathway_b64(
+                self.hash, int(self.pathway_start_sec * 1e3), int(self.current_edge_start_sec * 1e3)
+            )
+        except (OverflowError, TypeError):
+            # Not a valid u64/i64 pathway: keep the Python encoder's behavior (it raises struct.error).
+            pass
         encoded_pathway = self.encode()
         binary_pathway = base64.b64encode(encoded_pathway)
         data_streams_context = binary_pathway.decode("utf-8")

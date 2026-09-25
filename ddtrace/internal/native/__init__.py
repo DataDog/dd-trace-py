@@ -40,6 +40,8 @@ from ._native import TimedOutError  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import config  # noqa: F401
+from ._native import decode_pathway_b64  # noqa: F401
+from ._native import encode_pathway_b64  # noqa: F401
 from ._native import generate_128bit_trace_id  # noqa: F401
 from ._native import logger  # noqa: F401
 from ._native import process_metrics  # noqa: F401
