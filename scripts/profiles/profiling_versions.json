@@ -1,0 +1,79 @@
+{
+  "_comment": "Single profiling CPython version registry. Consumed by verify_profiler_compatibility.py and run-profiling-tests. Scaffold a new minor with: python scripts/verify_profiler_compatibility.py --scaffold 3.16",
+  "default_target": "3.15",
+  "versions": {
+    "3.14": {
+      "hex": "0x030e0000",
+      "status": "supported",
+      "asyncio_hook": "wrap",
+      "min_wall_time_samples": 5,
+      "expected_sample_types": ["wall", "cpu", "exception", "lock", "alloc"],
+      "cython_pin": null,
+      "wheels_required": true,
+      "ssi_enabled": true,
+      "layout_contracts": [
+        "FRAME_OWNED_BY_GENERATOR",
+        "FRAME_OWNED_BY_THREAD",
+        "FRAME_OWNED_BY_INTERPRETER",
+        "FRAME_OWNED_BY_CSTACK"
+      ],
+      "image_tags": {},
+      "checklist_open": []
+    },
+    "3.15": {
+      "hex": "0x030f0000",
+      "status": "in_progress",
+      "asyncio_hook": "sys.monitoring",
+      "min_wall_time_samples": 2,
+      "expected_sample_types": ["wall", "cpu", "exception", "lock", "alloc"],
+      "cython_pin": "<3.3",
+      "wheels_required": false,
+      "ssi_enabled": false,
+      "layout_contracts": [
+        "FRAME_OWNED_BY_GENERATOR",
+        "FRAME_OWNED_BY_THREAD",
+        "FRAME_OWNED_BY_INTERPRETER",
+        "FRAME_SUSPENDED_YIELD_FROM_LOCKED"
+      ],
+      "image_tags": {
+        "engraver": "python:3.15.0rc2",
+        "engraver_fips": "python:3.15.0rc2-fips",
+        "manylinux_note": "see IMAGE_TAG bumps after images#11356 / #19936"
+      },
+      "prs": {
+        "native": 19269,
+        "asyncio": 19272,
+        "tooling": 19273,
+        "correctness_gate": 19207,
+        "wheels_optional": 19861,
+        "wheels_required": 20450,
+        "adr": 20478
+      },
+      "checklist_open": [
+        "require cp315 wheels (#20450)",
+        "PEP 440 local version hermetic pip (#20474)",
+        "ADR merge (#20478)",
+        "SSI/OCI only at CPython final"
+      ]
+    }
+  },
+  "scaffold_template": {
+    "hex": null,
+    "status": "scaffolded",
+    "asyncio_hook": "unknown",
+    "min_wall_time_samples": 2,
+    "expected_sample_types": ["wall", "cpu", "exception", "lock", "alloc"],
+    "cython_pin": null,
+    "wheels_required": false,
+    "ssi_enabled": false,
+    "layout_contracts": [],
+    "image_tags": {},
+    "prs": {},
+    "checklist_open": [
+      "alpha: natives + layout contracts + gated CI job",
+      "beta: collectors + asyncio hook path (probe wrap vs sys.monitoring)",
+      "RC: engraver images within days of tag, then digests, then cp3XX wheels",
+      "final: SSI/OCI; release note; ADR"
+    ]
+  }
+}

@@ -168,4 +168,10 @@ After running this skill, you should have:
 
 ## Related
 
+- **migrate-profiling-new-cpython skill**: Orchestrator for the next minor (phase
+  checklist, gotchas, hard stops). Prefer it when adding profiling support for a
+  new CPython version.
 - **find-cpython-usage skill**: Use to identify what to compare
+
+Profiling hotspots for compare (also listed in PROFILING_STACK / the orchestrator):
+`tasks.h`, `frame.cc` / frame-state enums, `_asyncio.py`, `_memalloc_tb.cpp`.
