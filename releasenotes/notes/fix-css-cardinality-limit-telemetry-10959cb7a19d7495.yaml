@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Stats computation: Fixes incorrect telemetry being collected when hitting cardinality limits during stats computation.
+    internal: Fixes incorrect telemetry being collected when hitting cardinality limits during stats computation.
