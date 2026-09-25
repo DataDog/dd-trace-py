@@ -291,6 +291,59 @@ def test_faulthandler_enable_during_sampling() -> None:
 @pytest.mark.subprocess(
     env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
+def test_faulthandler_enable_during_fast_copy_warmup() -> None:
+    """Enabling faulthandler inside the fast-copy warmup window must not cost us the handler.
+
+    The sampler clears fast_copy_active for the warmup window, so gating the
+    handler swap on it made both the uninstall and the reinstall no-ops:
+    faulthandler ended up owning SIGSEGV/SIGBUS, and at the warmup deadline the
+    sampler saw a foreign owner and kept the slower syscall copy permanently.
+    """
+    import faulthandler
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    # Underscore-prefixed, so only on the _stack submodule (`import *` skips it).
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    warmup_seconds: float = 2.0
+    _stack._set_fast_copy_warmup_seconds(warmup_seconds)
+
+    stack.set_adaptive_sampling(False)
+    stack.start()
+    try:
+        # The sampling thread drops to the syscall copy on its first iteration;
+        # wait for that so we know we are inside the warmup window.
+        deadline: float = time.monotonic() + warmup_seconds
+        while stack.fast_copy_memory_active() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert not stack.fast_copy_memory_active(), "Sampler never entered the fast-copy warmup window"
+        assert stack.segv_handler_installed(), "Expected to own SIGSEGV/SIGBUS before enabling faulthandler"
+
+        faulthandler.enable()
+        assert stack.segv_handler_installed(), "faulthandler.enable during warmup left us without the handler"
+
+        # Past the deadline the sampler upgrades to safe_memcpy, but only if it
+        # still owns both handlers.
+        upgrade_deadline: float = time.monotonic() + warmup_seconds + 10
+        while not stack.fast_copy_memory_active() and time.monotonic() < upgrade_deadline:
+            time.sleep(0.05)
+        assert stack.fast_copy_memory_active(), "Sampler stayed on the syscall copy after the warmup window"
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
 def test_faulthandler_with_fork() -> None:
     """Fork after calling faulthandler.enable + profiler start must not crash."""
     import os

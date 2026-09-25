@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the stack profiler stayed on its slower
+    memory-copy path for the life of the process, degrading profile quality,
+    when the application enabled ``faulthandler`` shortly after startup.
