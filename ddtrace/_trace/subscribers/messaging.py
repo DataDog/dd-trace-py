@@ -3,10 +3,7 @@ from typing import Optional
 from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
-from ddtrace._trace.subscribers.kafka import set_kafka_meta
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.kafka import KafkaConsumeEvent
-from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.internal import core
@@ -56,41 +53,3 @@ class MessagingConsumeSubscriber(TracingSubscriber[MessagingConsumeEvent]):
                     flags=extracted_link.flags,
                     attributes=extracted_link.attributes,
                 )
-
-
-class KafkaProduceSubscriber(MessagingProduceSubscriber):
-    event_names = (KafkaProducerEvent.event_name,)
-
-    @classmethod
-    def on_ended(cls, ctx: core.ExecutionContext[MessagingProducerEvent], _exc_info: ExcInfo) -> None:
-        event = cast(KafkaProducerEvent, ctx.event)
-        set_kafka_meta(
-            span_from_context(ctx),
-            cluster_id=event.cluster_id,
-            topic=event.topic,
-            bootstrap_servers=event.bootstrap_servers,
-            message_key=event.message_key,
-            partition=event.partition,
-            tombstone=event.tombstone,
-            message_offset=event.message_offset,
-        )
-
-
-class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
-    event_names = (KafkaConsumeEvent.event_name,)
-
-    @classmethod
-    def on_ended(cls, ctx: core.ExecutionContext[MessagingConsumeEvent], _exc_info: ExcInfo) -> None:
-        event = cast(KafkaConsumeEvent, ctx.event)
-        set_kafka_meta(
-            span_from_context(ctx),
-            cluster_id=event.cluster_id,
-            topic=event.topic,
-            bootstrap_servers=event.bootstrap_servers,
-            message_key=event.message_key,
-            partition=event.partition,
-            tombstone=event.tombstone,
-            message_offset=event.message_offset,
-            group_id=event.group_id,
-            received_message=event.received_message,
-        )
