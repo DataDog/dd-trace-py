@@ -5,3 +5,13 @@
     ...
     fun:*ddcommon*entity_id*unix*container_id*
 }
+{
+    safe_memcpy_intentional_fault
+    Memcheck:Addr1
+    fun:*safe_memcpy*
+}
+{
+    test_segv_chain_intentional_fault
+    Memcheck:Addr1
+    fun:*fault_at_depth*
+}
