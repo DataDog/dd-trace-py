@@ -47,6 +47,11 @@ from ddtrace.internal.utils.time import Time
 log = get_logger(__name__)
 
 
+_SPECIAL_TAG_KEYS = frozenset(
+    (net.TARGET_PORT, MANUAL_KEEP_KEY, MANUAL_DROP_KEY, SERVICE_KEY, SERVICE_VERSION_KEY, _SPAN_MEASURED_KEY)
+)
+
+
 def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
     """Get the 64 lowest order bits from a 128bit integer"""
     return _MAX_UINT_64BITS & large_int
@@ -238,6 +243,13 @@ class Span(SpanData):
 
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span."""
+        if type(key) is str and type(value) is str and key not in _SPECIAL_TAG_KEYS:
+            try:
+                self._set_attribute(key, value)
+            except Exception:
+                log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+            return
+
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
         if key == net.TARGET_PORT:
