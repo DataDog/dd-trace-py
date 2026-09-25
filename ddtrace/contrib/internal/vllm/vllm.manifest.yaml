@@ -1,0 +1,11 @@
+_v: 1
+name: vllm
+display_name: vLLM
+description: Instruments completed vLLM V1 engine inference and embedding requests, capturing inputs, outputs, token and latency
+  metrics, and propagating trace context.
+packages:
+- name: vllm
+category:
+- gen_ai
+systems: []
+creation_date: '2025-12-22'
