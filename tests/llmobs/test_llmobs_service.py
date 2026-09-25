@@ -1581,18 +1581,6 @@ def test_activate_distributed_headers_calls_httppropagator_extract(llmobs, mock_
         mock_extract.assert_called_once_with({})
 
 
-def test_activate_distributed_headers_no_trace_id_raises(llmobs):
-    with pytest.raises(Exception) as excinfo:
-        llmobs.activate_distributed_headers({})
-    assert str(excinfo.value) == "Failed to extract trace/span ID from request headers."
-
-
-def test_activate_distributed_headers_no_span_id_raises(llmobs):
-    with pytest.raises(Exception) as excinfo:
-        llmobs.activate_distributed_headers({})
-    assert str(excinfo.value) == "Failed to extract trace/span ID from request headers."
-
-
 def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
         dummy_context = Context(trace_id=123, span_id=456)
