@@ -79,7 +79,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         "activate": event.activate,
     }
 
-    if config._inferred_proxy_services_enabled:
+    if config._inferred_proxy_services_enabled or config._request_queuing_enabled:
         # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
         # dispatch event for checking headers and possibly making an inferred proxy span
         core.dispatch("inferred_proxy.start", (ctx, span_kwargs, event.use_active_context))
@@ -102,7 +102,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     set_service_and_source(span, event.service or ctx.get_item("service") or "", integration_config or dict())
     store_span_on_context(ctx, span)
 
-    if config._inferred_proxy_services_enabled:
+    if config._inferred_proxy_services_enabled or config._request_queuing_enabled:
         # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))

@@ -20,6 +20,7 @@ class SpanTypes:
     VALKEY = "valkey"
     WEBSOCKET = "websocket"
     RAY = "ray"
+    PROXY = "proxy"
 
 
 class SpanKind:
@@ -28,6 +29,7 @@ class SpanKind:
     PRODUCER = "producer"
     CONSUMER = "consumer"
     INTERNAL = "internal"
+    PROXY = "proxy"
 
 
 class SpanLinkKind:

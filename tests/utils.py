@@ -230,6 +230,7 @@ def override_global_config(values: dict[str, Any]):
         "_llmobs_event_size_limit",
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
+        "_request_queuing_enabled",
         "_lib_was_injected",
         "_model_lab_enabled",
         "_trace_wrap_span_name_include_class",
