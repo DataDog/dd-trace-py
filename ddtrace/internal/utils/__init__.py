@@ -1,7 +1,7 @@
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Protocol  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Optional
+from typing import Protocol
+from typing import Union
 
 
 class ArgumentError(Exception):

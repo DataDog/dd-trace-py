@@ -1,5 +1,7 @@
 import atexit
+import gzip
 from importlib.machinery import ModuleSpec
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -334,10 +336,6 @@ def test_scope_context_upload_metadata():
     and _upload_locked populates per-batch fields on both the event and the
     attachment payload, advancing batchNum across uploads.
     """
-    import gzip
-    import json
-    from unittest import mock
-
     from ddtrace.internal.symbol_db.symbols import ScopeContext
 
     def make_scope(name: str) -> Scope:
@@ -363,17 +361,16 @@ def test_scope_context_upload_metadata():
     assert ctx._event_data["uploadId"] == expected_upload_id
     assert ctx._event_data["final"] is False
 
-    captured = {}
-    real_compress = gzip.compress
+    def get_attachment() -> dict:
+        # The compressed attachment is embedded verbatim in the multipart
+        # body handed to the sender; extract it by its known size instead of
+        # intercepting gzip.compress.
+        body = sender_mock.return_value.send.call_args[0][0]
+        size = ctx._event_data["attachmentSize"]
+        start = body.index(b"\x1f\x8b")  # gzip magic number
+        return json.loads(gzip.decompress(body[start : start + size]).decode("utf-8"))
 
-    def capturing_compress(data, *args, **kwargs):
-        captured["bytes"] = data
-        return real_compress(data, *args, **kwargs)
-
-    with (
-        mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock,
-        mock.patch("ddtrace.internal.symbol_db.symbols.gzip.compress", side_effect=capturing_compress),
-    ):
+    with mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock:
         sender_mock.return_value.send.return_value.accepted = True
 
         # First upload: batchNum starts at 1 and the attachment carries the
@@ -388,7 +385,7 @@ def test_scope_context_upload_metadata():
         assert isinstance(size, int)
         assert size > 0
 
-        attachment = json.loads(captured["bytes"].decode("utf-8"))
+        attachment = get_attachment()
         assert attachment["upload_id"] == expected_upload_id
         assert attachment["batch_num"] == 1
         assert attachment["final"] is False
@@ -400,7 +397,7 @@ def test_scope_context_upload_metadata():
             ctx._upload_locked()
 
         assert ctx._event_data["batchNum"] == 2
-        attachment = json.loads(captured["bytes"].decode("utf-8"))
+        attachment = get_attachment()
         assert attachment["batch_num"] == 2
 
 
@@ -543,6 +540,13 @@ def test_symbols_fork_uploads():
                 assert child_context._event_data["uploadId"] == child_context._upload_id
                 assert child_context._batch_counter == 0
         except BaseException:
+            # Print the traceback before exiting: os._exit() bypasses the
+            # normal interpreter shutdown, so an uncaught exception here
+            # would otherwise vanish without a trace in the parent's
+            # captured output.
+            import traceback
+
+            traceback.print_exc()
             os._exit(1)
         os._exit(0)
 

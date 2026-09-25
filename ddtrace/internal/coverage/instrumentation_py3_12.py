@@ -97,6 +97,7 @@ CodeHookData = t.Tuple[HookType, str, ImportNamesByLine, LineHookType, FileHookT
 # Code objects compare structurally, so this registry must use identity keys. It is weak to avoid
 # retaining dynamically compiled code after the application drops it.
 _CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
+_CODE_HOOKS_GET = _CODE_HOOKS._data.get
 
 # NOTE: Coverage handlers return DISABLE after reporting a location to avoid redundant callbacks
 # in loops. _rearm_disabled() restores those callbacks at each context or session start: it uses a
@@ -110,7 +111,7 @@ _CODE_HOOKS: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWea
 _seen_event_locations: "_monitoring._IdentityWeakKeyDictionary" = _monitoring._IdentityWeakKeyDictionary()
 _rearm_lock = Lock()
 _rearm_generation: int = 0
-_exclusive_restart_version: t.Optional[int] = None
+_exclusive_restart_token: t.Optional[_monitoring._SubscriberToken] = None
 _FILE_EVENT_LOCATION = -1
 
 # Avoid repeating the same warning for every imported module while no tool slot is available.
@@ -118,11 +119,8 @@ _FILE_EVENT_LOCATION = -1
 _warned_tool_unavailable: bool = False
 
 
-def _claim_event(code: CodeType, location: int) -> tuple[bool, int]:
-    """Return whether coverage should report this location and its claim generation."""
-    if _exclusive_restart_version is not None and _monitoring.subscriber_version_is_current(_exclusive_restart_version):
-        return True, _rearm_generation
-
+def _claim_shared_event(code: CodeType, location: int) -> tuple[bool, int]:
+    """Claim a location while another subscriber keeps its event active."""
     with _rearm_lock:
         generation = _rearm_generation
         seen = _seen_event_locations.get(code)
@@ -152,12 +150,16 @@ class _CoverageFileHandler(_monitoring.MonitoringEventHandler):
     """Per-code-object handler dispatching file-level coverage via PY_START events."""
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> t.Optional[object]:
-        hook_data = _CODE_HOOKS.get(code)
+        hook_data = _CODE_HOOKS_GET(id(code))
         if hook_data is None:
             return _monitoring._DISABLE
-        claimed, generation = _claim_event(code, _FILE_EVENT_LOCATION)
-        if not claimed:
-            return _monitoring._DISABLE
+        token = _exclusive_restart_token
+        if token is not None and token.valid:
+            generation = _rearm_generation
+        else:
+            claimed, generation = _claim_shared_event(code, _FILE_EVENT_LOCATION)
+            if not claimed:
+                return _monitoring._DISABLE
         hook, path, import_names, _line_hook, file_hook, import_hook = hook_data
 
         try:
@@ -184,12 +186,16 @@ class _CoverageLineHandler(_monitoring.MonitoringEventHandler):
     """Per-code-object handler dispatching line-level coverage via LINE events."""
 
     def on_py_line(self, code: CodeType, line_number: int) -> t.Optional[object]:
-        hook_data = _CODE_HOOKS.get(code)
+        hook_data = _CODE_HOOKS_GET(id(code))
         if hook_data is None:
             return _monitoring._DISABLE
-        claimed, generation = _claim_event(code, line_number)
-        if not claimed:
-            return _monitoring._DISABLE
+        token = _exclusive_restart_token
+        if token is not None and token.valid:
+            generation = _rearm_generation
+        else:
+            claimed, generation = _claim_shared_event(code, line_number)
+            if not claimed:
+                return _monitoring._DISABLE
         hook, path, import_names, line_hook, _file_hook, import_hook = hook_data
 
         try:
@@ -226,19 +232,19 @@ def _rearm_disabled() -> None:
     subscriber and no external monitoring tool is visible. Otherwise the
     tool-scoped fallback keeps other subscribers' disabled-event state intact.
     """
-    global _exclusive_restart_version
+    global _exclusive_restart_token
     global _rearm_generation
 
-    version = _monitoring.restart_events(_handler)
+    token = _monitoring.restart_events(_handler)
     with _rearm_lock:
-        if version is not None:
-            _exclusive_restart_version = version
+        if token is not None:
+            _exclusive_restart_token = token
             _seen_event_locations.clear()
             _rearm_generation += 1
             return
 
-        was_exclusive = _exclusive_restart_version is not None
-        _exclusive_restart_version = None
+        was_exclusive = _exclusive_restart_token is not None
+        _exclusive_restart_token = None
         if was_exclusive:
             codes = list(_CODE_HOOKS)
         elif _seen_event_locations:
@@ -278,7 +284,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
     try:
         with _monitoring._reserve_tool_id():
-            result = _instrument_with_monitoring(code, hook, path, package)
+            registrations: list[CodeType] = []
+            result = _instrument_with_monitoring(code, hook, path, package, registrations)
+            _monitoring._register_many(registrations, _handler, events=_EVENT)
     except _monitoring.MonitoringToolUnavailable:
         if not _warned_tool_unavailable:
             _warned_tool_unavailable = True
@@ -293,7 +301,11 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
 
 def _instrument_with_monitoring(
-    code: CodeType, hook: HookType, path: str, package: str
+    code: CodeType,
+    hook: HookType,
+    path: str,
+    package: str,
+    registrations: list[CodeType],
 ) -> tuple[CodeType, CoverageLines]:
     """
     Instrument code using either LINE events for detailed line-by-line coverage or PY_START for file-level.
@@ -324,7 +336,7 @@ def _instrument_with_monitoring(
     new_consts: t.Optional[list[t.Any]] = None
     for const_index, nested_code in enumerate(code.co_consts):
         if isinstance(nested_code, CodeType) and not is_obfuscated_code(nested_code):
-            new_nested_code, nested_lines = instrument_all_lines(nested_code, hook, path, package)
+            new_nested_code, nested_lines = _instrument_with_monitoring(nested_code, hook, path, package, registrations)
             lines.update(nested_lines)
             if new_nested_code is not nested_code:
                 if new_consts is None:
@@ -359,9 +371,10 @@ def _instrument_with_monitoring(
                 # current module's dependency on its containing package is not backed by an import opcode.
                 import_names = {0: import_names[0]} if 0 in import_names else {}
 
-        # Register the multiplexer handler for this code object (enables local PY_START events).
-        _monitoring.register(code, _handler)
-        _CODE_HOOKS[code] = (hook, path, import_names, line_hook, file_hook, import_hook)
+        # Register after the complete code tree is prepared so one mutation barrier covers the batch.
+        hook_data = (hook, path, import_names, line_hook, file_hook, import_hook)
+        _CODE_HOOKS[code] = hook_data
+        registrations.append(code)
 
         # Return CoverageLines with line 0 as sentinel to indicate file-level coverage.
         lines = CoverageLines()
@@ -375,12 +388,13 @@ def _instrument_with_monitoring(
         if package is not None:
             import_names[0] = (package, ("",))
 
-    # Register the multiplexer handler for this code object (enables local LINE events).
-    _monitoring.register(code, _handler)
-    # Register the generic hook plus specialized hooks when the collector provides them. Keeping file-, line-, and
+    # Register after the complete code tree is prepared so one mutation barrier covers the batch.
+    # Keep the generic hook plus specialized hooks when the collector provides them. Keeping file-, line-, and
     # import-level operations separate makes the two coverage modes easier to follow and avoids tuple dispatch in the
     # common ModuleCodeCollector path.
-    _CODE_HOOKS[code] = (hook, path, import_names, line_hook, file_hook, import_hook)
+    hook_data = (hook, path, import_names, line_hook, file_hook, import_hook)
+    _CODE_HOOKS[code] = hook_data
+    registrations.append(code)
 
     return code, lines
 

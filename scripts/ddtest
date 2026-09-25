@@ -33,6 +33,12 @@ case "$GIT_COMMON_DIR" in
     /*) MAIN_REPO_ROOT="$(cd "$GIT_COMMON_DIR/.." && pwd)" ;;
     *)  MAIN_REPO_ROOT="$(cd "$PROJECT_ROOT/$GIT_COMMON_DIR/.." && pwd)" ;;
 esac
+# A worktree's .git file points to an absolute host path under the main repo's .git,
+# so mount that directory at the same path for git to work inside the container.
+GIT_MOUNT_ARGS=()
+case "$GIT_COMMON_DIR" in
+    /*) GIT_MOUNT_ARGS=(-v "$GIT_COMMON_DIR:$GIT_COMMON_DIR:ro") ;;
+esac
 CACHE_DIR="${DD_TEST_CACHE_DIR:-$MAIN_REPO_ROOT/.cache}"
 # Canonicalize to absolute path so Docker Compose doesn't treat relative names as named volumes
 mkdir -p "$CACHE_DIR" 2>/dev/null || true
@@ -82,7 +88,7 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
         "${COMPOSE_COMMAND[@]}" build testrunner
     fi
 
-    RUN_ARGS=()
+    RUN_ARGS=("${GIT_MOUNT_ARGS[@]}")
 
     # The image normally runs as `bits` (uid 1000), but Podman's host user
     # namespace preserves the caller's ownership on the bind-mounted checkout.
@@ -163,6 +169,7 @@ else
     docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
            -e DD_TRACE_AGENT_URL \
            -e DD_TEST_RUNTIME_PROBE \
+           "${GIT_MOUNT_ARGS[@]}" \
            --rm \
            -i \
            testrunner \

@@ -39,6 +39,7 @@ gets extended to add support for additional features.
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
+| `post_start() -> None` | Called after the product's `start()` succeeds and the manager finishes the complete start pass; use for work that requires all enabled products to register first |
 | `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
@@ -143,6 +144,14 @@ Installs a callback for a product.  The callback will receive all payloads
 dispatched by the RC subscriber, as well as periodic calls.  If this is the
 first callback being registered, the RC poller is started automatically (if
 `DD_REMOTE_CONFIGURATION_ENABLED` is set).
+
+During automatic instrumentation bootstrap, the remote-configuration product
+temporarily defers that automatic start. The product manager releases the
+barrier through the product's optional `post_start()` hook, after all enabled
+products have started. This lets dependent products register and enable their
+RC subscriptions before the poller's immediate first request, including when
+products start after a uWSGI fork. Outside product bootstrap, first-callback
+registration continues to start the poller immediately.
 
 Registering a callback **does not** enable the product: the product name will
 **not** appear in client payloads until `enable_product()` is called.
@@ -378,10 +387,11 @@ monitoring.unregister(code, handler)
 ```
 
 The multiplexer keeps the tool claimed while registrations exist and releases
-it after the final registration is removed. Releasing first disables events and
-removes callbacks, so another monitoring consumer can safely reuse the scarce
-slot. Instrumentation that must transform code before registering holds a short
-reservation across that preparation to prevent teardown from racing registration.
+it after the final registration is removed or its code object is collected.
+Releasing first disables events and removes callbacks, so another monitoring
+consumer can safely reuse the scarce slot. Instrumentation that must transform
+code before registering holds a short reservation across that preparation to
+prevent teardown from racing registration.
 
 > [!WARNING]
 > Do not call `register()` or `unregister()` from inside a handler method —
@@ -426,12 +436,14 @@ still global. If either condition fails, callers must use the selective refresh
 path above, which only toggles ddtrace's tool ID for the requested code and event
 bits.
 
-On success, `restart_events()` returns a subscriber version. The version changes
-only when the set of distinct subscribers changes, not when an existing
-subscriber registers more code objects. Dead weak registrations are pruned the
-next time `restart_events()` checks ownership. Callers can retain the version and
-use `subscriber_version_is_current()` to re-check sole ownership without scanning
-all registered code objects after ordinary imports.
+On success, `restart_events()` returns a subscriber token. The token remains
+valid while the set of distinct subscribers is unchanged, including when an
+existing subscriber registers more code objects. Weak-reference cleanup prunes
+dead registrations and invalidates the token when the last code object for a
+subscriber is collected. Callers can retain the token and inspect its `valid`
+attribute without scanning all registered code objects after ordinary imports;
+`subscriber_version_is_current()` remains as a compatibility helper for existing
+internal callers.
 
 ### Error Isolation
 

@@ -37,8 +37,7 @@ IGNORED_ENVIRONMENT_VARIABLES = [
     "_DD_CONTEXTVAR",
     "_DD_DIRECT_SUBMISSION_ENABLED",
 ]
-INTEGRATIONS_WITHOUT_SERVICE_CONFIG = {"anyio"}
-
+INTEGRATIONS_WITHOUT_SERVICE_CONFIG = {"anyio", "trio"}
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
 # Run: python scripts/supported_configurations.py
