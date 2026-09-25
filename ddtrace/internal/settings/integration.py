@@ -1,4 +1,4 @@
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.attrdict import AttrDict
