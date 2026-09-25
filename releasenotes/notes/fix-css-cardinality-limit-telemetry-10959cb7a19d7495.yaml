@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Stats computation: Fixes cardinality limiting telemetry and health metric names
+    to align with other tracers.
