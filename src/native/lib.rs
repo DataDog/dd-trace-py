@@ -9,6 +9,7 @@ mod context_provider;
 mod context_watcher;
 mod contextvar;
 mod data_pipeline;
+mod datastreams;
 #[cfg(feature = "stats")]
 mod ddsketch;
 mod ddtrace_utils;
@@ -95,6 +96,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     rand::register_rand(m)?;
     process_metrics::register_process_metrics(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
+    m.add_function(wrap_pyfunction!(datastreams::encode_pathway_b64, m)?)?;
+    m.add_function(wrap_pyfunction!(datastreams::decode_pathway_b64, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
 
