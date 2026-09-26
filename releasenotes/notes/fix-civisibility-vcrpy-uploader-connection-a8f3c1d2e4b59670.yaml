@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes missing Test Optimization results when a pytest suite
+    records HTTP traffic with vcrpy. Uploads no longer bind to a test cassette
+    and later tests no longer fail with ``CannotOverwriteExistingCassetteException``.
