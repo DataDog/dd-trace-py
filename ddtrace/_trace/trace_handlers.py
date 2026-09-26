@@ -2010,7 +2010,6 @@ def listen():
 
     for context_name in (
         # web frameworks
-        "cherrypy.request",
         "pyramid.request",
         "tornado.request",
         "flask.call",
