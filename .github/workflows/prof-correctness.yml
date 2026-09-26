@@ -29,11 +29,11 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
-    # 60m S3 poll + 60m downstream watch = 120, plus ~10m slack
+    # 90m S3 poll + 60m downstream watch = 150, plus ~10m slack
     # for octo-sts / trigger / GHA overhead.
     # Job timeout must stay strictly above POLL_TIMEOUT so a late upload
     # does not consume the entire budget before downstream-python starts.
-    timeout-minutes: 130
+    timeout-minutes: 160
     steps:
       - name: Resolve commit SHA
         id: sha
@@ -71,30 +71,49 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # GitLab uploads install.sh after wheel build (often 20–63+ min under
-      # load). This workflow uses its own 60m poll budget for late GitLab
-      # uploads (independent of scripts/download-s3-wheels.sh). Poll before
-      # dispatch so downstream does not 404.
-      - name: Wait for S3 install.sh
+      # GitLab publishes per-platform indexes first
+      # (install-manylinux2014_x86_64.sh, then install-manylinux2014.sh).
+      # Unsuffixed install.sh is only after "upload all" (often 20–78+ min).
+      # Poll the same three as dd-trace-doe so we dispatch when linux amd64
+      # wheels are up. 90m is the fallback if even the earliest index is late.
+      - name: Wait for S3 install script
         if: steps.gate.outputs.run == 'true'
+        id: s3
         env:
           DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
         run: |
-          INSTALL_URL="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}/install.sh"
-          POLL_TIMEOUT="${POLL_TIMEOUT:-3800}"
+          S3_BASE="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}"
+          # Same order as dd-trace-doe images/python/scripts/install_tracer.sh.
+          CANDIDATES="install-manylinux2014_x86_64.sh install-manylinux2014.sh install.sh"
+          POLL_TIMEOUT="${POLL_TIMEOUT:-5400}"
           POLL_INTERVAL="${POLL_INTERVAL:-30}"
-          echo "Polling for: ${INSTALL_URL}"
+          echo "Polling ${S3_BASE} for: ${CANDIDATES}"
+          echo "Timeout: ${POLL_TIMEOUT}s, Interval: ${POLL_INTERVAL}s"
           elapsed=0
+          found_url=""
           while true; do
-            if curl -sf -o /dev/null "${INSTALL_URL}"; then
-              echo "install.sh found after ${elapsed}s"
+            statuses=""
+            found_url=""
+            for name in ${CANDIDATES}; do
+              url="${S3_BASE}/${name}"
+              code="$(curl -sS -o /dev/null -w '%{http_code}' "${url}" || true)"
+              code="${code:-curl_error}"
+              statuses="${statuses}${statuses:+, }${name}=${code}"
+              if [ "$code" = "200" ] && [ -z "$found_url" ]; then
+                found_url="$url"
+              fi
+            done
+            if [ -n "$found_url" ]; then
+              echo "found ${found_url} after ${elapsed}s (${statuses})"
+              echo "url=${found_url}" >> "$GITHUB_OUTPUT"
               break
             fi
             if [ "$elapsed" -ge "$POLL_TIMEOUT" ]; then
-              echo "error: timed out after ${POLL_TIMEOUT}s waiting for ${INSTALL_URL}" >&2
+              echo "error: timed out after ${POLL_TIMEOUT}s waiting for any of: ${CANDIDATES} under ${S3_BASE} (last ${statuses})" >&2
+              echo "GitLab may still be publishing wheels. Re-run this job after a candidate returns 200." >&2
               exit 1
             fi
-            echo "Not available yet (${elapsed}s elapsed), retrying in ${POLL_INTERVAL}s..."
+            echo "Not available yet (${elapsed}s elapsed, ${statuses}), retrying in ${POLL_INTERVAL}s..."
             sleep "${POLL_INTERVAL}"
             elapsed=$((elapsed + POLL_INTERVAL))
           done
@@ -112,14 +131,16 @@ jobs:
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
           DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
           TEST_SCENARIOS: ${{ github.event.inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)' }}
+          INSTALL_URL: ${{ steps.s3.outputs.url }}
         run: |
           # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
           TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
-          echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA}"
+          echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA} via ${INSTALL_URL}"
           gh workflow run downstream-python.yml \
             --repo DataDog/prof-correctness \
             -f "dd_trace_py_commit_sha=${DD_TRACE_PY_SHA}" \
-            -f "test_scenarios=${TEST_SCENARIOS}"
+            -f "test_scenarios=${TEST_SCENARIOS}" \
+            -f "ddtrace_install_url=${INSTALL_URL}"
 
           RUN_ID=""
           for _ in $(seq 1 30); do
