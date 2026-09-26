@@ -1,0 +1,6 @@
+features:
+  - |
+    LLM Observability: add Amazon Nova 2 Sonic support for the asynchronous
+    AWS SDK for Bedrock Runtime. Conversations include per-turn traces,
+    transcripts, token usage, tool calls, and playable audio, with speech
+    phases for conversation playback and response-latency measurement.
