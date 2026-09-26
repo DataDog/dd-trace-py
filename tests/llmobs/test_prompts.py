@@ -1,3 +1,4 @@
+from collections import UserList
 from contextlib import contextmanager
 import json
 import os
@@ -234,6 +235,109 @@ class TestPrompts:
         assert len(messages) == 2
         assert messages[0]["content"] == "You are helpful assistant."
         assert messages[1]["content"] == "What is Python?"
+
+    def test_render_chat_message_placeholders(self):
+        template = [
+            {"role": "system", "content": "You are {{persona}}."},
+            {"type": "placeholder", "name": "history"},
+            {"type": "placeholder", "name": "examples"},
+            {"type": "placeholder", "name": "history"},
+            {"role": "user", "content": "{{question}}"},
+        ]
+        prompt = ManagedPrompt(id="assistant", version="1", label=None, source="registry", template=template)
+        history = [{"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}}]
+        tools = [
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "openai-1",
+                        "type": "function",
+                        "function": {"name": "lookup", "arguments": '{"id":"{{opaque}}"}'},
+                        "provider_field": "preserved",
+                    }
+                ],
+            },
+            {"role": "tool", "content": "found", "tool_call_id": "openai-1"},
+            {"role": "assistant", "content": "text", "tool_calls": [{"id": None, "function": None}]},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"name": "lookup", "arguments": {"id": 1}, "tool_id": "call-1"}],
+            },
+            {
+                "role": "tool",
+                "tool_results": [{"name": "lookup", "result": "found", "tool_id": "call-1"}],
+            },
+        ]
+
+        assert prompt.format(persona="concise", question="Help", history=history, examples=tools) == [
+            {"role": "system", "content": "You are concise."},
+            {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
+            *tools,
+            {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
+            {"role": "user", "content": "Help"},
+        ]
+
+    @pytest.mark.parametrize(
+        "variables, error",
+        [
+            ({}, "Missing value"),
+            ({"history": "not-a-list"}, "must be a list"),
+            ({"history": [{"role": "user"}]}, "string role and text or tool content"),
+            ({"history": [{"role": "assistant", "content": None}]}, "string role and text or tool content"),
+            ({"history": [{"role": "assistant", "tool_calls": []}]}, "string role and text or tool content"),
+            (
+                {"history": [{"role": "assistant", "content": "text", "tool_calls": ["bad"]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"role": "assistant", "tool_calls": [{"function": {"name": "lookup", "arguments": {}}}]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"role": "tool", "content": "text", "tool_call_id": 1}]},
+                "string role and text or tool content",
+            ),
+            ({"history": [{"role": "assistant", "tool_calls": [{"id": 1}]}]}, "string role and text or tool content"),
+            (
+                {"history": [{"role": "assistant", "content": [{"type": "image"}], "tool_calls": [{}]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"type": "placeholder", "name": "nested", "role": "user", "content": "x"}]},
+                "string role and text or tool content",
+            ),
+        ],
+    )
+    def test_render_chat_message_placeholder_errors(self, variables, error):
+        prompt = ManagedPrompt(
+            id="assistant",
+            version="1",
+            label=None,
+            source="registry",
+            template=[{"type": "placeholder", "name": "history"}],
+        )
+
+        with pytest.raises(ValueError, match=error):
+            prompt.format(**variables)
+
+    def test_message_placeholder_annotation_excludes_runtime_messages(self, tracer):
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        template = [
+            {"role": "system", "content": "You are {{persona}}."},
+            {"type": "placeholder", "name": "history"},
+        ]
+        prompt = ManagedPrompt(id="assistant", version="1", label=None, source="registry", template=template)
+
+        annotation = prompt.to_annotation_dict(persona="concise", history=[{"role": "user", "content": "private"}])
+
+        with LLMObs.annotation_context(prompt=annotation):
+            with LLMObs.llm(model_name="test-model", name="test") as span:
+                prompt_data = get_llmobs_input_prompt(span)
+
+        assert prompt_data["chat_template"] == template
+        assert prompt_data["variables"] == {"persona": "concise"}
 
     def test_caching_returns_from_cache(self):
         """Second call returns cached prompt without API call."""
@@ -879,6 +983,16 @@ class TestPromptManagement:
             call()
 
         assert json.loads(conn.requests[-1]["body"])["env_ids"] == ["env-1"]
+
+    @pytest.mark.parametrize("method", ["create_prompt", "create_prompt_version"])
+    def test_write_prompt_accepts_sequence(self, method):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        template = UserList([{"role": "user", "content": "hi"}])
+        with mock_patch:
+            getattr(manager, method)("p1", template)
+
+        assert json.loads(conn.requests[-1]["body"])["template"] == list(template)
 
     @pytest.mark.parametrize(
         "call",

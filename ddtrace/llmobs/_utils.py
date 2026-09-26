@@ -53,8 +53,11 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import MessagePlaceholder
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import _Meta
@@ -71,7 +74,9 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
+ValidatedPromptDict = dict[
+    str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message], list[ChatTemplateItem]]
+]
 
 
 def resolve_llmobs_git_metadata() -> tuple[str, str]:
@@ -167,12 +172,16 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
 
     if chat_template:
         if not isinstance(chat_template, list):
-            raise TypeError("chat_template must be a list of dictionaries with string-string key value pairs.")
+            raise TypeError("chat_template must be a list of message or placeholder dictionaries.")
         for ct in chat_template:
-            if not (isinstance(ct, dict) and all(k in ct for k in ("role", "content"))):
-                raise TypeError(
-                    "Each 'chat_template' entry should be a string-string dictionary with role and content keys."
-                )
+            if not isinstance(ct, dict):
+                raise TypeError("Each 'chat_template' entry must be a message or placeholder dictionary.")
+            item = cast(dict[str, Any], ct)
+            if item.get("type") == "placeholder":
+                if not isinstance(item.get("name"), str) or not item["name"]:
+                    raise TypeError("Each message placeholder must have a non-empty string name.")
+            elif not all(k in item for k in ("role", "content")):
+                raise TypeError("Each 'chat_template' message must have role and content keys.")
 
     if variables:
         if not isinstance(variables, dict):
@@ -182,10 +191,14 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
         if not all(isinstance(k, str) for k in variables):
             raise TypeError("Keys of 'variables' must all be strings.")
 
-    final_chat_template = []
+    final_chat_template: list[ChatTemplateItem] = []
     if chat_template:
         for msg in chat_template:
-            final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
+            item = cast(dict[str, Any], msg)
+            if item.get("type") == "placeholder":
+                final_chat_template.append(MessagePlaceholder(type="placeholder", name=item["name"]))
+            else:
+                final_chat_template.append(ChatMessage(role=item["role"], content=item["content"]))
 
     if prompt_uuid and not isinstance(prompt_uuid, str):
         raise TypeError(f"prompt_uuid: {prompt_uuid} must be a string, received {type(prompt_uuid).__name__}")

@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -29,11 +30,18 @@ class Document(TypedDict, total=False):
     score: float
 
 
+class ToolCallFunction(TypedDict):
+    name: str
+    arguments: str
+
+
 class ToolCall(TypedDict, total=False):
     name: str
     arguments: dict[str, Any]
     tool_id: str
     type: str
+    id: str
+    function: ToolCallFunction
 
 
 class ToolResult(TypedDict, total=False):
@@ -168,8 +176,21 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
+    tool_call_id: str
     audio_parts: list[AudioPart]
     image_parts: list[ImagePart]
+
+
+# TODO: Make MessagePlaceholder standalone in the next major release;
+# inheritance preserves the existing list[Message] template contract.
+class MessagePlaceholder(Message):
+    """A named insertion point for runtime messages in a chat prompt template."""
+
+    type: Literal["placeholder"]
+    name: str
+
+
+ChatTemplateItem = Union[ChatMessage, MessagePlaceholder]
 
 
 class _SpanField(TypedDict):
