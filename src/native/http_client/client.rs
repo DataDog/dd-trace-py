@@ -79,6 +79,7 @@ fn ensure_crypto_provider() {
     });
 }
 
+use crate::gil::detach_or_hang_on_finalize;
 use crate::http_client::{errors::http_error_to_pyerr, response::HttpResponsePy};
 use crate::shared_runtime::SharedRuntimePy;
 
@@ -152,8 +153,9 @@ impl HttpClientPy {
         //
         // DEV: `req` is cloned per attempt so the call can be retried by
         // `block_on_resilient`; `HttpRequest` is a cheap, plain-data value.
-        let result =
-            py.detach(move || block_on_resilient(|| runtime.block_on(client.send(req.clone()))));
+        let result = detach_or_hang_on_finalize(py, move || {
+            block_on_resilient(|| runtime.block_on(client.send(req.clone())))
+        });
         match result {
             Ok(Ok(resp)) => Ok(HttpResponsePy::from(resp)),
             Ok(Err(e)) => Err(http_error_to_pyerr(py, e)),
