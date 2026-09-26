@@ -235,8 +235,23 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
         self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str]]] = weakref.WeakKeyDictionary()
+        # Tracks every module we have ever compiled, so we can tell a fresh
+        # compile apart from a recompile (e.g. importlib.reload()) even after
+        # self._code's entry for the module has been released by every
+        # subscriber. Unlike self._code, entries here are never removed early.
+        self._seen: weakref.WeakSet[ModuleType] = weakref.WeakSet()
 
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
+        if module in self._seen:
+            # The module is being recompiled (e.g. importlib.reload()). Code
+            # objects compare and hash by value, not identity, so an unmodified
+            # module recompiles into code objects that are indistinguishable
+            # from the old ones to identity-agnostic caches: functions_for_code's
+            # lru_cache and _CODE_TO_ORIGINAL_FUNCTION_MAPPING would otherwise
+            # keep returning the pre-reload function objects forever.
+            clear()
+        else:
+            self._seen.add(module)
         self._code[module] = (list(collect_code_objects(code)), set(self._subscribers))
         return code
 
