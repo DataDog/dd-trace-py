@@ -163,6 +163,11 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert span.get_tag("component") == "grpc_server"
         assert span.get_tag("span.kind") == "server"
 
+    def test_server_accepts_explicit_none_interceptors(self):
+        with logging_pool.pool(1) as server_pool:
+            server = grpc.server(server_pool, interceptors=None)
+            server.stop(None).wait()
+
     def test_insecure_channel_using_args_parameter(self):
         def insecure_channel_using_args(target):
             return grpc.insecure_channel(target)
