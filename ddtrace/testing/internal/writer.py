@@ -120,6 +120,8 @@ class BaseWriter(ABC):
         # (via _task_teardown) and the caller thread (via wait_finish), covering
         # all thread-local HTTPConnections opened via BackendConnector.
         self._connectors: list[t.Any] = []
+        # Set by the writer thread after it has built its thread-local connections.
+        self._thread_ready = threading.Event()
 
     def put_event(self, event: Event) -> None:
         with self.lock:
@@ -152,8 +154,18 @@ class BaseWriter(ABC):
         return events
 
     def start(self) -> None:
+        self._thread_ready = threading.Event()
         self.task = threading.Thread(target=self._periodic_task, daemon=True)
         self.task.start()
+        # BackendConnector is threading.local, so the writer thread constructs
+        # its HTTP connection on first attribute access. Do that here, before
+        # tests run, so a later monkeypatch of http.client (vcrpy) cannot bind
+        # the uploader to a cassette.
+        if not self._thread_ready.wait(timeout=5.0):
+            log.warning(
+                "%s writer thread did not initialize its HTTP connection within 5s",
+                self.__class__.__name__,
+            )
 
     def set_async_flush_events(self, async_flush_events: t.Optional[int]) -> None:
         self.async_flush_events = async_flush_events
@@ -190,7 +202,18 @@ class BaseWriter(ABC):
         for connector in self._connectors:
             connector.close()
 
+    def _init_thread_local_connectors(self) -> None:
+        for connector in self._connectors:
+            if isinstance(connector, threading.local):
+                # Accessing any instance attribute runs BackendConnector.__init__
+                # for this thread, which builds http.client.HTTP(S)Connection.
+                getattr(connector, "conn", None)
+
     def _periodic_task(self) -> None:
+        try:
+            self._init_thread_local_connectors()
+        finally:
+            self._thread_ready.set()
         while True:
             self._flush_now.wait(timeout=self.flush_interval_seconds)
             self._flush_now.clear()
