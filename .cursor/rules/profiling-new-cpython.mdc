@@ -1,0 +1,29 @@
+---
+description: >-
+  When adding PY_VERSION_HEX / version guards for profiling on a new CPython
+  minor, update the version registry and baselines and use the migration skill.
+globs:
+  - ddtrace/internal/datadog/profiling/**
+  - ddtrace/profiling/**
+  - setup.py
+  - scripts/profiles/profiling_versions.json
+  - scripts/profiles/compatibility_baselines.json
+  - scripts/verify_profiler_compatibility.py
+  - scripts/run-profiling-tests
+---
+
+# Profiling new CPython minor
+
+If the change adds or extends a `PY_VERSION_HEX` / `sys.version_info` guard for
+profiling (stack, asyncio, memalloc, ddup, collectors):
+
+1. Update `scripts/profiles/profiling_versions.json` (or run
+   `python scripts/verify_profiler_compatibility.py --scaffold X.Y`).
+2. Refresh or add a baseline in `scripts/profiles/compatibility_baselines.json`.
+3. Drive the migration with skill `migrate-profiling-new-cpython`; do not invent
+   a one-off checklist.
+4. Keep SSI/OCI disabled until CPython final. Do not claim memory parity without
+   an A/B.
+
+Detail: `docs/contributing-profiling-new-cpython.rst`.
+Catalog: `docs/cpython-diffs/py315_pr_catalog.md`.

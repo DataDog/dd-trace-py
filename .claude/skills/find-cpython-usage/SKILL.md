@@ -164,4 +164,16 @@ This information can then be used with the `compare-cpython-versions` skill to i
 
 ## Related
 
+- **migrate-profiling-new-cpython skill**: Orchestrator for profiling CPython
+  upgrades; includes the profiling file list to search first.
 - **compare-cpython-versions skill**: Use findings from this skill to compare versions
+
+Profiling paths to prioritize:
+
+```
+ddtrace/internal/datadog/profiling/
+ddtrace/profiling/
+ddtrace/profiling/_asyncio.py
+ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h
+ddtrace/internal/datadog/profiling/stack/src/echion/frame.cc
+```
