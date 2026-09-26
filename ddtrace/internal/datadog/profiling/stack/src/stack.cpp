@@ -1025,7 +1025,12 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // faulthandler) install its own handler so it doesn't record ours as its
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
-    if (fast_copy_active) {
+    //
+    // Gate on ownership rather than fast_copy_active: the sampler clears
+    // fast_copy_active for the startup warmup window while our handlers stay
+    // installed (see sampler.cpp), so fast_copy_active would silently skip the
+    // handoff for every faulthandler.enable() in that window.
+    if (segv_handler_installed()) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -1034,11 +1039,19 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
-    // This is used to reclaim the handler after another component (e.g., Python's
-    // faulthandler module) overwrites it. Our handler chains to the previous one
-    // for non-recovery faults, so both systems coexist correctly.
-    if (fast_copy_active) {
+    // Reinstall our SIGSEGV/SIGBUS handlers after another component (e.g., Python's
+    // faulthandler module) has installed its own. Our handler chains to the previous
+    // one for non-recovery faults, so both systems coexist correctly.
+    //
+    // Gate on safe_memcpy_initialized: fast_copy_active is false during the warmup
+    // window, and ownership is false by construction here since reclaiming it is
+    // what this call is for. That asymmetry with the uninstall above is deliberate:
+    // when a foreign owner we do not coordinate with (abseil, PyTorch/CUDA -
+    // PROF-14568) holds the handler, the uninstall skips but this still installs on
+    // top. We cannot tell that case from faulthandler's, and refusing would strand
+    // safe_memcpy without its recovery handler. Post-warmup behavior is already the
+    // same, since fast_copy_active is true there and both calls run.
+    if (safe_memcpy_initialized) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;
