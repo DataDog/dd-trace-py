@@ -70,15 +70,16 @@ class GCPauseMonitor:
     _max_ns: int
 
     def __init__(self) -> None:
-        # Forksafe because _on_gc runs on whichever thread triggered the collection,
-        # so a fork can inherit a lock held by a thread the child does not have.
-        # Non-reentrant is sufficient because no critical section below allocates a
-        # GC-tracked object while the callback is installed; see _gc_hook.
+        # _on_gc must never wait for this lock. CPython can start a collection on a
+        # thread that holds the lock, and _on_gc would then wait for its own thread. That
+        # collection would never finish, and CPython would start no other collection.
+        # Forksafe because a fork can inherit the lock from a thread that the child
+        # does not have.
         self._lock: threading_Lock = forksafe.Lock()
         self._refcount: int = 0
         self._fork_registered: bool = False
-        # Bind once. Evaluating self._on_gc builds a bound method, which is a
-        # GC-tracked allocation, and acquire/release must not allocate.
+        # Bind once. Each evaluation of self._on_gc builds a new bound method, and
+        # _remove_gc_callback finds the installed hook by identity.
         self._gc_hook: Callable[[str, dict[str, int]], None] = self._on_gc
         self._fork_hook: Callable[[], None] = self.reset
         self._start_ns: list[int] = [0] * GEN_COUNT
@@ -94,9 +95,6 @@ class GCPauseMonitor:
             if not _gc_callbacks_supported():
                 return
 
-        # Install hooks without holding _lock: forksafe.register and
-        # gc.callbacks.append can allocate and trigger a collection, and _on_gc
-        # would deadlock if it tried to take _lock while we hold it here.
         with self._lock:
             fork_registered: bool = self._fork_registered
         if not fork_registered:
@@ -163,21 +161,34 @@ class GCPauseMonitor:
         if not 0 <= gen < GEN_COUNT:
             return
 
-        if phase == _GCPhase.START:
-            with self._lock:
-                # A start callback can be waiting here while release() uninstalls.
-                # Storing a timestamp then would leave it to pair with a stop after
-                # the next acquire, reporting the gap between them as one pause.
+        # Skip the sample when another section holds the lock. Waiting could block
+        # forever, see __init__. Also drop the start of this generation, so that a
+        # later stop cannot pair with it. Writing zero without the lock is safe
+        # because every other writer holds the lock and only writes zero, or is
+        # _on_gc, and CPython runs one collection at a time.
+        if not self._lock.acquire(False):
+            self._start_ns[gen] = 0
+            return
+
+        # CPython runs pending signal handlers when a call returns. If a handler
+        # raises between acquire() and try, the lock stays held. Every later sample
+        # is then skipped, and snapshot_and_reset() and release() block forever. A
+        # with statement cannot acquire without blocking, so Python code cannot close
+        # this gap.
+        try:
+            if phase == _GCPhase.START:
+                # A start callback can run after release() uninstalls. Storing a
+                # timestamp then would leave it to pair with a stop after the next
+                # acquire, reporting the gap between them as one pause.
                 if self._refcount <= 0:
                     return
 
                 self._start_ns[gen] = time.monotonic_ns()
-            return
+                return
 
-        if phase != _GCPhase.STOP:
-            return
+            if phase != _GCPhase.STOP:
+                return
 
-        with self._lock:
             start: int = self._start_ns[gen]
             if start == 0:
                 return
@@ -191,6 +202,8 @@ class GCPauseMonitor:
             self._total_ns += pause_ns
             if pause_ns > self._max_ns:
                 self._max_ns = pause_ns
+        finally:
+            self._lock.release()
 
 
 _MONITOR: Optional[GCPauseMonitor] = None

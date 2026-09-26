@@ -316,6 +316,53 @@ class TestRuntimeWorker(TracerTestCase):
                 assert child.get_tag("language") is None
 
 
+@pytest.mark.subprocess(timeout=60)
+def test_runtime_worker_flush_keeps_automatic_gc_running():
+    """Keep automatic GC running while the runtime worker flushes.
+
+    CPython runs a pending collection at the next eval-breaker check, on any thread,
+    so a collection can start on the flush thread in the middle of a flush. A
+    threshold of 1 keeps a collection pending at almost every check.
+    """
+    import gc
+    import os
+    import sys
+    import time
+
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+    def collections():
+        return sum(stat["collections"] for stat in gc.get_stats())
+
+    gc.set_threshold(1)
+    worker = RuntimeWorker(interval=0.001)
+    worker.start()
+    deadline = time.monotonic() + 5
+    last_progress = time.monotonic()
+    seen = collections()
+    while (now := time.monotonic()) < deadline:
+        # Allocate cycles, which stay alive until a collection frees them. Python 3.14
+        # subtracts freed objects from the young-generation count, so short-lived
+        # garbage never reaches the threshold.
+        for _ in range(100):
+            cycle = []
+            cycle.append(cycle)
+        current = collections()
+        if current > seen:
+            seen = current
+            last_progress = now
+        # A pending collection can wait while the flush thread blocks in a socket call,
+        # so only a long stretch without collections means that automatic GC stopped.
+        elif now - last_progress > 1:
+            # A stuck flush thread blocks worker.stop() and interpreter shutdown, and the
+            # process then ignores SIGTERM. Exit directly, so that the test reports this
+            # failure and not a timeout.
+            sys.stderr.write(f"automatic GC stopped: gc.get_count()={gc.get_count()}\n")
+            sys.stderr.flush()
+            os._exit(1)
+    worker.stop()
+
+
 def test_fork():
     _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
     assert exitcode == 0
