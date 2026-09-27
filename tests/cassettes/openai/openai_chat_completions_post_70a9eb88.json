@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate, zstd",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "OpenAI/Python 2.41.0",
+      "X-Stainless-Lang": "python",
+      "X-Stainless-Package-Version": "2.41.0",
+      "X-Stainless-OS": "Linux",
+      "X-Stainless-Arch": "x64",
+      "X-Stainless-Runtime": "CPython",
+      "X-Stainless-Runtime-Version": "3.11.15",
+      "X-Stainless-Async": "false",
+      "X-Stainless-Raw-Response": "true",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "615"
+    },
+    "body": "{\"messages\":[{\"content\":\"What is 1 + 1? Use the add tool.\",\"role\":\"user\"},{\"content\":null,\"role\":\"assistant\",\"tool_calls\":[{\"type\":\"function\",\"id\":\"call_aiguard_add\",\"function\":{\"name\":\"add\",\"arguments\":\"{\\\"a\\\": 1, \\\"b\\\": 1}\"}}]},{\"content\":\"2\",\"role\":\"tool\",\"tool_call_id\":\"call_aiguard_add\"}],\"model\":\"gpt-3.5-turbo\",\"n\":1,\"stream\":false,\"temperature\":0.0,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"add\",\"description\":\"Adds a and b.\\n\\n    Args:\\n        a: first int\\n        b: second int\",\"parameters\":{\"properties\":{\"a\":{\"type\":\"integer\"},\"b\":{\"type\":\"integer\"}},\"required\":[\"a\",\"b\"],\"type\":\"object\"}}}]}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "openai-version": "2020-10-01",
+      "x-request-id": "req_aiguardlangchain70a9eb88"
+    },
+    "body": "{\n  \"id\": \"chatcmpl-aiguardlangchain70a9eb88\",\n  \"object\": \"chat.completion\",\n  \"created\": 1790234637,\n  \"model\": \"gpt-3.5-turbo-0125\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"refusal\": null,\n        \"annotations\": [],\n        \"content\": \"1 + 1 = 2.\"\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 90,\n    \"completion_tokens\": 18,\n    \"total_tokens\": 108\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\": null\n}\n"
+  }
+}
