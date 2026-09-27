@@ -25,6 +25,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 def _reset_profiler_active_instance():
     yield
     profiler.Profiler._active_instance = None
+    profiler.Profiler._exit_signal_handler_registered = False
 
 
 def test_status():
@@ -731,18 +732,86 @@ def test_construction_does_not_enable_endpoint_collection() -> None:
 
 
 @pytest.mark.subprocess(err=None)
-def test_start_registers_sigterm_handler() -> None:
-    """Profiler.start must register _stop_on_signal as a SIGTERM/SIGINT handler via register_on_exit_signal."""
+def test_start_registers_sigterm_handler_once_per_process() -> None:
+    """Profiler.start installs the SIGTERM/SIGINT handler, and installs it only once.
+
+    signals.handle_signal chains handlers by wrapping and cannot remove one, so a handler
+    per start would grow the chain for as long as the process runs.
+    """
     from unittest import mock
 
     from ddtrace.internal import atexit
     from ddtrace.profiling import profiler
 
-    with mock.patch.object(atexit, "register_on_exit_signal") as mock_reg:
+    with mock.patch.object(atexit, "register_on_exit_signal", return_value=True) as mock_reg:
+        p1 = profiler.Profiler()
+        p1.start()
+        mock_reg.assert_called_once_with(profiler.Profiler._stop_active_instance_on_signal)
+        assert profiler.Profiler._exit_signal_handler_registered
+        p1.stop(flush=False)
+
+        p1.start()
+        p1.stop(flush=False)
+        p2 = profiler.Profiler()
+        p2.start()
+        p2.stop(flush=False)
+
+        assert mock_reg.call_count == 1, "the exit signal handler must be registered once per process"
+
+
+@pytest.mark.subprocess(err=None)
+def test_exit_signal_handler_does_not_retain_stopped_profilers() -> None:
+    """Restarting profiling must not pin every profiler that has already run.
+
+    Regression test: start registered a handler bound to that profiler, and the chain
+    those handlers form is never unwound, so each stopped profiler stayed reachable
+    together with all of its collectors.
+    """
+    import gc
+    import weakref
+
+    from ddtrace.profiling import profiler
+
+    refs = []
+    for _ in range(3):
         p = profiler.Profiler()
         p.start()
-        mock_reg.assert_called_once_with(p._stop_on_signal)
         p.stop(flush=False)
+        refs.append(weakref.ref(p._profiler))
+        del p
+
+    for _ in range(3):
+        gc.collect()
+
+    alive = [r for r in refs if r() is not None]
+    assert not alive, "%d of %d stopped profilers were retained" % (len(alive), len(refs))
+
+
+@pytest.mark.subprocess(err=None)
+def test_exit_signal_handler_targets_the_active_profiler() -> None:
+    """The exit signal handler must act on the running profiler, not on a stopped one."""
+    from ddtrace.profiling import profiler
+
+    stopped = profiler.Profiler()
+    stopped.start()
+    stopped.stop(flush=False)
+
+    running = profiler.Profiler()
+    running.start()
+
+    called = []
+    stopped._stop_on_signal = lambda: called.append("stopped")  # type: ignore[method-assign]
+    running._stop_on_signal = lambda: called.append("running")  # type: ignore[method-assign]
+
+    profiler.Profiler._stop_active_instance_on_signal()
+    assert called == ["running"]
+
+    running.stop(flush=False)
+
+    # With nothing active the handler is a no-op rather than a flush of a dead profiler.
+    called.clear()
+    profiler.Profiler._stop_active_instance_on_signal()
+    assert called == []
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")

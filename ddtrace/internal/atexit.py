@@ -63,7 +63,15 @@ def unregister(func: typing.Callable) -> None:
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.
-def register_on_exit_signal(f: typing.Callable) -> None:
+def register_on_exit_signal(f: typing.Callable) -> bool:
+    """Call f when an exit signal (TERM or INT) is received.
+
+    Returns whether anything was installed. Nothing is when called off the main thread or
+    when the install fails. handlers are chained by wrapping and cannot be removed, so a
+    caller that may register repeatedly should register once and use the return value to
+    know whether it still has to.
+    """
+
     def handle_exit(sig: int, frame: typing.Any) -> None:
         try:
             f()
@@ -71,16 +79,30 @@ def register_on_exit_signal(f: typing.Callable) -> None:
             if _native_config.get_raise():
                 raise
 
-    if threading.current_thread() is threading.main_thread():
-        try:
-            signals.handle_signal(signal.SIGTERM, handle_exit)
-            # Skipping SIGINT when default_int_handler is installed allows asyncio.Runner
-            # to install its own handler; cleanup on KeyboardInterrupt is covered by atexit.
-            if signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
-                signals.handle_signal(signal.SIGINT, handle_exit)
-        except Exception:
-            # We catch a general exception here because we don't know
-            # what might go wrong, but we don't want to stop
-            # normal program execution based upon failing to register
-            # a signal handler.
-            log.debug("Encountered an exception while registering a signal", exc_info=True)
+    if threading.current_thread() is not threading.main_thread():
+        return False
+
+    # Each signal is installed on its own, and a failure is never reported as "nothing
+    # installed": a caller that registers once would then register again and chain a
+    # second handler that nothing can remove.
+    # We catch a general exception here because we don't know what might go wrong, but we
+    # don't want to stop normal program execution based upon failing to register a signal
+    # handler.
+    try:
+        signals.handle_signal(signal.SIGTERM, handle_exit)
+    except Exception:
+        log.debug("Encountered an exception while registering SIGTERM", exc_info=True)
+        # Stop here so that nothing is installed at all. A caller told "nothing
+        # installed" registers again, and a SIGINT handler put in now could not be
+        # removed before it does.
+        return False
+
+    try:
+        # Skipping SIGINT when default_int_handler is installed allows asyncio.Runner
+        # to install its own handler; cleanup on KeyboardInterrupt is covered by atexit.
+        if signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
+            signals.handle_signal(signal.SIGINT, handle_exit)
+    except Exception:
+        log.debug("Encountered an exception while registering SIGINT", exc_info=True)
+
+    return True

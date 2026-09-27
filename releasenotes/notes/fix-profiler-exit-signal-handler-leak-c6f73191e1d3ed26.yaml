@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    profiling: Fixes a memory leak where restarting the profiler, or starting a new
+    ``Profiler`` after stopping a previous one, kept every profiler that had already run
+    alive for the rest of the process along with all of its collectors. The exit signal
+    handler that flushes the last profile on ``SIGTERM`` is now installed once per process
+    instead of once per start, and flushes whichever profiler is running when the signal
+    arrives.

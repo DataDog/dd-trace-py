@@ -45,6 +45,26 @@ class Profiler:
     _active_instance: Optional["Profiler"] = None
     _active_lock = Lock()
 
+    # Whether the process-wide exit-signal handler is installed. signals.handle_signal
+    # chains handlers by wrapping the previous one and offers no way to remove one, so
+    # registering on every start would grow that chain without bound and keep every
+    # profiler that has ever run alive through it. One handler is enough: only one
+    # profiler is active at a time and the handler flushes whichever one that is.
+    #
+    # It goes in once and is not put back if something later replaces it. There is no
+    # reliable way to ask whether ours is still in the chain: handle_signal wraps rather
+    # than replaces, so any later registration by another ddtrace component moves the
+    # head, and an identity check on the head reads a live handler as gone and chains a
+    # duplicate. An application that takes SIGTERM over after profiling starts keeps it.
+    #
+    # The same applies to SIGINT, which register_on_exit_signal leaves alone while
+    # default_int_handler is installed: an application that takes SIGINT over after the
+    # first start does not get us chained onto it. Installing it later would mean
+    # registering again, which re-chains SIGTERM, so the two cannot be separated without
+    # per-signal registration. SIGINT under default_int_handler raises KeyboardInterrupt
+    # and the flush still happens through atexit.
+    _exit_signal_handler_registered: bool = False
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
 
@@ -73,15 +93,22 @@ class Profiler:
 
             self._profiler.start()
             Profiler._active_instance = self
+            register_exit_signal_handler = not Profiler._exit_signal_handler_registered
 
         atexit.register(self.stop)
 
         # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
         # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
         # so without this the last partial profile window is silently lost.
-        # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
-        # _active_lock is already held by the main thread (e.g. during start or stop).
-        atexit.register_on_exit_signal(self._stop_on_signal)
+        # We dispatch to _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives
+        # while _active_lock is already held by the main thread (e.g. during start or stop).
+        # The handler goes in once per process; register_on_exit_signal reports whether it
+        # installed anything, so a start off the main thread (where it installs nothing)
+        # leaves this to the next start on the main thread.
+        if register_exit_signal_handler:
+            Profiler._exit_signal_handler_registered = atexit.register_on_exit_signal(
+                Profiler._stop_active_instance_on_signal
+            )
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -104,6 +131,18 @@ class Profiler:
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    @staticmethod
+    def _stop_active_instance_on_signal() -> None:
+        """Flush and stop whichever profiler is active when an exit signal arrives.
+
+        The handler is installed once per process, so it reads the active profiler at
+        signal time rather than capturing one at registration time. That keeps a stopped
+        profiler from being flushed again by a handler left over from its own start.
+        """
+        active = Profiler._active_instance
+        if active is not None:
+            active._stop_on_signal()
 
     def _stop_on_signal(self) -> None:
         """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
