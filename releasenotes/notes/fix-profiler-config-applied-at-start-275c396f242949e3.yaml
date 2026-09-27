@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where creating a ``Profiler`` object replaced the configuration
+    of the profiler already running in the process, so profiles were uploaded under the wrong
+    service, environment, version or tags. Profiler configuration is now applied when the
+    profiler is started instead of when it is created.

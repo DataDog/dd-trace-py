@@ -347,8 +347,6 @@ class _ProfilerInstance(service.Service):
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
 
-        self._build_default_exporters()
-
         scheduler_class: type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
             scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
         )
@@ -378,6 +376,14 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
+        # ddup.config() writes to native state shared by the whole process, so configuring
+        # the exporter belongs to start and not to __init__: a _ProfilerInstance that is
+        # built but never started (e.g. one Profiler.start() refuses because another
+        # profiler is already running) must not overwrite the running profiler's
+        # service/env/version/tags. ddup.start() is idempotent, so re-running this on a
+        # restart is safe.
+        self._build_default_exporters()
+
         # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
         # inherit the patched GOT (and the activator skips a redundant re-install).
         # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED

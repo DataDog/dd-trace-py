@@ -8,6 +8,7 @@ import pytest
 
 import ddtrace
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -115,6 +116,9 @@ def test_profiler_does_not_mutate_custom_tags():
         _pytorch_collector_enabled=False,
         _exception_profiling_enabled=False,
     )
+    p._scheduler = mock.Mock()
+    p.start()
+    p.stop(flush=False)
 
     assert tags == {"team": "profiling"}
     assert p.tags == {"team": "profiling", "generated": "value"}
@@ -252,6 +256,11 @@ def test_profiler_serverless(monkeypatch):
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
+
+    # The function name is tagged along with the rest of the exporter configuration,
+    # which is applied on start.
+    p.start()
+    p.stop(flush=False)
     assert p.tags["functionname"] == "foobar"
 
 
@@ -588,6 +597,64 @@ def test_same_profiler_restart_allowed() -> None:
     p.start()
     assert profiler.Profiler._active_instance is p
     p.stop(flush=False)
+
+
+def test_construction_does_not_configure_global_exporter() -> None:
+    """Building a Profiler must not touch the process-global exporter state.
+
+    ddup.config writes to native state shared by every profiler in the process, so it
+    only runs once the profiler is actually started.
+    """
+    with (
+        mock.patch.object(ddup, "config") as mock_config,
+        mock.patch.object(ddup, "start") as mock_start,
+    ):
+        p = profiler.Profiler(service="built-but-not-started")
+        mock_config.assert_not_called()
+        mock_start.assert_not_called()
+
+        p.start()
+        try:
+            mock_config.assert_called_once()
+            assert mock_config.call_args.kwargs["service"] == "built-but-not-started"
+            mock_start.assert_called_once()
+        finally:
+            p.stop(flush=False)
+
+
+def test_refused_profiler_does_not_reconfigure_running_one() -> None:
+    """A profiler whose start is refused must leave the running profiler's config alone.
+
+    Regression test: the second Profiler used to call ddup.config from its constructor,
+    so the already running profiler kept uploading profiles under the refused profiler's
+    service, env, version and tags.
+    """
+    p1 = profiler.Profiler(service="running-profiler")
+    p1.start()
+    try:
+        with mock.patch.object(ddup, "config") as mock_config:
+            p2 = profiler.Profiler(service="refused-profiler")
+            p2.start()
+
+            assert profiler.Profiler._active_instance is p1
+            mock_config.assert_not_called()
+    finally:
+        p1.stop(flush=False)
+
+
+def test_construction_does_not_enable_endpoint_collection() -> None:
+    """Endpoint call counting is turned on for a profiler that runs, not one merely built."""
+    endpoint_processor = ddtrace.tracer._endpoint_call_counter_span_processor
+
+    with mock.patch.object(endpoint_processor, "enable") as mock_enable:
+        p = profiler.Profiler(endpoint_collection_enabled=True)
+        mock_enable.assert_not_called()
+
+        p.start()
+        try:
+            mock_enable.assert_called_once()
+        finally:
+            p.stop(flush=False)
 
 
 @pytest.mark.subprocess(err=None)
