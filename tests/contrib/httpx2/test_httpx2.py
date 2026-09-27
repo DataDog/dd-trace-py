@@ -19,8 +19,7 @@ DEFAULT_HEADERS = {
 }
 
 
-def get_url(path):
-    # type: (str) -> str
+def get_url(path: str) -> str:
     return f"http://{HOST}:{PORT}{path}"
 
 

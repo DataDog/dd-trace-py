@@ -1,4 +1,3 @@
-from typing import Any  # noqa:F401
 from unittest import mock
 
 import pytest
