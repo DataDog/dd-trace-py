@@ -1,6 +1,6 @@
+from collections.abc import Iterator
 import contextlib
 import gc
-from typing import Iterator
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor

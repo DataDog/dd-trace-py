@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 from copy import copy
 
 import pytest
@@ -19,8 +18,7 @@ def do_operator_add_inplace_3_times_no_propagation(a, b):
     return a
 
 
-def test_nostring_operator_add():
-    # type: () -> None
+def test_nostring_operator_add() -> None:
     assert mod.do_operator_add_inplace_params(2, 3) == 5
 
 
@@ -404,8 +402,7 @@ def test_string_operator_add_inplace_two_mixed_bytearray_bytes() -> None:
     assert len(get_tainted_ranges(result)) == 0
 
 
-def test_nostring_operator_add_3_times():
-    # type: () -> None
+def test_nostring_operator_add_3_times() -> None:
     assert mod.do_operator_add_inplace_3_times(2, 3) == 11
 
 
@@ -639,7 +636,7 @@ def test_string_operator_add_inplace_list_plus_tuple_3_times() -> None:
 
 
 def test_string_operator_add_inplace_object_3_times() -> None:
-    class MyObject(object):
+    class MyObject:
         attr_inplace = "attr_inplace"
 
         def __init__(self, attr_inplace):

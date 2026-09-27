@@ -18,7 +18,7 @@ class EvaluatorRunner(PeriodicService):
     """
 
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
-        super(EvaluatorRunner, self).__init__(interval=interval)
+        super().__init__(interval=interval)
         self._lock = RLock()
         self._buffer: list[tuple[LLMObsSpanEvent, Span]] = []
         self._buffer_limit = 1000
@@ -37,7 +37,7 @@ class EvaluatorRunner(PeriodicService):
         if not self.evaluators:
             logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
             return
-        super(EvaluatorRunner, self).start()
+        super().start()
         logger.debug("started %r", self.__class__.__name__)
 
     def _stop_service(self) -> None:

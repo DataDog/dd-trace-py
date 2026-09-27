@@ -1,11 +1,11 @@
 from collections import defaultdict
 from collections import deque
+from collections.abc import Iterator
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Iterator
 from typing import Optional
 from typing import Protocol
 from typing import Union
@@ -13,7 +13,7 @@ from typing import cast
 
 from wrapt import FunctionWrapper
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
@@ -254,7 +254,7 @@ class FunctionDiscovery(defaultdict[Any, Any]):
             return
 
         self._module = module
-        if PYTHON_VERSION_INFO < (3, 11):
+        if not is_at_least_py(3, 11):
             self._name_index: dict[str, list[_FunctionCodePair]] = defaultdict(list)
         self._cached: dict[int, list[FullyNamedFunction]] = {}
 
@@ -265,7 +265,7 @@ class FunctionDiscovery(defaultdict[Any, Any]):
             for code in code_objects:
                 fcp = _FunctionCodePair(code=code)
 
-                if PYTHON_VERSION_INFO >= (3, 11):
+                if is_at_least_py(3, 11):
                     # From this version of Python we can derive the qualified
                     # name of the function directly from the code object.
                     fullname = f"{module.__name__}.{code.co_qualname}"  # type: ignore[attr-defined]
@@ -363,7 +363,7 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         except ValueError:
             pass
         except KeyError:
-            if PYTHON_VERSION_INFO < (3, 11):
+            if not is_at_least_py(3, 11):
                 # Check if any code objects whose names match the last part of
                 # the qualified name have a function with the same qualified
                 # name.

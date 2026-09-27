@@ -129,9 +129,11 @@ class SessionManager:
 
         self.is_auto_injected = bool(env.get("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = env.get("_CI_DD_ENV", env.get("DD_ENV", None))
-        if self.env is None:
+        maybe_env = env.get("_CI_DD_ENV", env.get("DD_ENV", None))
+        if maybe_env is None:
             self.env = self.connector_setup.default_env()
+        else:
+            self.env = maybe_env
 
         # Parse these once. When dynamic ATR is disabled, normal ATR stays on its existing path.
         self._dynamic_retries_enabled = is_dynamic_retries_enabled()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for the native SpanData class.
 
@@ -49,8 +48,8 @@ UNICODE_STRINGS = [
 UTF8_BYTES = [
     pytest.param(b"test-bytes", id="ascii_bytes"),
     pytest.param(b"hello-world", id="hello_bytes"),
-    pytest.param("test-🔥".encode("utf-8"), id="emoji_bytes"),
-    pytest.param("日本語".encode("utf-8"), id="japanese_bytes"),
+    pytest.param("test-🔥".encode(), id="emoji_bytes"),
+    pytest.param("日本語".encode(), id="japanese_bytes"),
 ]
 
 # Strings with special characters that should be preserved

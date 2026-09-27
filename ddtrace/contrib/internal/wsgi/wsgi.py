@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 from typing import Any
@@ -10,9 +12,9 @@ from ddtrace.internal.span_bus import span_from_context
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.settings._config import Config  # noqa:F401
-    from ddtrace.trace import Span  # noqa:F401
-    from ddtrace.trace import Tracer  # noqa:F401
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.trace import Span
+    from ddtrace.trace import Tracer
 
 from urllib.parse import quote
 from urllib.parse import unquote_to_bytes
@@ -59,7 +61,7 @@ def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
 
 
-class _DDWSGIMiddlewareBase(object):
+class _DDWSGIMiddlewareBase:
     """Base WSGI middleware class.
 
     :param application: The WSGI application to apply the middleware to.
@@ -71,8 +73,8 @@ class _DDWSGIMiddlewareBase(object):
     def __init__(
         self,
         application: Iterable,
-        tracer: Optional["Tracer"],
-        int_config: "Config",
+        tracer: Optional[Tracer],
+        int_config: Config,
         app_is_iterator: bool = False,
     ) -> None:
         if tracer is not None:
@@ -197,8 +199,8 @@ class _DDWSGIMiddlewareBase(object):
     def _traced_start_response(
         self,
         start_response: Callable,
-        request_span: "Span",
-        app_span: "Span",
+        request_span: Span,
+        app_span: Span,
         status: str,
         environ: dict,
         exc_info: Any = None,
@@ -218,13 +220,13 @@ class _DDWSGIMiddlewareBase(object):
         ):
             return start_response(status, environ, exc_info)
 
-    def _request_span_modifier(self, req_span: "Span", environ: dict, parsed_headers: Optional[dict] = None) -> None:
+    def _request_span_modifier(self, req_span: Span, environ: dict, parsed_headers: Optional[dict] = None) -> None:
         """Implement to modify span attributes on the request_span"""
 
-    def _application_span_modifier(self, app_span: "Span", environ: dict, result: Iterable) -> None:
+    def _application_span_modifier(self, app_span: Span, environ: dict, result: Iterable) -> None:
         """Implement to modify span attributes on the application_span"""
 
-    def _response_span_modifier(self, resp_span: "Span", response: dict) -> None:
+    def _response_span_modifier(self, resp_span: Span, response: dict) -> None:
         """Implement to modify span attributes on the request_span"""
 
 
@@ -373,11 +375,11 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     def __init__(
         self,
         application: Iterable,
-        tracer: Optional["Tracer"] = None,
-        span_modifier: Callable[["Span", dict[str, str]], None] = default_wsgi_span_modifier,
+        tracer: Optional[Tracer] = None,
+        span_modifier: Callable[[Span, dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,
     ) -> None:
-        super(DDWSGIMiddleware, self).__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
+        super().__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):

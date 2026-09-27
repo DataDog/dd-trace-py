@@ -629,6 +629,13 @@ Tornado
 .. automodule:: ddtrace.contrib.internal.tornado
 
 
+.. _trio:
+
+Trio
+^^^^
+.. automodule:: ddtrace.contrib.internal.trio
+
+
 .. _unittest:
 
 unittest

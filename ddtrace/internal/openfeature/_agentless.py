@@ -70,7 +70,7 @@ def build_agentless_endpoint(site: str, env: Optional[str] = None, base_url: Opt
     configured = base_url.strip() if base_url else ""
 
     if not configured:
-        netloc = "ufc-server.ff-cdn.{}".format(normalize_agentless_site(site))
+        netloc = f"ufc-server.ff-cdn.{normalize_agentless_site(site)}"
         query = urlencode({"dd_env": env}) if env else ""
         return urlunsplit(("https", netloc, DEFAULT_AGENTLESS_PATH, query, ""))
 
