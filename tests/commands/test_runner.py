@@ -16,18 +16,15 @@ def inject_sitecustomize(path):
     the current PYTHONPATH.
 
     :param path: package path containing ``sitecustomize.py`` module, starting
-                 from the ddtrace root folder
+                 from the repository root
     :returns: a cloned environment that includes an altered PYTHONPATH with
               the given `sitecustomize.py`
     """
-    from ddtrace import __file__ as root_file
-
-    root_folder = os.path.dirname(root_file)
     # Copy the current environment and replace the PYTHONPATH. This is
     # required otherwise `ddtrace` scripts are not found when `env` kwarg is
     # passed
     env = os.environ.copy()
-    sitecustomize = os.path.abspath(os.path.join(root_folder, "..", path))
+    sitecustomize = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", path))
 
     # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
     # if `import sitecustomize` is run that it'll be the one we specify

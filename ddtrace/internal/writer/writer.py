@@ -760,6 +760,7 @@ def _build_base_exporter_builder(
             stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         bucket_size_ns: int = int(stats_interval * 1e9)
         builder.enable_stats(bucket_size_ns)
+        builder.set_stats_cardinality_limit(**config._trace_stats_cardinality_limits)
     elif stats_opt_out:
         builder.set_client_computed_stats()
     return builder

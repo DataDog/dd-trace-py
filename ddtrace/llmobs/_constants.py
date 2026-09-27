@@ -97,6 +97,7 @@ LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
 LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
+LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY = "_dd.llmobs.artificial_gen_ai_tags"
 
 GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
 GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
