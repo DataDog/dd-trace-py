@@ -13,6 +13,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -301,6 +302,26 @@ def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCapture
     p2.start()
     assert profiler.Profiler._active_instance is p2
     p2.stop(flush=False)
+
+
+@pytest.mark.parametrize("pytorch_enabled", [False, True])
+def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool) -> None:
+    """Enabling the pytorch collector must not cost the lock collectors their tracer.
+
+    The lock import hooks are lambdas that look start_collector up in __post_init__'s
+    scope when they fire. The pytorch branch bound that same name, so the lock collectors
+    were built by the pytorch closure, which takes no tracer, and their samples lost the
+    span association.
+    """
+    p = profiler.Profiler(_pytorch_collector_enabled=pytorch_enabled)
+    p.start()
+    try:
+        locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
+        assert locks, "expected lock collectors"
+        missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
+        assert not missing, "lock collectors built without a tracer: %s" % missing
+    finally:
+        p.stop(flush=False)
 
 
 def test_profiler_serverless(monkeypatch):

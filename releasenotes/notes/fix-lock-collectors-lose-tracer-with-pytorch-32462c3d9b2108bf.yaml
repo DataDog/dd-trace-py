@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where enabling PyTorch profiling with
+    ``DD_PROFILING_PYTORCH_ENABLED`` built the lock collectors without a tracer, so lock
+    profiling samples were not associated with the span and trace that was active when
+    the lock was taken.
