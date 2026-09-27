@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal import service
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
@@ -640,6 +641,29 @@ def test_refused_profiler_does_not_reconfigure_running_one() -> None:
             mock_config.assert_not_called()
     finally:
         p1.stop(flush=False)
+
+
+def test_stop_completes_teardown_when_final_upload_fails() -> None:
+    """A failing last export must not abort the rest of the profiler teardown.
+
+    Regression test: the exception escaped Scheduler.flush() and aborted _stop_service
+    before it stopped the collectors, so the profiler stayed RUNNING with its
+    monkey-patching in place and stayed registered as the active instance, which meant
+    no profiler could be started again for the life of the process.
+    """
+    p1 = profiler.Profiler()
+    p1.start()
+
+    with mock.patch.object(ddup, "upload", side_effect=RuntimeError("upload failed")):
+        p1.stop(flush=True)
+
+    assert p1.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
 
 
 def test_construction_does_not_enable_endpoint_collection() -> None:

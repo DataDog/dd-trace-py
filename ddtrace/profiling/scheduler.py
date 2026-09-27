@@ -46,9 +46,20 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
-        ddup.upload(self._tracer, self._enable_code_provenance)
-
-        self._last_export = time.time_ns()
+        try:
+            ddup.upload(self._tracer, self._enable_code_provenance)
+        except Exception:
+            # An export must never escape this method. periodic() runs on a PeriodicThread
+            # whose loop breaks for good on an exception, so one failed export would
+            # otherwise stop every later upload for the life of the process while the
+            # collectors keep sampling. flush() is also the last export in
+            # _ProfilerInstance._stop_service, where an exception would abort the teardown
+            # that follows it and leave the profiler running.
+            LOG.error("Failed to upload profile", exc_info=True)
+        finally:
+            # The profile is reset by the export attempt either way, so pace the next one
+            # from here whether or not this one made it out.
+            self._last_export = time.time_ns()
 
     def periodic(self) -> None:
         start_time = time.monotonic()

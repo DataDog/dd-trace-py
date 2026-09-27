@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where an unexpected error while uploading a profile stopped
+    the profiler from uploading any further profiles for the lifetime of the process, even
+    though it kept reporting itself as running. The same error raised during shutdown also
+    left the profiler running, with its instrumentation still in place, and prevented a new
+    profiler from being started. Upload errors are now logged and the profiler keeps going.
