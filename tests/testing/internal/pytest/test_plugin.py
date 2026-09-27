@@ -4,6 +4,8 @@ This file is organized with high-level feature tests first, followed by unit tes
 Integration tests are in tests/test_integration.py.
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
 import typing as t
@@ -977,7 +979,7 @@ class TestItemToTestRef:
             self.hook = TestItemToTestRef._Hook(has_impls)
 
     class _Item:
-        def __init__(self, nodeid: str, config: "TestItemToTestRef._Config") -> None:
+        def __init__(self, nodeid: str, config: TestItemToTestRef._Config) -> None:
             self.nodeid = nodeid
             self.config = config
 

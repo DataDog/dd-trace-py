@@ -1,0 +1,120 @@
+[
+  {
+    "description": "A non-parseable SemVer comparand (\"not-a-version\") rejects the flag at parse time with a PARSE_ERROR rather than matching or coercing.",
+    "attributes": {
+      "app_version": "1.2.3"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-invalid-comparand-syntax-test",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "unknown"
+    },
+    "targetingKey": "invalid-syntax",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A SemVer comparand with repeated hyphens inside its prerelease identifiers (\"1.2.3----R-S.12.9.1--.12+meta\") is valid and matches normally.",
+    "attributes": {
+      "app_version": "1.2.3----R-S.12.9.1--.12+meta"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-valid-comparand-hyphenated-prerelease-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "matched"
+    },
+    "targetingKey": "valid-hyphenated-prerelease",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A SemVer comparand with consecutive dots in its prerelease identifiers (\"1.0.0-alpha..1\") rejects the flag at parse time with a PARSE_ERROR.",
+    "attributes": {
+      "app_version": "1.0.0-alpha.1"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-invalid-comparand-consecutive-dots-test",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "unknown"
+    },
+    "targetingKey": "invalid-consecutive-dots",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A Ruby-style dot-suffixed SemVer comparand (\"1.2.3.DEV\") rejects the flag at parse time with a PARSE_ERROR.",
+    "attributes": {
+      "app_version": "1.2.3"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-invalid-comparand-dot-suffix-test",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "unknown"
+    },
+    "targetingKey": "invalid-dot-suffix",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A v-prefixed SemVer comparand (\"v1.2.3\") rejects the flag at parse time with a PARSE_ERROR.",
+    "attributes": {
+      "app_version": "1.2.3"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-invalid-comparand-vprefix-test",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "unknown"
+    },
+    "targetingKey": "invalid-vprefix",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A leading-zero core component in the SemVer comparand (\"01.2.3\") rejects the flag at parse time with a PARSE_ERROR.",
+    "attributes": {
+      "app_version": "1.2.3"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-invalid-comparand-leading-zero-test",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "unknown"
+    },
+    "targetingKey": "invalid-leading-zero",
+    "variationType": "STRING"
+  },
+  {
+    "description": "A non-string (JSON number) SemVer comparand rejects the flag at parse time with a PARSE_ERROR rather than coercing the number to a string.",
+    "attributes": {
+      "app_version": "1.2.3"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-invalid-comparand-non-string-test",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "unknown"
+    },
+    "targetingKey": "invalid-non-string",
+    "variationType": "STRING"
+  },
+  {
+    "description": "The rejected invalid-comparand flags must not poison the rest of the configuration: a neighboring valid SemVer flag still evaluates normally.",
+    "attributes": {
+      "app_version": "2.3.4"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-comparison-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "stable"
+    },
+    "targetingKey": "after-invalid-categories",
+    "variationType": "STRING"
+  }
+]

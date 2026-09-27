@@ -6,12 +6,13 @@ from types import ModuleType
 import typing
 
 from ddtrace._trace.provider import BaseContextProvider
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -26,17 +27,18 @@ from ddtrace.trace import Tracer
 LOG = logging.getLogger(__name__)
 
 
-def _span_info(span: typing.Optional[typing.Union[Context, Span]]) -> typing.Optional[_span_links._SpanInfo]:
-    if isinstance(span, Span):
+def _span_info(span: typing.Optional[typing.Union[Context, SpanData]]) -> typing.Optional[_span_links._SpanInfo]:
+    if isinstance(span, SpanData):
+        local_root = typing.cast(typing.Any, span)._local_root
         # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
         # the new span, so read distributed local-root metadata from the parent Context.
         if span._parent is None and span.parent_id is not None and span._parent_context is not None:
             propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(span._parent_context)
-            local_root_span_id = propagated_root_span_id or span._local_root.span_id
-            local_root_span_type = propagated_root_span_type or span._local_root.span_type
+            local_root_span_id = propagated_root_span_id or local_root.span_id
+            local_root_span_type = propagated_root_span_type or local_root.span_type
         else:
-            local_root_span_id = span._local_root.span_id
-            local_root_span_type = span._local_root.span_type
+            local_root_span_id = local_root.span_id
+            local_root_span_type = local_root.span_type
         return _span_links._SpanInfo(span.span_id, local_root_span_id, local_root_span_type)
     if isinstance(span, Context) and span.span_id is not None:
         local_root_span_id, span_type = context_meta.read_profiler_link(span)
@@ -44,7 +46,7 @@ def _span_info(span: typing.Optional[typing.Union[Context, Span]]) -> typing.Opt
     return None
 
 
-def _unlink_finished_span(span: Span) -> None:
+def _unlink_finished_span(span: SpanData) -> None:
     _span_links.unlink_finished_span(span.span_id)
 
 
@@ -106,7 +108,7 @@ class StackCollector(collector.Collector):
             raise collector.CollectorUnavailable
 
         # Start native C function call tracking (Python 3.12+ only)
-        if sys.version_info >= (3, 12) and config.stack.native_frames:
+        if is_at_least_py(3, 12) and config.stack.native_frames:
             try:
                 from ddtrace.internal.datadog.profiling import native_call_monitor
 
@@ -136,19 +138,19 @@ class StackCollector(collector.Collector):
             # Register after the tracer's fork hook so reset is followed by republishing its restored active context.
             forksafe.register(self._child_after_fork)
 
-    def _current_span_link(self) -> tuple[typing.Optional[_span_links._SpanInfo], typing.Optional[Span]]:
+    def _current_span_link(self) -> tuple[typing.Optional[_span_links._SpanInfo], typing.Optional[SpanData]]:
         if self.tracer is None:
             return None, None
         active = self.tracer.context_provider.active()
-        return _span_info(active), active if isinstance(active, Span) else None
+        return _span_info(active), active if isinstance(active, SpanData) else None
 
     def _link_span(
         self,
         provider: BaseContextProvider,
-        span: typing.Optional[typing.Union[Context, Span]],
+        span: typing.Optional[typing.Union[Context, SpanData]],
     ) -> None:
         if self.tracer is not None and provider is self.tracer.context_provider:
-            _span_links.link_span(_span_info(span), span if isinstance(span, Span) else None)
+            _span_links.link_span(_span_info(span), span if isinstance(span, SpanData) else None)
 
     def _child_after_fork(self) -> None:
         _span_links._reset_span_link_state()
