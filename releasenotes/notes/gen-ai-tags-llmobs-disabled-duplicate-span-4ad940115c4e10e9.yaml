@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where ``gen_ai.*`` attributes on APM spans could produce a
+    duplicate LLM Observability span when LLM Observability was disabled.
