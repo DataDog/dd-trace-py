@@ -45,6 +45,8 @@ class Profiler:
     _active_instance: Optional["Profiler"] = None
     _active_lock = Lock()
 
+    _exit_signal_handler_registered: bool = False
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
 
@@ -73,15 +75,17 @@ class Profiler:
 
             self._profiler.start()
             Profiler._active_instance = self
+            register_exit_signal_handler = not Profiler._exit_signal_handler_registered
 
         atexit.register(self.stop)
 
         # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
         # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
         # so without this the last partial profile window is silently lost.
-        # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
-        # _active_lock is already held by the main thread (e.g. during start or stop).
-        atexit.register_on_exit_signal(self._stop_on_signal)
+        if register_exit_signal_handler:
+            Profiler._exit_signal_handler_registered = atexit.register_on_exit_signal(
+                Profiler._stop_active_instance_on_signal
+            )
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -104,6 +108,13 @@ class Profiler:
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    @staticmethod
+    def _stop_active_instance_on_signal() -> None:
+        """Flush and stop whichever profiler is active when an exit signal arrives."""
+        active = Profiler._active_instance
+        if active is not None:
+            active._stop_on_signal()
 
     def _stop_on_signal(self) -> None:
         """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
