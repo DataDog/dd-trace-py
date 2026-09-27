@@ -138,8 +138,7 @@ class _TracedIterable:
             raise
 
     def close(self) -> None:
-        close = getattr(self.__wrapped__, "close", None)
-        if close is not None:
+        if (close := getattr(self.__wrapped__, "close", None)) is not None:
             close()
         self._finish_spans()
 

@@ -9,6 +9,11 @@ from ddtrace.contrib.internal.wsgi import wsgi as _wsgi  # noqa:F401
 
 
 class _Span:
+    """Keep span work minimal to isolate response-wrapper overhead.
+
+    The flask_streaming benchmark covers the full request path with real spans.
+    """
+
     __slots__ = ("finished",)
 
     def __init__(self) -> None:
