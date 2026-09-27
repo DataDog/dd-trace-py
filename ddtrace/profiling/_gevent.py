@@ -23,6 +23,7 @@ _tracked_greenlets: set[int] = set()
 _original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
 _greenlet_parent_map: dict[int, int] = {}
 _parent_greenlet_count: dict[int, int] = {}
+_patched: bool = False
 
 FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
 
@@ -271,7 +272,19 @@ def get_current_greenlet_task() -> tuple[t.Optional[int], t.Optional[str], t.Opt
 
 
 def patch() -> None:
-    global _original_greenlet_tracer
+    global _original_greenlet_tracer, _patched
+
+    if _patched:
+        # Patching twice would chain greenlet_tracer to itself: settrace hands back the
+        # tracer installed last time, which is greenlet_tracer, and greenlet_tracer calls
+        # whatever it captured at the end of every switch. The next switch recurses until
+        # it raises, and greenlet responds to an exception from a tracer by uninstalling
+        # it, so greenlet tracking would be gone for the rest of the process.
+        #
+        # This does not re-patch a gevent that was re-imported since: the module objects
+        # captured above still refer to the first one, so there is nothing useful to
+        # re-apply here (unlike LockCollector, which rebinds its target module).
+        return
 
     # Patch the spawn method to track greenlets.
     gevent.Greenlet = gevent.greenlet.Greenlet = Greenlet
@@ -285,9 +298,17 @@ def patch() -> None:
 
     _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
 
+    # Last, so that a failure part way through leaves this False and the next attempt can
+    # try again rather than find a half-patched gevent it refuses to touch.
+    _patched = True
+
 
 def unpatch() -> None:
-    # Unpatch the spawn method to stop tracking greenlets.
+    global _patched
+
+    # Restore the attributes whether or not patch() got as far as marking itself done:
+    # it replaces these before installing the tracer, so a failure in between would
+    # otherwise leave gevent wrapped with nothing willing to undo it.
     gevent.Greenlet = gevent.greenlet.Greenlet = _Greenlet
     gevent.spawn = _Greenlet.spawn
     gevent.spawn_later = _Greenlet.spawn_later
@@ -297,4 +318,9 @@ def unpatch() -> None:
 
     gevent.hub.spawn_raw = _gevent_hub_spawn_raw
 
-    settrace(_original_greenlet_tracer)
+    if _patched:
+        # Only hand settrace a tracer we know we captured; otherwise we would install the
+        # None that _original_greenlet_tracer still holds and drop somebody else's.
+        settrace(_original_greenlet_tracer)
+
+    _patched = False

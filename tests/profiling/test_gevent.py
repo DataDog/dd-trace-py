@@ -244,3 +244,36 @@ def test_wait_wrapper_links_to_calling_greenlet_not_hub() -> None:
         )
     finally:
         child_greenlet.kill()
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_patch_is_idempotent() -> None:
+    """Patching twice must not chain the greenlet tracer to itself.
+
+    settrace hands back the tracer installed last time, so a second patch captured
+    greenlet_tracer as its own _original_greenlet_tracer. greenlet_tracer calls that at
+    the end of every switch, so the next switch recursed until it raised, and greenlet
+    answers an exception from a tracer by uninstalling it -- losing greenlet tracking for
+    the rest of the process.
+    """
+    import gevent
+    from greenlet import gettrace
+
+    from ddtrace.profiling import _gevent
+
+    _gevent.patch()
+    assert gettrace() is _gevent.greenlet_tracer
+    assert _gevent._original_greenlet_tracer is not _gevent.greenlet_tracer
+
+    _gevent.patch()
+    assert _gevent._original_greenlet_tracer is not _gevent.greenlet_tracer, (
+        "the second patch chained the tracer to itself"
+    )
+
+    # A switch must still work, and must leave our tracer installed.
+    gevent.joinall([gevent.spawn(lambda: gevent.sleep(0)) for _ in range(3)])
+    assert gettrace() is _gevent.greenlet_tracer, "the greenlet tracer was uninstalled"
