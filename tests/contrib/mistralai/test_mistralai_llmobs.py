@@ -189,7 +189,7 @@ def _expected_reasoning_span_data():
 def _assert_reasoning_output_messages(actual):
     messages = actual.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {}).get(LLMOBS_STRUCT.MESSAGES)
     assert messages is not None, "expected output messages to be present"
-    assert len(messages) == 2, "expected a reasoning message then an assistant message, got {!r}".format(messages)
+    assert len(messages) == 2, f"expected a reasoning message then an assistant message, got {messages!r}"
     reasoning_message, assistant_message = messages
     assert reasoning_message["role"] == "reasoning"
     assert reasoning_message["content"], "expected non empty reasoning content"

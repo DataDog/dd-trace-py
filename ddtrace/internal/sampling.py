@@ -2,7 +2,9 @@ import json
 import math
 from typing import Any
 from typing import Optional
+from typing import Protocol
 from typing import TypedDict
+from typing import Union
 
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
@@ -12,6 +14,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -26,6 +29,7 @@ from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings._config import config
 
 from .rate_limiter import RateLimiter
@@ -34,7 +38,22 @@ from .rate_limiter import RateLimiter
 log = get_logger(__name__)
 
 
-class PriorityCategory(object):
+class SpanTraceSourceProtocol(Protocol):
+    """Structural span interface for manual-keep/trace-source helpers that don't need the full Span class.
+
+    Lets products outside ``ddtrace._trace`` (e.g. aiguard, appsec) type-annotate spans without a
+    runtime dependency on the concrete ``ddtrace._trace.span.Span`` class.
+    """
+
+    @property
+    def context(self) -> Context: ...
+
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
+
+    def _override_sampling_decision(self, decision: Optional[NumericType]) -> None: ...
+
+
+class PriorityCategory:
     DEFAULT = "default"
     AUTO = "auto"
     RULE_DEFAULT = "rule_default"
@@ -48,9 +67,7 @@ _MAX_SAMPLING_MECHANISM = 255  # libdatadog encodes the sampling mechanism as a 
 VALID_SAMPLING_DECISIONS = frozenset("-%d" % value for value in range(_MAX_SAMPLING_MECHANISM + 1))
 
 # Unused, kept so external `.add()` calls (a past workaround) don't AttributeError on upgrade.
-SAMPLING_MECHANISM_CONSTANTS = {
-    "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
-}
+SAMPLING_MECHANISM_CONSTANTS = {f"-{value}" for name, value in vars(SamplingMechanism).items() if name.isupper()}
 
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
 
@@ -65,16 +82,11 @@ def format_rate(rate: float) -> str:
     return f"{rounded:.6f}".rstrip("0").rstrip(".")
 
 
-SpanSamplingRules = TypedDict(
-    "SpanSamplingRules",
-    {
-        "name": str,
-        "service": str,
-        "sample_rate": float,
-        "max_per_second": int,
-    },
-    total=False,
-)
+class SpanSamplingRules(TypedDict, total=False):
+    name: str
+    service: str
+    sample_rate: float
+    max_per_second: int
 
 
 def validate_sampling_decision(
@@ -205,10 +217,8 @@ def _get_span_sampling_json() -> list[dict[str, Any]]:
 
     if env_json_rules and file_json_rules:
         log.warning(
-            (
-                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
-                "Defaulting to DD_SPAN_SAMPLING_RULES value."
-            )
+            "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
+            "Defaulting to DD_SPAN_SAMPLING_RULES value."
         )
         return env_json_rules
     return env_json_rules or file_json_rules or []
@@ -282,7 +292,7 @@ def _set_sampling_tags(
     span.context._publish_sampling_decision(priorities[priority_index], sample_rate, probabilistic_decision)
 
 
-def add_trace_source(span: Span, source: int) -> None:
+def add_trace_source(span: SpanTraceSourceProtocol, source: int) -> None:
     """OR source (a TraceSource bit) into the span's _dd.p.ts trace-source mask.
 
     Marks that an enabled product originated or retained the trace so it is kept when APM

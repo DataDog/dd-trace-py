@@ -132,7 +132,7 @@ class TraceTool(cherrypy.Tool):
             # For now, default resource is method and path:
             #   GET /
             #   POST /save
-            resource = "{} {}".format(cherrypy.request.method, cherrypy.request.path_info)
+            resource = f"{cherrypy.request.method} {cherrypy.request.path_info}"
             span.resource = str(resource)
 
         url = str(cherrypy.request.base + cherrypy.request.path_info)
@@ -158,7 +158,7 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request._datadog_span = None
 
 
-class TraceMiddleware(object):
+class TraceMiddleware:
     def __init__(self, app, tracer=None, service="cherrypy", distributed_tracing=None):
         self.app = app
         if tracer is not None:

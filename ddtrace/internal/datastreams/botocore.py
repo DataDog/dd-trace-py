@@ -74,8 +74,8 @@ def eventbridge_edge_tags(event_entry: dict[str, Any]) -> list[str]:
     """
     return [
         "direction:out",
-        "exchange:{}".format(get_eventbridge_bus_name(event_entry)),
-        "topic:{}".format(get_eventbridge_detail_type(event_entry)),
+        f"exchange:{get_eventbridge_bus_name(event_entry)}",
+        f"topic:{get_eventbridge_detail_type(event_entry)}",
         "type:eventbridge",
     ]
 
@@ -97,7 +97,7 @@ def inject_context(
 
     Set the data streams monitoring checkpoint and inject context to carrier
     """
-    path_type = "type:{}".format(endpoint_service)
+    path_type = f"type:{endpoint_service}"
 
     payload_size = 0
     if endpoint_service == "sqs":
@@ -113,7 +113,7 @@ def inject_context(
         log.debug("pathway being generated with unrecognized service: %r", dsm_identifier)
     set_produce_checkpoint(
         trace_data,
-        ["direction:out", "topic:{}".format(dsm_identifier), path_type],
+        ["direction:out", f"topic:{dsm_identifier}", path_type],
         payload_size,
     )
 

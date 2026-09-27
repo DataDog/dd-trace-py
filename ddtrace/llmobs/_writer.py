@@ -111,7 +111,7 @@ class BaseLLMObsWriter(PeriodicService):
         _override_url: str = "",
         _default_project: Project = Project(name="", _id=""),
     ) -> None:
-        super(BaseLLMObsWriter, self).__init__(interval=interval)
+        super().__init__(interval=interval)
         self._lock = RLock()
         self._buffer: list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
         self._buffer_size: int = 0
@@ -159,12 +159,12 @@ class BaseLLMObsWriter(PeriodicService):
         )(self._send_payload)
 
     def start(self, *args, **kwargs):
-        super(BaseLLMObsWriter, self).start()
+        super().start()
         logger.debug("started %r to %r", self.__class__.__name__, self._url)
         atexit.register(self.on_shutdown)
 
     def stop(self, timeout=None):
-        super(BaseLLMObsWriter, self).stop(timeout=timeout)
+        super().stop(timeout=timeout)
         logger.debug("stopped %r to %r", self.__class__.__name__, self._url)
         atexit.unregister(self.on_shutdown)
 
@@ -772,7 +772,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         :raises ValueError: If ``max_results`` is less than 1, or the backend request fails.
         """
         if max_results is not None and max_results < 1:
-            raise ValueError("max_results must be at least 1, got {}".format(max_results))
+            raise ValueError(f"max_results must be at least 1, got {max_results}")
         limit = max(1, min(page_limit, 5000))
         base_params: list[tuple[str, str]] = [("page[limit]", str(limit))]
         if experiment_name:
@@ -1023,7 +1023,7 @@ class LLMObsAPIClient:
         self._app_key: str = app_key
         _site: str = site or config._dd_site
         _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
-        self._base_url: str = _override_url or "https://api.{}".format(_site)
+        self._base_url: str = _override_url or f"https://api.{_site}"
 
     def get_spans(self, base_params: dict) -> list[dict]:
         if not self._api_key:
@@ -1041,7 +1041,7 @@ class LLMObsAPIClient:
             params = dict(base_params)
             if cursor:
                 params["page[cursor]"] = cursor
-            path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
+            path = f"/api/v2/llm-obs/v1/spans/events?{urllib.parse.urlencode(params)}"
             logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
             conn = HTTPConnection(self._base_url, timeout=self.TIMEOUT)
             try:
@@ -1051,9 +1051,7 @@ class LLMObsAPIClient:
             finally:
                 conn.close()
             if response.status != 200:
-                raise ValueError(
-                    "LLMObs.get_spans() request failed with status {}: {}".format(response.status, response.body)
-                )
+                raise ValueError(f"LLMObs.get_spans() request failed with status {response.status}: {response.body}")
             body = response.get_json() or {}
             spans.extend(item.get("attributes", {}) for item in body.get("data", []))
             cursor = ((body.get("meta") or {}).get("page") or {}).get("after")

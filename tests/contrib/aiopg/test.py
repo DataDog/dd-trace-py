@@ -1,7 +1,7 @@
 import time
+from unittest import mock
 
 import aiopg
-import mock
 from psycopg2 import extras
 import pytest
 

@@ -1,6 +1,6 @@
 import gc
+from unittest.mock import Mock
 
-from mock import Mock
 import pytest
 
 from ddtrace.contrib.internal.celery.utils import attach_span

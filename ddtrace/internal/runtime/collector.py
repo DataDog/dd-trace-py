@@ -1,13 +1,17 @@
 import importlib
-from typing import Optional  # noqa:F401
+from typing import Generic
+from typing import Optional
+from typing import TypeVar
 
 from ..logger import get_logger
 
 
 log = get_logger(__name__)
 
+T = TypeVar("T")
 
-class ValueCollector(object):
+
+class ValueCollector(Generic[T]):
     """A basic state machine useful for collecting, caching and updating data
     obtained from different Python modules.
 
@@ -22,7 +26,7 @@ class ValueCollector(object):
     enabled = True
     periodic = False
     required_modules: list[str] = []
-    value: Optional[list[tuple[str, str]]] = None
+    value: Optional[list[tuple[str, T]]] = None
     value_loaded = False
 
     def __init__(
@@ -56,7 +60,7 @@ class ValueCollector(object):
             return None
         return modules
 
-    def collect(self, keys: Optional[set[str]] = None) -> Optional[list[tuple[str, str]]]:
+    def collect(self, keys: Optional[set[str]] = None) -> Optional[list[tuple[str, T]]]:
         """Returns metrics as collected by `collect_fn`.
 
         :param keys: The keys of the metrics to collect.
@@ -84,9 +88,7 @@ class ValueCollector(object):
         """Release process-wide resources. Base is a no-op."""
 
     def __repr__(self):
-        return "<{}(enabled={},periodic={},required_modules={})>".format(
-            self.__class__.__name__,
-            self.enabled,
-            self.periodic,
-            self.required_modules,
+        return (
+            f"<{self.__class__.__name__}(enabled={self.enabled},periodic={self.periodic},"
+            f"required_modules={self.required_modules})>"
         )
