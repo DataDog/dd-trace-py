@@ -27,10 +27,12 @@ def restore_span_linking_state():
     active_span_link = _span_links._active_span_link.get()
     current_span_provider = _span_links._current_span_provider
     task_span_provider = _span_links._task_span_provider
+    greenlet_span_provider = _span_links._greenlet_span_provider
     _span_links._span_linking_active = False
     _span_links._set_active_span_link(None)
     _span_links._current_span_provider = None
     _span_links._task_span_provider = None
+    _span_links._greenlet_span_provider = None
     _span_links.stack.reset_span_links()
     try:
         yield
@@ -41,6 +43,7 @@ def restore_span_linking_state():
         _span_links._set_active_span_link(active_span_link)
         _span_links._current_span_provider = current_span_provider
         _span_links._task_span_provider = task_span_provider
+        _span_links._greenlet_span_provider = greenlet_span_provider
 
 
 def _info(span_id: int, local_root_span_id: typing.Optional[int] = None) -> _span_links._SpanInfo:
@@ -79,6 +82,48 @@ def test_span_activation_uses_task_provider(monkeypatch: pytest.MonkeyPatch) -> 
     assert linked == [(22, 101, 101, None)]
 
 
+def test_span_activation_uses_greenlet_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_greenlet_span", lambda *args: linked.append(args))
+    monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: pytest.fail("unexpected thread fallback"))
+
+    _span_links.register_greenlet_span_provider(lambda: 31)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(201), None)
+
+    assert linked == [(31, 201, 201, None)]
+
+
+def test_task_provider_takes_precedence_over_greenlet(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_task_span", lambda *args: linked.append(args))
+    monkeypatch.setattr(
+        _span_links.stack, "link_greenlet_span", lambda *args: pytest.fail("unexpected greenlet fallback")
+    )
+
+    _span_links.register_task_span_provider(lambda: 22)
+    _span_links.register_greenlet_span_provider(lambda: 31)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(101), None)
+
+    assert linked == [(22, 101, 101, None)]
+
+
+def test_task_provider_failure_uses_greenlet(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_greenlet_span", lambda *args: linked.append(args))
+
+    def broken_provider():
+        raise RuntimeError("provider failed")
+
+    _span_links.register_task_span_provider(broken_provider)
+    _span_links.register_greenlet_span_provider(lambda: 31)
+    _span_links.start_span_linking()
+    _span_links.link_span(_info(202), None)
+
+    assert linked == [(31, 202, 202, None)]
+
+
 def test_task_provider_failure_uses_thread(monkeypatch: pytest.MonkeyPatch) -> None:
     linked = []
     monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: linked.append(args))
@@ -103,6 +148,18 @@ def test_task_detachment_does_not_clear_thread_link(monkeypatch: pytest.MonkeyPa
     _span_links.link_span(None, None)
 
     assert cleared == [33]
+
+
+def test_greenlet_detachment_does_not_clear_thread_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    cleared = []
+    monkeypatch.setattr(_span_links.stack, "clear_greenlet_span", lambda greenlet_id: cleared.append(greenlet_id))
+    monkeypatch.setattr(_span_links.stack, "clear_span", lambda: pytest.fail("unexpected thread clear"))
+
+    _span_links.register_greenlet_span_provider(lambda: 44)
+    _span_links.start_span_linking()
+    _span_links.link_span(None, None)
+
+    assert cleared == [44]
 
 
 def test_inherited_context_seeds_task_span_for_current_generation(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -205,18 +262,25 @@ def test_active_span_link_uses_safe_contextvar_set(monkeypatch: pytest.MonkeyPat
     assert calls == [(_span_links._active_span_link, value)]
 
 
-@pytest.mark.parametrize("task_id", [None, 22])
+@pytest.mark.parametrize("target", ["thread", "task", "greenlet"])
 @pytest.mark.parametrize("invalidation", ["finish", "restart", "stop"])
-def test_invalidation_during_inherited_publication(monkeypatch, task_id, invalidation):
+def test_invalidation_during_inherited_publication(monkeypatch, target, invalidation):
     source = Span("source")
     _span_links.start_span_linking()
     _span_links.link_span(_info(source.span_id), source)
     inherited = contextvars.copy_context()
     unlinked = []
-    monkeypatch.setattr(_span_links.stack, "unlink_span", lambda span_id: unlinked.append((None, span_id)))
-    monkeypatch.setattr(_span_links.stack, "unlink_task_span", lambda task, span_id: unlinked.append((task, span_id)))
+    monkeypatch.setattr(_span_links.stack, "unlink_span", lambda span_id: unlinked.append(("thread", None, span_id)))
+    monkeypatch.setattr(
+        _span_links.stack, "unlink_task_span", lambda task, span_id: unlinked.append(("task", task, span_id))
+    )
+    monkeypatch.setattr(
+        _span_links.stack,
+        "unlink_greenlet_span",
+        lambda greenlet, span_id: unlinked.append(("greenlet", greenlet, span_id)),
+    )
 
-    def invalidate_then_publish(info, target=None):
+    def invalidate_then_publish(info, task_id=None, greenlet_id=None):
         if invalidation == "finish":
             source.finish()
         else:
@@ -226,11 +290,13 @@ def test_invalidation_during_inherited_publication(monkeypatch, task_id, invalid
         # The native write would now reintroduce metadata validated before the invalidation.
 
     monkeypatch.setattr(_span_links, "_publish_span", invalidate_then_publish)
-    if task_id is None:
+    if target == "thread":
         assert not inherited.run(_span_links.link_thread_span_context)
+    elif target == "task":
+        assert not _span_links.link_task_span_context(22, inherited)
     else:
-        assert not _span_links.link_task_span_context(task_id, inherited)
-    assert unlinked == [(task_id, source.span_id)]
+        assert not _span_links.link_greenlet_span_context(22, inherited)
+    assert unlinked == [(target, None if target == "thread" else 22, source.span_id)]
 
 
 def test_activation_rejects_span_finished_during_task_lookup(monkeypatch):
@@ -244,3 +310,50 @@ def test_activation_rejects_span_finished_during_task_lookup(monkeypatch):
     _span_links.register_task_span_provider(task_provider)
     monkeypatch.setattr(_span_links, "_publish_span", lambda *args: pytest.fail("published a finished span"))
     _span_links.link_span(_info(source.span_id), source)
+
+
+@pytest.mark.parametrize("invalidation", ["finish", "restart", "stop"])
+def test_current_greenlet_rejects_invalidation_during_context_lookup(monkeypatch, invalidation):
+    source = Span("source")
+    _span_links.start_span_linking()
+
+    def current_span_provider():
+        if invalidation == "finish":
+            source.finish()
+        else:
+            _span_links.stop_span_linking()
+            if invalidation == "restart":
+                _span_links.start_span_linking()
+        return _info(source.span_id), source
+
+    monkeypatch.setattr(_span_links, "_current_span_provider", current_span_provider)
+    monkeypatch.setattr(_span_links, "_publish_span", lambda *args: pytest.fail("published stale metadata"))
+    assert not _span_links.link_current_greenlet_span(33)
+
+
+@pytest.mark.parametrize("publication", ["current", "activation"])
+@pytest.mark.parametrize("invalidation", ["finish", "restart", "stop"])
+def test_greenlet_retracts_invalidation_during_publication(monkeypatch, publication, invalidation):
+    source = Span("source")
+    _span_links.start_span_linking()
+    _span_links.register_greenlet_span_provider(lambda: 33)
+    monkeypatch.setattr(_span_links, "_current_span_provider", lambda: (_info(source.span_id), source))
+    unlinked = []
+    monkeypatch.setattr(
+        _span_links.stack, "unlink_greenlet_span", lambda greenlet, span_id: unlinked.append((greenlet, span_id))
+    )
+
+    def invalidate_then_publish(info, task_id=None, greenlet_id=None):
+        if invalidation == "finish":
+            source.finish()
+        else:
+            _span_links.stop_span_linking()
+            if invalidation == "restart":
+                _span_links.start_span_linking()
+
+    monkeypatch.setattr(_span_links, "_publish_span", invalidate_then_publish)
+    if publication == "current":
+        assert not _span_links.link_current_greenlet_span(33)
+    else:
+        _span_links.link_span(_info(source.span_id), source)
+    assert unlinked == [(33, source.span_id)]
