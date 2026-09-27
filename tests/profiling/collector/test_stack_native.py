@@ -83,9 +83,9 @@ def test_native_call_registry_is_bounded_for_dynamic_code() -> None:
                 namespace,
                 namespace,
             )
-            namespace["f"]('{"value": "abcxdef"}')
+            namespace["f"]('{"value": "abcxdef"}')  # type: ignore[operator]
 
-        assert _stack._native_call_registry_size() == 4096
+        assert _stack._native_call_registry_size() == 4096  # type: ignore[attr-defined]
     finally:
         native_call_monitor.stop()
 
@@ -1513,3 +1513,230 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
             ),
             print_samples_on_failure=True,
         )
+
+
+@pytest.mark.parametrize(
+    "already_owned,owner,expected_phrase,expected_lost,expected_already_owned,expected_handler_owner,"
+    "expected_lost_signals",
+    [
+        (
+            False,
+            "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace",
+            "lost after the profiler had upgraded to the faster copy",
+            "does not own SIGSEGV",
+            "false",
+            "libtorch_cpu.so",
+            "sigsegv",
+        ),
+        (
+            True,
+            "SIGSEGV=/path/libtorch_cpu.so+0x1234 (handler), SIGBUS=ddtrace",
+            "already lost when the profiler finished warming up",
+            "does not own SIGSEGV",
+            "true",
+            "libtorch_cpu.so",
+            "sigsegv",
+        ),
+        (
+            False,
+            "SIGSEGV=ddtrace, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
+            "lost after the profiler had upgraded to the faster copy",
+            "does not own SIGBUS",
+            "false",
+            "libfoo.so",
+            "sigbus",
+        ),
+        (
+            False,
+            "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
+            "lost after the profiler had upgraded to the faster copy",
+            "does not own SIGSEGV and SIGBUS",
+            "false",
+            "libfoo.so",
+            "sigsegv_sigbus",
+        ),
+    ],
+)
+def test_snapshot_names_foreign_segv_handler_owner(
+    caplog: pytest.LogCaptureFixture,
+    already_owned: bool,
+    owner: str,
+    expected_phrase: str,
+    expected_lost: str,
+    expected_already_owned: str,
+    expected_handler_owner: str,
+    expected_lost_signals: str,
+) -> None:
+    import logging
+
+    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
+    with mock.patch(
+        "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
+        return_value=(already_owned, owner, False),
+    ):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
+                with caplog.at_level(logging.WARNING, logger="ddtrace.profiling.collector.stack"):
+                    stack.StackCollector.snapshot()
+
+    assert [r.levelname for r in caplog.records] == ["WARNING"]
+    assert owner in caplog.text
+    assert expected_phrase in caplog.text
+    # The message names the signals that actually changed hands, not both by default.
+    assert expected_lost in caplog.text
+    mock_add_log.assert_called_once()
+    call_args: mock._Call = mock_add_log.call_args
+    assert call_args[0][0] == TELEMETRY_LOG_LEVEL.WARNING
+    assert call_args[0][1] == "The stack profiler does not own both the SIGSEGV and SIGBUS handlers"
+    tags: dict[str, str] = call_args[1]["tags"]
+    assert tags == {
+        "error_type": "foreign_segv_handler",
+        "handler_owner": expected_handler_owner,
+        "lost_signals": expected_lost_signals,
+        "already_owned": expected_already_owned,
+    }
+
+
+def test_snapshot_silent_without_foreign_segv_handler(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    with mock.patch("ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler", return_value=None):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
+                with caplog.at_level(logging.WARNING, logger="ddtrace.profiling.collector.stack"):
+                    stack.StackCollector.snapshot()
+
+    assert caplog.records == []
+    mock_add_log.assert_not_called()
+
+
+def test_snapshot_reports_sampler_shutdown_when_no_fallback_available(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
+    owner: str = "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace"
+    with mock.patch(
+        "ddtrace.profiling.collector.stack.stack.take_foreign_segv_handler",
+        return_value=(False, owner, True),
+    ):
+        with mock.patch("ddtrace.profiling.collector.stack.stack.take_sampling_thread_error", return_value=None):
+            with mock.patch("ddtrace.profiling.collector.stack.telemetry_writer.add_log") as mock_add_log:
+                with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.collector.stack"):
+                    stack.StackCollector.snapshot()
+
+    assert [r.levelname for r in caplog.records] == ["ERROR"]
+    assert owner in caplog.text
+    assert "does not own SIGSEGV" in caplog.text
+    assert "stopped sampling" in caplog.text
+    assert "syscall-based memory copy" not in caplog.text
+    mock_add_log.assert_called_once()
+    call_args: mock._Call = mock_add_log.call_args
+    assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+    tags: dict[str, str] = call_args[1]["tags"]
+    assert tags == {
+        "error_type": "foreign_segv_handler",
+        "handler_owner": "libfoo.so",
+        "lost_signals": "sigsegv",
+        "already_owned": "false",
+        "sampling_stopped": "true",
+    }
+
+
+@pytest.mark.parametrize(
+    "component,expected",
+    [
+        ("ddtrace", "ddtrace"),
+        ("ddtrace+missing_sa_siginfo", "ddtrace+missing_sa_siginfo"),
+        ("SIG_DFL", "SIG_DFL"),
+        ("SIG_IGN", "SIG_IGN"),
+        ("unresolved@0x1234", "unresolved"),
+        ("/lib/libfoo.so+0x7c4 (foo_handler)", "libfoo.so"),
+        ("/lib/libfoo.so+0x7c4 (foo_handler)+missing_sa_siginfo", "libfoo.so+missing_sa_siginfo"),
+        ("/opt/libfoo+cuda.so+0x7c4 (foo_handler)", "libfoo+cuda.so"),
+        ("/opt/libfoo+cuda.so+0x7c4", "libfoo+cuda.so"),
+        ("/usr/lib/x86_64-linux-gnu/libfoo.so.1.0+dfsg+0xabc (bar)", "libfoo.so.1.0+dfsg"),
+        ("/opt/foo (bar).so+0x7c4 (handler)", "foo (bar).so"),
+        ("/opt/lib+0xdead.so", "lib+0xdead.so"),
+    ],
+)
+def test_normalize_foreign_handler_owner_component(component: str, expected: str) -> None:
+    assert stack._normalize_foreign_handler_owner_component(component) == expected
+
+
+@pytest.mark.parametrize(
+    "owner,expected",
+    [
+        ("SIGSEGV=SIG_DFL, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)", "libfoo.so"),
+        ("SIGSEGV=unknown, SIGBUS=unresolved@0x1234", "unresolved"),
+        ("SIGSEGV=SIG_IGN, SIGBUS=none", "SIG_IGN"),
+        ("SIGSEGV=/opt/libfoo+cuda.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo+cuda.so"),
+        ("SIGSEGV=/opt/foo, bar/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "libfoo.so"),
+        ("SIGSEGV=ddtrace, SIGBUS=/opt/foo, bar/libbar.so+0x1 (bar_handler)", "libbar.so"),
+        ("SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace", "ddtrace+missing_sa_siginfo"),
+        (
+            "SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=/lib/libfoo.so+0x7c4 (foo_handler)",
+            "libfoo.so",
+        ),
+        (
+            "SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler)+missing_sa_siginfo, SIGBUS=ddtrace",
+            "libfoo.so+missing_sa_siginfo",
+        ),
+        ("SIGSEGV=SIG_DFL, SIGBUS=ddtrace+missing_sa_siginfo", "SIG_DFL"),
+    ],
+)
+def test_normalize_foreign_handler_owner(owner: str, expected: str) -> None:
+    assert stack._normalize_foreign_handler_owner(owner) == expected
+
+
+@pytest.mark.parametrize(
+    "owner,expected",
+    [
+        ("SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "SIGSEGV"),
+        ("SIGSEGV=ddtrace, SIGBUS=SIG_DFL", "SIGBUS"),
+        ("SIGSEGV=SIG_DFL, SIGBUS=SIG_IGN", "SIGSEGV and SIGBUS"),
+        ("SIGSEGV=ddtrace, SIGBUS=ddtrace", ""),
+        # A stripped SA_SIGINFO leaves the handler pointing at us but unable to deliver
+        # the recovery, which is a signal we lost however the owner reads.
+        ("SIGSEGV=ddtrace+missing_sa_siginfo, SIGBUS=ddtrace", "SIGSEGV"),
+        # A comma inside the SIGSEGV path is not a field delimiter.
+        ("SIGSEGV=/opt/foo, bar/libfoo.so+0x1 (h), SIGBUS=ddtrace", "SIGSEGV"),
+        ("not the format the sampler emits", ""),
+    ],
+)
+def test_foreign_signal_names(owner: str, expected: str) -> None:
+    assert stack._foreign_signal_names(owner) == expected
+
+
+@pytest.mark.parametrize(
+    "owner,expected",
+    [
+        ("SIGSEGV=ddtrace, SIGBUS=SIG_DFL", "does not own SIGBUS"),
+        ("SIGSEGV=SIG_DFL, SIGBUS=SIG_IGN", "does not own SIGSEGV and SIGBUS"),
+        # Both read as ours: the sampler saw the loss, this read no longer does, so the
+        # message must not name a signal it cannot stand behind.
+        ("SIGSEGV=ddtrace, SIGBUS=ddtrace", "cannot confirm it owns SIGSEGV and SIGBUS"),
+    ],
+)
+def test_lost_ownership_clause(owner: str, expected: str) -> None:
+    assert stack._lost_ownership_clause(owner) == expected
+
+
+@pytest.mark.parametrize(
+    "owner,expected",
+    [
+        ("SIGSEGV=/lib/libfoo.so+0x7c4 (foo_handler), SIGBUS=ddtrace", "sigsegv"),
+        ("SIGSEGV=ddtrace, SIGBUS=SIG_DFL", "sigbus"),
+        ("SIGSEGV=SIG_DFL, SIGBUS=SIG_IGN", "sigsegv_sigbus"),
+        # Both read as ours by the time we describe them, so there is no signal to name.
+        ("SIGSEGV=ddtrace, SIGBUS=ddtrace", "unknown"),
+        ("not the format the sampler emits", "unknown"),
+    ],
+)
+def test_lost_signals_tag(owner: str, expected: str) -> None:
+    # add_log joins tags on commas, so a value carrying one would corrupt the others.
+    tag: str = stack._lost_signals_tag(owner)
+    assert tag == expected
+    assert "," not in tag
+    assert tag == tag.lower()

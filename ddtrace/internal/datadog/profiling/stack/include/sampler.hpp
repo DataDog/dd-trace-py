@@ -32,6 +32,14 @@ struct SamplingThreadError
     std::string message;
 };
 
+// already_owned: foreign at warmup end. sampling_stopped: no syscall fallback, sampling ended.
+struct ForeignSegvHandler
+{
+    bool already_owned;
+    std::string owner;
+    bool sampling_stopped;
+};
+
 enum class PauseResult : std::uint8_t
 {
     Paused,     // sampler was running and is now paused
@@ -82,6 +90,10 @@ class Sampler
     std::mutex sampling_thread_error_mutex_;
     std::optional<SamplingThreadError> sampling_thread_error_;
     void record_sampling_thread_error(const std::exception& e);
+
+    std::mutex foreign_segv_handler_mutex_;
+    std::optional<ForeignSegvHandler> foreign_segv_handler_;
+    void record_foreign_segv_handler(bool already_owned, const std::string& owner, bool sampling_stopped) noexcept;
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -182,6 +194,9 @@ class Sampler
     // Returns the error that terminated the sampling thread, clearing it so it is
     // reported at most once.
     std::optional<SamplingThreadError> take_sampling_thread_error();
+
+    // Take-once drain of the recorded foreign SIGSEGV/SIGBUS owner.
+    std::optional<ForeignSegvHandler> take_foreign_segv_handler();
 
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
