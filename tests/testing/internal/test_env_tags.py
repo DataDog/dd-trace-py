@@ -46,7 +46,7 @@ def test_ci_providers(
         elif key == CITag._CI_ENV_VARS:
             assert json.loads(extracted_tags[key]) == json.loads(value)
         else:
-            assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
+            assert extracted_tags[key] == value, f"wrong tags in {name} for {environment}"
 
 
 def test_git_extract_user_info(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:

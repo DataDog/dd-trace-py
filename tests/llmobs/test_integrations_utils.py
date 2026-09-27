@@ -77,7 +77,7 @@ def test_format_image_part_from_base64_string():
 
 
 def _data_url(b64, mime_type="image/png"):
-    return "data:{};base64,{}".format(mime_type, b64)
+    return f"data:{mime_type};base64,{b64}"
 
 
 # Just over the live budget, so the oversize tests exercise the configured value, not a literal.
@@ -231,7 +231,7 @@ def test_extract_content_parts_oversize_inline_image_keeps_marker_and_text():
             {"type": "text", "text": "in one word"},
         ]
     )
-    assert text == "describe this\n{}\nin one word".format(IMAGE_TOO_LARGE_MARKER)
+    assert text == f"describe this\n{IMAGE_TOO_LARGE_MARKER}\nin one word"
     assert image_parts == []
 
 
@@ -1076,7 +1076,7 @@ class TestOpenAIParseInputResponseMessages:
             }
         ]
         processed, _ = _openai_parse_input_response_messages(messages)
-        assert processed == [{"content": "describe: {}".format(IMAGE_TOO_LARGE_MARKER), "role": "user"}]
+        assert processed == [{"content": f"describe: {IMAGE_TOO_LARGE_MARKER}", "role": "user"}]
 
     def test_input_image_remote_url_and_file_id_references_preserved(self):
         """Capture is bytes-only: remote URLs and file_ids keep their existing reference text."""

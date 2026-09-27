@@ -1,8 +1,6 @@
-# -*- encoding: utf-8 -*-
 import math
 import re
-from typing import Any  # noqa:F401
-from typing import Text  # noqa:F401
+from typing import Any
 
 from hypothesis import given
 from hypothesis.strategies import text
@@ -24,10 +22,10 @@ mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 class TestOperatorModuloReplacement(BaseReplacement):
     def _assert_modulo_result(
         self,
-        taint_escaped_template: Text,
+        taint_escaped_template: str,
         taint_escaped_parameter: Any,
-        expected_result: Text,
-        escaped_expected_result: Text,
+        expected_result: str,
+        escaped_expected_result: str,
     ) -> None:
         template = _to_tainted_string_with_origin(taint_escaped_template)
 

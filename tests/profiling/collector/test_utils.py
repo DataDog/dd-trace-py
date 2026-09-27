@@ -1,10 +1,10 @@
 """Shared utilities for profiling collector tests."""
 
 import asyncio
+from collections.abc import Coroutine
 import os
 from types import TracebackType
 from typing import Any
-from typing import Coroutine
 from typing import Optional
 from typing import TypeVar
 

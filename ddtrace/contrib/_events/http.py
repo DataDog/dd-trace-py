@@ -1,9 +1,9 @@
+from collections.abc import Mapping
+from collections.abc import MutableMapping
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Mapping
-from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
-from typing import Sequence
 from typing import Union
 
 from ddtrace.internal.core.events import Event

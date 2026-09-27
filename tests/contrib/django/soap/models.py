@@ -6,7 +6,7 @@ from spyne import Unicode
 from spyne.util.odict import odict
 
 
-class OrderedModel(object):
+class OrderedModel:
     """
     Ugly hack to create an ordered model in Spyne, but there's no other way.
     See: https://mail.python.org/pipermail/soap/2013-June/001113.html

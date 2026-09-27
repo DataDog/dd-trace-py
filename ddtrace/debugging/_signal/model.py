@@ -1,5 +1,6 @@
 import abc
 from collections import ChainMap
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -10,7 +11,6 @@ import time
 from types import FrameType
 from typing import Any
 from typing import ClassVar
-from typing import Mapping
 from typing import Optional
 from typing import Union
 from typing import cast

@@ -19,7 +19,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
     """
 
     def setUp(self):
-        super(SQLAlchemyPatchTestCase, self).setUp()
+        super().setUp()
         patch()
         dsn = "postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s" % POSTGRES_CONFIG
         self.engine = sqlalchemy.create_engine(dsn)
@@ -28,7 +28,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         self.conn = self.engine.connect()
 
     def tearDown(self):
-        super(SQLAlchemyPatchTestCase, self).tearDown()
+        super().tearDown()
 
         # clear the database and dispose the engine
         self.conn.close()

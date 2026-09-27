@@ -1,8 +1,16 @@
+from __future__ import annotations
+
 import importlib
+from typing import TYPE_CHECKING
+from typing import Optional
 
 from ddtrace.internal.settings._config import config
 
 from ...internal.utils.importlib import require_modules
+
+
+if TYPE_CHECKING:
+    from .processor import DataStreamsProcessor
 
 
 required_module_to_integration = {
@@ -12,7 +20,7 @@ required_module_to_integration = {
     "aiokafka": "aiokafka",
     "google.cloud.pubsub_v1": "google_cloud_pubsub",
 }
-_processor = None
+_processor: Optional[DataStreamsProcessor] = None
 
 if config._data_streams_enabled:
     with require_modules(list(required_module_to_integration.keys())) as missing_modules:
@@ -22,7 +30,7 @@ if config._data_streams_enabled:
                 importlib.import_module(path_f % (integration_module,))
 
 
-def data_streams_processor(reset=False):
+def data_streams_processor(reset: bool = False) -> Optional[DataStreamsProcessor]:
     global _processor
     if config._data_streams_enabled and (not _processor or reset):
         from . import processor

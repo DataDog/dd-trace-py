@@ -43,7 +43,7 @@
   stage: tests
   extends:
     - .testrunner
-    - .retry_on_failure
+    - .retry_on_all_failure
   timeout: 30m
   variables:
     DD_DEBUGGER_EXPL_OUTPUT_FILE: "${CI_PROJECT_DIR}/debugger-expl.txt"
