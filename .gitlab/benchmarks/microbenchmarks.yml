@@ -21,7 +21,7 @@ variables:
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
+  BENCHMARKING_COMMIT_SHA: 7eb76c8b19a511d9913081e5d6f7b1f9fc6155b7
   # Known flaky benchmarks
   FLAKY_BENCHMARKS_REGEX: "^iastaspects-(casefold_aspect|casefold_noaspect|lower_aspect|upper_noaspect|ljust_noaspect|swapcase_aspect|translate_aspect|translate_noaspect|index_aspect|replace_aspect|title_noaspect|rstrip_aspect)$|^httppropagationinject-ids_only$|^iastaspectsospath-ospathbasename_aspect$|^iastaspectssplit-rsplit_aspect$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^span-start$|^telemetryaddmetric-1-count-metric-1-times$|^telemetryaddmetric-record-100-metrics$|^tracer-small$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
 
@@ -83,9 +83,12 @@ variables:
         # from the cache key. This gives a best-effort incremental cache shared
         # across all parallel jobs, keyed only on the base requirements which
         # rarely change.
+        # The cp312- prefix isolates the pip cache by Python version; mixing
+        # cp39 and cp312 caches causes "invalid wheel" errors.
         files:
           - benchmarks/base/requirements.txt
           - benchmarks/base/requirements_scenario.txt
+        prefix: cp312-
       paths:
         - .cache/pip
       policy: pull-push
@@ -98,6 +101,15 @@ variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+    # Increase pip/uv timeout and retries to avoid transient network failures
+    PIP_DEFAULT_TIMEOUT: "120"
+    PIP_RETRIES: "10"
+    UV_HTTP_TIMEOUT: "120"
+    UV_HTTP_RETRIES: "10"
+    # Use Python 3.12 for benchmark execution. The CI image ships both 3.9
+    # (global default for BP tooling) and 3.12; PYENV_VERSION makes pyenv
+    # shims resolve python3 to 3.12 for run-benchmarks.sh's venvs.
+    PYENV_VERSION: "3.12.10"
 
 baseline:detect:
   image: ${CI_UTILS_IMAGE}
@@ -157,7 +169,7 @@ baseline:build:
 
     echo "BASELINE_WHL=$(ls baseline-wheel/*.whl | head -n 1)" | tee -a baseline.env
   cache:
-    - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+    - key: v1-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
         - "baseline-wheel/*.whl"
   artifacts:
@@ -172,11 +184,11 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "build linux: [amd64, cp39-cp39, v133965508-8f84bce-manylinux2014_x86_64]"
+      job: "build linux: [amd64, cp312-cp312, v133965508-8f84bce-manylinux2014_x86_64]"
       artifacts: true
   script: |
     mkdir -p candidate-wheel
-    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl candidate-wheel/
+    cp pywheels/*-cp312-cp312-manylinux*_x86_64*.whl candidate-wheel/
     echo "CANDIDATE_WHL=$(ls candidate-wheel/*.whl | head -n 1)" | tee candidate.env
     echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env

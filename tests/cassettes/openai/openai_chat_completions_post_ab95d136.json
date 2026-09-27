@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate, zstd",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "OpenAI/Python 2.41.0",
+      "X-Stainless-Lang": "python",
+      "X-Stainless-Package-Version": "2.41.0",
+      "X-Stainless-OS": "Linux",
+      "X-Stainless-Arch": "x64",
+      "X-Stainless-Runtime": "CPython",
+      "X-Stainless-Runtime-Version": "3.13.13",
+      "X-Stainless-Async": "false",
+      "X-Stainless-Raw-Response": "true",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "383"
+    },
+    "body": "{\"messages\":[{\"content\":\"What is 1 + 1? Use the add tool.\",\"role\":\"user\"}],\"model\":\"gpt-3.5-turbo\",\"n\":1,\"stream\":false,\"temperature\":0.0,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"add\",\"description\":\"Adds a and b.\\n\\nArgs:\\n    a: first int\\n    b: second int\",\"parameters\":{\"properties\":{\"a\":{\"type\":\"integer\"},\"b\":{\"type\":\"integer\"}},\"required\":[\"a\",\"b\"],\"type\":\"object\"}}}]}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "openai-version": "2020-10-01",
+      "x-request-id": "req_aiguardlangchainab95d136"
+    },
+    "body": "{\n  \"id\": \"chatcmpl-aiguardlangchainab95d136\",\n  \"object\": \"chat.completion\",\n  \"created\": 1790234637,\n  \"model\": \"gpt-3.5-turbo-0125\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"refusal\": null,\n        \"annotations\": [],\n        \"content\": null,\n        \"tool_calls\": [\n          {\n            \"id\": \"call_aiguard_add\",\n            \"type\": \"function\",\n            \"function\": {\n              \"name\": \"add\",\n              \"arguments\": \"{\\\"a\\\":1,\\\"b\\\":1}\"\n            }\n          }\n        ]\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 70,\n    \"completion_tokens\": 18,\n    \"total_tokens\": 88\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\": null\n}\n"
+  }
+}
