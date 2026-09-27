@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where restarting a profiler stopped it from picking up
+    libraries imported later on, so lock profiling for ``asyncio`` and GPU profiling for
+    ``torch`` were silently missing from the profiles if the library was first imported
+    after the restart. Building a ``Profiler`` without starting it also no longer leaves
+    import hooks behind for the lifetime of the process.

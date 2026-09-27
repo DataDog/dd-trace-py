@@ -239,6 +239,7 @@ class _ProfilerInstance(service.Service):
         #       This is because its snapshot method cannot be static.
         self._collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
+        self._collectors_on_import_armed: list[tuple[str, Callable[[Any], None]]] = []
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = _env.get("AWS_LAMBDA_FUNCTION_NAME")
 
@@ -347,9 +348,6 @@ class _ProfilerInstance(service.Service):
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
             ]
 
-            for module, hook in self._collectors_on_import:
-                ModuleWatchdog.register_module_hook(module, hook)
-
         if self._pytorch_collector_enabled:
             # Distinct name on purpose: the lock hooks above are lambdas that look
             # `start_collector` up in this scope when they fire, so reusing the name here
@@ -382,9 +380,6 @@ class _ProfilerInstance(service.Service):
             ]
             self._collectors_on_import.extend(torch_hooks)
 
-            for module, hook in torch_hooks:
-                ModuleWatchdog.register_module_hook(module, hook)
-
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
 
@@ -396,6 +391,56 @@ class _ProfilerInstance(service.Service):
             before_flush=self._collectors_snapshot,
             tracer=self.tracer,
         )
+
+    def _register_collectors_on_import(self) -> None:
+        """Watch for the modules whose collectors are created on first import."""
+        if self._collectors_on_import is None or self._collectors_on_import_armed:
+            return
+        # Mark up front and guard each hook. register_module_hook runs the hook straight
+        # away for a module that is already imported, so a collector that fails to be
+        # built raises right here. Letting that escape would abort start() after
+        # Service.start had already marked us RUNNING and before Profiler.start records
+        # the active instance, leaving a sampling profiler that the single-profiler check
+        # cannot see, and the hooks registered so far with no record to unregister them by.
+        if self.status != service.ServiceStatus.RUNNING:
+            # Arming happens outside _service_lock (see start), so a stop can land in
+            # between. Hooks armed now would never be unregistered, since the stop that
+            # would have removed them has already been and gone. Profiler.start and
+            # Profiler.stop hold _active_lock, so this only arises for a caller driving
+            # _ProfilerInstance directly.
+            return
+        # Bound to the attribute before arming, so that a raise here still leaves the
+        # hooks that did go on recorded for the stop to take back off.
+        armed = self._collectors_on_import_armed
+        for module, hook in self._collectors_on_import:
+            try:
+                ModuleWatchdog.register_module_hook(module, hook)
+            except Exception:
+                # register_module_hook adds the hook before running it, so it is still
+                # armed. Take it back off: left in place it would run again on the next
+                # import of that module, and ModuleWatchdog.after_import does not guard
+                # hook exceptions, so the failure would land inside application code.
+                ModuleWatchdog.unregister_module_hook(module, hook)
+                LOG.error("Failed to watch for module %r to collect from, disabling.", module, exc_info=True)
+            else:
+                armed.append((module, hook))
+
+    def _unregister_collectors_on_import(self) -> None:
+        """Stop watching, so no collector is created while or after we shut down."""
+        # Only the hooks that actually went on: unregistering one that never did, or that
+        # arming took back off, has ModuleWatchdog warn about a hook it does not hold.
+        for module, hook in self._collectors_on_import_armed:
+            ModuleWatchdog.unregister_module_hook(module, hook)
+        self._collectors_on_import_armed = []
+
+    def start(self, *args: Any, **kwargs: Any) -> None:
+        super().start(*args, **kwargs)
+        # Arm the hooks once the service is running, and from outside _service_lock:
+        # ModuleWatchdog runs a hook for an already-imported module as soon as it is
+        # registered, and the hook takes _service_lock, which Service.start holds for the
+        # whole of _start_service. Arming here rather than in __init__ also means a
+        # restart re-arms them, and a profiler that is never started leaves none behind.
+        self._register_collectors_on_import()
 
     def _collectors_snapshot(self) -> None:
         for c in self._collectors:
@@ -463,11 +508,9 @@ class _ProfilerInstance(service.Service):
         """
         LOG.debug("Stopping profiler")
 
-        # Prevent doing more initialisation now that we are shutting down.
-        if self._collectors_on_import:
-            for module, hook in self._collectors_on_import:
-                ModuleWatchdog.unregister_module_hook(module, hook)
-            self._collectors_on_import = None
+        # Prevent doing more initialisation now that we are shutting down. The list is
+        # kept so that starting this profiler again re-arms the same hooks.
+        self._unregister_collectors_on_import()
 
         # Every step below is best effort. Stopping is what releases the sampling
         # threads and the monkey-patching, and Service.stop only marks the profiler
