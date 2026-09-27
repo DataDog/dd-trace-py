@@ -19,8 +19,8 @@ class AI_GUARD(metaclass=Constant_Class):
     TOOL_NAME_TAG: str = TAG + ".tool_name"
     EVENT_TAG: str = TAG + ".event"
 
-    # core-context key used to stash the candidate client IP during an HTTP request, so it can be
-    # applied to the service-entry span only if an ai_guard span is actually created.
+    # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
+    # span only if an ai_guard span is created during the request.
     CLIENT_IP_CORE_KEY: Literal["ai_guard.http.client_ip"] = "ai_guard.http.client_ip"
 
     # Tags copied from the local root (service-entry) span to every AI Guard span with the

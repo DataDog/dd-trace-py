@@ -18,8 +18,7 @@ def do_operator_add_inplace_3_times_no_propagation(a, b):
     return a
 
 
-def test_nostring_operator_add():
-    # type: () -> None
+def test_nostring_operator_add() -> None:
     assert mod.do_operator_add_inplace_params(2, 3) == 5
 
 
@@ -403,8 +402,7 @@ def test_string_operator_add_inplace_two_mixed_bytearray_bytes() -> None:
     assert len(get_tainted_ranges(result)) == 0
 
 
-def test_nostring_operator_add_3_times():
-    # type: () -> None
+def test_nostring_operator_add_3_times() -> None:
     assert mod.do_operator_add_inplace_3_times(2, 3) == 11
 
 

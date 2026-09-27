@@ -16,10 +16,8 @@ ignoreFiles:
   # Virtual environments and package managers
   - .venv*/**/*
   - venv/**/*
-  - .riot/venv*/**/*
   - .tox/**/*
   - .ddtox/**/*
-  - .ddriot/**/*
   - env/**/*
   - ENV/**/*
 
