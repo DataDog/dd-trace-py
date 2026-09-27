@@ -192,7 +192,6 @@ from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
-from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
@@ -2043,6 +2042,9 @@ class LLMObs(Service):
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
+        Agent-delivered prompts do not require application credentials. Direct registry
+        requests require ``DD_API_KEY``; HTTP environment resolution also requires an application key.
+
         :param prompt_id: The unique identifier of the prompt in the registry
         :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
         :param label: Deprecated; set ``DD_ENV`` instead. Must be ``production`` or ``development``.
@@ -2335,8 +2337,6 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-        if not api_key:
-            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)

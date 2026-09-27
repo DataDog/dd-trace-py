@@ -1,0 +1,5 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where retrieving Agent-delivered prompts
+    requires ``DD_API_KEY`` in the application. Direct HTTP requests still require
+    the appropriate API and application keys.

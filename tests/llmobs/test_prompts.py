@@ -579,9 +579,13 @@ class TestPrompts:
         ff_mock.assert_not_called()
         assert prompt.source == "registry"
 
-    def test_route_env_agent_to_ff(self):
-        manager = _make_manager(agentless=False)
-        with _ffe_enabled():
+    @pytest.mark.parametrize("api_key", ["test-key", ""])
+    def test_route_env_agent_to_ff(self, api_key):
+        with (
+            override_global_config(dict(_dd_api_key=api_key, _llmobs_agentless_enabled=False)),
+            patch.object(LLMObs, "_app_key", ""),
+            _ffe_enabled(),
+        ):
             _deliver_prompt_flag(
                 "greeting",
                 {
@@ -591,8 +595,8 @@ class TestPrompts:
                     "config": {"model": "ff-model"},
                 },
             )
-            with patch.object(manager, "_get_prompt_http") as http_mock:
-                prompt = manager.get_prompt("greeting")
+            with patch.object(PromptManager, "_get_prompt_http") as http_mock:
+                prompt = LLMObs.get_prompt("greeting", targeting_key="user-1")
         http_mock.assert_not_called()
         assert prompt.source == "ff"
         assert prompt.version == "ff-v1"
@@ -784,9 +788,10 @@ class TestPrompts:
                 manager.get_prompt("greeting", targeting_key="u1", tier="free")  # new attrs -> new fetch
         assert len(conns) == 2
 
-    def test_no_app_key_env_uses_fallback_without_calling_resolve(self):
+    @pytest.mark.parametrize("api_key", ["test-key", ""])
+    def test_no_app_key_env_uses_fallback_without_calling_resolve(self, api_key):
         """Without an app key/SAT, /resolve can't be authorized; use the fallback and skip the doomed call."""
-        manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
+        manager = PromptManager(api_key=api_key, base_url="https://api.datadoghq.com", file_cache_enabled=False)
         with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                 cfg.env = "production"
