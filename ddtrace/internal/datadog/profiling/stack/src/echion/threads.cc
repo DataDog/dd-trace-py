@@ -386,7 +386,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             }
         }
 
-        // AIDEV-NOTE: Task candidates are selected before physical candidates,
+        // NOTE: Task candidates are selected before physical candidates,
         // but rendered in logical leaf-to-root order below. Keep budgeting and
         // output ordering separate when changing this stitching policy.
         // Apply the configured limit to rendered locations. A Python frame can

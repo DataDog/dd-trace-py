@@ -2,6 +2,7 @@ import time
 from types import ModuleType
 from typing import NamedTuple
 from typing import Optional
+from typing import Union
 
 from .. import forksafe
 from .collector import ValueCollector
@@ -22,8 +23,11 @@ from .gc_monitor import GCPauseSnapshot
 from .gc_monitor import gc_pause_monitor
 
 
-class RuntimeMetricCollector(ValueCollector):
-    value = []  # type: list[tuple[str, str]]
+MetricValue = Union[int, float]
+
+
+class RuntimeMetricCollector(ValueCollector[MetricValue]):
+    value: Optional[list[tuple[str, MetricValue]]] = []
     periodic = True
 
 
@@ -54,7 +58,7 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
 
     required_modules = ["gc"]
     _monitor: Optional[GCPauseMonitor] = None
-    _prev_collections: list[int]
+    _prev_collections: list[int] = []
 
     def _on_modules_load(self) -> None:
         monitor: Optional[GCPauseMonitor] = None
@@ -86,7 +90,7 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
             monitor.release()
             forksafe.unregister(self._reset_state)
 
-    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, int]]:
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, MetricValue]]:
         # Snapshot first so flush allocations are not attributed to this window,
         # and so stop() cannot None-out _monitor between the check and the call.
         monitor: Optional[GCPauseMonitor] = self._monitor
@@ -101,7 +105,7 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
         prev: list[int] = self._prev_collections
         self._prev_collections: list[int] = collections
 
-        metrics: list[tuple[str, int]] = []
+        metrics: list[tuple[str, MetricValue]] = []
         name: str
         n: int
         for name, n in zip(GC_COUNT_GENS, gc_mod.get_count()):
@@ -138,7 +142,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
     _NS_TO_SEC = 1e-9
     _forksafe_registered = False
 
-    def _on_modules_load(self):
+    def _on_modules_load(self) -> None:
         # `_reset_state` doubles as the smoke test: if it raises, `_load_modules`'s caller
         # never sees it since it's not an ImportError, so surface it the same way a failed
         # import would.
@@ -158,7 +162,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
             self._forksafe_registered = False
             forksafe.unregister(self._reset_state)
 
-    def _reset_state(self):
+    def _reset_state(self) -> None:
         # Seed the baselines from a fresh reading instead of zero, both here and on fork:
         # a forked child inherits these as the parent's last-observed values, while its own
         # counters (e.g. Linux's /proc/self/stat) restart near zero, so an unseeded baseline
@@ -177,7 +181,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
         }
         self._last_wall_time = time.monotonic()
 
-    def collect_fn(self, keys):
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, MetricValue]]:
         native = self.modules["ddtrace.internal.native"]
 
         process_metrics = _ProcessMetrics(*native.process_metrics())
@@ -193,7 +197,7 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
         self.stored_cpu_times[CPU_TIME_SYS] = cpu_time_sys
         self.stored_cpu_times[CPU_TIME_USER] = cpu_time_user
 
-        metrics = {
+        metrics: dict[str, MetricValue] = {
             CPU_TIME_SYS: delta_cpu_time_sys,
             CPU_TIME_USER: delta_cpu_time_user,
             THREAD_COUNT: process_metrics.num_threads,

@@ -79,9 +79,14 @@ via `include:project:`. Both pipelines currently override the template's image w
 `benchmarking-platform-tools-ubuntu` tag; the override is temporary and marked as such in the
 YAML.
 
-**Competitor benchmarks.** The root `.gitlab-ci.yml` triggers
+**`apm-sdks-benchmarks` framework.** The root `.gitlab-ci.yml` triggers
 [DataDog/apm-reliability/apm-sdks-benchmarks](https://gitlab.ddbuild.io/DataDog/apm-reliability/apm-sdks-benchmarks)
 separately from anything in this directory. Its scenarios and thresholds are maintained there.
+
+The `apm-sdks-benchmarks` job runs automatically on release tags, release branches, `main`, and
+`performance/flaky-benchmarks-monitoring`. Everywhere else, nightly builds included, it stays
+manual: `apm-sdks-benchmarks` already runs its own nightly schedule in that project's own CI,
+independent of dd-trace-py's pipeline.
 
 **Generation.** `scripts/gen_gitlab_config.py` produces `microbenchmarks-gen.yml` and the
 filtered SLO file. Neither is committed; both are `tests-gen` artifacts.
@@ -101,7 +106,7 @@ For microbenchmarks, on every pipeline:
 2. **`microbenchmarks`** (root pipeline) triggers `microbenchmarks-gen.yml` as a child
    pipeline, after `tests-gen` and the `build linux` job that produces the candidate wheel.
 3. **`baseline:detect`** then **`baseline:build`** resolve and build the wheel to compare
-   against, while **`candidate`** picks the `cp39` wheel out of the parent pipeline's
+   against, while **`candidate`** picks the `cp312` wheel out of the parent pipeline's
    artifacts. Both are cached, `baseline:build` on the baseline commit SHA.
 4. **`microbenchmarks`** (child pipeline) runs each matrix entry's scenarios against both wheels,
    then `analyze-results.sh` and an S3 upload.
