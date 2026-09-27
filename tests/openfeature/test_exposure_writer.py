@@ -2,6 +2,7 @@
 Tests for the ExposureWriter class.
 """
 
+from functools import partial
 import json
 from unittest import mock
 
@@ -17,6 +18,7 @@ from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_global_config
 
 
@@ -66,7 +68,9 @@ def remote_config_transport():
         info_provider=info_provider,
     )
     writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=connection_factory)
-    with mock.patch("ddtrace.internal.utils.retry.sleep") as sleep:
+    sleep = mock.Mock()
+    local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep)
+    with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
         yield writer, connection_factory, info_provider, sleep
 
 
