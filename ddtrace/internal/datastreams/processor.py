@@ -91,6 +91,16 @@ def _compute_pathway_hash(
     return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
 
+@lru_cache(maxsize=PATHWAY_HASH_CACHE_SIZE)
+def _prepare_edge(tags: tuple[str, ...]) -> tuple[tuple[str, ...], str]:
+    """Sorted edge tags and their ``direction:`` tag; constant for a given set of edge tags."""
+    sorted_tags = tuple(sorted(tags))
+    for t in sorted_tags:
+        if t.startswith("direction:"):
+            return sorted_tags, t
+    return sorted_tags, ""
+
+
 class PathwayStats:
     """Aggregated pathway statistics."""
 
@@ -203,11 +213,11 @@ class DataStreamsProcessor(PeriodicService):
             # Align the span into the corresponding stats bucket
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
             aggr_key = (",".join(edge_tags), hash_value, parent_hash)
+            # pathway_stats is a defaultdict, so this lookup also inserts new stats.
             stats = self._buckets[bucket_time_ns].pathway_stats[aggr_key]
             stats.full_pathway_latency.add(full_pathway_latency_sec)
             stats.edge_latency.add(edge_latency_sec)
             stats.payload_size.add(payload_size)
-            self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
     # These run once per produced and per committed message. Keys are built with
     # tuple.__new__ (same NamedTuple type, minus its Python-level __new__), and each
@@ -405,9 +415,9 @@ class DataStreamsProcessor(PeriodicService):
 
         if not now_sec:
             now_sec = time.time()
-        if hasattr(self._current_context, "value"):
+        try:
             ctx = self._current_context.value
-        else:
+        except AttributeError:
             ctx = self.new_pathway()
             self._current_context.value = ctx
         if "direction:out" in tags:
@@ -500,12 +510,8 @@ class DataStreamsCtx:
         """
         if not now_sec:
             now_sec = time.time()
-        tags = sorted(tags)
-        direction = ""
-        for t in tags:
-            if t.startswith("direction:"):
-                direction = t
-                break
+        # A cached, immutable tuple: callers only test membership or sort it.
+        tags, direction = _prepare_edge(tuple(tags))
         if direction == self.previous_direction:
             self.hash = self.closest_opposite_direction_hash
             if self.hash == 0:
