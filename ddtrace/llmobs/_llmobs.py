@@ -975,9 +975,9 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
-        if app_key:
+        if api_key or app_key:
             # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
-            # before the app key was configured, so it rebuilds with the new key.
+            # before credentials were configured, so it rebuilds with the new keys.
             with cls._prompt_manager_lock:
                 cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
@@ -2042,7 +2042,7 @@ class LLMObs(Service):
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
-        Agent-delivered prompts need no keys in your application. Other retrieval paths require API credentials.
+        Agent-delivered or cached prompts need no keys in your application. Fetching other prompts requires credentials.
 
         :param prompt_id: The unique identifier of the prompt in the registry
         :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
