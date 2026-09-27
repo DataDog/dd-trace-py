@@ -3,6 +3,7 @@ from collections import OrderedDict
 from collections import defaultdict
 from collections import deque
 from collections.abc import Collection
+from collections.abc import Iterable
 from decimal import Decimal
 from itertools import islice
 from itertools import takewhile
@@ -17,7 +18,6 @@ from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Generic
-from typing import Iterable
 from typing import Optional
 
 from wrapt.wrappers import BoundFunctionWrapper

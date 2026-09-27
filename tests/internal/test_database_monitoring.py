@@ -494,7 +494,7 @@ def test_default_sql_injector(caplog):
 
     # test sql injection with uft-8 byte str query
     dbm_comment = "/*dddbs='orders-db'*/ "
-    str_query = "select * from table;".encode("utf-8")
+    str_query = b"select * from table;"
     assert default_sql_injector(dbm_comment, str_query) == b"/*dddbs='orders-db'*/ select * from table;"
 
     # test sql injection with a non supported type

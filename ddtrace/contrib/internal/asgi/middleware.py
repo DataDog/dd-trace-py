@@ -1,8 +1,8 @@
+from collections.abc import Mapping
 from functools import wraps
 import sys
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from urllib import parse
 
@@ -321,14 +321,14 @@ class TraceMiddleware:
             raw_path = scope.get("raw_path")
             raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
-                url = "{}://{}{}".format(scheme, host_header, full_path)
-                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
+                url = f"{scheme}://{host_header}{full_path}"
+                raw_url = f"{scheme}://{host_header}{raw_path_str}"
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = "{}://{}{}".format(scheme, server_host, full_path)
-                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
+                url = f"{scheme}://{server_host}{full_path}"
+                raw_url = f"{scheme}://{server_host}{raw_path_str}"
             else:
                 url = None
                 raw_url = None

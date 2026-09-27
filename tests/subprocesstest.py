@@ -182,9 +182,9 @@ class SubprocessTestCase(unittest.TestCase):
 
     def run(self, result=None):
         if not self._is_subprocess_test():
-            return super(SubprocessTestCase, self).run(result=result)
+            return super().run(result=result)
 
         if self._in_subprocess():
-            return super(SubprocessTestCase, self).run(result=result)
+            return super().run(result=result)
         else:
             self._run_test_in_subprocess(result)

@@ -1,9 +1,8 @@
-# -*- encoding: utf-8 -*-
+from collections.abc import Mapping
 import json
 import logging
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -35,7 +34,7 @@ from ddtrace.profiling.collector import threading
 LOG = logging.getLogger(__name__)
 
 
-class Profiler(object):
+class Profiler:
     """Run profiling while code is executed.
 
     Note that the whole Python process is profiled, not only the code executed. Data from all running threads are
@@ -47,7 +46,7 @@ class Profiler(object):
     _active_lock = Lock()
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
+        self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
 
     def start(self) -> None:
         """Start the profiler."""

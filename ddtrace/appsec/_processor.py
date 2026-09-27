@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import dataclasses
 import errno
 import functools
@@ -5,7 +6,6 @@ from json.decoder import JSONDecodeError
 from typing import Any
 from typing import ClassVar
 from typing import Optional
-from typing import Sequence
 from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
@@ -117,7 +117,7 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             with open(self.rule_filename, "br") as f:
                 self._rules = f.read()
-        except EnvironmentError as err:
+        except OSError as err:
             if err.errno == errno.ENOENT:
                 log.error(
                     "[DDAS-0001-03] ASM could not read the rule file %s. Reason: file does not exist",

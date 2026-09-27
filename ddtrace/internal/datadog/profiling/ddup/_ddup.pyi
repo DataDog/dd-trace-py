@@ -1,5 +1,5 @@
+from collections.abc import Mapping
 from types import FrameType
-from typing import Mapping
 from typing import Optional
 from typing import Union
 

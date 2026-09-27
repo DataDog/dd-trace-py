@@ -12,13 +12,14 @@ import pathlib
 
 import pytest
 
+import ddtrace
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.settings.aiguard import aiguard_config
 
 
-INTEGRATIONS_DIR = pathlib.Path(__file__).parents[3] / "ddtrace" / "aiguard" / "integrations"
+INTEGRATIONS_DIR = pathlib.Path(ddtrace.__file__).resolve().parent / "aiguard" / "integrations"
 
 # litellm resolves block per request from its own dynamic guardrail params, so it tags its
 # evaluate() call explicitly instead of going through evaluate_auto.

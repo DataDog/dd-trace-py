@@ -26,7 +26,7 @@ def is_ipv6_hostname(hostname: Union[T, str]) -> bool:
     try:
         socket.inet_pton(socket.AF_INET6, hostname)
         return True
-    except socket.error:  # not a valid address
+    except OSError:  # not a valid address
         return False
 
 

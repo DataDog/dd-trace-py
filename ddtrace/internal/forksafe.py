@@ -179,7 +179,7 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         self,
         wrapped_class: type[_T],
     ) -> None:
-        super(ResetObject, self).__init__(wrapped_class())
+        super().__init__(wrapped_class())
         self._self_wrapped_class = wrapped_class
         _resetable_objects.add(self)
 

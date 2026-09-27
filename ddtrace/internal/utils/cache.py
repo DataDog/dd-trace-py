@@ -3,10 +3,12 @@ from functools import wraps
 from inspect import FullArgSpec
 from inspect import getfullargspec
 from inspect import isgeneratorfunction
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Generic
+from typing import Optional
 from typing import TypeVar
+import weakref
 
 
 miss = object()
@@ -14,6 +16,9 @@ miss = object()
 T = TypeVar("T")
 F = Callable[[T], Any]
 M = Callable[[Any, T], Any]
+
+WK = TypeVar("WK")
+WV = TypeVar("WV")
 
 
 def cached(maxsize: int = 256) -> Callable[[Callable], Callable]:
@@ -41,6 +46,71 @@ def cachedmethod(maxsize: int = 256) -> Callable[[M], CachedMethodDescriptor]:
         return CachedMethodDescriptor(f, maxsize)
 
     return cached_wrapper
+
+
+class IdentityWeakKeyDictionary(Generic[WK, WV]):
+    """Weak mapping keyed by object identity (id()), not equality or hash.
+
+    Unlike ``weakref.WeakKeyDictionary``, insertion and lookup never call
+    ``hash(key)`` or ``key.__eq__``: the internal dict is keyed on ``id(key)``,
+    with an ``is`` check to detect id reuse after the original key was
+    garbage collected. Use this instead of a plain ``lru_cache`` or
+    ``WeakKeyDictionary`` whenever hashing the key could run arbitrary code
+    (e.g. a class whose metaclass defines ``__hash__``) or raise (e.g.
+    ``__hash__ = None``), or whenever the key type's ``__eq__``/``__hash__``
+    would conflate objects that must stay distinct (e.g. two structurally
+    identical but separately created code objects).
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self) -> None:
+        self._data: dict[int, tuple[weakref.ref[WK], WV]] = {}
+
+    def _make_remove(self, key_id: int) -> Callable[["weakref.ref[WK]"], None]:
+        def remove(_ref: "weakref.ref[WK]") -> None:
+            self._data.pop(key_id, None)
+
+        return remove
+
+    def get(self, key: WK, default: Any = None) -> Any:
+        item = self._data.get(id(key))
+        if item is None:
+            return default
+        ref, value = item
+        if ref() is key:
+            return value
+        return default
+
+    def __contains__(self, key: WK) -> bool:
+        item = self._data.get(id(key))
+        return item is not None and item[0]() is key
+
+    def __getitem__(self, key: WK) -> WV:
+        item = self._data.get(id(key))
+        if item is None or item[0]() is not key:
+            raise KeyError(key)
+        return item[1]
+
+    def __setitem__(self, key: WK, value: WV) -> None:
+        key_id = id(key)
+        self._data[key_id] = (weakref.ref(key, self._make_remove(key_id)), value)
+
+    def __delitem__(self, key: WK) -> None:
+        key_id = id(key)
+        if key_id not in self._data:
+            raise KeyError(key)
+        del self._data[key_id]
+
+    def pop(self, key: WK, *default: WV) -> WV:
+        try:
+            value = self[key]
+        except KeyError:
+            if default:
+                return default[0]
+            raise
+        del self[key]
+        return value
 
 
 def is_not_void_function(f, argspec: FullArgSpec):

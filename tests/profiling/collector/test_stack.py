@@ -1,11 +1,11 @@
 import _thread
+from collections.abc import Generator
 import os
 from pathlib import Path
 import sys
 import threading
 import time
 from typing import TYPE_CHECKING
-from typing import Generator
 from unittest.mock import patch
 import uuid
 
@@ -576,7 +576,7 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
 
 
 def test_collect_once_with_class(tmp_path: Path) -> None:
-    class SomeClass(object):
+    class SomeClass:
         @classmethod
         def sleep_class(cls) -> None:
             return cls().sleep_instance()
@@ -638,7 +638,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
     (e.g., using 'foobar' instead of 'self' or 'cls').
     """
 
-    class SomeClass(object):
+    class SomeClass:
         @classmethod
         def sleep_class(foobar, cls) -> None:  # pyright: ignore[reportSelfClsParameterName]
             return foobar().sleep_instance(cls)
@@ -1072,11 +1072,11 @@ for num in range(MAX_FN_NUM):
     exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
 
 exec(
-    """def _f{MAX_FN_NUM}():
+    f"""def _f{MAX_FN_NUM}():
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
+      time.sleep(2)"""
 )
 
 

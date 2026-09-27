@@ -16,7 +16,11 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
-EscapeContext = NamedTuple("EscapeContext", [("id", Any), ("position", int)])
+
+class EscapeContext(NamedTuple):
+    id: Any
+    position: int
+
 
 DEFAULT_PARAMETER_NAME = ""
 TAINT_FORMAT_CAPTURE = r"\:\+-(?:\<(?P<inputid>[0-9a-zA-Z\-]+)\>)?(.+?)(?:\<(?P=inputid)\>)?-\+\:"

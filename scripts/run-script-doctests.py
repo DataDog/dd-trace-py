@@ -20,6 +20,7 @@ _FILES = [
     "scripts/get-target-milestone.py",
     "scripts/needs_testrun.py",
     "scripts/resolve_previous_version.py",
+    "scripts/check_type_comments.py",
     "tests/suitespec.py",
 ]
 

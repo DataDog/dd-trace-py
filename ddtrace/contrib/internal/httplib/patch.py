@@ -163,11 +163,11 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         method, path = args[:2]
         scheme = "https" if isinstance(instance, httplib.HTTPSConnection) else "http"
-        port = ":{port}".format(port=instance.port)
+        port = f":{instance.port}"
 
         if (scheme == "http" and instance.port == 80) or (scheme == "https" and instance.port == 443):
             port = ""
-        url = "{scheme}://{host}{port}{path}".format(scheme=scheme, host=instance.host, port=port, path=path)
+        url = f"{scheme}://{instance.host}{port}{path}"
 
         # sanitize url
         parsed = parse.urlparse(url)

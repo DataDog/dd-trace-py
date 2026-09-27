@@ -28,7 +28,7 @@ from tests.utils import assert_is_not_measured
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Generator
+    from collections.abc import Generator
 
 
 @pytest.fixture
@@ -41,12 +41,12 @@ def patched_conn() -> Generator[sqlite3.Connection, None, None]:
 
 class TestSQLite(TracerTestCase):
     def setUp(self):
-        super(TestSQLite, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
         unpatch()
-        super(TestSQLite, self).tearDown()
+        super().tearDown()
 
     def test_service_info(self):
         backup_tracer = ddtrace.tracer
