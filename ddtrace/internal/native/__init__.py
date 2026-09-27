@@ -42,8 +42,10 @@ from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import config  # noqa: F401
 from ._native import decode_pathway_b64  # noqa: F401
 from ._native import encode_pathway_b64  # noqa: F401
+from ._native import encoded_pathway_b64_len  # noqa: F401
 from ._native import generate_128bit_trace_id  # noqa: F401
 from ._native import logger  # noqa: F401
+from ._native import payload_byte_size  # noqa: F401
 from ._native import process_metrics  # noqa: F401
 from ._native import rand64bits  # noqa: F401
 from ._native import seed  # noqa: F401

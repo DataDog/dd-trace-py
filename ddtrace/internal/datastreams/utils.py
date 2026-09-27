@@ -2,8 +2,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from ddtrace.internal.native import payload_byte_size
+
 
 def _calculate_byte_size(data: Any) -> int:
+    size = payload_byte_size(data)
+    if size is not None:
+        return size
+    return _calculate_byte_size_py(data)
+
+
+def _calculate_byte_size_py(data: Any) -> int:
     # Exact-type fast paths: this runs for every key, value and header of every message.
     # ASCII strings are one byte per character, so they don't need encoding to be measured.
     data_type = type(data)

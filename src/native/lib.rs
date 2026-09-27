@@ -98,6 +98,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(datastreams::encode_pathway_b64, m)?)?;
     m.add_function(wrap_pyfunction!(datastreams::decode_pathway_b64, m)?)?;
+    m.add_function(wrap_pyfunction!(datastreams::encoded_pathway_b64_len, m)?)?;
+    m.add_function(wrap_pyfunction!(datastreams::payload_byte_size, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
 

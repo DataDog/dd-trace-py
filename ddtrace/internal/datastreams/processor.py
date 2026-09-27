@@ -21,6 +21,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.native import decode_pathway_b64 as native_decode_pathway_b64
 from ddtrace.internal.native import encode_pathway_b64 as native_encode_pathway_b64
+from ddtrace.internal.native import encoded_pathway_b64_len as native_encoded_pathway_b64_len
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -465,12 +466,13 @@ class DataStreamsCtx:
 
     def encoded_b64_len(self) -> int:
         """``len(self.encode_b64())``, computed without encoding."""
-        n = (
-            8
-            + var_int_64_len(int(self.pathway_start_sec * 1e3))
-            + var_int_64_len(int(self.current_edge_start_sec * 1e3))
-        )
-        return 4 * ((n + 2) // 3)
+        pathway_start_ms = int(self.pathway_start_sec * 1e3)
+        current_edge_start_ms = int(self.current_edge_start_sec * 1e3)
+        try:
+            return native_encoded_pathway_b64_len(pathway_start_ms, current_edge_start_ms)
+        except OverflowError:
+            n = 8 + var_int_64_len(pathway_start_ms) + var_int_64_len(current_edge_start_ms)
+            return 4 * ((n + 2) // 3)
 
     def _compute_hash(self, tags, parent_hash):
         # base_hash_bytes is part of the key: it changes at runtime once the agent
