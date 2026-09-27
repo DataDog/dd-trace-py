@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    profiling: The stack profiler now warns, and reports to telemetry, when another
+    component takes over its ``SIGSEGV`` or ``SIGBUS`` handler, naming the component and
+    which signal was lost. Sample quality is reduced for the rest of the process.
