@@ -608,6 +608,89 @@ def test_stop_completes_teardown_when_final_upload_fails() -> None:
     p2.stop(flush=False)
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_no_samples_pushed_after_stop",
+        # Long enough that the scheduler never flushes on its own, so the only two uploads
+        # are the one Profiler.stop() makes and the one this test forces at the end.
+        DD_PROFILING_UPLOAD_INTERVAL="600",
+        # Capture every lock event, so the pre-stop sanity check below does not hinge on the
+        # default 1% sampling happening to pick up one of our acquires.
+        DD_PROFILING_CAPTURE_PCT="100",
+    ),
+    err=None,
+)
+def test_no_samples_pushed_after_stop() -> None:
+    """Stopping a Profiler must stop every collector from pushing samples to libdatadog."""
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    # Duration of each of the two work phases of test_no_samples_pushed_after_stop. The stack
+    # sampler and the lock collector both need a little wall clock to produce samples, and the
+    # post-stop phase needs the same budget for the absence of samples to mean anything.
+    _STOP_TEST_WORK_DURATION = 2.0
+
+    def _burn_cpu_and_lock(lock) -> None:
+        deadline = time.monotonic() + _STOP_TEST_WORK_DURATION
+        while time.monotonic() < deadline:
+            with lock:
+                sum(range(1000))
+
+    # The two phases of test_no_samples_pushed_after_stop call the same work through differently
+    # named wrappers, so a sample can be attributed to a phase by the frame it carries.
+    def while_profiler_is_running(lock) -> None:
+        _burn_cpu_and_lock(lock)
+
+    def after_profiler_is_stopped(lock) -> None:
+        _burn_cpu_and_lock(lock)
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = profiler.Profiler()
+    p.start()
+
+    # Allocated while profiling is on, so the lock collector wraps it, and reused in the
+    # post-stop phase: a wrapped lock that outlives the profiler must go quiet as well.
+    lock = threading.Lock()
+    while_profiler_is_running(lock)
+
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    for value_type in ("wall-time", "lock-acquire"):
+        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
+        assert pprof_utils.get_samples_with_function(profile, samples, "while_profiler_is_running"), (
+            f"No {value_type} sample reached libdatadog while the profiler was running, so this "
+            "test cannot tell a stopped profiler apart from one that never sampled"
+        )
+
+    after_profiler_is_stopped(lock)
+
+    # Flush whatever reached libdatadog since the profiler stopped. Nothing should have.
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+    leaked = pprof_utils.get_samples_with_function(profile, profile.sample, "after_profiler_is_stopped")
+    assert not leaked, (
+        f"{len(leaked)} sample(s) were pushed to libdatadog after the profiler was stopped: "
+        + ", ".join(
+            sorted(
+                {
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for sample in leaked
+                    for location_id in sample.location_id
+                }
+            )
+        )
+    )
+
+
 @pytest.mark.subprocess(err=None)
 def test_start_registers_sigterm_handler() -> None:
     """Profiler.start must register _stop_on_signal as a SIGTERM/SIGINT handler via register_on_exit_signal."""
