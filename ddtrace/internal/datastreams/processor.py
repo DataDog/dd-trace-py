@@ -108,6 +108,9 @@ class PartitionKey(NamedTuple):
     cluster_id: str
 
 
+_new_tuple = tuple.__new__
+
+
 class ConsumerPartitionKey(NamedTuple):
     group: str
     topic: str
@@ -206,23 +209,24 @@ class DataStreamsProcessor(PeriodicService):
             stats.payload_size.add(payload_size)
             self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
+    # These run once per produced and per committed message. Keys are built with
+    # tuple.__new__ (same NamedTuple type, minus its Python-level __new__), and each
+    # offset map is looked up once. A new key stores max(offset, 0), as the int default did.
     def track_kafka_produce(self, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
-        key = PartitionKey(topic, partition, cluster_id)
+        key = _new_tuple(PartitionKey, (topic, partition, cluster_id))
         with self._lock:
-            bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
-            self._buckets[bucket_time_ns].latest_produce_offsets[key] = max(
-                offset, self._buckets[bucket_time_ns].latest_produce_offsets[key]
-            )
+            offsets = self._buckets[now_ns - (now_ns % self._bucket_size_ns)].latest_produce_offsets
+            previous = offsets.get(key, 0)
+            offsets[key] = offset if offset > previous else previous
 
     def track_kafka_commit(self, group, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
-        key = ConsumerPartitionKey(group, topic, partition, cluster_id)
+        key = _new_tuple(ConsumerPartitionKey, (group, topic, partition, cluster_id))
         with self._lock:
-            bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
-            self._buckets[bucket_time_ns].latest_commit_offsets[key] = max(
-                offset, self._buckets[bucket_time_ns].latest_commit_offsets[key]
-            )
+            offsets = self._buckets[now_ns - (now_ns % self._bucket_size_ns)].latest_commit_offsets
+            previous = offsets.get(key, 0)
+            offsets[key] = offset if offset > previous else previous
 
     def _serialize_buckets(self) -> list[dict]:
         """Serialize and update the buckets."""

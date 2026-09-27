@@ -65,7 +65,8 @@ def dsm_kafka_message_produce(
     def wrapped_callback(err, msg):
         global disable_header_injection
         if err is None:
-            reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
+            offset = msg.offset()
+            reported_offset = offset if isinstance(offset, INT_TYPES) else -1
             if (p := processor()) is not None:
                 p.track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time(), cluster_id=cluster_id)
         elif err.code() == -1 and not disable_header_injection:
