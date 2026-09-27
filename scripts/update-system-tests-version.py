@@ -3,7 +3,7 @@
 # requires-python = ">=3.12"
 # ///
 
-import subprocess
+import subprocess  # nosec B404
 
 
 system_tests_repo = "https://github.com/DataDog/system-tests.git"
@@ -12,7 +12,9 @@ gitlab_ci_path = ".gitlab-ci.yml"
 
 
 def get_latest_system_tests_version() -> str:
-    result = subprocess.check_output(["git", "ls-remote", system_tests_repo, "refs/heads/main"])
+    result = subprocess.check_output(  # nosec B603 B607
+        ["git", "ls-remote", system_tests_repo, "refs/heads/main"]
+    )
     commit_hash, _, _ = result.decode("utf-8").partition("\t")
     return commit_hash
 

@@ -11,6 +11,46 @@ include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 
+extract_test_artifacts:
+  extends: .testrunner
+  stage: setup
+  needs:
+    - pipeline: "$PARENT_PIPELINE_ID"
+      job: "upload manylinux2014_x86_64"
+      artifacts: true
+  script: |
+    set -euo pipefail
+    shopt -s nullglob
+    wheels=(pywheels/ddtrace-*-cp3*-cp3*-manylinux*_x86_64.whl)
+    if [[ ${#wheels[@]} -eq 0 ]]; then
+      echo "No amd64 manylinux wheels were downloaded"
+      exit 1
+    fi
+
+    for wheel in "${wheels[@]}"; do
+      if [[ "${wheel##*/}" =~ -cp3([0-9]+)-cp3[0-9]+- ]]; then
+        python_version="3.${BASH_REMATCH[1]}"
+      else
+        echo "Cannot determine the Python version for $wheel"
+        exit 1
+      fi
+      wheel_dir="$CI_PROJECT_DIR/.cache/ddtrace-test-wheels/$python_version"
+      mkdir -p "$wheel_dir"
+      cp "$wheel" "$wheel_dir/"
+
+      extracted="$(mktemp -d)"
+      python -m zipfile -e "$wheel" "$extracted"
+      (
+        cd "$extracted"
+        find ddtrace -type f -name '*.so*' -exec cp --parents --target-directory="$CI_PROJECT_DIR" {} +
+      )
+    done
+  artifacts:
+    name: test_wheels
+    paths:
+      - ddtrace/**/*.so*
+      - .cache/ddtrace-test-wheels/
+
 
 .test_base:
   extends: .testrunner
@@ -20,8 +60,14 @@ include:
     - !reference [.services, ddagent]
   before_script:
     - !reference [.testrunner, before_script]
-    # Artifact extraction preserves build timestamps, so refresh native outputs after checkout.
-    - find ddtrace -type f -name '*.so*' -exec touch {} +
+    - |
+      # The native IAST suite compiles repository C++ sources and does not import ddtrace.
+      # Other test jobs remove the checkout package so Python imports use the wheel.
+      if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
+        rm -r "$CI_PROJECT_DIR/ddtrace"
+      fi
+    # Keep repository test helpers importable; ddtrace itself resolves from the installed wheel.
+    - export PYTHONPATH="$CI_PROJECT_DIR"
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
