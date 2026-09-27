@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where an unexpected error while shutting one part of the
+    profiler down stopped the rest of the shutdown, leaving the profiler sampling and its
+    instrumentation in place, reporting itself as running, and refusing to let a new
+    profiler start. Errors during shutdown are now logged and the remaining components
+    are still stopped.

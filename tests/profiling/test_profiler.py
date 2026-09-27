@@ -253,6 +253,55 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
     assert unregistered_hooks == registered_hooks
 
 
+def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    """One collector raising during stop must not strand the rest of the teardown.
+
+    Regression test: the exception left _stop_service half done, so the sampling threads
+    and the monkey-patching stayed in place, Service.stop never marked the profiler
+    stopped, and it stayed the active instance, which kept any later profiler from
+    starting.
+    """
+
+    class BadCollector:
+        def start(self):
+            pass
+
+        def stop(self):
+            raise RuntimeError("collector teardown blew up")
+
+        def join(self, timeout=None):
+            pass
+
+        def snapshot(self):
+            pass
+
+    p1 = profiler.Profiler()
+    p1.start()
+    inst = p1._profiler
+
+    real = list(inst._collectors)
+    assert real, "expected the profiler to have collectors"
+    # Last in the list, so reversed() reaches it before any of the real ones.
+    inst._collectors = real + [BadCollector()]
+
+    with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+        p1.stop(flush=False)
+
+    assert inst.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+    for col in real:
+        status = getattr(col, "status", None)
+        if status is not None:
+            assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+
+    assert any("Error while stopping collector" in m for m in caplog.messages)
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
+
+
 def test_profiler_serverless(monkeypatch):
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
