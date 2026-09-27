@@ -2042,8 +2042,7 @@ class LLMObs(Service):
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
-        Agent-delivered prompts do not require application credentials. Direct registry
-        requests require ``DD_API_KEY``; HTTP environment resolution also requires an application key.
+        Agent retrieval needs no application keys. HTTP needs ``DD_API_KEY`` and, for resolution, an app key.
 
         :param prompt_id: The unique identifier of the prompt in the registry
         :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
