@@ -42,6 +42,13 @@ static bool memalloc_mem_installed = false;
 #endif // _PY312_AND_LATER
 static std::once_flag memalloc_fork_handler_once_flag;
 
+/* Interpreter that called start().  Used by memalloc_module_free to reject
+ * teardown requests from subinterpreters: if a subinterpreter imports and then
+ * destroys _memalloc while the main interpreter is profiling, m_free would
+ * otherwise see memalloc_enabled==true and tear down the main interpreter's
+ * hooks.  NULL when not profiling. */
+static PyInterpreterState* g_owning_interp = nullptr;
+
 /* Two-slot buffer for atomically publishing the saved (original) allocator.
  *
  * Each start() cycle writes into the slot at index g_saved_alloc_slot (then
@@ -377,6 +384,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 #endif // _PY312_AND_LATER
 
     memalloc_enabled = true;
+    g_owning_interp = PyInterpreterState_Get();
 
     Py_RETURN_NONE;
 }
@@ -428,6 +436,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     memalloc_heap_tracker_deinit_no_cpython();
 
     memalloc_enabled = false;
+    g_owning_interp = nullptr;
 
     Py_RETURN_NONE;
 }
@@ -453,17 +462,27 @@ PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
 /* Called by CPython when the module object is deallocated
  *
- * Without this, PYMEM_DOMAIN_OBJ hook stays installed while CPython tears
- * down its internal heap state. Any subsequent allocation calls through to the saved
- * original allocator whose ctx pointer may already be stale which would cause SIGSEGV.
+ * PyMem_SetAllocator only copies a struct; it is safe to call here even during
+ * late-stage shutdown. The heap-tracker deinit frees C++ objects only (no
+ * CPython API calls), so it is also safe.
  *
- * PyMem_SetAllocator only copies a struct; it is safe to call here even
- * during late-stage shutdown. The heap-tracker deinit frees C++ objects only
- * (no CPython API calls), so it is also safe. */
+ * All profiling state is process-global (m_size=0), so we record g_owning_interp
+ * at start() and bail here if the current interpreter is not the one that started
+ * profiling.
+ *
+ * On free-threaded Python a hook may load g_saved_alloc_pub before our nullptr
+ * store and then continue into memalloc_heap_track_invokes_cpython() while we
+ * are destroying the heap tracker.
+ */
 static void
 memalloc_module_free(void* Py_UNUSED(module))
 {
     if (!memalloc_enabled)
+        return;
+
+    /* Ignore teardown triggered by a subinterpreter that is not the one that
+     * called start(). */
+    if (PyInterpreterState_Get() != g_owning_interp)
         return;
 
     const PyMemAllocatorEx* saved = g_saved_alloc_pub.load(std::memory_order_acquire);
@@ -487,21 +506,26 @@ memalloc_module_free(void* Py_UNUSED(module))
 
     memalloc_heap_tracker_deinit_no_cpython();
     memalloc_enabled = false;
+    g_owning_interp = nullptr;
 }
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
 /* Test-only helper: directly invoke the module-free cleanup path without
- * waiting for the module object to be deallocated.
- *
- * Only compiled in assert/test builds (DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY=1).
- * Used by regression tests to verify deterministically that memalloc_module_free
- * correctly uninstalls hooks and resets state, without relying on Python's
- * garbage collector to collect the module at shutdown time. */
+ * waiting for the module object to be deallocated. */
 static PyObject*
 memalloc_test_invoke_module_free(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     memalloc_module_free(nullptr);
     Py_RETURN_NONE;
+}
+
+/* Test-only helper: return True iff module_def.m_free points to
+ * memalloc_module_free */
+static freefunc g_module_def_m_free = nullptr;
+static PyObject*
+memalloc_test_m_free_registered(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    return PyBool_FromLong(g_module_def_m_free == memalloc_module_free);
 }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
 
@@ -514,6 +538,10 @@ static PyMethodDef module_methods_all[] = {
       (PyCFunction)memalloc_test_invoke_module_free,
       METH_NOARGS,
       "Test helper: invoke module-free cleanup directly (assert builds only)." },
+    { "_test_m_free_registered",
+      (PyCFunction)memalloc_test_m_free_registered,
+      METH_NOARGS,
+      "Test helper: True iff module_def.m_free == memalloc_module_free (assert builds only)." },
 #endif // MEMALLOC_ASSERT_ON_REENTRY
     /* sentinel */
     { NULL, NULL, 0, NULL }
@@ -531,6 +559,12 @@ PyInit__memalloc(void)
     m = PyModule_Create(&module_def);
     if (m == NULL)
         return NULL;
+
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+    /* Snapshot module_def.m_free so _test_m_free_registered() can verify the
+     * registration without needing a forward declaration of module_def. */
+    g_module_def_m_free = module_def.m_free;
+#endif
 
     return m;
 }
