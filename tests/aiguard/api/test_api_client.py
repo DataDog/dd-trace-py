@@ -316,6 +316,28 @@ def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_
     assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_custom_tags(mock_execute_request, ai_guard_client, test_spans):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    ai_guard_client.evaluate(PROMPT, tags={"customer.tenant": "acme", "customer.tier": "gold"})
+
+    span = find_ai_guard_span(test_spans)
+    assert span.get_tag("customer.tenant") == "acme"
+    assert span.get_tag("customer.tier") == "gold"
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_custom_tags_do_not_override_ai_guard_tags(mock_execute_request, ai_guard_client, test_spans):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=False)
+
+    ai_guard_client.evaluate(PROMPT, tags={AI_GUARD.ACTION_TAG: "ALLOW", AI_GUARD.TARGET_TAG: "tool"})
+
+    span = find_ai_guard_span(test_spans)
+    assert span.get_tag(AI_GUARD.ACTION_TAG) == "DENY"
+    assert span.get_tag(AI_GUARD.TARGET_TAG) == "prompt"
+
+
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):

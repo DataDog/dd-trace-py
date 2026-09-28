@@ -306,6 +306,7 @@ class AIGuardClient:
         options: Optional[Options] = None,
         source: str = AI_GUARD.SOURCE_SDK,
         integration: str = AI_GUARD.INTEGRATION_NONE,
+        tags: Optional[dict[str, Any]] = None,
     ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
@@ -319,6 +320,8 @@ class AIGuardClient:
                 auto-instrumentation passes auto.
             integration: Name of the auto-instrumented AI package, reported as the integration
                 telemetry tag. Only meaningful when source is auto; otherwise reported as none.
+            tags: Optional custom tags set on the AI Guard span, e.g. to filter evaluations in
+                queries. AI Guard's own tags take precedence on key collisions.
 
         Returns:
             EvaluationResult containing action and reason
@@ -341,6 +344,9 @@ class AIGuardClient:
         call_path_tags = self._call_path_tags(source, integration)
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+            if tags:
+                for key, value in tags.items():
+                    span.set_tag(key, value)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
@@ -382,7 +388,7 @@ class AIGuardClient:
                         attributes = result["data"]["attributes"]
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
-                        tags = attributes.get("tags", [])
+                        attack_categories = attributes.get("tags", [])
                         # Reported verbatim: location offsets are computed on the redacted string, so
                         # they only line up when the redacted messages are what ends up reported.
                         sds_findings = attributes.get("sds_findings") or []
@@ -424,8 +430,8 @@ class AIGuardClient:
                     meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
-                    if tags:
-                        meta_struct.update({"attack_categories": tags})
+                    if attack_categories:
+                        meta_struct.update({"attack_categories": attack_categories})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                     if sds_findings:
@@ -480,7 +486,7 @@ class AIGuardClient:
                     raise AIGuardAbortError(
                         action=action,
                         reason=reason,
-                        tags=tags,
+                        tags=attack_categories,
                         sds=sds_findings,
                         tag_probs=tag_probs,
                     )
@@ -488,7 +494,7 @@ class AIGuardClient:
                 return Evaluation(
                     action=action,
                     reason=reason,
-                    tags=tags,
+                    tags=attack_categories,
                     sds=sds_findings,
                     tag_probs=tag_probs,
                     messages=redacted_messages,
