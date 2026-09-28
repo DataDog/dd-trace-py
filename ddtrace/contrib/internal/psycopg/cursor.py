@@ -8,7 +8,7 @@ from ddtrace.contrib import dbapi
 
 def _render_composable_query(query: Any, sql: Any, context: object) -> Optional[str]:
     """Render only built-in SQL structure, without invoking parameter adapters."""
-    # AIDEV-NOTE: Only built-in structural SQL nodes are safe: Literal and custom
+    # Only built-in structural SQL nodes are safe: Literal and custom
     # composables can invoke stateful dumpers, changing the subsequent execution.
     if type(query) in (sql.SQL, sql.Identifier, sql.Placeholder):
         rendered = query.as_string(context)

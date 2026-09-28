@@ -59,7 +59,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     return AIOTracedConnection(conn, db_tags=tags)
 
 
-# AIDEV-NOTE: Keep this cursor on ObjectProxy. TracedAsyncCursor's inherited
+# Keep this cursor on ObjectProxy. TracedAsyncCursor's inherited
 # methods assume a different _trace_method signature and change callproc behavior.
 class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a aiomysql cursor and traces its queries."""
