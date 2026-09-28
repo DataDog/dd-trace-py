@@ -267,6 +267,22 @@ class PsycopgCore(TracerTestCase):
 
         assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
 
+    def test_byte_query_event_uses_connection_encoding(self) -> None:
+        query = "SELECT 'é'"
+        original_query = query.encode("iso8859-1")
+        events: list[DbQueryEvent] = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            with psycopg.connect(**POSTGRES_CONFIG, client_encoding="LATIN1") as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(original_query)
+                    assert cursor.fetchone() == ("é",)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=query, span_name_prefix="postgres")]
+
     @skipIf(
         sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
         "psycopg template queries require Python 3.14 and psycopg 3.3",

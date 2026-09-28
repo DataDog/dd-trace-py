@@ -104,6 +104,24 @@ class AiopgTestCase(AsyncioTestCase):
 
         assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
 
+    @mark_asyncio
+    async def test_byte_query_event_uses_connection_encoding(self):
+        self._conn = await aiopg.connect(**POSTGRES_CONFIG, options="-c client_encoding=LATIN1")
+        raw_cursor = await self._conn.cursor()
+        cursor = AIOTracedCursor(raw_cursor, Pin())
+        query = "SELECT 'é'"
+        original_query = query.encode("iso8859-1")
+        events = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            await cursor.execute(original_query)
+            assert await cursor.fetchone() == ("é",)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=query, span_name_prefix="postgres")]
+
     @pytest.mark.asyncio
     async def _get_conn(self):
         self._conn = await aiopg.connect(**POSTGRES_CONFIG)

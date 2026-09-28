@@ -62,6 +62,23 @@ class PsycopgCore(TracerTestCase):
 
         assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
 
+    def test_byte_query_event_uses_connection_encoding(self):
+        query = "SELECT 'é'"
+        original_query = query.encode("iso8859-1")
+        events = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            with self._get_conn() as connection:
+                connection.set_client_encoding("LATIN1")
+                with connection.cursor() as cursor:
+                    cursor.execute(original_query)
+                    assert cursor.fetchone() == ("é",)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=query, span_name_prefix="postgres")]
+
     def test_patch_unpatch(self):
         # Test patch idempotence
         patch()

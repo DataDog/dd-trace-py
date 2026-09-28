@@ -12,6 +12,17 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
         super().__init__(cursor, cfg=cfg, *args, **kwargs)
 
     def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
+        if isinstance(query, bytes):
+            context = getattr(self.__wrapped__, "cursor", self.__wrapped__)
+            if context is None:
+                return None
+            connection = context.connection
+            if hasattr(connection, "encoding"):
+                # Psycopg2 uses PostgreSQL encoding names, which are not always Python codec names.
+                encoding = sys.modules["psycopg2.extensions"].encodings[connection.encoding]
+            else:
+                encoding = connection.info.encoding
+            return query.decode(encoding)
         rendered_query = super()._render_dbapi_query(query)
         if rendered_query is not None:
             return rendered_query
@@ -34,7 +45,7 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
             tstrings = sys.modules.get("psycopg._tstrings")
             if tstrings is None:
                 return None
-            # AIDEV-NOTE: Match psycopg's server query path without dumping bound values.
+            # Match psycopg's server query path without dumping bound values.
             tx = sql.Transformer(context)
             processor = tstrings.TemplateProcessor(query, tx=tx, server_params=True)
             processor.process()

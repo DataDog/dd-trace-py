@@ -4,6 +4,7 @@ from typing import Union
 
 from aiopg import __version__
 from aiopg.utils import _ContextManager
+from psycopg2 import extensions
 from psycopg2 import sql
 import wrapt
 
@@ -38,8 +39,11 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
     def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
-        if isinstance(query, (str, bytes)):
+        if isinstance(query, str):
             return query
+        if isinstance(query, bytes):
+            connection = self.__wrapped__._impl.connection
+            return query.decode(extensions.encodings[connection.encoding])
         if isinstance(query, sql.Composable):
             rendered_query = query.as_string(self.__wrapped__._impl)
             return rendered_query if isinstance(rendered_query, str) else None

@@ -37,9 +37,11 @@ cursor. This includes Literal nodes. Rendering may happen again during execution
 so stateful values inside literals may be adapted twice. For psycopg 3.3 templates,
 use its server-query processor for default cursors and sql.as_string() for client
 cursors, matching how each cursor sends SQL. Client rendering may also adapt bound
-values twice. Django's wrapper cursor exposes the native cursor through its cursor
-attribute. Legacy psycopg tracing still renders SQL/Composed resources in
-_trace_method(); keep event rendering independent of that APM behavior.
+values twice. Decode byte queries for inspection with the cursor's connection
+encoding; pass the original bytes to the driver. Django's wrapper cursor
+exposes the native cursor through its cursor attribute. Legacy psycopg tracing
+still renders SQL/Composed resources in _trace_method(); keep event rendering
+independent of that APM behavior.
 
 ## LLM / Generative AI Detail
 
