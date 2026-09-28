@@ -273,6 +273,46 @@ def test_event_fork():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess(timeout=15)
+def test_service_lock_is_reset_after_fork():
+    import os
+    import threading
+
+    from ddtrace.internal import service
+
+    class TestService(service.Service):
+        def _start_service(self):
+            pass
+
+        def _stop_service(self):
+            pass
+
+    test_service = TestService()
+    lock_acquired = threading.Event()
+    release_lock = threading.Event()
+
+    def hold_service_lock():
+        with test_service._service_lock:
+            lock_acquired.set()
+            release_lock.wait()
+
+    owner = threading.Thread(target=hold_service_lock)
+    owner.start()
+    assert lock_acquired.wait(1)
+
+    child = os.fork()
+    if child == 0:
+        acquired_in_child = test_service._service_lock.acquire(timeout=1)
+        os._exit(0 if acquired_in_child else 1)
+
+    release_lock.set()
+    owner.join(1)
+    assert not owner.is_alive()
+    _, status = os.waitpid(child, 0)
+    assert os.WIFEXITED(status)
+    assert os.WEXITSTATUS(status) == 0
+
+
 @pytest.mark.subprocess
 def test_double_fork():
     import os
@@ -410,9 +450,10 @@ def test_lock_pickle_roundtrip(serializer: ModuleType) -> None:
     lock.acquire()  # locked in the source process
 
     data: bytes = serializer.dumps(lock)
-    restored: threading.Lock = serializer.loads(data)
+    restored = serializer.loads(data)
 
     assert isinstance(restored, forksafe.ResetObject)
+    assert isinstance(restored, threading.Lock)
     assert restored.acquire(blocking=False) is True
     restored.release()
     assert restored in forksafe._resetable_objects

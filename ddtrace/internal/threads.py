@@ -34,12 +34,20 @@ __all__ = [
     "RLock",
 ]
 
+# Exact text of the RuntimeErrors ddtrace/internal/_threads.cpp raises for a
+# thread/periodic-thread that was never started (via PyErr_SetString(PyExc_RuntimeError, ...)).
+# Callers such as ddtrace.profiling.scheduler.Scheduler._rollback_start match on these strings to
+# tell "never started" apart from a real failure; keep all three in sync if the native messages
+# change.
+THREAD_NOT_STARTED_ERROR = "Thread not started"
+PERIODIC_THREAD_NOT_STARTED_ERROR = "Periodic thread not started"
+
 
 # Forking state management. This is a barrier to either prevent new threads
 # from being started while forking, or to allow a thread to be started
 # completely if a fork comes in the middle of it.
 _forking = False
-_forking_lock = Lock()
+_forking_lock = forksafe.Lock()
 
 
 class BoundMethod(t.Protocol):
@@ -75,6 +83,7 @@ class PeriodicThread(_PeriodicThread):
 
     def start(self) -> None:
         with _forking_lock:
+            self._restart_cancelled = False
             # We cannot start a new thread while we are forking, because we are
             # trying to stop them all. In that case, we take note of the thread
             # and start it after the fork.
@@ -82,6 +91,27 @@ class PeriodicThread(_PeriodicThread):
                 super().start()
             else:
                 _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
+
+    def _cancel_deferred_start(self) -> bool:
+        with _forking_lock:
+            return self._cancel_deferred_start_unlocked()
+
+    def _cancel_deferred_start_unlocked(self) -> bool:
+        # AIDEV-NOTE: Callers outside this module (ddtrace.profiling.scheduler.Scheduler
+        # ._rollback_start) call this `_unlocked` variant directly while holding
+        # `_forking_lock` themselves, instead of `_cancel_deferred_start()`, because they need
+        # the decision made here (deferred vs. already-running) to stay atomic with a fallback
+        # stop/join they run under the same lock. If this method's contract (return value
+        # semantics, or what state it mutates) changes, update that call site too.
+        retained_starts = [start for start in _threads_to_start_after_fork if start.__self__ is not self]
+        start_was_deferred = len(retained_starts) != len(_threads_to_start_after_fork)
+        _threads_to_start_after_fork[:] = retained_starts
+
+        # AIDEV-NOTE: A running worker still needs pre-fork stop/join, but its owner can
+        # prevent the completed fork protocol from restarting it.
+        self._restart_cancelled = True
+        _threads_to_restart_after_fork.discard(self)
+        return start_was_deferred
 
 
 class Thread(PeriodicThread):
@@ -195,7 +225,8 @@ class ThreadRestartTimer(PeriodicThread):
 def _after_fork_child():
     global _forking
 
-    _forking = False
+    with _forking_lock:
+        _forking = False
 
     # Clean up child-ineligible workers now and remove them from the pending set.
     # A nested fork may promote the timer to the parent-side force policy, which must only apply
@@ -239,18 +270,24 @@ def _before_fork() -> None:
     with _forking_lock:
         _forking = True
 
-    # Take note of all the periodic threads that are running and will need to be
-    # restarted.
-    _threads_to_restart_after_fork.update(periodic_threads.values())
+        # AIDEV-NOTE: Native starts and restarts finish registration before the wrapper releases
+        # _forking_lock, so this snapshot includes every worker that can be running at fork time.
+        threads_to_stop = set(periodic_threads.values())
+        threads_to_stop.update(_threads_to_restart_after_fork)
+
+        _threads_to_restart_after_fork.update(
+            thread for thread in threads_to_stop if not getattr(thread, "_restart_cancelled", False)
+        )
+        threads_to_stop_snapshot = tuple(threads_to_stop)
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads
     # more promptly.
-    for thread in _threads_to_restart_after_fork:
+    for thread in threads_to_stop_snapshot:
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
     # Join all the threads to ensure they are stopped before the fork.
-    for thread in _threads_to_restart_after_fork:
+    for thread in threads_to_stop_snapshot:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
