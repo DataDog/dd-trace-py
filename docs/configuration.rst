@@ -739,6 +739,45 @@ AI Guard
 
 .. ddtrace-configuration-options::
 
+   DD_AI_GUARD_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       Master switch for AI Guard. When set to ``True``, the tracer evaluates LLM prompts, tool calls
+       and tool results of the instrumented integrations with the Datadog AI Guard service. When set
+       to ``False`` (default), AI Guard is not loaded and every other ``DD_AI_GUARD_*`` option is
+       ignored. Requires ``DD_API_KEY`` and ``DD_APP_KEY``.
+
+   DD_AI_GUARD_ENDPOINT:
+     type: String
+     default: (derived from ``DD_SITE``)
+     description: |
+       Overrides the AI Guard service endpoint. When unset, the endpoint is
+       ``https://app.<DD_SITE>/api/v2/ai-guard``, for example
+       ``https://app.datadoghq.com/api/v2/ai-guard``.
+
+   DD_AI_GUARD_TIMEOUT:
+     type: Integer
+     default: 10000 (unit:milliseconds)
+     description: |
+       Timeout of each request to the AI Guard service. The value is currently applied with
+       whole-second granularity: it is rounded down to the nearest second, so set it to at least
+       ``1000``.
+
+   DD_AI_GUARD_MAX_CONTENT_SIZE:
+     type: Integer
+     default: 524288 (unit:characters)
+     description: |
+       Maximum length of each message content reported on the AI Guard span. Longer content is
+       truncated in the span only; the AI Guard service always evaluates the full content.
+
+   DD_AI_GUARD_MAX_MESSAGES_LENGTH:
+     type: Integer
+     default: 16
+     description: |
+       Maximum number of messages reported on the AI Guard span. Only the most recent messages are
+       kept; the AI Guard service always evaluates the full conversation.
+
    DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED:
      type: Boolean
      default: False
