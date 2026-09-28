@@ -51,7 +51,7 @@ def _llmobs_events_from_test_spans(test_spans):
             "start_ns": span.start_ns,
             "meta": data.get("meta", {}),
             "metrics": data.get("metrics", {}),
-            "tags": sorted("{}:{}".format(k, v) for k, v in tags_dict.items()),
+            "tags": sorted(f"{k}:{v}" for k, v in tags_dict.items()),
             "_dd": {"apm_trace_id": format_trace_id(span.trace_id)},
         }
         events.append(event)
@@ -76,13 +76,13 @@ def _extract_inner_spans(events):
 
 
 def _assert_agent_span(agent_span, resp_str):
-    assert agent_span["name"] == "Bedrock Agent {}".format(AGENT_ID)
+    assert agent_span["name"] == f"Bedrock Agent {AGENT_ID}"
     assert agent_span["meta"]["input"]["value"] == AGENT_INPUT
     assert agent_span["meta"]["output"]["value"] == resp_str
     assert agent_span["meta"]["metadata"]["agent_alias_id"] == AGENT_ALIAS_ID
     assert agent_span["meta"]["metadata"]["agent_id"] == AGENT_ID
     assert agent_span["meta"]["span"]["kind"] == "agent"
-    assert "session_id:{}".format(SESSION_ID) in agent_span["tags"]
+    assert f"session_id:{SESSION_ID}" in agent_span["tags"]
 
 
 def _assert_trace_step_spans(trace_step_spans):
@@ -185,7 +185,7 @@ def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, bedrock_
             pass
     events = _llmobs_events_from_test_spans(test_spans)
     assert len(events) == 1
-    assert events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
+    assert events[0]["name"] == f"Bedrock Agent {AGENT_ID}"
 
 
 def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, bedrock_agents_llmobs, test_spans):
@@ -203,7 +203,7 @@ def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, b
             pass
     events = _llmobs_events_from_test_spans(test_spans)
     assert len(events) == 1
-    assert events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
+    assert events[0]["name"] == f"Bedrock Agent {AGENT_ID}"
 
 
 def test_translated_step_events_share_apm_trace_id_with_root(
@@ -226,7 +226,7 @@ def test_translated_step_events_share_apm_trace_id_with_root(
     assert len(events) == 20
     apm_trace_ids = {event["_dd"]["apm_trace_id"] for event in events}
     assert len(apm_trace_ids) == 1, "expected all step events to share the root agent's apm_trace_id"
-    root_event = next(e for e in events if e["name"] == "Bedrock Agent {}".format(AGENT_ID))
+    root_event = next(e for e in events if e["name"] == f"Bedrock Agent {AGENT_ID}")
     trace_step_spans = _extract_trace_step_spans(events)
     step_event_ids = {e["span_id"] for e in trace_step_spans}
     inner_events = _extract_inner_spans(events)
@@ -259,7 +259,7 @@ def test_translate_bedrock_traces_finishes_orphaned_step_spans(bedrock_agents_ll
     integration = BedrockIntegration(MagicMock())
     assert integration.llmobs_enabled is True
 
-    with tracer.trace("Bedrock Agent {}".format(AGENT_ID), span_type=SpanTypes.LLM) as root_span:
+    with tracer.trace(f"Bedrock Agent {AGENT_ID}", span_type=SpanTypes.LLM) as root_span:
         traces = [_build_model_invocation_input_trace("step-orphan", datetime.now(tz=timezone.utc))]
         integration.translate_bedrock_traces(traces, root_span)
 

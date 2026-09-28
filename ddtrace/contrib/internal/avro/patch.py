@@ -2,7 +2,7 @@ import avro
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.trace import tracer
 
@@ -33,8 +33,6 @@ def patch():
 
     _w("avro.io", "DatumReader.read", _traced_deserialize)
     _w("avro.io", "DatumWriter.write", _traced_serialize)
-    Pin().onto(avro.io.DatumReader)
-    Pin().onto(avro.io.DatumWriter)
 
 
 def unpatch():
@@ -53,8 +51,7 @@ def _traced_serialize(func, instance, args, kwargs):
     if not config._data_streams_enabled:
         return func(*args, **kwargs)
 
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     active = tracer.current_span()
@@ -71,8 +68,7 @@ def _traced_deserialize(func, instance, args, kwargs):
     if not config._data_streams_enabled:
         return func(*args, **kwargs)
 
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     active = tracer.current_span()

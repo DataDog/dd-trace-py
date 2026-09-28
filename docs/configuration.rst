@@ -455,6 +455,35 @@ Traces
      version_added:
         v4.11.0:
 
+   DD_LLMOBS_SAMPLING_RULES:
+     type: JSON array
+
+     description: |
+         A JSON array of tag-based sampling rules for LLM Observability traces, mirroring the format of
+         ``DD_TRACE_SAMPLING_RULES``. Each rule requires a ``sample_rate`` and may declare a ``tags``
+         object mapping tag names to glob patterns, matched case-insensitively against the root span of
+         the trace (``*`` matches any number of characters, ``?`` exactly one). Every declared tag must
+         match, so a rule with no ``tags`` matches every trace.
+
+         Rules are evaluated in order and the first match wins, with its rate replacing
+         ``DD_LLMOBS_SAMPLE_RATE``. Traces matching no rule fall back to that global rate. One decision
+         applies to the whole trace and is propagated across distributed boundaries.
+
+         **Note** that the decision is made as late as possible and then frozen, so that every span of a
+         trace carries the same one. Because rules match against the root span's tags as they stand at
+         that moment, a tag set after the freeze does not affect sampling. The freeze happens at
+         whichever of these comes first:
+
+         * the first outbound request from an instrumented integration, which propagates the decision;
+         * handing the trace off to another thread or to an ``asyncio`` task;
+         * a partial flush (see ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS``, 300 spans by default);
+         * the root span finishing.
+
+         **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
+
+     version_added:
+        v4.15.0:
+
 Trace Context propagation
 -------------------------
 
@@ -556,6 +585,59 @@ Metrics
      version_added:
        v3.11.0:
 
+   DD_TRACE_STATS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 7000
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct trace metrics aggregation keys tracked during a single flush period when
+         client-side stats computation is enabled. Once the limit is reached, further keys are
+         aggregated together under a sentinel key. Lower it to bound memory usage for applications
+         with very high cardinality.
+
+   DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT:
+     type: Integer
+     default: 1024
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct resource names tracked during a single flush period when client-side stats
+         computation is enabled. Resource names beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct HTTP endpoints tracked during a single flush period when client-side stats
+         computation is enabled. Endpoints beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct peer tag combinations tracked during a single flush period when client-side
+         stats computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 100
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct combinations of the tags configured with
+         ``DD_TRACE_STATS_ADDITIONAL_TAGS`` tracked during a single flush period when client-side stats
+         computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
 Application & API Security
 --------------------------
 
@@ -656,6 +738,45 @@ AI Guard
 --------
 
 .. ddtrace-configuration-options::
+
+   DD_AI_GUARD_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       Master switch for AI Guard. When set to ``True``, the tracer evaluates LLM prompts, tool calls
+       and tool results of the instrumented integrations with the Datadog AI Guard service. When set
+       to ``False`` (default), AI Guard is not loaded and every other ``DD_AI_GUARD_*`` option is
+       ignored. Requires ``DD_API_KEY`` and ``DD_APP_KEY``.
+
+   DD_AI_GUARD_ENDPOINT:
+     type: String
+     default: (derived from ``DD_SITE``)
+     description: |
+       Overrides the AI Guard service endpoint. When unset, the endpoint is
+       ``https://app.<DD_SITE>/api/v2/ai-guard``, for example
+       ``https://app.datadoghq.com/api/v2/ai-guard``.
+
+   DD_AI_GUARD_TIMEOUT:
+     type: Integer
+     default: 10000 (unit:milliseconds)
+     description: |
+       Timeout of each request to the AI Guard service. The value is currently applied with
+       whole-second granularity: it is rounded down to the nearest second, so set it to at least
+       ``1000``.
+
+   DD_AI_GUARD_MAX_CONTENT_SIZE:
+     type: Integer
+     default: 524288 (unit:characters)
+     description: |
+       Maximum length of each message content reported on the AI Guard span. Longer content is
+       truncated in the span only; the AI Guard service always evaluates the full content.
+
+   DD_AI_GUARD_MAX_MESSAGES_LENGTH:
+     type: Integer
+     default: 16
+     description: |
+       Maximum number of messages reported on the AI Guard span. Only the most recent messages are
+       kept; the AI Guard service always evaluates the full conversation.
 
    DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED:
      type: Boolean

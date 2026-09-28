@@ -1,10 +1,10 @@
 import base64
+from collections.abc import Iterable
 from dataclasses import dataclass
 import inspect
 import json
 import re
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 
@@ -464,7 +464,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
-                Message(content="[Unsupported content type: {}]".format(content_type), role=role)
+                Message(content=f"[Unsupported content type: {content_type}]", role=role)
             )
     message: Message = Message()
     if tool_calls_info:
@@ -523,7 +523,7 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
-# AIDEV-NOTE: Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
+# Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
 # it, _truncate_span_event blanks the span's whole input AND output. Two gaps shared with the audio
 # guard, for the writer-side fix (MLOB-6408): bounds one image not their sum, and ignores
 # DD_LLMOBS_EVENT_SIZE_BYTES.
@@ -566,7 +566,7 @@ def format_image_part_with_guard(
     return format_image_part(data, mime_type)
 
 
-# AIDEV-NOTE: per-image, not cumulative. N images that each fit can still bust the event limit
+# per-image, not cumulative. N images that each fit can still bust the event limit
 # together; a shared per-request budget is tracked under MLOB-6408.
 # Distinct from LLMOBS_IMAGE_INLINE_MAX_BYTES above on purpose: this OpenAI data-URL path tracks the
 # configured limit, while the Anthropic guard keeps its fixed default. Unifying them would change
@@ -1585,7 +1585,7 @@ class OaiSpanAdapter:
         """Get the span name."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
             return self._raw_oai_span.span_data.name
-        return "openai_agents.{}".format(self.span_type.lower())
+        return f"openai_agents.{self.span_type.lower()}"
 
     @property
     def span_type(self) -> str:

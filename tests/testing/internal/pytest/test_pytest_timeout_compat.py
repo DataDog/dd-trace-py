@@ -159,6 +159,8 @@ def pytest_timeout_cancel_timer(item):
                     known_tests=known_tests,
                 ),
             ),
+            patch("ddtrace.testing.internal.test_data.TestRun.seconds_so_far", return_value=0),
+            patch("ddtrace.testing.internal.test_data.Test.seconds_so_far", return_value=0),
             setup_standard_mocks(),
         ):
             result = pytester.inline_run("--ddtrace", "--timeout=30", "-v", "-s")

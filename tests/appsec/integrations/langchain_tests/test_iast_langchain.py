@@ -1,6 +1,6 @@
+from collections.abc import AsyncIterator
+from collections.abc import Iterator
 import json
-from typing import AsyncIterator
-from typing import Iterator
 
 from langchain.agents import AgentExecutor
 from langchain.agents import AgentType

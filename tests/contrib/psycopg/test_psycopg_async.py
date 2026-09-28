@@ -2,8 +2,8 @@
 import json
 import sys
 import time
+from unittest import mock
 
-import mock
 import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Identifier
@@ -29,12 +29,12 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 class PsycopgCore(AsyncioTestCase):
     def setUp(self):
-        super(PsycopgCore, self).setUp()
+        super().setUp()
 
         patch()
 
     def tearDown(self):
-        super(PsycopgCore, self).tearDown()
+        super().tearDown()
 
         unpatch()
 
@@ -132,7 +132,7 @@ class PsycopgCore(AsyncioTestCase):
         conn = await self._get_conn()
         t = type(conn.cursor())
         async with conn.cursor() as cur:
-            assert t == type(cur), "{} != {}".format(t, type(cur))
+            assert t == type(cur), f"{t} != {type(cur)}"
             await cur.execute(query="""select 'blah'""")
             rows = await cur.fetchall()
             assert len(rows) == 1, rows

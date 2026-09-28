@@ -69,13 +69,13 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg instances"""
 
     def __init__(self, cursor, cfg, *args, **kwargs):
-        super(Psycopg3TracedCursor, self).__init__(cursor, cfg=cfg, *args, **kwargs)
+        super().__init__(cursor, cfg=cfg, *args, **kwargs)
 
     def _query_rendering_context(self) -> object:
         return getattr(self.__wrapped__, "cursor", self.__wrapped__)
 
     def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
-        rendered_query = super(Psycopg3TracedCursor, self)._render_dbapi_query(query)
+        rendered_query = super()._render_dbapi_query(query)
         if rendered_query is not None:
             return rendered_query
         sql = sys.modules.get(query.__class__.__module__)
@@ -96,9 +96,7 @@ class Psycopg3TracedCursor(dbapi.TracedCursor):
             resource.__class__.__name__ == "SQL" or resource.__class__.__name__ == "Composed"
         ):
             resource = resource.as_string(self.__wrapped__)
-        return super(Psycopg3TracedCursor, self)._trace_method(
-            method, name, resource, extra_tags, dbm_propagator, *args, **kwargs
-        )
+        return super()._trace_method(method, name, resource, extra_tags, dbm_propagator, *args, **kwargs)
 
 
 class Psycopg3FetchTracedCursor(Psycopg3TracedCursor, dbapi.FetchTracedCursor):

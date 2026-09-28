@@ -123,7 +123,7 @@ def test_schematized_service_names(ddtrace_run_python_code_in_subprocess, schema
     expected_service_name = {None: "django", "v0": "django", "v1": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME}[
         schema_version
     ]
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -137,11 +137,11 @@ def test(client, test_spans):
     assert response.status_code == 500
 
     sp = test_spans.get_root_span()
-    assert sp.service == "{}"
+    assert sp.service == "{expected_service_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -159,7 +159,7 @@ def test_schematized_operation_names(ddtrace_run_python_code_in_subprocess, sche
     expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
         schema_version
     ]
-    code = """
+    code = f"""
 import pytest
 import sys
 from tests.conftest import *
@@ -172,11 +172,11 @@ def test(client, test_spans):
     assert response.status_code == 500
 
     sp = test_spans.get_root_span()
-    assert sp.name == "{}"
+    assert sp.name == "{expected_operation_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

@@ -58,7 +58,7 @@ def _patch_env_for_testing():
             return_value=TestVisibilityAPISettings(),
         ),
         mock.patch("ddtrace.config._ci_visibility_agentless_enabled", True),
-        # AIDEV-NOTE: In xdist workers, detect_service() picks up _DD_PYTEST_XDIST_INFERRED_SERVICE
+        # In xdist workers, detect_service() picks up _DD_PYTEST_XDIST_INFERRED_SERVICE
         # (e.g. "tests.ci_visibility") from the environment. That value leaks into Config() built
         # here, causing Config.service to be "tests.ci_visibility" even after env is cleared, which
         # then propagates to CIVisibility._instance._api_client._service instead of the expected

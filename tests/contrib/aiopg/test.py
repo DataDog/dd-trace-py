@@ -1,8 +1,8 @@
 import json
 import time
+from unittest import mock
 
 import aiopg
-import mock
 from psycopg2 import extras
 from psycopg2.sql import SQL
 from psycopg2.sql import Identifier

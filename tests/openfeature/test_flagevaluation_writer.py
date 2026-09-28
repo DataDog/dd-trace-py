@@ -31,6 +31,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_CYCLE
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_KEY_LENGTH
@@ -77,6 +79,8 @@ from ddtrace.internal.openfeature._flagevaluation_writer import _flatten_sequenc
 from ddtrace.internal.openfeature._flagevaluation_writer import _json_dumps
 from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
+from ddtrace.internal.settings.openfeature import AGENTLESS
+from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import PeriodicThread
 
@@ -98,6 +102,8 @@ def _make_event(
     runtime_default: bool = False,
     error_message: str = "",
     eval_time_ms: int = None,
+    observe_full_evaluation_data: bool = False,
+    error_code: str = "",
 ) -> _EvalEvent:
     if eval_time_ms is None:
         eval_time_ms = int(time.time() * 1000)
@@ -110,6 +116,8 @@ def _make_event(
         runtime_default=runtime_default,
         error_message=error_message,
         eval_time_ms=eval_time_ms,
+        observe_full_evaluation_data=observe_full_evaluation_data,
+        error_code=error_code,
     )
 
 
@@ -141,6 +149,19 @@ def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> No
             raise AssertionError(f"unexpected metric {name} tags={tags}: {call}")
 
 
+def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key=None, site="datadoghq.com"):
+    return FeatureFlagEVPRouteSelector(
+        configuration_source=source,
+        agent_url="http://agent:8126",
+        api_key=api_key,
+        site=site,
+        info_provider=lambda _: {
+            "endpoints": endpoints,
+            "evp_proxy_allowed_headers": tuple(EVP_ORIGIN_HEADERS),
+        },
+    )
+
+
 def _json_dumps_rejecting_invalid_row(obj: typing.Any) -> bytes:
     if isinstance(obj, dict) and obj.get("flag", {}).get("key") == "invalid":
         raise TypeError("invalid row")
@@ -150,7 +171,7 @@ def _json_dumps_rejecting_invalid_row(obj: typing.Any) -> bytes:
 @pytest.fixture
 def writer():
     """Create a FlagEvaluationWriter that is NOT started (no background thread)."""
-    return FlagEvaluationWriter(interval=10.0)
+    return FlagEvaluationWriter(interval=10.0, route_selector=_route_selector())
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +312,7 @@ class TestFlattenAndPruneContext:
         nested = {"inner": "original"}
         attrs = {"scalar": "original", "nested": nested}
 
-        writer.enqueue(_make_event(attrs=attrs))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs=attrs))
 
         attrs["scalar"] = "mutated"
         nested["inner"] = "mutated"
@@ -776,7 +797,7 @@ class TestFlattenAndPruneContext:
 
     def test_non_string_scalars_do_not_get_an_unapproved_length_cap(self, writer):
         large_integer = 10 ** (MAX_VALUE_LENGTH + 1)
-        writer.enqueue(_make_event(attrs={"value": large_integer, "missing": None}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"value": large_integer, "missing": None}))
         assert writer._queue.get_nowait().attrs == {"value": large_integer, "missing": None}
         assert writer._context_truncated == {}
 
@@ -796,7 +817,7 @@ class TestFlattenAndPruneContext:
         caller object to coerce it. Ruby's bounded_context_snapshot falls through its
         leaf type case the same way, so Python matches the reference implementation.
         """
-        writer.enqueue(_make_event(attrs=attrs))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs=attrs))
         assert writer._queue.get_nowait().attrs == {"kept": "retained"}
         assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
 
@@ -816,7 +837,11 @@ class TestFlattenAndPruneContext:
             def __str__(self):
                 raise AssertionError("subclass conversion must not run")
 
-        writer.enqueue(_make_event(attrs={"tier": Tier.GOLD, "region": Region.EU, LazyKey("lazy"): "v"}))
+        writer.enqueue(
+            _make_event(
+                observe_full_evaluation_data=True, attrs={"tier": Tier.GOLD, "region": Region.EU, LazyKey("lazy"): "v"}
+            )
+        )
         assert writer._queue.get_nowait().attrs == {"tier": 3, "region": "eu-west", "lazy": "v"}
         assert writer._context_truncated == {}
 
@@ -857,13 +882,13 @@ class TestFlattenAndPruneContext:
         value would make the whole payload undecodable and discard every event batched
         with it, so the field is dropped and counted like any other unsupported value.
         """
-        writer.enqueue(_make_event(attrs={"kept": 1.5, "unsafe": unsafe}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"kept": 1.5, "unsafe": unsafe}))
         assert writer._queue.get_nowait().attrs == {"kept": 1.5}
         assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
 
     def test_non_finite_float_in_a_list_drops_only_that_element(self, writer):
         """The sequence walk has its own inline leaf path, so it needs its own guard."""
-        writer.enqueue(_make_event(attrs={"scores": [1.5, float("nan"), 2.5]}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"scores": [1.5, float("nan"), 2.5]}))
         assert writer._queue.get_nowait().attrs == {"scores[0]": 1.5, "scores[2]": 2.5}
         assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
 
@@ -877,7 +902,9 @@ class TestFlattenAndPruneContext:
         class Measurement(float):
             pass
 
-        writer.enqueue(_make_event(attrs={"kept": "retained", "unsafe": Measurement("nan")}))
+        writer.enqueue(
+            _make_event(observe_full_evaluation_data=True, attrs={"kept": "retained", "unsafe": Measurement("nan")})
+        )
         assert writer._queue.get_nowait().attrs == {"kept": "retained"}
         assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
 
@@ -908,7 +935,11 @@ class TestFlattenAndPruneContext:
             def isoformat(self, *args: typing.Any, **kwargs: typing.Any) -> typing.NoReturn:
                 raise AssertionError("subclass conversion must not run")
 
-        writer.enqueue(_make_event(attrs={"value": UnsafeDatetime(2026, 1, 1), "kept": "retained"}))
+        writer.enqueue(
+            _make_event(
+                observe_full_evaluation_data=True, attrs={"value": UnsafeDatetime(2026, 1, 1), "kept": "retained"}
+            )
+        )
         # The base tzinfo descriptor and datetime.isoformat are called directly, so
         # neither subclass override runs and the value is retained normally.
         assert writer._queue.get_nowait().attrs == {
@@ -928,7 +959,7 @@ class TestFlattenAndPruneContext:
         unsafe_timezone = UnsafeTimezone()
         timestamp = datetime(2026, 1, 1, tzinfo=unsafe_timezone)
 
-        writer.enqueue(_make_event(attrs={"value": timestamp, "kept": "retained"}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"value": timestamp, "kept": "retained"}))
 
         assert unsafe_timezone.called is False
         assert writer._queue.get_nowait().attrs == {"kept": "retained"}
@@ -945,7 +976,7 @@ class TestFlattenAndPruneContext:
         unsafe_timezone = UnsafeZoneInfo("UTC")
         timestamp = datetime(2026, 1, 1, tzinfo=unsafe_timezone)
 
-        writer.enqueue(_make_event(attrs={"value": timestamp, "kept": "retained"}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"value": timestamp, "kept": "retained"}))
 
         assert unsafe_timezone.called is False
         assert writer._queue.get_nowait().attrs == {"kept": "retained"}
@@ -955,7 +986,9 @@ class TestFlattenAndPruneContext:
         fixed_offset = datetime(2026, 1, 1, tzinfo=timezone(timedelta(hours=5, minutes=30)))
         named_zone = datetime(2026, 1, 1, tzinfo=ZoneInfo("UTC"))
 
-        writer.enqueue(_make_event(attrs={"fixed": fixed_offset, "named": named_zone}))
+        writer.enqueue(
+            _make_event(observe_full_evaluation_data=True, attrs={"fixed": fixed_offset, "named": named_zone})
+        )
 
         assert writer._queue.get_nowait().attrs == {
             "fixed": "2026-01-01T00:00:00+05:30",
@@ -987,15 +1020,15 @@ class TestAggregation:
 
     def test_two_evals_differing_context_value_type_produce_two_buckets(self, writer):
         """int 1 vs str '1' in context produce two distinct full-tier buckets."""
-        e_int = _make_event(attrs={"x": 1})
-        e_str = _make_event(attrs={"x": "1"})
+        e_int = _make_event(observe_full_evaluation_data=True, attrs={"x": 1})
+        e_str = _make_event(observe_full_evaluation_data=True, attrs={"x": "1"})
         writer._aggregate(e_int)
         writer._aggregate(e_str)
         assert len(writer._full) == 2
 
     def test_null_and_absent_contexts_produce_two_buckets(self, writer):
-        writer.enqueue(_make_event(attrs={}))
-        writer.enqueue(_make_event(attrs={"region": None}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"region": None}))
 
         writer._drain_queue()
 
@@ -1004,8 +1037,8 @@ class TestAggregation:
 
     def test_pre_queue_json_conversion_preserves_other_vs_string_bucket_distinction(self, writer):
         timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
-        writer.enqueue(_make_event(attrs={"x": timestamp}))
-        writer.enqueue(_make_event(attrs={"x": timestamp.isoformat()}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"x": timestamp}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"x": timestamp.isoformat()}))
 
         writer._drain_queue()
 
@@ -1019,7 +1052,7 @@ class TestAggregation:
         # Inject per-flag count below PER_FLAG_CAP so only the global cap triggers.
         writer._per_flag_count["flag-x"] = 0
 
-        e = _make_event(flag_key="flag-x", attrs={"unique": "ctx"})
+        e = _make_event(observe_full_evaluation_data=True, flag_key="flag-x", attrs={"unique": "ctx"})
         writer._aggregate(e)
 
         assert len(writer._full) == 0
@@ -1042,7 +1075,7 @@ class TestAggregation:
     def test_per_flag_cap_routes_to_degraded(self, writer):
         """Per-flag cap exceeded → route to degraded even when globalCap has room."""
         writer._per_flag_count["my-flag"] = PER_FLAG_CAP  # flag is at cap
-        e = _make_event(flag_key="my-flag", attrs={"ctx": "x"})
+        e = _make_event(observe_full_evaluation_data=True, flag_key="my-flag", attrs={"ctx": "x"})
         writer._aggregate(e)
 
         assert len(writer._degraded) == 1
@@ -1060,7 +1093,9 @@ class TestAggregation:
     def test_degraded_event_omits_targeting_key_and_context(self, writer):
         """Degraded tier strips targeting_key + context."""
         with writer._lock:
-            writer._add_to_degraded(_make_event(targeting_key="some-key", attrs={"k": "v"}))
+            writer._add_to_degraded(
+                _make_event(observe_full_evaluation_data=True, targeting_key="some-key", attrs={"k": "v"})
+            )
 
         entry = list(writer._degraded.values())[0]
         assert entry.targeting_key == ""
@@ -1081,7 +1116,7 @@ class TestEnqueue:
         attrs = {f"field-{i:03d}": f"value-{i:03d}" for i in range(MAX_CONTEXT_FIELDS + 50)}
         attrs["zzz-oversized"] = "x" * (MAX_FIELD_LENGTH + 1)
 
-        writer.enqueue(_make_event(attrs=attrs))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs=attrs))
 
         queued = writer._queue.get_nowait()
         assert len(queued.attrs) == MAX_CONTEXT_FIELDS
@@ -1090,7 +1125,7 @@ class TestEnqueue:
             queued.attrs["new"] = "value"
 
     def test_enqueue_flattens_nested_context_snapshot(self, writer):
-        writer.enqueue(_make_event(attrs={"user": {"id": 123, "plan": "pro"}}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"user": {"id": 123, "plan": "pro"}}))
 
         queued = writer._queue.get_nowait()
         assert queued.attrs == {"user.id": 123, "user.plan": "pro"}
@@ -1100,7 +1135,7 @@ class TestEnqueue:
         attrs.__bool__.return_value = True
         attrs.items.side_effect = RuntimeError("cannot iterate")
 
-        writer.enqueue(_make_event(attrs=attrs))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs=attrs))
 
         assert writer._queue.get_nowait().attrs == {}
         assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
@@ -1127,7 +1162,7 @@ class TestEnqueue:
                 return 1
 
         with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._flagevaluation_writer"):
-            writer.enqueue(_make_event(attrs=RaisingIterMapping()))
+            writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs=RaisingIterMapping()))
 
         assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
         assert caplog.records, "expected one snapshot-error log record"
@@ -1145,7 +1180,7 @@ class TestEnqueue:
             side_effect=ValueError(secret),
         ):
             with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._flagevaluation_writer"):
-                writer._aggregate(_make_event(attrs={"user": "u1"}))
+                writer._aggregate(_make_event(observe_full_evaluation_data=True, attrs={"user": "u1"}))
 
         assert caplog.records, "expected one canonicalization-error log record"
         for record in caplog.records:
@@ -1222,6 +1257,79 @@ class TestPeriodicFlush:
         assert headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_VALUE
         assert "Content-Type" in headers
 
+    def test_agentless_definitive_rejection_replays_direct_with_authentication(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.return_value = mock.Mock(status=405)
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        assert local_conn.request.call_args[0][1] == "/evp_proxy/v2/api/v2/flagevaluation"
+        _, direct_endpoint, _, direct_headers = direct_conn.request.call_args[0]
+        assert direct_endpoint == "/api/v2/flagevaluation"
+        assert direct_headers["DD-API-KEY"] == "secret"
+        assert direct_headers["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert direct_headers["DD-EVP-ORIGIN-VERSION"]
+        assert "X-Datadog-EVP-Subdomain" not in direct_headers
+
+    def test_agentless_unsafe_site_never_reaches_connection_factory(self):
+        mock_get_conn = mock.Mock()
+        selector = _route_selector(
+            source=AGENTLESS,
+            endpoints=(),
+            api_key="secret",
+            site="datadoghq.com%2eattacker.example",
+        )
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_not_called()
+
+    def test_agentless_ambiguous_failure_does_not_replay_current_batch(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.side_effect = ConnectionResetError("ambiguous")
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_called_once_with("http://agent:8126", timeout=2.0)
+        assert selector.select().direct is True
+
+        writer.enqueue(_make_event(flag_key="future-batch"))
+        writer.periodic()
+
+        assert mock_get_conn.call_args_list[-1] == mock.call(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )
+        assert direct_conn.request.call_args[0][1] == "/api/v2/flagevaluation"
+
     def test_two_evals_same_dims_aggregate_count_2(self, writer):
         t0 = int(time.time() * 1000)
         writer.enqueue(_make_event(eval_time_ms=t0))
@@ -1239,8 +1347,8 @@ class TestPeriodicFlush:
         assert evals[0]["first_evaluation"] <= evals[0]["last_evaluation"]
 
     def test_null_and_absent_contexts_emit_separate_rows(self, writer):
-        writer.enqueue(_make_event(attrs={}))
-        writer.enqueue(_make_event(attrs={"region": None}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"region": None}))
 
         with mock.patch.object(writer, "_send_payload") as mock_send:
             writer.periodic()
@@ -1254,7 +1362,11 @@ class TestPeriodicFlush:
     def test_openfeature_datetime_context_value_is_json_serialized(self, writer):
         """OpenFeature allows datetime context values; payload JSON should stringify them."""
         timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
-        writer.enqueue(_make_event(attrs={"seen_at": timestamp, "nested": {"created_at": timestamp}}))
+        writer.enqueue(
+            _make_event(
+                observe_full_evaluation_data=True, attrs={"seen_at": timestamp, "nested": {"created_at": timestamp}}
+            )
+        )
 
         with mock.patch.object(writer, "_send_payload") as mock_send:
             writer.periodic()
@@ -1266,7 +1378,7 @@ class TestPeriodicFlush:
         assert ctx_eval["nested.created_at"] == timestamp.isoformat()
 
     def test_unsupported_context_value_emits_row_with_empty_context(self, writer):
-        writer.enqueue(_make_event(attrs={"unsupported": object()}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs={"unsupported": object()}))
 
         with mock.patch.object(writer, "_send_payload") as mock_send:
             writer.periodic()
@@ -1275,8 +1387,8 @@ class TestPeriodicFlush:
         assert "context" not in row
 
     def test_unencodable_integer_context_does_not_abort_drain(self, writer):
-        writer.enqueue(_make_event(flag_key="huge-int", attrs={"value": 10**5000}))
-        writer.enqueue(_make_event(flag_key="following", attrs={"value": "kept"}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, flag_key="huge-int", attrs={"value": 10**5000}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, flag_key="following", attrs={"value": "kept"}))
 
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             with mock.patch.object(writer, "_send_payload") as mock_send:
@@ -1295,6 +1407,7 @@ class TestPeriodicFlush:
     def test_targeting_key_is_not_duplicated_in_context_evaluation(self, writer):
         writer.enqueue(
             _make_event(
+                observe_full_evaluation_data=True,
                 targeting_key="user-1",
                 attrs={"targetingKey": "user-1", "targeting_key": "user-1", "tier": "premium"},
             )
@@ -1312,6 +1425,7 @@ class TestPeriodicFlush:
         for i in range(5):
             writer.enqueue(
                 _make_event(
+                    observe_full_evaluation_data=True,
                     flag_key=f"split-{i}",
                     targeting_key=f"user-{i}",
                     attrs={"blob": "x" * 200},
@@ -1340,6 +1454,7 @@ class TestPeriodicFlush:
     def test_single_oversized_full_event_is_degraded_before_send(self, writer):
         writer.enqueue(
             _make_event(
+                observe_full_evaluation_data=True,
                 flag_key="oversized-full",
                 targeting_key="user-with-context",
                 attrs={"blob": "x" * 200},
@@ -1363,7 +1478,7 @@ class TestPeriodicFlush:
         assert "targeting_key" not in row
 
     def test_single_oversized_degraded_event_is_dropped_and_counted(self, writer):
-        writer.enqueue(_make_event(flag_key="f" * 256, targeting_key="", attrs={}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, flag_key="f" * 256, targeting_key="", attrs={}))
 
         with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT", 100):
             with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
@@ -1539,6 +1654,7 @@ class TestPayloadContractConformance:
         """A full-tier row carries variant/allocation as {key} objects + context.evaluation."""
         writer.enqueue(
             _make_event(
+                observe_full_evaluation_data=True,
                 variant="on",
                 allocation_key="alloc-1",
                 attrs={"tier": "premium"},
@@ -1562,10 +1678,12 @@ class TestPayloadContractConformance:
         writer._per_flag_count["my-flag"] = PER_FLAG_CAP  # force degraded
         writer.enqueue(
             _make_event(
+                observe_full_evaluation_data=True,
                 variant="on",
                 allocation_key="alloc-1",
                 attrs={"k": "v"},
                 error_message="degraded failure",
+                error_code="GENERAL",
             )
         )
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
@@ -1578,7 +1696,7 @@ class TestPayloadContractConformance:
         _assert_row_contract_valid(row)
         _assert_count_metric(mock_count, FLAG_EVALUATION_DEGRADED_METRIC, 1, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
         assert row["variant"] == {"key": "on"}
-        assert row["error"] == {"message": "degraded failure"}
+        assert row["error"] == {"message": "GENERAL"}
         assert "context" not in row
         assert "targeting_key" not in row
 
@@ -1589,6 +1707,7 @@ class TestPayloadContractConformance:
                 variant="",
                 runtime_default=True,
                 error_message="Flag not found",
+                error_code="FLAG_NOT_FOUND",
             )
         )
         with mock.patch.object(writer, "_send_payload") as mock_send:
@@ -1598,7 +1717,7 @@ class TestPayloadContractConformance:
         _assert_batch_contract_valid(decoded)
         row = decoded["flagEvaluations"][0]
         _assert_row_contract_valid(row)
-        assert row["error"] == {"message": "Flag not found"}
+        assert row["error"] == {"message": "FLAG_NOT_FOUND"}
         # Absent variant -> runtime_default_used True, no variant object emitted.
         assert row["runtime_default_used"] is True
         assert "variant" not in row
@@ -1606,7 +1725,9 @@ class TestPayloadContractConformance:
     def test_batch_payload_validates_full_and_degraded_rows_together(self, writer):
         """A single flush emits BOTH a full row and a degraded row under the stable contract."""
         # Full-tier event.
-        writer.enqueue(_make_event(flag_key="full-flag", variant="on", attrs={"a": "b"}))
+        writer.enqueue(
+            _make_event(observe_full_evaluation_data=True, flag_key="full-flag", variant="on", attrs={"a": "b"})
+        )
         # Degraded-tier event (different flag forced to degraded).
         writer._per_flag_count["deg-flag"] = PER_FLAG_CAP
         writer.enqueue(_make_event(flag_key="deg-flag", variant="off"))
@@ -1731,7 +1852,9 @@ class TestShutdownDrain:
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             with mock.patch.object(writer, "_send_payload"):
                 writer.start()
-                writer.enqueue(_make_event(attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}))
+                writer.enqueue(
+                    _make_event(observe_full_evaluation_data=True, attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)})
+                )
                 writer.stop()
                 writer.join(timeout=5.0)
         _assert_count_metric(
@@ -1757,7 +1880,9 @@ class TestShutdownDrain:
             def __len__(self):
                 raise AssertionError("len must not be called")
 
-        enqueue_thread = threading.Thread(target=writer.enqueue, args=(_make_event(attrs=BlockingMapping()),))
+        enqueue_thread = threading.Thread(
+            target=writer.enqueue, args=(_make_event(observe_full_evaluation_data=True, attrs=BlockingMapping()),)
+        )
         enqueue_thread.start()
         assert snapshot_started.wait(2.0)
 
@@ -1951,6 +2076,7 @@ class TestShutdownDrain:
                                 assert _wait_until(lambda: not w._queue.full())
                                 w.enqueue(
                                     _make_event(
+                                        observe_full_evaluation_data=True,
                                         flag_key="natural-degrade",
                                         targeting_key=f"user-{i}",
                                         attrs={"user": i},
@@ -2006,7 +2132,7 @@ class TestObservableDropCounters:
         with mock.patch(
             "ddtrace.internal.openfeature._flagevaluation_writer.flatten_and_prune_context"
         ) as mock_snapshot:
-            writer.enqueue(_make_event(flag_key="dropped"))
+            writer.enqueue(_make_event(flag_key="dropped", attrs={"plan": "pro"}, observe_full_evaluation_data=True))
 
         mock_snapshot.assert_not_called()
         assert writer._dropped_pre_queue == 1
@@ -2031,6 +2157,7 @@ class TestObservableDropCounters:
             with mock.patch.object(writer._queue, "put_nowait", side_effect=queue.Full):
                 writer.enqueue(
                     _make_event(
+                        observe_full_evaluation_data=True,
                         flag_key="race",
                         attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)},
                     )
@@ -2064,8 +2191,8 @@ class TestObservableDropCounters:
             "long-value": "v" * (MAX_VALUE_LENGTH + 1),
             "k" * (MAX_KEY_LENGTH + 1): "value",
         }
-        writer.enqueue(_make_event(attrs=attrs))
-        writer.enqueue(_make_event(attrs=attrs))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs=attrs))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, attrs=attrs))
         writer._queue.get_nowait()
         writer._queue.get_nowait()
 
@@ -2095,26 +2222,46 @@ class TestObservableDropCounters:
         )
 
     def test_all_context_truncation_reasons_are_emitted(self, writer):
-        writer.enqueue(_make_event(flag_key="fields", attrs={str(i): "v" for i in range(MAX_CONTEXT_FIELDS + 1)}))
-        writer.enqueue(_make_event(flag_key="key", attrs={"k" * (MAX_KEY_LENGTH + 1): "v"}))
-        writer.enqueue(_make_event(flag_key="value", attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}))
         writer.enqueue(
             _make_event(
+                observe_full_evaluation_data=True,
+                flag_key="fields",
+                attrs={str(i): "v" for i in range(MAX_CONTEXT_FIELDS + 1)},
+            )
+        )
+        writer.enqueue(
+            _make_event(observe_full_evaluation_data=True, flag_key="key", attrs={"k" * (MAX_KEY_LENGTH + 1): "v"})
+        )
+        writer.enqueue(
+            _make_event(
+                observe_full_evaluation_data=True, flag_key="value", attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}
+            )
+        )
+        writer.enqueue(
+            _make_event(
+                observe_full_evaluation_data=True,
                 flag_key="list",
                 attrs={"values": ["v" * (MAX_VALUE_LENGTH + 1)] * (MAX_LIST_ELEMENTS + 1)},
             )
         )
         writer.enqueue(
             _make_event(
+                observe_full_evaluation_data=True,
                 flag_key="structure",
                 attrs={"nested": {str(i): "v" * (MAX_VALUE_LENGTH + 1) for i in range(MAX_STRUCTURE_PROPERTIES + 1)}},
             )
         )
-        writer.enqueue(_make_event(flag_key="depth", attrs={"a": {"b": {"c": {"d": {"e": {"f": "v"}}}}}}))
+        writer.enqueue(
+            _make_event(
+                observe_full_evaluation_data=True, flag_key="depth", attrs={"a": {"b": {"c": {"d": {"e": {"f": "v"}}}}}}
+            )
+        )
         cyclic = {}
         cyclic["self"] = cyclic
-        writer.enqueue(_make_event(flag_key="cycle", attrs=cyclic))
-        writer.enqueue(_make_event(flag_key="unsupported", attrs={"unsupported": object()}))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, flag_key="cycle", attrs=cyclic))
+        writer.enqueue(
+            _make_event(observe_full_evaluation_data=True, flag_key="unsupported", attrs={"unsupported": object()})
+        )
 
         # snapshot_error now covers only a genuine traversal fault, not a single
         # unsupported field.
@@ -2128,7 +2275,7 @@ class TestObservableDropCounters:
             def __len__(self):
                 return 1
 
-        writer.enqueue(_make_event(flag_key="error", attrs=RaisingMapping()))
+        writer.enqueue(_make_event(observe_full_evaluation_data=True, flag_key="error", attrs=RaisingMapping()))
 
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             with mock.patch.object(writer, "_send_payload"):
@@ -2154,10 +2301,11 @@ class TestObservableDropCounters:
     def test_duplicate_truncation_reason_is_counted_once_per_event(self, writer):
         writer.enqueue(
             _make_event(
+                observe_full_evaluation_data=True,
                 attrs={
                     "first": "v" * (MAX_VALUE_LENGTH + 1),
                     "second": "v" * (MAX_VALUE_LENGTH + 1),
-                }
+                },
             )
         )
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
@@ -2195,9 +2343,11 @@ class TestObservableDropCounters:
         The conservation property under contention is covered by
         TestConcurrentEnqueue::test_every_concurrent_enqueue_is_either_buffered_or_counted.
         """
-        writer._aggregate(_make_event(flag_key="a", attrs={"x": 1}))
-        writer._aggregate(_make_event(flag_key="b", attrs={"x": 2}))
-        writer._aggregate(_make_event(flag_key="a", attrs={"x": 1}))  # repeat -> count 2 on bucket a
+        writer._aggregate(_make_event(observe_full_evaluation_data=True, flag_key="a", attrs={"x": 1}))
+        writer._aggregate(_make_event(observe_full_evaluation_data=True, flag_key="b", attrs={"x": 2}))
+        writer._aggregate(
+            _make_event(observe_full_evaluation_data=True, flag_key="a", attrs={"x": 1})
+        )  # repeat -> count 2 on bucket a
 
         full_counts = sum(e.count for e in writer._full.values())
         assert full_counts == 3  # 2 (a) + 1 (b)
@@ -2234,7 +2384,9 @@ class TestConcurrentEnqueue:
                 try:
                     barrier.wait(timeout=10.0)
                     for i in range(per_thread):
-                        writer.enqueue(_make_event(flag_key=f"f{thread_index}", attrs={"i": i}))
+                        writer.enqueue(
+                            _make_event(observe_full_evaluation_data=True, flag_key=f"f{thread_index}", attrs={"i": i})
+                        )
                 except BaseException as exc:  # noqa: BLE001 - surfaced via assert below
                     errors.append(exc)
 
@@ -2274,7 +2426,9 @@ class TestConcurrentEnqueue:
             try:
                 barrier.wait(timeout=10.0)
                 for i in range(per_thread):
-                    writer.enqueue(_make_event(flag_key=f"f{thread_index}", attrs={"i": i}))
+                    writer.enqueue(
+                        _make_event(observe_full_evaluation_data=True, flag_key=f"f{thread_index}", attrs={"i": i})
+                    )
             except BaseException as exc:  # noqa: BLE001 - surfaced via assert below
                 errors.append(exc)
 

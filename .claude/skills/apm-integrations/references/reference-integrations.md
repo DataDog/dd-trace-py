@@ -14,7 +14,7 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | database | `psycopg/patch.py` | `mysql/patch.py` | SQL clients, `db.*` span tags, DBM support, uses Pin + dbapi helpers |
 | faas | `aws_lambda/patch.py` | `azure_functions/patch.py` | Serverless function wrappers, uses `ddtrace.internal.wrapping` |
 | generative-ai | `anthropic/patch.py` | `litellm/patch.py` | LLM/AI integrations; use `llmobs-integrations` for LLMObs lifecycle, extraction, streaming, and tests |
-| graphql | `graphql/patch.py` | -- | GraphQL resolvers and operations, Pin + `tracer.trace` |
+| graphql | `graphql/patch.py` | -- | GraphQL resolvers and operations, shared tracing gate + `tracer.trace` |
 | http-client | `httpx/patch.py` | `requests/connection.py` | Outbound HTTP, `http.*` span tags. httpx and requests use `context_with_event` |
 | http-server | `flask/patch.py` | `django/patch.py` | Web frameworks, request/response spans, Pin + `context_with_data` |
 | logging | `logging/patch.py` | `loguru/patch.py` | Log correlation injection (trace ID, span ID) -- no spans created |
@@ -26,10 +26,11 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 ## DBAPI Cursor Subclasses
 
 Render queries for DbQueryEvent subscribers with the driver-specific
-_render_dbapi_query() hook. Call it only when a subscriber is present, and suppress
-only rendering failures. Dispatch outside that exception boundary so blocking
-listeners can stop execution. The rendered value is event data only: tracing and
-the driver must continue to receive the original query and parameters.
+_render_dbapi_query() hook. Call it only when a subscriber is present. Suppress
+ordinary exceptions while rendering and dispatching the event so instrumentation
+failures do not interrupt the database call. BlockingException inherits from
+BaseException and still stops execution. The rendered value is event data only:
+tracing and the driver must continue to receive the original query and parameters.
 
 For psycopg3 templates, inspect SQL structure with $n placeholders for bound values
 (default, :s, :t, :b), never by literal-adapting those values. Normalization supports

@@ -141,7 +141,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         #
         # See also: https://github.com/gevent/gevent/pull/2166 (upstream fix)
         #
-        # AIDEV-NOTE: greenlet.dead.__get__ is a C-level tp_getset descriptor.
+        # greenlet.dead.__get__ is a C-level tp_getset descriptor.
         # Any unhandled exception here causes the greenlet runtime to silently
         # uninstall this tracer (see greenlet's TGreenlet.cpp g_calltrace and
         # test_tracing.py::test_b_exception_disables_tracing). We catch

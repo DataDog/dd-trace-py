@@ -21,7 +21,7 @@ MAX_WIRE_DEPTH = 20
 # catch that, because a shared child is a legitimate second visit rather than an ancestor.
 MAX_WIRE_NODES = 10_000
 
-# AIDEV-NOTE: allowlist, not denylist. model_settings is the one field whose key set the caller
+# allowlist, not denylist. model_settings is the one field whose key set the caller
 # controls, and the dangerous keys are provider-specific by name (extra_headers, openai_user,
 # xai_user), so only a closed list of generic inference parameters is safe. Widening it is a
 # security decision.

@@ -21,6 +21,8 @@ static CHILD_RESTART_PENDING: AtomicBool = AtomicBool::new(false);
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 static CHILD_RESTART_DEFERRED: AtomicBool = AtomicBool::new(false);
 #[cfg(any(target_os = "linux", target_os = "macos"))]
+static CHILD_ABANDON_INHERITED: AtomicBool = AtomicBool::new(false);
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 static CHILD_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 struct SharedRuntimeState {
@@ -69,7 +71,7 @@ unsafe extern "C" fn after_fork_parent() {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn after_fork_child() {
-    // AIDEV-NOTE: Do not rebuild Tokio here. This callback also runs in fork+exec children,
+    // Do not rebuild Tokio here. This callback also runs in fork+exec children,
     // where exec closes the new runtime's descriptors while its worker thread is using them.
     // The next Python-facing runtime or telemetry operation performs the restart instead.
     CHILD_RESTART_IN_PROGRESS.store(false, Ordering::Release);
@@ -131,9 +133,14 @@ impl SharedRuntimePy {
 pub(crate) fn ensure_after_fork_child(runtime: &Arc<ForkSafeRuntime>) -> PyResult<()> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        // AIDEV-NOTE: Telemetry calls this for every metric point. Keep the normal path to one
+        // Telemetry calls this for every metric point. Keep the normal path to one
         // read-only load; an unconditional swap and PID check caused a substantial hot-path
         // regression even when the process had never forked.
+        if CHILD_ABANDON_INHERITED.load(Ordering::Acquire) {
+            return Err(PyRuntimeError::new_err(
+                "native runtime was abandoned after a Python-managed fork; rebuild the worker",
+            ));
+        }
         if !CHILD_RESTART_PENDING.load(Ordering::Acquire) {
             return Ok(());
         }
@@ -174,6 +181,12 @@ fn ensure_shared_runtime_after_fork(
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     if restart_guard.is_some() {
+        // Python-managed forks drop and rebuild workers in Python. Calling after_fork_child()
+        // here would unpark the inherited Tokio I/O driver, which panics with EBADF once
+        // process managers such as Celery have closed inherited descriptors.
+        if CHILD_ABANDON_INHERITED.load(Ordering::Acquire) {
+            return replace_inherited_runtime(&mut runtime, state, current_pid);
+        }
         if let Err(e) = runtime.after_fork_child() {
             return Err(shared_runtime_error_to_pyerr(e));
         }
@@ -185,9 +198,27 @@ fn ensure_shared_runtime_after_fork(
     // A Python-managed fork can run without invoking pthread_atfork on some runtimes.
     // The inherited Tokio runtime cannot be repaired because its worker threads are gone,
     // so replace it without polling or shutting it down.
-    *runtime = Arc::new(ForkSafeRuntime::new().map_err(shared_runtime_error_to_pyerr)?);
+    replace_inherited_runtime(&mut runtime, state, current_pid)
+}
+
+fn replace_inherited_runtime(
+    runtime: &mut Arc<ForkSafeRuntime>,
+    state: &SharedRuntimeState,
+    current_pid: u32,
+) -> PyResult<Arc<ForkSafeRuntime>> {
+    let replacement = Arc::new(ForkSafeRuntime::new().map_err(shared_runtime_error_to_pyerr)?);
+    let old = std::mem::replace(runtime, replacement.clone());
+    // Dropping the inherited runtime unparks Tokio's I/O driver. After process managers
+    // close inherited descriptors that unpark panics with EBADF, so leak the old runtime
+    // instead; its worker threads are already gone.
+    std::mem::forget(old);
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        CHILD_RESTART_PENDING.store(false, Ordering::Release);
+        CHILD_ABANDON_INHERITED.store(false, Ordering::Release);
+    }
     state.pid.store(current_pid, Ordering::Release);
-    Ok(runtime.clone())
+    Ok(replacement)
 }
 
 #[pymethods]
@@ -202,7 +233,7 @@ impl SharedRuntimePy {
                     runtime: RwLock::new(Arc::new(runtime)),
                     pid: AtomicU32::new(std::process::id()),
                 });
-                // AIDEV-NOTE: uWSGI forks in native code and bypasses Python's os.register_at_fork
+                // uWSGI forks in native code and bypasses Python's os.register_at_fork
                 // callbacks. pthread_atfork pauses the runtime around every native fork. The child
                 // callback only marks the runtime for lazy restart because it also runs in transient
                 // fork+exec children, where starting threads would race with exec closing descriptors.
@@ -259,6 +290,7 @@ impl SharedRuntimePy {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         if result.is_ok() {
             CHILD_RESTART_PENDING.store(false, Ordering::Release);
+            CHILD_ABANDON_INHERITED.store(false, Ordering::Release);
             self.inner.pid.store(std::process::id(), Ordering::Release);
         }
         result
@@ -276,7 +308,19 @@ impl SharedRuntimePy {
 
     fn allow_after_fork_child(&self) {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
+        {
+            CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
+            // Only abandon after a real fork. Tests call defer/allow in-process to
+            // simulate the hook window; the pid is unchanged there, and setting the
+            // flag would break later telemetry calls (including atexit flush).
+            if self.inner.pid.load(Ordering::Acquire) != std::process::id() {
+                // Python-managed forks rebuild workers lazily after process managers
+                // finish closing inherited descriptors. Forget the inherited runtime
+                // on first use instead of calling after_fork_child(), which would
+                // unpark a dead I/O driver.
+                CHILD_ABANDON_INHERITED.store(true, Ordering::Release);
+            }
+        }
     }
 
     fn register_at_fork(&self) -> PyResult<()> {

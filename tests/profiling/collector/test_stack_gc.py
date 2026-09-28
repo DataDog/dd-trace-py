@@ -253,6 +253,7 @@ def test_gc_frame_is_limited_to_on_cpu_asyncio_task() -> None:
     import tempfile
 
     from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.service import ServiceStatus
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.gc_utils import gc_samples
@@ -271,22 +272,33 @@ def test_gc_frame_is_limited_to_on_cpu_asyncio_task() -> None:
     ddup.start()
     ddup.upload()
 
-    async def suspended_task(stop: asyncio.Event) -> None:
+    async def suspended_task(ready: asyncio.Event, stop: asyncio.Event) -> None:
+        ready.set()
         await stop.wait()
 
-    async def collecting_task() -> None:
+    async def collecting_task(collector: stack.StackCollector) -> None:
         slow_cyclic_collection()
+        # Stop before this task returns so the lock-free sampler cannot
+        # combine a GC thread stack with task state from after an event-loop switch.
+        collector.stop()
 
-    async def workload() -> None:
+    async def workload(collector: stack.StackCollector) -> None:
+        ready = asyncio.Event()
         stop = asyncio.Event()
-        suspended = asyncio.create_task(suspended_task(stop), name="suspended-task")
-        collecting = asyncio.create_task(collecting_task(), name="collecting-task")
+        suspended = asyncio.create_task(suspended_task(ready, stop), name="suspended-task")
+        await ready.wait()
+        collecting = asyncio.create_task(collecting_task(collector), name="collecting-task")
         await collecting
         stop.set()
         await suspended
 
-    with stack.StackCollector():
-        asyncio.run(workload())
+    collector = stack.StackCollector()
+    collector.start()
+    try:
+        asyncio.run(workload(collector))
+    finally:
+        if collector.status is ServiceStatus.RUNNING:
+            collector.stop()
 
     ddup.upload()
     profile = pprof_utils.parse_newest_profile(output_filename)

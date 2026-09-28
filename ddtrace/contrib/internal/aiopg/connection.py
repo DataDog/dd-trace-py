@@ -34,7 +34,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin):
-        super(AIOTracedCursor, self).__init__(cursor)
+        super().__init__(cursor)
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
@@ -75,11 +75,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         if core.has_listeners(DbQueryEvent.event_name):
-            rendered_query = None
             with suppress(Exception):
                 rendered_query = self._render_dbapi_query(query)
-            if rendered_query is not None:
-                core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
+                if rendered_query is not None:
+                    core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
@@ -87,11 +86,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
     async def execute(self, query, *args, **kwargs):
         if core.has_listeners(DbQueryEvent.event_name):
-            rendered_query = None
             with suppress(Exception):
                 rendered_query = self._render_dbapi_query(query)
-            if rendered_query is not None:
-                core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
+                if rendered_query is not None:
+                    core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 
@@ -107,7 +105,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
-        super(AIOTracedConnection, self).__init__(conn)
+        super().__init__(conn)
         vendor = dbapi._get_vendor(conn)
         name = schematize_service_name(vendor)
         db_pin = pin or Pin(service=name)
