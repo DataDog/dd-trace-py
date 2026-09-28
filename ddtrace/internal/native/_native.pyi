@@ -185,6 +185,15 @@ class SharedRuntime:
                 If None, waits indefinitely.
         """
         ...
+    def shutdown_in_thread(self, timeout_ms: Optional[int] = None) -> None:
+        """Gracefully shut down the shared runtime.
+        The code is run in a separate thread to bypass a stale thread local storage.
+
+        Args:
+            timeout_ms: Maximum time in milliseconds to wait for shutdown.
+                If None, waits indefinitely.
+        """
+        ...
     def debug(self) -> str:
         """Returns a string representation of the runtime. Should only be used for debugging."""
         ...
