@@ -1,12 +1,14 @@
 """Tests for the multiplexed sys.monitoring layer on Python 3.12+."""
 
 from collections.abc import Iterator
+import gc
 import sys
 from types import CodeType
 from typing import Any
 from typing import Callable
 from typing import Protocol
 from typing import cast
+import weakref
 
 import pytest
 
@@ -1042,3 +1044,96 @@ def test_register_global_rejects_different_exception_handler(
 def test_register_global_rejects_local_only_handler() -> None:
     with pytest.raises(ValueError, match="no global"):
         monitoring.register_global(LineHandler())
+
+
+@pytest.mark.parametrize("direct", [False, True])
+def test_global_registration_keeps_original_delivery_mode(direct: bool) -> None:
+    def target() -> None:
+        try:
+            raise ValueError("handled")
+        except ValueError:
+            pass
+
+    handler = HandledExceptionHandler()
+    monitoring.register_global(handler, direct=direct)
+    try:
+        monitoring.register_global(handler, direct=not direct)
+        with pytest.raises(ValueError, match="already has a different"):
+            monitoring.register_global(HandledExceptionHandler(), direct=True)
+
+        tool_id = monitoring.get_tool_id()
+        expected = handler.on_exception_handled if direct else monitoring._on_exception_handled
+        assert _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, expected) == expected
+
+        target()
+        assert any(code is target.__code__ and exc.args == ("handled",) for code, exc in handler.handled)
+    finally:
+        monitoring.unregister_global(handler)
+
+
+@pytest.mark.parametrize("failure", ["callback", "events"])
+def test_direct_global_install_rolls_back_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+    failure: str,
+) -> None:
+    def target() -> None:
+        pass
+
+    local = cast(LineHandler, registered(target.__code__, LineHandler()))
+    tool_id = monitoring.get_tool_id()
+    handler = HandledExceptionHandler()
+    register_callback = _sys_monitoring.register_callback
+    set_events = _sys_monitoring.set_events
+
+    def failing_register_callback(tool: int, event: int, callback: Any) -> Any:
+        if event == _E.EXCEPTION_HANDLED and callback == handler.on_exception_handled:
+            raise RuntimeError("callback install failed")
+        return register_callback(tool, event, callback)
+
+    def failing_set_events(tool: int, events: int) -> None:
+        if events:
+            raise RuntimeError("event install failed")
+        set_events(tool, events)
+
+    with monkeypatch.context() as patch:
+        if failure == "callback":
+            patch.setattr(_sys_monitoring, "register_callback", failing_register_callback)
+        else:
+            patch.setattr(_sys_monitoring, "set_events", failing_set_events)
+        with pytest.raises(RuntimeError, match="install failed"):
+            monitoring.register_global(handler, direct=True)
+
+    assert monitoring._global_exception_handler is None
+    assert _sys_monitoring.get_events(tool_id) == 0
+    assert (
+        register_callback(tool_id, _E.EXCEPTION_HANDLED, monitoring._on_exception_handled)
+        is monitoring._on_exception_handled
+    )
+    target()
+    assert local.lines
+
+
+def test_direct_global_unregister_releases_callback(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    def target() -> None:
+        pass
+
+    local = registered(target.__code__, LineHandler())
+    tool_id = monitoring.get_tool_id()
+    handler = HandledExceptionHandler()
+    handler_ref = weakref.ref(handler)
+    monitoring.register_global(handler, direct=True)
+    monitoring.unregister_global(handler)
+    del handler
+    gc.collect()
+
+    assert handler_ref() is None
+    assert not (_sys_monitoring.get_events(tool_id) & _E.EXCEPTION_HANDLED)
+    assert (
+        _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, monitoring._on_exception_handled)
+        is monitoring._on_exception_handled
+    )
+    monitoring.unregister(target.__code__, local)
+    assert monitoring._tool_id is None

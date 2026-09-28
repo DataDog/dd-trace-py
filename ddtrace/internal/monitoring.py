@@ -174,7 +174,8 @@ class MonitoringEventHandler(ABC):
         would deliver a callback failure. Catch your own exceptions if a
         handler must not affect the monitored function's behavior.
         ``on_py_line`` and ``on_exception_handled`` are caught and logged
-        instead so one sub-system cannot disrupt another.
+        instead so one sub-system cannot disrupt another. Global handlers
+        registered with direct=True must handle their own failures.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -496,8 +497,13 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
         _release_tool_if_unused()
 
 
-def register_global(handler: MonitoringEventHandler) -> None:
-    """Register *handler* for process-wide EXCEPTION_HANDLED events."""
+def register_global(handler: MonitoringEventHandler, *, direct: bool = False) -> None:
+    """Register handler for process-wide EXCEPTION_HANDLED events.
+
+    With direct=True, CPython calls on_exception_handled directly. The callback
+    must handle its own failures and return None. The first registration selects
+    the delivery mode until the handler is unregistered.
+    """
     if not (_events_for_handler(handler) & _GLOBAL_EVENTS):
         raise ValueError("Handler overrides no global MonitoringEventHandler methods")
 
@@ -508,12 +514,21 @@ def register_global(handler: MonitoringEventHandler) -> None:
             return
         if _global_exception_handler is not None:
             raise ValueError("EXCEPTION_HANDLED already has a different monitoring handler")
-        tool_id = _setup()
         _global_exception_handler = handler
+        previous_callback: Any = None
+        callback_installed = False
         try:
+            tool_id = _setup()
+            if direct:
+                previous_callback = _sys_monitoring.register_callback(
+                    tool_id, _E.EXCEPTION_HANDLED, handler.on_exception_handled
+                )
+                callback_installed = True
             _sys_monitoring.set_events(tool_id, _E.EXCEPTION_HANDLED)
         except Exception:
             _global_exception_handler = None
+            if callback_installed:
+                _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, previous_callback)
             _release_tool_if_unused()
             raise
 
@@ -528,4 +543,6 @@ def unregister_global(handler: MonitoringEventHandler) -> None:
         _global_exception_handler = None
         if _tool_id is not None:
             _sys_monitoring.set_events(_tool_id, 0)
+            # Release a direct bound callback while local registrations keep the tool alive.
+            _sys_monitoring.register_callback(_tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
         _release_tool_if_unused()
