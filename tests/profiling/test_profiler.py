@@ -7,7 +7,9 @@ from unittest import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal import service
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -588,6 +590,22 @@ def test_same_profiler_restart_allowed() -> None:
     p.start()
     assert profiler.Profiler._active_instance is p
     p.stop(flush=False)
+
+
+def test_stop_completes_teardown_when_final_upload_fails() -> None:
+    p1 = profiler.Profiler()
+    p1.start()
+
+    with mock.patch.object(ddup, "upload", side_effect=RuntimeError("upload failed")):
+        p1.stop(flush=True)
+
+    assert p1.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
 
 
 @pytest.mark.subprocess(err=None)
