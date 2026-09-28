@@ -3,22 +3,24 @@
 The _context module owns AI-Guard collision avoidance: a framework
 integration (LangChain, Strands) claims the phases of a model call it
 evaluates itself, and provider-level integrations (OpenAI, Anthropic) skip
-only the phase they are asked about. Each phase has its own
-contextvars.ContextVar[int] depth counter, matching the IAST
-request-context pattern. Isolation across threads and asyncio tasks is
-provided by Python's standard Context propagation.
+only the phase they are asked about. Each context holds a stack of
+per-phase claim objects in a ContextVar. Isolation across threads and
+asyncio tasks is provided by Python's standard Context propagation, and
+because copied contexts share the claim objects, a release from another
+task is seen by the task that claimed.
 
 Coverage:
 
 * Owner isolation — threads and asyncio sibling tasks don't see each
   other's claims, courtesy of ContextVar's per-thread / per-task
   inheritance via ``copy_context()``.
-* Counter nesting — set/reset pairs increment/decrement the same
-  counter; LIFO inner reset restores the outer state.
+* Nesting — claims stack; an inner reset leaves the outer claim active.
 * ``aiguard_context()`` — set/reset around a block, including exception
   paths.
-* Phase scoping — claiming one phase leaves the other free, and a token
-  released in a foreign Context degrades instead of raising.
+* Phase scoping — claiming one phase leaves the other free.
+* Cross-context release — a token released from another asyncio task
+  neither raises, leaves the claiming task covered, nor drops an unrelated
+  claim (APPSEC-70282).
 """
 
 import asyncio
@@ -71,7 +73,7 @@ class TestOwnerIsolation:
         """Two sibling asyncio tasks: one sets True, the other MUST observe False.
 
         ``asyncio.create_task`` (used by ``asyncio.gather``) copies the current
-        Context for each task, so the framework task's depth bump is invisible
+        Context for each task, so the framework task's claim is invisible
         to the provider task running concurrently.
         """
         framework_started = asyncio.Event()
@@ -97,10 +99,8 @@ class TestOwnerIsolation:
         assert provider_view == [False]
         assert is_aiguard_context_active() is False
 
-    def test_many_concurrent_workers_do_not_corrupt_counter(self):
-        """Stress: N threads all set+reset concurrently. Final state MUST be 0
-        (no counter underflow, no leaked active state).
-        """
+    def test_many_concurrent_workers_do_not_corrupt_state(self):
+        """Stress: N threads all set+reset concurrently. No active state may leak."""
         N = 50
         view_lock = threading.Lock()
         observed_during_active: list[bool] = []
@@ -125,18 +125,13 @@ class TestOwnerIsolation:
 
 
 # ---------------------------------------------------------------------------
-# Nesting (counter semantics)
+# Nesting
 # ---------------------------------------------------------------------------
 
 
 class TestNesting:
     def test_inner_reset_keeps_outer_active(self):
-        """LIFO-style nested set/reset: inner reset MUST NOT clear the outer.
-
-        ``ContextVar.reset(token)`` restores the depth to the value recorded
-        when the token's matching ``set`` ran — so the inner reset returns
-        the depth from 2 to 1, not 0.
-        """
+        """LIFO-style nested set/reset: inner reset MUST NOT clear the outer."""
         outer = set_aiguard_context_active()
         try:
             inner = set_aiguard_context_active()
@@ -155,21 +150,16 @@ class TestNesting:
     def test_reset_current_with_no_active_set_is_safe(self):
         """Tokenless reset MUST be a no-op when nothing is active.
 
-        Pinned because the ``.after`` listener may fire without a matching
-        ``.before`` if dispatch is reconfigured at runtime, and an underflow
-        would surface as a negative depth that ``is_active`` would still
-        report as False but that subsequent ``reset_current`` calls would
-        compound.
+        Pinned because the .after listener may fire without a matching
+        .before if dispatch is reconfigured at runtime.
         """
         assert is_aiguard_context_active() is False
         reset_aiguard_context_active_current()
         reset_aiguard_context_active_current()
         assert is_aiguard_context_active() is False
 
-    def test_reset_current_decrements_one_level(self):
-        """``.after`` listener pattern: ``.before`` set, ``.after`` calls
-        tokenless reset — depth returns to 0.
-        """
+    def test_reset_current_releases_one_level(self):
+        """.after listener pattern: .before sets, .after calls the tokenless reset."""
         token = set_aiguard_context_active()
         assert is_aiguard_context_active() is True
         try:
@@ -217,7 +207,7 @@ class TestAIGuardContextManager:
     @pytest.mark.asyncio
     async def test_block_works_inside_asyncio_task(self):
         """The context manager works inside an asyncio task — set and reset
-        both run in the same task, so the counter is balanced.
+        both run in the same task, so the claim is balanced.
         """
         assert is_aiguard_context_active() is False
         with aiguard_context():
@@ -286,15 +276,21 @@ class TestPhases:
             assert is_aiguard_context_active(Phase.REQUEST) is False
         assert is_aiguard_context_active() is False
 
-    @pytest.mark.asyncio
-    async def test_cross_context_token_reset_does_not_raise(self):
-        """A token released in a different Context MUST degrade, not raise (APPSEC-70282).
 
-        Strands stores the before-invocation token on invocation_state and
-        releases it in after-invocation. When those hooks land in different
-        asyncio tasks, ContextVar.reset would raise ValueError straight
-        into the framework's cleanup path.
-        """
+# ---------------------------------------------------------------------------
+# Cross-context release (APPSEC-70282)
+#
+# Strands stores the before-invocation token on invocation_state and releases
+# it in after-invocation, from the finally of an async generator. A consumer
+# can advance or close that generator from another asyncio task, which works
+# on a copy of the claiming task's Context.
+# ---------------------------------------------------------------------------
+
+
+class TestCrossContextRelease:
+    @pytest.mark.asyncio
+    async def test_token_reset_from_foreign_context_does_not_raise(self):
+        """ContextVar.reset would raise ValueError straight into the framework's cleanup path."""
         box = {}
 
         async def _before():
@@ -305,4 +301,55 @@ class TestPhases:
 
         await asyncio.create_task(_before())
         await asyncio.create_task(_after())  # must not raise
+        assert is_aiguard_context_active() is False
+
+    @pytest.mark.asyncio
+    async def test_release_from_child_task_clears_claiming_task(self):
+        """A leaked claim would make every later provider call in this task skip AI Guard."""
+        token = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+
+        async def _release():
+            reset_aiguard_context_active(token)
+
+        await asyncio.create_task(_release())
+        assert is_aiguard_context_active(Phase.REQUEST) is False
+        assert is_aiguard_context_active(Phase.RESPONSE) is False
+
+    @pytest.mark.asyncio
+    async def test_foreign_release_keeps_unrelated_claim(self):
+        """Releasing a claim this context never saw MUST NOT drop the claim it does hold."""
+
+        async def _claim():
+            return set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+
+        foreign = await asyncio.create_task(_claim())
+        own = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+        try:
+            reset_aiguard_context_active(foreign)
+            assert is_aiguard_context_active(Phase.REQUEST) is True
+            assert is_aiguard_context_active(Phase.RESPONSE) is True
+        finally:
+            reset_aiguard_context_active(own)
+        assert is_aiguard_context_active() is False
+
+    @pytest.mark.asyncio
+    async def test_generator_closed_from_another_task_releases_claim(self):
+        """The Strands shape: claim before a generator's try, release in its finally.
+
+        Breaking out early and closing the generator from another task -- as
+        asyncio's async-generator finalizer does -- must still release the claim.
+        """
+
+        async def _run_loop():
+            token = set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
+            try:
+                yield "first"
+                yield "second"
+            finally:
+                reset_aiguard_context_active(token)
+
+        agen = _run_loop()
+        assert await agen.__anext__() == "first"
+        assert is_aiguard_context_active() is True
+        await asyncio.create_task(agen.aclose())
         assert is_aiguard_context_active() is False

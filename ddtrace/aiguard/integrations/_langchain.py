@@ -393,7 +393,7 @@ def _langchain_chatmodel_generate_after(client: AIGuardClient, message_lists: An
     """Listener for langchain.chatmodel.generate.after and its async twin.
 
     Provider integrations (OpenAI, Anthropic) skip their own response evaluation
-    while the LangChain context counter is active, so without this listener the
+    while LangChain holds the response phase, so without this listener the
     model response reached the caller unevaluated.
 
     generations[i] holds the candidates produced for message_lists[i]; zip pairs
@@ -576,12 +576,12 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optio
 def _langchain_generate_finally(*args: Any, **kwargs: Any) -> None:
     """Paired ``.finally`` listener for the four langchain ``generate`` events.
 
-    Releases the AI Guard active counter that the matching ``.before``
-    listener bumped. Dispatched from the contrib's ``finally`` block so it
-    fires on every exit path — success, block (``core.dispatch(..., allow_raise=True)``
-    raises out of ``.before``), or exception inside the underlying LLM call. The
-    counter reset is a no-op when the counter is already zero, so listener
-    invocations that don't pair with a ``.before`` set are safe.
+    Releases the AI Guard claim that the matching ``.before`` listener took.
+    Dispatched from the contrib's ``finally`` block so it fires on every exit
+    path — success, block (``core.dispatch(..., allow_raise=True)`` raises out
+    of ``.before``), or exception inside the underlying LLM call. The
+    release is a no-op when nothing is claimed, so listener invocations that
+    don't pair with a ``.before`` set are safe.
     """
     reset_aiguard_context_active_current(Phase.REQUEST, Phase.RESPONSE)
 
@@ -603,12 +603,12 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance: Any, args: Any
 def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
     """Paired ``.stream.started`` listener for langchain stream events.
 
-    Acquires the AI Guard active-context counter for the duration of stream
+    Claims the AI Guard request phase for the duration of stream
     iteration. Dispatched from ``BaseLangchainStreamHandler.start_stream``
     (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
     by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
-    iteration entry — so a stream created but never iterated cannot bump
-    the depth. The matching reset happens in
+    iteration entry — so a stream created but never iterated cannot leave
+    a claim behind. The matching reset happens in
     :func:`_langchain_stream_finally` via the .stream.finally event.
 
     REQUEST only. LangChain has no stream after-event, so it cannot evaluate a
@@ -623,7 +623,7 @@ def _langchain_stream_finally(*args: Any, **kwargs: Any) -> None:
     """Paired .stream.finally listener, releasing what .stream.started claimed.
 
     Releases REQUEST only, to match the claim. Releasing RESPONSE here as well
-    would decrement a counter this path never raised, and could cancel an outer
+    would drop a claim this path never took, and could cancel an outer
     framework's claim.
     """
     reset_aiguard_context_active_current(Phase.REQUEST)

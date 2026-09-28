@@ -93,17 +93,16 @@ def _langchain_listen(client: AIGuardClient) -> None:
     # ``.stream.started`` is dispatched lazily from
     # ``BaseLangchainStreamHandler.start_stream`` (called by
     # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
-    # stream created but never consumed cannot leak the counter into the
+    # stream created but never consumed cannot leak a claim into the
     # next call in the same task. The matching reset happens via
     # ``.stream.finally`` below (dispatched from ``finalize_stream``).
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 
-    # ``.finally`` listeners release the AI Guard active-context
-    # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
-    # by the matching ``.before`` listener (``func(...)`` runs synchronously
-    # so set + reset wrap the SDK call). For streaming the counter is bumped
-    # by ``.stream.started`` above, and reset here once iteration ends. We
+    # ``.finally`` listeners release the AI Guard claim. For non-streaming
+    # ``*.generate.*`` paths the claim is taken by the matching ``.before``
+    # listener (``func(...)`` runs synchronously so set + reset wrap the SDK
+    # call). For streaming it is taken by ``.stream.started`` above, and reset here once iteration ends. We
     # listen on ``.finally`` rather than ``.after`` so the reset still fires
     # when the underlying LLM call raises mid-iteration.
     core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)

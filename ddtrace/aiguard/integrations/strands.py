@@ -278,9 +278,9 @@ class AIGuardStrandsIntegration:
         ``finally`` block so it runs even when the model or tool hooks raised
         ``AIGuardAbortError``.
 
-        reset_aiguard_context_active tolerates a token created in a different
-        asyncio context, so a before/after pair split across tasks degrades to a
-        plain decrement instead of raising into this cleanup path.
+        The token can be released from a different asyncio task than the one
+        that claimed it (the consumer may close the stream from another task);
+        the claim is still released in the claiming task, and nothing raises.
         """
         token = event.invocation_state.pop(_INVOCATION_CTX_KEY, None)
         if token is not None:

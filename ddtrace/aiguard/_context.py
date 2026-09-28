@@ -17,6 +17,10 @@ Who claims what:
 - LangChain generate / agenerate: REQUEST and RESPONSE (it evaluates both).
 - LangChain streaming: REQUEST only.
 - Strands: REQUEST and RESPONSE (before- and after-model-call hooks).
+
+Claims are shared objects rather than per-context counters: an asyncio task
+works on a copy of its parent's Context, so a counter lowered from another task
+would leave the claiming task covered for good.
 """
 
 from collections.abc import Iterator
@@ -35,13 +39,34 @@ class Phase(Enum):
 
 ALL_PHASES: tuple[Phase, ...] = (Phase.REQUEST, Phase.RESPONSE)
 
-_DEPTHS = {
-    Phase.REQUEST: contextvars.ContextVar("ai_guard_request_depth", default=0),
-    Phase.RESPONSE: contextvars.ContextVar("ai_guard_response_depth", default=0),
-}
+
+class _Claim:
+    """One phase held by one framework call.
+
+    Every Context copied while the claim is held shares this object, so a
+    release from any of them -- including a different asyncio task -- is seen by
+    all, rather than only lowering the releasing task's own copy (APPSEC-70282).
+    """
+
+    __slots__ = ("phase", "released")
+
+    def __init__(self, phase: Phase) -> None:
+        self.phase = phase
+        self.released = False
+
+
+_CLAIMS: contextvars.ContextVar[tuple[_Claim, ...]] = contextvars.ContextVar("ai_guard_claims", default=())
 
 # Opaque pairing handle returned by set / consumed by reset.
-PhaseTokens = tuple[tuple[Phase, contextvars.Token[int]], ...]
+PhaseTokens = tuple[_Claim, ...]
+
+
+def _prune() -> None:
+    """Drop released claims from the current context's stack."""
+    claims = _CLAIMS.get()
+    live = tuple(claim for claim in claims if not claim.released)
+    if len(live) != len(claims):
+        _CLAIMS.set(live)
 
 
 def is_aiguard_context_active(phase: Optional[Phase] = None) -> bool:
@@ -51,55 +76,48 @@ def is_aiguard_context_active(phase: Optional[Phase] = None) -> bool:
     specific evaluation should always name their phase; the phase-less form
     exists for callers that only need to know an evaluation is in flight.
     """
-    if phase is None:
-        return any(var.get() > 0 for var in _DEPTHS.values())
-    return _DEPTHS[phase].get() > 0
+    return any(not claim.released and (phase is None or claim.phase is phase) for claim in _CLAIMS.get())
 
 
 def set_aiguard_context_active(*phases: Phase) -> PhaseTokens:
     """Claim phases for the current execution context.
 
     No arguments claims every phase. Returns a handle to pair with
-    reset_aiguard_context_active; nested claims increment the same counters, so
-    reads stay true until every claim is released.
+    reset_aiguard_context_active; nested claims stack, so reads stay true until
+    every claim is released.
     """
-    return tuple((phase, _DEPTHS[phase].set(_DEPTHS[phase].get() + 1)) for phase in (phases or ALL_PHASES))
-
-
-def _decrement(phase: Phase) -> None:
-    """Lower one phase's counter, never below zero."""
-    var = _DEPTHS[phase]
-    depth = var.get()
-    if depth > 0:
-        var.set(depth - 1)
+    tokens = tuple(_Claim(phase) for phase in (phases or ALL_PHASES))
+    _CLAIMS.set(tuple(claim for claim in _CLAIMS.get() if not claim.released) + tokens)
+    return tokens
 
 
 def reset_aiguard_context_active(tokens: Optional[PhaseTokens]) -> None:
-    """Release the claims recorded in tokens. A falsy handle is a no-op."""
+    """Release the claims in tokens, from any context. A falsy handle is a no-op.
+
+    Only these claims are released, so a release that lands in another task
+    can neither leave the claiming task covered nor drop an unrelated claim.
+    """
     if not tokens:
         return
-    for phase, token in reversed(tokens):
-        try:
-            _DEPTHS[phase].reset(token)
-        except ValueError:
-            # The token was created in a different Context -- a framework whose
-            # before- and after-hooks landed in different asyncio tasks. Raising
-            # here would escape into the framework's cleanup path, so fall back
-            # to a plain decrement, which is correct whether this context
-            # inherited the claim or never saw it (APPSEC-70282).
-            _decrement(phase)
+    for claim in tokens:
+        claim.released = True
+    _prune()
 
 
 def reset_aiguard_context_active_current(*phases: Phase) -> None:
-    """Tokenless release, for callers that cannot hold a token.
+    """Tokenless release of the most recent claim of each phase in this context.
 
-    A framework's after-event listener releasing what its before-event listener
-    claimed has no way to thread the token through the dispatch. Safe to call
-    when nothing is claimed: the counters never go below zero, so an after-event
-    firing without a matching before-event cannot corrupt the state.
+    For a framework's after-event listener, which has no way to receive the
+    token its before-event listener got back. A no-op when nothing is claimed,
+    so an after-event firing without a matching before-event is harmless.
     """
+    claims = _CLAIMS.get()
     for phase in phases or ALL_PHASES:
-        _decrement(phase)
+        for claim in reversed(claims):
+            if not claim.released and claim.phase is phase:
+                claim.released = True
+                break
+    _prune()
 
 
 @contextlib.contextmanager

@@ -8,4 +8,6 @@ fixes:
     themselves, so the provider still buffers and evaluates streamed responses under LangChain.
   - |
     AI Guard: Fixes a ``ValueError`` that could escape the Strands Agents integration when an
-    agent's before- and after-invocation hooks ran in different asyncio contexts.
+    agent's before- and after-invocation hooks ran in different asyncio contexts. In the same
+    situation, AI Guard no longer stays disabled for later OpenAI and Anthropic calls made from
+    the task that started the agent invocation.
