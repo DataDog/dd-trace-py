@@ -173,7 +173,7 @@ class GCPauseMonitor:
         # DEV: CPython runs pending signal handlers when a call returns. If a handler
         # raises between acquire() and try, the lock stays held preventing us
         # from sending any further metrics, and snapshot_and_reset() and release()
-        # will block forever. 
+        # will block forever.
         # A with statement cannot acquire without blocking, so Python code
         # cannot closethis gap.
         try:
