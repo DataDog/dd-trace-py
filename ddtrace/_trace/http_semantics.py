@@ -146,24 +146,25 @@ def set_url_tags_otel_server(
     _set_otel_query(span, query if query is not None else parsed.query)
 
 
+def _obfuscated_full_url(url: str, query: Optional[str], tag_query_string: bool) -> Union[str, bytes]:
+    if not tag_query_string:
+        return strip_query_string(url)
+    if config._global_query_string_obfuscation_disabled:
+        return url
+    if config._obfuscation_query_string_pattern is None or (
+        getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
+    ):
+        # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
+        return strip_query_string(url)
+    return redact_url(url, config._obfuscation_query_string_pattern, query)
+
+
 def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
 
-    if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
-        span._set_attribute(http.OTEL_URL_FULL, strip_query_string(url))
-    elif config._global_query_string_obfuscation_disabled:
-        span._set_attribute(http.OTEL_URL_FULL, url)
-    elif (
-        config._obfuscation_query_string_pattern is None
-        or getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
-    ):
-        span._set_attribute(http.OTEL_URL_FULL, strip_query_string(url))
-    else:
-        span._set_attribute(
-            http.OTEL_URL_FULL,
-            cast(Any, redact_url(url, config._obfuscation_query_string_pattern, query)),
-        )
+    tag_query_string = integration_config.http_tag_query_string or integration_config.trace_query_string
+    span._set_attribute(http.OTEL_URL_FULL, cast(Any, _obfuscated_full_url(url, query, tag_query_string)))
 
     address, port = _split_netloc(parsed.netloc)
     if port is None:
@@ -286,20 +287,10 @@ def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: 
     if config._otel_trace_semantics_enabled:
         set_url_tags_otel_server(integration_config, span, url, query)
     else:
-        if not integration_config.http_tag_query_string:
-            span._set_attribute(http.URL, strip_query_string(url))
-        elif config._global_query_string_obfuscation_disabled:
-            span._set_attribute(http.URL, url)
-        elif (
-            config._obfuscation_query_string_pattern is None
-            or getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
-        ):
-            span._set_attribute(http.URL, strip_query_string(url))
-        else:
-            span._set_attribute(
-                http.URL,
-                cast(Any, redact_url(url, config._obfuscation_query_string_pattern, query)),
-            )
+        span._set_attribute(
+            http.URL,
+            cast(Any, _obfuscated_full_url(url, query, integration_config.http_tag_query_string)),
+        )
 
 
 def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
