@@ -152,8 +152,7 @@ def test_otel_semantics_does_not_resolve_custom_converter_twice():
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
 def test_otel_semantics_keeps_async_request_resource_stable_during_application():
     import asyncio
-
-    import mock
+    from unittest import mock
 
     from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
     from ddtrace._trace.pin import Pin
