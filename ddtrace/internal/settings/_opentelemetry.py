@@ -1,12 +1,12 @@
 import typing as t
 
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
-from ddtrace.internal.utils.formats import asbool
 
 
 def _agentless_endpoint(signal_path: str = "") -> str:
@@ -152,9 +152,9 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
-    if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+    if agent_config._trace_otel_semantics_enabled:
         return True
-    if env.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
+    if get_config("DD_TRACE_AGENT_PROTOCOL_VERSION", report_telemetry=False):
         return False
     return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
 

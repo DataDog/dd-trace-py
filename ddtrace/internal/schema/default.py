@@ -4,6 +4,7 @@ import typing as t
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._inferred_base_service import detect_service
 from ddtrace.internal.utils.formats import asbool
 
@@ -32,7 +33,7 @@ def _get_schema_version() -> t.Any:
     version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
     if not _validate_schema(version):
         version = "v0"
-    if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+    if agent_config._trace_otel_semantics_enabled:
         # Two module scopes call this, so the conflict is reported once from Config instead.
         version = "v0"
     return version
