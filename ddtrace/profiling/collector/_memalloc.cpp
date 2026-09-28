@@ -449,17 +449,79 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
-static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-                                        /* sentinel */
-                                        { NULL, NULL, 0, NULL } };
-
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
+
+/* Called by CPython when the module object is deallocated
+ *
+ * Without this, PYMEM_DOMAIN_OBJ hook stays installed while CPython tears
+ * down its internal heap state. Any subsequent allocation calls through to the saved
+ * original allocator whose ctx pointer may already be stale which would cause SIGSEGV.
+ *
+ * PyMem_SetAllocator only copies a struct; it is safe to call here even
+ * during late-stage shutdown. The heap-tracker deinit frees C++ objects only
+ * (no CPython API calls), so it is also safe. */
+static void
+memalloc_module_free(void* Py_UNUSED(module))
+{
+    if (!memalloc_enabled)
+        return;
+
+    const PyMemAllocatorEx* saved = g_saved_alloc_pub.load(std::memory_order_acquire);
+    if (saved) {
+        PyMemAllocatorEx restore = *saved;
+        PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &restore);
+    }
+    g_saved_alloc_pub.store(nullptr, std::memory_order_release);
+
+#ifdef _PY312_AND_LATER
+    if (memalloc_mem_installed) {
+        const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
+        if (saved_mem) {
+            PyMemAllocatorEx restore_mem = *saved_mem;
+            PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
+        }
+        g_saved_alloc_mem_pub.store(nullptr, std::memory_order_release);
+        memalloc_mem_installed = false;
+    }
+#endif // _PY312_AND_LATER
+
+    memalloc_heap_tracker_deinit_no_cpython();
+    memalloc_enabled = false;
+}
+
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+/* Test-only helper: directly invoke the module-free cleanup path without
+ * waiting for the module object to be deallocated.
+ *
+ * Only compiled in assert/test builds (DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY=1).
+ * Used by regression tests to verify deterministically that memalloc_module_free
+ * correctly uninstalls hooks and resets state, without relying on Python's
+ * garbage collector to collect the module at shutdown time. */
+static PyObject*
+memalloc_test_invoke_module_free(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    memalloc_module_free(nullptr);
+    Py_RETURN_NONE;
+}
+#endif // MEMALLOC_ASSERT_ON_REENTRY
+
+static PyMethodDef module_methods_all[] = {
+    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
+    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+    { "_test_invoke_module_free",
+      (PyCFunction)memalloc_test_invoke_module_free,
+      METH_NOARGS,
+      "Test helper: invoke module-free cleanup directly (assert builds only)." },
+#endif // MEMALLOC_ASSERT_ON_REENTRY
+    /* sentinel */
+    { NULL, NULL, 0, NULL }
+};
 
 static struct PyModuleDef module_def = {
     PyModuleDef_HEAD_INIT, "_memalloc", module_doc, 0, /* non-negative size to be able to unload the module */
-    module_methods,        NULL,        NULL,       NULL, NULL,
+    module_methods_all,    NULL,        NULL,       NULL, memalloc_module_free,
 };
 
 PyMODINIT_FUNC
