@@ -24,6 +24,7 @@ from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
+from tests.profiling.collector.pprof_utils import pprof_pb2 as pprof_pb2
 
 
 init_linenos(__file__)
@@ -102,6 +103,44 @@ class BaseAsyncioLockCollectorTest:
                 os.remove(f)
             except Exception as e:
                 print("Error while deleting file: ", e)
+
+    async def test_lock_not_sampled_after_collector_stop(self) -> None:
+        """A lock created while the collector ran must not sample once the collector is stopped."""
+        # Drop samples left by earlier tests.
+        ddup.upload()
+
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        await lock.acquire()
+        lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 0, f"Expected no acquire samples after stop, got {len(acquire_samples)}"
+        assert len(release_samples) == 0, f"Expected no release samples after stop, got {len(release_samples)}"
+
+    async def test_lock_sampled_by_new_collector_after_restart(self) -> None:
+        """A lock created under a stopped collector samples again when a new collector starts."""
+        ddup.upload()
+
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()
+
+        with self.collector_class(capture_pct=100):
+            await lock.acquire()
+            lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+        assert len(acquire_samples) == 1, f"Expected 1 acquire sample, got {len(acquire_samples)}"
+        assert len(release_samples) == 1, f"Expected 1 release sample, got {len(release_samples)}"
 
     async def test_lock_events(self) -> None:
         """Test basic acquire/release event profiling."""
