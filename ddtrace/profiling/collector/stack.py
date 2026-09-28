@@ -1,6 +1,7 @@
 """Simple wrapper around stack native extension module."""
 
 import logging
+import os
 from types import ModuleType
 import typing
 
@@ -21,6 +22,115 @@ from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
+
+_FOREIGN_HANDLER_OWNER_SYMBOLS: frozenset[str] = frozenset({"ddtrace", "SIG_DFL", "SIG_IGN", "unknown", "none"})
+_HEX_DIGITS: str = "0123456789abcdefABCDEF"
+_MISSING_SA_SIGINFO_TAG: str = "+missing_sa_siginfo"
+
+
+def _split_missing_sa_siginfo_tag(component: str) -> tuple[str, str]:
+    if component.endswith(_MISSING_SA_SIGINFO_TAG):
+        return component[: -len(_MISSING_SA_SIGINFO_TAG)], _MISSING_SA_SIGINFO_TAG
+    return component, ""
+
+
+def _owner_symbol_key(component: str) -> str:
+    path: str
+    path, _ = _split_missing_sa_siginfo_tag(component)
+    return path
+
+
+def _normalize_foreign_handler_owner_component(component: str) -> str:
+    path: str
+    why: str
+    path, why = _split_missing_sa_siginfo_tag(component)
+    if path in _FOREIGN_HANDLER_OWNER_SYMBOLS:
+        return path + why
+    if path.startswith("unresolved@"):
+        return "unresolved" + why
+    # Strip +0x / (symbol) from the right so a path containing those stays intact.
+    if path.endswith(")"):
+        symbol_sep: int = path.rfind(" (")
+        if symbol_sep != -1:
+            path = path[:symbol_sep]
+    offset_sep: int = path.rfind("+0x")
+    if offset_sep != -1:
+        offset: str = path[offset_sep + 3 :]
+        if offset and all(ch in _HEX_DIGITS for ch in offset):
+            path = path[:offset_sep]
+    basename: str = os.path.basename(path)
+    return (basename or path) + why
+
+
+def _normalize_foreign_handler_owner(owner: str) -> str:
+    sigsegv_owner: typing.Optional[str] = None
+    sigbus_owner: typing.Optional[str] = None
+    # rpartition so a comma inside the SIGSEGV path is not a field delimiter.
+    sigsegv_part: str
+    sep: str
+    sigbus_part: str
+    sigsegv_part, sep, sigbus_part = owner.rpartition(", SIGBUS=")
+    if sep:
+        sigbus_owner = _normalize_foreign_handler_owner_component(sigbus_part)
+        if sigsegv_part.startswith("SIGSEGV="):
+            sigsegv_owner = _normalize_foreign_handler_owner_component(sigsegv_part[len("SIGSEGV=") :])
+    # Concrete library / unresolved, then SIG_DFL/IGN/unknown/none, then ddtrace.
+    # +missing_sa_siginfo is a why-tag; strip it before symbol-priority checks.
+    for candidate in (sigsegv_owner, sigbus_owner):
+        if candidate is not None and _owner_symbol_key(candidate) not in _FOREIGN_HANDLER_OWNER_SYMBOLS:
+            return candidate
+    for candidate in (sigsegv_owner, sigbus_owner):
+        if candidate is not None and _owner_symbol_key(candidate) != "ddtrace":
+            return candidate
+    if sigsegv_owner is not None:
+        return sigsegv_owner
+    if sigbus_owner is not None:
+        return sigbus_owner
+    return _normalize_foreign_handler_owner_component(owner)
+
+
+def _foreign_signal_names(owner: str) -> str:
+    """Name the signals the sampler did not own, from the owner string it recorded.
+
+    describe_signal_owner() in danger.cc reports exactly ``ddtrace`` when our handler owns
+    a signal and can deliver the recovery, so any other component - ``SIG_DFL`` and
+    ``ddtrace+missing_sa_siginfo`` included - is a signal we lost.
+    """
+    sigsegv_part: str
+    sep: str
+    sigbus_part: str
+    # rpartition so a comma inside the SIGSEGV path is not a field delimiter.
+    sigsegv_part, sep, sigbus_part = owner.rpartition(", SIGBUS=")
+    if not sep or not sigsegv_part.startswith("SIGSEGV="):
+        return ""
+    lost: list[str] = []
+    if sigsegv_part[len("SIGSEGV=") :] != "ddtrace":
+        lost.append("SIGSEGV")
+    if sigbus_part != "ddtrace":
+        lost.append("SIGBUS")
+    return " and ".join(lost)
+
+
+def _lost_ownership_clause(owner: str) -> str:
+    """Read as "does not own SIGBUS", for a message that must not claim both signals."""
+    foreign: str = _foreign_signal_names(owner)
+    if not foreign:
+        return "cannot confirm it owns SIGSEGV and SIGBUS"
+    return "does not own " + foreign
+
+
+def _lost_signals_tag(owner: str) -> str:
+    """Tag value naming the signals we lost: sigsegv, sigbus, sigsegv_sigbus or unknown.
+
+    Separating the two signals is what tells us whether SIGBUS ever changes hands in the
+    field, which decides whether the handler paths only a SIGBUS can reach are worth
+    keeping. add_log joins tags on commas and lowercases values, so this stays one
+    lowercase token with no comma in it.
+    """
+    foreign: str = _foreign_signal_names(owner)
+    if not foreign:
+        return "unknown"
+    return foreign.replace(" and ", "_").lower()
 
 
 def _unlink_finished_span(span: SpanData) -> None:
@@ -141,8 +251,60 @@ class StackCollector(collector.Collector):
 
     @staticmethod
     def snapshot() -> None:
-        # The sampling thread cannot touch Python, so it stashes the exception that killed
-        # it and we drain it here, on the scheduler thread, before every upload.
+        # Drain notices the sampling thread stashed (no GIL).
+        foreign_handler: typing.Optional[tuple[bool, str, bool]] = stack.take_foreign_segv_handler()
+        if foreign_handler is not None:
+            already_owned: bool = foreign_handler[0]
+            owner: str = foreign_handler[1]
+            sampling_stopped: bool = foreign_handler[2]
+            when: str = (
+                "already lost when the profiler finished warming up"
+                if already_owned
+                else "lost after the profiler had upgraded to the faster copy"
+            )
+            lost: str = _lost_ownership_clause(owner)
+            normalized_owner: str = _normalize_foreign_handler_owner(owner)
+            lost_signals: str = _lost_signals_tag(owner)
+            if sampling_stopped:
+                LOG.error(
+                    "The stack profiler %s and no safe memory-copy fallback is available, so it has stopped "
+                    "sampling. CPU/wall-time profiles will be empty. Handler owners: %s (%s).",
+                    lost,
+                    owner,
+                    when,
+                    extra={"send_to_telemetry": False},
+                )
+                telemetry_writer.add_log(
+                    TELEMETRY_LOG_LEVEL.ERROR,
+                    "The stack profiler sampling thread stopped because no safe memory-copy fallback was available",
+                    tags={
+                        "error_type": "foreign_segv_handler",
+                        "handler_owner": normalized_owner,
+                        "lost_signals": lost_signals,
+                        "already_owned": str(already_owned).lower(),
+                        "sampling_stopped": "true",
+                    },
+                )
+            else:
+                LOG.warning(
+                    "The stack profiler %s, so it is using the slower syscall-based memory copy for the rest of "
+                    "this process; sample quality may be reduced. Handler owners: %s (%s).",
+                    lost,
+                    owner,
+                    when,
+                    extra={"send_to_telemetry": False},
+                )
+                telemetry_writer.add_log(
+                    TELEMETRY_LOG_LEVEL.WARNING,
+                    "The stack profiler does not own both the SIGSEGV and SIGBUS handlers",
+                    tags={
+                        "error_type": "foreign_segv_handler",
+                        "handler_owner": normalized_owner,
+                        "lost_signals": lost_signals,
+                        "already_owned": str(already_owned).lower(),
+                    },
+                )
+
         error = stack.take_sampling_thread_error()
         if error is None:
             return

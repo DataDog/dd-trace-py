@@ -385,6 +385,27 @@ Sampler::take_sampling_thread_error()
 }
 
 void
+Sampler::record_foreign_segv_handler(bool already_owned, const std::string& owner, bool sampling_stopped) noexcept
+{
+    try {
+        const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
+        foreign_segv_handler_ = ForeignSegvHandler{ already_owned, owner, sampling_stopped };
+    } catch (...) {
+        // Swallow: diagnostic must not abort sampling.
+        return;
+    }
+}
+
+std::optional<ForeignSegvHandler>
+Sampler::take_foreign_segv_handler()
+{
+    const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
+    std::optional<ForeignSegvHandler> handler;
+    handler.swap(foreign_segv_handler_);
+    return handler;
+}
+
+void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     seed_fast_copy_profiler_stats();
@@ -472,6 +493,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         handler_fallback_done = true;
                         mark_fast_copy_syscall_fallback();
                         const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                        record_foreign_segv_handler(true, ownership.owners, false);
                         std::cerr << "ddtrace stack profiler: "
                                   << lost_ownership_clause("does not own", ownership.foreign)
                                   << "; keeping the syscall-based memory copy to avoid crashing. "
@@ -494,11 +516,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     // No safe fallback available (e.g. process_vm_readv blocked), so
                     // safe_memcpy is still active; reading under a foreign handler would
                     // crash - stop sampling instead.
+                    record_foreign_segv_handler(false, ownership.owners, true);
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
                                  "stopping stack sampling to avoid crashing. "
                               << "Handler owners: " << ownership.owners << std::endl;
                     break;
                 }
+                record_foreign_segv_handler(false, ownership.owners, false);
             }
         }
 
@@ -660,6 +684,10 @@ Sampler::postfork_child()
     // reporting it again here would attribute it to the wrong process.
     new (&sampling_thread_error_mutex_) std::mutex();
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
+
+    // Drop a parent-inherited takeover notice; the child records its own if needed.
+    new (&foreign_segv_handler_mutex_) std::mutex();
+    new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
