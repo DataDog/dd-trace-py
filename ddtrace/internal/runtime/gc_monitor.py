@@ -170,11 +170,12 @@ class GCPauseMonitor:
             self._start_ns[gen] = 0
             return
 
-        # CPython runs pending signal handlers when a call returns. If a handler
-        # raises between acquire() and try, the lock stays held. Every later sample
-        # is then skipped, and snapshot_and_reset() and release() block forever. A
-        # with statement cannot acquire without blocking, so Python code cannot close
-        # this gap.
+        # DEV: CPython runs pending signal handlers when a call returns. If a handler
+        # raises between acquire() and try, the lock stays held preventing us
+        # from sending any further metrics, and snapshot_and_reset() and release()
+        # will block forever. 
+        # A with statement cannot acquire without blocking, so Python code
+        # cannot closethis gap.
         try:
             if phase == _GCPhase.START:
                 # A start callback can run after release() uninstalls. Storing a
