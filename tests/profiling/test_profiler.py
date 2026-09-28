@@ -2,6 +2,8 @@ import logging
 import os
 import sys
 import time
+from typing import Any
+from typing import Callable
 from unittest import mock
 
 import pytest
@@ -13,6 +15,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -248,6 +251,37 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
     assert [module for module, _ in registered_hooks].count("asyncio") == 4
     assert [module for module, _ in registered_hooks].count("torch") == 1
     assert unregistered_hooks == registered_hooks
+
+
+@pytest.mark.parametrize("pytorch_enabled", [False, True])
+def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Use a mock ModuleWatchdog to simulate the delayed import of threading/asyncio.
+    # This is needed because in practice, when running the test suite, both threading and asyncio
+    # have already been imported by the time the profiler is constructed.
+    registered_hooks: list[tuple[str, Callable[[Any], None]]] = []
+
+    class WatchdogMock:
+        @staticmethod
+        def register_module_hook(module: str, hook: Callable[[Any], None]) -> None:
+            registered_hooks.append((module, hook))
+
+        @staticmethod
+        def unregister_module_hook(module: str, hook: Callable[[Any], None]) -> None:
+            pass
+
+    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+
+    p = profiler.Profiler(_pytorch_collector_enabled=pytorch_enabled)
+
+    # Run the lock hooks after construction to simulate a delayed import of threading/asyncio.
+    for module, hook in registered_hooks:
+        if module in ("threading", "asyncio"):
+            hook(None)
+
+    locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
+    assert locks, "expected lock collectors"
+    missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
+    assert not missing, "lock collectors built without a tracer: %s" % missing
 
 
 def test_profiler_serverless(monkeypatch):
