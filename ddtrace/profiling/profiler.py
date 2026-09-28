@@ -46,8 +46,8 @@ class Profiler:
     _active_instance: Optional["Profiler"] = None
     _active_lock = Lock()
 
-    # The SIGTERM handler we installed, if any.
-    _exit_signal_handler: Optional[Any] = None
+    # The SIGTERM and SIGINT handlers in place after we last registered.
+    _exit_signal_handler: Optional[tuple[Any, Any]] = None
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
@@ -77,12 +77,16 @@ class Profiler:
 
             self._profiler.start()
             Profiler._active_instance = self
-            # Register again if application code has replaced our handler since the last
-            # start. If it chained on top of ours, our handler will run twice, which is
-            # harmless because the second call will find no active instance.
+            # Register again if application code has replaced the SIGTERM or SIGINT handler
+            # since the last start. If it chained on top of ours, our handler will run twice,
+            # which is harmless because the second call will find no active instance.
             register_exit_signal_handler = (
                 Profiler._exit_signal_handler is None
-                or signal.getsignal(signal.SIGTERM) is not Profiler._exit_signal_handler
+                or (
+                    signal.getsignal(signal.SIGTERM),
+                    signal.getsignal(signal.SIGINT),
+                )
+                != Profiler._exit_signal_handler
             )
 
         atexit.register(self.stop)

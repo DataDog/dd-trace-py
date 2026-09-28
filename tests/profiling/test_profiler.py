@@ -727,6 +727,143 @@ def test_restart_registers_again_after_app_replaces_sigterm_handler() -> None:
         # (unreachable: application_handler exits the process)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(status=-2, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_flushes_on_sigint() -> None:
+    """Profiler must flush the last profile exactly once on SIGINT when SIGINT is not default_int_handler."""
+    import os
+    import signal
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: _raise_default re-raises SIGINT with SIG_DFL, killing the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_profiler_flushes_on_sigint_before_app_handler() -> None:
+    """The profiler SIGINT handler must chain onto an application handler installed before start."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, application_handler)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_again_after_app_replaces_sigint_handler() -> None:
+    """A restart must register the exit signal handler again if the application replaced only SIGINT."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGINT, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_sigint_after_app_replaces_default_int_handler() -> None:
+    """A restart must install the SIGINT handler if the application replaced default_int_handler."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGINT, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(status=-2, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_keeps_default_int_handler_and_flushes_on_keyboard_interrupt() -> None:
+    """With default_int_handler in place, start must leave SIGINT alone and atexit must flush on KeyboardInterrupt."""
+    import os
+    import signal
+    import time
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+    # Not a context manager: the patch must still be active when atexit runs.
+    mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)).start()
+
+    p = profiler.Profiler()
+    p.start()
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+    os.kill(os.getpid(), signal.SIGINT)
+    # KeyboardInterrupt is raised here; Python runs atexit, then exits via SIGINT.
+    time.sleep(10)
+
+
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
     ddtrace_run=True,

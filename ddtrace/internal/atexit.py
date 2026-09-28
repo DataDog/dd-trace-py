@@ -63,10 +63,12 @@ def unregister(func: typing.Callable) -> None:
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.
-def register_on_exit_signal(f: typing.Callable) -> typing.Optional[typing.Any]:
+def register_on_exit_signal(f: typing.Callable) -> typing.Optional[tuple[typing.Any, typing.Any]]:
     """Installs a function to be called when an exit signal (TERM or INT) is received.
 
-    Returns the SIGTERM handler that was installed, or None if nothing was installed.
+    Returns the SIGTERM and SIGINT handlers in place after installation, or None if
+    nothing was installed. The SIGINT handler can be one we did not install, e.g.
+    default_int_handler.
     """
 
     def handle_exit(sig: int, frame: typing.Any) -> None:
@@ -103,4 +105,4 @@ def register_on_exit_signal(f: typing.Callable) -> typing.Optional[typing.Any]:
     except Exception:
         log.debug("Encountered an exception while registering SIGINT", exc_info=True)
 
-    return sigterm_handler
+    return sigterm_handler, signal.getsignal(signal.SIGINT)
