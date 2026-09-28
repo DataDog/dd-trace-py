@@ -423,14 +423,19 @@ class _ProfilerInstance(service.Service):
             self._collectors_on_import = None
 
         if self._scheduler is not None:
+            scheduler_stopped: bool = True
             try:
                 self._scheduler.stop()
+            except service.ServiceStatusError:
+                pass
             except Exception:
+                scheduler_stopped = False
                 LOG.error("Error while stopping the profile scheduler", exc_info=True)
 
             # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
             # collectors before the possibly running flush is finished.
-            if join:
+            # If stop failed, the worker may never be signaled, so joining it without a timeout could hang forever.
+            if join and scheduler_stopped:
                 try:
                     self._scheduler.join()
                 except Exception:

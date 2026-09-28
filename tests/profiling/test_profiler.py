@@ -328,6 +328,32 @@ def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCapture
     p2.stop(flush=False)
 
 
+def test_stop_skips_scheduler_join_when_scheduler_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    p = profiler.Profiler()
+    p.start()
+    inst = p._profiler
+    sched = inst._scheduler
+    assert sched is not None
+
+    real = list(inst._collectors)
+    try:
+        with mock.patch.object(sched, "stop", side_effect=RuntimeError("scheduler stop blew up")):
+            with mock.patch.object(sched, "join") as join_mock:
+                with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+                    p.stop(flush=False)
+
+        join_mock.assert_not_called()
+        assert any("Error while stopping the profile scheduler" in m for m in caplog.messages)
+        assert inst.status == service.ServiceStatus.STOPPED
+        for col in real:
+            status = getattr(col, "status", None)
+            if status is not None:
+                assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+    finally:
+        sched.stop()
+        sched.join()
+
+
 def test_profiler_serverless(monkeypatch):
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
