@@ -244,3 +244,166 @@ def test_wait_wrapper_links_to_calling_greenlet_not_hub() -> None:
         )
     finally:
         child_greenlet.kill()
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_patch_is_idempotent() -> None:
+    import gevent
+    from greenlet import gettrace
+
+    from ddtrace.profiling import _gevent
+
+    _gevent.patch()
+    assert gettrace() is _gevent.greenlet_tracer
+    assert _gevent.greenlet_tracer not in _gevent._original_greenlet_tracers.values()
+
+    _gevent.patch()
+    assert _gevent.greenlet_tracer not in _gevent._original_greenlet_tracers.values(), (
+        "the second patch chained the tracer to itself"
+    )
+
+    gevent.joinall([gevent.spawn(lambda: gevent.sleep(0)) for _ in range(3)])
+    assert gettrace() is _gevent.greenlet_tracer, "the greenlet tracer was uninstalled"
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_patch_installs_tracer_in_each_native_thread() -> None:
+    import threading
+    import typing as t
+
+    from greenlet import gettrace
+
+    from ddtrace.profiling import _gevent
+
+    _gevent.patch()
+    assert gettrace() is _gevent.greenlet_tracer
+
+    thread_tracers: list[t.Optional[_gevent.TraceCallback]] = []
+
+    def target() -> None:
+        assert gettrace() is None
+        _gevent.patch()
+        thread_tracers.append(t.cast(t.Optional[_gevent.TraceCallback], gettrace()))
+
+    thread = threading.Thread(target=target)
+    thread.start()
+    thread.join()
+
+    assert thread_tracers == [_gevent.greenlet_tracer], "the tracer was not installed in the other native thread"
+    assert _gevent.greenlet_tracer not in _gevent._original_greenlet_tracers.values()
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_unpatch_then_patch() -> None:
+    import typing as t
+
+    import gevent
+    from greenlet import gettrace
+    from greenlet import settrace
+
+    from ddtrace.profiling import _gevent
+
+    events: list[str] = []
+
+    def user_tracer(event: str, args: t.Any) -> None:
+        events.append(event)
+
+    settrace(user_tracer)
+
+    _gevent.patch()
+    assert gettrace() is _gevent.greenlet_tracer
+
+    _gevent.unpatch()
+    assert gettrace() is user_tracer, "unpatch did not restore the original tracer"
+    assert gevent.spawn == _gevent._Greenlet.spawn
+    assert gevent.Greenlet is _gevent._Greenlet
+
+    _gevent.patch()
+    assert gettrace() is _gevent.greenlet_tracer, "the tracer was not reinstalled after unpatch"
+    assert gevent.spawn == _gevent.Greenlet.spawn
+    assert gevent.Greenlet is _gevent.Greenlet
+    assert _gevent.greenlet_tracer not in _gevent._original_greenlet_tracers.values()
+
+    events.clear()
+    gevent.joinall([gevent.spawn(lambda: gevent.sleep(0)) for _ in range(3)])
+    assert "switch" in events, "the original tracer is not chained after re-patch"
+    assert gettrace() is _gevent.greenlet_tracer
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
+def test_unpatch_then_patch_with_tracer_installed_on_top() -> None:
+    import typing as t
+
+    import gevent
+    from greenlet import gettrace
+    from greenlet import settrace
+
+    from ddtrace.profiling import _gevent
+    from ddtrace.profiling._gevent import TraceCallback
+
+    base_events: list[str] = []
+
+    def base_tracer(event: str, args: t.Any) -> None:
+        base_events.append(event)
+
+    settrace(base_tracer)
+
+    _gevent.patch()
+    assert gettrace() is _gevent.greenlet_tracer
+
+    events: list[str] = []
+    previous_tracer: t.Optional[TraceCallback] = None
+
+    def user_tracer(event: str, args: t.Any) -> None:
+        events.append(event)
+        if previous_tracer is not None:
+            previous_tracer(event, args)
+
+    previous_tracer = t.cast(TraceCallback, settrace(user_tracer))
+    assert previous_tracer is _gevent.greenlet_tracer
+
+    _gevent.unpatch()
+    assert gettrace() is user_tracer, "unpatch removed a tracer that it did not install"
+    assert _gevent._original_greenlet_tracers.get(_gevent._get_native_thread_ident()) is base_tracer
+
+    tracked: list[bool] = []
+
+    def worker() -> None:
+        gevent.sleep(0)
+        tracked.append(gevent.thread.get_ident(gevent.getcurrent()) in _gevent._tracked_greenlets)
+
+    events.clear()
+    base_events.clear()
+    gevent.joinall([gevent.spawn(worker) for _ in range(3)])
+    assert "switch" in events
+    assert "switch" in base_events, "the greenlet tracer does not forward events after unpatch"
+    assert tracked == [False] * 3, "the greenlet tracer still tracks greenlets after unpatch"
+
+    _gevent.patch()
+    assert gettrace() is user_tracer, "patch installed the greenlet tracer again"
+    assert _gevent.greenlet_tracer not in _gevent._original_greenlet_tracers.values()
+
+    events.clear()
+    base_events.clear()
+    tracked.clear()
+    gevent.joinall([gevent.spawn(worker) for _ in range(3)])
+    assert "switch" in events
+    assert "switch" in base_events, "the greenlet tracer does not forward events after re-patch"
+    assert gettrace() is user_tracer, "the tracer chain was uninstalled (likely by a recursion error)"
+    assert tracked == [True] * 3, "the greenlet tracer does not track greenlets after re-patch"
