@@ -24,6 +24,7 @@ from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.service import ServiceStatus
 
 
 HERE = os.path.dirname(__file__)
@@ -154,6 +155,140 @@ def test_enabled_products_reported_to_agent():
     assert agent.requests, "agent received no request"
     products = agent.requests[0]["client"]["products"]
     assert "ASM_FEATURES" in products
+
+
+def test_remoteconfig_product_defers_start_until_all_products_registered(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_module
+    from ddtrace.internal.remoteconfig.products import client as product
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+    from tests.utils import override_global_config
+
+    poller = RemoteConfigPoller()
+    started_with_products = []
+    startup_events = []
+
+    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: startup_events.append("native"))
+    monkeypatch.setattr(
+        worker_module.forksafe,
+        "register_before_fork",
+        lambda hook: startup_events.append("before-fork"),
+    )
+
+    def capture_start():
+        startup_events.append("poller")
+        started_with_products.extend(poller._client._enabled_products)
+        poller.status = ServiceStatus.RUNNING
+
+    def register_agent_config():
+        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
+        poller.enable_product(RemoteConfigProduct.AgentConfig)
+
+    monkeypatch.setattr(poller, "start", capture_start)
+    monkeypatch.setattr(product, "_register_rc_products", register_agent_config)
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        product.start()
+        poller.register_callback(RemoteConfigProduct.FfeFlags, _Sink())
+        poller.enable_product(RemoteConfigProduct.FfeFlags)
+
+        assert poller.status == ServiceStatus.STOPPED
+        assert started_with_products == []
+        assert startup_events == ["native", "before-fork"]
+
+        product.post_start()
+    assert startup_events == ["native", "before-fork", "poller"]
+    assert set(started_with_products) == {
+        RemoteConfigProduct.AgentConfig,
+        RemoteConfigProduct.FfeFlags,
+    }
+
+
+def test_start_deferred_does_not_start_without_barrier(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_module
+    from ddtrace.internal.remoteconfig.products import client as product
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+    from tests.utils import override_global_config
+
+    poller = RemoteConfigPoller()
+    starts = []
+    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
+    monkeypatch.setattr(poller, "start", lambda: starts.append(1))
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        product.post_start()
+    assert starts == []
+
+
+def test_remoteconfig_product_start_failure_cleans_up_deferred_state(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_module
+    from ddtrace.internal.remoteconfig.products import client as product
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+    from tests.utils import override_global_config
+
+    poller = RemoteConfigPoller()
+    fork_events = []
+    starts = []
+    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
+    monkeypatch.setattr(worker_module.forksafe, "register_before_fork", lambda hook: fork_events.append("register"))
+    monkeypatch.setattr(worker_module.forksafe, "unregister_before_fork", lambda hook: fork_events.append("unregister"))
+    monkeypatch.setattr(poller, "start", lambda: starts.append(1))
+
+    def fail_after_partial_registration():
+        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
+        poller.enable_product(RemoteConfigProduct.AgentConfig)
+        raise RuntimeError("registration failed")
+
+    monkeypatch.setattr(product, "_register_rc_products", fail_after_partial_registration)
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        with pytest.raises(RuntimeError, match="registration failed"):
+            product.start()
+
+        assert starts == []
+        assert poller._client._product_callbacks == {}
+        assert poller._client._enabled_products == set()
+        assert poller._start_deferred is False
+        assert poller._before_fork_registered is False
+        assert fork_events == ["register", "unregister"]
+
+        assert poller.enable() is True
+
+    assert starts == [1]
+
+
+def test_remoteconfig_product_post_start_failure_cleans_up_deferred_state(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_module
+    from ddtrace.internal.remoteconfig.products import client as product
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+    from tests.utils import override_global_config
+
+    poller = RemoteConfigPoller()
+    fork_events = []
+    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
+    monkeypatch.setattr(worker_module.forksafe, "register_before_fork", lambda hook: fork_events.append("register"))
+    monkeypatch.setattr(worker_module.forksafe, "unregister_before_fork", lambda hook: fork_events.append("unregister"))
+
+    def fail_start():
+        raise RuntimeError("poller start failed")
+
+    monkeypatch.setattr(poller, "start", fail_start)
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        poller.defer_start()
+        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
+        poller.enable_product(RemoteConfigProduct.AgentConfig)
+
+        with pytest.raises(RuntimeError, match="poller start failed"):
+            product.post_start()
+
+    assert poller._client._product_callbacks == {}
+    assert poller._client._enabled_products == set()
+    assert poller._start_deferred is False
+    assert poller._before_fork_registered is False
+    assert fork_events == ["register", "unregister"]
 
 
 def test_capabilities_reported_to_agent():
@@ -552,6 +687,48 @@ def test_switch_to_agentless_keeps_products_and_capabilities(monkeypatch):
         assert poller._client.id == client_id
         assert set(poller._client._enabled_products) == products
         assert list(poller._client._capability_values) == capabilities
+
+
+def test_switch_to_agentless_does_not_release_startup_barrier(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+    from tests.utils import override_global_config
+
+    poller = worker_mod.RemoteConfigPoller()
+    starts = []
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: object())
+    monkeypatch.setattr(worker_mod.forksafe, "register_before_fork", lambda hook: None)
+
+    def capture_start():
+        starts.append((poller._client.agentless, set(poller._client._enabled_products)))
+        poller.status = ServiceStatus.RUNNING
+
+    monkeypatch.setattr(poller, "start", capture_start)
+
+    with (
+        _agentless_settings(DD_AGENTLESS_ENABLED="false"),
+        override_global_config(dict(_remote_config_enabled=True, _dd_api_key="a-late-api-key")),
+    ):
+        poller.defer_start()
+        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
+        poller.enable_product(RemoteConfigProduct.AgentConfig)
+
+        assert poller.switch_to_agentless() is True
+
+        poller.register_callback(RemoteConfigProduct.FfeFlags, _Sink())
+        poller.enable_product(RemoteConfigProduct.FfeFlags)
+        assert starts == []
+
+        assert poller.start_deferred() is True
+
+    assert starts == [
+        (
+            True,
+            {
+                RemoteConfigProduct.AgentConfig,
+                RemoteConfigProduct.FfeFlags,
+            },
+        )
+    ]
 
 
 def test_switch_to_agentless_is_a_noop_when_already_agentless(monkeypatch):

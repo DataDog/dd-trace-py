@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where collecting per-test code coverage across threads
+    could terminate a test run with an internal error or attribute coverage to the wrong test.

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Managed prompts now expose version-owned JSON configuration through
+    ``ManagedPrompt.config`` and accept it through the ``config`` argument when creating prompts or versions.

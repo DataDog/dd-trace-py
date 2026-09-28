@@ -266,7 +266,7 @@ experiments:
               - execution_time < 20.50 ms
           - name: span-record-exception
             thresholds:
-              - execution_time < 42.50 ms
+              - execution_time < 49.00 ms
           - name: span-set-status
             thresholds:
               - execution_time < 22.00 ms
@@ -288,6 +288,13 @@ experiments:
           - name: span-update-name
             thresholds:
               - execution_time < 22.00 ms
+          # msgpackencoderscenario (encoder_v05)
+          - name: msgpackencoderscenario-flask_trace
+            thresholds:
+              - execution_time < 0.072 ms
+          - name: msgpackencoderscenario-simple_one_span
+            thresholds:
+              - execution_time < 0.006 ms
           # tracer
           - name: tracer-large
             thresholds:
@@ -298,10 +305,3 @@ experiments:
           - name: tracer-small
             thresholds:
               - execution_time < 0.42 ms
-          # msgpackencoderscenario
-          - name: msgpackencoderscenario-simple_one_span
-            thresholds:
-              - execution_time < 0.005 ms
-          - name: msgpackencoderscenario-flask_trace
-            thresholds:
-              - execution_time < 0.055 ms

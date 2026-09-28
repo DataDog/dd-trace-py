@@ -30,7 +30,6 @@ tests/integration/                  @DataDog/apm-core-python
 ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-core-python @DataDog/apm-python
-riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 .uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
@@ -53,6 +52,7 @@ tests/vendor/                       @DataDog/python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
 benchmarks/                         @DataDog/apm-core-python
+benchmarks/openfeature_flagevaluation/ @DataDog/feature-flagging-and-experimentation-sdk
 scripts/perf-*                      @DataDog/apm-core-python
 scripts/perf_*                      @DataDog/apm-core-python
 scripts/profiles/                   @DataDog/profiling-python
@@ -201,6 +201,7 @@ ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
+ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
 ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
@@ -214,6 +215,7 @@ ddtrace/internal/settings/asm.py             @DataDog/asm-python
 tests/aiguard/                      @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
+tests/contrib/trio                  @DataDog/apm-core-python @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 # scripts
 scripts/iast/*                      @DataDog/asm-python
