@@ -84,6 +84,20 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == HOST
 
+    def test_resource_with_otel_semantics(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            resp = self.http.request("GET", URL_200)
+
+        assert resp.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.resource == "GET"
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("url.full") == URL_200
+        assert span.get_tag("http.method") is None
+        assert span.get_tag("http.url") is None
+
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
         self.tracer.enabled = False
