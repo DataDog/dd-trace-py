@@ -977,6 +977,58 @@ def test_memory_collector_allocation_during_shutdown() -> None:
             allocation_thread.join(timeout=1)
 
 
+@pytest.mark.subprocess(err=None)
+def test_m_free_uninstalls_hooks_deterministic() -> None:
+    """Deterministic regression for the m_free fix.
+
+    Forcing module collection from Python is unreliable: importlib machinery,
+    __spec__, __loader__, and parent-package attributes all hold back-references
+    that survive gc.collect(), so m_free never fires through the GC path in a unit
+    test context
+
+    Instead we use _test_invoke_module_free(), a test-only C function compiled
+    in assert builds (DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY=1) that directly
+    calls memalloc_module_free().  This makes the test deterministic
+
+      Without fix (no memalloc_module_free / no m_free registered):
+        _test_invoke_module_free is absent from the module which would raise AttributeError
+        which is re-raised as AssertionError below which would cause the subprocess to exit with status 1
+        and the test to fail.
+
+      With fix (memalloc_module_free registered as m_free):
+        _test_invoke_module_free() uninstalls both hooks and sets memalloc_enabled = false
+        which would cause heap() to raise RuntimeError and the test to pass.
+    """
+    import pytest
+
+    from ddtrace.profiling.collector import _memalloc
+
+    _memalloc.start(64, 1, False)
+
+    # hooks are active before we invoke module_free.
+    _memalloc.heap()  # must not raise
+
+    invoke_fn = getattr(_memalloc, "_test_invoke_module_free", None)
+    if invoke_fn is None:
+        raise AssertionError(
+            "_test_invoke_module_free not found on _memalloc module.\n"
+            "Either the m_free fix (memalloc_module_free) is missing, or the build\n"
+            "was not compiled with MEMALLOC_ASSERT_ON_REENTRY."
+        )
+
+    # Directly invoke the module-free cleanup (same logic CPython calls on
+    # module deallocation during interpreter shutdown).
+    invoke_fn()
+
+    # Post-condition: memalloc_enabled must be false and hooks must be gone.
+    # Without the fix: heap() returns None here instead of raising.
+    with pytest.raises(RuntimeError, match="not started"):
+        _memalloc.heap()
+
+    # Allocations must not crash (OBJ/MEM domain restored to original allocator).
+    _ = ["post-free alloc" + str(i) for i in range(500)]
+
+
 def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
     """Test that the memory collector handles buffer pool exhaustion.
     This test creates multiple threads that simultaneously allocate with very deep
