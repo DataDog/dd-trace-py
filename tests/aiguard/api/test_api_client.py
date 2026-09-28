@@ -328,14 +328,28 @@ def test_evaluate_custom_tags(mock_execute_request, ai_guard_client, test_spans)
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_evaluate_custom_tags_do_not_override_ai_guard_tags(mock_execute_request, ai_guard_client, test_spans):
-    mock_execute_request.return_value = mock_evaluate_response("DENY", block=False)
+def test_evaluate_custom_tags_ignore_reserved_ai_guard_keys(mock_execute_request, ai_guard_client, test_spans):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
-    ai_guard_client.evaluate(PROMPT, tags={AI_GUARD.ACTION_TAG: "ALLOW", AI_GUARD.TARGET_TAG: "tool"})
+    ai_guard_client.evaluate(
+        PROMPT,
+        tags={
+            AI_GUARD.ACTION_TAG: "DENY",
+            AI_GUARD.TARGET_TAG: "tool",
+            AI_GUARD.BLOCKED_TAG: "true",
+            AI_GUARD.TOOL_NAME_TAG: "fake_tool",
+            "ai_guard.custom": "value",
+            "customer.tenant": "acme",
+        },
+    )
 
     span = find_ai_guard_span(test_spans)
-    assert span.get_tag(AI_GUARD.ACTION_TAG) == "DENY"
+    assert span.get_tag(AI_GUARD.ACTION_TAG) == "ALLOW"
     assert span.get_tag(AI_GUARD.TARGET_TAG) == "prompt"
+    assert span.get_tag(AI_GUARD.BLOCKED_TAG) is None
+    assert span.get_tag(AI_GUARD.TOOL_NAME_TAG) is None
+    assert span.get_tag("ai_guard.custom") is None
+    assert span.get_tag("customer.tenant") == "acme"
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")

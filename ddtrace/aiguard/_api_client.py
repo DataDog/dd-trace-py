@@ -46,6 +46,7 @@ ALLOW = "ALLOW"
 DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
+_RESERVED_TAG_PREFIX = AI_GUARD.TAG + "."
 
 
 class Evaluation(TypedDict):
@@ -321,7 +322,7 @@ class AIGuardClient:
             integration: Name of the auto-instrumented AI package, reported as the integration
                 telemetry tag. Only meaningful when source is auto; otherwise reported as none.
             tags: Optional custom tags set on the AI Guard span, e.g. to filter evaluations in
-                queries. AI Guard's own tags take precedence on key collisions.
+                queries. Keys under the reserved ai_guard. prefix are ignored.
 
         Returns:
             EvaluationResult containing action and reason
@@ -346,7 +347,10 @@ class AIGuardClient:
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             if tags:
                 for key, value in tags.items():
-                    span.set_tag(key, value)
+                    # Some ai_guard.* tags are only set conditionally below, so a caller value for
+                    # one of them would survive and misreport the verdict.
+                    if not key.startswith(_RESERVED_TAG_PREFIX):
+                        span.set_tag(key, value)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]

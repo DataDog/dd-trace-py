@@ -4,3 +4,4 @@ features:
     AI Guard: Adds an optional ``tags`` argument to ``AIGuardClient.evaluate()``. Each key/value
     pair in the dictionary is set as a tag on the AI Guard span, so evaluations can be filtered
     by custom fields in queries, e.g. ``client.evaluate(messages, tags={"tenant": "acme"})``.
+    Keys starting with ``ai_guard.`` are reserved and ignored.
