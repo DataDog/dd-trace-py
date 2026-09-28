@@ -1010,12 +1010,15 @@ def test_m_free_uninstalls_hooks_deterministic() -> None:
 
     invoke_fn = getattr(_memalloc, "_test_invoke_module_free", None)
     if invoke_fn is None:
-        # The symbol is only compiled in when MEMALLOC_ASSERT_ON_REENTRY is set at
-        # build time.  Pre-built release wheels omit it, so skip rather than fail.
-        # The deterministic check is still meaningful when running against an
-        # assert-enabled build (all profiling CI jobs set
-        # DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY=1 at build time).
+        # Only compiled in when MEMALLOC_ASSERT_ON_REENTRY is set at build time.
+        # Pre-built release wheels omit it, so skip rather than fail.
         pytest.skip("_test_invoke_module_free not in this build (not compiled with MEMALLOC_ASSERT_ON_REENTRY)")
+
+    # Verify that m_free is actually registered in module_def
+    assert _memalloc._test_m_free_registered(), (
+        "module_def.m_free is not set to memalloc_module_free — "
+        "the finalizer is not registered and CPython will never call it"
+    )
 
     # Directly invoke the module-free cleanup (same logic CPython calls on
     # module deallocation during interpreter shutdown).
