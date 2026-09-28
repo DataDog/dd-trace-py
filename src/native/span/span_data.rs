@@ -314,10 +314,9 @@ impl SpanData {
             .filter(|obj| !obj.is_none())
             .and_then(|obj| obj.extract::<Py<crate::context::Context>>().ok());
         if span._parent_context.is_none() {
-            // PERF/CORRECTNESS: a root span owns fresh, unshared trace-level state.
-            // Build its Context inline now, before the span can be published, so
-            // concurrent first-readers can't race and build divergent state — no
-            // lock required. Mirrors the `context` getter's root branch.
+            // A root span owns fresh, unshared trace-level state. Building its Context
+            // here, before the span can be published, keeps concurrent first readers from
+            // building divergent state without needing a lock.
             span._context = Some(crate::context::Context::new_root(
                 py,
                 span.trace_id,
@@ -760,11 +759,9 @@ impl SpanData {
     /// reference can run a weakref callback/finalizer, and one that re-enters this same
     /// `SpanData` would otherwise hit "already mutably borrowed".
     ///
-    /// Rejects non-`Context`/non-`None` values instead of silently storing `None`: this
-    /// field is backed by a native `Option<Py<Context>>` and can't hold an arbitrary
-    /// duck-typed object. Silently discarding an unrecognized value here would make a
-    /// later `context` read fabricate unrelated trace state instead of surfacing the
-    /// caller's mistake.
+    /// Raises `TypeError` for anything other than a `Context` or `None`: the field is a
+    /// native `Option<Py<Context>>`, and discarding an unrecognized value would make a later
+    /// `context` read fabricate unrelated trace state.
     #[setter(context)]
     fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<()> {
         let new_value = if value.is_none() {
