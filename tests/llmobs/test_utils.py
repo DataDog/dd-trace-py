@@ -596,6 +596,8 @@ class TestSanitizeSpanEventData:
     """
 
     def test_stringifies_top_level_non_string_keys(self):
+        # Integer, float, and None keys must be converted to their str() form
+        # so the msgpack meta_struct intake path accepts the mapping.
         assert _sanitize_span_event_data({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
             "metadata": {"5": "a", "2.5": "b", "None": "c"}
         }
