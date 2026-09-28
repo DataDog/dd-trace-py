@@ -39,6 +39,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -761,12 +762,22 @@ class Config:
                     "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED is set to true, but "
                     "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Peer service defaults stay disabled."
                 )
+                telemetry_writer.add_log(
+                    TELEMETRY_LOG_LEVEL.WARNING,
+                    "Enabling DD_TRACE_OTEL_SEMANTICS_ENABLED overrode DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED to false",
+                )
+                telemetry_writer.add_configuration("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, "calculated")
             _span_attribute_schema = _get_config("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", report_telemetry=False)
             if _span_attribute_schema != "v0":
                 log.warning(
                     "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA is set to a version other than v0, but "
                     "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Schema v0 is used instead."
                 )
+                telemetry_writer.add_log(
+                    TELEMETRY_LOG_LEVEL.WARNING,
+                    "Enabling DD_TRACE_OTEL_SEMANTICS_ENABLED overrode DD_TRACE_SPAN_ATTRIBUTE_SCHEMA to v0",
+                )
+                telemetry_writer.add_configuration("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", "calculated")
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()
