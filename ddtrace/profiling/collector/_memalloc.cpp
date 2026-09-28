@@ -415,6 +415,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         PyMemAllocatorEx restore = *saved;
         PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &restore);
     }
+
     /* Null out so hooks that have not yet loaded g_saved_alloc_pub will
      * fast-exit rather than call through to the saved allocator.
      */
@@ -469,10 +470,6 @@ PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
  * All profiling state is process-global (m_size=0), so we record g_owning_interp
  * at start() and bail here if the current interpreter is not the one that started
  * profiling.
- *
- * On free-threaded Python a hook may load g_saved_alloc_pub before our nullptr
- * store and then continue into memalloc_heap_track_invokes_cpython() while we
- * are destroying the heap tracker.
  */
 static void
 memalloc_module_free(void* Py_UNUSED(module))
