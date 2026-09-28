@@ -749,8 +749,7 @@ impl SpanData {
     /// field is backed by a native `Option<Py<Context>>` and can't hold an arbitrary
     /// duck-typed object. Silently discarding an unrecognized value here would make a
     /// later `context` read fabricate unrelated trace state instead of surfacing the
-    /// caller's mistake. This is the sole setter for this span's own context — there is
-    /// no separate `_context` setter to keep in sync.
+    /// caller's mistake.
     #[setter(context)]
     fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<()> {
         let new_value = if value.is_none() {

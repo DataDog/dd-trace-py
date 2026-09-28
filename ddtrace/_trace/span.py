@@ -105,9 +105,6 @@ class Span(SpanData):
         """
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        # `_parent_context` and, for a root span, `context` are set natively in
-        # `SpanData.__new__` from the `context` argument above.
-
         if links:
             for link in links:
                 self._set_link(link.trace_id, link.span_id, link.tracestate, link.flags, link.attributes)
