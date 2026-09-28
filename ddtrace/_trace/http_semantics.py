@@ -30,12 +30,6 @@ log = get_logger(__name__)
 _DEFAULT_KNOWN_HTTP_METHODS = frozenset(
     ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "QUERY")
 )
-_configured_http_methods = otel_config.HTTP_KNOWN_METHODS
-_CONFIGURED_KNOWN_HTTP_METHODS = (
-    None
-    if _configured_http_methods is None
-    else frozenset(method.strip() for method in _configured_http_methods.split(",") if method.strip())
-)
 OTHER_HTTP_METHOD = "_OTHER"
 
 
@@ -47,10 +41,6 @@ def otel_number(value: int) -> Union[int, str]:
 @cached()
 def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
     """Return the normalized method and its original spelling when they differ."""
-    if _CONFIGURED_KNOWN_HTTP_METHODS is not None:
-        if method in _CONFIGURED_KNOWN_HTTP_METHODS:
-            return method, None
-        return OTHER_HTTP_METHOD, method
     upper = method.upper()
     if upper in _DEFAULT_KNOWN_HTTP_METHODS:
         return upper, (None if upper == method else method)

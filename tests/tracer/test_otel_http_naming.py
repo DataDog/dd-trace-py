@@ -46,16 +46,6 @@ def test_normalize_http_method(method, expected):
     assert normalize_http_method(method) == expected
 
 
-@pytest.mark.subprocess(env={"OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS": "GET,PROPFIND"})
-def test_configured_known_http_methods_replace_defaults_and_are_case_sensitive():
-    from ddtrace._trace.http_semantics import OTHER_HTTP_METHOD
-    from ddtrace._trace.http_semantics import normalize_http_method
-
-    assert normalize_http_method("PROPFIND") == ("PROPFIND", None)
-    assert normalize_http_method("propfind") == (OTHER_HTTP_METHOD, "propfind")
-    assert normalize_http_method("POST") == (OTHER_HTTP_METHOD, "POST")
-
-
 @pytest.mark.parametrize(
     "method, target, expected",
     [
