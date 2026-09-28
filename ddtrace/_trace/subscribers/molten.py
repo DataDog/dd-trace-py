@@ -16,6 +16,4 @@ class MoltenRouteSubscriber(Subscriber):
         request_event.set_resource = False
 
         if event.route_name:
-            tags = event.request_context.get_item("additional_tags") or {}
-            tags[MOLTEN_ROUTE] = event.route_name
-            event.request_context.set_item("additional_tags", tags)
+            request_event.additional_tags[MOLTEN_ROUTE] = event.route_name
