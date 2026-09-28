@@ -9,45 +9,17 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 class BaseLangchainStreamHandler:
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._aiguard_state = {}
-
     def _process_chunk(self, chunk):
         self.chunks.append(chunk)
         chunk_callback = self.options.get("chunk_callback", None)
         if chunk_callback:
             chunk_callback(chunk)
 
-    def start_stream(self):
-        # Dispatched lazily from TracedStream.__iter__ / TracedAsyncStream.__aiter__,
-        # so AI Guard claims only once the caller starts iterating and a stream that
-        # is never consumed cannot leak a claim. The state dict travels with the
-        # stream so .stream.finally releases exactly this claim, even when another
-        # asyncio task finalizes the stream.
-        started_event = self.options.get("aiguard_started_event")
-        if started_event:
-            core.dispatch(started_event, (self._aiguard_state,))
-
     def finalize_stream(self, exception=None):
-        # try/finally so an on_span_finish error cannot skip the AI Guard release below.
-        try:
-            on_span_finish = self.options.get("on_span_finish", None)
-            if on_span_finish:
-                on_span_finish(self.primary_span, self.chunks)
-        finally:
-            # Dispatch the AI Guard finally event before finishing the span so
-            # the AI Guard claim taken by start_stream is released on every
-            # exit path: success, exception, early break, aclose, or
-            # context-manager exit. close_stream calls finalize_stream at most
-            # once from TracedStream iteration cleanup, context-manager exit, and
-            # GC. Only pair finally with a start that actually ran: otherwise a
-            # never-iterated stream would release an enclosing AI Guard claim.
-            # Use core.dispatch (non-raising) because cleanup must not throw.
-            finally_event = self.options.get("aiguard_finally_event")
-            if finally_event and getattr(self, "_stream_started", False):
-                core.dispatch(finally_event, (self._aiguard_state,))
-            self.primary_span.finish()
+        on_span_finish = self.options.get("on_span_finish", None)
+        if on_span_finish:
+            on_span_finish(self.primary_span, self.chunks)
+        self.primary_span.finish()
 
 
 class LangchainStreamHandler(BaseLangchainStreamHandler, StreamHandler):
@@ -80,25 +52,21 @@ def shared_stream(
 
     options.update(extra_options)
 
-    aiguard_before_event = options.pop("aiguard_before_event", None)
-    aiguard_started_event = options.pop("aiguard_started_event", None)
-    aiguard_finally_event = options.get("aiguard_finally_event")
+    before_event = options.pop("before_event", None)
 
     span = integration.trace(**options)
     span.set_tag("langchain.request.stream", "True")
     on_span_started(span)
 
     try:
-        # dispatch AI Guard hook after span is created so blocked requests still emit LLMObs span
-        if aiguard_before_event:
-            core.dispatch(aiguard_before_event, (instance, args, kwargs), allow_raise=True)
+        # Dispatched after the span is created, so a listener's block decision still emits the LLM span.
+        if before_event:
+            core.dispatch(before_event, (instance, args, kwargs), allow_raise=True)
         resp = func(*args, **kwargs)
         chunk_callback = _get_chunk_callback(interface_type, args, kwargs)
         handler_kwargs = dict(
             on_span_finish=on_span_finished,
             chunk_callback=chunk_callback,
-            aiguard_started_event=aiguard_started_event,
-            aiguard_finally_event=aiguard_finally_event,
         )
         if inspect.isasyncgen(resp):
             return make_traced_stream(
@@ -110,15 +78,9 @@ def shared_stream(
             LangchainStreamHandler(integration, span, args, kwargs, **handler_kwargs),
         )
     except (DDBlockException, Exception):
-        # catch ``DDBlockException`` explicitly (parent of
-        # ``AIGuardAbortError``) since it inherits from ``BaseException`` —
-        # otherwise the AI Guard abort would slip past ``except Exception:``
-        # and the LLM span would never get ``set_exc_info`` / ``finish``,
-        # leaving a hole between the AI Guard span (block decision) and the
-        # LLM span (no link back to the abort). No AI Guard release is needed
-        # here: .stream.started is dispatched lazily by start_stream on
-        # iteration entry, which never runs when func(...) raises before we
-        # return a stream wrapper.
+        # DDBlockException is a BaseException, so a listener's block decision would
+        # otherwise slip past except Exception and leave the LLM span without the
+        # error and never finished.
         span.set_exc_info(*sys.exc_info())
         span.finish()
         raise

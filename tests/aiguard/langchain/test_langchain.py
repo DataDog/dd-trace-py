@@ -975,9 +975,8 @@ async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, 
 def test_chat_resets_context_after_block(mock_execute_request, langchain_openai, openai_url):
     """A blocked non-streaming chat call still releases its AI Guard claim.
 
-    The .generate.before listener claims before evaluating, and the contrib's
-    finally block dispatches .generate.finally, which releases the claim on every
-    exit path, including a block raised out of .before.
+    The claim is held by AI Guard's wrapper around generate, which releases it in a
+    finally, so a block raised out of .before cannot leave it behind.
     """
     from ddtrace.aiguard._context import is_aiguard_context_active
 
@@ -1342,9 +1341,10 @@ def test_streamed_chat_claims_both_phases(mock_execute_request, langchain_openai
     assert is_aiguard_context_active() is False
 
 
+@pytest.mark.parametrize("stream_evaluation", [True, False], ids=["buffered", "unbuffered"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_buffered_stream_releases_claim_before_delivery(mock_execute_request, langchain_openai, openai_url):
-    """With the buffer on, the caller's loop body runs after the claim is released.
+def test_stream_loop_body_is_unclaimed(mock_execute_request, langchain_openai, openai_url, stream_evaluation):
+    """The claim is held only while a chunk is pulled, never while the caller's loop body runs.
 
     Direct SDK calls made inside the loop are therefore evaluated as usual.
     """
@@ -1354,11 +1354,70 @@ def test_buffered_stream_releases_claim_before_delivery(mock_execute_request, la
     model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
     observed = []
-    with _stream_evaluation_on():
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=stream_evaluation)):
         for _ in model.stream(input="how can langsmith help with testing?"):
             observed.append(is_aiguard_context_active())
 
     assert observed and not any(observed), observed
+
+
+_open_inner_streams: list = []
+
+
+class _InnerStreamLeftOpenModel(BaseChatModel):
+    """Chat model whose _generate starts an inner stream and returns with it still open."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "fake-inner-stream"
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+        inner = FakeListChatModel(responses=["inner answer"]).stream(input="inner prompt")
+        next(inner)
+        _open_inner_streams.append(inner)
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content="outer answer"))])
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_generate_with_inner_stream_left_open_leaves_no_claim(mock_execute_request, langchain):
+    """Generate must release its own claim even when an inner stream is still open when it returns.
+
+    Releasing "the latest claim" would take the stream's instead and leave generate's
+    held, so every later provider request on the thread would skip AI Guard.
+    """
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    _InnerStreamLeftOpenModel().invoke("hi")
+    try:
+        assert is_aiguard_context_active() is False
+    finally:
+        for inner in _open_inner_streams:
+            inner.close()
+        _open_inner_streams.clear()
+    assert is_aiguard_context_active() is False
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_async_stream_closed_from_another_task_leaves_no_claim(mock_execute_request, langchain):
+    """Breaking out of astream() early and closing it from another task leaves no claim in this task."""
+    import asyncio
+
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    iterator = FakeListChatModel(responses=["several chunks"]).astream(input="hi").__aiter__()
+
+    await iterator.__anext__()
+    assert is_aiguard_context_active() is False
+    await asyncio.create_task(iterator.aclose())
+    assert is_aiguard_context_active() is False
 
 
 # ``filterwarnings`` suppresses an orthogonal pre-existing
@@ -1376,8 +1435,8 @@ def test_streamed_chat_unconsumed_stream_does_not_leak_context(mock_execute_requ
     """Creating a langchain stream and never iterating it must not leave an AI Guard claim.
 
     Otherwise a later direct OpenAI call in the same task would skip AI Guard
-    evaluation (codex P2 finding on PR #17913). The claim is taken lazily by the
-    .stream.started listener on iteration entry, which never runs here.
+    evaluation (codex P2 finding on PR #17913). The claim is only held while a
+    chunk is pulled, which never happens here.
     """
     from ddtrace.aiguard._context import is_aiguard_context_active
 

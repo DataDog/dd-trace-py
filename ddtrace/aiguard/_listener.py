@@ -22,13 +22,10 @@ from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_b
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_stream_before
-from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
-from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
-from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
@@ -69,6 +66,9 @@ def _langchain_listen(client: AIGuardClient) -> None:
         logger.debug("AI Guard LangChain auto-instrumentation disabled via DD_AI_GUARD_LANGCHAIN_ENABLED=false")
         return
 
+    # _langchain_patch installs AI Guard's own wrappers around generate / stream. They
+    # take and release the claims that make the provider listeners skip in one frame,
+    # so no claim state has to travel through the contrib's events.
     core.on("langchain.patch", partial(_langchain_patch, client))
     core.on("langchain.unpatch", _langchain_unpatch)
 
@@ -90,22 +90,6 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
     core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
     core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
-
-    # .stream.started is dispatched lazily from BaseLangchainStreamHandler.start_stream
-    # on iteration entry, so a stream created but never consumed cannot leak a claim.
-    core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
-    core.on("langchain.llm.stream.started", _langchain_stream_started)
-
-    # .finally listeners release the claim .before / .stream.started stored in the
-    # state dict the contrib passes along, by handle, so a release from another
-    # asyncio task or with an inner stream still open takes the right claim. They
-    # listen on .finally rather than .after so the release also runs when the call raises.
-    core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
-    core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
-    core.on("langchain.llm.generate.finally", _langchain_generate_finally)
-    core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
-    core.on("langchain.chatmodel.stream.finally", _langchain_stream_finally)
-    core.on("langchain.llm.stream.finally", _langchain_stream_finally)
 
 
 def _openai_listen(client: AIGuardClient) -> None:

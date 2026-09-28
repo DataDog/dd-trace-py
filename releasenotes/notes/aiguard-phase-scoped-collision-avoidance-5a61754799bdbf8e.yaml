@@ -8,5 +8,6 @@ fixes:
   - |
     AI Guard: Fixes an issue where AI Guard could stop evaluating OpenAI and Anthropic calls for the
     rest of an asyncio task after a Strands Agents invocation or a LangChain stream finished in a
-    different task, including after breaking out of a LangChain ``astream()`` loop early. The
-    Strands Agents integration no longer raises a ``ValueError`` in that situation.
+    different task, including after breaking out of a LangChain ``astream()`` loop early. OpenAI and
+    Anthropic calls made inside a loop over a LangChain stream are now evaluated too. The Strands
+    Agents integration no longer raises a ``ValueError`` in that situation.

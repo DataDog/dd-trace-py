@@ -5,8 +5,6 @@ LLM contrib, so a regression here surfaces as silent breakage downstream.
 
 import asyncio
 import gc
-from unittest.mock import Mock
-from unittest.mock import patch
 
 import pytest
 
@@ -547,23 +545,6 @@ async def test_traced_async_stream_finalizes_when_on_stream_created_raises():
     assert handler.finalize_stream_calls == 1
     assert isinstance(handler.finalize_exceptions[0], RuntimeError)
     assert traced._self_entered_stream is None
-
-
-def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
-    from ddtrace.contrib.internal.langchain.utils import LangchainStreamHandler
-
-    span = Mock()
-    handler = LangchainStreamHandler(None, span, (), {}, aiguard_finally_event="langchain.llm.stream.finally")
-    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
-        handler.finalize_stream()
-    dispatch.assert_not_called()
-    span.finish.assert_called_once()
-
-    started = LangchainStreamHandler(None, Mock(), (), {}, aiguard_finally_event="langchain.llm.stream.finally")
-    started._stream_started = True
-    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
-        started.finalize_stream()
-    dispatch.assert_called_once_with("langchain.llm.stream.finally", (started._aiguard_state,))
 
 
 def _sync_chunks_then_cancel(n):

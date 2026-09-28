@@ -135,7 +135,7 @@ Events currently consumed:
 | OpenAI Responses | `openai.responses.create.before` / `.after` |
 | OpenAI (stream wrappers) | `openai.patch` / `.unpatch` |
 | Anthropic | `anthropic.messages.create.before` / `.after`, `anthropic.patch` / `.unpatch` |
-| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate,stream}.before` / `.finally`, `langchain.{chatmodel,llm}.{generate,agenerate}.after`, `langchain.{chatmodel,llm}.stream.started`, `langchain.patch` / `.unpatch` |
+| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate,stream}.before`, `langchain.{chatmodel,llm}.{generate,agenerate}.after`, `langchain.patch` / `.unpatch` |
 | HTTP (client IP) | `set_http_meta_for_asm` |
 
 ### 3. Provider converters → canonical `Message` shape
@@ -178,8 +178,8 @@ provider check skips only the phase it guards:
 
 | Integration | Claims |
 |-------------|--------|
-| LangChain `generate` / `agenerate` | `REQUEST` + `RESPONSE` |
-| LangChain `stream` / `astream` | `REQUEST` + `RESPONSE` (LangChain buffers and evaluates the stream itself, see below) |
+| LangChain `generate` / `agenerate` | `REQUEST` + `RESPONSE` for the whole call |
+| LangChain `stream` / `astream` | `REQUEST` + `RESPONSE` while each chunk is pulled (the stream is buffered and evaluated above the provider, see below) |
 | Strands | `REQUEST` + `RESPONSE` |
 
 | Provider check | Phase |
@@ -192,9 +192,12 @@ Never claim a phase the framework does not actually evaluate: claiming
 `RESPONSE` on a path that cannot scan the response silences the provider's
 check and leaves the response unevaluated (APPSEC-70286).
 
-LangChain streamed responses are buffered at the LangChain layer
-(`_langchain_buffered_stream`, installed on `BaseChatModel` / `BaseLLM`
-`stream` / `astream` at `langchain.patch`), not by the provider's buffer.
+AI Guard takes the LangChain claims in its own wrappers around `BaseChatModel` /
+`BaseLLM` `generate` / `agenerate` / `stream` / `astream`, installed by
+`_langchain_patch` at `langchain.patch`. The LangChain contrib only dispatches
+product-agnostic `.before` / `.after` events and carries no AI Guard state.
+Streamed responses are buffered in the same stream wrapper
+(`_langchain_stream`), not by the provider's buffer.
 LangChain wraps every provider chunk in its own read timeout, so a provider
 buffer that drains the whole stream on the first read turns a long generation
 into a timeout; buffering above LangChain keeps each provider read under its own
@@ -205,12 +208,13 @@ provider's `Exception`-based abort errors.
 Claims are shared objects, not per-context counters, so a release from a
 different asyncio task is seen by the claiming task (APPSEC-70282). Keep the
 handle returned by `set_aiguard_context_active(...)` and release it with
-`reset_aiguard_context_active(handle)`. When claim and release happen in
-different listeners, carry the handle on per-call state: Strands
-`invocation_state`, or the state dict the LangChain contrib passes from
-`.before` / `.stream.started` to `.finally`. Never release by searching the
-current context for "the latest claim": that misses claims made in another task
-and takes an inner call's claim when calls nest.
+`reset_aiguard_context_active(handle)`. Prefer `aiguard_context(...)` in an AI
+Guard-owned wrapper, which claims and releases in one frame (LangChain). Only
+when a framework's own hooks split claim and release, carry the handle on
+per-call state the framework provides (Strands `invocation_state`); never add
+AI Guard state to a contrib integration to carry it. Never release by searching
+the current context for "the latest claim": that misses claims made in another
+task and takes an inner call's claim when calls nest.
 
 ## Configuration
 

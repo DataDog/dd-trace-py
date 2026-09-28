@@ -13,17 +13,21 @@ own, and left streamed responses unevaluated (APPSEC-70286).
 
 Who claims what:
 
-- LangChain generate / agenerate: REQUEST and RESPONSE (it evaluates both).
-- LangChain streaming: REQUEST and RESPONSE. LangChain buffers and evaluates the
-  streamed response itself, above the provider, so the provider's buffered stream
-  stays passthrough and cannot trip LangChain's per-chunk timeout.
+- LangChain generate / agenerate: REQUEST and RESPONSE for the whole call (it
+  evaluates both).
+- LangChain streaming: REQUEST and RESPONSE while each chunk is pulled. The
+  streamed response is buffered and evaluated above the provider, so the
+  provider's buffered stream stays passthrough and cannot trip LangChain's
+  per-chunk timeout.
 - Strands: REQUEST and RESPONSE (before- and after-model-call hooks).
 
 Claims are shared objects rather than per-context counters: an asyncio task
 works on a copy of its parent's Context, so a counter lowered from another task
 would leave the claiming task covered for good. Every claim is released by the
 handle set_aiguard_context_active returned, never by searching the current
-context, so a release can neither miss its claim nor take someone else's.
+context, so a release can neither miss its claim nor take someone else's. Prefer
+aiguard_context, which claims and releases in one frame; carry the handle only
+when a framework's hooks split claim and release (Strands).
 """
 
 from collections.abc import Iterator

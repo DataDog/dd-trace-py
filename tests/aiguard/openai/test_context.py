@@ -20,7 +20,7 @@ Coverage:
 * Phase scoping — claiming one phase leaves the other free.
 * Cross-context release — a token released from another asyncio task
   neither raises, leaves the claiming task covered, nor drops an unrelated
-  claim (APPSEC-70282), including a LangChain stream finalized by another task.
+  claim (APPSEC-70282).
 """
 
 import asyncio
@@ -33,10 +33,6 @@ from ddtrace.aiguard._context import aiguard_context
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
-from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
-from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
-from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
-from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 
 
 # ---------------------------------------------------------------------------
@@ -322,53 +318,4 @@ class TestCrossContextRelease:
         assert await agen.__anext__() == "first"
         assert is_aiguard_context_active() is True
         await asyncio.create_task(agen.aclose())
-        assert is_aiguard_context_active() is False
-
-    @pytest.mark.asyncio
-    async def test_langchain_stream_finalized_by_preexisting_task_releases_claim(self):
-        """The LangChain stream shape: .stream.started and .stream.finally share a per-stream state.
-
-        The finalizing task predates the claim, so its Context never saw it; a
-        tokenless release there would leave the starter covered for good.
-        """
-        state: dict = {}
-        finalize = asyncio.Event()
-
-        async def _finalizer():
-            await finalize.wait()
-            _langchain_stream_finally(state)
-
-        finalizer = asyncio.create_task(_finalizer())
-        await asyncio.sleep(0)  # let the finalizer copy the Context before the claim
-
-        _langchain_stream_started(state)
-        assert is_aiguard_context_active(Phase.REQUEST) is True
-        assert is_aiguard_context_active(Phase.RESPONSE) is True
-
-        finalize.set()
-        await finalizer
-        assert is_aiguard_context_active() is False
-
-    def test_generate_release_leaves_inner_stream_claim_alone(self):
-        """A custom model's _generate returns with an inner stream still open.
-
-        Generate must release its own claim, not the most recent one: taking the
-        stream's claim instead would leave generate's claim held for good once the
-        stream's own release finds nothing, and provider requests on this thread
-        would skip AI Guard from then on.
-        """
-        generate_state: dict = {}
-        stream_state: dict = {}
-
-        _langchain_chatmodel_generate_before(None, [], generate_state)
-        _langchain_stream_started(stream_state)
-        _langchain_generate_finally(generate_state)
-        assert is_aiguard_context_active(Phase.REQUEST) is True  # the open stream's claim
-
-        _langchain_stream_finally(stream_state)
-        assert is_aiguard_context_active() is False
-
-    def test_claim_without_state_is_not_taken(self):
-        """No state means no way to release, so nothing may be claimed."""
-        _langchain_chatmodel_generate_before(None, [], None)
         assert is_aiguard_context_active() is False
