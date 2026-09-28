@@ -563,7 +563,7 @@ def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
     started._stream_started = True
     with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
         started.finalize_stream()
-    dispatch.assert_called_once_with("langchain.llm.stream.finally", ())
+    dispatch.assert_called_once_with("langchain.llm.stream.finally", (started._aiguard_state,))
 
 
 def _sync_chunks_then_cancel(n):

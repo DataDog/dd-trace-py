@@ -9,6 +9,10 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 class BaseLangchainStreamHandler:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._aiguard_state = {}
+
     def _process_chunk(self, chunk):
         self.chunks.append(chunk)
         chunk_callback = self.options.get("chunk_callback", None)
@@ -16,32 +20,30 @@ class BaseLangchainStreamHandler:
             chunk_callback(chunk)
 
     def start_stream(self):
-        # dispatched lazily from ``TracedStream.__iter__`` /
-        # ``TracedAsyncStream.__aiter__`` (via ``BaseStreamHandler.start_stream``),
-        # so it only runs when the caller actually starts iterating. Bumping
-        # the AI Guard depth counter here — instead of in the ``.before``
-        # listener — means a stream that is created but never consumed cannot
-        # leak the counter into the next call in the same task. Paired with
-        # the ``.stream.finally`` event below.
+        # Dispatched lazily from TracedStream.__iter__ / TracedAsyncStream.__aiter__,
+        # so AI Guard claims only once the caller starts iterating and a stream that
+        # is never consumed cannot leak a claim. The state dict travels with the
+        # stream so .stream.finally releases exactly this claim, even when another
+        # asyncio task finalizes the stream.
         started_event = self.options.get("aiguard_started_event")
         if started_event:
-            core.dispatch(started_event, ())
+            core.dispatch(started_event, (self._aiguard_state,))
 
     def finalize_stream(self, exception=None):
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
         # Dispatch the AI Guard finally event before finishing the span so
-        # the active-context counter set by start_stream is released on every
+        # the AI Guard claim taken by start_stream is released on every
         # exit path: success, exception, early break, aclose, or
         # context-manager exit. close_stream calls finalize_stream at most
         # once from TracedStream iteration cleanup, context-manager exit, and
         # GC. Only pair finally with a start that actually ran: otherwise a
-        # never-iterated stream would decrement an enclosing AI Guard context.
+        # never-iterated stream would release an enclosing AI Guard claim.
         # Use core.dispatch (non-raising) because cleanup must not throw.
         finally_event = self.options.get("aiguard_finally_event")
         if finally_event and getattr(self, "_stream_started", False):
-            core.dispatch(finally_event, ())
+            core.dispatch(finally_event, (self._aiguard_state,))
         self.primary_span.finish()
 
 

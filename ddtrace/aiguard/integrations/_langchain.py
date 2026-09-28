@@ -13,6 +13,7 @@ from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import Phase
+from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
@@ -23,6 +24,10 @@ from ddtrace.internal.utils import get_argument_value
 
 
 logger = ddlogger.get_logger(__name__)
+
+# Key under which a langchain stream keeps its AI Guard claim handle between
+# .stream.started and .stream.finally.
+_STREAM_CLAIM_KEY = "claim"
 
 
 action_agents_classes = (
@@ -600,33 +605,31 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance: Any, args: Any
     return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
 
 
-def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
-    """Paired ``.stream.started`` listener for langchain stream events.
+def _langchain_stream_started(state: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+    """Paired .stream.started listener for langchain stream events.
 
-    Claims the AI Guard request phase for the duration of stream
-    iteration. Dispatched from ``BaseLangchainStreamHandler.start_stream``
-    (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
-    by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
-    iteration entry — so a stream created but never iterated cannot leave
-    a claim behind. The matching reset happens in
-    :func:`_langchain_stream_finally` via the .stream.finally event.
+    Claims the AI Guard request phase for the duration of stream iteration.
+    Dispatched from BaseLangchainStreamHandler.start_stream on iteration entry,
+    so a stream created but never iterated cannot leave a claim behind. The
+    handle is kept in the stream's state so _langchain_stream_finally releases
+    this exact claim, even from an asyncio task that never saw it.
 
     REQUEST only. LangChain has no stream after-event, so it cannot evaluate a
     streamed response; claiming RESPONSE too would switch off the provider's
     buffered-stream evaluation and leave the response scanned by nobody
     (APPSEC-70286).
     """
-    set_aiguard_context_active(Phase.REQUEST)
+    state[_STREAM_CLAIM_KEY] = set_aiguard_context_active(Phase.REQUEST)
 
 
-def _langchain_stream_finally(*args: Any, **kwargs: Any) -> None:
-    """Paired .stream.finally listener, releasing what .stream.started claimed.
+def _langchain_stream_finally(state: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+    """Paired .stream.finally listener, releasing the claim .stream.started stored.
 
-    Releases REQUEST only, to match the claim. Releasing RESPONSE here as well
-    would drop a claim this path never took, and could cancel an outer
-    framework's claim.
+    A tokenless release would search the finalizing task's context, which misses
+    the claim when another task finalizes the stream and leaves the starter
+    covered for good.
     """
-    reset_aiguard_context_active_current(Phase.REQUEST)
+    reset_aiguard_context_active(state.pop(_STREAM_CLAIM_KEY, None))
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> Optional[Any]:

@@ -109,8 +109,8 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.llm.generate.finally", _langchain_generate_finally)
     core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
-    # Streaming releases only the request phase, matching what .stream.started
-    # claimed -- the generate variant releases both.
+    # Streaming releases the exact request claim .stream.started stored on the
+    # stream, so a stream finalized from another asyncio task still releases it.
     core.on("langchain.chatmodel.stream.finally", _langchain_stream_finally)
     core.on("langchain.llm.stream.finally", _langchain_stream_finally)
 

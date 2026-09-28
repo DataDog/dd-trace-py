@@ -55,7 +55,7 @@ ddtrace/aiguard/
 ├── _api_client.py          # AIGuardClient.evaluate() + HTTP transport + types
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
 ├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks
-├── _context.py             # contextvar depth counter to avoid double-scanning
+├── _context.py             # phase-scoped (REQUEST/RESPONSE) claims to avoid double-scanning
 ├── _common.py              # _get(), wrap_abort_error() shared helpers
 ├── _streaming.py           # streaming response evaluation
 ├── messages.py             # message formatting helpers
@@ -164,10 +164,34 @@ messages are the redacted ones — never slice on them.
 ### 5. Double-scan avoidance (`_context.py`)
 
 A framework integration (LangChain, Strands) and a provider integration
-(OpenAI, Anthropic) can both fire for the same call. To avoid scanning twice,
-the framework wraps its dispatch + LLM call with the `aiguard_context()`
-context manager (a contextvar depth counter), and provider listeners
-short-circuit when `is_aiguard_context_active()` returns `True`.
+(OpenAI, Anthropic) can both fire for the same call. The framework **claims the
+phases it evaluates itself** (`Phase.REQUEST`, `Phase.RESPONSE`), and each
+provider check skips only the phase it guards:
+
+| Integration | Claims |
+|-------------|--------|
+| LangChain `generate` / `agenerate` | `REQUEST` + `RESPONSE` |
+| LangChain streaming | `REQUEST` only (no stream after-event to evaluate the response) |
+| Strands | `REQUEST` + `RESPONSE` |
+
+| Provider check | Phase |
+|----------------|-------|
+| Request evaluation (OpenAI Chat / Responses, Anthropic) | `is_aiguard_context_active(Phase.REQUEST)` |
+| Non-streaming response evaluation | `is_aiguard_context_active(Phase.RESPONSE)` |
+| Buffered stream response evaluation (`_streaming.py`) | `is_aiguard_context_active(Phase.RESPONSE)` |
+
+Never claim a phase the framework does not actually evaluate: claiming
+`RESPONSE` on a path that cannot scan the response silences the provider's
+check and leaves the response unevaluated (APPSEC-70286).
+
+Claims are shared objects, not per-context counters, so a release from a
+different asyncio task is seen by the claiming task (APPSEC-70282). Keep the
+handle returned by `set_aiguard_context_active(...)` and release it with
+`reset_aiguard_context_active(handle)` — stash it on per-call state (Strands
+`invocation_state`, the LangChain stream handler's state dict) when claim and
+release happen in different listeners. `reset_aiguard_context_active_current()`
+is tokenless and only finds claims in the current context; use it only where
+claim and release are guaranteed to run in the same task.
 
 ## Configuration
 
@@ -218,10 +242,12 @@ re-exported lazily from `ai_guard/__init__.py` via a module-level
   silently dropping data.
 - **`allow_raise=True` is required** at dispatch sites that must be able to
   block, so `AIGuardAbortError` can propagate out of the patched call.
-- **Respect the context counter.** When adding a framework integration that
-  may nest over a provider integration, wrap with `aiguard_context()` and have
-  the provider listener honor `is_aiguard_context_active()`.
-- **Preserve invariant comments** for lazy import timing, stream counter
+- **Respect phase-scoped claims.** When adding a framework integration that
+  may nest over a provider integration, claim only the phases it evaluates
+  (`aiguard_context(Phase.REQUEST, ...)` or `set_aiguard_context_active(...)`
+  with the handle kept for release), and have every provider check name its
+  phase (`is_aiguard_context_active(Phase.REQUEST)` / `(Phase.RESPONSE)`).
+- **Preserve invariant comments** for lazy import timing, stream claim
   lifecycle, and legacy message translation when editing nearby code. Do not add
   new `AIDEV-*` labels (deprecated — see AGENTS.md).
 - **Tests** live under `tests/aiguard/`. Use the `run-tests` skill;

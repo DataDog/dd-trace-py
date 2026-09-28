@@ -20,7 +20,7 @@ Coverage:
 * Phase scoping — claiming one phase leaves the other free.
 * Cross-context release — a token released from another asyncio task
   neither raises, leaves the claiming task covered, nor drops an unrelated
-  claim (APPSEC-70282).
+  claim (APPSEC-70282), including a LangChain stream finalized by another task.
 """
 
 import asyncio
@@ -34,6 +34,8 @@ from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
+from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
+from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 
 
 # ---------------------------------------------------------------------------
@@ -352,4 +354,29 @@ class TestCrossContextRelease:
         assert await agen.__anext__() == "first"
         assert is_aiguard_context_active() is True
         await asyncio.create_task(agen.aclose())
+        assert is_aiguard_context_active() is False
+
+    @pytest.mark.asyncio
+    async def test_langchain_stream_finalized_by_preexisting_task_releases_claim(self):
+        """The LangChain stream shape: .stream.started and .stream.finally share a per-stream state.
+
+        The finalizing task predates the claim, so its Context never saw it; a
+        tokenless release there would leave the starter covered for good.
+        """
+        state: dict = {}
+        finalize = asyncio.Event()
+
+        async def _finalizer():
+            await finalize.wait()
+            _langchain_stream_finally(state)
+
+        finalizer = asyncio.create_task(_finalizer())
+        await asyncio.sleep(0)  # let the finalizer copy the Context before the claim
+
+        _langchain_stream_started(state)
+        assert is_aiguard_context_active(Phase.REQUEST) is True
+        assert is_aiguard_context_active(Phase.RESPONSE) is False
+
+        finalize.set()
+        await finalizer
         assert is_aiguard_context_active() is False
