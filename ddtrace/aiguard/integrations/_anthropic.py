@@ -659,6 +659,21 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
     return None
 
 
+def _anthropic_messages_create_after_event(client: AIGuardClient, kwargs: dict[str, Any], resp: Any) -> None:
+    """Listener for the contrib's anthropic.messages.create.after event.
+
+    Skips streamed requests. A raw-response stream (with_raw_response.create with
+    stream=True) is not a Stream, so the contrib dispatches it here with its body
+    still unread, and converting it would raise and report a converter error on
+    every call. Streamed responses are evaluated by the buffered stream instead,
+    which calls _anthropic_messages_create_after directly.
+    """
+    if kwargs.get("stream"):
+        logger.debug("AI Guard anthropic after-hook skipped: streamed request")
+        return None
+    return _anthropic_messages_create_after(client, kwargs, resp)
+
+
 def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, Any], resp: Any) -> None:
     """Listener for ``anthropic.messages.create.after``.
 

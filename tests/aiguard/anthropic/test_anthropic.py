@@ -11,6 +11,7 @@ from ddtrace import config
 from ddtrace.aiguard import AIGuardAbortError
 import ddtrace.aiguard._initialization as ai_guard_mod
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
+from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after_event
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 from ddtrace.aiguard.integrations._anthropic import _convert_anthropic_messages
 from ddtrace.aiguard.integrations._anthropic import _convert_anthropic_response
@@ -1227,6 +1228,34 @@ def test_collision_after_listener_short_circuits(aiguard_active_context):
         client, {"messages": _user_messages()}, {"role": "assistant", "content": [{"type": "text", "text": "ok"}]}
     )
     assert client.calls == 0
+
+
+def test_after_event_skips_streamed_raw_response():
+    """A with_raw_response stream reaches the after event with its body unread.
+
+    Converting it would read resp.content, raise, and report a converter error on
+    every streamed call; the event listener must leave it to the buffered stream.
+    """
+
+    class _UnreadRawResponse:
+        @property
+        def content(self):
+            raise AssertionError("the unread streamed body must not be touched")
+
+    class _SpyClient:
+        def __init__(self):
+            self.calls = 0
+
+        def evaluate(self, messages, options, **kwargs):
+            self.calls += 1
+
+    client = _SpyClient()
+    with patch("ddtrace.aiguard.integrations._anthropic._report_converter_error") as report:
+        _anthropic_messages_create_after_event(
+            client, {"messages": _user_messages(), "stream": True}, _UnreadRawResponse()
+        )
+    assert client.calls == 0
+    report.assert_not_called()
 
 
 def test_collision_before_listener_short_circuits(aiguard_active_context):

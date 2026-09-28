@@ -32,8 +32,9 @@ from ddtrace.aiguard._context import Phase
 from ddtrace.aiguard._context import aiguard_context
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
-from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
+from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
+from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 
@@ -149,29 +150,6 @@ class TestNesting:
         reset_aiguard_context_active(None)
         assert is_aiguard_context_active() is False
 
-    def test_reset_current_with_no_active_set_is_safe(self):
-        """Tokenless reset MUST be a no-op when nothing is active.
-
-        Pinned because the .after listener may fire without a matching
-        .before if dispatch is reconfigured at runtime.
-        """
-        assert is_aiguard_context_active() is False
-        reset_aiguard_context_active_current()
-        reset_aiguard_context_active_current()
-        assert is_aiguard_context_active() is False
-
-    def test_reset_current_releases_one_level(self):
-        """.after listener pattern: .before sets, .after calls the tokenless reset."""
-        token = set_aiguard_context_active()
-        assert is_aiguard_context_active() is True
-        try:
-            reset_aiguard_context_active_current()
-            assert is_aiguard_context_active() is False
-            token = None
-        finally:
-            if token is not None:
-                reset_aiguard_context_active(token)
-
 
 # ---------------------------------------------------------------------------
 # aiguard_context() context manager
@@ -260,16 +238,6 @@ class TestPhases:
             assert is_aiguard_context_active(Phase.RESPONSE) is True
         finally:
             reset_aiguard_context_active(response_token)
-        assert is_aiguard_context_active() is False
-
-    def test_tokenless_reset_is_phase_scoped(self):
-        set_aiguard_context_active(Phase.REQUEST, Phase.RESPONSE)
-        try:
-            reset_aiguard_context_active_current(Phase.REQUEST)
-            assert is_aiguard_context_active(Phase.REQUEST) is False
-            assert is_aiguard_context_active(Phase.RESPONSE) is True
-        finally:
-            reset_aiguard_context_active_current(Phase.RESPONSE)
         assert is_aiguard_context_active() is False
 
     def test_context_manager_is_phase_scoped(self):
@@ -375,8 +343,32 @@ class TestCrossContextRelease:
 
         _langchain_stream_started(state)
         assert is_aiguard_context_active(Phase.REQUEST) is True
-        assert is_aiguard_context_active(Phase.RESPONSE) is False
+        assert is_aiguard_context_active(Phase.RESPONSE) is True
 
         finalize.set()
         await finalizer
+        assert is_aiguard_context_active() is False
+
+    def test_generate_release_leaves_inner_stream_claim_alone(self):
+        """A custom model's _generate returns with an inner stream still open.
+
+        Generate must release its own claim, not the most recent one: taking the
+        stream's claim instead would leave generate's claim held for good once the
+        stream's own release finds nothing, and provider requests on this thread
+        would skip AI Guard from then on.
+        """
+        generate_state: dict = {}
+        stream_state: dict = {}
+
+        _langchain_chatmodel_generate_before(None, [], generate_state)
+        _langchain_stream_started(stream_state)
+        _langchain_generate_finally(generate_state)
+        assert is_aiguard_context_active(Phase.REQUEST) is True  # the open stream's claim
+
+        _langchain_stream_finally(stream_state)
+        assert is_aiguard_context_active() is False
+
+    def test_claim_without_state_is_not_taken(self):
+        """No state means no way to release, so nothing may be claimed."""
+        _langchain_chatmodel_generate_before(None, [], None)
         assert is_aiguard_context_active() is False

@@ -17,6 +17,7 @@ from ddtrace.aiguard._streaming import _is_async_traced_stream
 from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
+from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after_event
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
@@ -82,35 +83,27 @@ def _langchain_listen(client: AIGuardClient) -> None:
     # LangChain claims the response phase for these paths, which makes the
     # OpenAI / Anthropic listeners skip their own response evaluation. These
     # listeners are what replaces it -- without them a LangChain model response
-    # reaches the caller unevaluated (APPSEC-70274). Streaming has no matching
-    # after event, so it claims the request phase only and the provider's
-    # buffered stream evaluates the response instead (APPSEC-70286).
+    # reaches the caller unevaluated (APPSEC-70274). Streamed responses have no
+    # after event; the buffer _langchain_patch installs on stream / astream
+    # evaluates them instead (APPSEC-70286).
     core.on("langchain.chatmodel.generate.after", partial(_langchain_chatmodel_generate_after, client))
     core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
     core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
     core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
 
-    # ``.stream.started`` is dispatched lazily from
-    # ``BaseLangchainStreamHandler.start_stream`` (called by
-    # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
-    # stream created but never consumed cannot leak a claim into the
-    # next call in the same task. The matching reset happens via
-    # ``.stream.finally`` below (dispatched from ``finalize_stream``).
+    # .stream.started is dispatched lazily from BaseLangchainStreamHandler.start_stream
+    # on iteration entry, so a stream created but never consumed cannot leak a claim.
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 
-    # ``.finally`` listeners release the AI Guard claim. For non-streaming
-    # ``*.generate.*`` paths the claim is taken by the matching ``.before``
-    # listener (``func(...)`` runs synchronously so set + reset wrap the SDK
-    # call). For streaming it is taken by ``.stream.started`` above, and reset here once iteration ends. We
-    # listen on ``.finally`` rather than ``.after`` so the reset still fires
-    # when the underlying LLM call raises mid-iteration.
+    # .finally listeners release the claim .before / .stream.started stored in the
+    # state dict the contrib passes along, by handle, so a release from another
+    # asyncio task or with an inner stream still open takes the right claim. They
+    # listen on .finally rather than .after so the release also runs when the call raises.
     core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
     core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.llm.generate.finally", _langchain_generate_finally)
     core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
-    # Streaming releases the exact request claim .stream.started stored on the
-    # stream, so a stream finalized from another asyncio task still releases it.
     core.on("langchain.chatmodel.stream.finally", _langchain_stream_finally)
     core.on("langchain.llm.stream.finally", _langchain_stream_finally)
 
@@ -349,7 +342,7 @@ def _anthropic_listen(client: AIGuardClient) -> None:
         return
 
     core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
-    core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
+    core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after_event, client))
     core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
     core.on("anthropic.unpatch", _uninstall_anthropic_wrappers)
 

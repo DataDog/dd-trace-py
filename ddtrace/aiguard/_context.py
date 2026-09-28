@@ -6,21 +6,24 @@ evaluates itself, and a provider listener skips only the phase it is asked about
 -- so a framework that covers the request but not the response leaves the
 provider's response protection in place.
 
-The phases are tracked independently because the split is what the coverage
-depends on. LangChain streaming evaluates the request itself but has no
-after-event to evaluate the response on, so it claims REQUEST only and the
-provider's buffered stream still scans the response (APPSEC-70286). A single
-all-or-nothing flag suppressed both and left streamed responses unevaluated.
+The phases are tracked independently so a framework never suppresses a check it
+does not perform itself. A single all-or-nothing flag once let LangChain
+streaming switch off the provider's buffered-stream evaluation without doing its
+own, and left streamed responses unevaluated (APPSEC-70286).
 
 Who claims what:
 
 - LangChain generate / agenerate: REQUEST and RESPONSE (it evaluates both).
-- LangChain streaming: REQUEST only.
+- LangChain streaming: REQUEST and RESPONSE. LangChain buffers and evaluates the
+  streamed response itself, above the provider, so the provider's buffered stream
+  stays passthrough and cannot trip LangChain's per-chunk timeout.
 - Strands: REQUEST and RESPONSE (before- and after-model-call hooks).
 
 Claims are shared objects rather than per-context counters: an asyncio task
 works on a copy of its parent's Context, so a counter lowered from another task
-would leave the claiming task covered for good.
+would leave the claiming task covered for good. Every claim is released by the
+handle set_aiguard_context_active returned, never by searching the current
+context, so a release can neither miss its claim nor take someone else's.
 """
 
 from collections.abc import Iterator
@@ -76,7 +79,14 @@ def is_aiguard_context_active(phase: Optional[Phase] = None) -> bool:
     specific evaluation should always name their phase; the phase-less form
     exists for callers that only need to know an evaluation is in flight.
     """
-    return any(not claim.released and (phase is None or claim.phase is phase) for claim in _CLAIMS.get())
+    claims = _CLAIMS.get()
+    if not claims:
+        return False
+    # Runs on every provider call: a plain loop is several times faster than any() over a generator.
+    for claim in claims:
+        if not claim.released and (phase is None or claim.phase is phase):
+            return True
+    return False
 
 
 def set_aiguard_context_active(*phases: Phase) -> PhaseTokens:
@@ -101,22 +111,6 @@ def reset_aiguard_context_active(tokens: Optional[PhaseTokens]) -> None:
         return
     for claim in tokens:
         claim.released = True
-    _prune()
-
-
-def reset_aiguard_context_active_current(*phases: Phase) -> None:
-    """Tokenless release of the most recent claim of each phase in this context.
-
-    For a framework's after-event listener, which has no way to receive the
-    token its before-event listener got back. A no-op when nothing is claimed,
-    so an after-event firing without a matching before-event is harmless.
-    """
-    claims = _CLAIMS.get()
-    for phase in phases or ALL_PHASES:
-        for claim in reversed(claims):
-            if not claim.released and claim.phase is phase:
-                claim.released = True
-                break
     _prune()
 
 

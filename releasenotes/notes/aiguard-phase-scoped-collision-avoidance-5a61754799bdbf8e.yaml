@@ -1,13 +1,12 @@
 ---
 fixes:
   - |
-    AI Guard: Fixes an issue where a streamed LangChain response was never evaluated when
-    ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` was set to ``true``. LangChain suppressed the
-    underlying provider's buffered-stream evaluation without performing one of its own, so no
-    component scanned the response. Frameworks now suppress only the part of a call they evaluate
-    themselves, so the provider still buffers and evaluates streamed responses under LangChain.
+    AI Guard: Fixes an issue where streamed LangChain chat model and LLM responses were never
+    evaluated when ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` was set to ``true``. These
+    responses are now buffered and evaluated before any chunk reaches the caller, for every model
+    provider.
   - |
-    AI Guard: Fixes a ``ValueError`` that could escape the Strands Agents integration when an
-    agent's before- and after-invocation hooks ran in different asyncio contexts. In the same
-    situation, AI Guard no longer stays disabled for later OpenAI and Anthropic calls made from
-    the task that started the agent invocation.
+    AI Guard: Fixes an issue where AI Guard could stop evaluating OpenAI and Anthropic calls for the
+    rest of an asyncio task after a Strands Agents invocation or a LangChain stream finished in a
+    different task, including after breaking out of a LangChain ``astream()`` loop early. The
+    Strands Agents integration no longer raises a ``ValueError`` in that situation.

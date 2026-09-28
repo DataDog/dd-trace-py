@@ -30,21 +30,24 @@ class BaseLangchainStreamHandler:
             core.dispatch(started_event, (self._aiguard_state,))
 
     def finalize_stream(self, exception=None):
-        on_span_finish = self.options.get("on_span_finish", None)
-        if on_span_finish:
-            on_span_finish(self.primary_span, self.chunks)
-        # Dispatch the AI Guard finally event before finishing the span so
-        # the AI Guard claim taken by start_stream is released on every
-        # exit path: success, exception, early break, aclose, or
-        # context-manager exit. close_stream calls finalize_stream at most
-        # once from TracedStream iteration cleanup, context-manager exit, and
-        # GC. Only pair finally with a start that actually ran: otherwise a
-        # never-iterated stream would release an enclosing AI Guard claim.
-        # Use core.dispatch (non-raising) because cleanup must not throw.
-        finally_event = self.options.get("aiguard_finally_event")
-        if finally_event and getattr(self, "_stream_started", False):
-            core.dispatch(finally_event, (self._aiguard_state,))
-        self.primary_span.finish()
+        # try/finally so an on_span_finish error cannot skip the AI Guard release below.
+        try:
+            on_span_finish = self.options.get("on_span_finish", None)
+            if on_span_finish:
+                on_span_finish(self.primary_span, self.chunks)
+        finally:
+            # Dispatch the AI Guard finally event before finishing the span so
+            # the AI Guard claim taken by start_stream is released on every
+            # exit path: success, exception, early break, aclose, or
+            # context-manager exit. close_stream calls finalize_stream at most
+            # once from TracedStream iteration cleanup, context-manager exit, and
+            # GC. Only pair finally with a start that actually ran: otherwise a
+            # never-iterated stream would release an enclosing AI Guard claim.
+            # Use core.dispatch (non-raising) because cleanup must not throw.
+            finally_event = self.options.get("aiguard_finally_event")
+            if finally_event and getattr(self, "_stream_started", False):
+                core.dispatch(finally_event, (self._aiguard_state,))
+            self.primary_span.finish()
 
 
 class LangchainStreamHandler(BaseLangchainStreamHandler, StreamHandler):
@@ -112,10 +115,10 @@ def shared_stream(
         # otherwise the AI Guard abort would slip past ``except Exception:``
         # and the LLM span would never get ``set_exc_info`` / ``finish``,
         # leaving a hole between the AI Guard span (block decision) and the
-        # LLM span (no link back to the abort). No counter cleanup is needed
-        # here: ``.stream.started`` is dispatched lazily by ``start_stream``
-        # on iteration entry, which never runs when ``func(...)`` raises
-        # before we return a stream wrapper.
+        # LLM span (no link back to the abort). No AI Guard release is needed
+        # here: .stream.started is dispatched lazily by start_stream on
+        # iteration entry, which never runs when func(...) raises before we
+        # return a stream wrapper.
         span.set_exc_info(*sys.exc_info())
         span.finish()
         raise

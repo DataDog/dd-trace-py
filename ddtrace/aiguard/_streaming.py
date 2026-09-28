@@ -99,9 +99,10 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
     completely, calls ``evaluate`` on the reconstructed response, then replays
     the buffered chunks.
 
-    If the flag is off or a framework collision context is active the proxy is
-    transparent: ``_drained()`` returns ``None`` and every method delegates
-    directly to the wrapped stream.
+    The proxy is transparent when the flag is off or a framework already holds the
+    response phase and evaluates the response itself (LangChain buffers its own
+    streams one layer up): _drained() returns None and every method delegates to
+    the wrapped stream.
     """
 
     def __init__(self, wrapped: Any, *, reconstruct: ReconstructFn, evaluate: EvaluateFn) -> None:

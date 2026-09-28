@@ -179,7 +179,7 @@ provider check skips only the phase it guards:
 | Integration | Claims |
 |-------------|--------|
 | LangChain `generate` / `agenerate` | `REQUEST` + `RESPONSE` |
-| LangChain streaming | `REQUEST` only (no stream after-event to evaluate the response) |
+| LangChain `stream` / `astream` | `REQUEST` + `RESPONSE` (LangChain buffers and evaluates the stream itself, see below) |
 | Strands | `REQUEST` + `RESPONSE` |
 
 | Provider check | Phase |
@@ -192,14 +192,25 @@ Never claim a phase the framework does not actually evaluate: claiming
 `RESPONSE` on a path that cannot scan the response silences the provider's
 check and leaves the response unevaluated (APPSEC-70286).
 
+LangChain streamed responses are buffered at the LangChain layer
+(`_langchain_buffered_stream`, installed on `BaseChatModel` / `BaseLLM`
+`stream` / `astream` at `langchain.patch`), not by the provider's buffer.
+LangChain wraps every provider chunk in its own read timeout, so a provider
+buffer that drains the whole stream on the first read turns a long generation
+into a timeout; buffering above LangChain keeps each provider read under its own
+timeout. It also raises the `BaseException`-based `AIGuardAbortError`, which
+`with_fallbacks` and retry policies cannot swallow the way they swallow the
+provider's `Exception`-based abort errors.
+
 Claims are shared objects, not per-context counters, so a release from a
 different asyncio task is seen by the claiming task (APPSEC-70282). Keep the
 handle returned by `set_aiguard_context_active(...)` and release it with
-`reset_aiguard_context_active(handle)` — stash it on per-call state (Strands
-`invocation_state`, the LangChain stream handler's state dict) when claim and
-release happen in different listeners. `reset_aiguard_context_active_current()`
-is tokenless and only finds claims in the current context; use it only where
-claim and release are guaranteed to run in the same task.
+`reset_aiguard_context_active(handle)`. When claim and release happen in
+different listeners, carry the handle on per-call state: Strands
+`invocation_state`, or the state dict the LangChain contrib passes from
+`.before` / `.stream.started` to `.finally`. Never release by searching the
+current context for "the latest claim": that misses claims made in another task
+and takes an inner call's claim when calls nest.
 
 ## Configuration
 
