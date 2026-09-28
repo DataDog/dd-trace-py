@@ -540,6 +540,13 @@ def test_symbols_fork_uploads():
                 assert child_context._event_data["uploadId"] == child_context._upload_id
                 assert child_context._batch_counter == 0
         except BaseException:
+            # Print the traceback before exiting: os._exit() bypasses the
+            # normal interpreter shutdown, so an uncaught exception here
+            # would otherwise vanish without a trace in the parent's
+            # captured output.
+            import traceback
+
+            traceback.print_exc()
             os._exit(1)
         os._exit(0)
 

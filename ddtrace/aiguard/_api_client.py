@@ -456,16 +456,18 @@ class AIGuardClient:
                 if root_span:
                     _aiguard_manual_keep(root_span)
                     root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
-                    # Populate client IP on the service-entry span only when an ai_guard span
-                    # is actually created, mirroring the AppSec spec. The candidate IP was
+                    # Populate client IPs on the service-entry span only when an ai_guard span
+                    # is actually created, mirroring the AppSec spec. The candidate IPs were
                     # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
                     # Discard the key after use so a later evaluate() call can't inherit a
                     # stale IP from an earlier request that shared this context tree.
-                    client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    client_ips = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
-                    if client_ip:
+                    if client_ips:
+                        client_ip, peer_ip = client_ips
                         root_span._set_attribute(http.CLIENT_IP, client_ip)
-                        root_span._set_attribute("network.client.ip", client_ip)
+                        if peer_ip:
+                            root_span._set_attribute("network.client.ip", peer_ip)
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
                     # even when the root span arrives in a later trace chunk.
