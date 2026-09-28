@@ -232,20 +232,20 @@ def _build_path_aliases(cov_instance: Any = None) -> Optional[Any]:
 
 
 def _remap_lcov_paths(tmp_path: Path, cov_instance: Any = None) -> None:
-    """Remap ``SF:`` paths in an LCOV file using ``[paths]`` aliases from the active coverage config.
+    """Remap LCOV source paths using aliases from the active coverage config.
 
-    When tests run against an installed wheel (e.g. in a uv isolated environment),
-    coverage records paths like::
+    Apply aliases before upload so installed copies share repository filenames.
+    Unlike ``coverage combine``, this does not call ``canonical_filename``
+    or require the mapped sources to exist: the report already contains the
+    coverage data, and wheel-only test jobs may have removed the checkout
+    sources to ensure imports use the installed wheel.
 
-        .cache/uv-test-environments/<hash>/lib/python3.12/site-packages/ddtrace/__init__.py
-
-    The ``[paths]`` section in the coverage config maps these back to repository paths::
-
-        ddtrace/__init__.py
-
-    ``coverage combine`` applies these aliases, but it runs *after* the LCOV report
-    is already generated and uploaded.  This function applies the same remapping
-    to the LCOV file **before** upload so the intake receives deduplicated paths.
+    ``PathAliases.map`` calls ``canonical_filename`` on the mapped path, which
+    searches ``cwd`` and ``sys.path`` and caches the result globally.  When
+    the checkout sources have been removed, this can resolve the mapped path
+    back to an installed-package location (or a stale cache entry), defeating
+    the alias.  To avoid this, we iterate the alias regexes directly and apply
+    the substitution without canonicalisation.
 
     The file is streamed line-by-line through a temporary file to avoid holding
     multiple copies of a potentially large LCOV report in memory.  UTF-8 encoding
@@ -258,12 +258,15 @@ def _remap_lcov_paths(tmp_path: Path, cov_instance: Any = None) -> None:
     cwd = Path.cwd()
 
     def _map_path(path: str) -> str:
-        mapped = aliases.map(path)
-        try:
-            mapped = str(Path(mapped).relative_to(cwd))
-        except ValueError:
-            pass  # keep as-is if not relative to cwd
-        return mapped
+        for _pattern, regex, result in aliases.aliases:
+            if m := regex.match(path):
+                mapped = path.replace(m[0], result, 1)
+                try:
+                    mapped = str(Path(mapped).relative_to(cwd))
+                except ValueError:
+                    pass  # keep as-is if not relative to cwd
+                return mapped
+        return path
 
     # First pass: check whether any SF: line would be remapped.  If not,
     # return early without creating a temp file, so the no-remap case adds

@@ -49,6 +49,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_ANNOTATION
+from ddtrace.llmobs._constants import AGENT_DECLARATION_ANNOTATION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -134,6 +135,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
+from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -144,6 +146,7 @@ from ddtrace.llmobs._prompt_optimization import validate_task
 from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
+from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._sampler import LLMObsSamplingResolver
@@ -188,6 +191,7 @@ from ddtrace.llmobs.types import ChatMessage
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
+from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptAuthError
@@ -563,7 +567,7 @@ def _normalize_llmobs_meta(
 
 
 class LLMObs(Service):
-    _instance = None  # type: LLMObs
+    _instance: "LLMObs"
     enabled = False
     _app_key: str = _env.get("DD_APP_KEY", "")
     _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
@@ -718,9 +722,42 @@ class LLMObs(Service):
 
         # Agent annotations are applied here, where the span kind is known: annotation_context
         # reaches every span in its block, but only agent spans carry the tags.
-        agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
-        if agent_annotation and span_kind == "agent":
-            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
+        if span_kind == "agent":
+            agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
+            if agent_annotation:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
+            declared_manifest = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+            if declared_manifest:
+                # Both levels are type-checked because caller metadata is not sanitized until
+                # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
+                # non-mapping would otherwise raise AttributeError, which the handler around
+                # this path does not catch. Must precede the llmobs_meta read below.
+                existing = (llmobs_data.get(LLMOBS_STRUCT.META) or {}).get(LLMOBS_STRUCT.METADATA)
+                if not isinstance(existing, dict):
+                    existing = {}
+                existing_dd = existing.get(LLMOBS_STRUCT.METADATA_DD)
+                if not isinstance(existing_dd, dict):
+                    # `_dd` is reserved, so a caller value here is discarded rather than merged
+                    # into. `existing` is the live metadata dict whenever the span has one, so
+                    # this reset is what lets _annotate_llmobs_span_data assign into a mapping
+                    # below instead of raising on the caller's value.
+                    existing_dd = {}
+                    existing[LLMOBS_STRUCT.METADATA_DD] = existing_dd
+                existing_manifest = existing_dd.get(LLMOBS_STRUCT.AGENT_MANIFEST)
+                # Updated, not replaced: an integration may have already reported this agent and
+                # the caller is annotating a few fields on top.
+                merged: dict[str, Any] = dict(existing_manifest) if isinstance(existing_manifest, dict) else {}
+                declared_fields = dict(declared_manifest)
+                if merged:
+                    # The caller never supplies framework, so it keeps naming whoever built the
+                    # rest rather than relabelling someone else's manifest.
+                    declared_fields.pop("framework", None)
+                merged.update(declared_fields)
+                # The panel needs something to call the agent; the span name is what it is
+                # called everywhere else. A declared name has already won by this point.
+                if not merged.get("name"):
+                    merged["name"] = get_llmobs_span_name(span) or span.name
+                _annotate_llmobs_span_data(span, agent_manifest=merged)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         # Before the user processor and _normalize_llmobs_meta, either of which can strip values
@@ -1254,7 +1291,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         page_limit: int = 100,
         max_results: Optional[int] = None,
-    ) -> "list[ExperimentSummary]":
+    ) -> list[ExperimentSummary]:
         """List experiments, optionally filtered by name, metadata, or parent experiment.
 
         Each returned summary carries ``aggregate_data`` (average eval scores, error rates, token
@@ -1945,10 +1982,12 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param name: set to override the span name for any spans annotated within the returned context.
-        :param agent: A dictionary declaring the versioned agent running in this context, of the form
-                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
-                      Set as an ``agent_version`` tag on agent spans created within the context;
-                      other span kinds are unaffected.
+        :param agent: A dictionary declaring the agent running in this context, accepting
+                      ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
+                      ``tools``; see ``ddtrace.llmobs.Agent``. ``version`` is set as an
+                      ``agent_version`` tag and the rest as the agent's manifest, on every agent
+                      span in the block. All keys are optional; unreportable values are dropped,
+                      not raised.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2149,26 +2188,23 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
-        Args:
-            prompt_id: Unique identifier for the prompt.
-            template: List of chat messages defining the prompt template.
-            title: Optional human-readable title.
-            description: Optional description of the prompt.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy the first version to.
-
-        Returns:
-            The created prompt.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request (bad template, missing fields).
-            PromptConflictError: A prompt with this prompt_id already exists.
-            PromptServerError: Server-side error.
+        :param prompt_id: Unique identifier for the prompt.
+        :param template: List of chat messages defining the prompt template.
+        :param title: Optional human-readable title.
+        :param description: Optional description of the prompt.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy the first version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request (bad template, missing fields).
+        :raises PromptConflictError: A prompt with this prompt_id already exists.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt(
@@ -2179,6 +2215,7 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod
@@ -2191,25 +2228,22 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
-        Args:
-            prompt_id: The prompt identifier.
-            template: List of chat messages defining the new version's template.
-            description: Optional description of this version.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy this version to.
-
-        Returns:
-            The created prompt version.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request.
-            PromptNotFoundError: Prompt does not exist.
-            PromptServerError: Server-side error.
+        :param prompt_id: The prompt identifier.
+        :param template: List of chat messages defining the new version's template.
+        :param description: Optional description of this version.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy this version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt version.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request.
+        :raises PromptNotFoundError: Prompt does not exist.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt_version(
@@ -2219,6 +2253,7 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod
@@ -3019,9 +3054,12 @@ class LLMObs(Service):
                                    and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
-        :param agent: A dictionary declaring the versioned agent this span represents, of the form
-                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent``
-                      class. Set as an ``agent_version`` tag, and only on agent spans.
+        :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
+                      ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
+                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag and
+                      the rest as the agent's manifest, on agent spans only. All keys are optional;
+                      unreportable values are dropped, not raised, and an unset value leaves what
+                      an earlier annotation declared in place.
         """
         error = None
         try:
@@ -3068,6 +3106,17 @@ class LLMObs(Service):
                 if agent_version:
                     # Stashed rather than tagged: the span kind is not resolved yet.
                     span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+                if isinstance(agent, dict):
+                    # Validated here, and unreportable or unset values dropped, so repeated
+                    # annotate() calls and nested annotation_context blocks shallow-update field by
+                    # field rather than overwrite. A version-only agent declares nothing.
+                    declared = build_manual_agent_manifest(agent)
+                    if declared:
+                        stashed = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+                        if not isinstance(stashed, dict):
+                            stashed = {}
+                            span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, stashed)
+                        stashed.update(declared)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)

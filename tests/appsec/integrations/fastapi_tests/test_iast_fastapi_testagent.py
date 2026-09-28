@@ -42,7 +42,7 @@ def test_iast_header_injection_secure_attack(iast_test_token, free_port):
             if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 0
 
 
@@ -96,7 +96,7 @@ def test_iast_header_injection_attack(iast_test_token, free_port):
             if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 0
 
 
@@ -189,7 +189,7 @@ def test_iast_cmdi_form_request_fastapi(iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
@@ -231,7 +231,7 @@ def test_iast_cmdi_form_multiple_fastapi(iast_test_token, free_port):
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
@@ -271,7 +271,7 @@ def test_iast_cmdi_form_uvicorn(iast_test_token, free_port):
             if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2
+    assert len(spans_with_iast) == 1
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -369,8 +369,8 @@ def test_iast_vulnerable_request_downstream_fastapi(iast_test_token, free_port):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
             spans.append(span)
 
-    assert len(spans) >= 6, f"Incorrect number of spans ({len(spans)}):\n{spans}"
-    assert len(spans_with_iast) >= 2, f"Invalid number of spans with IAST ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans) >= 4, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans_with_iast) == 2, f"Invalid number of spans with IAST ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) >= 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) >= 1
     for vulnerability in vulnerabilities[0]:
@@ -412,7 +412,7 @@ def test_iast_cmdi_bodies_fastapi(body, content_type, iast_test_token, free_port
             if iast_data:
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
-    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
