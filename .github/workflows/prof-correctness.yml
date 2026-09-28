@@ -91,16 +91,21 @@ jobs:
           echo "Timeout: ${POLL_TIMEOUT}s, Interval: ${POLL_INTERVAL}s"
           elapsed=0
           found_url=""
+          # Bound each probe so a hung S3/TCP stall cannot blow past POLL_TIMEOUT.
+          CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-5}"
+          CURL_MAX_TIME="${CURL_MAX_TIME:-15}"
           while true; do
             statuses=""
             found_url=""
             for name in ${CANDIDATES}; do
               url="${S3_BASE}/${name}"
-              code="$(curl -sS -o /dev/null -w '%{http_code}' "${url}" || true)"
+              code="$(curl -sS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" \
+                -o /dev/null -w '%{http_code}' "${url}" || true)"
               code="${code:-curl_error}"
               statuses="${statuses}${statuses:+, }${name}=${code}"
-              if [ "$code" = "200" ] && [ -z "$found_url" ]; then
+              if [ "$code" = "200" ]; then
                 found_url="$url"
+                break
               fi
             done
             if [ -n "$found_url" ]; then
