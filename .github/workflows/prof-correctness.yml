@@ -89,11 +89,13 @@ jobs:
           POLL_INTERVAL="${POLL_INTERVAL:-30}"
           echo "Polling ${S3_BASE} for: ${CANDIDATES}"
           echo "Timeout: ${POLL_TIMEOUT}s, Interval: ${POLL_INTERVAL}s"
-          elapsed=0
           found_url=""
           # Bound each probe so a hung S3/TCP stall cannot blow past POLL_TIMEOUT.
           CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-5}"
           CURL_MAX_TIME="${CURL_MAX_TIME:-15}"
+          # Wall-clock budget: elapsed += POLL_INTERVAL ignores curl probe time
+          # (up to 3 * CURL_MAX_TIME per round) and can overrun the job timeout.
+          SECONDS=0
           while true; do
             statuses=""
             found_url=""
@@ -109,18 +111,17 @@ jobs:
               fi
             done
             if [ -n "$found_url" ]; then
-              echo "found ${found_url} after ${elapsed}s (${statuses})"
+              echo "found ${found_url} after ${SECONDS}s (${statuses})"
               echo "url=${found_url}" >> "$GITHUB_OUTPUT"
               break
             fi
-            if [ "$elapsed" -ge "$POLL_TIMEOUT" ]; then
+            if [ "$SECONDS" -ge "$POLL_TIMEOUT" ]; then
               echo "error: timed out after ${POLL_TIMEOUT}s waiting for any of: ${CANDIDATES} under ${S3_BASE} (last ${statuses})" >&2
               echo "GitLab may still be publishing wheels. Re-run this job after a candidate returns 200." >&2
               exit 1
             fi
-            echo "Not available yet (${elapsed}s elapsed, ${statuses}), retrying in ${POLL_INTERVAL}s..."
+            echo "Not available yet (${SECONDS}s elapsed, ${statuses}), retrying in ${POLL_INTERVAL}s..."
             sleep "${POLL_INTERVAL}"
-            elapsed=$((elapsed + POLL_INTERVAL))
           done
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
