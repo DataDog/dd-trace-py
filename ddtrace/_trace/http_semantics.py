@@ -148,6 +148,9 @@ def set_url_tags_otel_server(
         if port is not None:
             span._set_attribute(net.SERVER_PORT, otel_number(port))
 
+    # Either existing query-string option enables url.query capture.
+    if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
+        return
     _set_otel_query(span, query if query is not None else parsed.query)
 
 
@@ -155,7 +158,9 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
 
-    if config._global_query_string_obfuscation_disabled:
+    if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
+        span._set_attribute(http.OTEL_URL_FULL, strip_query_string(url))
+    elif config._global_query_string_obfuscation_disabled:
         span._set_attribute(http.OTEL_URL_FULL, url)
     elif (
         config._obfuscation_query_string_pattern is None

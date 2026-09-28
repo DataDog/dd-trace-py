@@ -152,7 +152,7 @@ def test_credentials_redacted_url():
 
 
 def test_set_url_tags_otel_server():
-    integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
     span = Span("web.request")
 
     with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
@@ -172,7 +172,7 @@ def test_set_url_tags_otel_server():
     assert span.get_tag(net.SERVER_PORT) == "443"
 
 
-def test_set_url_tags_otel_client_redacts_credentials_and_preserves_query():
+def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("http.request")
 
@@ -184,7 +184,7 @@ def test_set_url_tags_otel_client_redacts_credentials_and_preserves_query():
             "q=secret",
         )
 
-    assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search?q=secret"
+    assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search"
     assert span.get_tag(net.SERVER_ADDRESS) == "example.com"
     assert span.get_tag(net.SERVER_PORT) == "443"
 
