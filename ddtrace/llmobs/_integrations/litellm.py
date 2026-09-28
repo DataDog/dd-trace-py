@@ -161,6 +161,10 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         if getattr(_litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
             return False
+        # OpenRouter routes through litellm's own HTTP handler, not the OpenAI SDK, so there's no
+        # downstream OpenAI span to defer to.
+        if model_lower.startswith("openrouter/"):
+            return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")

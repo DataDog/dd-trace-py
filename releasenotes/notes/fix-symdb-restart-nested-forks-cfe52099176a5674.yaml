@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed an issue that could have caused the internal symbol DB component to
+    restart in nested fork child processes, potentially leading to high memory
+    usage.

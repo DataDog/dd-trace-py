@@ -25,7 +25,6 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Sampler::get().set_interval(min_interval_s);
     if (Sampler::get().start()) {
-        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -731,11 +730,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
         return NULL;
     }
 
-    const bool want = static_cast<bool>(enabled);
-    if (!want) {
-        fast_copy_user_disabled = true;
-    }
-    set_fast_copy_enabled(want);
+    set_fast_copy_enabled(static_cast<bool>(enabled));
 
     Py_RETURN_NONE;
 }

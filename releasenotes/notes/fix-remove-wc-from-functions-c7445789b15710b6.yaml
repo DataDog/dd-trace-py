@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    code origin: fix deepcopying of view functions performed by frameworks like
+    cadwyn, when code origin is enabled.

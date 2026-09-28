@@ -86,6 +86,14 @@ system-tests parametric:
     - echo -e "\e[0Ksection_end:`date +%s`:run_parametric\r\e[0K"
   variables:
     PYTEST_XDIST_AUTO_NUM_WORKERS: "8"
+    # NOTE: Pin the parametric job to the previous system-tests ref.
+    # The bumped ref (6bcdc71f, for the Debian 11 EOL / SSI fix) pulls in a
+    # parametric hang: the agent-pool POC (system-tests #7235) plus ~3k lines
+    # of new parametric tests stall ~7% of the suite indefinitely (pytest-timeout
+    # is installed but not activated, so the hang is never aborted). The PARAMETRIC
+    # scenario does not use Debian 11/apt provisioning, so it does not need the
+    # EOL fix — keep it on the last known-good ref until the upstream hang is fixed.
+    SYSTEM_TESTS_REF: "77e6da9b53639436525bf7bfb076723e18e102c3"
   artifacts:
     when: always
     paths:

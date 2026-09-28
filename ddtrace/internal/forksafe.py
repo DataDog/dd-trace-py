@@ -31,8 +31,10 @@ _soft = True
 # Flag to determine, from the parent process, if fork has been called
 _forked = False
 
-# Flag to determine if the current process is a fork child
-_fork_child = False
+# Fork generation counter. This is incremented every time a fork occurs, and is
+# used to determine if the current process is a child of a fork, and if so, how
+# many generations of forks have occurred since the original process.
+_fork_generation = 0
 
 
 def set_forked():
@@ -46,13 +48,17 @@ def has_forked() -> bool:
 
 
 def set_fork_child() -> None:
-    global _fork_child
+    global _fork_generation
 
-    _fork_child = True
+    _fork_generation += 1
 
 
 def is_fork_child() -> bool:
-    return _fork_child
+    return _fork_generation > 0
+
+
+def get_generation() -> int:
+    return _fork_generation
 
 
 def run_hooks(registry: list[typing.Callable[[], None]]) -> None:

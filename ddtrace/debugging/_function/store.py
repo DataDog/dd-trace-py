@@ -2,7 +2,6 @@ from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._function.discovery import FullyNamed
@@ -13,6 +12,7 @@ from ddtrace.internal.bytecode_injection import inject_hooks
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping.context import ContextWrappedFunction
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.context import wrapping_context_for
 
 
 WrapperType = Callable[[FunctionType, Any, Any, Any], Any]
@@ -35,12 +35,9 @@ class FunctionStore(object):
     removed when the functions are restored.
     """
 
-    def __init__(self, extra_attrs: Optional[list[str]] = None) -> None:
+    def __init__(self) -> None:
         self._code_map: dict[FunctionType, CodeType] = {}
         self._wrapper_map: dict[FunctionType, WrappingContext] = {}
-        self._extra_attrs = ["__dd_context_wrapped__"]
-        if extra_attrs:
-            self._extra_attrs.extend(extra_attrs)
 
     def __enter__(self) -> "FunctionStore":
         return self
@@ -57,11 +54,9 @@ class FunctionStore(object):
 
         Returns the set of probe IDs for those probes that failed to inject.
         """
-        try:
-            wrapped_func = cast(FullyNamedContextWrappedFunction, function)
-            f = cast(FunctionType, wrapped_func.__dd_context_wrapped__.__wrapped__)  # type: ignore[union-attr]
-        except AttributeError:
-            f = cast(FunctionType, function)
+        ft = cast(FunctionType, function)
+        uwc = wrapping_context_for(ft)
+        f = cast(FunctionType, uwc.__wrapped__) if uwc is not None else ft
         self._store(f)
         return {p.probe_id for _, _, p in inject_hooks(f, hooks)}
 
@@ -70,14 +65,9 @@ class FunctionStore(object):
 
         Returns the set of probe IDs for those probes that failed to eject.
         """
-        try:
-            wrapped_func = cast(FullyNamedContextWrappedFunction, function)
-            f = wrapped_func.__dd_context_wrapped__.__wrapped__  # type: ignore[union-attr]
-        except AttributeError:
-            # Not a wrapped function so we can actually eject from it
-            f = function
-
-        return {p.probe_id for _, _, p in eject_hooks(cast(FunctionType, f), hooks)}
+        uwc = wrapping_context_for(function)
+        f = cast(FunctionType, uwc.__wrapped__) if uwc is not None else function
+        return {p.probe_id for _, _, p in eject_hooks(f, hooks)}
 
     def inject_hook(self, function: FullyNamedContextWrappedFunction, hook: HookType, line: int, arg: Any) -> bool:
         """Inject a hook into a function."""
@@ -101,8 +91,3 @@ class FunctionStore(object):
         """Restore all the patched functions to their original form."""
         for function, code in self._code_map.items():
             function.__code__ = code
-            for attr in self._extra_attrs:
-                try:
-                    delattr(function, attr)
-                except AttributeError:
-                    pass

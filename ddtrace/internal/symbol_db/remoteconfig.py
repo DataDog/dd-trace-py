@@ -1,6 +1,7 @@
 import os
 import typing as t
 
+from ddtrace.internal.forksafe import get_generation
 from ddtrace.internal.forksafe import has_forked
 from ddtrace.internal.ipc import SharedStringFile
 from ddtrace.internal.logger import get_logger
@@ -36,9 +37,11 @@ class SymbolDatabaseCallback(RCCallback):
                 # have Symbol DB enabled.
                 shared_pid_file.put_unlocked(f, pid)
 
-            if (get_ancestor_runtime_id() is not None and has_forked()) or len(
-                pids - {pid, str(os.getppid())}
-            ) >= MAX_CHILD_UPLOADERS:
+            if (
+                get_generation() > 1
+                or (get_ancestor_runtime_id() is not None and has_forked())
+                or len(pids - {pid, str(os.getppid())}) >= MAX_CHILD_UPLOADERS
+            ):
                 log.debug("[PID %d] SymDB: Disabling Symbol DB in child process", os.getpid())
                 # We assume that forking is being used for spawning child worker
                 # processes. Therefore, we avoid uploading the same symbols from each
