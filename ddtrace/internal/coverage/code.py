@@ -48,8 +48,10 @@ def _is_site_packages_path(path: Path) -> bool:
     return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
 
 
-ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
-ctx_covered_files: ContextVar[list[set[str]]] = ContextVar("ctx_covered_files", default=[])
+# NOTE: A mutable ContextVar default would be shared across threads until set() is called.
+# Keep None so CollectInContext initializes a separate coverage stack in each context.
+ctx_covered: ContextVar[t.Optional[list[defaultdict[str, CoverageLines]]]] = ContextVar("ctx_covered", default=None)
+ctx_covered_files: ContextVar[t.Optional[list[set[str]]]] = ContextVar("ctx_covered_files", default=None)
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 

@@ -2011,7 +2011,6 @@ def listen():
     for context_name in (
         # web frameworks
         "pyramid.request",
-        "sanic.request",
         "tornado.request",
         "flask.call",
         "flask.jsonify",
