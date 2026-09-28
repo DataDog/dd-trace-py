@@ -707,8 +707,8 @@ def test_query_is_blocked_before_execution(method, query, tracing_enabled, trace
 
 @pytest.mark.parametrize("cursor_type", [Psycopg2TracedCursor, Psycopg3TracedCursor])
 def test_psycopg_query_rendering_without_optional_modules(cursor_type):
-    # psycopg2-only and older Python installations must not import psycopg3 or templatelib.
-    with mock.patch.dict("sys.modules", {"psycopg": None, "psycopg.sql": None, "string.templatelib": None}):
+    # psycopg2-only installations must not import psycopg3.
+    with mock.patch.dict("sys.modules", {"psycopg": None, "psycopg.sql": None}):
         with mock.patch("builtins.__import__", side_effect=AssertionError("unexpected import")):
             cursor = cursor_type(mock.Mock(rowcount=0), cfg={})
             assert cursor._render_dbapi_query("SELECT 1") == "SELECT 1"

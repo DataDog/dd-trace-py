@@ -32,29 +32,14 @@ failures do not interrupt the database call. BlockingException inherits from
 BaseException and still stops execution. The rendered value is event data only:
 tracing and the driver must continue to receive the original query and parameters.
 
-For psycopg3 templates, check the structure, then use psycopg's server-query
-processor to produce $n placeholders for bound values (default, :s, :t, :b)
-without dumping those values. Normalization supports nested :q templates,
-built-in SQL/Composed/Identifier nodes, :i strings, and literals with replayable
-built-in values. Stateful literal values, custom composable subclasses,
-conversions, and unsupported formats fail open without emitting a query event.
-They may consume application state when rendered twice. Legacy psycopg tracing
-still renders SQL/Composed resources in _trace_method(); do not extend that APM
-behavior to arbitrary as_string methods,
-custom composable subclasses, or other query types.
-Discover the already loaded driver/template modules independently of psycopg
-patch/config state, since Django-only instrumentation supplies its own
-IntegrationConfig and wrapper cursor.
-
-aiopg did not previously render composables. Its event rendering uses the native
-_impl cursor and only built-in SQL/Identifier/Placeholder/Literal nodes and
-Composed trees containing those nodes. Stateful literals and custom nodes fail
-open; replayable literals are inspected. The shared _render_composable_query()
-checks the tree before calling the driver's as_string() method.
-
-Do not inherit from TracedCursor or TracedAsyncCursor solely to reuse event rendering.
-Inherited methods assume the shared _trace_method signature and can change adapter
-behavior outside the event scope.
+For psycopg and aiopg composables, call the driver's as_string() with its native
+cursor. This includes Literal nodes. Rendering may happen again during execution,
+so stateful values inside literals may be adapted twice. For psycopg 3.3 templates,
+use its server-query processor for default cursors and sql.as_string() for client
+cursors, matching how each cursor sends SQL. Client rendering may also adapt bound
+values twice. Django's wrapper cursor exposes the native cursor through its cursor
+attribute. Legacy psycopg tracing still renders SQL/Composed resources in
+_trace_method(); keep event rendering independent of that APM behavior.
 
 ## LLM / Generative AI Detail
 

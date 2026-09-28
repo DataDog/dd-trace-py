@@ -1,4 +1,3 @@
-import json
 import time
 from unittest import mock
 
@@ -104,25 +103,6 @@ class AiopgTestCase(AsyncioTestCase):
             core.reset_listeners(DbQueryEvent.event_name, listener)
 
         assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
-
-    @mark_asyncio
-    async def test_literal_composable_query_preserves_parameter_adaptation(self):
-        self._conn = await aiopg.connect(**POSTGRES_CONFIG)
-        raw_cursor = await self._conn.cursor()
-        cursor = AIOTracedCursor(raw_cursor, Pin())
-        dumps = mock.Mock(side_effect=lambda values: json.dumps(list(values)))
-        payload = extras.Json(iter([1, 2]), dumps=dumps)
-        query = SQL("SELECT {}::json").format(Literal(payload))
-        listener = mock.Mock()
-        core.on(DbQueryEvent.event_name, listener)
-        try:
-            await cursor.execute(query)
-            assert await cursor.fetchone() == ([1, 2],)
-        finally:
-            core.reset_listeners(DbQueryEvent.event_name, listener)
-
-        dumps.assert_called_once_with(payload.adapted)
-        listener.assert_not_called()
 
     @pytest.mark.asyncio
     async def _get_conn(self):

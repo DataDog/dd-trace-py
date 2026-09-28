@@ -1,15 +1,12 @@
 # stdlib
-import json
 import sys
 import time
 from unittest import mock
+from unittest import skipIf
 
 import psycopg
 from psycopg.sql import SQL
-from psycopg.sql import Identifier
 from psycopg.sql import Literal
-from psycopg.types.json import Jsonb
-import pytest
 
 from ddtrace import config
 from ddtrace.contrib._events.dbapi import DbQueryEvent
@@ -185,6 +182,36 @@ class PsycopgCore(AsyncioTestCase):
         assert events == [DbQueryEvent(query=query.as_string(cursor), span_name_prefix="postgres")]
         cursor.execute.assert_awaited_once_with(query)
 
+    @skipIf(
+        sys.version_info < (3, 14) or parse_version(psycopg.__version__) < (3, 3),
+        "psycopg template queries require Python 3.14 and psycopg 3.3",
+    )
+    @mark_asyncio
+    async def test_template_query_event_for_default_and_client_cursors(self) -> None:
+        payload = "' OR 1=1 --"
+        query = eval(
+            't"SELECT {payload:l}, {bound} AS {column:i}"', {"payload": payload, "bound": "safe", "column": "value"}
+        )
+        events: list[DbQueryEvent] = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            for cursor_factory, bound_sql in ((psycopg.AsyncCursor, "$1"), (psycopg.AsyncClientCursor, "'safe'")):
+                async with await psycopg.AsyncConnection.connect(
+                    **POSTGRES_CONFIG, cursor_factory=cursor_factory
+                ) as connection:
+                    async with connection.cursor() as cursor:
+                        await cursor.execute(query)
+                        assert await cursor.fetchone() == (payload, "safe")
+                        literal_sql = Literal(payload).as_string(cursor)
+                        identifier_sql = psycopg.sql.Identifier("value").as_string(cursor)
+                        expected = f"SELECT {literal_sql}, {bound_sql} AS {identifier_sql}"
+                        assert events[-1] == DbQueryEvent(query=expected, span_name_prefix="postgres")
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert len(events) == 2
+
     async def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
         query = SQL(" union all ").join(
@@ -327,85 +354,3 @@ class PsycopgCore(AsyncioTestCase):
                     assert spans[1].name == "postgres.query"
                     assert spans[1].resource == "select ?"
                     assert spans[1].service == "postgres"
-
-
-@pytest.mark.skipif(
-    sys.version_info < (3, 14) or parse_version(psycopg.__version__) < (3, 3),
-    reason="psycopg template queries require Python 3.14 and psycopg 3.3",
-)
-@pytest.mark.parametrize(
-    "template_source, rendered_query",
-    [
-        ('t"SELECT {payload}"', "SELECT $1"),
-        ('t"SELECT {payload:s}"', "SELECT $1"),
-        ('t"SELECT {payload:t}"', "SELECT $1"),
-        ('t"SELECT {payload:b}"', "SELECT $1"),
-        ('t"SELECT {payload:l}"', None),
-        ('t"SELECT {Literal(payload):l}"', None),
-        ('t"SELECT {SQL("{}").format(Literal(payload)):q}"', None),
-        ('t"{fragment:q}{nested:q}, {42} AS {column:i}"', 'SELECT $1 AS "va""lue", $2 AS "raw""name"'),
-    ],
-)
-@pytest.mark.asyncio
-async def test_template_query_preserves_parameter_adaptation(template_source, rendered_query, tracer, test_spans):
-    # A consuming adapter must see exactly the same input as uninstrumented execution.
-    dumps = mock.Mock(side_effect=lambda values: json.dumps(list(values)))
-    payload = Jsonb(iter([1, 2]), dumps=dumps)
-    nested = eval('t"{payload} AS {column:i}"', {"payload": payload, "column": Identifier('va"lue')})
-    query = eval(
-        template_source,
-        {
-            "payload": payload,
-            "Literal": Literal,
-            "SQL": SQL,
-            "fragment": SQL("SELECT ") + SQL(""),
-            "nested": nested,
-            "column": 'raw"name',
-        },
-    )
-    events = []
-    listener = events.append
-    patch()
-    core.on(DbQueryEvent.event_name, listener)
-    try:
-        async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as connection:
-            async with connection.cursor() as cursor:
-                await cursor.execute(query)
-                rows = await cursor.fetchall()
-                assert rows[0][0] == [1, 2]
-                if "nested" in template_source:
-                    assert rows[0][1] == 42
-    finally:
-        core.reset_listeners(DbQueryEvent.event_name, listener)
-        unpatch()
-
-    dumps.assert_called_once_with(payload.obj)
-    assert events == ([DbQueryEvent(query=rendered_query, span_name_prefix="postgres")] if rendered_query else [])
-    query_spans = [span for span in test_spans.spans if span.name == "postgres.query"]
-    assert len(query_spans) == 1
-    assert query_spans[0].resource == ""
-
-
-@pytest.mark.asyncio
-async def test_custom_composable_query_is_rendered_only_by_driver(tracer):
-    render = mock.Mock(side_effect=[b"SELECT 1", b"SELECT 2"])
-
-    class StatefulSQL(SQL):
-        def as_bytes(self, context):
-            return render()
-
-    query = StatefulSQL("unused")
-    listener = mock.Mock()
-    patch()
-    core.on(DbQueryEvent.event_name, listener)
-    try:
-        async with await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG) as connection:
-            async with connection.cursor() as cursor:
-                await cursor.execute(query)
-                assert await cursor.fetchone() == (1,)
-    finally:
-        core.reset_listeners(DbQueryEvent.event_name, listener)
-        unpatch()
-
-    render.assert_called_once_with()
-    listener.assert_not_called()

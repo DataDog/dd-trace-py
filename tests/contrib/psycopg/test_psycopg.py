@@ -1,21 +1,17 @@
 # stdlib
-import json
 import sys
 import time
-from types import SimpleNamespace
 from unittest import mock
+from unittest import skipIf
 
 import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
-from psycopg.types.json import Jsonb
-import pytest
 
 from ddtrace import config
 from ddtrace.contrib._events.dbapi import DbQueryEvent
-from ddtrace.contrib.internal.django import database as django_database
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 from ddtrace.contrib.internal.psycopg.patch import patch
@@ -26,7 +22,6 @@ from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
-from tests.utils import override_config
 from tests.utils import snapshot
 
 
@@ -272,52 +267,32 @@ class PsycopgCore(TracerTestCase):
 
         assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
 
-    @pytest.mark.skipif(
+    @skipIf(
         sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
-        reason="psycopg template queries require Python 3.14 and psycopg 3.3",
+        "psycopg template queries require Python 3.14 and psycopg 3.3",
     )
-    def test_template_query_event_is_stringified(self) -> None:
-        cursor = mock.Mock(rowcount=0)
-        cursor.connection.pgconn._encoding = "utf-8"
-        django_cursor = mock.Mock(cursor=cursor, rowcount=0)
-        query = eval('t"SELECT 1"')
-        events: list[DbQueryEvent] = []
-
-        def capture_event(event: DbQueryEvent) -> None:
-            events.append(event)
-
-        core.on(DbQueryEvent.event_name, capture_event)
-        try:
-            Psycopg3TracedCursor(django_cursor, cfg=config.psycopg).execute(query)
-        finally:
-            core.reset_listeners(DbQueryEvent.event_name, capture_event)
-
-        assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")]
-        django_cursor.execute.assert_called_once_with(query)
-
-    @pytest.mark.skipif(
-        sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
-        reason="psycopg template queries require Python 3.14 and psycopg 3.3",
-    )
-    def test_template_literal_query_is_inspected(self) -> None:
+    def test_template_query_event_for_default_and_client_cursors(self) -> None:
         payload = "' OR 1=1 --"
-        queries = (
-            eval('t"SELECT {payload:l}"', {"payload": payload}),
-            eval('t"SELECT {Literal(payload):l}"', {"Literal": Literal, "payload": payload}),
+        query = eval(
+            't"SELECT {payload:l}, {bound} AS {column:i}"', {"payload": payload, "bound": "safe", "column": "value"}
         )
         events: list[DbQueryEvent] = []
         listener = events.append
         core.on(DbQueryEvent.event_name, listener)
         try:
-            with self._get_conn() as connection, connection.cursor() as cursor:
-                for query in queries:
-                    cursor.execute(query)
-                    assert cursor.fetchone() == (payload,)
-                expected_query = "SELECT " + Literal(payload).as_string(cursor)
+            for cursor_factory, bound_sql in ((psycopg.Cursor, "$1"), (psycopg.ClientCursor, "'safe'")):
+                with psycopg.connect(**POSTGRES_CONFIG, cursor_factory=cursor_factory) as connection:
+                    with connection.cursor() as cursor:
+                        cursor.execute(query)
+                        assert cursor.fetchone() == (payload, "safe")
+                        literal_sql = Literal(payload).as_string(cursor)
+                        identifier_sql = Identifier("value").as_string(cursor)
+                        expected = f"SELECT {literal_sql}, {bound_sql} AS {identifier_sql}"
+                        assert events[-1] == DbQueryEvent(query=expected, span_name_prefix="postgres")
         finally:
             core.reset_listeners(DbQueryEvent.event_name, listener)
 
-        assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")] * len(queries)
+        assert len(events) == 2
 
     def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
@@ -623,143 +598,3 @@ class PsycopgCore(TracerTestCase):
 
         query_span = spans[0]
         assert query_span.name == "postgres.query"
-
-
-@pytest.mark.skipif(
-    sys.version_info < (3, 14) or parse_version(psycopg.__version__) < (3, 3),
-    reason="psycopg template queries require Python 3.14 and psycopg 3.3",
-)
-@pytest.mark.parametrize(
-    "template_source, rendered_query",
-    [
-        ('t"SELECT {payload}"', "SELECT $1"),
-        ('t"SELECT {payload:s}"', "SELECT $1"),
-        ('t"SELECT {payload:t}"', "SELECT $1"),
-        ('t"SELECT {payload:b}"', "SELECT $1"),
-        ('t"SELECT {payload:l}"', None),
-        ('t"SELECT {Literal(payload):l}"', None),
-        ('t"SELECT {SQL("{}").format(Literal(payload)):q}"', None),
-        ('t"{fragment:q}{nested:q}, {42} AS {column:i}"', 'SELECT $1 AS "va""lue", $2 AS "raw""name"'),
-    ],
-)
-def test_template_query_preserves_parameter_adaptation(template_source, rendered_query, tracer, test_spans):
-    # A consuming adapter must see exactly the same input as uninstrumented execution.
-    dumps = mock.Mock(side_effect=lambda values: json.dumps(list(values)))
-    payload = Jsonb(iter([1, 2]), dumps=dumps)
-    nested = eval('t"{payload} AS {column:i}"', {"payload": payload, "column": Identifier('va"lue')})
-    query = eval(
-        template_source,
-        {
-            "payload": payload,
-            "Literal": Literal,
-            "SQL": SQL,
-            "fragment": SQL("SELECT ") + SQL(""),
-            "nested": nested,
-            "column": 'raw"name',
-        },
-    )
-    events = []
-    listener = events.append
-    patch()
-    core.on(DbQueryEvent.event_name, listener)
-    try:
-        with psycopg.connect(**POSTGRES_CONFIG) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(query)
-                rows = cursor.fetchall()
-                assert rows[0][0] == [1, 2]
-                if "nested" in template_source:
-                    assert rows[0][1] == 42
-    finally:
-        core.reset_listeners(DbQueryEvent.event_name, listener)
-        unpatch()
-
-    dumps.assert_called_once_with(payload.obj)
-    assert events == ([DbQueryEvent(query=rendered_query, span_name_prefix="postgres")] if rendered_query else [])
-    query_spans = [span for span in test_spans.spans if span.name == "postgres.query"]
-    assert len(query_spans) == 1
-    assert query_spans[0].resource == ""
-
-
-@pytest.mark.skipif(
-    sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
-    reason="psycopg template queries require Python 3.14 and psycopg 3.3",
-)
-def test_django_template_query_without_psycopg_patch(tracer, test_spans):
-    unpatch()
-    assert not getattr(psycopg, "_datadog_patch", False)
-    assert "_query_renderer" not in config.psycopg
-    query = eval('t"SELECT {value} AS {column:i}"', {"value": 42, "column": 'va"lue'})
-    events = []
-    listener = events.append
-    core.on(DbQueryEvent.event_name, listener)
-    try:
-        with (
-            override_config(
-                "django",
-                {"database_service_name": "", "database_service_name_prefix": "", "trace_fetch_methods": False},
-            ),
-            psycopg.connect(**POSTGRES_CONFIG) as connection,
-            connection.cursor() as native_cursor,
-        ):
-            # Only the Django wrapper shell is mocked: use its real cursor factory/config
-            # and an uninstrumented native cursor for rendering and server execution.
-            django_cursor = SimpleNamespace(cursor=native_cursor, execute=native_cursor.execute, rowcount=0)
-            django_connection = SimpleNamespace(vendor="postgresql", alias="default", settings_dict={})
-            cursor = django_database.cursor(lambda _: django_cursor, (django_connection,), {})
-            assert cursor._self_config is django_database.get_conn_config("postgresql", "defaultdb")
-            assert "_query_renderer" not in cursor._self_config
-            cursor.execute(query)
-            assert native_cursor.fetchone() == (42,)
-    finally:
-        core.reset_listeners(DbQueryEvent.event_name, listener)
-        django_database.get_conn_config.cache_clear()
-        django_database.get_conn_service_name.cache_clear()
-
-    assert events == [DbQueryEvent(query='SELECT $1 AS "va""lue"', span_name_prefix="postgres")]
-    assert [span.resource for span in test_spans.spans] == [""]
-    assert not getattr(psycopg, "_datadog_patch", False)
-
-
-@pytest.mark.skipif(
-    sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
-    reason="psycopg template queries require Python 3.14 and psycopg 3.3",
-)
-@pytest.mark.parametrize(
-    "template_source",
-    ['t"{custom:q}"', 't"{SQL("{}").format(custom):q}"', 't"SELECT {value!r}"', 't"SELECT {value:unknown}"'],
-)
-def test_template_query_unsupported_structure_does_not_render(template_source):
-    class CustomSQL(SQL):
-        as_string = mock.Mock(side_effect=AssertionError("must not render custom SQL"))
-        as_bytes = mock.Mock(side_effect=AssertionError("must not render custom SQL"))
-
-    query = eval(template_source, {"custom": CustomSQL("SELECT 1"), "SQL": SQL, "value": 1})
-    cursor = Psycopg3TracedCursor(mock.Mock(rowcount=0), cfg=config.psycopg)
-    assert cursor._render_dbapi_query(query) is None
-    CustomSQL.as_string.assert_not_called()
-    CustomSQL.as_bytes.assert_not_called()
-
-
-def test_custom_composable_query_is_rendered_only_by_driver(tracer):
-    render = mock.Mock(side_effect=[b"SELECT 1", b"SELECT 2"])
-
-    class StatefulSQL(SQL):
-        def as_bytes(self, context):
-            return render()
-
-    query = StatefulSQL("unused")
-    listener = mock.Mock()
-    patch()
-    core.on(DbQueryEvent.event_name, listener)
-    try:
-        with psycopg.connect(**POSTGRES_CONFIG) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(query)
-                assert cursor.fetchone() == (1,)
-    finally:
-        core.reset_listeners(DbQueryEvent.event_name, listener)
-        unpatch()
-
-    render.assert_called_once_with()
-    listener.assert_not_called()

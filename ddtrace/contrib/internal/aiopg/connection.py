@@ -14,7 +14,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
-from ddtrace.contrib.internal.psycopg.cursor import _render_composable_query
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -41,7 +40,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
         if isinstance(query, (str, bytes)):
             return query
-        return _render_composable_query(query, sql, self.__wrapped__._impl)
+        if isinstance(query, sql.Composable):
+            rendered_query = query.as_string(self.__wrapped__._impl)
+            return rendered_query if isinstance(rendered_query, str) else None
+        return None
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
