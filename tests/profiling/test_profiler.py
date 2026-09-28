@@ -14,6 +14,7 @@ import ddtrace
 from ddtrace.internal import service
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -172,6 +173,7 @@ def test_failed_start_collector(caplog, monkeypatch):
 
 def test_default_collectors():
     p = profiler.Profiler()
+    p.start()
     assert any(isinstance(c, stack.StackCollector) for c in p._profiler._collectors)
     assert any(isinstance(c, threading.ThreadingLockCollector) for c in p._profiler._collectors)
     try:
@@ -261,7 +263,7 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
 def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     # Use a mock ModuleWatchdog to simulate the delayed import of threading/asyncio.
     # This is needed because in practice, when running the test suite, both threading and asyncio
-    # have already been imported by the time the profiler is constructed.
+    # have already been imported by the time the profiler starts.
     registered_hooks: list[tuple[str, Callable[[Any], None]]] = []
 
     class WatchdogMock:
@@ -276,16 +278,117 @@ def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: p
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
 
     p = profiler.Profiler(_pytorch_collector_enabled=pytorch_enabled)
+    # Hooks are armed on start, not at construction.
+    p.start()
+    try:
+        for module, hook in registered_hooks:
+            if module in ("threading", "asyncio"):
+                hook(None)
 
-    # Run the lock hooks after construction to simulate a delayed import of threading/asyncio.
-    for module, hook in registered_hooks:
-        if module in ("threading", "asyncio"):
-            hook(None)
+        locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
+        assert locks, "expected lock collectors"
+        missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
+        assert not missing, "lock collectors built without a tracer: %s" % missing
+    finally:
+        p.stop(flush=False)
 
-    locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
-    assert locks, "expected lock collectors"
-    missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
-    assert not missing, "lock collectors built without a tracer: %s" % missing
+
+def test_start_does_not_half_start_when_a_collector_cannot_be_built() -> None:
+    with mock.patch.object(threading.ThreadingLockCollector, "__init__", side_effect=RuntimeError("boom")):
+        p1 = profiler.Profiler()
+        p1.start()
+        try:
+            assert profiler.Profiler._active_instance is p1, (
+                "a started profiler must be recorded even if a collector could not be built"
+            )
+        finally:
+            p1.stop(flush=False)
+
+    assert profiler.Profiler._active_instance is None
+
+
+def test_restart_rearms_collector_import_hooks() -> None:
+    p = profiler.Profiler()
+    inst = p._profiler
+    hooks = list(inst._collectors_on_import or [])
+    assert hooks, "expected lock collector import hooks to be configured"
+
+    def watched() -> set[str]:
+        hook_map = cast(ModuleWatchdog, ModuleWatchdog._instance)._hook_map
+        return {module for module, hook in hooks if any(h is hook for h in hook_map.get(module, []))}
+
+    p.start()
+    assert watched() == {"threading", "asyncio"}
+
+    p.stop(flush=False)
+    assert watched() == set(), "hooks must be disarmed while the profiler is stopped"
+
+    p.start()
+    assert watched() == {"threading", "asyncio"}, "restart must re-arm the import hooks"
+
+    p.stop(flush=False)
+    assert watched() == set()
+
+
+def test_unstarted_profiler_registers_no_import_hooks() -> None:
+    p = profiler.Profiler()
+    hooks = list(p._profiler._collectors_on_import or [])
+    assert hooks, "expected lock collector import hooks to be configured"
+
+    def registered() -> set[str]:
+        # Count this profiler's own hooks by identity. A total over _hook_map would also
+        # pick up the one-time process-wide hooks that the first lock collector and the
+        # stack collector register (gevent.monkey, faulthandler), which never come back
+        # off and would make this depend on what ran earlier in the process.
+        hook_map = cast(ModuleWatchdog, ModuleWatchdog._instance)._hook_map
+        return {module for module, hook in hooks if any(h is hook for h in hook_map.get(module, []))}
+
+    assert registered() == set(), "building a profiler must not register its import hooks"
+
+    p.start()
+    assert registered() == {module for module, _ in hooks}
+    p.stop(flush=False)
+    assert registered() == set()
+
+
+@pytest.mark.subprocess(err=None)
+def test_late_imported_module_gets_its_collector_after_restart() -> None:
+    import sys
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import asyncio as asyncio_collector
+
+    ASYNCIO_COLLECTORS = (
+        asyncio_collector.AsyncioLockCollector,
+        asyncio_collector.AsyncioSemaphoreCollector,
+        asyncio_collector.AsyncioBoundedSemaphoreCollector,
+        asyncio_collector.AsyncioConditionCollector,
+    )
+
+    def run(restart: bool) -> int:
+        # Drop asyncio so its hooks have something to fire on later, the way torch shows
+        # up only once the application imports it.
+        for name in [m for m in sys.modules if m == "asyncio" or m.startswith("asyncio.")]:
+            del sys.modules[name]
+
+        p = profiler.Profiler()
+        inst = p._profiler
+        assert not [c for c in inst._collectors if isinstance(c, ASYNCIO_COLLECTORS)]
+
+        p.start()
+        if restart:
+            p.stop(flush=False)
+            p.start()
+
+        import asyncio  # noqa: F401
+
+        found = len([c for c in inst._collectors if isinstance(c, ASYNCIO_COLLECTORS)])
+        p.stop(flush=False)
+        profiler.Profiler._active_instance = None
+        return found
+
+    assert run(restart=False) == 4
+    assert run(restart=True) == 4, "a restarted profiler must still pick up a late import"
 
 
 def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
