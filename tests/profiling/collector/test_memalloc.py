@@ -1803,3 +1803,89 @@ def test_allocator_domain_label_on_live_heap_samples(tmp_path: Path) -> None:
     )
 
     del obj
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_memalloc_does_not_accumulate_after_stop",
+        DD_PROFILING_HEAP_SAMPLE_SIZE="64",
+        # Long enough that the scheduler never flushes on its own, so each upload below
+        # comes from a Profiler.stop() and nothing else.
+        DD_PROFILING_UPLOAD_INTERVAL="600",
+    ),
+    err=None,
+)
+def test_memalloc_does_not_accumulate_after_stop() -> None:
+    """Stopping a Profiler must leave memalloc nothing to record into."""
+    import json
+    import os
+
+    import pytest
+
+    from ddtrace.profiling.collector import _memalloc
+    from ddtrace.profiling.profiler import Profiler
+    from tests.profiling.collector import pprof_utils
+
+    # The three allocation phases of the test.
+    def _allocate_while_running() -> list[object]:
+        return [object() for _ in range(2000)]
+
+    def _allocate_while_stopped() -> list[object]:
+        return [object() for _ in range(2000)]
+
+    def _allocate_after_restart() -> list[object]:
+        return [object() for _ in range(2000)]
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = Profiler()
+    p.start()
+    held_while_running = _allocate_while_running()
+    p.stop()
+
+    # Sanity check: the heap tracker really was accumulating these allocations, so their
+    # absence from the second upload means something.
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert pprof_utils.get_samples_with_function(profile, heap_samples, "_allocate_while_running"), (
+        "No live heap sample was attributed to _allocate_while_running, so this test cannot "
+        "tell a torn-down heap tracker apart from one that never sampled"
+    )
+
+    metadata_files = pprof_utils.get_internal_metadata_files(output_filename)
+    assert metadata_files, "Expected an internal_metadata.json file next to the profile"
+    with open(metadata_files[-1]) as fp:
+        assert json.load(fp)["heap_tracker_count"] > 0
+
+    # Stop uninstalls the allocation hooks, destroys the heap tracker and clears the enabled
+    # flag in one go, and heap() is the flag's only Python-visible probe. Its refusal to run
+    # means a leaked hook would have had no tracker to write into.
+    with pytest.raises(RuntimeError, match="the memalloc module was not started"):
+        _memalloc.heap()
+
+    held_while_stopped = _allocate_while_stopped()
+
+    # A fresh profiler re-initializes memalloc from scratch, and its stop flushes the alloc
+    # samples and exports the live heap. That upload is where anything recorded during the
+    # stopped window, or carried over from the first tracker, would surface.
+    p2 = Profiler()
+    p2.start()
+    held_after_restart = _allocate_after_restart()
+    p2.stop()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    for phase, held in (
+        ("_allocate_while_stopped", held_while_stopped),
+        ("_allocate_while_running", held_while_running),
+    ):
+        leaked = pprof_utils.get_samples_with_function(profile, profile.sample, phase)
+        assert not leaked, (
+            f"{len(leaked)} sample(s) attributed to {phase} reached the next upload, so memalloc "
+            f"kept recording across the stop ({len(held)} objects still held)"
+        )
+
+    assert pprof_utils.get_samples_with_function(profile, profile.sample, "_allocate_after_restart"), (
+        f"The restarted profiler recorded none of its own {len(held_after_restart)} allocations, "
+        "so the two absences checked above prove nothing"
+    )
