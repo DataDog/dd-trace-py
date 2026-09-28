@@ -232,9 +232,10 @@ event receipt defines the initial latency boundary. Projected assistant playback
 is an estimate, not a device acknowledgement. Keep total samples separate from
 bounded retained bytes; share the audio payload budget across both roles.
 
-Nova protocol state lives in llmobs/_integrations/_aws_sdk_bedrock_runtime.py.
+Nova protocol state lives in llmobs/_integrations/aws_sdk_bedrock_runtime_utils.py.
 The product supplies it through the Bedrock core event only while enabled. Shared
-parent/trace identity stamping lives in BaseLLMIntegration._start_audio_span.
+parent/trace identity stamping lives in BaseLLMIntegration._set_llmobs_parent;
+audio span creation and annotations live in AwsSdkBedrockRuntimeIntegration.
 
 Keep audio retention separate from timing validity. Dropping an oversized WAV
 must not remove a valid speech phase or its TTFA boundary. Never shorten gaps
@@ -242,3 +243,7 @@ inside a retained clip without a matching timestamped segment contract. End
 interrupted generation at its observed interruption, even when emission waits
 for the next turn. Explicit LLMObs identity must come from an LLMObs ancestor,
 never from a plain APM span's identifiers.
+
+Ignore post-interruption audio for playback validation and retention so late
+malformed chunks cannot erase the already-trimmed clip or its speech phase.
+Generated-byte accounting may continue independently for decodable chunks.

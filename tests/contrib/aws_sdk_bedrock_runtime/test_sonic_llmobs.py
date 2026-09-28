@@ -22,9 +22,9 @@ from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import unpatch
 from ddtrace.internal import core
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._integrations import _aws_sdk_bedrock_runtime as sonic_module
-from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import SonicState
+from ddtrace.llmobs._integrations import aws_sdk_bedrock_runtime_utils as sonic_module
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import AwsSdkBedrockRuntimeIntegration
+from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime_utils import SonicState
 from ddtrace.trace import Context
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import INPUT
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import MODEL
@@ -507,3 +507,45 @@ def test_serialized_invalid_input_retains_provider_speech_boundaries(llmobs):
     _, _, response = serialized_turn(llmobs)
     assert "audio_parts" not in response["meta"]["input"]["messages"][-1]
     assert audio(response["meta"]["output"]["messages"][0]) == (24000, b"\x02\x00" * 2400)
+
+
+@pytest.mark.parametrize("late_chunk", ["valid", "invalid_base64", "odd_bytes", "changed_rate", "unsupported_format"])
+def test_serialized_late_audio_preserves_interrupted_turn(llmobs, late_chunk):
+    state = speech_state()
+    output_chunk(state, 3_000_000_000, samples=48000)
+    state.received(
+        "contentStart",
+        {
+            "contentId": "control",
+            "type": "TEXT",
+            "role": "ASSISTANT",
+            "additionalModelFields": {"generationStage": "FINAL"},
+        },
+        3_200_000_000,
+    )
+    state.received("textOutput", {"contentId": "control", "content": '{"interrupted":true}'}, 3_250_000_000)
+    configuration = dict(OUTPUT)
+    raw = b"\x03\x00" * 2400
+    if late_chunk == "changed_rate":
+        configuration["sampleRateHertz"] = 48000
+    elif late_chunk == "unsupported_format":
+        configuration["mediaType"] = "audio/mpeg"
+    elif late_chunk == "odd_bytes":
+        raw = b"odd"
+    content = "invalid!" if late_chunk == "invalid_base64" else base64.b64encode(raw).decode()
+    state.received(
+        "contentStart",
+        {"contentId": "late-audio", "type": "AUDIO", "role": "ASSISTANT", "audioOutputConfiguration": configuration},
+        3_300_000_000,
+    )
+    state.received("audioOutput", {"contentId": "late-audio", "content": content}, 3_350_000_000)
+    state.finish()
+    root, phases, response = serialized_turn(llmobs)
+    for span in (root, phases["agent speech"], response):
+        assert span["start_ns"] + span["duration"] == 3_250_000_000
+    message = response["meta"]["output"]["messages"][0]
+    assert audio(message) == (24000, b"\x02\x00" * 6000)
+    metadata = response["meta"]["metadata"]
+    assert metadata["interrupted"]
+    assert "output_audio_omitted_reason" not in metadata
+    assert metadata["generated_output_bytes"] == 96000 + (0 if late_chunk == "invalid_base64" else len(raw))

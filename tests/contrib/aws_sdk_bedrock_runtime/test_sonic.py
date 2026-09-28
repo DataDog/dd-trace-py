@@ -18,11 +18,11 @@ from ddtrace import config
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._stream import DuplexProxy
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import patch
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import unpatch
-from ddtrace.llmobs._integrations import _aws_sdk_bedrock_runtime as _sonic
-from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import InputAudio
-from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import SonicState
-from ddtrace.llmobs._integrations._aws_sdk_bedrock_runtime import Turn
+from ddtrace.llmobs._integrations import aws_sdk_bedrock_runtime_utils as _sonic
 from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import AwsSdkBedrockRuntimeIntegration
+from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime_utils import InputAudio
+from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime_utils import SonicState
+from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime_utils import Turn
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.trace import Context

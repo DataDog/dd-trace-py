@@ -13,3 +13,16 @@ queued output and four interruptions under a shared completion ID.
 
 Fixtures use deterministic gzip compression to preserve every event while staying
 below the file-size limit. Read them with Python gzip.open(..., "rt").
+
+## Transport coverage follow-up
+
+These are recorded protocol events, not HTTP cassettes. They preserve the live
+conversation ordering and timing; SDK wrapper tests separately replace the
+transport to exercise error paths and precise timing boundaries.
+
+Add a recorded transport smoke test after verifying that the recording and replay
+path supports the AWS CRT HTTP/2 bidirectional event stream used by the live app.
+It should exercise the real SDK serialization and event decoding, scrub credentials
+and conversation content, and verify the same turn hierarchy and speech boundaries.
+Keep the deterministic protocol and payload regressions for interruptions,
+malformed events, and attachment limits alongside that transport test.

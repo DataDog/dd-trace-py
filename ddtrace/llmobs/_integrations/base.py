@@ -100,35 +100,15 @@ class BaseLLMIntegration:
             self._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
         return span
 
-    def _start_audio_span(
-        self, name: str, kind: str, model: str, session_id: str, parent: Any, start_ns: int, model_provider: str
-    ) -> Span:
-        span = self.trace(
-            name, span_name=name, model=model, submit_to_llmobs=True, activate=False, parent_context=parent
-        )
-        span.start_ns = start_ns
-        # Duplex callbacks do not run under the turn's active context.
-        # Stamp identity before optional message enrichment, as in OpenAI Realtime.
-        identity: dict[str, Any] = {}
-        # APM request spans are not exported as LLMObs parents. Preserve their
-        # tracing relationship above, but only inherit real LLMObs identity.
-        llmobs_parent = parent
-        while isinstance(llmobs_parent, Span):
-            trace_id = get_llmobs_trace_id(llmobs_parent)
+    def _set_llmobs_parent(self, span: Span, parent: Any) -> None:
+        """Inherit explicit LLMObs identity without changing the APM parent."""
+        # APM request spans are not exported as LLMObs parents.
+        while isinstance(parent, Span):
+            trace_id = get_llmobs_trace_id(parent)
             if trace_id:
-                identity = {"parent_id": str(llmobs_parent.span_id), "trace_id": trace_id}
-                break
-            llmobs_parent = llmobs_parent._parent
-        _annotate_llmobs_span_data(
-            span,
-            name=name,
-            kind=kind,
-            session_id=session_id,
-            model_name=model if kind == "llm" else None,
-            model_provider=model_provider if kind == "llm" else None,
-            **identity,
-        )
-        return span
+                _annotate_llmobs_span_data(span, parent_id=str(parent.span_id), trace_id=trace_id)
+                return
+            parent = parent._parent
 
     def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
         """Stamp span kind (and agent name when available) into the span's LLMObs meta_struct at creation.
