@@ -818,7 +818,7 @@ def test_get_traceback_honors_config_traceback_max_size():
 
 
 def test_root_span_context_built_eagerly():
-    """Root spans materialize their Context in ``__init__``; child spans stay lazy.
+    """Root spans materialize their Context at construction; child spans stay lazy.
 
     Correctness guard, not just perf: a root owns fresh, unshared trace-level
     state, so building it lazily on first access would let two threads that first
@@ -891,7 +891,7 @@ def test_child_context_id_capture_is_lazy_root_is_eager():
 
     A child span builds its context lazily on first ``.context`` read, so it captures
     whatever ``span_id`` the span carries at that moment — a post-construction id mutation
-    is reflected. A root span builds its context eagerly in ``__init__``, so its context is
+    is reflected. A root span builds its context eagerly at construction, so its context is
     frozen at construction and a later id mutation is NOT reflected.
 
     This is a tripwire for that timing difference, NOT an endorsement of mutating span ids
@@ -902,7 +902,7 @@ def test_child_context_id_capture_is_lazy_root_is_eager():
     c.span_id = 555
     assert c.context.span_id == 555
 
-    # (b) eager root: its context is built in __init__, so a span_id mutation AFTER
+    # (b) eager root: its context is built at construction, so a span_id mutation AFTER
     # construction is NOT reflected. Read the NATIVE id (not .context) for the baseline
     # so we don't materialize the context early — on a (regressed) lazy root the context
     # would be built at the .context read below and reflect 555, failing these asserts.

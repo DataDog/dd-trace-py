@@ -76,7 +76,7 @@ pub struct SpanData {
     pub _service_entry_span: Option<Py<SpanData>>,
     /// The parent `Context` this span was created under, or `None`.
     pub _parent_context: Option<Py<crate::context::Context>>,
-    /// This span's own `Context`, built eagerly for a root span (in `__init__`, before the
+    /// This span's own `Context`, built eagerly for a root span (in `__new__`, before the
     /// span is published) and lazily on first read for a child span. `None` on a child means
     /// "not yet built" — see the `context` getter.
     pub _context: Option<Py<crate::context::Context>>,
@@ -207,7 +207,7 @@ impl SpanData {
         span_id=None,
         parent_id=None,
         start=None,
-        context=None,      // placeholder for Span.__init__ positional arg
+        context=None,
         on_finish=None,    // placeholder for Span.__init__ positional arg
         span_api=None,
         *args,
@@ -223,13 +223,13 @@ impl SpanData {
         span_id: Option<&Bound<'p, PyAny>>,
         parent_id: Option<&Bound<'p, PyAny>>,
         start: Option<&Bound<'p, PyAny>>,
-        context: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        context: Option<&Bound<'p, PyAny>>, // parent Context, or None for a root span
         on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
         span_api: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let mut span = Self::default();
         span.set_name(name);
         match service {
@@ -318,13 +318,13 @@ impl SpanData {
             // Build its Context inline now, before the span can be published, so
             // concurrent first-readers can't race and build divergent state — no
             // lock required. Mirrors the `context` getter's root branch.
-            if let Ok(ctx) =
-                crate::context::Context::new_root(py, span.trace_id, span.span_id as u128)
-            {
-                span._context = Some(ctx);
-            }
+            span._context = Some(crate::context::Context::new_root(
+                py,
+                span.trace_id,
+                span.span_id as u128,
+            )?);
         }
-        span
+        Ok(span)
     }
 
     #[getter]
@@ -711,10 +711,13 @@ impl SpanData {
         };
     }
 
-    // context property — this span's trace context, built lazily on first read for a
-    // child span (a copy of the parent sharing trace-level state); a root span's context
-    // is normally built eagerly in __init__, so the fallback branch here only matters if
-    // a root's context was cleared, e.g. via the setter.
+    /// The trace context for this span.
+    ///
+    /// For a child span this is a copy of the parent context that shares the trace-level
+    /// ``_meta``/``_metrics``/``_baggage`` while carrying this span's own
+    /// ``trace_id``/``span_id``; for a root span it is fresh trace-level state. Child
+    /// contexts are built lazily on first read; root contexts are built eagerly at
+    /// construction (before the span is published) so the build cannot race across threads.
     #[getter(context)]
     fn get_context<'py>(
         &mut self,
@@ -770,7 +773,7 @@ impl SpanData {
     /// Return the context a child span should inherit trace-level state from.
     ///
     /// Reuses a context that already holds this trace's shared `_meta`/`_metrics`/
-    /// `_baggage`/lock — this span's own context if it was built, otherwise its (local)
+    /// `_baggage` — this span's own context if it was built, otherwise its (local)
     /// parent-context — so a deep local trace materializes a single Context instead of
     /// one per span. A remote parent-context is never handed down: a local child's
     /// parent-context must stay local so `_is_remote`/reactivation keep their meaning, so

@@ -727,7 +727,7 @@ impl Context {
     /// data has already been validated. This mirrors the previous Python
     /// implementation's `Context.__new__(Context)` behavior.
     #[pyo3(signature = (trace_id, span_id))]
-    pub(crate) fn copy<'py>(
+    fn copy<'py>(
         slf: &Bound<'py, Self>,
         trace_id: &Bound<'py, PyAny>,
         span_id: &Bound<'py, PyAny>,

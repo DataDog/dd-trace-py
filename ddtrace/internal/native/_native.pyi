@@ -1171,7 +1171,7 @@ class SpanData:
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[float] = None,
-        context: Optional[Any] = None,  # placeholder for Span.__init__
+        context: Optional[Context] = None,  # parent Context, or None for a root span
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
         links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
