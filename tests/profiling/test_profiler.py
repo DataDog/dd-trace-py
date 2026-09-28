@@ -23,7 +23,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 def _reset_profiler_active_instance():
     yield
     profiler.Profiler._active_instance = None
-    profiler.Profiler._exit_signal_handler_registered = False
+    profiler.Profiler._exit_signal_handler = None
 
 
 def test_status():
@@ -598,11 +598,11 @@ def test_start_registers_sigterm_handler_once_per_process() -> None:
     from ddtrace.internal import atexit
     from ddtrace.profiling import profiler
 
-    with mock.patch.object(atexit, "register_on_exit_signal", return_value=True) as mock_reg:
+    with mock.patch.object(atexit, "register_on_exit_signal", wraps=atexit.register_on_exit_signal) as mock_reg:
         p1 = profiler.Profiler()
         p1.start()
         mock_reg.assert_called_once_with(profiler.Profiler._stop_active_instance_on_signal)
-        assert profiler.Profiler._exit_signal_handler_registered
+        assert profiler.Profiler._exit_signal_handler is not None
         p1.stop(flush=False)
 
         p1.start()
@@ -695,6 +695,36 @@ def test_profiler_flushes_on_sigterm() -> None:
         os.kill(os.getpid(), signal.SIGTERM)
 
         # (unreachable: _raise_default re-raises SIGTERM with SIG_DFL, killing the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_again_after_app_replaces_sigterm_handler() -> None:
+    """A restart must register the exit signal handler again if the application replaced it."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGTERM, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGTERM)
+
+        # (unreachable: application_handler exits the process)
 
 
 @pytest.mark.subprocess(

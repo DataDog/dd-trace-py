@@ -63,10 +63,10 @@ def unregister(func: typing.Callable) -> None:
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.
-def register_on_exit_signal(f: typing.Callable) -> bool:
+def register_on_exit_signal(f: typing.Callable) -> typing.Optional[typing.Any]:
     """Installs a function to be called when an exit signal (TERM or INT) is received.
 
-    Returns whether anything was installed.
+    Returns the SIGTERM handler that was installed, or None if nothing was installed.
     """
 
     def handle_exit(sig: int, frame: typing.Any) -> None:
@@ -77,7 +77,7 @@ def register_on_exit_signal(f: typing.Callable) -> bool:
                 raise
 
     if threading.current_thread() is not threading.main_thread():
-        return False
+        return None
 
     # Each signal is installed on its own, and failures are not reported as "nothing
     # installed". A caller that registers once would then register again and chain a
@@ -87,12 +87,13 @@ def register_on_exit_signal(f: typing.Callable) -> bool:
     # handler.
     try:
         signals.handle_signal(signal.SIGTERM, handle_exit)
+        sigterm_handler = signal.getsignal(signal.SIGTERM)
     except Exception:
         log.debug("Encountered an exception while registering SIGTERM", exc_info=True)
         # Stop here so that nothing is installed at all. A caller told "nothing
         # installed" could register again, and a SIGINT handler put in now could not be
         # removed before it does.
-        return False
+        return None
 
     try:
         # Skipping SIGINT when default_int_handler is installed allows asyncio.Runner
@@ -102,4 +103,4 @@ def register_on_exit_signal(f: typing.Callable) -> bool:
     except Exception:
         log.debug("Encountered an exception while registering SIGINT", exc_info=True)
 
-    return True
+    return sigterm_handler

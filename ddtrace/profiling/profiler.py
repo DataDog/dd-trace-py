@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 import json
 import logging
+import signal
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -45,7 +46,8 @@ class Profiler:
     _active_instance: Optional["Profiler"] = None
     _active_lock = Lock()
 
-    _exit_signal_handler_registered: bool = False
+    # The SIGTERM handler we installed, if any.
+    _exit_signal_handler: Optional[Any] = None
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
@@ -75,7 +77,13 @@ class Profiler:
 
             self._profiler.start()
             Profiler._active_instance = self
-            register_exit_signal_handler = not Profiler._exit_signal_handler_registered
+            # Register again if application code has replaced our handler since the last
+            # start. If it chained on top of ours, our handler will run twice, which is
+            # harmless because the second call will find no active instance.
+            register_exit_signal_handler = (
+                Profiler._exit_signal_handler is None
+                or signal.getsignal(signal.SIGTERM) is not Profiler._exit_signal_handler
+            )
 
         atexit.register(self.stop)
 
@@ -83,9 +91,7 @@ class Profiler:
         # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
         # so without this the last partial profile window is silently lost.
         if register_exit_signal_handler:
-            Profiler._exit_signal_handler_registered = atexit.register_on_exit_signal(
-                Profiler._stop_active_instance_on_signal
-            )
+            Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
