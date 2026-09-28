@@ -70,8 +70,12 @@ function(dd_wrapper_add_test name)
         set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
-    gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running
-                                                          # sanitizer-built executables during build
+    # Delay test discovery until test execution to avoid running sanitizer-built executables during build. The timeout
+    # makes a hung test fail on its own instead of running into the CI job timeout.
+    gtest_discover_tests(
+        ${name} DISCOVERY_MODE PRE_TEST
+        PROPERTIES
+        TIMEOUT 300)
 
     # Echion headers (vm.h, tasks.h) require PL_DARWIN or PL_LINUX to define proc_ref_t and copy_type. These are set
     # PRIVATE on ${EXTENSION_NAME} and don't propagate to test targets, so we replicate the logic here.
@@ -114,6 +118,9 @@ configure_stack_internal_test(test_task_traversal)
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
+
+dd_wrapper_add_test(test_segv_chain test_segv_chain.cpp)
+target_include_directories(test_segv_chain PRIVATE ../echion)
 
 # vm.cc is compiled into the test binary: the fast-copy state lives in inline variables, so the copy in the test
 # executable is distinct from the one in the _stack library and only the constructor linked here initializes it.
