@@ -7,8 +7,10 @@ import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
@@ -43,6 +45,22 @@ class PsycopgCore(TracerTestCase):
     def _get_conn(self):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         return conn
+
+    def test_literal_composed_query_is_inspected(self):
+        payload = "' OR 1=1 --"
+        query = SQL("SELECT ") + Literal(payload)
+        events = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            with self._get_conn() as connection, connection.cursor() as cursor:
+                cursor.execute(query)
+                assert cursor.fetchone() == (payload,)
+                expected_query = query.as_string(cursor)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
 
     def test_patch_unpatch(self):
         # Test patch idempotence

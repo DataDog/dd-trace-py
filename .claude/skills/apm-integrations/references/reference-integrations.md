@@ -32,24 +32,25 @@ failures do not interrupt the database call. BlockingException inherits from
 BaseException and still stops execution. The rendered value is event data only:
 tracing and the driver must continue to receive the original query and parameters.
 
-For psycopg3 templates, inspect SQL structure with $n placeholders for bound values
-(default, :s, :t, :b), never by literal-adapting those values. Normalization supports
-nested :q templates and built-in SQL/Composed/Identifier nodes, plus :i strings.
-Literal interpolation (:l), Literal-containing composed trees, custom composable
-subclasses, conversions, and unsupported formats fail open without rendering or
-emitting a query event. These forms can invoke stateful adapters and must be left
-to the driver. Legacy psycopg tracing still renders SQL/Composed resources in
-_trace_method(); do not extend that APM behavior to arbitrary as_string methods,
+For psycopg3 templates, check the structure, then use psycopg's server-query
+processor to produce $n placeholders for bound values (default, :s, :t, :b)
+without dumping those values. Normalization supports nested :q templates,
+built-in SQL/Composed/Identifier nodes, :i strings, and literals with replayable
+built-in values. Stateful literal values, custom composable subclasses,
+conversions, and unsupported formats fail open without emitting a query event.
+They may consume application state when rendered twice. Legacy psycopg tracing
+still renders SQL/Composed resources in _trace_method(); do not extend that APM
+behavior to arbitrary as_string methods,
 custom composable subclasses, or other query types.
 Discover the already loaded driver/template modules independently of psycopg
 patch/config state, since Django-only instrumentation supplies its own
 IntegrationConfig and wrapper cursor.
 
 aiopg did not previously render composables. Its event rendering uses the native
-_impl cursor and only built-in SQL/Identifier/Placeholder nodes and Composed trees
-containing those nodes. Literal/custom nodes fail open, leaving adaptation to the
-driver. Reuse _render_composable_query() instead of calling as_string() on an
-unchecked tree.
+_impl cursor and only built-in SQL/Identifier/Placeholder/Literal nodes and
+Composed trees containing those nodes. Stateful literals and custom nodes fail
+open; replayable literals are inspected. The shared _render_composable_query()
+checks the tree before calling the driver's as_string() method.
 
 Do not inherit from TracedCursor or TracedAsyncCursor solely to reuse event rendering.
 Inherited methods assume the shared _trace_method signature and can change adapter

@@ -1,68 +1,87 @@
+from datetime import date
+from datetime import datetime
+from datetime import time
+from decimal import Decimal
 import sys
 from typing import Any
 from typing import Optional
 from typing import Union
+from uuid import UUID
 
 from ddtrace.contrib import dbapi
 
 
-def _render_composable_query(query: Any, sql: Any, context: object) -> Optional[str]:
-    """Render only built-in SQL structure, without invoking parameter adapters."""
-    # Only built-in structural SQL nodes are safe: Literal and custom
-    # composables can invoke stateful dumpers, changing the subsequent execution.
+_REPLAYABLE_LITERAL_TYPES = (str, bytes, int, float, bool, type(None), Decimal, UUID, date, datetime, time)
+
+
+def _is_replayable_literal(value: Any) -> bool:
+    return type(value) in _REPLAYABLE_LITERAL_TYPES
+
+
+def _is_safe_composable_query(query: Any, sql: Any) -> bool:
+    """Check that rendering leaves stateful application values alone."""
     if type(query) in (sql.SQL, sql.Identifier, sql.Placeholder):
+        return True
+    if type(query) is sql.Literal:
+        value = query.wrapped if sql.__name__ == "psycopg2.sql" else query._obj
+        return _is_replayable_literal(value)
+    if type(query) is sql.Composed:
+        return all(_is_safe_composable_query(child, sql) for child in query)
+    return False
+
+
+def _render_composable_query(query: Any, sql: Any, context: object) -> Optional[str]:
+    if _is_safe_composable_query(query, sql):
         rendered = query.as_string(context)
         return rendered if isinstance(rendered, str) else None
-    if type(query) is sql.Composed:
-        parts = []
-        for child in query:
-            rendered = _render_composable_query(child, sql, context)
-            if rendered is None:
-                return None
-            parts.append(rendered)
-        return "".join(parts)
     return None
 
 
+def _is_safe_template_query(template: Any, sql: Any) -> bool:
+    """Exclude template branches that consume stateful values or run custom renderers."""
+    for item in template:
+        if isinstance(item, str):
+            continue
+        if item.conversion:
+            return False
+
+        value = item.value
+        fmt = item.format_spec
+        if isinstance(value, type(template)):
+            if fmt != "q" or not _is_safe_template_query(value, sql):
+                return False
+        elif isinstance(value, sql.Composable):
+            if not _is_safe_composable_query(value, sql):
+                return False
+            if not (
+                (type(value) is sql.Identifier and fmt == "i")
+                or (type(value) in (sql.SQL, sql.Composed) and fmt == "q")
+                or (type(value) is sql.Literal and fmt == "l")
+            ):
+                return False
+        elif fmt == "i":
+            if not isinstance(value, str):
+                return False
+        elif fmt == "l":
+            if not _is_replayable_literal(value):
+                return False
+        elif fmt not in ("", "s", "t", "b"):
+            return False
+    return True
+
+
 def _render_template_query(template: Any, sql: Any, context: object) -> Optional[str]:
-    """Render SQL structure without adapting template parameters."""
-    parameter_count = 0
-
-    def render_template(value: Any) -> Optional[str]:
-        nonlocal parameter_count
-        parts = []
-        for item in value:
-            if isinstance(item, str):
-                parts.append(item)
-                continue
-            if item.conversion:
-                return None
-
-            parameter = item.value
-            fmt = item.format_spec
-            if isinstance(parameter, type(template)):
-                rendered = render_template(parameter) if fmt == "q" else None
-            elif isinstance(parameter, sql.Composable):
-                if (type(parameter) is sql.Identifier and fmt == "i") or (
-                    type(parameter) in (sql.SQL, sql.Composed) and fmt == "q"
-                ):
-                    rendered = _render_composable_query(parameter, sql, context)
-                else:
-                    return None
-            elif fmt == "i" and isinstance(parameter, str):
-                rendered = sql.Identifier(parameter).as_string(context)
-            elif fmt in ("", "s", "t", "b"):
-                parameter_count += 1
-                rendered = f"${parameter_count}"
-            else:
-                # Literal interpolation requires adaptation; leave it to the driver.
-                return None
-            if rendered is None:
-                return None
-            parts.append(rendered)
-        return "".join(parts)
-
-    return render_template(template)
+    """Use psycopg's server-query renderer without dumping bound values."""
+    if not _is_safe_template_query(template, sql):
+        return None
+    tstrings = sys.modules.get("psycopg._tstrings")
+    if tstrings is None:
+        return None
+    tx = sql.Transformer(context)
+    processor = tstrings.TemplateProcessor(template, tx=tx, server_params=True)
+    processor.process()
+    rendered = processor.query.decode(tx.encoding)
+    return rendered if isinstance(rendered, str) else None
 
 
 class Psycopg3TracedCursor(dbapi.TracedCursor):

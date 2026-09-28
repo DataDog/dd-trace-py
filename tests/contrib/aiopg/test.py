@@ -87,6 +87,25 @@ class AiopgTestCase(AsyncioTestCase):
         assert events == [DbQueryEvent(query=query.as_string(raw_cursor._impl), span_name_prefix="postgres")]
 
     @mark_asyncio
+    async def test_literal_composable_query_is_inspected(self):
+        self._conn = await aiopg.connect(**POSTGRES_CONFIG)
+        raw_cursor = await self._conn.cursor()
+        cursor = AIOTracedCursor(raw_cursor, Pin())
+        payload = "' OR 1=1 --"
+        query = SQL("SELECT {}").format(Literal(payload))
+        events = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            await cursor.execute(query)
+            assert await cursor.fetchone() == (payload,)
+            expected_query = query.as_string(raw_cursor._impl)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
+
+    @mark_asyncio
     async def test_literal_composable_query_preserves_parameter_adaptation(self):
         self._conn = await aiopg.connect(**POSTGRES_CONFIG)
         raw_cursor = await self._conn.cursor()

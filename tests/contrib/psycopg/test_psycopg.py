@@ -245,6 +245,33 @@ class PsycopgCore(TracerTestCase):
         cursor.execute.assert_called_once_with(query)
         cursor.fetchone.assert_called_once_with()
 
+    def test_composed_query_event_uses_psycopg_renderer(self) -> None:
+        cursor = mock.Mock(spec=["rowcount"])
+        cursor.rowcount = 0
+        query = SQL("SELECT ") + SQL("1")
+
+        with mock.patch.object(Composed, "as_string", return_value="SELECT 1") as render:
+            result = Psycopg3TracedCursor(cursor, cfg=config.psycopg)._render_dbapi_query(query)
+
+        assert result == "SELECT 1"
+        render.assert_called_once_with(cursor)
+
+    def test_literal_composed_query_is_inspected(self) -> None:
+        payload = "' OR 1=1 --"
+        query = SQL("SELECT ") + Literal(payload)
+        events: list[DbQueryEvent] = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            with self._get_conn() as connection, connection.cursor() as cursor:
+                cursor.execute(query)
+                assert cursor.fetchone() == (payload,)
+                expected_query = query.as_string(cursor)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")]
+
     @pytest.mark.skipif(
         sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
         reason="psycopg template queries require Python 3.14 and psycopg 3.3",
@@ -267,6 +294,30 @@ class PsycopgCore(TracerTestCase):
 
         assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")]
         django_cursor.execute.assert_called_once_with(query)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
+        reason="psycopg template queries require Python 3.14 and psycopg 3.3",
+    )
+    def test_template_literal_query_is_inspected(self) -> None:
+        payload = "' OR 1=1 --"
+        queries = (
+            eval('t"SELECT {payload:l}"', {"payload": payload}),
+            eval('t"SELECT {Literal(payload):l}"', {"Literal": Literal, "payload": payload}),
+        )
+        events: list[DbQueryEvent] = []
+        listener = events.append
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            with self._get_conn() as connection, connection.cursor() as cursor:
+                for query in queries:
+                    cursor.execute(query)
+                    assert cursor.fetchone() == (payload,)
+                expected_query = "SELECT " + Literal(payload).as_string(cursor)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        assert events == [DbQueryEvent(query=expected_query, span_name_prefix="postgres")] * len(queries)
 
     def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
