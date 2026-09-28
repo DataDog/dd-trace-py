@@ -264,7 +264,7 @@ def on_finish(func, handler, args, kwargs):
         # default handler class will be used so we don't pollute the resource
         # space here
         klass = handler.__class__
-        set_instrumentation_resource(request_span, "{}.{}".format(klass.__module__, klass.__name__))
+        set_instrumentation_resource(request_span, f"{klass.__module__}.{klass.__name__}")
         core.dispatch(
             "web.request.finish",
             (
