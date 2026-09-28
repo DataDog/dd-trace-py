@@ -184,7 +184,7 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
             span._set_attribute(net.SERVER_PORT, otel_number(port))
 
 
-# AIDEV-NOTE: This writer deliberately does not read the OTel semantics feature flag. Callers
+# This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
     __slots__ = ("_integration_config", "_normalized_method", "_original_method", "_span", "is_client")
