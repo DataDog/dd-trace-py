@@ -868,6 +868,18 @@ def test_context_for_child_never_hands_down_remote_context():
     assert donor is entry.context
 
 
+def test_child_context_honors_context_subclass_copy_override():
+    class CustomContext(Context):
+        def copy(self, trace_id, span_id):
+            ctx = super().copy(trace_id, span_id)
+            ctx._meta["custom"] = "copied"
+            return ctx
+
+    child = Span("child", context=CustomContext(trace_id=1, span_id=2))
+    assert child.context._meta["custom"] == "copied"
+    assert child.context.span_id == child.span_id
+
+
 def test_context_setter_hands_down_remote_context_unguarded():
     """Characterizes the public ``context`` setter: it is NOT guarded against remote contexts.
 

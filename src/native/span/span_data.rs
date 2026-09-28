@@ -718,25 +718,40 @@ impl SpanData {
     /// ``trace_id``/``span_id``; for a root span it is fresh trace-level state. Child
     /// contexts are built lazily on first read; root contexts are built eagerly at
     /// construction (before the span is published) so the build cannot race across threads.
+    ///
+    /// Takes `slf` rather than `&mut self` so no borrow of this span is held while a
+    /// `Context` subclass's Python `copy` override runs.
     #[getter(context)]
-    fn get_context<'py>(
-        &mut self,
-        py: Python<'py>,
-    ) -> PyResult<Bound<'py, crate::context::Context>> {
-        if let Some(ctx) = &self._context {
-            return Ok(ctx.bind(py).clone());
-        }
-        let new_ctx = if let Some(parent) = &self._parent_context {
-            crate::context::Context::copy_native(
-                parent.bind(py),
-                Some(self.trace_id),
-                Some(self.span_id as u128),
-            )?
-        } else {
-            crate::context::Context::new_root(py, self.trace_id, self.span_id as u128)?
-        }
-        .into_bound(py);
-        self._context = Some(new_ctx.clone().unbind());
+    fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, crate::context::Context>> {
+        let py = slf.py();
+        let (parent, trace_id, span_id) = {
+            let this = slf.borrow();
+            if let Some(ctx) = &this._context {
+                return Ok(ctx.bind(py).clone());
+            }
+            (
+                this._parent_context.as_ref().map(|p| p.clone_ref(py)),
+                this.trace_id,
+                this.span_id as u128,
+            )
+        };
+        let new_ctx = match parent {
+            Some(parent) => {
+                let parent = parent.into_bound(py);
+                // Fast path for the base class; a Python subclass may override `copy`, so
+                // route through Python dispatch for those.
+                if parent.is_exact_instance_of::<crate::context::Context>() {
+                    crate::context::Context::copy_native(&parent, Some(trace_id), Some(span_id))?
+                        .into_bound(py)
+                } else {
+                    parent
+                        .call_method1("copy", (trace_id, span_id))?
+                        .cast_into::<crate::context::Context>()?
+                }
+            }
+            None => crate::context::Context::new_root(py, trace_id, span_id)?.into_bound(py),
+        };
+        slf.borrow_mut()._context = Some(new_ctx.clone().unbind());
         Ok(new_ctx)
     }
 
@@ -778,18 +793,21 @@ impl SpanData {
     /// parent-context must stay local so `_is_remote`/reactivation keep their meaning, so
     /// a distributed entry span materializes its (local) context once here.
     fn _context_for_child<'py>(
-        &mut self,
-        py: Python<'py>,
+        slf: &Bound<'py, Self>,
     ) -> PyResult<Bound<'py, crate::context::Context>> {
-        if let Some(ctx) = &self._context {
-            return Ok(ctx.bind(py).clone());
-        }
-        if let Some(parent) = &self._parent_context {
-            if !parent.bind(py).borrow().is_remote {
-                return Ok(parent.bind(py).clone());
+        let py = slf.py();
+        {
+            let this = slf.borrow();
+            if let Some(ctx) = &this._context {
+                return Ok(ctx.bind(py).clone());
+            }
+            if let Some(parent) = &this._parent_context {
+                if !parent.bind(py).borrow().is_remote {
+                    return Ok(parent.bind(py).clone());
+                }
             }
         }
-        self.get_context(py)
+        Self::get_context(slf)
     }
 
     // _is_top_level property (native for performance - avoids Python property hop).
