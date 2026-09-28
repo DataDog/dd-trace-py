@@ -222,13 +222,20 @@ class TestPrompts:
             },
         ]
 
-        assert prompt.format(persona="concise", question="Help", history=history, examples=tools) == [
+        rendered = prompt.format(persona="concise", question="Help", history=history, examples=tools)
+        assert rendered == [
             {"role": "system", "content": "You are concise."},
             {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
             *tools,
             {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
             {"role": "user", "content": "Help"},
         ]
+        tools[0]["tool_calls"][0]["function"]["arguments"] = "changed"
+        assert rendered[2]["tool_calls"][0]["function"]["arguments"] == '{"id":"{{opaque}}"}'
+        history[0]["provider_field"]["id"] = 2
+        assert rendered[1]["provider_field"]["id"] == 1
+        rendered[1]["provider_field"]["id"] = 3
+        assert rendered[-2]["provider_field"]["id"] == 1
 
     @pytest.mark.parametrize(
         "variables, error",

@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from copy import deepcopy
 import json
 import re
 from typing import Any
@@ -96,7 +97,7 @@ def render_chat(messages: Sequence[Mapping[str, object]], variables: dict[str, A
                         "a string role and text or tool content"
                     )
                 # Preserve provider payloads (including null content) without widening the public return annotation.
-                rendered.append(message.copy())
+                rendered.append(deepcopy(message))
             continue
         role = msg.get("role")
         content = msg.get("content")
