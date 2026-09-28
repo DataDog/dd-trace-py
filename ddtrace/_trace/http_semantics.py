@@ -47,11 +47,13 @@ def otel_number(value: int) -> Union[int, str]:
 @cached()
 def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
     """Return the normalized method and its original spelling when they differ."""
-    known_methods = (
-        _DEFAULT_KNOWN_HTTP_METHODS if _CONFIGURED_KNOWN_HTTP_METHODS is None else _CONFIGURED_KNOWN_HTTP_METHODS
-    )
-    if method in known_methods:
-        return method, None
+    if _CONFIGURED_KNOWN_HTTP_METHODS is not None:
+        if method in _CONFIGURED_KNOWN_HTTP_METHODS:
+            return method, None
+        return OTHER_HTTP_METHOD, method
+    upper = method.upper()
+    if upper in _DEFAULT_KNOWN_HTTP_METHODS:
+        return upper, (None if upper == method else method)
     return OTHER_HTTP_METHOD, method
 
 

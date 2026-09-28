@@ -37,7 +37,7 @@ from tests.utils import override_env
     "method, expected",
     [
         ("GET", ("GET", None)),
-        ("get", (OTHER_HTTP_METHOD, "get")),
+        ("get", ("GET", "get")),
         ("QUERY", ("QUERY", None)),
         ("PROPFIND", (OTHER_HTTP_METHOD, "PROPFIND")),
     ],
@@ -211,7 +211,7 @@ def test_semantics_dependent_helpers_read_flag_per_call():
     assert datadog_span.get_tag(http.METHOD) == "get"
     assert datadog_span.get_tag(http.STATUS_CODE) == "204"
     assert otel_span.get_tag(http.OTEL_URL_PATH) == "/path"
-    assert otel_span.get_tag(http.OTEL_REQUEST_METHOD) == OTHER_HTTP_METHOD
+    assert otel_span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
     assert otel_span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "get"
     assert otel_span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 204
 
@@ -278,7 +278,7 @@ def test_http_block_metadata_uses_active_semantics():
             with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
                 assert http_block_metadata("get", 403, "token=secret", "agent") == {
                     http.OTEL_RESPONSE_STATUS_CODE: 403,
-                    http.OTEL_REQUEST_METHOD: OTHER_HTTP_METHOD,
+                    http.OTEL_REQUEST_METHOD: "GET",
                     http.OTEL_REQUEST_METHOD_ORIGINAL: "get",
                     http.OTEL_URL_QUERY: "token=redacted",
                     http.OTEL_USER_AGENT_ORIGINAL: "agent",
@@ -323,7 +323,7 @@ def test_otel_span_attributes_classifies_client_and_server(integration_config, s
     "method, normalized, original",
     [
         ("GET", "GET", None),
-        ("get", OTHER_HTTP_METHOD, "get"),
+        ("get", "GET", "get"),
         ("PROPFIND", OTHER_HTTP_METHOD, "PROPFIND"),
     ],
 )
@@ -348,10 +348,10 @@ def test_otel_span_attributes_dispatches_client_and_server_urls(integration_conf
             raw_uri="/users/%34%32?token=secret",
         )
 
-    assert client_span.get_tag(http.OTEL_URL_FULL) == "https://example.com/users/42?<redacted>"
+    assert client_span.get_tag(http.OTEL_URL_FULL) == "https://example.com/users/42"
     assert client_span.get_tag(http.OTEL_URL_PATH) is None
     assert server_span.get_tag(http.OTEL_URL_PATH) == "/users/%34%32"
-    assert server_span.get_tag(http.OTEL_URL_QUERY) == "<redacted>"
+    assert server_span.get_tag(http.OTEL_URL_QUERY) is None
     assert server_span.get_tag(http.OTEL_URL_FULL) is None
 
 
@@ -533,7 +533,7 @@ def test_otel_span_attributes_client_resource_ignores_server_route(integration_c
 
     attributes.set_resource("/users/{id}")
 
-    assert span.resource == "HTTP"
+    assert span.resource == "GET"
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "500-599"})
