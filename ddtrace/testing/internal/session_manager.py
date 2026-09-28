@@ -34,6 +34,8 @@ from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
 from ddtrace.testing.internal.offline_mode import get_offline_mode
+from ddtrace.testing.internal.platform import PlatformTag
+from ddtrace.testing.internal.platform import detect_test_environment_id
 from ddtrace.testing.internal.platform import get_platform_tags
 from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
@@ -108,6 +110,10 @@ class SessionManager:
             self.workspace_path = Path.cwd()
 
         self.platform_tags = get_platform_tags()
+        # Auto-detect or read the test environment id for sharding skippable-tests requests.
+        _test_environment_id = detect_test_environment_id()
+        if _test_environment_id:
+            self.platform_tags[PlatformTag.TEST_ENVIRONMENT_ID] = _test_environment_id
         self.collected_tests: set[TestRef] = set()
         self.skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
         self.itr_correlation_id: t.Optional[str] = None

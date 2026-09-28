@@ -1324,6 +1324,48 @@ class TestAPIClientGetSkippableTests:
         }
         assert correlation_id == "8ac307ca693b2ffd365ab2c3b47cb555"
 
+    def test_get_skippable_tests_with_environment_id(self, mock_telemetry: Mock) -> None:
+        """Verify that the test environment id is included in the configurations sent with the skippable request."""
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/tests/skippable",
+                response_data={
+                    "data": [],
+                    "meta": {"correlation_id": "some-correlation-id"},
+                },
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+                "test.environment.id": "my-shard-id-123",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            skippable_tests, correlation_id = api_client.get_skippable_tests()
+
+        # Verify the configurations in the request include the environment id
+        request_payload = mock_connector.post_json.call_args_list[0].args[1]
+        assert request_payload["data"]["attributes"]["configurations"]["test.environment.id"] == "my-shard-id-123"
+
+        assert skippable_tests == set()
+        assert correlation_id == "some-correlation-id"
+
     def test_get_skippable_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()

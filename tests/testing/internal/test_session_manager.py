@@ -1603,3 +1603,63 @@ def test_build_real_with_mocks_restores_the_agentless_config() -> None:
 
     assert agentless_config.__dict__ is expected_state
     assert agentless_config.__dict__ == expected_values
+
+
+class TestSessionManagerTestEnvironmentId:
+    """Tests that the test environment id is included in configurations sent to the API client."""
+
+    def setup_method(self) -> None:
+        self.session = TestSession("pytest")
+        self.session.set_attributes(
+            test_command="pytest --ddtrace", test_framework="pytest", test_framework_version="9.0.0"
+        )
+
+    def test_environment_id_from_explicit_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When _DD_CIVISIBILITY_ITR_TEST_ENVIRONMENT_ID is set, it appears in configurations passed to APIClient."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_TEST_ENVIRONMENT_ID", "my-shard-id-123")
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+
+        mock_client = mock_api_client_settings()
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client) as mock_api_cls,
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        _, kwargs = mock_api_cls.call_args
+        assert kwargs["configurations"]["test.environment.id"] == "my-shard-id-123"
+
+    def test_environment_id_from_virtual_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When VIRTUAL_ENV is set, its basename appears in configurations passed to APIClient."""
+        monkeypatch.delenv("_DD_CIVISIBILITY_ITR_TEST_ENVIRONMENT_ID", raising=False)
+        monkeypatch.setenv("VIRTUAL_ENV", "/home/user/.cache/test-environments/a3f2b1c")
+
+        mock_client = mock_api_client_settings()
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client) as mock_api_cls,
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        _, kwargs = mock_api_cls.call_args
+        assert kwargs["configurations"]["test.environment.id"] == "a3f2b1c"
+
+    def test_environment_id_not_included_when_undetectable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When no environment id can be detected, configurations do not contain the key."""
+        monkeypatch.delenv("_DD_CIVISIBILITY_ITR_TEST_ENVIRONMENT_ID", raising=False)
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        # Skip if running inside a venv (sys.prefix != sys.base_prefix), since that would be detected.
+        import sys
+
+        if sys.prefix != sys.base_prefix:
+            pytest.skip("Test requires running outside a virtual environment")
+
+        mock_client = mock_api_client_settings()
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client) as mock_api_cls,
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        _, kwargs = mock_api_cls.call_args
+        assert "test.environment.id" not in kwargs["configurations"]
