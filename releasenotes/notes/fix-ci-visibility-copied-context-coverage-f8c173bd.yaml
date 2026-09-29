@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI visibility: Fixes an issue where pytest runs can end with an internal coverage error when tests use copied execution contexts.
