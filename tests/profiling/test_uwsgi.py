@@ -49,7 +49,8 @@ if sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
-# Worker-termination status from uwsgi.h in uWSGI 2.0.29 and 2.0.31.
+# Exit status uWSGI's end_me() uses for a worker stopped by SIGINT/SIGTERM. Defined in uwsgi.h and
+# unchanged since uWSGI 0.9.5, so it does not need gating on the uWSGI version.
 UWSGI_END_CODE = 30
 THREADS_MSG = (
     b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
