@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 import json
 import logging
+import signal
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -45,6 +46,9 @@ class Profiler:
     _active_instance: Optional["Profiler"] = None
     _active_lock = Lock()
 
+    # The SIGTERM and SIGINT handlers in place after we last registered.
+    _exit_signal_handler: Optional[tuple[Any, Any]] = None
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
 
@@ -73,15 +77,25 @@ class Profiler:
 
             self._profiler.start()
             Profiler._active_instance = self
+            # Register again if application code has replaced the SIGTERM or SIGINT handler
+            # since the last start. If it chained on top of ours, our handler will run twice,
+            # which is harmless because the second call will find no active instance.
+            register_exit_signal_handler = (
+                Profiler._exit_signal_handler is None
+                or (
+                    signal.getsignal(signal.SIGTERM),
+                    signal.getsignal(signal.SIGINT),
+                )
+                != Profiler._exit_signal_handler
+            )
 
         atexit.register(self.stop)
 
         # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
         # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
         # so without this the last partial profile window is silently lost.
-        # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
-        # _active_lock is already held by the main thread (e.g. during start or stop).
-        atexit.register_on_exit_signal(self._stop_on_signal)
+        if register_exit_signal_handler:
+            Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -104,6 +118,13 @@ class Profiler:
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    @staticmethod
+    def _stop_active_instance_on_signal() -> None:
+        """Flush and stop whichever profiler is active when an exit signal arrives."""
+        active = Profiler._active_instance
+        if active is not None:
+            active._stop_on_signal()
 
     def _stop_on_signal(self) -> None:
         """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
