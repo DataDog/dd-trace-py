@@ -610,9 +610,11 @@ def check_coverage(
             has_latest = ci_info.has_latest
             ci_locs = format_locations(ci_info.locations)
 
-            # An unresolved 'latest' is a lookup failure. Do not treat it as a
-            # missing major: the majors that bare/latest would cover are unknown.
-            if has_latest and ci_info.latest_major is None:
+            # An unresolved latest is a lookup failure when explicit pins do not
+            # already cover the declared majors. Do not report that as missing
+            # coverage: the majors a bare spec would cover are unknown.
+            explicit_covers_required: bool = required_majors <= explicit_majors
+            if has_latest and ci_info.latest_major is None and not explicit_covers_required:
                 reason = (
                     f"{pkg_name}: PyPI lookup failed for '{pkg_name}' after {_PYPI_LOOKUP_ATTEMPTS} attempts "
                     f"(request failed, timed out, or returned no version). "
