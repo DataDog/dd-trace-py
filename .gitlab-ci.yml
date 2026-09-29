@@ -58,6 +58,10 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
+    # Record Python 3.13 database sizes on this branch without uploading the databases.
+    - if: $CI_COMMIT_REF_NAME == "gnufede/tia-storage-py313-20260929"
+      variables:
+        DD_TIA_STORAGE_SWEEP: "true"
     # This temporary experiment branch runs both arms on the same commit without UI variables.
     - if: $CI_COMMIT_REF_NAME == "gnufede/tia-cold-ci-pair-20260929"
       variables:

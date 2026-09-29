@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import sqlite3
@@ -173,10 +174,21 @@ class TestRunner:
 
     def _uses_testmon(self, environment: TestEnvironment) -> bool:
         python_version = _python_hint_to_version(environment.python)
+        storage_sweep = (
+            os.environ.get("DD_TIA_STORAGE_SWEEP") == "true"
+            and environment.python == "3.13"
+            and bool(environment.runs)
+            and all(
+                "{cmdargs}" in run.command and re.search(r"(?<![A-Za-z0-9_])pytest(?![A-Za-z0-9_])", run.command)
+                for run in environment.runs
+            )
+        )
         return (
             self.in_ci
-            and environment.suite == "llmobs::llmobs"
-            and os.environ.get("DD_LLMOBS_TIA_CI_MODE") != "file"
+            and (
+                storage_sweep
+                or (environment.suite == "llmobs::llmobs" and os.environ.get("DD_LLMOBS_TIA_CI_MODE") != "file")
+            )
             and python_version is not None
             and python_version >= _TESTMON_MIN_PYTHON_VERSION
         )

@@ -217,11 +217,25 @@ def _shell_environment(environment: dict[str, str]) -> str:
     return shlex.join(f"{name}={value}" for name, value in environment.items())
 
 
-def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
+def _storage_sweep_eligible(environment: t.Any) -> bool:
+    return (
+        environment.python == "3.13"
+        and bool(environment.runs)
+        and all(
+            "{cmdargs}" in run.command and re.search(r"(?<![A-Za-z0-9_])pytest(?![A-Za-z0-9_])", run.command)
+            for run in environment.runs
+        )
+    )
+
+
+def collect_all_suite_venv_info(
+    suite_configs: dict[str, dict], *, storage_sweep: bool = False
+) -> dict[str, SuiteVenvInfo]:
     """Collect environment count and Python versions for multiple suites in a single pass.
 
     Args:
         suite_configs: mapping of suite name -> suite configuration
+        storage_sweep: restrict to Python 3.13 environments with pytest argument placeholders
 
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
@@ -233,6 +247,10 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     result: dict[str, SuiteVenvInfo] = {}
     for suite in suite_configs:
         environments = all_environments.get(suite, ())
+        if storage_sweep:
+            environments = tuple(environment for environment in environments if _storage_sweep_eligible(environment))
+            if not environments:
+                continue
         if environments:
             ddtest_metadata = {}
             if suite_configs[suite].get("ddtest"):
@@ -323,6 +341,11 @@ def gen_required_suites() -> None:
     ci_visibility_suites = {"ci_visibility", "pytest"}
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
+
+    if _get_bool_env("DD_TIA_STORAGE_SWEEP") == "true":
+        required_suites = sorted(
+            name for name, config in suites.items() if config.get("type", "test") == "test" and not config.get("skip")
+        )
 
     _gen_tests(suites, required_suites)
     _gen_benchmarks(suites, required_suites)
@@ -434,6 +457,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
         )
 
     required_suites = [a for a in required_suites if a in list(suites.keys())]
+    storage_sweep = _get_bool_env("DD_TIA_STORAGE_SWEEP") == "true"
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
@@ -466,7 +490,14 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     # === PASS 1: Collect venv info for all non-skipped required suites ===
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
     suite_configs = {s: suites[s] for s in non_skipped}
-    suite_venv_info = collect_all_suite_venv_info(suite_configs)
+    suite_venv_info = (
+        collect_all_suite_venv_info(suite_configs, storage_sweep=True)
+        if storage_sweep
+        else collect_all_suite_venv_info(suite_configs)
+    )
+    if storage_sweep:
+        required_suites = [suite for suite in required_suites if suite in suite_venv_info]
+        non_skipped = required_suites
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
@@ -545,6 +576,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
+            if storage_sweep:
+                jobspec.env = {**(jobspec.env or {}), "DD_TIA_STORAGE_SWEEP": '"true"'}
 
             # Apply final parallelism (may be higher than baseline if scaling was applied)
             final_parallelism = final_jobs.get(suite)
@@ -556,6 +589,12 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 pass  # leave as None (GitLab default: single job)
 
             print(str(jobspec), file=f)
+            if storage_sweep:
+                # Log after failures too, but never cache or upload the recorded databases.
+                print("  cache: []", file=f)
+                print("  artifacts:\n    paths:\n      - core.*", file=f)
+                print("  after_script:\n    - !reference [.testrunner, after_script]", file=f)
+                print("    - python3 scripts/tia_storage_report.py", file=f)
 
         # Opt-in comparison uses the exact environments of the existing 5/5 shard.
         if cold_start_pair:

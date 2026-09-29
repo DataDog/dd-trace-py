@@ -143,6 +143,32 @@ def test_cold_start_pair_keeps_file_itr_and_testmon_commands_separate(runner_mod
     assert cold_command[-1].replace(" --no-cov -p scripts.testmon_logging --testmon", "") == file_command[-1]
 
 
+def test_storage_sweep_records_only_python313_pytest_commands(runner_module, monkeypatch, tmp_path):
+    runner = runner_module.TestRunner()
+    runner.in_ci = True
+    runner.root = tmp_path
+    lock = tmp_path / "lock.txt"
+    lock.write_text("pytest==9.0.3\n")
+    run = SimpleNamespace(command="python -m pytest {cmdargs} tests/internal", environment={})
+    environment = SimpleNamespace(
+        hash="env", python="3.13", suite="internal", integration_name="internal", lockfile=lock, runs=(run,)
+    )
+    monkeypatch.setenv("DD_TIA_STORAGE_SWEEP", "true")
+    assert runner._uses_testmon(environment)
+    command = runner._test_command(environment, SimpleNamespace(path=Path(".cache/env")), run, ["--ddtrace"], {})
+    forwarded = dict(assignment.split("=", 1) for assignment in command[1:-3])
+    assert forwarded["DD_CIVISIBILITY_ITR_ENABLED"] == "0"
+    assert "--testmon" in command[-1]
+
+    environment.python = "3.12"
+    assert not runner._uses_testmon(environment)
+    environment.python = "3.13"
+    environment.runs = (SimpleNamespace(command="python tests/smoke_test.py {cmdargs}"),)
+    assert not runner._uses_testmon(environment)
+    environment.runs = (SimpleNamespace(command="pytest tests/internal"),)
+    assert not runner._uses_testmon(environment)
+
+
 @pytest.mark.parametrize("suffix", ["", "-wal", "-shm"])
 def test_cold_start_rejects_restored_command_database(runner_module, monkeypatch, tmp_path, suffix):
     runner = runner_module.TestRunner()

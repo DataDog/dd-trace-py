@@ -147,6 +147,77 @@ def test_llmobs_cold_start_pair_is_opt_in_and_matches_fifth_shard(gen_gitlab_con
         module._gen_tests(config, ["llmobs::llmobs"])
 
 
+def test_storage_sweep_only_emits_python313_pytest_jobs_without_database_artifacts(
+    gen_gitlab_config_mod, monkeypatch, tmp_path
+):
+    module = gen_gitlab_config_mod
+    monkeypatch.setattr(module, "TESTS_GEN", tmp_path / "tests-gen.yml")
+    monkeypatch.setattr(module, "_wait_lockfile", lambda: ".riot/requirements/wait.txt")
+    monkeypatch.setenv("DD_TIA_STORAGE_SWEEP", "true")
+    monkeypatch.delenv("DD_LLMOBS_TIA_COLD_START_PAIR", raising=False)
+    test_environments = {
+        "llmobs::llmobs": (
+            types.SimpleNamespace(hash="old", python="3.12", runs=(types.SimpleNamespace(command="pytest {cmdargs}"),)),
+            types.SimpleNamespace(hash="new", python="3.13", runs=(types.SimpleNamespace(command="pytest {cmdargs}"),)),
+        ),
+        "other": (
+            types.SimpleNamespace(
+                hash="wrapper", python="3.13", runs=(types.SimpleNamespace(command="python -m pytest {cmdargs}"),)
+            ),
+        ),
+        "native": (
+            types.SimpleNamespace(hash="native", python="3.13", runs=(types.SimpleNamespace(command="cmake build"),)),
+        ),
+    }
+    suitespec = types.ModuleType("tests.suitespec")
+    suitespec.get_test_environments = lambda nightly=False: test_environments
+    monkeypatch.setitem(sys.modules, "tests.suitespec", suitespec)
+    suites = {
+        "llmobs::llmobs": {"snapshot": True, "venvs_per_job": 2},
+        "other": {"venvs_per_job": 1},
+        "native": {"venvs_per_job": 1},
+    }
+    module._gen_tests(suites, list(suites))
+    generated = module.TESTS_GEN.read_text()
+    assert "core/native:" not in generated
+    assert "llmobs/file-itr-cold-start:" not in generated
+    assert 'TEST_ENVIRONMENTS_1: "old"' not in generated
+    for name, hash_ in (("llmobs/llmobs", "new"), ("core/other", "wrapper")):
+        job = generated.split(f"{name}:\n", 1)[1].split("\n\n", 1)[0]
+        assert f'TEST_ENVIRONMENTS_1: "{hash_}"' in job
+        assert 'DD_TIA_STORAGE_SWEEP: "true"' in job
+        assert "  cache: []" in job
+        assert "  artifacts:\n    paths:\n      - core.*" in job
+        assert "  after_script:\n    - !reference [.testrunner, after_script]" in job
+        assert "    - python3 scripts/tia_storage_report.py" in job
+    assert generated.count("  cache: []") == 2
+    assert generated.count("python3 scripts/tia_storage_report.py") == 2
+
+
+def test_storage_sweep_selects_all_enabled_test_suites(gen_gitlab_config_mod, monkeypatch):
+    import tests
+
+    module = gen_gitlab_config_mod
+    suitespec = types.ModuleType("tests.suitespec")
+    suitespec.get_suites = lambda: {
+        "one": {"type": "test"},
+        "two": {"type": "test"},
+        "disabled": {"type": "test", "skip": True},
+        "benchmark": {"type": "benchmark"},
+    }
+    monkeypatch.setitem(sys.modules, "tests.suitespec", suitespec)
+    monkeypatch.setattr(tests, "suitespec", suitespec, raising=False)
+    monkeypatch.setattr(module.args, "suites", ["one"])
+    monkeypatch.setenv("DD_TIA_STORAGE_SWEEP", "true")
+    selected = []
+    monkeypatch.setattr(module, "_gen_tests", lambda suites, required: selected.extend(required))
+    monkeypatch.setattr(module, "_gen_benchmarks", lambda suites, required: None)
+
+    module.gen_required_suites()
+
+    assert selected == ["one", "two"]
+
+
 def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):
     assert gen_gitlab_config_mod.calculate_parallelism_from_venvs(12) == 1
 

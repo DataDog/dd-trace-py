@@ -269,6 +269,23 @@ file-level skipping baseline. Compare job durations in the same pipeline and
 commit; test-process seconds in ``[TIA]`` logs exclude environment creation.
 The normal LLMObs jobs are unchanged by this switch.
 
+How do I measure testmon storage in Python 3.13 CI jobs?
+--------------------------------------------------------
+
+The temporary ``gnufede/tia-storage-py313-20260929`` branch sets
+``DD_TIA_STORAGE_SWEEP=true``. Its generated child pipeline selects only
+Python 3.13 environments whose commands accept pytest arguments. These jobs
+record with testmon instead of file-level ITR, start without a TIA cache, and
+do not upload ``.tia/`` as an artifact. Non-pytest commands are excluded.
+
+Each job emits one ``[TIA-STORAGE]`` JSON line during ``after_script``, even
+when a test command fails. ``raw_bytes`` sums the live ``.tia/`` files, including
+any SQLite WAL and SHM files. ``snapshot_bytes`` and ``gzip_bytes`` sum
+consistent copies of the databases; these are better proxies for stored blobs.
+If a snapshot fails, both snapshot totals are null and ``snapshot_errors``
+explains why. Deduplicate log lines by ``job_id`` before aggregating sizes.
+This sweep measures size, not the job-time effect of switching TIA approaches.
+
 How do I add a new test suite?
 ------------------------------
 
