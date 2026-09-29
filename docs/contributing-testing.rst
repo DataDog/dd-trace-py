@@ -276,7 +276,11 @@ The temporary ``gnufede/tia-storage-py313-20260929`` branch sets
 ``DD_TIA_STORAGE_SWEEP=true``. Its generated child pipeline selects only
 Python 3.13 environments whose commands accept pytest arguments. These jobs
 record with testmon instead of file-level ITR, start without a TIA cache, and
-do not upload ``.tia/`` as an artifact. Non-pytest commands are excluded.
+do not upload ``.tia/`` as an artifact. Non-pytest commands and pytest 6
+are excluded: testmon 2.2.0 registers a hook unsupported by pytest 6. The
+``internal`` environment ``1cdebe0`` is also excluded because testmon 2.2.0
+crashes while fingerprinting an extensionless coverage path. Treat these as
+missing measurements, not zero-byte databases.
 
 Each job emits one ``[TIA-STORAGE]`` JSON line during ``after_script``, even
 when a test command fails. ``raw_bytes`` sums the live ``.tia/`` files, including

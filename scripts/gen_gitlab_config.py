@@ -27,6 +27,8 @@ import typing as t
 
 MAX_BENCHMARKS_PER_GROUP = 2
 MAX_TOTAL_TEST_JOBS = 600
+# Testmon 2.2.0 crashes on an extensionless coverage path in this environment.
+_STORAGE_SWEEP_UNSUPPORTED_HASHES = {"1cdebe0"}
 # Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
 NO_PROXY_ADDITIONS = (
     "icanhazdadjoke.com",
@@ -218,14 +220,19 @@ def _shell_environment(environment: dict[str, str]) -> str:
 
 
 def _storage_sweep_eligible(environment: t.Any) -> bool:
-    return (
-        environment.python == "3.13"
-        and bool(environment.runs)
-        and all(
+    if (
+        environment.python != "3.13"
+        or environment.hash in _STORAGE_SWEEP_UNSUPPORTED_HASHES
+        or not environment.runs
+        or not all(
             "{cmdargs}" in run.command and re.search(r"(?<![A-Za-z0-9_])pytest(?![A-Za-z0-9_])", run.command)
             for run in environment.runs
         )
-    )
+    ):
+        return False
+    # Testmon 2.2.0 registers a pytest hook that pytest 6 does not support.
+    pytest_pin = re.search(r"^pytest==(\d+)\.", (ROOT / environment.lockfile).read_text(), re.MULTILINE)
+    return pytest_pin is not None and int(pytest_pin.group(1)) >= 7
 
 
 def collect_all_suite_venv_info(

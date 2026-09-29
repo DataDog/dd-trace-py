@@ -83,7 +83,8 @@ class TestmonLogging:
         yield
         self.collection_seconds = time.monotonic() - started
         self.startup_selection_seconds = time.monotonic() - _STARTED
-        self.selected.update(item.nodeid for item in session.items)
+        # An xdist controller can finish this hook without collecting local items.
+        self.selected.update(item.nodeid for item in getattr(session, "items", ()))
 
     def pytest_collectreport(self, report: Any) -> None:
         if report.failed:
