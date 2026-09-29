@@ -11,12 +11,19 @@ JSON artifact in the shape ``steps/compare-results.py`` expects:
         "metrics": {
           "process.internal_duration_ms.median": <ms>,
           "process.internal_duration_ms.std_err": <ms>,
-          "process.rss_bytes.median": <bytes>
+          "process.rss_bytes.median": <bytes>,
+          "process.iteration_wall_ms.median": <ms>,
+          "phase.produce_ms.median": <ms>,
+          "phase.consume_ms.median": <ms>
         }
       }
     ]
 
-Duration is wall-clock per iteration; the memory metric is process RSS (the
+The gated duration is produce_ms + consume_ms per iteration: only the
+per-message work. Topic creation, client construction, the consumer-group join
+and client close are excluded (see kafka_throughput.py). The whole-iteration
+wall time is kept as process.iteration_wall_ms.median, for context only; nothing
+gates on it. The memory metric is process RSS (the
 cross-language analog of .NET's ``runtime.dotnet.mem.committed``). Medians are
 used for robustness against outliers, matching the .NET gate.
 """
@@ -45,13 +52,15 @@ def main():
         run_id += 1
 
     durations_ms = []
+    iteration_wall_ms = []
     rss_bytes = []
     produce_ms = []
     consume_ms = []
     for _ in range(count):
         start = time.perf_counter()
         phases = kafka_throughput.run_benchmark(run_id)
-        durations_ms.append((time.perf_counter() - start) * 1000.0)
+        iteration_wall_ms.append((time.perf_counter() - start) * 1000.0)
+        durations_ms.append(phases["produce_ms"] + phases["consume_ms"])
         rss_bytes.append(proc.memory_info().rss)
         produce_ms.append(phases["produce_ms"])
         consume_ms.append(phases["consume_ms"])
@@ -63,6 +72,7 @@ def main():
     else:
         duration_std_err = 0.0
     rss_median = statistics.median(rss_bytes)
+    iteration_wall_median = statistics.median(iteration_wall_ms)
     produce_median = statistics.median(produce_ms)
     consume_median = statistics.median(consume_ms)
 
@@ -73,6 +83,8 @@ def main():
                 "process.internal_duration_ms.median": duration_median,
                 "process.internal_duration_ms.std_err": duration_std_err,
                 "process.rss_bytes.median": rss_median,
+                # Whole run_benchmark wall time incl. setup/teardown (context only, not gated).
+                "process.iteration_wall_ms.median": iteration_wall_median,
                 # Diagnostic breakdown (not gated) — localizes DSM cost by phase.
                 "phase.produce_ms.median": produce_median,
                 "phase.consume_ms.median": consume_median,
@@ -83,15 +95,18 @@ def main():
     with open(output_path, "w") as f:
         json.dump(result, f, indent=2)
 
+    # Keep the "Duration median:" prefix: ci/run_ci.sh and local_ab.sh grep for it.
     print(
-        "Duration median: %.3f ms (± %.3f) | RSS median: %.2f MB | "
-        "produce median: %.3f ms | consume+commit median: %.3f ms | runs: %d (warmup %d)"
+        "Duration median: %.3f ms (± %.3f) [produce+consume] | RSS median: %.2f MB | "
+        "produce median: %.3f ms | consume+commit median: %.3f ms | "
+        "iteration wall median (incl. setup/teardown, not gated): %.3f ms | runs: %d (warmup %d)"
         % (
             duration_median,
             duration_std_err,
             rss_median / 1_000_000,
             produce_median,
             consume_median,
+            iteration_wall_median,
             count,
             warmup,
         )

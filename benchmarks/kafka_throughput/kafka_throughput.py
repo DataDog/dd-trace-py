@@ -24,6 +24,12 @@ The workload:
     headers, to its own topic, flushes, then synchronously consumes and commits
     all 1000 messages back.
 
+Only the two phases are timed (``produce_ms``: produce loop + flush;
+``consume_ms``: consume loop + per-message synchronous commit). Topic creation,
+Producer/Consumer construction, the consumer-group join and partition
+assignment (``_join_group``, done before producing) and ``consumer.close()``
+are setup/teardown and stay outside both timers.
+
 Tracing/DSM are controlled purely by environment (``ddtrace-run`` +
 ``DD_DATA_STREAMS_ENABLED``); this module contains no tracer-specific code, so
 the DSM-on and DSM-off experiments run the exact same bytes.
@@ -46,6 +52,11 @@ CONSUMER_GROUP_ID = "benchmark-consumer-group"
 MESSAGE_SIZE = 32
 MESSAGE_COUNT = 1000
 NUM_HEADERS = 5
+# Group join: poll the still-empty topic until the partition is assigned.
+# Bounded by poll count, not a clock: the profiler (profile-window/) expects
+# exactly four time.perf_counter() calls per _run_worker, all in the timers.
+JOIN_POLL_TIMEOUT_S = 0.05
+JOIN_MAX_POLLS = 1200  # 60 s
 
 
 def _create_topics(topics):
@@ -59,6 +70,25 @@ def _create_topics(topics):
         except Exception as exc:  # noqa: BLE001 - "already exists" is expected on reruns
             if "already exists" not in str(exc).lower():
                 raise
+
+
+def _join_group(consumer, topic):
+    """Join the consumer group and wait for the partition assignment.
+
+    Runs before anything is produced, so the group join/rebalance is setup
+    instead of landing in the first timed consume poll. The topic is still
+    empty, so no message may come back; with auto.offset.reset=earliest the
+    consumer then starts from offset 0 once messages are produced.
+    """
+    for _ in range(JOIN_MAX_POLLS):
+        if consumer.assignment():
+            return
+        msg = consumer.poll(JOIN_POLL_TIMEOUT_S)
+        if msg is not None:
+            if msg.error() is not None:
+                raise RuntimeError("Consumer error while joining on topic %s: %s" % (topic, msg.error()))
+            raise RuntimeError("Unexpected message on empty topic %s during group join" % topic)
+    raise RuntimeError("No partition assigned within %d polls on topic %s" % (JOIN_MAX_POLLS, topic))
 
 
 def _run_worker(topic, group_id):
@@ -85,6 +115,8 @@ def _run_worker(topic, group_id):
     consumer.subscribe([topic])
 
     try:
+        _join_group(consumer, topic)
+
         # Phase 1: produce all messages.
         # A dict, not a list of tuples: ddtrace's DSM produce hook only injects its
         # pathway header into dict headers, and silently skips it for lists.

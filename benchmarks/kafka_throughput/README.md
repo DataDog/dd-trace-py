@@ -14,7 +14,11 @@ repo.
   tracer-specific code — DSM is toggled purely via environment.
 - `run_timeit.py` — timing harness (5 warmup + 25 timed iterations by default),
   emits a JSON artifact compatible with `steps/compare-results.py`. Reports
-  median duration (ms) and median process RSS (bytes).
+  median duration (ms) and median process RSS (bytes). The gated duration is
+  produce + consume per iteration only; topic creation, client construction,
+  the consumer-group join (done before producing) and client close are not
+  timed. The whole-iteration wall time is reported as
+  `process.iteration_wall_ms.median`, for context only.
 - `requirements.txt` — `confluent-kafka`, `psutil`.
 
 ## Running locally
