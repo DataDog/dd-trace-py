@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where pytest runs using copied or restored execution
+    contexts (e.g. Django async tests via asgiref's ``async_to_sync``) could end with an
+    internal coverage error, or silently lose the coverage data of the tests that use
+    them.

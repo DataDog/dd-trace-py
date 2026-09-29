@@ -49,7 +49,7 @@ def _is_site_packages_path(path: Path) -> bool:
 
 
 # NOTE: A mutable ContextVar default would be shared across threads until set() is called.
-# Keep None so CollectInContext initializes a separate coverage stack in each context.
+# Keep None so CollectInContext starts a separate coverage stack in each context.
 ctx_covered: ContextVar[t.Optional[list[defaultdict[str, CoverageLines]]]] = ContextVar("ctx_covered", default=None)
 ctx_covered_files: ContextVar[t.Optional[list[set[str]]]] = ContextVar("ctx_covered_files", default=None)
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
@@ -373,14 +373,14 @@ class ModuleCodeCollector(ModuleWatchdog):
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
-            if ctx_covered.get() is None:
-                ctx_covered.set([])
-            if ctx_covered_files.get() is None:
-                ctx_covered_files.set([])
 
         def __enter__(self):
-            ctx_covered.get().append(defaultdict(CoverageLines))
-            ctx_covered_files.get().append(set())
+            # ContextVar values are copied by reference into new execution contexts.
+            # Replace the stacks so a nested collector cannot mutate its parent's stack.
+            self._covered_lines = defaultdict(CoverageLines)
+            self._covered_files = set()
+            ctx_covered.set((ctx_covered.get() or []) + [self._covered_lines])
+            ctx_covered_files.set((ctx_covered_files.get() or []) + [self._covered_files])
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -412,13 +412,25 @@ class ModuleCodeCollector(ModuleWatchdog):
             return self
 
         def __exit__(self, *args, **kwargs):
-            covered_lines_stack = ctx_covered.get()
-            covered_files_stack = ctx_covered_files.get()
-            covered_lines_stack.pop()
-            covered_files_stack.pop()
+            covered_lines_stack = ctx_covered.get() or []
+            covered_files_stack = ctx_covered_files.get() or []
+            if (
+                covered_lines_stack
+                and covered_files_stack
+                and covered_lines_stack[-1] is self._covered_lines
+                and covered_files_stack[-1] is self._covered_files
+            ):
+                covered_lines_stack = covered_lines_stack[:-1]
+                covered_files_stack = covered_files_stack[:-1]
+                ctx_covered.set(covered_lines_stack)
+                ctx_covered_files.set(covered_files_stack)
+            else:
+                # A copied context may finish a collector that was entered elsewhere.
+                # Leave this context's collector intact instead of popping the wrong one.
+                return
 
             # Stop coverage if we're exiting the last context
-            if len(covered_lines_stack) == 0:
+            if not covered_lines_stack:
                 ctx_coverage_enabled.set(False)
                 if _PY_GE_314:
                     _tls_coverage.covered = None
@@ -428,7 +440,7 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.covered_files = covered_files_stack[-1]
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
-            covered_lines = _get_ctx_covered_lines()
+            covered_lines = self._covered_lines
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._add_import_time_lines(covered_lines)
             return covered_lines
@@ -437,8 +449,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Python < 3.12 and injected child-process coverage may only update the line-oriented
             # context data. Merge those keys into the file set so file-level uploads still include
             # every file that would have been emitted by get_covered_lines().
-            covered_file_paths = set(_get_ctx_covered_files())
-            covered_file_paths.update(_get_ctx_covered_lines())
+            covered_file_paths = set(self._covered_files)
+            covered_file_paths.update(self._covered_lines)
             if global_instance := ModuleCodeCollector._instance:
                 return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
             return covered_file_paths
