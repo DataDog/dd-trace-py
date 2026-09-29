@@ -100,8 +100,8 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
     the buffered chunks.
 
     The proxy is transparent when the flag is off or a framework already holds the
-    response phase and evaluates the response itself (LangChain buffers its own
-    streams one layer up): _drained() returns None and every method delegates to
+    response phase and evaluates the response itself (LangChain buffers each
+    model's _stream above the provider): _drained() returns None and every method delegates to
     the wrapped stream.
     """
 

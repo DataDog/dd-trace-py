@@ -15,10 +15,10 @@ Who claims what:
 
 - LangChain generate / agenerate: REQUEST and RESPONSE for the whole call (it
   evaluates both).
-- LangChain streaming: REQUEST and RESPONSE while each chunk is pulled. The
-  streamed response is buffered and evaluated above the provider, so the
-  provider's buffered stream stays passthrough and cannot trip LangChain's
-  per-chunk timeout.
+- LangChain model streams: REQUEST and RESPONSE while the model's own _stream /
+  _astream is read. The response is buffered and evaluated there, below
+  LangChain's callbacks and above the provider, so the provider's buffered
+  stream stays passthrough and cannot trip LangChain's per-chunk timeout.
 - Strands: REQUEST and RESPONSE (before- and after-model-call hooks).
 
 Claims are shared objects rather than per-context counters: an asyncio task

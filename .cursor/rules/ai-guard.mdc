@@ -179,7 +179,7 @@ provider check skips only the phase it guards:
 | Integration | Claims |
 |-------------|--------|
 | LangChain `generate` / `agenerate` | `REQUEST` + `RESPONSE` for the whole call |
-| LangChain `stream` / `astream` | `REQUEST` + `RESPONSE` while each chunk is pulled (the stream is buffered and evaluated above the provider, see below) |
+| LangChain model `_stream` / `_astream` | `REQUEST` + `RESPONSE` while the model stream is read (buffered and evaluated there, see below); with stream analysis off, only for the first read |
 | Strands | `REQUEST` + `RESPONSE` |
 
 | Provider check | Phase |
@@ -193,15 +193,33 @@ Never claim a phase the framework does not actually evaluate: claiming
 check and leaves the response unevaluated (APPSEC-70286).
 
 AI Guard takes the LangChain claims in its own wrappers around `BaseChatModel` /
-`BaseLLM` `generate` / `agenerate` / `stream` / `astream`, installed by
-`_langchain_patch` at `langchain.patch`. The LangChain contrib only dispatches
-product-agnostic `.before` / `.after` events and carries no AI Guard state.
-Streamed responses are buffered in the same stream wrapper
-(`_langchain_stream`), not by the provider's buffer.
-LangChain wraps every provider chunk in its own read timeout, so a provider
-buffer that drains the whole stream on the first read turns a long generation
-into a timeout; buffering above LangChain keeps each provider read under its own
-timeout. It also raises the `BaseException`-based `AIGuardAbortError`, which
+`BaseLLM` `generate` / `agenerate`, installed by `_langchain_patch` at
+`langchain.patch`. The LangChain contrib only dispatches product-agnostic
+`.before` / `.after` events and carries no AI Guard state.
+
+Streamed responses are buffered around each model class's own `_stream` /
+`_astream` (`_buffered_stream`), not in `stream()` and not by the provider's
+buffer. Subclasses define those methods themselves, so the wrappers are
+installed per class the first time a model of that class goes through
+`generate` / `agenerate` / `stream` / `astream` (`_install_stream_buffers`).
+The layer matters:
+
+- **Below LangChain's callbacks.** `stream()`, `astream_events()`, LangGraph's
+  `stream_mode="messages"` and generate's internal streaming all hand each
+  token to callbacks after reading `_stream`. A buffer on `stream()` would
+  deliver tokens to them before the verdict, and would finish the model run
+  before `astream_events()` could emit any stream event. Providers that report
+  tokens to the run manager from inside `_stream` get a deferring run manager
+  (`_DeferredRunManager`) whose tokens are replayed after the verdict.
+- **Above the provider.** LangChain wraps every provider read inside `_astream`
+  in its own read timeout, so a provider buffer that drains the whole stream on
+  the first read turns a long generation into a timeout.
+- **Once per call.** When generate streams internally, the buffer records the
+  payload it evaluated and the `.generate.after` listener skips that exact
+  payload. The record is scoped to the generate call, so a cached response is
+  still evaluated.
+
+The buffer also raises the `BaseException`-based `AIGuardAbortError`, which
 `with_fallbacks` and retry policies cannot swallow the way they swallow the
 provider's `Exception`-based abort errors.
 
