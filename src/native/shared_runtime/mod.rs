@@ -5,6 +5,8 @@ use once_cell::sync::OnceCell;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::cell::Cell;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
@@ -24,6 +26,10 @@ static CHILD_RESTART_DEFERRED: AtomicBool = AtomicBool::new(false);
 static CHILD_ABANDON_INHERITED: AtomicBool = AtomicBool::new(false);
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 static CHILD_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+thread_local! {
+    static PYTHON_FORK_IN_PROGRESS: Cell<bool> = const { Cell::new(false) };
+}
 
 struct SharedRuntimeState {
     runtime: RwLock<Arc<ForkSafeRuntime>>,
@@ -50,6 +56,14 @@ unsafe extern "C" fn before_fork() {
     while CHILD_RESTART_IN_PROGRESS.load(Ordering::Acquire) {
         std::thread::yield_now();
     }
+    // AIDEV-NOTE: subprocess and asyncio call _posixsubprocess.fork_exec, which does
+    // not run os.register_at_fork. On macOS that fork already holds the resolver lock
+    // before this handler runs, so waiting for a worker blocked in getaddrinfo
+    // deadlocks. Those callers mark the forking thread and continue without pausing;
+    // os.fork and native forks still pause because their children keep running.
+    if PYTHON_FORK_IN_PROGRESS.get() {
+        return;
+    }
     if let Some(state) = atfork_runtime() {
         let runtime = state.current();
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -60,11 +74,14 @@ unsafe extern "C" fn before_fork() {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn after_fork_parent() {
-    if let Some(state) = atfork_runtime() {
-        let runtime = state.current();
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = runtime.after_fork_parent();
-        }));
+    let python_managed = PYTHON_FORK_IN_PROGRESS.replace(false);
+    if !python_managed {
+        if let Some(state) = atfork_runtime() {
+            let runtime = state.current();
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _ = runtime.after_fork_parent();
+            }));
+        }
     }
     CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
 }
@@ -75,6 +92,7 @@ unsafe extern "C" fn after_fork_child() {
     // where exec closes the new runtime's descriptors while its worker thread is using them.
     // The next Python-facing runtime or telemetry operation performs the restart instead.
     CHILD_RESTART_IN_PROGRESS.store(false, Ordering::Release);
+    PYTHON_FORK_IN_PROGRESS.set(false);
     CHILD_RESTART_PENDING.store(true, Ordering::Release);
     CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
 }
@@ -306,9 +324,20 @@ impl SharedRuntimePy {
         }
     }
 
+    fn before_python_fork(&self) {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        PYTHON_FORK_IN_PROGRESS.set(true);
+    }
+
+    fn after_python_fork_parent(&self) {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        PYTHON_FORK_IN_PROGRESS.set(false);
+    }
+
     fn allow_after_fork_child(&self) {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
+            PYTHON_FORK_IN_PROGRESS.set(false);
             CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
             // Only abandon after a real fork. Tests call defer/allow in-process to
             // simulate the hook window; the pid is unchanged there, and setting the

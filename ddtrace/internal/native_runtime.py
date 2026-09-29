@@ -1,6 +1,8 @@
 from functools import cache
 import logging
 import sys
+from typing import Any
+from typing import Callable
 from typing import Optional
 
 from ddtrace.internal import atexit
@@ -26,8 +28,57 @@ class NativeRuntime(SharedRuntime):
         self.register_at_fork()
         forksafe.register_before_child_hooks(self.defer_after_fork_child)
         forksafe.register_after_child_hooks(self.allow_after_fork_child)
+        self._original_fork_exec: Optional[Callable[..., Any]] = None
+        self._wrapped_fork_exec: Optional[Callable[..., Any]] = None
+        self._install_subprocess_fork_hook()
         atexit.register(self._atexit)
         atexit.register_on_exit_signal(self._atexit)
+
+    def _install_subprocess_fork_hook(self) -> None:
+        # subprocess and asyncio call _posixsubprocess.fork_exec directly, so
+        # os.register_at_fork never runs for them. Mark that path before libc
+        # fork handlers, which otherwise wait on a resolver lock they already hold.
+        if sys.platform != "darwin":
+            return
+
+        import _posixsubprocess
+
+        original_fork_exec = _posixsubprocess.fork_exec
+        if getattr(original_fork_exec, "__ddtrace_native_fork_hook__", False):
+            return
+
+        def fork_exec(*args: Any, **kwargs: Any) -> Any:
+            self.before_python_fork()
+            try:
+                return original_fork_exec(*args, **kwargs)
+            finally:
+                self.after_python_fork_parent()
+
+        setattr(fork_exec, "__ddtrace_native_fork_hook__", True)
+        self._original_fork_exec = original_fork_exec
+        self._wrapped_fork_exec = fork_exec
+        setattr(_posixsubprocess, "fork_exec", fork_exec)
+        # subprocess binds the C function into its own global at import time.
+        self._rebind_imported_subprocess_fork_exec(original_fork_exec, fork_exec)
+
+    def _uninstall_subprocess_fork_hook(self) -> None:
+        wrapped_fork_exec = self._wrapped_fork_exec
+        if wrapped_fork_exec is None:
+            return
+
+        import _posixsubprocess
+
+        if _posixsubprocess.fork_exec is wrapped_fork_exec:
+            setattr(_posixsubprocess, "fork_exec", self._original_fork_exec)
+        self._rebind_imported_subprocess_fork_exec(wrapped_fork_exec, self._original_fork_exec)
+        self._original_fork_exec = None
+        self._wrapped_fork_exec = None
+
+    @staticmethod
+    def _rebind_imported_subprocess_fork_exec(current: Any, replacement: Any) -> None:
+        subprocess_module = sys.modules.get("subprocess")
+        if subprocess_module is not None and getattr(subprocess_module, "_fork_exec", None) is current:
+            setattr(subprocess_module, "_fork_exec", replacement)
 
     def _atexit(self) -> None:
         try:
@@ -47,6 +98,7 @@ class NativeRuntime(SharedRuntime):
             super().shutdown_in_thread(timeout_ms=timeout_ms)
         else:
             super().shutdown(timeout_ms=timeout_ms)
+        self._uninstall_subprocess_fork_hook()
         atexit.unregister(self._atexit)
         forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
         forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
