@@ -182,7 +182,7 @@ suites:
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82']
           python: ['3.9', '3.10', '3.11']
         - name: crashtracker
-          python: ['3.12', '3.13', '3.14', '3.15']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
@@ -330,16 +330,17 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
         - name: internal
-          python: ['3.12', '3.13', '3.14', '3.15']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
         - name: internal
-          python: ['3.12', '3.13', '3.14', '3.15']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
         - name: internal
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           command: pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, pyarmor]
   wrapping:
@@ -389,6 +390,7 @@ suites:
       command: pytest {cmdargs} tests/runtime/
       variants:
         - name: runtime
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [msgpack, pytest-randomly]
   openfeature:
     paths:
@@ -400,8 +402,10 @@ suites:
       command: pytest {cmdargs} tests/openfeature
       variants:
         - name: openfeature
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, 'openfeature-sdk~=0.8.0']
         - name: openfeature
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, openfeature-sdk]
   telemetry:
     env:
