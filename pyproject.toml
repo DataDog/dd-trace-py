@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.16.0rc1"
+version = "4.16.0rc1+rc-experiments"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -86,6 +86,7 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
+"profiling" = "ddtrace.profiling._product"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "error-tracking" = "ddtrace.errortracking.product"
 "openfeature" = "ddtrace.internal.openfeature.product"
