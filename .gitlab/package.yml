@@ -87,6 +87,7 @@ variables:
     SCCACHE_BUCKET: "dd-trace-py-builds"
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
+    SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
   script:
     - .gitlab/scripts/build-sdist.sh
 
@@ -99,6 +100,7 @@ variables:
     SCCACHE_BUCKET: "dd-trace-py-builds"
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
+    SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
   cache:
     - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
@@ -197,6 +199,7 @@ variables:
     TART_EXECUTOR_SHELL: "/bin/bash -l"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
+    SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
   before_script: |
     set -euo pipefail
     # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
