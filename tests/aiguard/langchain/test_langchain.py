@@ -1557,6 +1557,75 @@ def test_stream_under_outer_response_claim_is_still_evaluated(mock_execute_reque
     _assert_evaluated_response(mock_execute_request, "tool answer")
 
 
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_inner_model_streamed_during_a_buffered_read_gets_its_own_buffer(mock_execute_request, langchain, decision):
+    """A router model reading another model's stream must not switch off that model's buffer."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    inner_handler = _EvaluationOrderHandler(mock_execute_request)
+
+    class _RouterModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-router"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            raise NotImplementedError
+
+        def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+            inner = FakeListChatModel(responses=["blocked inner answer"])
+            for chunk in inner.stream(messages, config={"callbacks": [inner_handler]}):
+                yield ChatGenerationChunk(message=chunk)
+
+    # Router request, inner request, inner response.
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW")] * 2 + [mock_evaluate_response(decision)]
+
+    with _stream_evaluation_on(), pytest.raises(AIGuardAbortError):
+        list(_RouterModel().stream(input="hi"))
+
+    assert inner_handler.tokens == []
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_stream_read_directly_is_buffered_for_classes_defined_before_and_after_patch(mock_execute_request, langchain):
+    """Some paths (stream_events v3) read _stream without going through generate or stream first."""
+
+    class _DefinedAfterPatch(_SelfReportingChatModel):
+        def _stream(self, *args, **kwargs):
+            yield from super()._stream(*args, **kwargs)
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    for model_class in (_SelfReportingChatModel, _DefinedAfterPatch):
+        mock_execute_request.reset_mock()
+        with _stream_evaluation_on():
+            chunks = list(model_class()._stream([HumanMessage(content="hi")]))
+
+        assert "".join(chunk.message.content for chunk in chunks) == "self reported"
+        assert mock_execute_request.call_count == 1, model_class
+        assert _evaluated_messages(mock_execute_request, 0)[-1] == {"role": "assistant", "content": "self reported"}
+
+
+def test_unpatch_removes_stream_buffers(langchain):
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
+    from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
+
+    unpatch_ok = False
+    langchain_unpatch()
+    try:
+        assert "__init_subclass__" not in BaseChatModel.__dict__
+        assert not hasattr(FakeListChatModel.__dict__["_stream"], "__wrapped__")
+        assert not hasattr(_SelfReportingChatModel.__dict__["_astream"], "__wrapped__")
+        unpatch_ok = True
+    finally:
+        langchain_patch()
+    assert unpatch_ok
+    assert hasattr(FakeListChatModel.__dict__["_stream"], "__wrapped__")
+
+
 def test_merge_message_chunks_matches_chunk_addition():
     from ddtrace.aiguard.integrations._langchain import _merge_message_chunks
 
