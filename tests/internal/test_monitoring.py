@@ -690,6 +690,53 @@ def test_weak_cleanup_can_reenter_registry_lock_during_gc() -> None:
     gc.enable()
 
 
+@pytest.mark.subprocess()
+def test_weak_cleanup_tolerates_registry_lock_cleared_at_shutdown() -> None:
+    """Shutdown sets _registry_lock to None before the weakref callback runs.
+
+    The callback must not write "Exception ignored" to stderr. That string fails
+    the profiling suite's empty-stderr check on Python 3.15.
+    """
+    import gc
+    from types import CodeType
+    from typing import Any
+    from typing import Callable
+
+    from ddtrace.internal import monitoring
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    code: CodeType = compile("pass", "<cleared-lock>", "exec")
+    handler: Handler = Handler()
+    monitoring.register(code, handler)
+
+    calls: list[bool] = []
+    original_on_remove: Callable[[], None] | None = monitoring._registry._on_remove
+
+    def wrapped() -> None:
+        calls.append(True)
+        if original_on_remove is not None:
+            original_on_remove()
+
+    saved_lock: Any = monitoring._registry_lock
+    monitoring._registry._on_remove = wrapped
+    # The attribute is typed as RLock. Shutdown replaces it with None, which is
+    # the state this test reproduces.
+    setattr(monitoring, "_registry_lock", None)
+    try:
+        del code
+        gc.collect()
+    finally:
+        setattr(monitoring, "_registry_lock", saved_lock)
+        monitoring._registry._on_remove = original_on_remove
+        with saved_lock:
+            monitoring._release_tool_if_unused()
+
+    assert calls, "weakref callback did not run"
+
+
 @pytest.mark.subprocess(out=None, err=None)
 def test_get_tool_id_does_not_fall_back_to_profiler_slot() -> None:
     """An occupied slot 3 is preserved without claiming the profiler's slot 4."""

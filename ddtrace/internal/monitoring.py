@@ -147,7 +147,14 @@ class _IdentityWeakKeyDictionary:
 
 
 def _on_code_registration_collected() -> None:
-    """Release tool ownership when weak cleanup removes the final local registration."""
+    """Release tool ownership when weak cleanup removes the final local registration.
+
+    Interpreter shutdown clears single-underscore module globals to None before
+    this weakref callback runs. The lock is already gone, and the process is
+    exiting, so there is no tool left to release.
+    """
+    if _registry_lock is None:
+        return
     with _registry_lock:
         _release_tool_if_unused()
 

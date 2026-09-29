@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 
 
+PY_315_OR_ABOVE: bool = sys.version_info[:2] >= (3, 15)
 PY_314_OR_ABOVE = sys.version_info[:2] >= (3, 14)
 PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 PY_312_OR_ABOVE = sys.version_info[:2] >= (3, 12)
@@ -1415,14 +1416,15 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 def _make_mem_domain_object(size_bytes: int) -> object:
     """Return an object whose primary allocation goes through PYMEM_DOMAIN_MEM.
 
-    On Python 3.13+, ``bytearray`` moved its internal buffer to the MEM domain,
-    making it the canonical test vehicle.  On Python 3.12 we use list
-    multiplication: ``PyList_New`` calls ``PyMem_Calloc`` (PYMEM_DOMAIN_MEM)
-    for the ``ob_item`` pointer array, so ``[None] * N`` produces a dominant
-    MEM allocation of ``N * sizeof(void*)`` bytes (the list header itself goes
-    through PYMEM_DOMAIN_OBJ).
+    On Python 3.13 and 3.14, ``bytearray`` stores its buffer with
+    ``PyMem_Malloc`` (PYMEM_DOMAIN_MEM). Python 3.15 stores that buffer in a
+    ``bytes`` object (PYMEM_DOMAIN_OBJ; CPython gh-139871), so bytearray is no
+    longer a MEM-domain vehicle. On 3.12 and 3.15+, ``PyList_New`` calls
+    ``PyMem_Calloc`` (PYMEM_DOMAIN_MEM) for the ``ob_item`` pointer array, so
+    ``[None] * N`` produces a dominant MEM allocation of ``N * sizeof(void*)``
+    bytes (the list header itself goes through PYMEM_DOMAIN_OBJ).
     """
-    if PY_313_OR_ABOVE:
+    if PY_313_OR_ABOVE and not PY_315_OR_ABOVE:
         return bytearray(size_bytes)
     # PyList_New calls PyMem_Calloc (PYMEM_DOMAIN_MEM) for the ob_item pointer
     # array; N pointers × sizeof(void*) bytes → size_bytes total.  Using
