@@ -2,15 +2,20 @@ import logging
 import os
 import sys
 import time
+from typing import Any
+from typing import Callable
 from unittest import mock
 
 import pytest
 
 import ddtrace
+from ddtrace.internal import service
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -246,6 +251,37 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
     assert [module for module, _ in registered_hooks].count("asyncio") == 4
     assert [module for module, _ in registered_hooks].count("torch") == 1
     assert unregistered_hooks == registered_hooks
+
+
+@pytest.mark.parametrize("pytorch_enabled", [False, True])
+def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Use a mock ModuleWatchdog to simulate the delayed import of threading/asyncio.
+    # This is needed because in practice, when running the test suite, both threading and asyncio
+    # have already been imported by the time the profiler is constructed.
+    registered_hooks: list[tuple[str, Callable[[Any], None]]] = []
+
+    class WatchdogMock:
+        @staticmethod
+        def register_module_hook(module: str, hook: Callable[[Any], None]) -> None:
+            registered_hooks.append((module, hook))
+
+        @staticmethod
+        def unregister_module_hook(module: str, hook: Callable[[Any], None]) -> None:
+            pass
+
+    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+
+    p = profiler.Profiler(_pytorch_collector_enabled=pytorch_enabled)
+
+    # Run the lock hooks after construction to simulate a delayed import of threading/asyncio.
+    for module, hook in registered_hooks:
+        if module in ("threading", "asyncio"):
+            hook(None)
+
+    locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
+    assert locks, "expected lock collectors"
+    missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
+    assert not missing, "lock collectors built without a tracer: %s" % missing
 
 
 def test_profiler_serverless(monkeypatch):
@@ -588,6 +624,105 @@ def test_same_profiler_restart_allowed() -> None:
     p.start()
     assert profiler.Profiler._active_instance is p
     p.stop(flush=False)
+
+
+def test_stop_completes_teardown_when_final_upload_fails() -> None:
+    p1 = profiler.Profiler()
+    p1.start()
+
+    with mock.patch.object(ddup, "upload", side_effect=RuntimeError("upload failed")):
+        p1.stop(flush=True)
+
+    assert p1.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_no_samples_pushed_after_stop",
+        # Long enough that the scheduler never flushes on its own, so the only two uploads
+        # are the one Profiler.stop() makes and the one this test forces at the end.
+        DD_PROFILING_UPLOAD_INTERVAL="600",
+        # Capture every lock event, so the pre-stop sanity check below does not hinge on the
+        # default 1% sampling happening to pick up one of our acquires.
+        DD_PROFILING_CAPTURE_PCT="100",
+    ),
+    err=None,
+)
+def test_no_samples_pushed_after_stop() -> None:
+    """Stopping a Profiler must stop every collector from pushing samples to libdatadog."""
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    # Duration of each of the two work phases of test_no_samples_pushed_after_stop. The stack
+    # sampler and the lock collector both need a little wall clock to produce samples, and the
+    # post-stop phase needs the same budget for the absence of samples to mean anything.
+    _STOP_TEST_WORK_DURATION = 2.0
+
+    def _burn_cpu_and_lock(lock) -> None:
+        deadline = time.monotonic() + _STOP_TEST_WORK_DURATION
+        while time.monotonic() < deadline:
+            with lock:
+                sum(range(1000))
+
+    # The two phases of test_no_samples_pushed_after_stop call the same work through differently
+    # named wrappers, so a sample can be attributed to a phase by the frame it carries.
+    def while_profiler_is_running(lock) -> None:
+        _burn_cpu_and_lock(lock)
+
+    def after_profiler_is_stopped(lock) -> None:
+        _burn_cpu_and_lock(lock)
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = profiler.Profiler()
+    p.start()
+
+    # Allocated while profiling is on, so the lock collector wraps it, and reused in the
+    # post-stop phase: a wrapped lock that outlives the profiler must go quiet as well.
+    lock = threading.Lock()
+    while_profiler_is_running(lock)
+
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    for value_type in ("wall-time", "lock-acquire"):
+        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
+        assert pprof_utils.get_samples_with_function(profile, samples, "while_profiler_is_running"), (
+            f"No {value_type} sample reached libdatadog while the profiler was running, so this "
+            "test cannot tell a stopped profiler apart from one that never sampled"
+        )
+
+    after_profiler_is_stopped(lock)
+
+    # Flush whatever reached libdatadog since the profiler stopped. Nothing should have.
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+    leaked = pprof_utils.get_samples_with_function(profile, profile.sample, "after_profiler_is_stopped")
+    assert not leaked, (
+        f"{len(leaked)} sample(s) were pushed to libdatadog after the profiler was stopped: "
+        + ", ".join(
+            sorted(
+                {
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for sample in leaked
+                    for location_id in sample.location_id
+                }
+            )
+        )
+    )
 
 
 @pytest.mark.subprocess(err=None)
