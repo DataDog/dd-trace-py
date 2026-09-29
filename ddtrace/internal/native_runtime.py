@@ -15,6 +15,12 @@ log = logging.getLogger(__name__)
 _DEFAULT_SHUTDOWN_TIMEOUT_MS = 3000
 
 
+def _is_darwin() -> bool:
+    # A direct sys.platform comparison is narrowed to the machine running mypy,
+    # so the other branch is reported unreachable.
+    return sys.platform == "darwin"
+
+
 class NativeRuntime(SharedRuntime):
     """Manages a SharedRuntime with native fork-safe lifecycle hooks.
 
@@ -38,7 +44,7 @@ class NativeRuntime(SharedRuntime):
         # subprocess and asyncio call _posixsubprocess.fork_exec directly, so
         # os.register_at_fork never runs for them. Mark that path before libc
         # fork handlers, which otherwise wait on a resolver lock they already hold.
-        if sys.platform != "darwin":
+        if not _is_darwin():
             return
 
         import _posixsubprocess

@@ -56,7 +56,7 @@ unsafe extern "C" fn before_fork() {
     while CHILD_RESTART_IN_PROGRESS.load(Ordering::Acquire) {
         std::thread::yield_now();
     }
-    // NOTE: subprocess and asyncio call _posixsubprocess.fork_exec, which does
+    // subprocess and asyncio call _posixsubprocess.fork_exec, which does
     // not run os.register_at_fork. On macOS that fork already holds the resolver lock
     // before this handler runs, so waiting for a worker blocked in getaddrinfo
     // deadlocks. Those callers mark the forking thread and continue without pausing;
