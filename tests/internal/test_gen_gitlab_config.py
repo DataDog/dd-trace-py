@@ -155,19 +155,25 @@ def test_storage_sweep_only_emits_python313_pytest_jobs_without_database_artifac
     monkeypatch.setattr(module, "_wait_lockfile", lambda: ".riot/requirements/wait.txt")
     monkeypatch.setenv("DD_TIA_STORAGE_SWEEP", "true")
     monkeypatch.delenv("DD_LLMOBS_TIA_COLD_START_PAIR", raising=False)
+
+    def environment(hash_, python, command, pytest_pin="9.0.3"):
+        lockfile = tmp_path / f"{hash_}.txt"
+        lockfile.write_text(f"pytest=={pytest_pin}\n")
+        return types.SimpleNamespace(
+            hash=hash_, python=python, lockfile=lockfile, runs=(types.SimpleNamespace(command=command),)
+        )
+
     test_environments = {
         "llmobs::llmobs": (
-            types.SimpleNamespace(hash="old", python="3.12", runs=(types.SimpleNamespace(command="pytest {cmdargs}"),)),
-            types.SimpleNamespace(hash="new", python="3.13", runs=(types.SimpleNamespace(command="pytest {cmdargs}"),)),
+            environment("old", "3.12", "pytest {cmdargs}"),
+            environment("new", "3.13", "pytest {cmdargs}"),
         ),
         "other": (
-            types.SimpleNamespace(
-                hash="wrapper", python="3.13", runs=(types.SimpleNamespace(command="python -m pytest {cmdargs}"),)
-            ),
+            environment("wrapper", "3.13", "python -m pytest {cmdargs}"),
+            environment("legacy", "3.13", "pytest {cmdargs}", pytest_pin="6.2.5"),
         ),
-        "native": (
-            types.SimpleNamespace(hash="native", python="3.13", runs=(types.SimpleNamespace(command="cmake build"),)),
-        ),
+        "internal": (environment("1cdebe0", "3.13", "pytest {cmdargs}"),),
+        "native": (environment("native", "3.13", "cmake build"),),
     }
     suitespec = types.ModuleType("tests.suitespec")
     suitespec.get_test_environments = lambda nightly=False: test_environments
@@ -175,13 +181,16 @@ def test_storage_sweep_only_emits_python313_pytest_jobs_without_database_artifac
     suites = {
         "llmobs::llmobs": {"snapshot": True, "venvs_per_job": 2},
         "other": {"venvs_per_job": 1},
+        "internal": {"venvs_per_job": 1},
         "native": {"venvs_per_job": 1},
     }
     module._gen_tests(suites, list(suites))
     generated = module.TESTS_GEN.read_text()
     assert "core/native:" not in generated
+    assert "core/internal:" not in generated
     assert "llmobs/file-itr-cold-start:" not in generated
     assert 'TEST_ENVIRONMENTS_1: "old"' not in generated
+    assert 'TEST_ENVIRONMENTS_1: "legacy"' not in generated
     for name, hash_ in (("llmobs/llmobs", "new"), ("core/other", "wrapper")):
         job = generated.split(f"{name}:\n", 1)[1].split("\n\n", 1)[0]
         assert f'TEST_ENVIRONMENTS_1: "{hash_}"' in job

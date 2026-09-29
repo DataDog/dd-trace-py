@@ -208,6 +208,17 @@ def test_configuration_logs_missing_optional_pytest_packages(monkeypatch):
     assert event["packages"] == {"pytest": "9.0.3", "pytest-testmon": "2.2.0", "coverage": None, "pytest-xdist": None}
 
 
+def test_collection_without_local_items_uses_xdist_worker_ids():
+    logger = testmon_logging.TestmonLogging(SimpleNamespace())
+    hook = logger.pytest_collection(SimpleNamespace())
+    next(hook)
+    with pytest.raises(StopIteration):
+        next(hook)
+    assert logger.selected == set()
+    logger.pytest_xdist_node_collection_finished(None, ["tests/example.py::test_works"])
+    assert logger.selected == {"tests/example.py::test_works"}
+
+
 def test_deselection_without_nodeid_is_counted_and_does_not_hide_known_tests():
     logger = testmon_logging.TestmonLogging(SimpleNamespace(workerinput={}))
     logger.pytest_deselected([SimpleNamespace(nodeid="before"), SimpleNamespace(), SimpleNamespace(nodeid="after")])
