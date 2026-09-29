@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "OpenAI/Python 1.102.0",
+      "X-Stainless-Lang": "python",
+      "X-Stainless-Package-Version": "1.102.0",
+      "X-Stainless-OS": "Linux",
+      "X-Stainless-Arch": "x64",
+      "X-Stainless-Runtime": "CPython",
+      "X-Stainless-Runtime-Version": "3.11.15",
+      "X-Stainless-Async": "false",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "516"
+    },
+    "body": "{\"messages\":[{\"content\":\"1 + 1\",\"role\":\"user\"},{\"content\":null,\"role\":\"assistant\",\"function_call\":{\"arguments\":\"{\\\"a\\\":1,\\\"b\\\":1}\",\"name\":\"add\"}},{\"content\":\"2\",\"name\":\"add\",\"role\":\"function\"}],\"model\":\"gpt-3.5-turbo\",\"functions\":[{\"name\":\"add\",\"description\":\"add(a: int, b: int) -> int - Adds a and b.\\n\\n    Args:\\n        a: first int\\n        b: second int\",\"parameters\":{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"integer\"},\"b\":{\"type\":\"integer\"}},\"required\":[\"a\",\"b\"]}}],\"n\":1,\"stream\":false,\"temperature\":0.0}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "openai-version": "2020-10-01",
+      "x-request-id": "req_aiguardlangchaind8b55f4f"
+    },
+    "body": "{\n  \"id\": \"chatcmpl-aiguardlangchaind8b55f4f\",\n  \"object\": \"chat.completion\",\n  \"created\": 1790234637,\n  \"model\": \"gpt-3.5-turbo-0125\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"refusal\": null,\n        \"annotations\": [],\n        \"content\": \"1 + 1 = 2.\"\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 90,\n    \"completion_tokens\": 18,\n    \"total_tokens\": 108\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\": null\n}\n"
+  }
+}
