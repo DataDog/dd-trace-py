@@ -42,7 +42,7 @@ class Scheduler(periodic.PeriodicService):
     def _prewarm_code_provenance(self) -> None:
         """Resolve the code provenance file here rather than on the first upload.
 
-        ``ddup.upload`` resolves it lazily, once, on its first call. A process that
+        ddup.upload resolves it lazily, once, on its first call. A process that
         exits before the first periodic upload makes that first call the final
         shutdown flush, so the resolution lands on the shutdown path -- including
         the package scan behind it when the on-disk cache is cold. Resolving it at
