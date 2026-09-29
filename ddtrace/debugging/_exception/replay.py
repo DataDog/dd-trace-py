@@ -16,6 +16,7 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
@@ -23,10 +24,25 @@ from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings._config import config as global_config
 from ddtrace.internal.settings.exception_replay import config
 from ddtrace.internal.utils.time import HourGlass
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
+
+
+class SpanProtocol(t.Protocol):
+    """Structural stand-in for ddtrace.trace.Span, so this module does not need to import from the tracing
+    product.
+    """
+
+    @property
+    def _local_root(self) -> "SpanProtocol": ...
+
+    def get_tag(self, key: str) -> t.Optional[str]: ...
+
+    def get_metric(self, key: str) -> t.Optional[NumericType]: ...
+
+    def _set_attribute(self, key: str, value: t.Union[str, int, float]) -> None: ...
+
 
 GLOBAL_RATE_LIMITER = RateLimiter(
     limit_rate=1,  # one trace per second
@@ -223,7 +239,7 @@ class SpanExceptionSnapshot(Snapshot):
         return data
 
 
-def can_capture(span: Span) -> bool:
+def can_capture(span: SpanProtocol) -> bool:
     # We determine if we should capture the exception information from the span
     # by looking at its local root. If we have budget to capture, we mark the
     # root as "info captured" and return True. If we don't have budget, we mark
@@ -253,7 +269,7 @@ def can_capture(span: Span) -> bool:
     raise ValueError(msg)
 
 
-def get_snapshot_count(span: Span) -> int:
+def get_snapshot_count(span: SpanProtocol) -> int:
     root = span._local_root
     if root is None:
         return 0  # type: ignore[unreachable]
@@ -271,7 +287,7 @@ class SpanExceptionHandler:
 
     def _attach_tb_frame_snapshot_to_span(
         self,
-        span: Span,
+        span: SpanProtocol,
         tb: TracebackType,
         exc_id: uuid.UUID,
         seq_nr: int = 1,
@@ -297,7 +313,7 @@ class SpanExceptionHandler:
                     probe=SpanExceptionProbe.build(exc_id, frame),
                     frame=frame,
                     thread=current_thread(),
-                    trace_context=span,
+                    trace_context=t.cast(t.Any, span),
                     exc_id=exc_id,
                 )
 
@@ -326,7 +342,11 @@ class SpanExceptionHandler:
             return False
 
     def on_span_exception(
-        self, span: Span, _exc_type: type[BaseException], exc: BaseException, traceback: t.Optional[TracebackType]
+        self,
+        span: SpanProtocol,
+        _exc_type: type[BaseException],
+        exc: BaseException,
+        traceback: t.Optional[TracebackType],
     ) -> None:
         if span.get_tag(DEBUG_INFO_TAG) == "true" or not can_capture(span):
             # Debug info for span already captured or no budget to capture

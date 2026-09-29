@@ -140,7 +140,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
                 probe=self.location.probe,
                 frame=self.__frame__,
                 thread=current_thread(),
-                trace_context=root,
+                trace_context=t.cast(t.Any, root),
             )
 
             # Capture on entry
