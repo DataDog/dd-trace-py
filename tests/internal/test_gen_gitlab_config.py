@@ -188,8 +188,8 @@ def test_storage_sweep_only_emits_python313_pytest_jobs_without_database_artifac
         assert 'DD_TIA_STORAGE_SWEEP: "true"' in job
         assert "  cache: []" in job
         assert "  artifacts:\n    paths:\n      - core.*" in job
-        assert "  after_script:\n    - !reference [.testrunner, after_script]" in job
-        assert "    - python3 scripts/tia_storage_report.py" in job
+        assert "  after_script:\n    - python3 scripts/tia_storage_report.py" in job
+        assert "    - !reference [.testrunner, after_script]" in job
     assert generated.count("  cache: []") == 2
     assert generated.count("python3 scripts/tia_storage_report.py") == 2
 

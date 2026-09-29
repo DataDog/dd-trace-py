@@ -593,8 +593,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 # Log after failures too, but never cache or upload the recorded databases.
                 print("  cache: []", file=f)
                 print("  artifacts:\n    paths:\n      - core.*", file=f)
-                print("  after_script:\n    - !reference [.testrunner, after_script]", file=f)
-                print("    - python3 scripts/tia_storage_report.py", file=f)
+                print("  after_script:\n    - python3 scripts/tia_storage_report.py", file=f)
+                print("    - !reference [.testrunner, after_script]", file=f)
 
         # Opt-in comparison uses the exact environments of the existing 5/5 shard.
         if cold_start_pair:
