@@ -236,6 +236,7 @@ suites:
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
     retry: 2
+    no_proxy: true
     matrix:
       command: 'pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ '
       variants:
@@ -322,6 +323,8 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
+      - tests/appsec/integrations/conftest.py
+      - tests/appsec/integrations/utils_testagent.py
       - tests/appsec/app.py
       - tests/appsec/appsec_utils.py
       - tests/appsec/ports.py
@@ -356,6 +359,8 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
+      - tests/appsec/integrations/conftest.py
+      - tests/appsec/integrations/utils_testagent.py
       - tests/appsec/appsec_utils.py
       - tests/appsec/ports.py
     retry: 2
@@ -404,6 +409,8 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
+      - tests/appsec/integrations/conftest.py
+      - tests/appsec/integrations/utils_testagent.py
       - tests/appsec/appsec_utils.py
       - tests/appsec/ports.py
     retry: 2

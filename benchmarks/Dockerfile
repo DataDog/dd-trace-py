@@ -24,6 +24,15 @@ COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"
 ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:/root/.cargo/bin/:$PATH"
 RUN pyenv global "$PYTHON_VERSION"
+
+# Increase pip/uv timeout and retries to avoid transient network failures
+# when downloading packages from PyPI in CI. Set before `pip install -U pip`
+# so the upgrade itself benefits from the increased timeout/retries.
+ENV PIP_DEFAULT_TIMEOUT=120
+ENV PIP_RETRIES=10
+ENV UV_HTTP_TIMEOUT=120
+ENV UV_HTTP_RETRIES=10
+
 RUN pip install -U pip
 
 ARG SCENARIO=base
