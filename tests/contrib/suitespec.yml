@@ -845,6 +845,7 @@ suites:
       - tests/snapshots/tests.contrib.botocore*
     pattern: ^botocore$
     snapshot: true
+    no_proxy: true
     services:
       - localstack
     matrix:
@@ -1652,6 +1653,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/httplib
       variants:
@@ -1670,6 +1672,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/httpx
       variants:
@@ -2406,6 +2409,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/requests
       variants:
