@@ -152,6 +152,28 @@ def test_web_request_starting_does_not_dispatch_without_a_listener():
     dispatch.assert_not_called()
 
 
+def test_web_request_starting_isolates_listener_errors():
+    event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+
+    def fail_request_starting(request_method, request_path):
+        raise RuntimeError("boom")
+
+    original_raise = config._raise
+    config._raise = False
+    core.on(event_name, fail_request_starting)
+    try:
+        trace_utils.dispatch_wsgi_web_request_starting(
+            {
+                "REQUEST_METHOD": "POST",
+                "SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1",
+                "PATH_INFO": "/run",
+            }
+        )
+    finally:
+        core.reset_listeners(event_name, fail_request_starting)
+        config._raise = original_raise
+
+
 def test_web_request_starting_dispatch_precedes_span_creation(tracer):
     events = []
     original_context_with_data = wsgi_module.core.context_with_data
@@ -176,6 +198,37 @@ def test_web_request_starting_dispatch_precedes_span_creation(tracer):
         core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
 
     assert events.index("request_starting") < events.index("span")
+
+
+def test_microvm_run_hook_refreshes_identity(tracer):
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+    _runtime_id._IDENTITY_REFRESH_HOOK_RUNTIME_ID = None
+    core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+
+    try:
+        with mock.patch.object(_runtime_id, "in_aws_lambda_microvm", return_value=True):
+            runtime.listen_for_identity_refresh_hooks(core.on)
+            runtime_id = runtime.get_runtime_id()
+
+            resp = app.post("/run", extra_environ={"SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1"})
+
+            assert resp.status == "200 OK"
+            refreshed_runtime_id = runtime.get_runtime_id()
+            assert refreshed_runtime_id != runtime_id
+
+            resp = app.post("/run", extra_environ={"SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1"})
+
+            assert resp.status == "200 OK"
+            assert runtime.get_runtime_id() == refreshed_runtime_id
+    finally:
+        core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+        _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+        _runtime_id._IDENTITY_REFRESH_HOOK_RUNTIME_ID = None
 
 
 def test_middleware(tracer, test_spans):
