@@ -283,8 +283,12 @@ when a test command fails. ``raw_bytes`` sums the live ``.tia/`` files, includin
 any SQLite WAL and SHM files. ``snapshot_bytes`` and ``gzip_bytes`` sum
 consistent copies of the databases; these are better proxies for stored blobs.
 If a snapshot fails, both snapshot totals are null and ``snapshot_errors``
-explains why. Deduplicate log lines by ``job_id`` before aggregating sizes.
-This sweep measures size, not the job-time effect of switching TIA approaches.
+explains why. A failed job can leave a valid but incomplete SQLite database
+before pytest collects any tests. Deduplicate by ``job_id`` and include only
+jobs with ``job_status=success`` and no snapshot errors in a full-run storage
+estimate; report failed and missing jobs separately. Check that the expected
+environments actually ran before extrapolating from this subset. This sweep
+measures size, not the job-time effect of switching TIA approaches.
 
 How do I add a new test suite?
 ------------------------------

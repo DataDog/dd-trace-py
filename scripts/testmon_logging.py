@@ -1,6 +1,7 @@
 """Log pytest observations without adding Test Visibility sessions or JUnit reports."""
 
 from collections import Counter
+from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version
 import json
 import os
@@ -15,6 +16,14 @@ import pytest
 
 
 _STARTED = time.monotonic()
+
+
+def _installed_version(name: str) -> Optional[str]:
+    """Do not abort test collection when an optional pytest plugin is absent."""
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        return None
 
 
 class TestmonLogging:
@@ -53,7 +62,9 @@ class TestmonLogging:
         self.log(
             "pytest_configuration",
             python=platform.python_version(),
-            packages={name: version(name) for name in ("pytest", "pytest-testmon", "coverage", "pytest-xdist")},
+            packages={
+                name: _installed_version(name) for name in ("pytest", "pytest-testmon", "coverage", "pytest-xdist")
+            },
             workers=self.config.getoption("numprocesses", default=0),
             distribution=self.config.getoption("dist", default="no"),
             retry_environment={

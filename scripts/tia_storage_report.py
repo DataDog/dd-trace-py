@@ -53,6 +53,7 @@ def main() -> None:
     record: dict[str, object] = {
         "version": 1,
         "job_id": os.environ.get("CI_JOB_ID"),
+        "job_status": os.environ.get("CI_JOB_STATUS"),
         "commit": os.environ.get("CI_COMMIT_SHA"),
         "job_name": os.environ.get("CI_JOB_NAME"),
         "suite": os.environ.get("TEST_SUITE"),
