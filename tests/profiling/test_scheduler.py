@@ -5,6 +5,8 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal import service
+from ddtrace.internal.datadog.profiling import code_provenance
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import scheduler
 
@@ -35,6 +37,46 @@ def test_periodic_survives_export_failure() -> None:
         s.start()
         try:
             assert exported_again.wait(30), "scheduler stopped exporting after %d attempt(s)" % len(attempts)
+        finally:
+            s.stop()
+            s.join()
+
+
+def test_start_prewarms_code_provenance() -> None:
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = True
+
+    with mock.patch.object(code_provenance, "get_code_provenance_file") as prewarm:
+        s.start()
+        try:
+            # Resolved here, so the shutdown flush finds a memoized result.
+            prewarm.assert_called_once_with()
+        finally:
+            s.stop()
+            s.join()
+
+
+def test_start_skips_prewarm_when_code_provenance_disabled() -> None:
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = False
+
+    with mock.patch.object(code_provenance, "get_code_provenance_file") as prewarm:
+        s.start()
+        try:
+            prewarm.assert_not_called()
+        finally:
+            s.stop()
+            s.join()
+
+
+def test_start_survives_prewarm_failure() -> None:
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = True
+
+    with mock.patch.object(code_provenance, "get_code_provenance_file", side_effect=RuntimeError("LOL")):
+        s.start()
+        try:
+            assert s.status == service.ServiceStatus.RUNNING
         finally:
             s.stop()
             s.join()

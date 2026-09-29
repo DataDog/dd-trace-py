@@ -5,6 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal import periodic
+from ddtrace.internal.datadog.profiling import code_provenance
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
@@ -35,7 +36,26 @@ class Scheduler(periodic.PeriodicService):
         LOG.debug("Starting scheduler")
         super()._start_service()
         self._last_export = time.time_ns()
+        self._prewarm_code_provenance()
         LOG.debug("Scheduler started")
+
+    def _prewarm_code_provenance(self) -> None:
+        """Resolve the code provenance file here rather than on the first upload.
+
+        ``ddup.upload`` resolves it lazily, once, on its first call. A process that
+        exits before the first periodic upload makes that first call the final
+        shutdown flush, so the resolution lands on the shutdown path -- including
+        the package scan behind it when the on-disk cache is cold. Resolving it at
+        start leaves the shutdown flush with a memoized result.
+        """
+        if not self._enable_code_provenance:
+            return
+        try:
+            code_provenance.get_code_provenance_file()
+        except Exception:
+            # Best-effort: the scan builds its result from package metadata and the
+            # git tags, so a failure there must not keep the scheduler from starting.
+            LOG.debug("Failed to pre-warm code provenance", exc_info=True)
 
     def flush(self) -> None:
         """Flush events from recorder to exporters."""
