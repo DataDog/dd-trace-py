@@ -256,6 +256,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, 'aiobotocore~=2.0.0']
         - name: aiobotocore
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, aiobotocore]
   aiohttp:
     venvs_per_job: 7
@@ -580,7 +581,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
         - name: aws_lambda
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
   aws_durable_execution_sdk_python:
     venvs_per_job: 6
@@ -600,7 +601,7 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['aws-durable-execution-sdk-python~=1.4.0', aws-durable-execution-sdk-python-testing]
         - name: aws_durable_execution_sdk_python
-          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.11', '3.12', '3.13', '3.14']
           dependencies: [aws-durable-execution-sdk-python, aws-durable-execution-sdk-python-testing]
   azure_cosmos:
     venvs_per_job: 6
@@ -622,6 +623,7 @@ suites:
         - name: azure_cosmos
           dependencies: ['azure.cosmos~=4.9.0', 'pytest-asyncio==0.23.7', aiohttp, six]
         - name: azure_cosmos
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [azure.cosmos, 'pytest-asyncio==0.23.7', aiohttp, six]
   azure_eventhubs:
     venvs_per_job: 3
@@ -812,7 +814,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.servicebus, 'pytest-asyncio==0.23.7']
         - name: azure_servicebus
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [azure.servicebus, pytest-asyncio]
   botocore:
     venvs_per_job: 2
@@ -894,7 +896,7 @@ suites:
           python: ['3.9']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, celery, 'redis~=3.5']
         - name: celery
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
   cherrypy:
     venvs_per_job: 6
@@ -1207,6 +1209,7 @@ suites:
         - name: elasticsearch
           dependencies: [pytest-randomly, 'elasticsearch==8.0.1']
         - name: elasticsearch
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, elasticsearch]
         - name: elasticsearch
           dependencies: [pytest-randomly, 'elasticsearch1~=1.10.0']
@@ -1296,6 +1299,7 @@ suites:
         - name: elasticsearch:opensearch
           dependencies: ['opensearch-py[requests]~=2.0.0', pytest-randomly]
         - name: elasticsearch:opensearch
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['opensearch-py[requests]', pytest-randomly]
   falcon:
     venvs_per_job: 6
@@ -1476,7 +1480,7 @@ suites:
           python: ['3.10']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=21.12.0']
         - name: gevent
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, gevent]
         - name: gevent
           python: ['3.11']
@@ -1528,7 +1532,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
     venvs_per_job: 5
@@ -1546,8 +1550,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/graphql
       variants:
         - name: graphql
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', 'graphql-core~=3.2.0', pytest-randomly]
         - name: graphql
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', graphql-core, pytest-randomly]
   grpc:
     venvs_per_job: 6
@@ -1583,7 +1589,7 @@ suites:
           python: ['3.12']
           dependencies: [googleapis-common-protos, pytest-randomly, grpcio, 'pytest-asyncio==0.23.7']
         - name: grpc
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [googleapis-common-protos, pytest-randomly, 'grpcio>=1.75.0']
         - name: grpc:grpc_aio
           python: ['3.9']
@@ -1698,9 +1704,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/httpx2
       variants:
         - name: httpx2
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, pytest-randomly, 'httpx2~=2.0.0']
         - name: httpx2
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, pytest-randomly, httpx2]
   integration_registry:
     paths:
@@ -1765,7 +1772,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, pytest-xdist, 'confluent-kafka~=1.9.2']
         - name: kafka
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
     venvs_per_job: 7
@@ -1842,6 +1849,7 @@ suites:
         - name: mako
           dependencies: ['mako~=1.0.0', pytest-randomly]
         - name: mako
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [mako, pytest-randomly]
   mariadb:
     venvs_per_job: 5
@@ -1891,7 +1899,7 @@ suites:
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
-          python: ['3.12', '3.13', '3.14', '3.15']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     venvs_per_job: 6
@@ -1976,7 +1984,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, mysqlclient]
         - name: mysqldb
-          python: ['3.13', '3.14', '3.15']
+          python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
     venvs_per_job: 4
@@ -2024,7 +2032,7 @@ suites:
           env:
             SDK_EXPORTER_INSTALLED: '1'
         - name: opentelemetry
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, markupsafe, flask, gevent, 'requests==2.28.1', opentelemetry-exporter-otlp]
           env:
             SDK_EXPORTER_INSTALLED: '1'
@@ -2042,6 +2050,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/protobuf
       variants:
         - name: protobuf
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [protobuf, pytest-randomly]
   psycopg:
     venvs_per_job: 5
@@ -2064,11 +2073,11 @@ suites:
       command: pytest {cmdargs} tests/contrib/psycopg
       variants:
         - name: psycopg:psycopg2
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, 'psycopg2-binary~=2.9.2']
           command: pytest {cmdargs} tests/contrib/psycopg2
         - name: psycopg:psycopg2
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, psycopg2-binary]
           command: pytest {cmdargs} tests/contrib/psycopg2
         - name: psycopg
@@ -2081,7 +2090,7 @@ suites:
           python: ['3.12']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.23.7']
         - name: psycopg
-          python: ['3.13', '3.14', '3.15']
+          python: ['3.13', '3.14']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio>=1.0']
   pylibmc:
     venvs_per_job: 5
@@ -2155,8 +2164,10 @@ suites:
           python: ['3.9']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.11']
         - name: pymongo
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.0']
         - name: pymongo
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [mongoengine, pytest-randomly, pymongo]
         - name: pymongo
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
@@ -2398,7 +2409,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, redis, 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
     paths:
@@ -2550,7 +2561,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: ['responses~=0.16.0', 'cryptography<39', pytest-randomly, 'snowflake-connector-python~=2.9.0']
         - name: snowflake
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['responses~=0.16.0', 'cryptography<39', pytest-randomly, snowflake-connector-python]
         - name: snowflake
           python: ['3.10']
@@ -2596,7 +2607,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.1.0']
         - name: sqlalchemy
-          python: ['3.14', '3.15']
+          python: ['3.14']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.2.4']
   starlette:
     venvs_per_job: 5
@@ -2823,6 +2834,7 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.25.8']
         - name: urllib3
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, urllib3]
         - name: urllib3
           python: ['3.10']
@@ -2831,7 +2843,7 @@ suites:
           python: ['3.11']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.8']
         - name: urllib3
-          python: ['3.12', '3.13', '3.14', '3.15']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
   vertica:
     paths:
