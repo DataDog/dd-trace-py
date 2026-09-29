@@ -12,6 +12,7 @@ from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._session import Session
+from ddtrace.debugging._signal.model import TraceContextProtocol
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
@@ -313,7 +314,7 @@ class SpanExceptionHandler:
                     probe=SpanExceptionProbe.build(exc_id, frame),
                     frame=frame,
                     thread=current_thread(),
-                    trace_context=t.cast(t.Any, span),
+                    trace_context=t.cast(TraceContextProtocol, span),
                     exc_id=exc_id,
                 )
 

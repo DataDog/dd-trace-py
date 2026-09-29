@@ -14,6 +14,7 @@ from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._session import Session
+from ddtrace.debugging._signal.model import TraceContextProtocol
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
@@ -140,7 +141,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
                 probe=self.location.probe,
                 frame=self.__frame__,
                 thread=current_thread(),
-                trace_context=t.cast(t.Any, root),
+                trace_context=t.cast(TraceContextProtocol, root),
             )
 
             # Capture on entry
