@@ -366,7 +366,7 @@ def _wait_for_profile_samples(
             time.sleep(interval)
             continue
 
-        samples: list["pprof_pb2.Sample"] = []
+        samples: list[pprof_pb2.Sample] = []
         for profile in profiles:
             try:
                 samples.extend(pprof_utils.get_samples_with_value_type(profile, value_type))
