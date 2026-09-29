@@ -136,7 +136,10 @@ def set_url_tags_otel_server(
     # Either existing query-string option enables url.query capture.
     if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
         return
-    _set_otel_query(span, query if query is not None else parsed.query)
+    # None means the caller delegated query handling elsewhere (e.g. aiohttp's per-app
+    # trace_query_string override writes it separately via set_query_string_tag)
+    if query is not None:
+        _set_otel_query(span, query)
 
 
 def _sanitized_url(url: str, query: Optional[str], tag_query_string: bool) -> Union[str, bytes]:

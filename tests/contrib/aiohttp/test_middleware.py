@@ -1,8 +1,10 @@
 import os
+from unittest import mock
 
 import pytest
 import pytest_asyncio
 
+from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
@@ -142,6 +144,30 @@ async def test_param_handler(app, test_spans, aiohttp_client, query_string, trac
         assert query_string == span.get_tag(http.QUERY_STRING)
     else:
         assert http.QUERY_STRING not in span.get_tags()
+
+
+@pytest.mark.parametrize(
+    "query_string,trace_query_string",
+    (
+        ("foo=bar", False),
+        ("foo=bar", True),
+    ),
+)
+async def test_param_handler_otel_semantics(app, test_spans, aiohttp_client, query_string, trace_query_string):
+    app[CONFIG_KEY]["trace_query_string"] = trace_query_string
+    client = await aiohttp_client(app)
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        request = await client.request("GET", "/echo/team?" + query_string)
+        assert 200 == request.status
+        await request.text()
+    traces = test_spans.pop_traces()
+    assert 1 == len(traces)
+    span = traces[0][0]
+    assert span.resource == "GET /echo/{name}"
+    if trace_query_string:
+        assert span.get_tag(http.OTEL_URL_QUERY) == query_string
+    else:
+        assert span.get_tag(http.OTEL_URL_QUERY) is None
 
 
 async def test_404_handler(app, test_spans, aiohttp_client):
