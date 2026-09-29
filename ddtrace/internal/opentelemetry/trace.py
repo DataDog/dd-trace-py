@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import Protocol
 from typing import cast
 
 from opentelemetry import version
@@ -17,11 +18,10 @@ from opentelemetry.trace.propagation import get_current_span
 from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import INVALID_SPAN
 
-from ddtrace._trace.provider import ActiveTrace as DDActiveTrace
+from ddtrace.internal import core
 from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.trace import tracer as ddtracer
 
 from .span import Span
 
@@ -49,6 +49,12 @@ except ImportError:
 
 
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
+
+
+class DDActiveTrace(Protocol):
+    """Structural stand-in for ddtrace._trace.provider.ActiveTrace (a ddtrace Span or Context), so this module
+    does not need to import from the tracing product.
+    """
 
 
 def _otel_to_dd_span_context(otel_span: "OtelSpan") -> "DDContext":
@@ -122,7 +128,9 @@ class Tracer(OtelTracer):
             dd_active = _otel_to_dd_span_context(curr_otel_span)
 
         # Create a new Datadog span (not activated), then return a valid OTel span
-        dd_span = ddtracer._start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
+        dd_span = core.root.get_item("tracer")._start_span(
+            name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL
+        )
 
         if links:
             for link in links:
