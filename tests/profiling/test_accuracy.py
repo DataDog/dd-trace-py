@@ -1,78 +1,66 @@
-import functools
+from collections import defaultdict
 import time
-from typing import Callable
-from typing import TypeVar
 
 import pytest
-from typing_extensions import ParamSpec
-
-
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
 
 
 # Inclusive elapsed wall time, including preemption, is the ground truth for each
 # sampled frame. Requested CPU-time budgets are not wall-time budgets.
-measured_wall_ns: dict[str, int] = {}
+measured_wall_ns: defaultdict[str, int] = defaultdict(int)
 
 
-def _measure_wall(func: Callable[_P, _R]) -> Callable[_P, _R]:
-    @functools.wraps(func)
-    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
-        start = time.monotonic_ns()
-        try:
-            return func(*args, **kwargs)
-        finally:
-            measured_wall_ns[func.__name__] = measured_wall_ns.get(func.__name__, 0) + (time.monotonic_ns() - start)
-
-    return wrapper
-
-
-@_measure_wall
 def spend_1() -> None:
+    start_ns = time.monotonic_ns()
     time.sleep(1)
+    measured_wall_ns["spend_1"] += time.monotonic_ns() - start_ns
 
 
-@_measure_wall
 def spend_3() -> None:
+    start_ns = time.monotonic_ns()
     time.sleep(3)
+    measured_wall_ns["spend_3"] += time.monotonic_ns() - start_ns
 
 
-@_measure_wall
 def spend_4() -> None:
+    start_ns = time.monotonic_ns()
     spend_3()
     spend_1()
+    measured_wall_ns["spend_4"] += time.monotonic_ns() - start_ns
 
 
-@_measure_wall
 def spend_7() -> None:
+    start_ns = time.monotonic_ns()
     spend_3()
     spend_1()
     spend_cpu_3()
+    measured_wall_ns["spend_7"] += time.monotonic_ns() - start_ns
 
 
-@_measure_wall
 def spend_16() -> None:
+    start_ns = time.monotonic_ns()
     spend_4()
     spend_7()
     spend_cpu_2()
     spend_3()
+    measured_wall_ns["spend_16"] += time.monotonic_ns() - start_ns
 
 
-@_measure_wall
 def spend_cpu_2() -> None:
+    start_ns = time.monotonic_ns()
     # Active wait for 2 seconds
-    now = time.thread_time_ns()
-    while time.thread_time_ns() - now < 2e9:
+    cpu_start_ns = time.thread_time_ns()
+    while time.thread_time_ns() - cpu_start_ns < 2e9:
         pass
+    measured_wall_ns["spend_cpu_2"] += time.monotonic_ns() - start_ns
 
 
-@_measure_wall
 def spend_cpu_3() -> None:
+    start_ns = time.monotonic_ns()
     # Active wait for 3 seconds
-    now = time.thread_time_ns()
-    while time.thread_time_ns() - now < 3e9:
+    cpu_start_ns = time.thread_time_ns()
+    while time.thread_time_ns() - cpu_start_ns < 3e9:
         pass
+    measured_wall_ns["spend_cpu_3"] += time.monotonic_ns() - start_ns
 
 
 # We allow 10% error:
@@ -137,24 +125,17 @@ def test_accuracy_stack() -> None:
     assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
 
 
-def test_measure_wall_accumulates_inclusive_intervals(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_workloads_accumulate_inclusive_wall_time(monkeypatch: pytest.MonkeyPatch) -> None:
     from types import SimpleNamespace
 
-    ticks = iter((0, 10, 40, 60, 100, 140))
-    monkeypatch.setattr(f"{__name__}.time", SimpleNamespace(monotonic_ns=lambda: next(ticks)))
-    monkeypatch.setattr(f"{__name__}.measured_wall_ns", {})
+    ticks = iter((0, 10, 40, 50, 60, 80, 100, 140))
+    monkeypatch.setattr(f"{__name__}.time", SimpleNamespace(monotonic_ns=lambda: next(ticks), sleep=lambda _: None))
+    monkeypatch.setattr(f"{__name__}.measured_wall_ns", defaultdict(int))
 
-    @_measure_wall
-    def inner(value: int) -> int:
-        return value
+    spend_4()
+    spend_3()
 
-    @_measure_wall
-    def outer() -> int:
-        return inner(7)
-
-    assert outer() == 7
-    assert inner(9) == 9
-    assert measured_wall_ns == {"inner": 70, "outer": 60}
+    assert measured_wall_ns == {"spend_3": 70, "spend_1": 10, "spend_4": 80}
 
 
 @pytest.mark.parametrize("value", (89, 111))
