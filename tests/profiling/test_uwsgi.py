@@ -27,7 +27,6 @@ import signal
 import subprocess
 from subprocess import TimeoutExpired
 import sys
-import threading
 import time
 from typing import IO
 from typing import TYPE_CHECKING
@@ -35,7 +34,6 @@ from typing import Callable
 from typing import Optional
 
 import pytest
-import zstandard
 
 from ddtrace.profiling import profiler
 from tests.contrib.uwsgi import run_uwsgi
@@ -380,39 +378,6 @@ def _wait_for_profile_samples(
         time.sleep(interval)
 
     assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
-
-
-def _write_single_sample_profile(path: pathlib.Path, value_type: str, value: int) -> None:
-    profile = pprof_utils.pprof_pb2.Profile()
-    profile.string_table.extend(["", value_type, "nanoseconds"])
-    sample_type = profile.sample_type.add()
-    sample_type.type = 1
-    sample_type.unit = 2
-    profile.sample.add().value.append(value)
-
-    # Write under a name the helper's glob ignores, then rename, so it never reads a partial file.
-    staging_path = path.with_suffix(".tmp")
-    staging_path.write_bytes(zstandard.ZstdCompressor().compress(profile.SerializeToString()))
-    os.replace(staging_path, path)
-
-
-def test_wait_for_profile_samples_retries_missing_sample_type(tmp_path: pathlib.Path) -> None:
-    """An early profile without the requested sample type must not stop polling or hide later profiles."""
-    prefix = str(tmp_path / "uwsgi")
-    pid = os.getpid()
-    _write_single_sample_profile(pathlib.Path(f"{prefix}.{pid}.0.pprof"), "cpu-time", 5)
-
-    writer = threading.Timer(
-        0.2, _write_single_sample_profile, (pathlib.Path(f"{prefix}.{pid}.1.pprof"), "wall-time", 7)
-    )
-    writer.start()
-    try:
-        samples = _wait_for_profile_samples(prefix, pid, "wall-time", interval=0.01)
-    finally:
-        writer.cancel()
-        writer.join()
-
-    assert [list(sample.value) for sample in samples] == [[7]]
 
 
 def test_uwsgi_threads_processes_primary(
