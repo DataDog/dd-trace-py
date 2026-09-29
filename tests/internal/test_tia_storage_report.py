@@ -51,6 +51,7 @@ def test_invalid_database_keeps_raw_size_but_marks_snapshot_unknown(tmp_path):
 def test_main_emits_one_line_even_without_database(monkeypatch, tmp_path, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("CI_JOB_ID", "123")
+    monkeypatch.setenv("CI_JOB_STATUS", "failed")
     monkeypatch.setenv("TEST_SUITE", "internal")
     monkeypatch.setenv("TEST_ENVIRONMENTS_1", "first second")
 
@@ -61,6 +62,7 @@ def test_main_emits_one_line_even_without_database(monkeypatch, tmp_path, capsys
     assert lines[0].startswith(tia_storage_report.PREFIX)
     report = json.loads(lines[0].removeprefix(tia_storage_report.PREFIX))
     assert report["job_id"] == "123"
+    assert report["job_status"] == "failed"
     assert report["environments"] == ["first", "second"]
     assert report["database_count"] == report["raw_bytes"] == 0
     assert not (tmp_path / ".tia").exists()

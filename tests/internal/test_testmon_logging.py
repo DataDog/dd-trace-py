@@ -1,4 +1,5 @@
 import importlib.machinery
+from importlib.metadata import PackageNotFoundError
 import importlib.util
 import json
 from pathlib import Path
@@ -184,6 +185,27 @@ def test_cold_start_rejects_restored_command_database(runner_module, monkeypatch
     monkeypatch.setenv("DD_LLMOBS_TIA_CI_MODE", "testmon_cold")
     with pytest.raises(ValueError, match="cold-start database must be absent"):
         runner._run_tia(environment, SimpleNamespace(path=Path(".cache/env")), run, ["--ddtrace"], {})
+
+
+def test_configuration_logs_missing_optional_pytest_packages(monkeypatch):
+    reporter = mock.Mock()
+    config = SimpleNamespace(
+        pluginmanager=SimpleNamespace(getplugin=lambda name: reporter),
+        getoption=lambda name, default=None: default,
+    )
+    installed = {"pytest": "9.0.3", "pytest-testmon": "2.2.0"}
+
+    def fake_version(name):
+        if name not in installed:
+            raise PackageNotFoundError(name)
+        return installed[name]
+
+    monkeypatch.setattr(testmon_logging, "version", fake_version)
+    testmon_logging.TestmonLogging(config).pytest_sessionstart(None)
+
+    event = json.loads(reporter.write_line.call_args.args[0].removeprefix("[TIA] "))
+    assert event["event"] == "pytest_configuration"
+    assert event["packages"] == {"pytest": "9.0.3", "pytest-testmon": "2.2.0", "coverage": None, "pytest-xdist": None}
 
 
 def test_deselection_without_nodeid_is_counted_and_does_not_hide_known_tests():
