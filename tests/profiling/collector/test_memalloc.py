@@ -1470,20 +1470,25 @@ def test_mem_domain_allocations_appear_in_heap_samples(tmp_path: Path) -> None:
     del obj
 
 
-@pytest.mark.skipif(sys.version_info < (3, 13), reason="bytearray uses PYMEM_DOMAIN_MEM only from Python 3.13+")
+@pytest.mark.skipif(
+    not (PY_313_OR_ABOVE and not PY_315_OR_ABOVE),
+    reason="bytearray uses PYMEM_DOMAIN_MEM only on Python 3.13 and 3.14",
+)
 def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
-    """bytearray allocates its internal buffer via PYMEM_DOMAIN_MEM on Python 3.13+.
+    """bytearray allocates its internal buffer via PYMEM_DOMAIN_MEM on Python 3.13 and 3.14.
 
     Before adding MEM domain hooks it was invisible to the profiler (existing
     tests work around this by using ``(None,) * N`` instead).  This test
-    confirms it is now captured.
+    confirms it is now captured. Python 3.15 stores that buffer in a bytes
+    object (PYMEM_DOMAIN_OBJ), so a passing heap sample there does not validate
+    MEM-domain tracking.
     """
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_bytearray_tracked_py313")
 
     mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
     ba: bytearray
     with mc:
-        ba = bytearray(8 * 1024 * 1024)  # 8 MB via PyMem_Malloc (MEM domain, 3.13+)
+        ba = bytearray(8 * 1024 * 1024)  # 8 MB via PyMem_Malloc (MEM domain, 3.13–3.14)
         mc.snapshot()
 
     ddup.upload()
@@ -1491,7 +1496,7 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, (
-        "bytearray(8 MB) should produce heap-space samples on Python 3.13+ now that PYMEM_DOMAIN_MEM is hooked"
+        "bytearray(8 MB) should produce heap-space samples on Python 3.13 and 3.14 now that PYMEM_DOMAIN_MEM is hooked"
     )
 
     del ba
