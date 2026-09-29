@@ -58,6 +58,10 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
+    # This temporary experiment branch runs both arms on the same commit without UI variables.
+    - if: $CI_COMMIT_REF_NAME == "gnufede/tia-cold-ci-pair-20260929"
+      variables:
+        DD_LLMOBS_TIA_COLD_START_PAIR: "true"
     - if: !reference [.is_main]
       variables:
         EXT_CACHE_POLICY: "pull-push"
