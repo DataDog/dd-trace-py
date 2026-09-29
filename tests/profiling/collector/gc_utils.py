@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
 from types import ModuleType
 from typing import TYPE_CHECKING
@@ -9,7 +11,7 @@ if TYPE_CHECKING:
 
 
 def gc_sample_task_names(
-    profile: "pprof_pb2.Profile", pprof_utils: ModuleType, samples: Iterable["pprof_pb2.Sample"]
+    profile: pprof_pb2.Profile, pprof_utils: ModuleType, samples: Iterable[pprof_pb2.Sample]
 ) -> set[str]:
     """Return the set of task-name labels attached to the given GC samples.
 

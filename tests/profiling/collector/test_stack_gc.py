@@ -104,6 +104,7 @@ def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread(
     import tempfile
     import threading
     import time
+    from typing import Optional
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
@@ -119,10 +120,10 @@ def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread(
     ddup.start()
     ddup.upload()
 
-    collecting_thread_id = [0]
+    collecting_thread: dict[str, Optional[int]] = {"id": None}
 
     def collect_cycles() -> None:
-        collecting_thread_id[0] = _thread.get_ident()
+        collecting_thread["id"] = _thread.get_ident()
         slow_cyclic_collection()
 
     stop = threading.Event()
@@ -151,7 +152,7 @@ def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread(
     for sample in samples:
         thread_id = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
         thread_name = pprof_utils.get_label_with_key(profile.string_table, sample, "thread name")
-        assert thread_id is not None and thread_id.num == collecting_thread_id[0]
+        assert thread_id is not None and thread_id.num == collecting_thread["id"]
         assert thread_name is not None and profile.string_table[thread_name.str] == "collecting-thread"
 
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
