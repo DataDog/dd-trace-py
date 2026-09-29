@@ -182,7 +182,7 @@ suites:
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82']
           python: ['3.9', '3.10', '3.11']
         - name: crashtracker
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
@@ -330,12 +330,12 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
         - name: internal
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
         - name: internal
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
@@ -374,7 +374,7 @@ suites:
           python: ['3.9']
           dependencies: [PyYAML, 'pip==26.0.1', pytest-randomly]
         - name: lib_injection
-          # Opt into 3.15 like smoke_test; DEFAULT_PYTHON_VERSIONS stays at 3.14.
+          # 3.9 stays on pip 26.0.1. 3.10+ uses pip 26.2.1, including 3.15.
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [PyYAML, 'pip==26.2.1', pytest-randomly]
   runtime:
@@ -427,7 +427,7 @@ suites:
       command: pytest {cmdargs} tests/telemetry/
       variants:
         - name: telemetry
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask>=3.1.2']
         - name: telemetry
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -473,7 +473,7 @@ suites:
           python: ['3.9']
           dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
         - name: tracer-128-bit-traceid-disabled
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
