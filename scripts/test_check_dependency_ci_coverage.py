@@ -1,3 +1,14 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "packaging>=23.1,<24",
+#     "requests>=2.28,<3",
+#     "ruamel.yaml>=0.17.21",
+#     "setuptools<82",
+# ]
+# ///
 """Lookup failures must not be reported as missing major coverage."""
 
 from importlib.machinery import ModuleSpec
@@ -106,6 +117,24 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
         joined: str = "\n".join(errors)
         self.assertIn("Missing coverage for major(s): [2]", joined)
         self.assertNotIn("PyPI lookup failed", joined)
+
+    def test_failed_lookup_is_quiet_when_explicit_bounds_already_cover(self) -> None:
+        location: object = _coverage.Location("pyproject.toml", 1)
+        dep: object = _coverage.PyprojectDep(majors={1}, specifier="<2,>=1", location=location)
+        pyproject: dict[str, object] = {"wrapt": dep}
+        info: object = _coverage.DepInfo(
+            majors={1},
+            has_latest=True,
+            latest_major=None,
+            locations=[_coverage.Location("tests/suitespec.yml", 331)],
+        )
+        tested: dict[str, object] = {"wrapt": info}
+        timeout: requests.exceptions.Timeout = requests.exceptions.Timeout("timed out")
+        with patch.object(_coverage.requests, "get", side_effect=timeout):
+            result: tuple[list[str], list[str], list[object]] = _coverage.check_coverage(pyproject, tested)
+        joined: str = "\n".join(result[0])
+        self.assertNotIn("PyPI lookup failed", joined)
+        self.assertNotIn("Missing coverage for major(s)", joined)
 
 
 if __name__ == "__main__":
