@@ -44,6 +44,7 @@ The suite schema is as follows:
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
     services: # The services to start before running the suite, defined in .gitlab/services.yml
+    no_proxy: # Add the suite's external test domains to NO_PROXY and no_proxy
     matrix: # Shared configuration and named dependency variants
 ```
 
@@ -70,3 +71,7 @@ Components do not need to be declared within the same `suitespec.yml` file. They
 can be declared in any file within the `/tests` sub-tree. The CI configuration
 generator will aggregate all the components and suites to build the full test
 suite specification and resolve the components after that.
+
+Set `no_proxy: true` only for suites whose VCR-backed or network-behavior tests need to bypass the
+CI proxy. The generated job preserves existing `NO_PROXY` and `no_proxy` values and appends the
+standard test-domain exclusions.
