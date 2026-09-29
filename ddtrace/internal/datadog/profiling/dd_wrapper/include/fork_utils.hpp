@@ -2,10 +2,6 @@
 
 #include <new>
 
-// Detect TSan. GCC uses __SANITIZE_THREAD__, Clang uses __has_feature.
-// __has_feature must be tested in a separate #if because GCC doesn't
-// define the macro and the preprocessor rejects __has_feature(x) as
-// a syntax error rather than evaluating it to 0.
 #if defined(__SANITIZE_THREAD__)
 #define DD_TSAN_ENABLED 1
 #elif defined(__has_feature)
