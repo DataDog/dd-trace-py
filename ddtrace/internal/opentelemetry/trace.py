@@ -127,10 +127,13 @@ class Tracer(OtelTracer):
             # Convert otel span to a ddtrace context object.
             dd_active = _otel_to_dd_span_context(curr_otel_span)
 
+        ddtracer = core.root.get_item("tracer")
+        if ddtracer is None:
+            # The global Datadog tracer has not been registered yet (ddtrace.trace has not been imported).
+            return INVALID_SPAN
+
         # Create a new Datadog span (not activated), then return a valid OTel span
-        dd_span = core.root.get_item("tracer")._start_span(
-            name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL
-        )
+        dd_span = ddtracer._start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
 
         if links:
             for link in links:
