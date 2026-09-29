@@ -29,6 +29,7 @@ from ddtrace.trace import Context
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import INPUT
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import MODEL
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import OUTPUT
+from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import MockReceiver
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import audio
 from tests.contrib.aws_sdk_bedrock_runtime.test_sonic import event
 from tests.utils import override_global_config
@@ -53,7 +54,7 @@ def llmobs(monkeypatch, tracer):
 
 async def mock_stream(monkeypatch, events):
     publisher = SimpleNamespace(send=AsyncMock(), close=AsyncMock())
-    receiver = SimpleNamespace(receive=AsyncMock(side_effect=events + [None]), close=AsyncMock())
+    receiver = MockReceiver(events + [None])
     future = asyncio.get_running_loop().create_future()
     future.set_result((None, receiver))
     stream = DuplexEventStream(input_stream=publisher, output_future=future)

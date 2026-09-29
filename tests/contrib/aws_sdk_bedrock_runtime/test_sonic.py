@@ -13,9 +13,11 @@ from aws_sdk_bedrock_runtime.models import BidirectionalInputPayloadPart
 from aws_sdk_bedrock_runtime.models import InvokeModelWithBidirectionalStreamInputChunk
 import pytest
 from smithy_core.aio.eventstream import DuplexEventStream
+from smithy_core.aio.interfaces.eventstream import EventReceiver
 
 from ddtrace import config
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._stream import DuplexProxy
+from ddtrace.contrib.internal.aws_sdk_bedrock_runtime._stream import OutputProxy
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import patch
 from ddtrace.contrib.internal.aws_sdk_bedrock_runtime.patch import unpatch
 from ddtrace.llmobs._integrations import aws_sdk_bedrock_runtime_utils as _sonic
@@ -39,6 +41,12 @@ INPUT = {
     "encoding": "base64",
 }
 OUTPUT = dict(INPUT, sampleRateHertz=24000)
+
+
+class MockReceiver(EventReceiver):
+    def __init__(self, events):
+        self.receive = AsyncMock(side_effect=events)
+        self.close = AsyncMock()
 
 
 class RecordingIntegration(AwsSdkBedrockRuntimeIntegration):
@@ -223,7 +231,7 @@ async def test_real_smithy_duplex_iteration_and_half_close():
     sonic, integration = state()
     sender = SimpleNamespace(send=AsyncMock(), close=AsyncMock())
     item = event("userSpeechStart", {"inputAudioOffsetMs": 0})
-    receiver = SimpleNamespace(receive=AsyncMock(side_effect=[item, None]), close=AsyncMock())
+    receiver = MockReceiver([item, None])
     future = asyncio.get_running_loop().create_future()
     future.set_result(("response", receiver))
     stream = DuplexProxy(DuplexEventStream(input_stream=sender, output_future=future), sonic)
@@ -234,10 +242,37 @@ async def test_real_smithy_duplex_iteration_and_half_close():
     await stream.input_stream.close()
     assert not sonic.closed
     assert [item async for item in output] == [item]
+    receiver.close.assert_awaited_once()
     assert sonic.closed
     assert len(llms(integration)) == 1
     await stream.close()
     assert len(llms(integration)) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [ValueError("cleanup failed"), asyncio.CancelledError()])
+async def test_iterator_eof_cleanup_failure_propagates_and_marks_spans(error):
+    sonic, integration = state()
+    sonic.pending.user_text = "question"
+    receiver = MockReceiver([None])
+    receiver.close.side_effect = error
+    output = OutputProxy(receiver, sonic)
+    with pytest.raises(type(error)) as caught:
+        await output.__anext__()
+    assert caught.value is error
+    receiver.close.assert_awaited_once()
+    assert sonic.closed
+    assert len(llms(integration)) == 1
+    assert all(span.finished and span.error for span in integration.spans)
+
+
+@pytest.mark.asyncio
+async def test_direct_receive_eof_does_not_close_receiver():
+    sonic, _ = state()
+    receiver = MockReceiver([None])
+    assert await OutputProxy(receiver, sonic).receive() is None
+    receiver.close.assert_not_awaited()
+    assert sonic.closed
 
 
 @pytest.mark.asyncio

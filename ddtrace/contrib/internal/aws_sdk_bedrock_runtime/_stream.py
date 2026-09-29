@@ -71,9 +71,16 @@ class OutputProxy(ObjectProxy):  # type: ignore[misc]  # wrapt has no typed prox
         return self
 
     async def __anext__(self) -> Any:
-        event = await self.receive()
-        if event is None:
-            raise StopAsyncIteration
+        try:
+            # Smithy's iterator owns EOF cleanup; receive() alone does not close it.
+            event = await self.__wrapped__.__anext__()
+        except StopAsyncIteration:
+            self._self_state.finish()
+            raise
+        except BaseException:
+            self._self_state.finish_error()
+            raise
+        self._self_state.observe(event)
         return event
 
     async def close(self) -> Any:
