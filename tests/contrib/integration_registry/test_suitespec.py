@@ -12,7 +12,10 @@ from tests.suitespec import get_test_environments
 def test_python_versions_follow_compat_bounds():
     environments = get_test_environments(nightly=False)
 
-    assert DEFAULT_PYTHON_VERSIONS[-1] == f"{MAX_PY[0]}.{MAX_PY[1]}"
+    # MAX_PY stays the last packaged CPython (requires-python). The default CI
+    # matrix also schedules NEXT_MAX_PY, the same way 3.14 is scheduled today.
+    assert f"{MAX_PY[0]}.{MAX_PY[1]}" in DEFAULT_PYTHON_VERSIONS
+    assert DEFAULT_PYTHON_VERSIONS[-1] == f"{NEXT_MAX_PY[0]}.{NEXT_MAX_PY[1]}"
     assert f"{NEXT_MAX_PY[0]}.{NEXT_MAX_PY[1]}" in {environment.python for environment in environments["smoke_test"]}
 
 
