@@ -4,6 +4,8 @@ import sys
 import time
 from typing import Any
 from typing import Callable
+from typing import Optional
+from typing import cast
 from unittest import mock
 
 import pytest
@@ -15,6 +17,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import Collector
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
@@ -283,6 +286,73 @@ def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: p
     assert locks, "expected lock collectors"
     missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
     assert not missing, "lock collectors built without a tracer: %s" % missing
+
+
+def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    class BadCollector:
+        def start(self) -> None:
+            pass
+
+        def stop(self) -> None:
+            raise RuntimeError("collector teardown blew up")
+
+        def join(self, timeout: Optional[float] = None) -> None:
+            pass
+
+        def snapshot(self) -> None:
+            pass
+
+    p1 = profiler.Profiler()
+    p1.start()
+    inst = p1._profiler
+
+    real = list(inst._collectors)
+    assert real, "expected the profiler to have collectors"
+    # Last in the list, so reversed() reaches it before any of the real ones.
+    inst._collectors = real + [cast(Collector, BadCollector())]
+
+    with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+        p1.stop(flush=False)
+
+    assert inst.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+    for col in real:
+        status = getattr(col, "status", None)
+        if status is not None:
+            assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+
+    assert any("Error while stopping collector" in m for m in caplog.messages)
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
+
+
+def test_stop_skips_scheduler_join_when_scheduler_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    p = profiler.Profiler()
+    p.start()
+    inst = p._profiler
+    sched = inst._scheduler
+    assert sched is not None
+
+    real = list(inst._collectors)
+    try:
+        with mock.patch.object(sched, "stop", side_effect=RuntimeError("scheduler stop blew up")):
+            with mock.patch.object(sched, "join") as join_mock:
+                with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+                    p.stop(flush=False)
+
+        join_mock.assert_not_called()
+        assert any("Error while stopping the profile scheduler" in m for m in caplog.messages)
+        assert inst.status == service.ServiceStatus.STOPPED
+        for col in real:
+            status = getattr(col, "status", None)
+            if status is not None:
+                assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+    finally:
+        sched.stop()
+        sched.join()
 
 
 def test_profiler_serverless(monkeypatch):

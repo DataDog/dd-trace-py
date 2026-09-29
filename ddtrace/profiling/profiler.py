@@ -444,14 +444,30 @@ class _ProfilerInstance(service.Service):
             self._collectors_on_import = None
 
         if self._scheduler is not None:
-            self._scheduler.stop()
+            scheduler_stopped: bool = True
+            try:
+                self._scheduler.stop()
+            except service.ServiceStatusError:
+                pass
+            except Exception:
+                scheduler_stopped = False
+                LOG.error("Error while stopping the profile scheduler", exc_info=True)
+
             # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
             # collectors before the possibly running flush is finished.
-            if join:
-                self._scheduler.join()
+            # If stop failed, the worker may never be signaled, so joining it without a timeout could hang forever.
+            if join and scheduler_stopped:
+                try:
+                    self._scheduler.join()
+                except Exception:
+                    LOG.error("Error while joining the profile scheduler", exc_info=True)
+
             if flush:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
-                self._scheduler.flush()
+                try:
+                    self._scheduler.flush()
+                except Exception:
+                    LOG.error("Error while flushing the last profile", exc_info=True)
 
         for col in reversed(self._collectors):
             try:
@@ -459,7 +475,12 @@ class _ProfilerInstance(service.Service):
             except service.ServiceStatusError:
                 # It's possible some collector failed to start, ignore failure to stop
                 pass
+            except Exception:
+                LOG.error("Error while stopping collector %r", col, exc_info=True)
 
         if join:
             for col in reversed(self._collectors):
-                col.join()
+                try:
+                    col.join()
+                except Exception:
+                    LOG.error("Error while joining collector %r", col, exc_info=True)
