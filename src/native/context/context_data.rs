@@ -312,27 +312,27 @@ impl Context {
         span_id: Option<u128>,
     ) -> PyResult<Py<Self>> {
         let py = slf.py();
-        let (meta, metrics, baggage, otel_sampling_state_owner);
-        {
-            let mut this = slf.borrow_mut();
-            meta = this.get_meta(py);
-            metrics = this.get_metrics(py);
-            baggage = this.get_baggage(py);
-            otel_sampling_state_owner = this
-                .otel_sampling_state_owner
-                .as_ref()
-                .map(|owner| owner.clone_ref(py))
-                .or_else(|| Some(slf.clone().unbind()));
-        }
+
+        let mut this = slf.borrow_mut();
+        let meta = this.get_meta(py).unbind();
+        let metrics = this.get_metrics(py).unbind();
+        let baggage = Some(this.get_baggage(py).unbind());
+        let otel_sampling_state_owner = Some(match &this.otel_sampling_state_owner {
+            Some(owner) => owner.clone_ref(py),
+            None => slf.clone().unbind(),
+        });
+        drop(this);
+        let span_links = Some(PyList::empty(py).unbind());
+
         Py::new(
             py,
             Self {
                 trace_id,
                 span_id,
-                meta: meta.unbind(),
-                metrics: metrics.unbind(),
-                baggage: Some(baggage.unbind()),
-                span_links: Some(PyList::empty(py).unbind()),
+                meta,
+                metrics,
+                baggage,
+                span_links,
                 is_remote: false,
                 reactivate: false,
                 otel_sampling_state_data: None,

@@ -9,6 +9,7 @@ use pyo3::{
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
+use crate::context::Context;
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
@@ -79,7 +80,7 @@ pub struct SpanData {
     /// This span's own `Context`, built eagerly for a root span (in `__new__`, before the
     /// span is published) and lazily on first read for a child span. `None` on a child means
     /// "not yet built" — see the `context` getter.
-    pub _context: Option<Py<crate::context::Context>>,
+    pub _context: Option<Py<Context>>,
 }
 
 impl SpanData {
@@ -310,18 +311,12 @@ impl SpanData {
             .map(|obj| extract_backed_string_or_default(obj))
             .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         // `context` is the parent Context, or None for a root span.
-        span._parent_context = context
-            .filter(|obj| !obj.is_none())
-            .and_then(|obj| obj.extract::<Py<crate::context::Context>>().ok());
+        span._parent_context = context.and_then(|ctx| ctx.extract().ok());
         if span._parent_context.is_none() {
             // A root span owns fresh, unshared trace-level state. Building its Context
             // here, before the span can be published, keeps concurrent first readers from
             // building divergent state without needing a lock.
-            span._context = Some(crate::context::Context::new_root(
-                py,
-                span.trace_id,
-                span.span_id as u128,
-            )?);
+            span._context = Some(Context::new_root(py, span.trace_id, span.span_id as u128)?);
         }
         Ok(span)
     }
@@ -721,39 +716,30 @@ impl SpanData {
     /// Takes `slf` rather than `&mut self` so no borrow of this span is held while a
     /// `Context` subclass's Python `copy` override runs.
     #[getter(context)]
-    fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, crate::context::Context>> {
+    fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
         let py = slf.py();
-        let (parent, trace_id, span_id) = {
-            let this = slf.borrow();
-            if let Some(ctx) = &this._context {
-                return Ok(ctx.bind(py).clone());
-            }
-            (
-                this._parent_context.as_ref().map(|p| p.clone_ref(py)),
-                this.trace_id,
-                this.span_id as u128,
-            )
-        };
+
+        let this = slf.borrow();
+        if let Some(ctx) = &this._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let parent = this._parent_context.as_ref().map(|p| p.bind(py).clone());
+        let (trace_id, span_id) = (this.trace_id, this.span_id as u128);
+        drop(this);
+
         let new_ctx = match parent {
-            Some(parent) => {
-                let parent = parent.into_bound(py);
-                // Fast path for the base class; a Python subclass may override `copy`, so
-                // route through Python dispatch for those.
-                if parent.is_exact_instance_of::<crate::context::Context>() {
-                    crate::context::Context::copy_native(&parent, Some(trace_id), Some(span_id))?
-                        .into_bound(py)
-                } else {
-                    parent
-                        .call_method1("copy", (trace_id, span_id))?
-                        .cast_into::<crate::context::Context>()?
-                }
+            // Fast path for the base class; a Python subclass may override `copy`, so
+            // route through Python dispatch for those.
+            Some(parent) if parent.is_exact_instance_of::<Context>() => {
+                Context::copy_native(&parent, Some(trace_id), Some(span_id))?.into_bound(py)
             }
-            None => crate::context::Context::new_root(py, trace_id, span_id)?.into_bound(py),
+            Some(parent) => parent
+                .call_method1("copy", (trace_id, span_id))?
+                .cast_into()?,
+            None => Context::new_root(py, trace_id, span_id)?.into_bound(py),
         };
-        let old = {
-            let mut this = slf.borrow_mut();
-            this._context.replace(new_ctx.clone().unbind())
-        };
+
+        let old = slf.borrow_mut()._context.replace(new_ctx.clone().unbind());
         drop(old);
         Ok(new_ctx)
     }
@@ -768,19 +754,10 @@ impl SpanData {
     /// `context` read fabricate unrelated trace state.
     #[setter(context)]
     fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<()> {
-        let new_value = if value.is_none() {
-            None
-        } else if let Ok(ctx) = value.extract::<Py<crate::context::Context>>() {
-            Some(ctx)
-        } else {
-            return Err(PyTypeError::new_err(
-                "context must be a Context instance or None",
-            ));
-        };
-        let old = {
-            let mut this = slf.borrow_mut();
-            std::mem::replace(&mut this._context, new_value)
-        };
+        let new_value: Option<Py<Context>> = value
+            .extract()
+            .map_err(|_| PyTypeError::new_err("context must be a Context instance or None"))?;
+        let old = std::mem::replace(&mut slf.borrow_mut()._context, new_value);
         drop(old);
         Ok(())
     }
@@ -793,21 +770,22 @@ impl SpanData {
     /// one per span. A remote parent-context is never handed down: a local child's
     /// parent-context must stay local so `_is_remote`/reactivation keep their meaning, so
     /// a distributed entry span materializes its (local) context once here.
-    fn _context_for_child<'py>(
-        slf: &Bound<'py, Self>,
-    ) -> PyResult<Bound<'py, crate::context::Context>> {
+    fn _context_for_child<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
         let py = slf.py();
-        {
-            let this = slf.borrow();
-            if let Some(ctx) = &this._context {
-                return Ok(ctx.bind(py).clone());
-            }
-            if let Some(parent) = &this._parent_context {
-                if !parent.bind(py).borrow().is_remote {
-                    return Ok(parent.bind(py).clone());
-                }
-            }
+
+        let this = slf.borrow();
+        if let Some(ctx) = &this._context {
+            return Ok(ctx.bind(py).clone());
         }
+        let local_parent = this
+            ._parent_context
+            .as_ref()
+            .filter(|parent| !parent.bind(py).borrow().is_remote);
+        if let Some(parent) = local_parent {
+            return Ok(parent.bind(py).clone());
+        }
+        drop(this);
+
         Self::get_context(slf)
     }
 
