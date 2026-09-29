@@ -45,6 +45,8 @@ _ON_RUNTIME_ID_CHANGE: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
 _ON_RUNTIME_IDENTITY_REFRESH: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
 # MicroVM refreshes share this lock with consumers that must not observe a partially refreshed
 # identity. Non-MicroVM callers do not acquire it.
+# Lock order: this lock is acquired before any component lock taken inside a refresh callback
+# (e.g. TelemetryWriter._worker_access_lock). Never acquire it while holding a component lock.
 _RUNTIME_IDENTITY_REFRESH_LOCK = forksafe.RLock()
 
 
@@ -65,6 +67,12 @@ def on_runtime_identity_refresh(cb: t.Callable[[str], None]) -> None:
     """
     global _ON_RUNTIME_IDENTITY_REFRESH
     _ON_RUNTIME_IDENTITY_REFRESH.add(cb)
+
+
+def remove_runtime_identity_refresh(cb: t.Callable[[str], None]) -> None:
+    """Unregister a callback for explicit runtime identity refreshes."""
+    # Does not take the refresh lock; callers may hold component locks (see lock order above).
+    _ON_RUNTIME_IDENTITY_REFRESH.discard(cb)
 
 
 def get_runtime_identity_refresh_lock() -> t.ContextManager[None]:

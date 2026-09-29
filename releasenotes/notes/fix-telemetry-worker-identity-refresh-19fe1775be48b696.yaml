@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where telemetry events can be associated with a previous
+    AWS Lambda MicroVM invocation after the runtime identity is refreshed.
