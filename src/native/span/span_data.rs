@@ -750,7 +750,11 @@ impl SpanData {
             }
             None => crate::context::Context::new_root(py, trace_id, span_id)?.into_bound(py),
         };
-        slf.borrow_mut()._context = Some(new_ctx.clone().unbind());
+        let old = {
+            let mut this = slf.borrow_mut();
+            this._context.replace(new_ctx.clone().unbind())
+        };
+        drop(old);
         Ok(new_ctx)
     }
 
