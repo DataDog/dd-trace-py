@@ -4,6 +4,8 @@ import sys
 import time
 from typing import Any
 from typing import Callable
+from typing import Optional
+from typing import cast
 from unittest import mock
 
 import pytest
@@ -15,6 +17,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import Collector
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
@@ -28,6 +31,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 def _reset_profiler_active_instance():
     yield
     profiler.Profiler._active_instance = None
+    profiler.Profiler._exit_signal_handler = None
 
 
 def test_status():
@@ -282,6 +286,73 @@ def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: p
     assert locks, "expected lock collectors"
     missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
     assert not missing, "lock collectors built without a tracer: %s" % missing
+
+
+def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    class BadCollector:
+        def start(self) -> None:
+            pass
+
+        def stop(self) -> None:
+            raise RuntimeError("collector teardown blew up")
+
+        def join(self, timeout: Optional[float] = None) -> None:
+            pass
+
+        def snapshot(self) -> None:
+            pass
+
+    p1 = profiler.Profiler()
+    p1.start()
+    inst = p1._profiler
+
+    real = list(inst._collectors)
+    assert real, "expected the profiler to have collectors"
+    # Last in the list, so reversed() reaches it before any of the real ones.
+    inst._collectors = real + [cast(Collector, BadCollector())]
+
+    with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+        p1.stop(flush=False)
+
+    assert inst.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+    for col in real:
+        status = getattr(col, "status", None)
+        if status is not None:
+            assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+
+    assert any("Error while stopping collector" in m for m in caplog.messages)
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
+
+
+def test_stop_skips_scheduler_join_when_scheduler_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    p = profiler.Profiler()
+    p.start()
+    inst = p._profiler
+    sched = inst._scheduler
+    assert sched is not None
+
+    real = list(inst._collectors)
+    try:
+        with mock.patch.object(sched, "stop", side_effect=RuntimeError("scheduler stop blew up")):
+            with mock.patch.object(sched, "join") as join_mock:
+                with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+                    p.stop(flush=False)
+
+        join_mock.assert_not_called()
+        assert any("Error while stopping the profile scheduler" in m for m in caplog.messages)
+        assert inst.status == service.ServiceStatus.STOPPED
+        for col in real:
+            status = getattr(col, "status", None)
+            if status is not None:
+                assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+    finally:
+        sched.stop()
+        sched.join()
 
 
 def test_profiler_serverless(monkeypatch):
@@ -726,18 +797,81 @@ def test_no_samples_pushed_after_stop() -> None:
 
 
 @pytest.mark.subprocess(err=None)
-def test_start_registers_sigterm_handler() -> None:
-    """Profiler.start must register _stop_on_signal as a SIGTERM/SIGINT handler via register_on_exit_signal."""
+def test_start_registers_sigterm_handler_once_per_process() -> None:
     from unittest import mock
 
     from ddtrace.internal import atexit
     from ddtrace.profiling import profiler
 
-    with mock.patch.object(atexit, "register_on_exit_signal") as mock_reg:
+    with mock.patch.object(atexit, "register_on_exit_signal", wraps=atexit.register_on_exit_signal) as mock_reg:
+        p1 = profiler.Profiler()
+        p1.start()
+        mock_reg.assert_called_once_with(profiler.Profiler._stop_active_instance_on_signal)
+        assert profiler.Profiler._exit_signal_handler is not None
+        p1.stop(flush=False)
+
+        p1.start()
+        p1.stop(flush=False)
+        p2 = profiler.Profiler()
+        p2.start()
+        p2.stop(flush=False)
+
+        assert mock_reg.call_count == 1, "the exit signal handler must be registered once per process"
+
+
+@pytest.mark.subprocess(err=None)
+def test_exit_signal_handler_does_not_retain_stopped_profilers() -> None:
+    """Restarting profiling must not pin every profiler that has already run.
+
+    Regression test: start registered a handler bound to that profiler, and the chain
+    those handlers form is never unwound, so each stopped profiler stayed reachable
+    together with all of its collectors.
+    """
+    import gc
+    import weakref
+
+    from ddtrace.profiling import profiler
+
+    refs = []
+    for _ in range(3):
         p = profiler.Profiler()
         p.start()
-        mock_reg.assert_called_once_with(p._stop_on_signal)
         p.stop(flush=False)
+        refs.append(weakref.ref(p._profiler))
+        del p
+
+    for _ in range(3):
+        gc.collect()
+
+    alive = [r for r in refs if r() is not None]
+    assert not alive, "%d of %d stopped profilers were retained" % (len(alive), len(refs))
+
+
+@pytest.mark.subprocess(err=None)
+def test_exit_signal_handler_targets_the_active_profiler() -> None:
+    """The exit signal handler must act on the running profiler, not on a stopped one."""
+    from ddtrace.profiling import profiler
+
+    stopped = profiler.Profiler()
+    stopped.start()
+    stopped.stop(flush=False)
+
+    running = profiler.Profiler()
+    running.start()
+
+    called = []
+    stopped._stop_on_signal = lambda: called.append("stopped")  # type: ignore[method-assign]
+    running._stop_on_signal = lambda: called.append("running")  # type: ignore[method-assign]
+
+    profiler.Profiler._stop_active_instance_on_signal()
+    assert called == ["running"]
+
+    running.stop(flush=False)
+
+    # With nothing active the handler is a no-op rather than a flush of a dead profiler.
+    called.clear()
+    profiler.Profiler._stop_active_instance_on_signal()
+    assert called == []
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
@@ -766,6 +900,173 @@ def test_profiler_flushes_on_sigterm() -> None:
         os.kill(os.getpid(), signal.SIGTERM)
 
         # (unreachable: _raise_default re-raises SIGTERM with SIG_DFL, killing the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_again_after_app_replaces_sigterm_handler() -> None:
+    """A restart must register the exit signal handler again if the application replaced it."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGTERM, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGTERM)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(status=-2, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_flushes_on_sigint() -> None:
+    """Profiler must flush the last profile exactly once on SIGINT when SIGINT is not default_int_handler."""
+    import os
+    import signal
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: _raise_default re-raises SIGINT with SIG_DFL, killing the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_profiler_flushes_on_sigint_before_app_handler() -> None:
+    """The profiler SIGINT handler must chain onto an application handler installed before start."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, application_handler)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_again_after_app_replaces_sigint_handler() -> None:
+    """A restart must register the exit signal handler again if the application replaced only SIGINT."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGINT, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_sigint_after_app_replaces_default_int_handler() -> None:
+    """A restart must install the SIGINT handler if the application replaced default_int_handler."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGINT, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(status=-2, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_keeps_default_int_handler_and_flushes_on_keyboard_interrupt() -> None:
+    """With default_int_handler in place, start must leave SIGINT alone and atexit must flush on KeyboardInterrupt."""
+    import os
+    import signal
+    import time
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+    # Not a context manager: the patch must still be active when atexit runs.
+    mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)).start()
+
+    p = profiler.Profiler()
+    p.start()
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+    os.kill(os.getpid(), signal.SIGINT)
+    # KeyboardInterrupt is raised here; Python runs atexit, then exits via SIGINT.
+    time.sleep(10)
 
 
 @pytest.mark.subprocess(
