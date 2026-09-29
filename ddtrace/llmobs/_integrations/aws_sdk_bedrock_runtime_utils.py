@@ -103,6 +103,7 @@ class Turn:
         self.interrupted_ns: Optional[int] = None
         self.started_ns: Optional[int] = None
         self.metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        self.missing_audio_metrics: set[str] = set()
         self.completion_id: Optional[str] = None
         self.partial = False
         self.emitted = False
@@ -184,6 +185,7 @@ class SonicState:
         self.closed = False
         self.turn_index = 0
         self.totals = {"input_tokens": 0, "output_tokens": 0}
+        self.audio_totals: dict[str, Optional[int]] = {"input": 0, "output": 0}
         self.completed_ids: deque[str] = deque(maxlen=MAX_BLOCKS)
 
     def observe(self, event: Any, outbound: bool = False) -> None:
@@ -398,9 +400,12 @@ class SonicState:
 
     def _usage(self, data: dict[str, Any]) -> None:
         # Cumulative completion totals repeat across turns. Difference them once.
-        for key, field in (("input_tokens", "totalInputTokens"), ("output_tokens", "totalOutputTokens")):
+        details = data.get("details")
+        breakdown = details.get("total") if isinstance(details, dict) else None
+        for direction, field in (("input", "totalInputTokens"), ("output", "totalOutputTokens")):
+            key = direction + "_tokens"
             total = data.get(field)
-            if not isinstance(total, int) or total < self.totals[key]:
+            if not isinstance(total, int) or isinstance(total, bool) or total < self.totals[key]:
                 continue
             delta = total - self.totals[key]
             self.totals[key] = total
@@ -411,6 +416,34 @@ class SonicState:
             )
             target.metrics[key] += delta
             target.metrics["total_tokens"] += delta
+
+            # Speech tokens are a subset of the same aggregate delta and belong
+            # to the same turn. Never add them to total_tokens again.
+            audio_key = direction + "_audio_tokens"
+            usage = breakdown.get(direction) if isinstance(breakdown, dict) else None
+            audio_total = usage.get("speechTokens") if isinstance(usage, dict) else None
+            previous_audio = self.audio_totals[direction]
+            valid_audio = (
+                isinstance(audio_total, int)
+                and not isinstance(audio_total, bool)
+                and 0 <= audio_total <= total
+                and (previous_audio is None or audio_total >= previous_audio)
+            )
+            audio_delta = (
+                audio_total - previous_audio
+                if valid_audio and audio_total is not None and previous_audio is not None
+                else None
+            )
+            self.audio_totals[direction] = audio_total if valid_audio else (None if delta else previous_audio)
+            if audio_delta is None or audio_delta > delta:
+                if delta or (audio_delta is not None and audio_delta > delta):
+                    # A gap makes this turn's audio split unknown. Re-establish
+                    # the cumulative baseline without charging the gap to a later turn.
+                    target.missing_audio_metrics.add(audio_key)
+                    target.metrics.pop(audio_key, None)
+                continue
+            if audio_key not in target.missing_audio_metrics:
+                target.metrics[audio_key] = target.metrics.get(audio_key, 0) + audio_delta
 
     def _messages(self, turn: Turn) -> tuple[list[Any], list[Any]]:
         # Reserve the serialized text/tool size, including JSON escaping of Unicode.

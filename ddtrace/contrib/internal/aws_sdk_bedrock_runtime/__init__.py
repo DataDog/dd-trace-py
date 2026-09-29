@@ -24,7 +24,10 @@ Each response has a ``nova sonic audio turn`` workflow, with direct
 ``user speech``, ``nova sonic response`` (LLM), and ``agent speech`` children.
 Turns share a session ID and preserve the caller's parent context. The LLM
 span contains transcripts, token usage, tool calls/results, and bounded WAV
-attachments.
+attachments. Audio usage is recorded as ``input_audio_tokens`` and
+``output_audio_tokens``, which are subsets of the existing input/output token
+totals and enable separate text/audio cost estimates. Missing or invalid
+breakdowns are omitted.
 
 Input clips use provider speech offsets across input content containers.
 The initial latency boundary matches OpenAI Realtime: receipt of the speech-end

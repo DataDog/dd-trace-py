@@ -114,6 +114,16 @@ def test_capture_replay(monkeypatch, fixture, expected_turns):
     assert all(span.finished for span in integration.spans)
     assert sum(data(span)["metrics"]["input_tokens"] for span in responses) == capture["input_tokens"]
     assert sum(data(span)["metrics"]["output_tokens"] for span in responses) == capture["output_tokens"]
+    final_usage = [record["event"]["usageEvent"] for record in capture["events"] if "usageEvent" in record["event"]][-1]
+    for direction in ("input", "output"):
+        audio_key = direction + "_audio_tokens"
+        assert (
+            sum(data(span)["metrics"][audio_key] for span in responses)
+            == final_usage["details"]["total"][direction]["speechTokens"]
+        )
+        assert all(
+            0 <= data(span)["metrics"][audio_key] <= data(span)["metrics"][direction + "_tokens"] for span in responses
+        )
     roots = [span for span in integration.spans if span.name == "nova sonic audio turn"]
     assert len({root.span_id for root in roots}) == expected_turns
     assert all(root.parent_id is None for root in roots)
@@ -510,3 +520,113 @@ def test_audio_budget_reserves_serialized_unicode_and_tool_results(monkeypatch):
     turn.output_rate = 24000
     inputs, outputs = sonic._messages(turn)
     assert all("audio_parts" not in message for message in inputs + outputs)
+
+
+def usage_event(input_tokens, output_tokens, input_audio, output_audio):
+    return event(
+        "usageEvent",
+        {
+            "totalInputTokens": input_tokens,
+            "totalOutputTokens": output_tokens,
+            "details": {"total": {"input": {"speechTokens": input_audio}, "output": {"speechTokens": output_audio}}},
+        },
+    )
+
+
+def test_audio_usage_follows_aggregate_turn_attribution_and_deduplicates():
+    sonic, integration = state()
+    first = usage_event(10, 10, 8, 6)
+    sonic.observe(first)
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "AUDIO"}, 1)
+    sonic.observe(first)
+    sonic.pending.user_text = "next turn"
+    next_input = usage_event(20, 15, 14, 9)
+    sonic.observe(next_input)
+    sonic.observe(next_input)
+    sonic.observe(first)  # Stale cumulative totals must not reset either baseline.
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "AUDIO"}, 2)
+    sonic.observe(usage_event(20, 20, 14, 12))
+    sonic.finish()
+    assert [data(span)["metrics"] for span in llms(integration)] == [
+        {
+            "input_tokens": 10,
+            "output_tokens": 15,
+            "total_tokens": 25,
+            "input_audio_tokens": 8,
+            "output_audio_tokens": 9,
+        },
+        {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15, "input_audio_tokens": 6, "output_audio_tokens": 3},
+    ]
+
+
+@pytest.mark.parametrize("value", [None, -1, True, "4", 1.5, float("nan"), float("inf"), 11])
+def test_invalid_audio_usage_does_not_change_aggregate_or_other_direction(value):
+    sonic, integration = state()
+    sonic.observe(usage_event(10, 5, value, 3))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+        "output_audio_tokens": 3,
+    }
+
+
+@pytest.mark.parametrize("details", [None, [], {"total": None}, {"total": []}, {"total": {"input": None}}])
+def test_missing_audio_breakdown_keeps_aggregate_usage(details):
+    sonic, integration = state()
+    sonic.observe(event("usageEvent", {"totalInputTokens": 10, "totalOutputTokens": 5, "details": details}))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}
+
+
+def test_audio_usage_preserves_explicit_zero():
+    sonic, integration = state()
+    sonic.observe(usage_event(10, 5, 0, 0))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+        "input_audio_tokens": 0,
+        "output_audio_tokens": 0,
+    }
+
+
+@pytest.mark.parametrize("missing_audio", [None, 7, 21])
+def test_audio_usage_gap_does_not_leak_into_later_turn(missing_audio):
+    sonic, integration = state()
+    sonic.observe(usage_event(10, 5, 8, 3))
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "AUDIO"}, 1)
+    # Absent, regressing, or excessive audio counts make the input split unknown.
+    sonic.observe(usage_event(20, 10, missing_audio, 6))
+    assert "input_audio_tokens" not in sonic.current.metrics
+    sonic.observe(usage_event(30, 15, 20, 9))  # Recover baseline, not the missing attribution.
+    assert "input_audio_tokens" not in sonic.current.metrics
+    sonic.pending.user_text = "next turn"
+    sonic.observe(usage_event(40, 15, 26, 9))
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "AUDIO"}, 2)
+    sonic.observe(usage_event(40, 20, 26, 12))
+    sonic.finish()
+    first, second = [data(span)["metrics"] for span in llms(integration)]
+    assert first == {"input_tokens": 30, "output_tokens": 15, "total_tokens": 45, "output_audio_tokens": 9}
+    assert second == {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "total_tokens": 15,
+        "input_audio_tokens": 6,
+        "output_audio_tokens": 3,
+    }
+
+
+def test_audio_delta_cannot_exceed_aggregate_delta():
+    sonic, integration = state()
+    sonic.observe(usage_event(10, 5, 2, 3))
+    sonic.observe(usage_event(11, 6, 8, 4))
+    sonic.finish()
+    assert data(llms(integration)[0])["metrics"] == {
+        "input_tokens": 11,
+        "output_tokens": 6,
+        "total_tokens": 17,
+        "output_audio_tokens": 4,
+    }

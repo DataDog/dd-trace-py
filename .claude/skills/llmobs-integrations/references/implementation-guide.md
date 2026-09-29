@@ -247,3 +247,11 @@ never from a plain APM span's identifiers.
 Ignore post-interruption audio for playback validation and retention so late
 malformed chunks cannot erase the already-trimmed clip or its speech phase.
 Generated-byte accounting may continue independently for decodable chunks.
+
+Nova 2 Sonic usageEvent audio counts come from details.total.input.speechTokens
+and details.total.output.speechTokens. Difference these cumulative counters using
+the same turn attribution as totalInputTokens/totalOutputTokens. Emit
+input_audio_tokens/output_audio_tokens as subsets, never add them to total_tokens,
+and preserve explicit zero. A missing or invalid breakdown makes that turn's
+corresponding audio metric unknown; recover the baseline before pricing later
+turns, without attributing earlier unknown usage to them.

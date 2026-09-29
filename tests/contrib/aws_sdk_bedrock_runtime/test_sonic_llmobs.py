@@ -455,6 +455,16 @@ def test_serialized_capture_turn_contract(monkeypatch, llmobs, capture_name, tur
     assert len(roots) == turn_count
     assert len(payloads) == turn_count * 4
     assert len({p["session_id"] for p in payloads}) == 1
+    responses = [p for p in payloads if p["name"] == "nova sonic response"]
+    final_usage = [r["event"]["usageEvent"] for r in capture["events"] if "usageEvent" in r["event"]][-1]
+    for direction in ("input", "output"):
+        audio_key = direction + "_audio_tokens"
+        assert (
+            sum(p["metrics"][audio_key] for p in responses)
+            == final_usage["details"]["total"][direction]["speechTokens"]
+        )
+        assert all(0 <= p["metrics"][audio_key] <= p["metrics"][direction + "_tokens"] for p in responses)
+    assert sum(p["metrics"]["total_tokens"] for p in responses) == capture["input_tokens"] + capture["output_tokens"]
     for index, root in enumerate(roots):
         children = {p["name"]: p for p in payloads if p["parent_id"] == root["span_id"]}
         assert set(children) == {"user speech", "nova sonic response", "agent speech"}
