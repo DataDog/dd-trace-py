@@ -1,12 +1,19 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.profiling import _product
+
 
 # Native profiling extensions may be absent on some Python versions (e.g. 3.15
 # until setup.py gates are lifted). Mirror the is_available pattern used by
 # ddtrace.internal.datadog.profiling.{ddup,stack}.
 is_available: bool = False
 failure_msg: str = ""
+
+
+def get_remote_config() -> Optional[dict[str, dict[str, Any]]]:
+    """Return the DEBUG remote configs the profiler holds, keyed by config id, or ``None`` if there are none."""
+    return dict(_product.debug_configs) or None
 
 
 class _UnavailableProfiler:
