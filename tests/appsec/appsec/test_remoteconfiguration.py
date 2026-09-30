@@ -18,6 +18,7 @@ from ddtrace.internal import core
 from ddtrace.internal.appsec.product import _disable_asm
 from ddtrace.internal.appsec.product import _enable_asm
 from ddtrace.internal.native import RemoteConfigProduct
+from ddtrace.internal.products import ProductManager
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -505,3 +506,65 @@ def test_disable_asm_reports_telemetry():
         _disable_asm()
 
     product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, False)
+
+
+def _start_appsec_product():
+    from ddtrace.internal.appsec import product as appsec_product
+
+    # A disabled stub satisfies the remote-configuration requirement so AppSec is not dropped from the ordering.
+    remote_configuration = mock.Mock(requires=[], enabled=mock.Mock(return_value=False))
+
+    manager = ProductManager()
+    manager.__products__ = {"remote-configuration": remote_configuration, "appsec": appsec_product}
+    with mock.patch("ddtrace.internal.products.telemetry_writer") as telemetry_writer:
+        manager.start_products()
+    return [c.args for c in telemetry_writer.product_activated.call_args_list]
+
+
+def test_product_start_reports_appsec_inactive_when_only_rc_eligible():
+    """Regression test for APPSEC-70508: one-click eligibility must not report AppSec as enabled."""
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", False),
+        mock.patch.object(asm_config, "_asm_can_be_enabled", True),
+        mock.patch.object(asm_config, "_asm_rc_enabled", True),
+        mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
+        mock.patch("ddtrace.appsec._remoteconfiguration.enable_appsec_rc") as enable_appsec_rc,
+        mock.patch("ddtrace.appsec._listeners.load_appsec") as load_appsec,
+    ):
+        calls = _start_appsec_product()
+
+    enable_appsec_rc.assert_called_once()
+    load_appsec.assert_not_called()
+    assert calls == [(TELEMETRY_APM_PRODUCT.APPSEC, False)]
+
+
+def test_product_start_reports_appsec_active_when_enabled():
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", True),
+        mock.patch.object(asm_config, "_asm_can_be_enabled", False),
+        mock.patch.object(asm_config, "_asm_rc_enabled", False),
+        mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
+        mock.patch("ddtrace.appsec._listeners.load_appsec") as load_appsec,
+    ):
+        calls = _start_appsec_product()
+
+    load_appsec.assert_called_once_with(reconfigure_tracer=False)
+    assert calls == [(TELEMETRY_APM_PRODUCT.APPSEC, True)]
+
+
+def test_product_start_reports_appsec_inactive_when_load_aborts():
+    """A libddwaf load failure during start() must not be overwritten by a later enabled report."""
+
+    def abort_load(**kwargs):
+        asm_config._asm_enabled = False
+
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", True),
+        mock.patch.object(asm_config, "_asm_can_be_enabled", False),
+        mock.patch.object(asm_config, "_asm_rc_enabled", False),
+        mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
+        mock.patch("ddtrace.appsec._listeners.load_appsec", side_effect=abort_load),
+    ):
+        calls = _start_appsec_product()
+
+    assert calls == [(TELEMETRY_APM_PRODUCT.APPSEC, False)]

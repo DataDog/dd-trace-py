@@ -320,3 +320,23 @@ def test_product_manager_is_enabled():
     disabled_product = DisabledProduct()
     manager = ProductManagerTest({"disabled": disabled_product})
     assert not manager.is_enabled("disabled")
+
+
+def test_product_manager_reports_activated_state():
+    class Inactive(BaseProduct):
+        def activated(self) -> bool:
+            return False
+
+    class Active(BaseProduct):
+        def activated(self) -> bool:
+            return self.started
+
+    manager = ProductManagerTest({"plain": BaseProduct(), "inactive": Inactive(), "active": Active()})
+    with patch("ddtrace.internal.products.telemetry_writer") as telemetry_writer:
+        manager.start_products()
+
+    assert sorted(c.args for c in telemetry_writer.product_activated.call_args_list) == [
+        ("active", True),
+        ("inactive", False),
+        ("plain", True),
+    ]

@@ -175,7 +175,10 @@ class ProductManager:
                     continue
                 product.start()
                 log.debug("Started product '%s'", name)
-                telemetry_writer.product_activated(name.replace("-", "_"), True)
+                # enabled() only says the lifecycle must run; a product can start without being active
+                # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
+                activated = getattr(product, "activated", None)
+                telemetry_writer.product_activated(name.replace("-", "_"), activated() if activated else True)
                 started.append((name, product))
             except Exception:
                 log.exception("Failed to start product '%s'", name)
