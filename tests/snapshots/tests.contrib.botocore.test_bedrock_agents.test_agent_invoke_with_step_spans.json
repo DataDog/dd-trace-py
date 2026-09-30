@@ -45,6 +45,9 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
+       "metrics": {
+         "_dd.llmobs.enabled": 1.0
+       },
        "duration": 364999936,
        "start": 1748626088886678016
      },
@@ -60,6 +63,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 364999936,
           "start": 1748626088886678016
@@ -77,6 +83,9 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
+       "metrics": {
+         "_dd.llmobs.enabled": 1.0
+       },
        "duration": 6617870080,
        "start": 1748626089287908096
      },
@@ -92,6 +101,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 6252000000,
           "start": 1748626089288150016
@@ -109,6 +121,9 @@
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
           },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
+          },
           "duration": 999936,
           "start": 1748626095542091008
         },
@@ -124,6 +139,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 362000128,
           "start": 1748626095543778048
@@ -141,6 +159,9 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
+       "metrics": {
+         "_dd.llmobs.enabled": 1.0
+       },
        "duration": 2543670016,
        "start": 1748626095908092928
      },
@@ -156,6 +177,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 2523000064,
           "start": 1748626095908442880
@@ -173,6 +197,9 @@
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
           },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
+          },
           "duration": 999936,
           "start": 1748626098432940032
         },
@@ -188,6 +215,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 16999936,
           "start": 1748626098434763008
@@ -205,6 +235,9 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
+       "metrics": {
+         "_dd.llmobs.enabled": 1.0
+       },
        "duration": 3233084928,
        "start": 1748626098453121024
      },
@@ -220,6 +253,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 3216000000,
           "start": 1748626098453502976
@@ -237,6 +273,9 @@
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
           },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
+          },
           "duration": 999936,
           "start": 1748626101670398976
         },
@@ -252,6 +291,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 14000128,
           "start": 1748626101672205824
@@ -269,6 +311,9 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
+       "metrics": {
+         "_dd.llmobs.enabled": 1.0
+       },
        "duration": 8901772032,
        "start": 1748626101689204992
      },
@@ -284,6 +329,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 8900000000,
           "start": 1748626101689591040
@@ -301,6 +349,9 @@
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
           },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
+          },
           "duration": 999936,
           "start": 1748626110589977088
         },
@@ -317,6 +368,9 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
+       "metrics": {
+         "_dd.llmobs.enabled": 1.0
+       },
        "duration": 229999872,
        "start": 1748626110590828800
      },
@@ -332,6 +386,9 @@
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
             "_dd.svc_src": "botocore"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 1.0
           },
           "duration": 229999872,
           "start": 1748626110590828800

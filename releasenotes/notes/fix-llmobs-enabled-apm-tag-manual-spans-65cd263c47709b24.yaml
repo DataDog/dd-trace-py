@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where APM spans for LLM Observability spans created manually with
+    the SDK were not marked as having LLM Observability enabled, unlike spans from automatic integrations.

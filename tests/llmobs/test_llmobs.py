@@ -1275,6 +1275,43 @@ class TestAPMShadowTags:
         assert span.get_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY) == "true"
 
 
+class TestAPMShadowEnabledOnSpanFinish:
+    """Spans created through the SDK never reach _apply_shadow_metrics, so LLMObs sets
+    _dd.llmobs.enabled itself when it finishes them.
+    """
+
+    @pytest.mark.parametrize("span_kind", ["llm", "embedding", "workflow", "task", "agent", "tool", "retrieval"])
+    def test_enabled_set_on_sdk_spans(self, llmobs, span_kind):
+        with getattr(llmobs, span_kind)() as span:
+            pass
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    def test_enabled_set_on_llm_type_span_without_llmobs_kind(self, llmobs, tracer):
+        # No LLMObs event is built for this span, but LLMObs still processed it.
+        with tracer.trace("responses_call", span_type=SpanTypes.LLM) as span:
+            pass
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    def test_enabled_set_when_span_dropped_by_user_processor(self, llmobs):
+        llmobs.register_processor(lambda _: None)
+        try:
+            with llmobs.llm() as span:
+                pass
+        finally:
+            llmobs.register_processor(None)
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    def test_existing_value_not_overwritten(self, llmobs):
+        with llmobs.llm() as span:
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 0)
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 0
+
+    def test_not_set_on_non_llm_spans(self, llmobs, tracer):
+        with tracer.trace("regular_span") as span:
+            pass
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) is None
+
+
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
     """Test that llmobs_trace_id is NOT written when there are no LLMObs spans."""
     with llmobs._instance.tracer.trace("regular_span") as span:
