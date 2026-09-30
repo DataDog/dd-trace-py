@@ -95,6 +95,7 @@ class JobSpec:
     skip_pip_cache: bool = False  # ignored
     no_proxy: bool = False
     suite: t.Optional[str] = None
+    resource_group: t.Optional[str] = None
 
     environment_hashes: t.Optional[tuple[str, ...]] = None
 
@@ -110,7 +111,12 @@ class JobSpec:
         lines.append(f"  extends: {base}")
 
         if self.suite == "llmobs::llmobs":
-            lines[-1] = f"  extends: [{base}, .llmobs_tia]"
+            lines[-1] = f"  extends: [{base}]"
+            # TIA v2 settings: disable ITR, use resource_group for serial execution
+            self.env = self.env or {}
+            self.env.setdefault("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "false")
+            self.env.setdefault("DD_CIVISIBILITY_ITR_ENABLED", "0")
+            self.resource_group = "tia-$CI_COMMIT_REF_SLUG-$CI_JOB_NAME_SLUG"
 
         # Set stage
         lines.append(f"  stage: {self.stage}")
@@ -165,11 +171,6 @@ class JobSpec:
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
         env["TEST_SUITE"] = self.suite or self.name
-        if self.suite == "llmobs::llmobs":
-            diagnostics = os.environ.get("DD_LLMOBS_TIA_DIAGNOSTICS", "off")
-            if diagnostics not in ("off", "selection", "full"):
-                raise ValueError("DD_LLMOBS_TIA_DIAGNOSTICS must be off, selection, or full")
-            env["DD_LLMOBS_TIA_DIAGNOSTICS"] = f'"{diagnostics}"'
         if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
             env["UV_PRERELEASE"] = "allow"
 
@@ -198,6 +199,9 @@ class JobSpec:
 
         if self.allow_failure:
             lines.append("  allow_failure: true")
+
+        if self.resource_group is not None:
+            lines.append(f"  resource_group: {self.resource_group}")
 
         return "\n".join(lines)
 

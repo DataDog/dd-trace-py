@@ -68,9 +68,10 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
 
 def test_testmon_is_enabled_for_llmobs(gen_gitlab_config_mod):
     config = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
-    assert "extends: [.test_base, .llmobs_tia]" in config
+    assert "DD_CIVISIBILITY_ITR_ENABLED: 0" in config
+    assert "resource_group: tia-" in config
     other = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer"))
-    assert ".llmobs_tia" not in other
+    assert "resource_group: tia-" not in other
 
 
 def test_testmon_preserves_snapshot_base(gen_gitlab_config_mod):
@@ -78,20 +79,7 @@ def test_testmon_preserves_snapshot_base(gen_gitlab_config_mod):
         config = str(
             gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs", snapshot=True)
         )
-    assert "extends: [.test_base_snapshot, .llmobs_tia]" in config
-
-
-@pytest.mark.parametrize("diagnostics", ["off", "selection", "full"])
-def test_testmon_diagnostics_reach_child_jobs(gen_gitlab_config_mod, monkeypatch, diagnostics):
-    monkeypatch.setenv("DD_LLMOBS_TIA_DIAGNOSTICS", diagnostics)
-    config = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
-    assert f'DD_LLMOBS_TIA_DIAGNOSTICS: "{diagnostics}"' in config
-
-
-def test_testmon_diagnostics_reject_invalid_values(gen_gitlab_config_mod, monkeypatch):
-    monkeypatch.setenv("DD_LLMOBS_TIA_DIAGNOSTICS", "unknown")
-    with pytest.raises(ValueError, match="DD_LLMOBS_TIA_DIAGNOSTICS"):
-        str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+    assert "extends: [.test_base_snapshot]" in config
 
 
 @pytest.mark.parametrize(

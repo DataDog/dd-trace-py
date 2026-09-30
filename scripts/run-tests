@@ -23,21 +23,17 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
 import fnmatch
-import gzip
 import hashlib
 import json
 import os
 from pathlib import Path
 import shlex
-import shutil
-import sqlite3
 import subprocess
 import sys
 import tempfile
 import time
 from typing import Iterator
 from typing import TypeVar
-import zlib
 
 from packaging.version import InvalidVersion
 from packaging.version import Version
@@ -150,84 +146,6 @@ def _tia_log(event: str, **fields) -> None:
     print("[TIA] " + json.dumps({"event": event, **fields}, sort_keys=True), flush=True)
 
 
-def _database_sizes(database: Path) -> dict[str, int]:
-    return {path.name: path.stat().st_size for path in database.parent.glob(database.name + "*") if path.is_file()}
-
-
-def _restore_testmon_database(database: Path) -> dict:
-    archive = database.with_suffix(".gz")
-    started = time.monotonic()
-    if not archive.exists():
-        return {"restored": False, "seconds": time.monotonic() - started}
-    # The archive itself is expected; mixing it with a stale WAL is not safe.
-    if any(path != archive for path in database.parent.glob(database.name + "*")):
-        raise ValueError(f"cannot restore {archive} alongside uncompressed database files")
-    compressed_bytes = archive.stat().st_size
-    with tempfile.NamedTemporaryFile(dir=database.parent, delete=False) as target:
-        temporary = Path(target.name)
-        try:
-            with gzip.open(archive, "rb") as source:
-                shutil.copyfileobj(source, target)
-            target.close()
-            temporary.replace(database)
-        except (EOFError, zlib.error) as error:
-            raise OSError(f"invalid testmon archive: {archive}") from error
-        finally:
-            temporary.unlink(missing_ok=True)
-    archive.unlink()
-    return {
-        "restored": True,
-        "seconds": time.monotonic() - started,
-        "compressed_bytes": compressed_bytes,
-        "database_bytes": database.stat().st_size,
-    }
-
-
-def _compress_testmon_database(database: Path) -> dict:
-    started = time.monotonic()
-    if not database.exists():
-        return {"stored": False, "seconds": time.monotonic() - started}
-    before = _database_sizes(database)
-    # All pytest workers have exited. Refuse to discard WAL data if another reader/writer remains.
-    connection = sqlite3.connect(database, timeout=0)
-    try:
-        busy, _, _ = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-        if busy:
-            raise sqlite3.OperationalError(f"testmon WAL checkpoint is busy: {database}")
-        if connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0] != "delete":
-            raise sqlite3.OperationalError(f"cannot make testmon database standalone: {database}")
-    finally:
-        connection.close()
-    checkpoint_seconds = time.monotonic() - started
-    database_bytes = database.stat().st_size
-    archive = database.with_suffix(".gz")
-    gzip_started = time.monotonic()
-    with tempfile.NamedTemporaryFile(dir=database.parent, delete=False) as target:
-        temporary = Path(target.name)
-        try:
-            with (
-                database.open("rb") as source,
-                gzip.GzipFile(filename="", mode="wb", compresslevel=6, fileobj=target, mtime=0) as compressed,
-            ):
-                shutil.copyfileobj(source, compressed)
-            target.close()
-            temporary.replace(archive)
-        finally:
-            temporary.unlink(missing_ok=True)
-    gzip_seconds = time.monotonic() - gzip_started
-    database.unlink()
-    return {
-        "stored": True,
-        "seconds": time.monotonic() - started,
-        "checkpoint_seconds": checkpoint_seconds,
-        "gzip_seconds": gzip_seconds,
-        "gzip_level": 6,
-        "database_bytes_before_checkpoint": sum(before.values()),
-        "database_bytes": database_bytes,
-        "compressed_bytes": archive.stat().st_size,
-    }
-
-
 def _atomic_write(path: Path, contents: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
@@ -255,13 +173,6 @@ class TestRunner:
             and python_version is not None
             and python_version >= _TESTMON_MIN_PYTHON_VERSION
         )
-
-    def _testmon_database(self, environment: TestEnvironment, run: TestRun) -> Path:
-        # Reuse coverage across source edits, but separate dependency and command variants.
-        identity = _short_hash(
-            ((self.root / environment.lockfile).read_text() + repr(run) + TESTMON_REQUIREMENT).encode()
-        )
-        return self.root / ".tia/databases" / environment.hash / identity / ".testmondata"
 
     def _compose_command(self, *args: str) -> list[str]:
         """Return the Compose command for the selected container backend."""
@@ -689,16 +600,14 @@ class TestRunner:
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
         if self._uses_testmon(environment):
-            database = self._testmon_database(environment, run)
-            database.parent.mkdir(parents=True, exist_ok=True)
             run_env.update(
-                TESTMON_DATAFILE=str(database),
                 DD_CIVISIBILITY_ITR_ENABLED="0",
                 _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="false",
                 DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED="0",
                 DD_LLMOBS_TIA_ENVIRONMENT=environment.hash,
+                _DD_CIVISIBILITY_ITR_V2_ENABLED="true",
             )
-            pytest_args = [*pytest_args, "--no-cov", "-p", "scripts.testmon_logging"]
+            pytest_args = [*pytest_args, "--no-cov"]
             if use_testmon:
                 pytest_args.append("--testmon")
         run_env.update(tia_env or {})
@@ -713,13 +622,7 @@ class TestRunner:
         return self._container_command(["bash", "-c", command], self._command_environment(prepared, run_env))
 
     def _run_tia(self, environment, prepared, run, pytest_args, forwarded_env) -> int:
-        diagnostics = os.environ.get("DD_LLMOBS_TIA_DIAGNOSTICS", "off")
-        if diagnostics not in ("off", "selection", "full"):
-            raise ValueError("DD_LLMOBS_TIA_DIAGNOSTICS must be off, selection, or full")
-        database = self._testmon_database(environment, run)
         fields = {"environment": environment.hash, "python": environment.python}
-        _tia_log("database_restore", **fields, **_restore_testmon_database(database))
-        before = _database_sizes(database)
         _tia_log(
             "run_start",
             **fields,
@@ -728,144 +631,23 @@ class TestRunner:
             testmon=TESTMON_REQUIREMENT,
             lock_hash=_short_hash((self.root / environment.lockfile).read_bytes()),
             command=run.command.replace("{cmdargs}", shlex.join(pytest_args)),
-            database=str(database.relative_to(self.root)),
-            database_present_before=database.is_file(),
-            database_accepted="unknown; see testmon's own output",
-            database_bytes_before=sum(before.values()),
-            database_files_before=before,
-            diagnostics=diagnostics,
         )
-        with tempfile.TemporaryDirectory(prefix="llmobs-tia-") as temporary:
-            scratch = Path(temporary)
-            snapshot = scratch / "incoming.db"
-            snapshot_started = time.monotonic()
-            if diagnostics != "off" and database.is_file():
-                # SQLite backup includes committed WAL data without changing the live DB.
-                source = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
-                destination = sqlite3.connect(snapshot)
-                try:
-                    source.backup(destination)
-                finally:
-                    destination.close()
-                    source.close()
-            snapshot_seconds = time.monotonic() - snapshot_started
-            inventory = scratch / "normal.json"
-            command = self._test_command(
-                environment,
-                prepared,
-                run,
-                pytest_args,
-                forwarded_env,
-                tia_env={"DD_LLMOBS_TIA_INVENTORY": str(inventory), "DD_LLMOBS_TIA_PHASE": "normal"},
-            )
-            started = time.monotonic()
-            result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
-            after = _database_sizes(database)
-            _tia_log(
-                "run_finish",
-                **fields,
-                test_process_seconds=time.monotonic() - started,
-                exit_code=result.returncode,
-                database_bytes_after=sum(after.values()),
-                database_growth_bytes=sum(after.values()) - sum(before.values()),
-                database_files_after=after,
-                timing_scope=(
-                    "pytest process; excludes installation, diagnostics, database restore/store, "
-                    "and CI cache/artifact transfers"
-                ),
-            )
-            _tia_log("database_store", **fields, **_compress_testmon_database(database))
-            if diagnostics == "off":
-                return result.returncode
-            # Probes run after the measured process, each on a separate incoming DB copy.
-            started = time.monotonic()
-            reports = {}
-            phases = ["inventory", "selection"]
-            if diagnostics == "full":
-                phases += ["full_baseline", "full_recording"]
-            diagnostic_failed = False
-            for phase in phases:
-                phase_db = scratch / f"{phase}.db"
-                if snapshot.exists():
-                    shutil.copyfile(snapshot, phase_db)
-                output = scratch / f"{phase}.json"
-                args = [*pytest_args, "--no-ddtrace", "--junitxml="]
-                if phase in ("inventory", "selection"):
-                    args += ["--collect-only", "-n", "0"]
-                if phase == "full_recording":
-                    args.append("--testmon-noselect")
-                command = self._test_command(
-                    environment,
-                    prepared,
-                    run,
-                    args,
-                    forwarded_env,
-                    use_testmon=phase in ("selection", "full_recording"),
-                    tia_env={
-                        "TESTMON_DATAFILE": str(phase_db),
-                        "DD_LLMOBS_TIA_INVENTORY": str(output),
-                        "DD_LLMOBS_TIA_PHASE": phase,
-                    },
-                )
-                phase_started = time.monotonic()
-                probe = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
-                seconds = time.monotonic() - phase_started
-                _tia_log("diagnostic_process", **fields, phase=phase, seconds=seconds, exit_code=probe.returncode)
-                report = json.loads(output.read_text()) if output.exists() else None
-                valid_codes = (0, 5) if phase == "selection" else (0, 1)
-                valid = report is not None and probe.returncode in valid_codes and not report["collection_errors"]
-                if not valid:
-                    diagnostic_failed = True
-                    continue
-                reports[phase] = {**report, "seconds": seconds, "exit_code": probe.returncode}
-                if probe.returncode == 1:
-                    diagnostic_failed = True
-            if "inventory" in reports and "selection" in reports:
-                all_tests = set(reports["inventory"]["selected"])
-                selected = set(reports["selection"]["selected"])
-                normal = json.loads(inventory.read_text()) if inventory.exists() else None
-                _tia_log(
-                    "selection_comparison",
-                    **fields,
-                    excluded=sorted(all_tests - selected),
-                    selected=sorted(selected),
-                    unexpected_selected=sorted(selected - all_tests),
-                    normal_run_excluded=(
-                        sorted(all_tests - set(normal["selected"]))
-                        if normal is not None and not normal["collection_errors"]
-                        else None
-                    ),
-                    selection_process_seconds=reports["selection"]["seconds"],
-                    scope="serial collect-only probes against the incoming DB; includes startup and imports",
-                )
-            if "full_baseline" in reports and "full_recording" in reports:
-                baseline = reports["full_baseline"]
-                recording = reports["full_recording"]
-                comparable = (
-                    baseline["exit_code"] == recording["exit_code"] == 0
-                    and baseline["selected"] == recording["selected"]
-                    and baseline["skipped"] == recording["skipped"]
-                    and baseline["outcomes"] == recording["outcomes"]
-                )
-                _tia_log(
-                    "coverage_overhead_estimate",
-                    **fields,
-                    seconds=recording["seconds"] - baseline["seconds"] if comparable else None,
-                    comparable=comparable,
-                    scope="difference between full runs; includes recording/DB overhead and run-to-run noise",
-                )
-                if inventory.exists():
-                    normal = json.loads(inventory.read_text())
-                    missed = set(reports["full_baseline"]["failed"]) - set(normal["selected"])
-                    _tia_log("correctness_audit", **fields, excluded_tests_failing_full_run=sorted(missed))
-            _tia_log(
-                "diagnostics_finish",
-                **fields,
-                seconds=snapshot_seconds + time.monotonic() - started,
-                snapshot_seconds=snapshot_seconds,
-                failed=diagnostic_failed,
-            )
-            return result.returncode or int(diagnostic_failed)
+        command = self._test_command(
+            environment,
+            prepared,
+            run,
+            pytest_args,
+            forwarded_env,
+        )
+        started = time.monotonic()
+        result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
+        _tia_log(
+            "run_finish",
+            **fields,
+            test_process_seconds=time.monotonic() - started,
+            exit_code=result.returncode,
+        )
+        return result.returncode
 
     def _run_environments(
         self,
@@ -936,7 +718,7 @@ class TestRunner:
                 if self._uses_testmon(environment):
                     try:
                         code = self._run_tia(environment, prepared, run, pytest_args, forwarded_env)
-                    except (ValueError, OSError, sqlite3.Error) as error:
+                    except (ValueError, OSError) as error:
                         _tia_log("error", environment=environment.hash, error=str(error))
                         return False
                     if code != 0:
@@ -1135,19 +917,10 @@ Examples:
 LLMObs CI logging:
   [TIA] logs report process/setup time, pytest phases, outcomes, configuration,
   and uncompressed DB bytes. Database presence does not prove testmon reused it.
-  Only .testmondata.gz is persisted. database_restore logs gunzip time;
-  database_store logs SQLite checkpoint time, gzip level 6 time, and archive bytes.
-  SQLite merges committed WAL data before compression and removes its sidecars.
-  Add restore/store seconds to test_process_seconds for local execution cost;
-  cache/artifact transfer time is separate. A missing archive starts cold or uses
-  an existing uncompressed cache during migration.
-  DD_LLMOBS_TIA_DIAGNOSTICS=selection adds collection probes and excluded test IDs.
-  DD_LLMOBS_TIA_DIAGNOSTICS=full also compares full runs with/without recording
-  and checks for failures in excluded tests. The default is off.
-  Probes use copies of the incoming DB, run after the normal test process,
-  and disable Test Visibility reporting. Diagnostics failures fail the job.
-  Coverage overhead is an estimate; CI cache/artifact transfer times and
-  compressed artifact size remain in GitLab's own logs/UI.
+  The testmon database is persisted via the TIA v2 artifact endpoints
+  (PUT /api/unstable/ci/tia/artifacts and POST /api/unstable/ci/tia/artifacts/lookup),
+  gated by _DD_CIVISIBILITY_ITR_V2_ENABLED. The ddtrace pytest plugin handles
+  lookup (before tests) and upload (after tests) transparently.
         """,
     )
 

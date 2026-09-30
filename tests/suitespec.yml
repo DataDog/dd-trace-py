@@ -310,7 +310,6 @@ suites:
       - scripts/check_no_new_aidev_anchors.py
       - scripts/gen_gitlab_config.py
       - scripts/run-tests
-      - scripts/testmon_logging.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
