@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    profiling: fix a potential crash where saved alloc for memory profiling is 
-    not nulled out during teardown
+    Profiling: A crash that could happen at exit when using memory profiling has been fixed.
