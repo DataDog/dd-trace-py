@@ -1628,7 +1628,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6e08705e04251732796d2b2ab4737add69de6a8e"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1655,7 +1655,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities-impl"
 version = "6.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6e08705e04251732796d2b2ab4737add69de6a8e"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1709,7 +1709,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "7.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6e08705e04251732796d2b2ab4737add69de6a8e"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2022,8 +2022,9 @@ dependencies = [
 [[package]]
 name = "libdd-otel-telemetry"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6e08705e04251732796d2b2ab4737add69de6a8e"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
 dependencies = [
+ "http 1.4.2",
  "libdd-shared-runtime 5.0.0",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -2177,7 +2178,7 @@ dependencies = [
 [[package]]
 name = "libdd-shared-runtime"
 version = "5.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6e08705e04251732796d2b2ab4737add69de6a8e"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
 dependencies = [
  "async-trait",
  "futures",
@@ -4716,7 +4717,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
