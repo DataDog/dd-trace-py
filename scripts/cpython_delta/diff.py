@@ -5,8 +5,10 @@ Usage::
 
     python scripts/cpython_delta/diff.py v3.14.0 v3.15.0a7
     python scripts/cpython_delta/diff.py v3.14.0 v3.15.0a7 --backtest
-    python scripts/cpython_delta/diff.py v3.14.0 v3.15.0a7 \
-        --cpython ~/dd/cpython --inventory scripts/cpython_delta/inventory.json
+
+Reuses ``scripts/cpython_delta/inventory.json`` when that file exists.
+``--refresh-inventory`` rebuilds it. ``--inventory PATH`` reads a different
+cache. ``inventory.py`` is scan-only (no CPython checkout).
 
 Outputs (under ``docs/cpython-diffs/`` by default):
 
@@ -585,12 +587,12 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None) -> int:
         "--inventory",
         type=Path,
         default=None,
-        help="inventory.json path (default: build fresh + write package default)",
+        help="inventory.json path (default: scripts/cpython_delta/inventory.json; reuse if present)",
     )
     parser.add_argument(
         "--refresh-inventory",
         action="store_true",
-        help="rebuild inventory.json even if --inventory points at an existing file",
+        help="rebuild inventory.json even if the file already exists",
     )
     parser.add_argument(
         "--out-dir",
@@ -611,7 +613,7 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None) -> int:
 
     inv_path: Path = args.inventory.resolve() if args.inventory is not None else default_inventory_path(repo_root)
     inventory: dict[str, Any]
-    if args.refresh_inventory or not inv_path.exists() or args.inventory is None:
+    if args.refresh_inventory or not inv_path.exists():
         inventory = build_inventory(repo_root)
         write_inventory(inventory, inv_path)
         out_stream.write(f"Wrote inventory {inv_path} ({inventory['symbol_count']} symbols)\n")
