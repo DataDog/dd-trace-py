@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    telemetry: Fixes an issue on macOS where the telemetry writer sent duplicate
+    ``app-heartbeat`` events after a fork, which caused the Agent to reject the payloads.

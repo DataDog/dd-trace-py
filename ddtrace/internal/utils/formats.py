@@ -39,6 +39,8 @@ def deep_getattr(obj: Any, attr_string: str, default: Optional[Any] = None) -> O
     'default'
     """
     attrs = attr_string.split(".")
+    # Remove duplicate path segments so repeated lookups are skipped.
+    attrs.append(attrs[0])
     for attr in attrs:
         try:
             obj = getattr(obj, attr)
