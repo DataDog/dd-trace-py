@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from importlib.machinery import ModuleSpec
 import importlib.util
+import json
 import pathlib
 from typing import Any
 
@@ -13,6 +14,7 @@ import pytest
 _REPO_ROOT: pathlib.Path = pathlib.Path(__file__).resolve().parents[2]
 _VERIFY_SCRIPT: pathlib.Path = _REPO_ROOT / "scripts" / "verify_profiler_compatibility.py"
 _RUN_PROFILING_TESTS: pathlib.Path = _REPO_ROOT / "scripts" / "run-profiling-tests"
+_VERSION_REGISTRY: pathlib.Path = _REPO_ROOT / "scripts" / "profiles" / "profiling_versions.json"
 
 
 @pytest.fixture(scope="module")
@@ -47,3 +49,77 @@ def test_run_profiling_tests_fails_closed_on_missing_venvs() -> None:
     assert "ERROR: required riot venvs/tests missing." in text
     assert "WARNING: No 'profile' riot venvs found" not in text
     assert "missing_venvs=1" in text
+    assert "profiling_versions.json" in text
+    assert "REGISTRY_FILE" in text
+    assert "default_python" in text
+
+
+def test_hex_for_version(verify_mod: Any) -> None:
+    hex_315: str = verify_mod._hex_for_version(3, 15)
+    hex_316: str = verify_mod._hex_for_version(3, 16)
+    assert hex_315 == "0x030f0000"
+    assert hex_316 == "0x03100000"
+
+
+def test_open_checklist_rows_lists_undone(verify_mod: Any) -> None:
+    entry: dict[str, Any] = {
+        "checklist": {
+            "alpha": [{"id": "native_abi", "done": True, "note": "done"}],
+            "beta": [{"id": "asyncio_hook", "done": False, "note": "still open"}],
+            "rc": [],
+            "final": [{"id": "ssi_oci", "done": False, "note": "final only"}],
+        }
+    }
+    rows: list[str] = verify_mod._open_checklist_rows(entry)
+    assert rows == [
+        "[beta] asyncio_hook: still open",
+        "[final] ssi_oci: final only",
+    ]
+
+
+def test_scaffold_stubs_registry_and_baseline(
+    verify_mod: Any,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry_path: pathlib.Path = tmp_path / "profiling_versions.json"
+    baseline_path: pathlib.Path = tmp_path / "compatibility_baselines.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "default_python": "3.15",
+                "versions": {},
+                "checklist_template": {
+                    "alpha": [{"id": "native_abi", "done": False, "note": "do natives"}],
+                    "beta": [],
+                    "rc": [],
+                    "final": [{"id": "ssi_oci", "done": False, "note": "final only"}],
+                },
+            }
+        )
+        + "\n"
+    )
+    baseline_path.write_text("{}\n")
+    monkeypatch.setattr(verify_mod, "_VERSION_REGISTRY_FILE", registry_path)
+    monkeypatch.setattr(verify_mod, "_BASELINE_FILE", baseline_path)
+
+    verify_mod._scaffold_version("3.16")
+
+    registry: dict[str, Any] = json.loads(registry_path.read_text())
+    baselines: dict[str, Any] = json.loads(baseline_path.read_text())
+    entry: dict[str, Any] = registry["versions"]["3.16"]
+    assert entry["hex"] == "0x03100000"
+    assert entry["major"] == 3
+    assert entry["minor"] == 16
+    assert entry["checklist"]["alpha"][0]["id"] == "native_abi"
+    assert entry["checklist"]["alpha"][0]["done"] is False
+    assert "3.16" in baselines
+    assert baselines["3.16"]["profiler_samples"]["passed"] is True
+
+
+def test_version_registry_default_python_present() -> None:
+    data: dict[str, Any] = json.loads(_VERSION_REGISTRY.read_text())
+    default_python: str = data["default_python"]
+    assert default_python == "3.15"
+    assert "3.15" in data["versions"]
+    assert data["versions"]["3.15"]["hex"] == "0x030f0000"
