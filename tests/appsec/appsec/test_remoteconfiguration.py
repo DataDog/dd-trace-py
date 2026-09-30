@@ -15,6 +15,7 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.internal import core
+from ddtrace.internal.appsec import product as appsec_product
 from ddtrace.internal.appsec.product import _disable_asm
 from ddtrace.internal.appsec.product import _enable_asm
 from ddtrace.internal.native import RemoteConfigProduct
@@ -454,28 +455,17 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, rc_poller, appsec_ca
         assert get_waf_addresses("http.request.remote_ip") == "8.8.4.4"
 
 
-def test_rc_activation_does_not_report_appsec_product_when_only_rc_enabled(tracer, rc_poller, appsec_callback):
-    """Regression test: registering RC listeners should not report AppSec as an enabled product in telemetry."""
-    with override_global_config(dict(_asm_enabled=False, _asm_can_be_enabled=True, _remote_config_enabled=True)):
-        with mock.patch("ddtrace.appsec._remoteconfiguration.telemetry_writer") as mock_tw:
+@pytest.mark.parametrize("asm_enabled", [False, True])
+def test_rc_activation_does_not_report_appsec_product(tracer, rc_poller, appsec_callback, asm_enabled):
+    """Registering RC listeners never reports AppSec state; the product manager reports it after start()."""
+    with override_global_config(
+        dict(_asm_enabled=asm_enabled, _asm_can_be_enabled=not asm_enabled, _remote_config_enabled=True)
+    ):
+        with mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated") as product_activated:
             enable_appsec_rc(appsec_callback)
 
-            # RC listeners are registered but AppSec is not enabled
             assert rc_poller._client._product_callbacks[RemoteConfigProduct.AsmFeatures]
-            # Telemetry should NOT report AppSec as activated
-            mock_tw.product_activated.assert_not_called()
-
-    disable_appsec_rc()
-
-
-def test_rc_activation_reports_appsec_product_when_enabled(tracer, rc_poller, appsec_callback):
-    """When AppSec is explicitly enabled, enable_appsec_rc should report the product as activated."""
-    with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
-        tracer.configure(appsec_enabled=True)
-        with mock.patch("ddtrace.appsec._remoteconfiguration.telemetry_writer") as mock_tw:
-            enable_appsec_rc(appsec_callback)
-
-            mock_tw.product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, True)
+            product_activated.assert_not_called()
 
     disable_appsec_rc()
 
@@ -509,16 +499,18 @@ def test_disable_asm_reports_telemetry():
 
 
 def _start_appsec_product():
-    from ddtrace.internal.appsec import product as appsec_product
-
+    """Run the real product manager start pass and return every AppSec telemetry report, from any emitter."""
     # A disabled stub satisfies the remote-configuration requirement so AppSec is not dropped from the ordering.
     remote_configuration = mock.Mock(requires=[], enabled=mock.Mock(return_value=False))
 
     manager = ProductManager()
     manager.__products__ = {"remote-configuration": remote_configuration, "appsec": appsec_product}
-    with mock.patch("ddtrace.internal.products.telemetry_writer") as telemetry_writer:
-        manager.start_products()
-    return [c.args for c in telemetry_writer.product_activated.call_args_list]
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated") as product_activated:
+        try:
+            manager.start_products()
+        finally:
+            disable_appsec_rc()
+    return [c.args for c in product_activated.call_args_list]
 
 
 def test_product_start_reports_appsec_inactive_when_only_rc_eligible():
@@ -528,21 +520,20 @@ def test_product_start_reports_appsec_inactive_when_only_rc_eligible():
         mock.patch.object(asm_config, "_asm_can_be_enabled", True),
         mock.patch.object(asm_config, "_asm_rc_enabled", True),
         mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
-        mock.patch("ddtrace.appsec._remoteconfiguration.enable_appsec_rc") as enable_appsec_rc,
         mock.patch("ddtrace.appsec._listeners.load_appsec") as load_appsec,
     ):
         calls = _start_appsec_product()
 
-    enable_appsec_rc.assert_called_once()
     load_appsec.assert_not_called()
     assert calls == [(TELEMETRY_APM_PRODUCT.APPSEC, False)]
 
 
-def test_product_start_reports_appsec_active_when_enabled():
+@pytest.mark.parametrize("rc_enabled", [False, True])
+def test_product_start_reports_appsec_active_when_enabled(rc_enabled):
     with (
         mock.patch.object(asm_config, "_asm_enabled", True),
         mock.patch.object(asm_config, "_asm_can_be_enabled", False),
-        mock.patch.object(asm_config, "_asm_rc_enabled", False),
+        mock.patch.object(asm_config, "_asm_rc_enabled", rc_enabled),
         mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
         mock.patch("ddtrace.appsec._listeners.load_appsec") as load_appsec,
     ):
@@ -561,10 +552,24 @@ def test_product_start_reports_appsec_inactive_when_load_aborts():
     with (
         mock.patch.object(asm_config, "_asm_enabled", True),
         mock.patch.object(asm_config, "_asm_can_be_enabled", False),
-        mock.patch.object(asm_config, "_asm_rc_enabled", False),
+        mock.patch.object(asm_config, "_asm_rc_enabled", True),
         mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
         mock.patch("ddtrace.appsec._listeners.load_appsec", side_effect=abort_load),
     ):
         calls = _start_appsec_product()
 
     assert calls == [(TELEMETRY_APM_PRODUCT.APPSEC, False)]
+
+
+def test_product_start_does_not_report_appsec_when_start_fails():
+    """If start() raises after RC registration, AppSec must not be left reported as enabled."""
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", True),
+        mock.patch.object(asm_config, "_asm_can_be_enabled", False),
+        mock.patch.object(asm_config, "_asm_rc_enabled", True),
+        mock.patch("ddtrace.appsec._listeners.load_common_appsec_modules"),
+        mock.patch("ddtrace.appsec._listeners.load_appsec", side_effect=RuntimeError("boom")),
+    ):
+        calls = _start_appsec_product()
+
+    assert calls == []

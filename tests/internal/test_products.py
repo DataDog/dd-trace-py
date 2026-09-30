@@ -340,3 +340,22 @@ def test_product_manager_reports_activated_state():
         ("inactive", False),
         ("plain", True),
     ]
+
+
+def test_product_manager_activated_failure_does_not_fail_product():
+    class Broken(BaseProduct):
+        def activated(self) -> bool:
+            raise RuntimeError()
+
+    class Dependent(BaseProduct):
+        requires = ["broken"]
+
+    broken = Broken()
+    dependent = Dependent()
+    manager = ProductManagerTest({"broken": broken, "dependent": dependent})
+    with patch("ddtrace.internal.products.telemetry_writer") as telemetry_writer:
+        manager.start_products()
+
+    assert broken.started and broken.post_started
+    assert dependent.started and dependent.post_started
+    telemetry_writer.product_activated.assert_called_once_with("dependent", True)
