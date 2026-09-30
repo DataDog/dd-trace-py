@@ -213,6 +213,8 @@ variables:
 
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux"
@@ -280,6 +282,8 @@ variables:
       done
 
 "patch manylinux2014 wheel versions":
+  rules:
+    - when: never
   extends: .patch_wheel_versions_base
   needs:
     - job: "build linux"
@@ -295,6 +299,8 @@ variables:
     - job: "package version"
 
 "patch macos wheel versions":
+  rules:
+    - when: never
   extends: .patch_wheel_versions_base
   needs:
     - job: "build macos amd64"
@@ -305,6 +311,8 @@ variables:
 
 # All manylinux2014 wheels
 "upload manylinux2014":
+  rules:
+    - when: never
   extends: .upload_wheels_base
   needs:
     - job: "build linux"
@@ -352,6 +360,8 @@ variables:
 
 
 "test sdist":
+  rules:
+    - when: never
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
   tags: [ "arch:arm64" ]
   stage: package
@@ -428,11 +438,7 @@ download_dependency_wheels:
     - job: "build linux"
       artifacts: true
   rules:
-    # TODO(py-315): pip refuses the local ddtrace wheel on 3.15 while
-    # requires-python is <3.15. Remove this rule when requires-python allows 3.15.
-    - if: '$PYTHON_VERSION == "3.15"'
-      when: never
-    - when: on_success
+    - when: never
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.9.13"
@@ -479,12 +485,7 @@ download_dependency_wheels:
     - job: "build linux"
       artifacts: true
   rules:
-    # Automatically run on releases/RCs
-    - if: !reference [.is_release]
-      when: on_success
-    # Manual trigger for any other pipeline
-    - when: manual
-      allow_failure: true
+    - when: never
   script:
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
@@ -568,6 +569,8 @@ download_dependency_wheels:
     - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
+  rules:
+    - when: never
   extends: .package_base
   needs:
     - "build linux serverless"
