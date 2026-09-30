@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where Python 3.15 prints ``Exception ignored`` on
+    stderr at interpreter shutdown.
