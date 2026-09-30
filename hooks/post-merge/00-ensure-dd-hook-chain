@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#
+# Post-merge: repair local core.hooksPath overrides that skip DD secrets scan.
+#
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec "$SCRIPT_DIR/scripts/ensure-dd-hook-chain.sh" --quiet

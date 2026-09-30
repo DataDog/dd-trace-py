@@ -74,6 +74,8 @@ drop_broken_hooks_path() {
             echo "Removed old core.hooksPath=.git/hooks from $scope_file."
         fi
     done
+
+    "$repo_root/hooks/scripts/ensure-dd-hook-chain.sh"
 }
 
 
