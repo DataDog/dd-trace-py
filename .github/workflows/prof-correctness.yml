@@ -74,8 +74,8 @@ jobs:
       # GitLab publishes per-platform indexes first
       # (install-manylinux2014_x86_64.sh, then install-manylinux2014.sh).
       # Unsuffixed install.sh is only after "upload all" (often 20–78+ min).
-      # Poll the same three as dd-trace-doe so we dispatch when linux amd64
-      # wheels are up. 90m is the fallback if even the earliest index is late.
+      # Poll in that order so we dispatch when linux amd64 wheels are up.
+      # 90m is the fallback if even the earliest index is late.
       - name: Wait for S3 install script
         if: steps.gate.outputs.run == 'true'
         id: s3
@@ -83,7 +83,7 @@ jobs:
           DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
         run: |
           S3_BASE="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}"
-          # Same order as dd-trace-doe images/python/scripts/install_tracer.sh.
+          # Platform indexes land before unsuffixed install.sh.
           CANDIDATES="install-manylinux2014_x86_64.sh install-manylinux2014.sh install.sh"
           POLL_TIMEOUT="${POLL_TIMEOUT:-5400}"
           POLL_INTERVAL="${POLL_INTERVAL:-30}"
