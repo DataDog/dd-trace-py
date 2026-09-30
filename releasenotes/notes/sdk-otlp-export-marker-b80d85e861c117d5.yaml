@@ -1,6 +1,0 @@
----
-other:
-  - |
-    tracing: Trace chunks sent to the Datadog Agent now include the ``_dd.sdk.otlp_export:false`` tag on
-    their root span so Datadog can distinguish native Datadog SDK export from OTLP export. The tag is not
-    added when OTLP trace export is enabled (``OTEL_TRACES_EXPORTER=otlp``).

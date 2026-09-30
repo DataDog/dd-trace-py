@@ -259,12 +259,6 @@ class TraceTagsProcessor(TraceProcessor):
                 span._set_attribute("language", "python")
             if p_tags := process_tags.process_tags:
                 span._set_attribute(PROCESS_TAGS, p_tags)
-            # Mark native (agent msgpack) export so the backend can distinguish it from OTLP export.
-            # With OTLP export enabled the marker is omitted: libdatadog would otherwise turn it into an
-            # OTLP span attribute, and the OTLP resource carries _dd.sdk.otlp_export=true instead.
-            # Known accepted gaps: agentless with an OTLP endpoint targeting intake, and the Lambda
-            # LogWriter, report OTLP in config but export natively, so the marker is omitted; the backend
-            # falls back to classifying those spans as native via _dd.tracer_version/language.
             if not agent_config.trace_otlp_export_enabled:
                 span._set_attribute(_SDK_OTLP_EXPORT_KEY, "false")
             # for 128 bit trace ids
