@@ -6,6 +6,8 @@ from gevent import thread
 import gevent.greenlet
 from gevent.greenlet import Greenlet as _Greenlet
 import gevent.hub
+from gevent.monkey import get_original
+from greenlet import gettrace
 from greenlet import greenlet
 from greenlet import settrace
 
@@ -17,10 +19,16 @@ _gevent_hub_spawn_raw: t.Callable[..., _Greenlet] = gevent.hub.spawn_raw
 _gevent_joinall: t.Callable[..., t.Sequence[_Greenlet]] = gevent.joinall
 _gevent_wait: t.Callable[..., t.Any] = gevent.wait
 _gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
+_get_native_thread_ident: t.Callable[[], int] = get_original("_thread", "get_ident")
+
+TraceCallback = t.Callable[[str, t.Any], object]
 
 # Global package state
 _tracked_greenlets: set[int] = set()
-_original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
+_original_greenlet_tracers: dict[int, t.Optional[TraceCallback]] = {}
+# When another tracer is installed on top of ours, unpatch cannot remove ours from
+# the chain, so the tracer only forwards events while this is False.
+_greenlet_tracer_enabled: bool = False
 _greenlet_parent_map: dict[int, int] = {}
 _parent_greenlet_count: dict[int, int] = {}
 
@@ -83,7 +91,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
     # Greenlets that already exist when profiling is enabled are discovered lazily.
     # We only start tracking them once a post-patch "switch"/"throw" event is observed.
     # A greenlet that exits before switching again may not be tracked.
-    if event in {"switch", "throw"}:
+    if _greenlet_tracer_enabled and event in {"switch", "throw"}:
         # This tracer function runs in the context of the target
         origin, target = t.cast(tuple[_Greenlet, _Greenlet], args)
 
@@ -153,8 +161,8 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         except Exception:  # nosec B110
             pass
 
-    if _original_greenlet_tracer is not None:
-        _original_greenlet_tracer(event, args)
+    if (original_tracer := _original_greenlet_tracers.get(_get_native_thread_ident())) is not None:
+        original_tracer(event, args)
 
 
 def _untrack_greenlet_by_id(greenlet_id: int) -> None:
@@ -271,7 +279,7 @@ def get_current_greenlet_task() -> tuple[t.Optional[int], t.Optional[str], t.Opt
 
 
 def patch() -> None:
-    global _original_greenlet_tracer
+    global _greenlet_tracer_enabled
 
     # Patch the spawn method to track greenlets.
     gevent.Greenlet = gevent.greenlet.Greenlet = Greenlet
@@ -283,11 +291,21 @@ def patch() -> None:
 
     gevent.hub.spawn_raw = wrap_spawn(_gevent_hub_spawn_raw)
 
-    _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
+    # Greenlet trace functions are per native thread, so install ours in every
+    # thread that calls patch, but only once per thread to avoid chaining to itself.
+    # If a tracer installed after ours is on top, ours is still in its chain.
+    thread_ident: int = _get_native_thread_ident()
+    if gettrace() is not greenlet_tracer and thread_ident not in _original_greenlet_tracers:
+        _original_greenlet_tracers[thread_ident] = t.cast(t.Optional[TraceCallback], settrace(greenlet_tracer))
+
+    _greenlet_tracer_enabled = True
 
 
 def unpatch() -> None:
-    # Unpatch the spawn method to stop tracking greenlets.
+    global _greenlet_tracer_enabled
+
+    _greenlet_tracer_enabled = False
+
     gevent.Greenlet = gevent.greenlet.Greenlet = _Greenlet
     gevent.spawn = _Greenlet.spawn
     gevent.spawn_later = _Greenlet.spawn_later
@@ -297,4 +315,11 @@ def unpatch() -> None:
 
     gevent.hub.spawn_raw = _gevent_hub_spawn_raw
 
-    settrace(_original_greenlet_tracer)
+    # NOTE: gettrace only exposes the "top" of the trace chain, so we can
+    # only uninstall our tracer if no other tracer was installed after it.
+    # This is fine because we have _greenlet_tracer_enabled that effectively
+    # makes our tracer a pass-through when it is supposed to have been uninstalled.
+    # In that case, we also leave the entry in the map to prevent a later patch
+    # from installing our tracer again on top of the chain.
+    if gettrace() is greenlet_tracer:
+        settrace(_original_greenlet_tracers.pop(_get_native_thread_ident(), None))

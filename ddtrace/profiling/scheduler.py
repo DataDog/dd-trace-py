@@ -46,9 +46,12 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
-        ddup.upload(self._tracer, self._enable_code_provenance)
-
-        self._last_export = time.time_ns()
+        try:
+            ddup.upload(self._tracer, self._enable_code_provenance)
+        except Exception:
+            LOG.error("Failed to upload profile", exc_info=True)
+        finally:
+            self._last_export = time.time_ns()
 
     def periodic(self) -> None:
         start_time = time.monotonic()

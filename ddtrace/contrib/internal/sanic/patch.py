@@ -280,7 +280,7 @@ async def sanic_http_routing_after(request: Request, route: Route, kwargs: dict,
         pattern = route.pattern
 
     ctx.event.resource = f"{request.method} {pattern}"
-    ctx.set_item("additional_tags", {"sanic.route.name": route.name})
+    ctx.event.additional_tags["sanic.route.name"] = route.name
 
 
 async def sanic_http_lifecycle_response(request: Request, response: BaseHTTPResponse) -> None:
