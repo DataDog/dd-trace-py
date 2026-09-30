@@ -1130,7 +1130,7 @@ def test_generator_for_class_does_not_annotate_self(llmobs, test_spans, decorato
     assert input_value == {"a": 1, "b": 2}
 
 
-def test_agent_decorator_sets_agent_tags_on_agent_span_only(llmobs, test_spans):
+def test_agent_decorator_sets_agent_version_on_subtree(llmobs, test_spans):
     @agent(version="v3")
     def my_agent():
         with llmobs.tool(name="test_tool"):
@@ -1140,7 +1140,7 @@ def test_agent_decorator_sets_agent_tags_on_agent_span_only(llmobs, test_spans):
     spans = {s.name: s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)}
     assert set(spans) == {"my_agent", "test_tool"}
     assert get_llmobs_tags(spans["my_agent"])["agent_version"] == "v3"
-    assert "agent_version" not in get_llmobs_tags(spans["test_tool"])
+    assert get_llmobs_tags(spans["test_tool"])["agent_version"] == "v3"
 
 
 @pytest.mark.parametrize(

@@ -23,6 +23,7 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AGENT_ANNOTATION
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -46,6 +47,7 @@ from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
@@ -463,31 +465,40 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
-def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
-    """Resolve (parent_agent_name, parent_agent_span_id) from the active LLMObs parent.
+def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Resolve (parent_agent_name, parent_agent_span_id, parent_agent_version) from the active LLMObs parent.
 
     active is the result of _llmobs_context_provider.active():
       - a Span whose kind is "agent": the parent IS the agent, so attribute to it.
       - any other Span: it already resolved its own attribution when it activated, so
         inherit its stored PARENT_AGENT_* values (one level of lookup, no walk).
       - a Context (distributed parent): read the propagated _dd.p.* keys off
-        context._meta. The name may be absent if an upstream hop ran an older SDK.
+        context._meta. The name may be absent if an upstream hop ran an older SDK. The
+        version is only present on in-process contexts handed to asyncio tasks and threads.
       - None: no parent, so there is no agent to attribute to.
 
-    An agent span never attributes itself: resolution always looks at the parent.
+    An agent span never attributes itself: resolution always looks at the parent. The version is
+    the agent's at the time of the call, so a version annotated later only reaches spans started
+    after it, and an unversioned nested agent stops an ancestor's version from reaching its subtree.
     """
     if active is None:
-        return None, None
+        return None, None, None
 
     if isinstance(active, Span):
         # Read the meta_struct once: this runs on every span activation (hot path).
         data = _get_llmobs_data_metastruct(active)
         kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
         if kind == "agent":
-            return (data.get(LLMOBS_STRUCT.NAME) or active.name, str(active.span_id))
+            version = active._get_ctx_item(AGENT_ANNOTATION)
+            return (
+                data.get(LLMOBS_STRUCT.NAME) or active.name,
+                str(active.span_id),
+                str(version) if version else None,
+            )
         return (
             data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME),
             data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID),
+            active._get_ctx_item(PARENT_AGENT_VERSION),
         )
 
     # Context parent (distributed). Keys land on context._meta via _dd.p.* propagation.
@@ -495,12 +506,10 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
     return (
         ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY),
         ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY),
+        ctx._meta.get(PARENT_AGENT_VERSION),
     )
 
 
-# Budget for the entire _dd.p.* tagset when stamping agent attribution.
-# `_dd.p.tid=<16-hex>` (27 chars including the comma separator) is added by HTTPPropagator
-# at inject time, after this check runs, so we leave that headroom here.
 _AGENT_ATTRIBUTION_TAGSET_BUDGET = 485
 
 

@@ -152,10 +152,13 @@ PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
-# Agent tracking tag. Set on agent spans only, at span finish.
+# Agent tracking tag. Set at span finish on agent spans and on the spans they run.
 AGENT_VERSION_TAG_KEY = "agent_version"
 # Holds the version an annotation supplied, until the span kind is known at finish.
 AGENT_ANNOTATION = "_ml_obs.agent_annotation"
+# Holds the version of the nearest agent ancestor, resolved at activation. Also carried on the
+# in-process context handed to asyncio tasks and threads. It is never propagated across services.
+PARENT_AGENT_VERSION = "_ml_obs.parent_agent_version"
 # Holds the manifest the annotations declared, for the same reason. Each annotation is validated
 # and shallow-merged into it as it runs.
 AGENT_DECLARATION_ANNOTATION = "_ml_obs.agent_declaration_annotation"
