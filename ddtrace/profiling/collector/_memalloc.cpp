@@ -506,9 +506,8 @@ memalloc_module_free(void* Py_UNUSED(module))
     g_owning_interp = nullptr;
 }
 
-#ifdef MEMALLOC_ASSERT_ON_REENTRY
-/* Test-only helper: directly invoke the module-free cleanup path without
- * waiting for the module object to be deallocated. */
+/* Directly invoke the module-free cleanup path without waiting for the module
+ * object to be deallocated. */
 static PyObject*
 memalloc_test_invoke_module_free(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
@@ -516,30 +515,28 @@ memalloc_test_invoke_module_free(PyObject* Py_UNUSED(module), PyObject* Py_UNUSE
     Py_RETURN_NONE;
 }
 
-/* Test-only helper: return True iff module_def.m_free points to
- * memalloc_module_free */
+/* Return True iff module_def.m_free points to memalloc_module_free.
+ * module_def is defined after the method table, so we snapshot .m_free at
+ * PyInit time into g_module_def_m_free and read it here. */
 static freefunc g_module_def_m_free = nullptr;
 static PyObject*
 memalloc_test_m_free_registered(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     return PyBool_FromLong(g_module_def_m_free == memalloc_module_free);
 }
-#endif // MEMALLOC_ASSERT_ON_REENTRY
 
 static PyMethodDef module_methods_all[] = {
     { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
     { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
     { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-#ifdef MEMALLOC_ASSERT_ON_REENTRY
     { "_test_invoke_module_free",
       (PyCFunction)memalloc_test_invoke_module_free,
       METH_NOARGS,
-      "Test helper: invoke module-free cleanup directly (assert builds only)." },
+      "Test helper: invoke module-free cleanup directly." },
     { "_test_m_free_registered",
       (PyCFunction)memalloc_test_m_free_registered,
       METH_NOARGS,
-      "Test helper: True iff module_def.m_free == memalloc_module_free (assert builds only)." },
-#endif // MEMALLOC_ASSERT_ON_REENTRY
+      "Test helper: True iff module_def.m_free == memalloc_module_free." },
     /* sentinel */
     { NULL, NULL, 0, NULL }
 };
@@ -557,11 +554,9 @@ PyInit__memalloc(void)
     if (m == NULL)
         return NULL;
 
-#ifdef MEMALLOC_ASSERT_ON_REENTRY
     /* Snapshot module_def.m_free so _test_m_free_registered() can verify the
      * registration without needing a forward declaration of module_def. */
     g_module_def_m_free = module_def.m_free;
-#endif
 
     return m;
 }

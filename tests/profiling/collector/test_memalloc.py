@@ -983,12 +983,12 @@ def test_m_free_uninstalls_hooks_deterministic() -> None:
 
     Forcing module collection from Python is unreliable: importlib machinery,
     __spec__, __loader__, and parent-package attributes all hold back-references
-    that survive gc.collect(), so m_free never fires through the GC path in a unit
-    test context
+    that survive gc.collect(), so m_free never fires through the GC path in a
+    unit test context.
 
-    Instead we use _test_invoke_module_free(), a test-only C function compiled
-    in assert builds (DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY=1) that directly
-    calls memalloc_module_free(). This makes the test deterministic
+    Instead we use _test_invoke_module_free() and _test_m_free_registered(),
+    test hooks compiled unconditionally into the extension, to invoke and verify
+    the cleanup path directly.
     """
     import pytest
 
@@ -999,15 +999,9 @@ def test_m_free_uninstalls_hooks_deterministic() -> None:
     # hooks are active before we invoke module_free.
     _memalloc.heap()  # must not raise
 
-    invoke_fn = getattr(_memalloc, "_test_invoke_module_free", None)
-    if invoke_fn is None:
-        # Only compiled in when MEMALLOC_ASSERT_ON_REENTRY is set at build time.
-        # Pre-built release wheels omit it. Just exit with success here.
-        import sys
-
-        sys.exit(0)
-
-    # Verify that m_free is actually registered in module_def
+    # Verify that m_free is actually registered in module_def. Calling
+    # _test_invoke_module_free() directly tests the cleanup logic but not the
+    # registration at line 543 of _memalloc.cpp.
     assert _memalloc._test_m_free_registered(), (
         "module_def.m_free is not set to memalloc_module_free — "
         "the finalizer is not registered and CPython will never call it"
@@ -1015,7 +1009,7 @@ def test_m_free_uninstalls_hooks_deterministic() -> None:
 
     # Directly invoke the module-free cleanup (same logic CPython calls on
     # module deallocation during interpreter shutdown).
-    invoke_fn()
+    _memalloc._test_invoke_module_free()
 
     # Post-condition: memalloc_enabled must be false and hooks must be gone.
     with pytest.raises(RuntimeError, match="not started"):
