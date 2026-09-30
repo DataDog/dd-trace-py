@@ -563,6 +563,7 @@ def test_user_threads_have_native_id() -> None:
 )
 def test_gevent_not_patched_when_profiling_disabled() -> None:
     import gevent
+    import gevent.hub
 
     # Import these modules to ensure that they don't have a side effect enabling
     # gevent support when profiling is disabled.
@@ -588,6 +589,7 @@ def test_gevent_not_patched_when_profiling_disabled() -> None:
 )
 def test_gevent_patched_when_ddtrace_run_is_used() -> None:
     import gevent
+    import gevent.hub
 
     # NOTE: In this test (and the test_gevent_patched* tests below), we do not
     # assert on `gevent.Greenlet.__module__`. That check is brittle across gevent
@@ -607,6 +609,7 @@ def test_gevent_patched_when_ddtrace_run_is_used() -> None:
 @pytest.mark.subprocess(err=None)
 def test_gevent_patched_when_profiling_auto() -> None:
     import gevent
+    import gevent.hub
 
     assert gevent.spawn.__module__ != "ddtrace.profiling._gevent"
     assert gevent.spawn_later.__module__ != "ddtrace.profiling._gevent"
@@ -634,6 +637,7 @@ def test_gevent_patched_when_profiling_auto() -> None:
 )
 def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled() -> None:
     import gevent
+    import gevent.hub
 
     from ddtrace.profiling import profiler
 
