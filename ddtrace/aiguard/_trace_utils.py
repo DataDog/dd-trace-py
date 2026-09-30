@@ -4,10 +4,10 @@ from ddtrace.constants import USER_KEEP
 
 
 if TYPE_CHECKING:
-    from ddtrace._trace.span import Span
+    from ddtrace.internal.sampling import SpanTraceSourceProtocol
 
 
-def _aiguard_manual_keep(span: "Span") -> None:
+def _aiguard_manual_keep(span: "SpanTraceSourceProtocol") -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.constants import TraceSource
     from ddtrace.internal.sampling import SamplingMechanism
