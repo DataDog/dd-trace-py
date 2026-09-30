@@ -510,6 +510,9 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str], Optiona
     )
 
 
+# Budget for the entire _dd.p.* tagset when stamping agent attribution.
+# `_dd.p.tid=<16-hex>` (27 chars including the comma separator) is added by HTTPPropagator
+# at inject time, after this check runs, so we leave that headroom here.
 _AGENT_ATTRIBUTION_TAGSET_BUDGET = 485
 
 

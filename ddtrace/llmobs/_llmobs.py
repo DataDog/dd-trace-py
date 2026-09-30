@@ -3069,9 +3069,9 @@ class LLMObs(Service):
                       ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
                       ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag on
                       the agent span and the spans started under it after this call, up to a nested
-                      agent. The rest is reported as the agent's manifest, on agent spans only. All keys are optional;
-                      unreportable values are dropped, not raised, and an unset value leaves what
-                      an earlier annotation declared in place.
+                      agent. The rest is reported as the agent's manifest, on agent spans only. All
+                      keys are optional; unreportable values are dropped, not raised, and an unset
+                      value leaves what an earlier annotation declared in place.
         """
         error = None
         try:
