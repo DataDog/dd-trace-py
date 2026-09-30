@@ -272,7 +272,7 @@ class TraceMiddleware:
         resource = " ".join([method, scope["path"]])
 
         # in the case of websockets we don't currently schematize the operation names
-        operation_name = self.integration_config.get("request_span_name", "asgi.request")
+        operation_name = getattr(self.integration_config, "request_span_name", "asgi.request")
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 

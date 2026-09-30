@@ -97,6 +97,9 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 "sca" = "ddtrace.internal.sca.product"
 "tracer" = "ddtrace._trace.product"
 
+[project.entry-points.'ddtrace.integrations']
+urllib3 = "ddtrace.contrib.internal.urllib3.patch"
+
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
 Changelog = "https://github.com/DataDog/dd-trace-py/releases"

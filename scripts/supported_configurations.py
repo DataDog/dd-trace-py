@@ -23,6 +23,7 @@ import json
 from pathlib import Path
 import re
 import sys
+from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -38,6 +39,17 @@ IGNORED_ENVIRONMENT_VARIABLES = [
     "_DD_DIRECT_SUBMISSION_ENABLED",
 ]
 INTEGRATIONS_WITHOUT_SERVICE_CONFIG = {"anyio", "trio"}
+# Base/mixin classes for IntegrationEnvConfig subclasses (ddtrace/internal/settings/integration.py,
+# ddtrace/_trace/settings.py) that are never scanned as independent roots: they have no owning
+# integration `name` of their own, and their env vars are only meaningful once
+# IntegrationEnvConfig.__init_subclass__ flattens them onto a real plugin's leaf config class --
+# which _walk_envier_class already covers by walking into these as *bases* of that leaf class.
+# Scanning them again here, standalone, would only emit spurious unprefixed duplicates.
+INTEGRATION_ENV_CONFIG_MIXINS = {
+    "IntegrationEnvConfig",
+    "HttpIntegrationConfigMixin",
+    "DistributedTracingConfigMixin",
+}
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
 # Run: python scripts/supported_configurations.py
@@ -47,7 +59,7 @@ HEADER = """\
 """
 
 
-def generate_module(data: dict) -> str:
+def generate_module(data: dict[str, Any]) -> str:
     configs = data["supportedConfigurations"]
     all_names = sorted(configs.keys())
 
@@ -252,6 +264,53 @@ def _class_prefix(class_node: ast.ClassDef) -> str | None:
     return None
 
 
+def _integration_plugin_prefix(class_node: ast.ClassDef, local_constants: dict[str, str]) -> str | None:
+    """Return the ``__prefix__`` an ``IntegrationEnvConfig`` subclass (see
+    ddtrace/internal/settings/integration.py) resolves to at runtime.
+
+    A migrated plugin's leaf config class (e.g. ``Urllib3Config``) never has a literal
+    ``__prefix__ = "..."`` for ``_class_prefix()`` to find: ``IntegrationEnvConfig.__init_subclass__``
+    derives it dynamically from the plugin module's own ``name = "<integration>"`` constant, the same
+    way ``_integration_env_var_id()`` does (``DD_<NAME>``, uppercased, hyphens to underscores).
+    """
+    if not any(isinstance(base, ast.Name) and base.id == "IntegrationEnvConfig" for base in class_node.bases):
+        return None
+    name = local_constants.get("name")
+    if name is None:
+        return None
+    return f"DD_{name.upper().replace('-', '_')}"
+
+
+def _resolve_base_class(
+    base: ast.AST, imported_names: dict[str, tuple[str, str]]
+) -> tuple[ast.ClassDef, ast.Module] | None:
+    """Resolve a base-class reference to its ``ClassDef`` and containing module, if it's a plain
+    name imported from another module in this repo.
+
+    Category-specific mixins for ``IntegrationEnvConfig`` subclasses (``HttpIntegrationConfigMixin``,
+    ``DistributedTracingConfigMixin``) live in a different file (``ddtrace/_trace/settings.py`) than
+    the plugin's own leaf config class, so their envier fields aren't visible by only walking
+    lexically nested classes.
+    """
+    if not isinstance(base, ast.Name):
+        return None
+    imported = imported_names.get(base.id)
+    if imported is None:
+        return None
+    module_name, class_name = imported
+    path = _module_path(module_name)
+    if path is None:
+        return None
+    try:
+        module = ast.parse(path.read_text(errors="ignore"))
+    except (OSError, SyntaxError):
+        return None
+    for node in module.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            return node, module
+    return None
+
+
 def _find_includes(module: ast.Module) -> dict[str, tuple[str, str]]:
     """Map ``SubClass -> (ParentClass, namespace)`` for ``Parent.include(Sub, namespace="x")`` calls.
 
@@ -290,16 +349,22 @@ def _walk_envier_class(
     out: set[str],
     resolve_env_name_arg: Callable[[ast.AST], str | None],
     private_registry_mismatches: dict[str, str],
+    imported_names: dict[str, tuple[str, str]],
+    _seen: set[int] | None = None,
 ) -> None:
-    """Emit envier env vars from this class's body, recursing into lexically nested classes.
+    """Emit envier env vars from this class's body, recursing into lexically nested classes and into
+    imported base-class mixins (e.g. ``HttpIntegrationConfigMixin``).
 
-    ``chain`` is the fully-resolved prefix chain for this class.
-    ``private_registry_mismatches`` is populated with likely public registry
-    spellings for ``private=True`` variables, mapped to the actual
-    leading-underscore env var name.
+    ``chain`` is the fully-resolved prefix chain for this class. ``private_registry_mismatches`` is
+    populated with likely public registry spellings for ``private=True`` variables, mapped to the
+    actual leading-underscore env var name. ``_seen`` guards against revisiting the same imported
+    base class twice (e.g. two plugins in the same file mixing in the same base).
     """
+    if _seen is None:
+        _seen = set()
+
     for stmt in class_node.body:
-        if isinstance(stmt, ast.Assign) and _is_envier_var_call(stmt.value):
+        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call) and _is_envier_var_call(stmt.value):
             args = stmt.value.args
             env_name = resolve_env_name_arg(args[1]) if len(args) >= 2 else None
             if env_name is not None:
@@ -329,21 +394,56 @@ def _walk_envier_class(
                 out,
                 resolve_env_name_arg,
                 private_registry_mismatches,
+                imported_names,
+                _seen,
             )
 
+    for base in class_node.bases:
+        resolved = _resolve_base_class(base, imported_names)
+        if resolved is None:
+            continue
+        base_class_node, base_module = resolved
+        if id(base_class_node) in _seen:
+            continue
+        _seen.add(id(base_class_node))
 
-def _chain_for(name: str, top_classes: dict[str, ast.ClassDef], includes: dict[str, tuple[str, str]]) -> list[str]:
+        base_local_constants = _collect_string_constants(base_module)
+        base_imported_names = _find_imported_names(base_module)
+
+        def base_resolve_env_name_arg(node: ast.AST) -> str | None:
+            return _resolve_env_name_arg(node, base_local_constants, base_imported_names)
+
+        # IntegrationEnvConfig.__init_subclass__ flattens a mixin's envier fields onto the leaf
+        # class at runtime, so they resolve under *this* class's own chain/prefix, not the mixin's
+        # own (mixins like DistributedTracingConfigMixin have no prefix of their own at all).
+        _walk_envier_class(
+            base_class_node,
+            chain,
+            out,
+            base_resolve_env_name_arg,
+            private_registry_mismatches,
+            base_imported_names,
+            _seen,
+        )
+
+
+def _chain_for(
+    name: str,
+    top_classes: dict[str, ast.ClassDef],
+    includes: dict[str, tuple[str, str]],
+    local_constants: dict[str, str],
+) -> list[str]:
     """Compute a class's full prefix chain, following ``.include`` parents transitively."""
     if name in includes:
         parent, _namespace = includes[name]
-        parent_chain = _chain_for(parent, top_classes, includes) if parent in top_classes else []
+        parent_chain = _chain_for(parent, top_classes, includes, local_constants) if parent in top_classes else []
         # Envier's include(namespace=...) sets the Python attribute namespace; the
         # environment variable prefix still comes from the included class's
         # __prefix__. In current settings these are usually equal, but keeping this
         # distinction avoids generating registry names from attribute paths.
-        prefix = _class_prefix(top_classes[name])
+        prefix = _class_prefix(top_classes[name]) or _integration_plugin_prefix(top_classes[name], local_constants)
         return parent_chain + ([prefix] if prefix else [])
-    prefix = _class_prefix(top_classes[name])
+    prefix = _class_prefix(top_classes[name]) or _integration_plugin_prefix(top_classes[name], local_constants)
     return [prefix] if prefix else []
 
 
@@ -362,16 +462,19 @@ def _scan_envier_module(
         return _resolve_env_name_arg(node, local_constants, imported_names)
 
     for name, node in top_classes.items():
+        if name in INTEGRATION_ENV_CONFIG_MIXINS:
+            continue
         _walk_envier_class(
             node,
-            _chain_for(name, top_classes, includes),
+            _chain_for(name, top_classes, includes, local_constants),
             out,
             resolve_env_name_arg,
             private_registry_mismatches,
+            imported_names,
         )
 
 
-def check_registry(data: dict) -> int:
+def check_registry(data: dict[str, Any]) -> int:
     """Verify every DD_*/_DD_*/OTEL_*/DATADOG_* var referenced in ddtrace/ is in the registry."""
     configs = data["supportedConfigurations"]
     all_known: set[str] = set(configs.keys()) | {

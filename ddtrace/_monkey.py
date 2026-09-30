@@ -1,19 +1,18 @@
 from collections.abc import Callable
 import importlib
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 from typing import Union
 
 from wrapt.importer import when_imported
 
+from ddtrace.internal import integrations
+from ddtrace.internal.integrations import registry as _integration_registry
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.deprecations import deprecate
-from ddtrace.vendor.packaging.specifiers import SpecifierSet
-from ddtrace.vendor.packaging.version import Version
 
 from .internal import telemetry
 from .internal.logger import get_logger
@@ -77,7 +76,6 @@ PATCH_MODULES = {
     "aiopg": True,
     "aiobotocore": False,
     "httplib": False,
-    "urllib3": False,
     "vertexai": True,
     "vertica": True,
     "molten": True,
@@ -186,88 +184,13 @@ _MODULES_FOR_CONTRIB = {
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
 
-
-class PatchException(Exception):
-    """Wraps regular `Exception` class when patching modules"""
-
-    pass
-
-
-class ModuleNotFoundException(PatchException):
-    pass
-
-
-class IncompatibleModuleException(PatchException):
-    def __init__(self, message: str, installed_version: Union[str, None] = None):
-        super().__init__(message)
-        self.installed_version = installed_version
-
-
-def is_version_compatible(version: str, supported_versions_spec: str) -> bool:
-    "Returns whether a given package version is compatible with the integration's supported version range."
-
-    if not supported_versions_spec:
-        return False
-
-    if supported_versions_spec == "*":
-        return True
-
-    try:
-        specifier_set = SpecifierSet(supported_versions_spec)
-        return Version(version) in specifier_set
-    except Exception:
-        return False
-
-
-def _get_installed_module_version(imported_module: ModuleType, hooked_module_name: str) -> Union[str, None]:
-    "Returns the installed version of a module."
-
-    if hasattr(imported_module, "get_versions"):
-        return imported_module.get_versions().get(hooked_module_name)
-    elif hasattr(imported_module, "get_version"):
-        return imported_module.get_version()
-    return None
-
-
-def _get_integration_supported_versions(
-    integration_patch_module: ModuleType, integration_name: str, hooked_module_name: str
-) -> Union[str, None]:
-    "Returns the supported version range for an integration."
-    if not hasattr(integration_patch_module, "_supported_versions"):
-        return None
-
-    supported_versions = integration_patch_module._supported_versions()
-    if hooked_module_name in supported_versions:
-        return supported_versions[hooked_module_name]
-    elif integration_name in supported_versions:
-        return supported_versions[integration_name]
-    return None
-
-
-def check_module_compatibility(
-    integration_patch_module: ModuleType, integration_name: str, hooked_module_name: str
-) -> None:
-    "Determines if a module should be patched based on installed version and the integration's supported version range."
-
-    # stdlib modules will not have an associated version and should always be patched
-    installed_version = _get_installed_module_version(integration_patch_module, hooked_module_name)
-    if not installed_version:
-        return
-
-    supported_version_spec = _get_integration_supported_versions(
-        integration_patch_module, integration_name, hooked_module_name
-    )
-    if not supported_version_spec:
-        # TODO: once all integrations have a supported version spec, we should raise an error here
-        return
-
-    if not is_version_compatible(installed_version, supported_version_spec):
-        message = (
-            f"Skipped patching '{integration_name}' integration, installed version: {installed_version} "
-            f"is not compatible with integration support spec: {supported_version_spec}."
-        )
-        raise IncompatibleModuleException(message, installed_version=installed_version)
-    return
+# Import from the integratuin plugin interface while integrations are still
+# migrated.
+IntegrationException = integrations.IntegrationException
+ModuleNotFoundException = integrations.ModuleNotFoundException
+IncompatibleModuleException = integrations.IncompatibleModuleException
+is_version_compatible = integrations.is_version_compatible
+check_module_compatibility = integrations.check_module_compatibility
 
 
 def _on_import_factory(
@@ -357,6 +280,12 @@ def patch_all(**patch_modules: bool) -> None:
 def _patch_all(**patch_modules: bool) -> None:
     modules = PATCH_MODULES.copy()
 
+    # Merge in migrated plugins discovered via the "ddtrace.integrations"
+    # entry-point group (IntegrationRegistry) that aren't already covered by
+    # PATCH_MODULES.
+    for plugin in _integration_registry:
+        modules.setdefault(plugin.name, plugin.default_enabled)
+
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % _integration_env_var_id(module)
@@ -365,7 +294,10 @@ def _patch_all(**patch_modules: bool) -> None:
 
         # Enable all dependencies for the module
         if modules[module]:
-            for dep in CONTRIB_DEPENDENCIES.get(module, ()):
+            dep_plugin = _integration_registry.get(module)
+            plugin_requires = getattr(dep_plugin, "requires", None) if dep_plugin is not None else None
+            deps: tuple[str, ...] = plugin_requires if plugin_requires else CONTRIB_DEPENDENCIES.get(module, ())
+            for dep in deps:
                 modules[dep] = True
 
     # Arguments take precedence over the environment and the defaults.
@@ -384,6 +316,16 @@ def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) ->
     """
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
+        # Migrated plugins have an enable() method that does the necessary work (instrumentation
+        # via patching etc.) -- routed through _integration_registry.enable_plugin(), never called
+        # directly, so enable() only actually runs if the installed version is compatible with the
+        # plugin's own supported_versions (see ddtrace/internal/integrations.py).
+        plugin = _integration_registry.get(contrib)
+        if plugin is not None:
+            _integration_registry.enable_plugin(plugin)
+            _PATCHED_MODULES.add(contrib)
+            continue
+
         # Check if we have the requested contrib.
         base_path = Path(__file__).parent / "contrib" / "internal" / contrib
         if raise_errors and not (base_path / "patch.py").exists() and not (base_path / "patch.pyc").exists():
