@@ -21,14 +21,19 @@ Usage:
 
     # Compare current Python results against a saved baseline
     python scripts/verify_profiler_compatibility.py --compare
+
+    # Stub registry + baseline entries for a new minor; print open checklist rows
+    python scripts/verify_profiler_compatibility.py --scaffold 3.16
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess  # nosec B404
 import sys
@@ -47,6 +52,11 @@ if TYPE_CHECKING:
 
 _REPO_ROOT: Path = Path(__file__).parent.parent
 _BASELINE_FILE: Path = _REPO_ROOT / "scripts" / "profiles" / "compatibility_baselines.json"
+_VERSION_REGISTRY_FILE: Path = _REPO_ROOT / "scripts" / "profiles" / "profiling_versions.json"
+_MAJOR_MINOR_RE: re.Pattern[str] = re.compile(r"^(\d+)\.(\d+)$")
+_CHECKLIST_PHASES: tuple[str, ...] = ("alpha", "beta", "rc", "final")
+_DEFAULT_ASYNCIO_TASK_NAMES: list[str] = ["compat-task-0", "compat-task-1", "compat-task-2"]
+_DEFAULT_SAMPLE_TYPES: list[str] = ["wall-time", "cpu-time"]
 
 # Names used for asyncio tasks in the profiler sample collection suite.
 # These must be unique strings that won't appear in any other samples.
@@ -339,6 +349,125 @@ def _save_baselines(baselines: dict[str, Any]) -> None:
         f.write("\n")
 
 
+def _load_version_registry() -> dict[str, Any]:
+    if not _VERSION_REGISTRY_FILE.exists():
+        return {"default_python": "3.15", "versions": {}, "checklist_template": {}}
+    f: TextIO
+    with open(_VERSION_REGISTRY_FILE) as f:
+        data: object = json.load(f)
+    if not isinstance(data, dict):
+        raise SystemExit(f"Version registry is not a JSON object: {_VERSION_REGISTRY_FILE}")
+    return data
+
+
+def _save_version_registry(registry: dict[str, Any]) -> None:
+    _VERSION_REGISTRY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    f: TextIO
+    with open(_VERSION_REGISTRY_FILE, "w") as f:
+        json.dump(registry, f, indent=2)
+        f.write("\n")
+
+
+def _parse_major_minor(version: str) -> tuple[int, int]:
+    match: re.Match[str] | None = _MAJOR_MINOR_RE.match(version.strip())
+    if match is None:
+        raise SystemExit(f"Expected MAJOR.MINOR (e.g. 3.16), got {version!r}")
+    major: int = int(match.group(1))
+    minor: int = int(match.group(2))
+    return major, minor
+
+
+def _hex_for_version(major: int, minor: int) -> str:
+    """Return PY_VERSION_HEX-style string for MAJOR.MINOR (e.g. 3.15 → 0x030f0000)."""
+    return f"0x{major:02x}{minor:02x}0000"
+
+
+def _open_checklist_rows(version_entry: dict[str, Any]) -> list[str]:
+    rows: list[str] = []
+    checklist: object = version_entry.get("checklist", {})
+    if not isinstance(checklist, dict):
+        return rows
+    for phase in _CHECKLIST_PHASES:
+        items: object = checklist.get(phase, [])
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if item.get("done"):
+                continue
+            item_id: str = str(item.get("id", "?"))
+            note: str = str(item.get("note", ""))
+            rows.append(f"[{phase}] {item_id}: {note}".rstrip(": "))
+    return rows
+
+
+def _scaffold_version(version: str) -> None:
+    """Stub registry + baseline entries for MAJOR.MINOR and print open checklist rows."""
+    major_minor: tuple[int, int] = _parse_major_minor(version)
+    major: int = major_minor[0]
+    minor: int = major_minor[1]
+    key: str = f"{major}.{minor}"
+    registry: dict[str, Any] = _load_version_registry()
+    versions: dict[str, Any] = registry.setdefault("versions", {})
+    if not isinstance(versions, dict):
+        raise SystemExit("Version registry 'versions' must be an object")
+
+    created: bool = key not in versions
+    if created:
+        template: object = registry.get("checklist_template", {})
+        checklist: dict[str, Any]
+        if isinstance(template, dict) and template:
+            checklist = copy.deepcopy(template)
+        else:
+            checklist = {phase: [] for phase in _CHECKLIST_PHASES}
+        versions[key] = {
+            "hex": _hex_for_version(major, minor),
+            "major": major,
+            "minor": minor,
+            "asyncio_hook": "unknown",
+            "uwsgi_supported": False,
+            "min_wall_time_samples": _MIN_WALL_TIME_SAMPLES,
+            "expected_sample_types": list(_DEFAULT_SAMPLE_TYPES),
+            "image_tags": [f"python/{key}"],
+            "layout_contracts": [],
+            "checklist": checklist,
+        }
+        _save_version_registry(registry)
+        print(f"Stubbed version registry entry for Python {key} → {_VERSION_REGISTRY_FILE}")
+    else:
+        print(f"Version registry already has Python {key}; leaving entry unchanged.")
+
+    baselines: dict[str, Any] = _load_baselines()
+    if key not in baselines:
+        version_meta: dict[str, Any] = versions[key]
+        min_samples: int = int(version_meta.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES))
+        baselines[key] = {
+            "asyncio_guards": {"passed": True},
+            "profiler_samples": {
+                "passed": True,
+                "min_wall_time_samples": min_samples,
+                "asyncio_task_names_seen": list(_DEFAULT_ASYNCIO_TASK_NAMES),
+            },
+        }
+        _save_baselines(baselines)
+        print(f"Stubbed compatibility baseline for Python {key} → {_BASELINE_FILE}")
+    else:
+        print(f"Compatibility baseline already has Python {key}; leaving entry unchanged.")
+
+    open_rows: list[str] = _open_checklist_rows(versions[key])
+    print()
+    if open_rows:
+        print(f"Open checklist rows for Python {key}:")
+        for row in open_rows:
+            print(f"  - {row}")
+    else:
+        print(f"No open checklist rows for Python {key}.")
+    print()
+    print("Next: follow .claude/skills/migrate-profiling-new-cpython/SKILL.md")
+    print("Detail: docs/contributing-profiling-new-cpython.rst")
+
+
 def _baseline_key(python_exe: str) -> str:
     """Return MAJOR.MINOR for the given Python executable (e.g. '3.15')."""
     out: str = subprocess.check_output(  # nosec B603
@@ -346,6 +475,17 @@ def _baseline_key(python_exe: str) -> str:
         text=True,
     ).strip()
     return out
+
+
+def _min_wall_samples_for_key(baseline_key: str) -> int:
+    """Prefer per-version registry min_wall_time_samples when present."""
+    registry: dict[str, Any] = _load_version_registry()
+    versions: object = registry.get("versions", {})
+    if isinstance(versions, dict):
+        entry: object = versions.get(baseline_key)
+        if isinstance(entry, dict) and "min_wall_time_samples" in entry:
+            return int(entry["min_wall_time_samples"])
+    return _MIN_WALL_TIME_SAMPLES
 
 
 def _format_result(name: str, result: dict[str, Any], width: int = 22) -> str:
@@ -427,6 +567,13 @@ def main() -> None:
         action="store_true",
         help="Compare results against the saved baseline and fail if they regress.",
     )
+    parser.add_argument(
+        "--scaffold",
+        metavar="MAJOR.MINOR",
+        help=(
+            "Stub profiling_versions.json + compatibility_baselines.json for a new minor and print open checklist rows."
+        ),
+    )
     # Internal flag — not for direct use
     parser.add_argument("--subprocess", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--subprocess-quick", action="store_true", help=argparse.SUPPRESS)
@@ -436,6 +583,12 @@ def main() -> None:
     # --- Subprocess mode ---
     if args.subprocess:
         _run_subprocess(quick=args.subprocess_quick)
+        return
+
+    if args.scaffold:
+        if args.python or args.quick or args.baseline or args.compare:
+            raise SystemExit("--scaffold cannot be combined with --python/--quick/--baseline/--compare")
+        _scaffold_version(args.scaffold)
         return
 
     # --- Orchestrator mode ---
@@ -505,7 +658,7 @@ def main() -> None:
                 "asyncio_guards": results.get("asyncio_guards", {}),
                 "profiler_samples": {
                     "passed": results.get("profiler_samples", {}).get("passed", False),
-                    "min_wall_time_samples": _MIN_WALL_TIME_SAMPLES,
+                    "min_wall_time_samples": _min_wall_samples_for_key(baseline_key),
                     "asyncio_task_names_seen": stable_names or _ASYNCIO_TASK_NAMES,
                 },
             }
