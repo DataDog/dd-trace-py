@@ -7,8 +7,10 @@ Usage::
     python scripts/cpython_delta/diff.py v3.14.0 v3.15.0a7 --backtest
 
 Reuses ``scripts/cpython_delta/inventory.json`` when that file exists.
-``--refresh-inventory`` rebuilds it. ``--inventory PATH`` reads a different
-cache. ``inventory.py`` is scan-only (no CPython checkout).
+``--refresh-inventory`` rebuilds it. ``--inventory PATH`` selects a cache
+file and does not rescan if that file exists. ``inventory.py`` is scan-only
+(no CPython checkout). ``--backtest`` scores only the fixed
+``v3.14.0`` → ``v3.15.0a7`` list; other tag pairs are not scored.
 
 Outputs (under ``docs/cpython-diffs/`` by default):
 
@@ -62,6 +64,9 @@ _SYMBOL_TOKEN_RE: re.Pattern[str] = re.compile(
 )
 
 # Ground-truth rows for the 3.14 → 3.15a7 backtest (analysis + #19269/#19272).
+# This list is that pair only. Do not score it against other tags.
+BACKTEST_OLD: str = "v3.14.0"
+BACKTEST_NEW: str = "v3.15.0a7"
 BACKTEST_EXPECTED: tuple[dict[str, str], ...] = (
     {
         "id": "frame_state_renumber",
@@ -95,7 +100,7 @@ BACKTEST_EXPECTED: tuple[dict[str, str], ...] = (
     },
     {
         "id": "remote_debugging",
-        "match": "_remote_debugging|AsyncioDebug|task_node",
+        "match": "_remote_debugging",
         "source": "tasks.h cites Modules/_remote_debugging",
     },
     {
@@ -519,28 +524,45 @@ def render_worklist_md(doc: dict[str, Any], recall: dict[str, Any] | None = None
     return "\n".join(lines)
 
 
+def backtest_tag_error(old: str, new: str) -> str | None:
+    """``--backtest`` is the fixed 3.14.0→3.15.0a7 list. Other pairs are not scored."""
+    if old == BACKTEST_OLD and new == BACKTEST_NEW:
+        return None
+    return f"--backtest scores only the fixed {BACKTEST_OLD}→{BACKTEST_NEW} list; not scoring {old}→{new}."
+
+
 def run_backtest_recall(work_doc: dict[str, Any]) -> dict[str, Any]:
-    blob_parts: list[str] = []
+    """Score expected rows against work-item symbols only.
+
+    ``stable_inventory`` and other JSON blobs do not count. ``remote_debugging``
+    hits only when a work-item symbol or ``cpython_paths`` entry contains
+    ``_remote_debugging`` (``Modules/_remote_debugging``). ``AsyncioDebug`` does not.
+    """
+    old: str = str(work_doc.get("old", ""))
+    new: str = str(work_doc.get("new", ""))
+    refusal: str | None = backtest_tag_error(old, new)
+    if refusal is not None:
+        raise SystemExit(refusal)
+
     symbols_seen: list[str] = []
+    paths_seen: list[str] = []
     for item in work_doc.get("work_items", []):
         if not isinstance(item, dict):
             continue
         symbols_seen.append(str(item.get("symbol", "")))
-        blob_parts.append(json.dumps(item, sort_keys=True))
-    for row in work_doc.get("stable_inventory", []):
-        blob_parts.append(json.dumps(row, sort_keys=True))
-    blob: str = "\n".join(blob_parts)
-    # Also search path names in hunk summaries.
+        raw_paths: list[Any] = list(item.get("cpython_paths") or [])
+        for path in raw_paths:
+            if isinstance(path, str) and path not in paths_seen:
+                paths_seen.append(path)
     rows_out: list[dict[str, Any]] = []
     matched: int = 0
     for expected in BACKTEST_EXPECTED:
         pattern: str = expected["match"]
-        hits: list[str] = []
-        for sym in symbols_seen:
-            if re.search(pattern, sym):
-                hits.append(sym)
-        if not hits and re.search(pattern, blob):
-            hits.append("(blob match)")
+        hits: list[str] = [sym for sym in symbols_seen if sym and re.search(pattern, sym)]
+        if expected["id"] == "remote_debugging":
+            for path in paths_seen:
+                if "_remote_debugging" in path and path not in hits:
+                    hits.append(path)
         hit: bool = bool(hits)
         if hit:
             matched += 1
@@ -559,6 +581,15 @@ def run_backtest_recall(work_doc: dict[str, Any]) -> dict[str, Any]:
         "recall_pct": (100.0 * matched / total) if total else 0.0,
         "rows": rows_out,
     }
+
+
+def maybe_run_backtest(old: str, new: str, work_doc: dict[str, Any]) -> tuple[str | None, dict[str, Any] | None]:
+    """Return ``(refusal, None)`` for other tag pairs, else ``(None, recall)``."""
+    refusal: str | None = backtest_tag_error(old, new)
+    if refusal is not None:
+        return refusal, None
+    recall: dict[str, Any] = run_backtest_recall(work_doc)
+    return None, recall
 
 
 def worklist_basenames(old: str, new: str) -> tuple[str, str]:
@@ -603,7 +634,7 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None) -> int:
     parser.add_argument(
         "--backtest",
         action="store_true",
-        help="attach recall vs analysis_314_to_315.md + #19269/#19272 expectations",
+        help=("score recall for the fixed v3.14.0→v3.15.0a7 list only; other tag pairs are not scored"),
     )
     args: argparse.Namespace = parser.parse_args(argv)
 
@@ -629,9 +660,17 @@ def main(argv: list[str] | None = None, stdout: TextIO | None = None) -> int:
     work_doc: dict[str, Any] = join_worklist(args.old, args.new, inventory, hunks)
     recall: dict[str, Any] | None = None
     if args.backtest:
-        recall = run_backtest_recall(work_doc)
-        work_doc["backtest_recall"] = recall
-        out_stream.write(f"Backtest recall: {recall['matched']}/{recall['expected']} ({recall['recall_pct']:.0f}%)\n")
+        refusal: str | None
+        scored: dict[str, Any] | None
+        refusal, scored = maybe_run_backtest(args.old, args.new, work_doc)
+        if refusal is not None:
+            out_stream.write(f"{refusal}\n")
+        elif scored is not None:
+            recall = scored
+            work_doc["backtest_recall"] = scored
+            out_stream.write(
+                f"Backtest recall: {scored['matched']}/{scored['expected']} ({scored['recall_pct']:.0f}%)\n"
+            )
 
     out_dir: Path = args.out_dir.resolve() if args.out_dir is not None else repo_root / "docs" / "cpython-diffs"
     out_dir.mkdir(parents=True, exist_ok=True)
