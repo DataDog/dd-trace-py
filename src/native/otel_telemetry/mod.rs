@@ -25,19 +25,19 @@ unsafe extern "C" {
     fn _Py_IsFinalizing() -> c_int;
 }
 
+#[cfg(Py_3_13)]
 fn python_is_finalizing() -> bool {
-    #[cfg(Py_3_13)]
-    {
-        return unsafe { pyo3::ffi::Py_IsFinalizing() != 0 };
-    }
-    #[cfg(all(not(Py_3_13), not(PyPy), not(GraalPy)))]
-    {
-        return unsafe { _Py_IsFinalizing() != 0 };
-    }
-    #[cfg(any(PyPy, GraalPy))]
-    {
-        false
-    }
+    unsafe { pyo3::ffi::Py_IsFinalizing() != 0 }
+}
+
+#[cfg(all(not(Py_3_13), not(PyPy), not(GraalPy)))]
+fn python_is_finalizing() -> bool {
+    unsafe { _Py_IsFinalizing() != 0 }
+}
+
+#[cfg(any(PyPy, GraalPy))]
+fn python_is_finalizing() -> bool {
+    false
 }
 
 fn adapt_python_callback(
@@ -277,38 +277,63 @@ impl OtelMetricsAggregatorPy {
             .0)
     }
 
-    fn record_counter(&self, id: u64, value: f64, attrs: Vec<(String, String)>) -> PyResult<()> {
-        self.try_as_ref()?
-            .record_counter(InstrumentId(id), value, &attrs);
+    fn record_counter(
+        &self,
+        py: Python<'_>,
+        id: u64,
+        value: f64,
+        attrs: Vec<(String, String)>,
+    ) -> PyResult<()> {
+        let aggregator = self.try_as_ref()?;
+        py.detach(|| aggregator.record_counter(InstrumentId(id), value, &attrs));
         Ok(())
     }
 
     fn record_up_down_counter(
         &self,
+        py: Python<'_>,
         id: u64,
         value: f64,
         attrs: Vec<(String, String)>,
     ) -> PyResult<()> {
-        self.try_as_ref()?
-            .record_up_down_counter(InstrumentId(id), value, &attrs);
+        let aggregator = self.try_as_ref()?;
+        py.detach(|| aggregator.record_up_down_counter(InstrumentId(id), value, &attrs));
         Ok(())
     }
 
-    fn record_histogram(&self, id: u64, value: f64, attrs: Vec<(String, String)>) -> PyResult<()> {
-        self.try_as_ref()?
-            .record_histogram(InstrumentId(id), value, &attrs);
+    fn record_histogram(
+        &self,
+        py: Python<'_>,
+        id: u64,
+        value: f64,
+        attrs: Vec<(String, String)>,
+    ) -> PyResult<()> {
+        let aggregator = self.try_as_ref()?;
+        py.detach(|| aggregator.record_histogram(InstrumentId(id), value, &attrs));
         Ok(())
     }
 
-    fn observe_gauge(&self, id: u64, value: f64, attrs: Vec<(String, String)>) -> PyResult<()> {
-        self.try_as_ref()?
-            .observe_gauge(InstrumentId(id), value, &attrs);
+    fn observe_gauge(
+        &self,
+        py: Python<'_>,
+        id: u64,
+        value: f64,
+        attrs: Vec<(String, String)>,
+    ) -> PyResult<()> {
+        let aggregator = self.try_as_ref()?;
+        py.detach(|| aggregator.observe_gauge(InstrumentId(id), value, &attrs));
         Ok(())
     }
 
-    fn observe_counter(&self, id: u64, value: f64, attrs: Vec<(String, String)>) -> PyResult<()> {
-        self.try_as_ref()?
-            .observe_counter(InstrumentId(id), value, &attrs);
+    fn observe_counter(
+        &self,
+        py: Python<'_>,
+        id: u64,
+        value: f64,
+        attrs: Vec<(String, String)>,
+    ) -> PyResult<()> {
+        let aggregator = self.try_as_ref()?;
+        py.detach(|| aggregator.observe_counter(InstrumentId(id), value, &attrs));
         Ok(())
     }
 
