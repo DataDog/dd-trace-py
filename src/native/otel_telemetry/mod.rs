@@ -174,9 +174,7 @@ impl OtelMetricsAggregatorBuilderPy {
         let builder = self
             .try_take_builder()?
             .with_resource(std::mem::take(&mut self.resource));
-        let (aggregator, warnings) = builder
-            .build_with_default_runtime()
-            .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
+        let (aggregator, warnings) = builder.build_with_default_runtime();
         let warnings = warnings.iter().map(|w| w.to_string()).collect();
         Ok((
             OtelMetricsAggregatorPy {
