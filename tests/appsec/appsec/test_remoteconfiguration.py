@@ -505,7 +505,13 @@ def _start_appsec_product():
 
     manager = ProductManager()
     manager.__products__ = {"remote-configuration": remote_configuration, "appsec": appsec_product}
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated") as product_activated:
+    # The shared telemetry_writer fixture replaces the package-level writer, so the manager's import-time binding
+    # can be a different instance; record both so every emitter is observed regardless of test order.
+    product_activated = mock.Mock()
+    with (
+        mock.patch("ddtrace.internal.products.telemetry_writer.product_activated", product_activated),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated", product_activated),
+    ):
         try:
             manager.start_products()
         finally:
