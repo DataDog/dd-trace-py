@@ -65,16 +65,30 @@ elif sys.version_info < (3, 14):
         return code.co_firstlineno
 
 
-else:
+elif sys.version_info < (3, 15):
 
     def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first instruction line on Python 3.14 and later."""
+        """Return the first instruction line on Python 3.14."""
         import dis
 
         for instr in dis.get_instructions(code):
             if instr.line_number is not None:
                 return instr.line_number
         return code.co_firstlineno
+
+
+else:
+
+    def _first_instr_line(code: types.CodeType) -> int:
+        """Return the first body-instruction line on Python 3.15 and later.
+
+        On 3.15, ``co_firstlineno`` / the first ``line_number`` is the RESUME
+        line and is not a valid injection target. ``linenos`` excludes it.
+        """
+        from ddtrace.internal.utils.inspection import linenos
+
+        lines: set[int] = linenos(code)
+        return min(lines)
 
 
 def _get_caller_info() -> tuple[str, int, str]:
