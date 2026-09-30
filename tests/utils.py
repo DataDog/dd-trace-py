@@ -55,6 +55,8 @@ from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests._ddtest_env_helpers import strip_ddtest_leaked_env
+from tests.otel_semantics_snapshot import assert_otel_semantics_snapshot
+from tests.otel_semantics_snapshot import otel_semantics_env
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -1279,7 +1281,13 @@ def snapshot_context(
     async_mode=True,
     variants=None,
     wait_for_num_traces=None,
+    otel_semantics=False,
 ):
+    # With ``otel_semantics`` subprocesses started inside the context export OTLP traces with OTel
+    # semantics enabled. The test agent cannot snapshot OTLP, so on exit the traces are fetched from
+    # its OTLP port and compared with ``tests/snapshots/<token>.json`` here instead (see
+    # tests/otel_semantics_snapshot.py).
+
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
     if variants:
@@ -1344,6 +1352,12 @@ def snapshot_context(
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
+        previous_env = {}
+        if otel_semantics:
+            # Subprocess test apps inherit this environment.
+            for key, value in otel_semantics_env(token).items():
+                previous_env[key] = os.environ.get(key)
+                os.environ[key] = value
         try:
             yield SnapshotTest(
                 token=token,
@@ -1357,6 +1371,15 @@ def snapshot_context(
                 else:
                     del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+            for key, previous in previous_env.items():
+                if previous is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = previous
+
+        if otel_semantics:
+            assert_otel_semantics_snapshot(token, ignores=ignores)
+            return
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
@@ -1398,10 +1421,11 @@ def snapshot_context(
             else:
                 pytest.xfail(result)
     finally:
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
-        conn.getresponse()
-        conn.close()
+        if not otel_semantics:
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+            conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
+            conn.getresponse()
+            conn.close()
 
 
 def snapshot(

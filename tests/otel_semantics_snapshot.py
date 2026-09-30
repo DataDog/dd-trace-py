@@ -1,0 +1,223 @@
+"""Snapshot support for traces emitted with OTel semantics enabled.
+
+DD_TRACE_OTEL_SEMANTICS_ENABLED=true makes the tracer export over OTLP, but the ddapm test agent
+only snapshots Datadog-protocol traces. The test agent does store OTLP payloads on its OTLP HTTP
+port, so ``snapshot_context(otel_semantics=True)`` fetches them from there, normalizes the values
+that change between runs, and compares the result with ``tests/snapshots/<token>.json`` itself.
+The snapshot keeps the OTLP shape (resource, scope, typed attribute values, kind, status), so it
+shows exactly what was exported.
+
+Each test uses its own session token, sent as an OTLP export header, so tests do not share data.
+As with agent-side snapshots, a missing file is generated on the first run and must be reviewed and
+committed; delete the file to regenerate it. Under CI a missing file fails the test.
+"""
+
+import difflib
+import json
+import os
+from pathlib import Path
+import time
+from typing import Any
+from typing import Iterable
+from urllib import parse
+from urllib import request as urlrequest
+
+
+SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
+
+OTLP_PORT = 4318
+TRACES_PATH = "/v1/traces"
+SESSION_TOKEN_HEADER = "X-Datadog-Test-Session-Token"
+
+# Attributes that change between runs or machines. They mirror the agent's default snapshot
+# ignores; tests extend them through the ``ignores`` argument.
+DEFAULT_IGNORED_ATTRIBUTES = frozenset(
+    {
+        "_dd.git.commit.sha",
+        "_dd.git.repository_url",
+        "_dd.p.tid",
+        "_dd.parent_id",
+        "_dd.tags.process",
+        "_dd.tracer_kr",
+        "host.name",
+        "process.pid",
+        "process_id",
+        "runtime-id",
+        "service.instance.id",
+        "system.pid",
+        "telemetry.sdk.version",
+        "tracestate",
+    }
+)
+
+# Fields whose values are random or tied to the tracer version.
+DEFAULT_IGNORED_FIELDS = frozenset({"trace_state", "version"})
+
+
+def otlp_base_url() -> str:
+    url = os.environ.get("DD_TEST_OTLP_URL")
+    if url:
+        return url.rstrip("/")
+    # In CI the agent is reachable by service name; only the port differs from the trace port.
+    agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+    host = parse.urlparse(agent_url).hostname if agent_url else None
+    return f"http://{host or 'localhost'}:{OTLP_PORT}"
+
+
+def otel_semantics_env(token: str) -> dict[str, str]:
+    """Environment that enables OTel semantics and exports the resulting OTLP traces to the test agent."""
+    # The token must match the one the rest of the snapshot flow (and the tracer's own session
+    # header) uses, so it is sent unchanged. Commas separate header entries and cannot be escaped.
+    if "," in token:
+        raise ValueError(f"the snapshot token cannot contain a comma: {token!r}")
+    return {
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": f"{otlp_base_url()}{TRACES_PATH}",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS": f"{SESSION_TOKEN_HEADER}={token}",
+    }
+
+
+def _span_count(requests: Iterable[dict[str, Any]]) -> int:
+    return sum(
+        len(scope_spans.get("spans", []))
+        for request in requests
+        for resource_spans in request.get("resource_spans", [])
+        for scope_spans in resource_spans.get("scope_spans", [])
+    )
+
+
+def fetch_otlp_requests(token: str, timeout: float = 30.0, settle: float = 1.0) -> list[dict[str, Any]]:
+    """Poll the agent until OTLP spans arrive and the span count stops changing.
+
+    The application exports on flush or shutdown, so data can show up shortly after the request
+    that produced it returns.
+    """
+    query = parse.urlencode({"test_session_token": token})
+    url = f"{otlp_base_url()}/test/session/traces?{query}"
+    deadline = time.monotonic() + timeout
+    requests: list[dict[str, Any]] = []
+    last_count = 0
+    stable_since = time.monotonic()
+    while time.monotonic() < deadline:
+        with urlrequest.urlopen(url, timeout=10) as response:
+            requests = json.loads(response.read())
+        count = _span_count(requests)
+        now = time.monotonic()
+        if count != last_count:
+            last_count, stable_since = count, now
+        elif count > 0 and now - stable_since >= settle:
+            break
+        time.sleep(0.25)
+    return requests
+
+
+def _ignored_names(ignores: Iterable[str]) -> frozenset[str]:
+    # Accept the agent-style "meta.key" / "metrics.key" spelling as well as plain attribute keys.
+    names = set()
+    for ignore in ignores:
+        names.add(ignore)
+        for prefix in ("meta.", "metrics."):
+            if ignore.startswith(prefix):
+                names.add(ignore[len(prefix) :])
+    return frozenset(names)
+
+
+def _clean(node: Any, ignored_attributes: frozenset[str], ignored_fields: frozenset[str]) -> Any:
+    if isinstance(node, list):
+        return [_clean(item, ignored_attributes, ignored_fields) for item in node]
+    if not isinstance(node, dict):
+        return node
+    cleaned = {}
+    for key, value in node.items():
+        if key in ignored_fields:
+            continue
+        if key == "attributes" and isinstance(value, list):
+            value = sorted(
+                (attribute for attribute in value if attribute.get("key") not in ignored_attributes),
+                key=lambda attribute: attribute.get("key", ""),
+            )
+        cleaned[key] = _clean(value, ignored_attributes, ignored_fields)
+    return cleaned
+
+
+def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterable[str] = ()) -> dict[str, Any]:
+    """Make OTLP payloads from different runs comparable.
+
+    Ids become ordinal placeholders (parent/child links are preserved), timestamps are validated and
+    replaced, attribute lists are sorted, and ignored attributes and fields are dropped.
+    """
+    ignored = _ignored_names(ignores)
+    ignored_attributes = DEFAULT_IGNORED_ATTRIBUTES | ignored
+    ignored_fields = DEFAULT_IGNORED_FIELDS | ignored
+
+    # Work on a copy so the caller's payload is left untouched.
+    resource_spans = json.loads(json.dumps([rs for request in requests for rs in request.get("resource_spans", [])]))
+    scopes = [ss for rs in resource_spans for ss in rs.get("scope_spans", [])]
+    spans = sorted(
+        (span for scope in scopes for span in scope.get("spans", [])),
+        key=lambda span: (int(span["start_time_unix_nano"]), span["name"]),
+    )
+
+    trace_ids: dict[str, str] = {}
+    span_ids: dict[str, str] = {}
+    for span in spans:
+        trace_ids.setdefault(span["trace_id"], f"trace_{len(trace_ids) + 1}")
+        span_ids.setdefault(span["span_id"], f"span_{len(span_ids) + 1}")
+    for span in spans:
+        parent = span.get("parent_span_id")
+        if parent:
+            span_ids.setdefault(parent, f"span_{len(span_ids) + 1}")
+
+    for span in spans:
+        start = int(span["start_time_unix_nano"])
+        end = int(span["end_time_unix_nano"])
+        assert 0 < start <= end, f"span {span['name']!r} has an invalid time range: {start}..{end}"
+        span["start_time_unix_nano"] = "<start_time_unix_nano>"
+        span["end_time_unix_nano"] = "<end_time_unix_nano>"
+        span["trace_id"] = trace_ids[span["trace_id"]]
+        span["span_id"] = span_ids[span["span_id"]]
+        if span.get("parent_span_id"):
+            span["parent_span_id"] = span_ids[span["parent_span_id"]]
+
+    for scope in scopes:
+        scope["spans"].sort(key=lambda span: int(span["span_id"].split("_")[1]))
+
+    normalized = _clean(resource_spans, ignored_attributes, ignored_fields)
+    normalized.sort(key=lambda rs: json.dumps(rs, sort_keys=True))
+    return {"resource_spans": normalized}
+
+
+def assert_matches_snapshot(normalized: dict[str, Any], snapshot_file: Path) -> None:
+    rendered = json.dumps(normalized, indent=2, sort_keys=True) + "\n"
+    if not snapshot_file.exists():
+        if os.environ.get("CI"):
+            raise AssertionError(
+                f"OTLP snapshot file '{snapshot_file}' not found. Was it checked into source control? "
+                "It is generated automatically when running outside CI."
+            )
+        snapshot_file.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_file.write_text(rendered)
+        return
+
+    expected = snapshot_file.read_text()
+    if json.loads(expected) != normalized:
+        diff = "".join(
+            difflib.unified_diff(
+                expected.splitlines(keepends=True),
+                rendered.splitlines(keepends=True),
+                fromfile=f"expected ({snapshot_file.name})",
+                tofile="received",
+            )
+        )
+        raise AssertionError(f"OTLP snapshot mismatch for '{snapshot_file}':\n{diff}")
+
+
+def assert_otel_semantics_snapshot(
+    token: str, ignores: Iterable[str] = (), timeout: float = 30.0, snapshot_dir: Path = SNAPSHOT_DIR
+) -> None:
+    """Fetch the OTLP traces exported under ``token`` and compare them with their snapshot file."""
+    requests = fetch_otlp_requests(token, timeout=timeout)
+    assert _span_count(requests) > 0, f"no OTLP spans received by the test agent for session '{token}'"
+    assert_matches_snapshot(normalize_otlp_requests(requests, ignores), snapshot_dir / f"{token}.json")
