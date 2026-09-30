@@ -173,7 +173,7 @@ impl OtelMetricsAggregatorBuilderPy {
     fn build(&mut self) -> PyResult<(OtelMetricsAggregatorPy, Vec<String>)> {
         let builder = self
             .try_take_builder()?
-            .with_resource(std::mem::take(&mut self.resource).build());
+            .with_resource(std::mem::take(&mut self.resource));
         let (aggregator, warnings) = builder
             .build_with_default_runtime()
             .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
