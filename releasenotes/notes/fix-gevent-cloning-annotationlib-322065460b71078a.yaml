@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    gevent: Fixes an issue where running an application with ``ddtrace-run``
+    (or single-step instrumentation) could raise a
+    ``PydanticSchemaGenerationError`` at import time for models that use forward
+    references, when ``gevent`` is installed and the application runs on CPython
+    3.14 or later. The ``annotationlib`` module, which now owns the
+    ``ForwardRef`` class on CPython 3.14, is preserved during module cloning so
+    that ``pydantic`` resolves forward references correctly.

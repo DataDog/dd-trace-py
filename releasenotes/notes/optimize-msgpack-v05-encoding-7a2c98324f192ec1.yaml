@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    tracing: Reduces trace encoding time in the default Datadog trace exporter
+    by approximately 18–42% in benchmarks, depending on the trace workload.

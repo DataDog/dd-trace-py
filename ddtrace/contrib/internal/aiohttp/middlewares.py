@@ -6,7 +6,7 @@ from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 CONFIG_KEY = "datadog_trace"
@@ -106,7 +106,7 @@ def finish_request_span(request, response):
             resource = res_info.get("prefix")
 
         # prefix the resource name by the http method
-        resource = "{} {}".format(request.method, resource)
+        resource = f"{request.method} {resource}"
 
     event: WebFrameworkRequestEvent = ctx.event
     event.resource = resource

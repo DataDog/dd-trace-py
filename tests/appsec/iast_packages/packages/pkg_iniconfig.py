@@ -5,6 +5,7 @@ https://pypi.org/project/iniconfig/
 """
 
 import os
+import tempfile
 
 from flask import Blueprint
 from flask import jsonify
@@ -25,20 +26,21 @@ def pkg_iniconfig_view():
     try:
         value = request.args.get("package_param", "test1234")
         ini_content = f"[section]\nkey={value}"
-        ini_path = "example.ini"
 
-        try:
-            with open(ini_path, "w") as f:
-                f.write(ini_content)
+        # Private directory per request: xdist workers share a cwd, so under a fixed name one
+        # request's cleanup removes the file another request is still reading.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ini_path = os.path.join(tmp_dir, "example.ini")
 
-            config = iniconfig.IniConfig(ini_path)
-            parsed_data = {section.name: list(section.items()) for section in config}
-            result_output = f"Parsed INI data: {parsed_data}"
+            try:
+                with open(ini_path, "w") as f:
+                    f.write(ini_content)
 
-            if os.path.exists(ini_path):
-                os.remove(ini_path)
-        except Exception as e:
-            result_output = f"Error: {str(e)}"
+                config = iniconfig.IniConfig(ini_path)
+                parsed_data = {section.name: list(section.items()) for section in config}
+                result_output = f"Parsed INI data: {parsed_data}"
+            except Exception as e:
+                result_output = f"Error: {str(e)}"
 
         response.result1 = result_output
     except Exception as e:

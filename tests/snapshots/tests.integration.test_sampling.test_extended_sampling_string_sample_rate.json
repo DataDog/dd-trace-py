@@ -12,6 +12,7 @@
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
       "_dd.p.tid": "69f39dfc00000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpbxj91lrv,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
       "runtime-id": "b3316b0a15bb4ccf9451ee278119bc84"

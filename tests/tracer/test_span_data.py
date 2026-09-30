@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for the native SpanData class.
 
@@ -49,8 +48,8 @@ UNICODE_STRINGS = [
 UTF8_BYTES = [
     pytest.param(b"test-bytes", id="ascii_bytes"),
     pytest.param(b"hello-world", id="hello_bytes"),
-    pytest.param("test-🔥".encode("utf-8"), id="emoji_bytes"),
-    pytest.param("日本語".encode("utf-8"), id="japanese_bytes"),
+    pytest.param("test-🔥".encode(), id="emoji_bytes"),
+    pytest.param("日本語".encode(), id="japanese_bytes"),
 ]
 
 # Strings with special characters that should be preserved
@@ -396,12 +395,12 @@ def test_string_interning():
 def test_rust_static_string_interning():
     """Verify that Rust-created static strings (e.g., defaults) use PyString::intern.
 
-    When PyBackedString has no Python storage (storage: None), as_py() calls
+    When PyBackedString has no Python object (tag == Static), as_py() calls
     PyString::intern(py, self.deref()) to create an interned Python string.
     This happens for default/fallback values created by Rust code.
     """
     # Create two spans with invalid name values that fall back to default (empty string)
-    # The fallback uses PyBackedString::default() which has storage: None
+    # The fallback uses PyBackedString::default() which is a Static-tagged value (no py_object)
     span1 = SpanData(name=42)  # Invalid, falls back to ""
     span2 = SpanData(name=["invalid"])  # Invalid, falls back to ""
 
@@ -1324,8 +1323,9 @@ def test_span_event_string_attribute_value_cycle_is_collectable():
 
     `_add_event` stores string attribute values as ``PyBackedString`` inside
     ``AttributeAnyValue::SingleValue(String(...))`` (or inside an ``Array(...)``).
-    The ``PyBackedString.storage`` keeps the original Python object alive, so a
-    ``str`` subclass with a ``__dict__`` back-reference to the span closes a
+    The ``PyBackedString`` keeps the original Python object alive (via its
+    `py_object` field), so a ``str`` subclass with a ``__dict__`` back-reference
+    to the span closes a
     cycle that GC traversal must follow through the value side too. Without
     visiting attribute values the cycle survives ``gc.collect()`` even after
     `__traverse__` was added on the key/key-only path.

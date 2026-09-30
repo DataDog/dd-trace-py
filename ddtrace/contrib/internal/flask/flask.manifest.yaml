@@ -1,0 +1,12 @@
+_v: 1
+name: flask
+display_name: Flask
+description: Instruments Flask request handling across inbound HTTP routes, views, lifecycle hooks, and signals, plus template
+  rendering.
+packages:
+- name: flask
+category:
+- http.server
+- template.render
+systems: []
+creation_date: '2016-06-20'

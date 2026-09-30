@@ -19,7 +19,6 @@ import pytest
 )
 def test_thread_subsampling_cap_respected() -> None:
     """With max_threads=1, at most 1 thread is sampled per cycle, even with many threads alive."""
-    import glob
     import json
     import os
     import threading
@@ -27,6 +26,7 @@ def test_thread_subsampling_cap_respected() -> None:
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
     N_THREADS = 10
     max_threads = 1
@@ -59,7 +59,7 @@ def test_thread_subsampling_cap_respected() -> None:
     ddup.upload()
 
     output_filename = pprof_prefix + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, f"No internal metadata files found at {output_filename}.*"
 
     for f in files:
@@ -93,7 +93,6 @@ def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
     With N_THREADS additional threads running, sample_count should be
     significantly greater than sampling_event_count.
     """
-    import glob
     import json
     import os
     import threading
@@ -101,6 +100,7 @@ def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
     N_THREADS = 10
 
@@ -132,7 +132,7 @@ def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
     ddup.upload()
 
     output_filename = pprof_prefix + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, f"No internal metadata files found at {output_filename}.*"
 
     total_events: int = 0

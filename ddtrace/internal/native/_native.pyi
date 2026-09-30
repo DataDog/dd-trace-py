@@ -1,18 +1,25 @@
+import abc
+from collections.abc import Callable
+from collections.abc import Iterable
+from collections.abc import Iterator
+from collections.abc import Mapping
 import contextvars
 from enum import Enum
 import sys
 from typing import Any
-from typing import Iterable
-from typing import Iterator
 from typing import Literal
-from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
+# Mirror of ddtrace._trace.provider.ActiveTrace (a Span or a Context).
+ActiveTrace = Union[Span, Context]
+
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
+_ContextT = TypeVar("_ContextT", bound="Context")
 
 class DDSketch:
     def __init__(self): ...
@@ -69,10 +76,10 @@ class PyConfigurator:
         ...
 
 class StacktraceCollection:
-    Disabled: "StacktraceCollection"
-    WithoutSymbols: "StacktraceCollection"
-    EnabledWithInprocessSymbols: "StacktraceCollection"
-    EnabledWithSymbolsInReceiver: "StacktraceCollection"
+    Disabled: StacktraceCollection
+    WithoutSymbols: StacktraceCollection
+    EnabledWithInprocessSymbols: StacktraceCollection
+    EnabledWithSymbolsInReceiver: StacktraceCollection
 
 class CrashtrackerConfiguration:
     def __init__(
@@ -87,6 +94,7 @@ class CrashtrackerConfiguration:
         endpoint: Optional[str] = None,
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
+        api_key: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -103,9 +111,9 @@ class CrashtrackerMetadata:
     def __init__(self, library_name: str, library_version: str, family: str, tags: dict[str, str]): ...
 
 class CrashtrackerStatus:
-    NotInitialized: "CrashtrackerStatus"
-    Initialized: "CrashtrackerStatus"
-    FailedToInitialize: "CrashtrackerStatus"
+    NotInitialized: CrashtrackerStatus
+    Initialized: CrashtrackerStatus
+    FailedToInitialize: CrashtrackerStatus
 
 def crashtracker_init(
     config: CrashtrackerConfiguration,
@@ -168,12 +176,27 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    def register_context_watcher() -> bool:
+        """Register the Python context watcher if a watcher slot is available."""
+        ...
+    def is_context_watcher_registered() -> bool:
+        """Return whether the Python context watcher is registered."""
+        ...
+
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData]) -> None:
+    def update_otel_thread_context_from_span(span: SpanData, trace_flags: int) -> None:
         """
-        Update the OTel thread context from the active span and its local root span.
+        Update the OTel thread context from the active span.
         :param span: The active span.
-        :param local_root: The root span of the local trace chunk.
+        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
+        """
+        ...
+    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
+        """Update the OTel thread context from an active trace Context.
+
+        Invalid Context identifiers detach the current thread context. The local root span ID is
+        published as zero because a Context does not retain local root span identity.
         """
         ...
     def detach_otel_thread_context() -> None:
@@ -196,6 +219,21 @@ class SharedRuntime:
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
         ...
+    def defer_after_fork_child(self) -> None:
+        """Prevent lazy runtime restart while Python child hooks run."""
+        ...
+    def before_python_fork(self) -> None:
+        """Mark a Python-managed fork so native preparation does not pause workers."""
+        ...
+    def after_python_fork_parent(self) -> None:
+        """Clear the Python-managed fork mark in the parent."""
+        ...
+    def allow_after_fork_child(self) -> None:
+        """Allow lazy runtime restart after Python child hooks finish."""
+        ...
+    def register_at_fork(self) -> None:
+        """Register native fork handlers for this shared runtime."""
+        ...
     def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         """Gracefully shut down the shared runtime.
 
@@ -217,10 +255,339 @@ class SharedRuntime:
         """Returns a string representation of the runtime. Should only be used for debugging."""
         ...
 
+class TelemetryWorker:
+    """Native instrumentation-telemetry worker.
+
+    Wraps a ``Full``-flavor telemetry worker spawned on the shared
+    :class:`SharedRuntime`. The worker runs on the
+    shared runtime (no dedicated Python thread) and is reset on fork by the
+    runtime's fork hooks, preserving root-only app-started/app-closing.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        service: str,
+        env: Optional[str],
+        app_version: Optional[str],
+        language_name: str,
+        language_version: str,
+        tracer_version: str,
+        runtime_id: str,
+        runtime_name: Optional[str],
+        runtime_version: Optional[str],
+        process_tags: Optional[str],
+        hostname: str,
+        os: Optional[str],
+        os_version: Optional[str],
+        architecture: Optional[str],
+        kernel_name: Optional[str],
+        kernel_release: Optional[str],
+        kernel_version: Optional[str],
+        container_id: Optional[str],
+        endpoint_url: str,
+        api_key: Optional[str],
+        session_id: str,
+        parent_session_id: Optional[str],
+        root_session_id: Optional[str],
+        heartbeat_interval_secs: float,
+        extended_heartbeat_interval_secs: float,
+        debug_enabled: bool,
+        emit_app_lifecycle: bool = ...,
+        endpoints_message_limit: int = ...,
+        test_session_token: Optional[str] = ...,
+        install_id: Optional[str] = ...,
+        install_type: Optional[str] = ...,
+        install_time: Optional[str] = ...,
+    ) -> TelemetryWorker:
+        """Build and spawn the worker on ``runtime``.
+
+        :param endpoint_url: BASE url. Agent: e.g. ``"http://host:8126"`` (the
+            ``/telemetry/proxy/api/v2/apmtelemetry`` path is appended). Agentless:
+            the intake base url (the ``/api/v2/apmtelemetry`` path is appended).
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path); when ``None`` the worker
+            POSTs through the agent proxy.
+        :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
+            schedules heartbeats/flushes but emits neither ``app-started`` nor
+            ``app-closing`` — only the root process emits them. Defaults to ``True``.
+        :param endpoints_message_limit: most endpoints serialized into one
+            ``app-endpoints`` payload; the rest stay queued for the following payloads,
+            which are flagged ``is_first: false``. Defaults to unlimited.
+        :raises ValueError: on an invalid endpoint or if the worker cannot be spawned.
+        """
+        ...
+    def start(self) -> None:
+        """Send the app-started lifecycle event. Call ONCE, on the origin process only."""
+        ...
+    def stop(self, send_app_closing: bool) -> None:
+        """Flush and shut the worker down, waiting briefly for it to drain.
+
+        Emits app-closing (origin process only) and flushes remaining batches
+        during teardown.
+
+        WARNING: send_app_closing is currently ineffective and ignored. Since
+        the migration to libdatadog's telemetry worker, stop() always emits
+        app-closing in the origin process during teardown. If stopping
+        without app-closing is needed again, the behavior must be fixed in
+        libdatadog first (TODO).
+        """
+        ...
+    def flush(self) -> None:
+        """Force a data flush. Does not emit any lifecycle event. Non-blocking."""
+        ...
+    def add_configuration(
+        self, name: str, value: Optional[str], origin: ConfigurationOrigin, config_id: Optional[str], seq_id: int
+    ) -> None:
+        """Queue a configuration change.
+
+        :param origin: a :class:`ConfigurationOrigin` (e.g. ``ConfigurationOrigin.env_var``).
+        """
+        ...
+    def add_integration(
+        self,
+        name: str,
+        version: Optional[str],
+        enabled: bool,
+        compatible: Optional[bool],
+        auto_enabled: Optional[bool],
+        error: Optional[str] = None,
+    ) -> None:
+        """Track a patch/integration outcome (app-integrations-change).
+
+        :param error: failure detail when patching failed (None when it succeeded).
+        """
+        ...
+    def add_dependency(
+        self,
+        name: str,
+        version: Optional[str],
+        metadata: Optional[list[tuple[str, str]]],
+    ) -> None:
+        """Report a loaded dependency (app-dependencies-loaded / app-started).
+
+        :param metadata: optional SCA metadata as ``(type, value)`` pairs, where ``value``
+            is an opaque stringified-JSON payload (per the ``dependency_metadata`` telemetry
+            schema), passed through verbatim. Pass ``None`` to omit the field (SCA disabled),
+            or ``[]`` to emit an empty array (SCA enabled, no findings).
+        """
+        ...
+    def add_log(
+        self, identifier: int, message: str, level: LogLevel, stack_trace: Optional[str], tags: Optional[str]
+    ) -> None:
+        """Queue a (pre-formatted, pre-deduped) log.
+
+        :param identifier: the Python-computed dedup key (passed through as-is).
+        :param level: a :class:`LogLevel` (``LogLevel.ERROR``/``WARN``/``DEBUG``).
+        :param tags: a pre-formatted tag string (e.g. ``"k:v,k2:v2"``) or ``None``.
+        """
+        ...
+    def register_metric_context(
+        self,
+        namespace: MetricNamespace,
+        name: str,
+        metric_type: MetricType,
+        tags: list[str],
+        common: bool,
+    ) -> MetricContext:
+        """Register a metric context and return an opaque handle for :meth:`add_point`.
+
+        Call ONCE per unique ``(namespace, name, type, tags)`` — the caller caches the
+        returned handle; registering the same metric twice creates a duplicate context.
+        The handle is only valid for this worker instance.
+
+        :param namespace: a :class:`MetricNamespace`.
+        :param metric_type: a :class:`MetricType`. ``MetricType.rate`` aggregates
+            as a count sum; the backend divides by the flush interval.
+        :param tags: a list of ``"key:value"`` strings.
+        """
+        ...
+    def add_point(self, context: MetricContext, value: float) -> None:
+        """Add ``value`` to a context returned by :meth:`register_metric_context`.
+
+        For contexts registered *with* tags. Use :meth:`add_point_with_tags` for untagged
+        contexts whose tags vary per point.
+        """
+        ...
+    def add_point_with_tags(self, context: MetricContext, value: float, tags: list[str]) -> None:
+        """Add ``value`` to an untagged context with ``tags`` (``"k:v"`` strings) on the point."""
+        ...
+    def add_product_change(self, product: str, enabled: bool, version: Optional[str]) -> None:
+        """Record a product enable/disable change (app-product-change).
+
+        :param product: e.g. ``mlobs``, ``dynamic_instrumentation``,
+            ``profiler``, ``appsec`` (any string is accepted as the product name).
+        """
+        ...
+    def add_endpoint(
+        self,
+        method: str,
+        path: str,
+        operation_name: Optional[str],
+        resource_name: Optional[str],
+        request_body_type: Optional[list[str]] = None,
+        response_body_type: Optional[list[str]] = None,
+        response_code: Optional[list[int]] = None,
+    ) -> None:
+        """Report an instrumented endpoint (ASM app-endpoints).
+
+        :param method: HTTP method (unknown methods map to ``"*"``; empty => unset).
+        :param path: request path; empty => unset.
+        :param request_body_type: declared request media types (API Security inventory).
+        :param response_body_type: declared response media types (API Security inventory).
+        :param response_code: declared response status codes (API Security inventory).
+        """
+        ...
+
+class DebuggerTrackType:
+    """Which debugger track a payload belongs to. (decides the endpoint)"""
+
+    Diagnostics: DebuggerTrackType
+    Snapshots: DebuggerTrackType
+    Logs: DebuggerTrackType
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class DebuggerResponse:
+    """A response from the debugger payload receiver"""
+
+    @property
+    def accepted(self) -> bool:
+        """Whether the intake took the payload."""
+        ...
+    @property
+    def status(self) -> Optional[int]:
+        """The response status, or ``None`` when the payload was accepted."""
+        ...
+    @property
+    def body(self) -> str:
+        """The response body. Empty unless the payload was rejected."""
+        ...
+    def __repr__(self) -> str: ...
+
+class DebuggerSenderError(Exception):
+    """A payload could not be delivered to the debugger intake (transport failure or timeout)."""
+
+class DebuggerSender:
+    """Sender for debugger-related payloads.
+
+    Wraps the ``datadog-live-debugger`` sender.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> DebuggerSender:
+        """Build a sender on ``runtime``.
+
+        :param url: the trace agent URL (``http``, ``https`` or
+            ``unix:///path.sock``) for agent-proxied uploads. Combined with
+            ``api_key`` it becomes a direct intake URL, which is how tests point
+            agentless mode at a local intake.
+        :param site: e.g. ``"datadoghq.com"``; with ``api_key`` and no ``url``
+            the endpoint becomes ``https://debugger-intake.{site}``.
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path).
+        :param tags: unencoded ``"key:value,key:value"``, percent-encoded here
+            for the ``ddtags`` query string.
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    def downgrade_to_diagnostics(self) -> bool:
+        """Point the logs and snapshots tracks at the diagnostics endpoint.
+
+        For agents that do not proxy ``/debugger/v2/input``. A no-op in agentless
+        mode, where all three tracks already share one intake path. Returns
+        whether anything changed.
+        """
+        ...
+    def reset_endpoints(self) -> None:
+        """Undo a downgrade, restoring the endpoints derived at construction."""
+        ...
+    def send(self, payload: bytes, debugger_type: DebuggerTrackType) -> DebuggerResponse:
+        """POST a JSON array of payloads (``[{...},{...}]``), blocking on the response.
+
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
+        """
+        ...
+
+class SymDBSender:
+    """Sender for symbol database (SymDB) uploads.
+
+    Reaches Datadog through the same intake host as :class:`DebuggerSender`, but
+    shares nothing else: the body is forwarded verbatim, the tags travel in
+    ``X-Datadog-Additional-Tags`` rather than a ``ddtags`` query string, and there
+    is no track negotiation or downgrade.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> SymDBSender:
+        """Build a sender on ``runtime``.
+
+        ``url`` / ``site`` / ``api_key`` select the agent or the intake exactly as
+        for :class:`DebuggerSender`. ``tags`` is sent verbatim in the
+        ``X-Datadog-Additional-Tags`` header.
+
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    def send(self, payload: bytes, content_type: str) -> DebuggerResponse:
+        """POST a SymDB payload verbatim, blocking on the response.
+
+        :param content_type: the caller's multipart content type.
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
+        """
+        ...
+
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
     """
+
+    def set_telemetry_handle(self, worker: Optional[TelemetryWorker] = None) -> None:
+        """
+        Report the exporter's ``trace_api.*`` health metrics through an existing
+        instrumentation-telemetry worker instead of a dedicated one.
+        """
+        ...
 
     def __init__(self):
         """
@@ -304,11 +671,21 @@ class TraceExporterBuilder:
         :param git_commit_sha: The git commit SHA of the current code version.
         """
         ...
+    def set_runtime_id(self, runtime_id: str) -> TraceExporterBuilder:
+        """
+        Set the runtime id of the TraceExporter.
+        :param runtime_id: The runtime UUID of the current process. A fresh UUID is generated
+            if unset.
+        """
+        ...
     def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
         """
         Set the process tags to be included in the stats payload.
         :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
         """
+        ...
+    def set_tracer_tags(self, tracer_tags: list[str]) -> TraceExporterBuilder:
+        """Set tracer tags on the OTLP metrics resource."""
         ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
@@ -378,6 +755,30 @@ class TraceExporterBuilder:
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
 
+    def set_additional_metric_tag_keys(self, tag_keys: list[str]) -> TraceExporterBuilder:
+        """Set span tag keys included in computed stats."""
+        ...
+
+    def set_stats_cardinality_limit(
+        self,
+        whole_key_limit: int,
+        resource_limit: int,
+        http_endpoint_limit: int,
+        peer_tags_limit: int,
+        additional_tags_limit: int,
+    ) -> TraceExporterBuilder:
+        """
+        Override the cardinality limits used by stats computation. Aggregation keys beyond a limit
+        are collapsed into a sentinel value. Requires stats computation to be enabled via
+        enable_stats.
+        :param whole_key_limit: Maximum number of distinct aggregation keys per time bucket.
+        :param resource_limit: Maximum number of distinct resource names.
+        :param http_endpoint_limit: Maximum number of distinct HTTP endpoints.
+        :param peer_tags_limit: Maximum number of distinct peer tag combinations.
+        :param additional_tags_limit: Maximum number of distinct additional tag combinations.
+        """
+        ...
+
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """
         Obfuscate client side stats buckets in the client instead of in the agent.
@@ -401,13 +802,50 @@ class TraceExporterBuilder:
         Enable health metrics in the TraceExporter
         """
         ...
+    def set_agentless_endpoint(self, url: str, api_key: str) -> TraceExporterBuilder:
+        """
+        Send spans straight to the Datadog trace intake instead of to an agent.
+
+        Payloads are always JSON in this mode, so the output format is ignored. Mutually
+        exclusive with :meth:`set_url` and :meth:`set_otlp_endpoint`; ``build`` rejects the
+        combination.
+        :param url: Full intake URL including the path
+            (e.g. "https://public-trace-http-intake.logs.datadoghq.com/v1/input").
+        :param api_key: API key sent as the ``dd-api-key`` header.
+        """
+        ...
+    def set_agentless_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Request timeout for the agentless intake transport (default 15s).
+
+        Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
+        """
+        ...
+    def set_agentless_stats_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Send client-computed trace stats to the Datadog stats intake instead of the agent.
+
+        Requires :meth:`set_agentless_endpoint` (whose API key and timeout it reuses) and
+        :meth:`enable_stats`. Mutually exclusive with :meth:`set_otlp_metrics_endpoint`;
+        ``build`` rejects the combination.
+        :param url: Full stats intake URL including the path
+            (e.g. "https://trace.agent.datadoghq.com/api/v0.2/stats").
+        """
+        ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP/JSON endpoint for trace export.
+        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
         :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
+        """
+        Select the OTLP export protocol: "http/json" or "http/protobuf".
+        Any other value raises ValueError.
+        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
@@ -442,6 +880,12 @@ class TraceExporterBuilder:
         """
         Set the connection timeout in milliseconds for trace export requests.
         :param timeout_ms: Timeout in milliseconds.
+        """
+        ...
+    def set_restart_after_fork(self, restart_after_fork: bool) -> TraceExporterBuilder:
+        """
+        Configure whether the exporter's workers restart in a fork child.
+        :param restart_after_fork: Whether inherited workers restart in the child.
         """
         ...
     def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
@@ -655,6 +1099,56 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
+class Context:
+    trace_id: Optional[int]
+    span_id: Optional[int]
+    _meta: dict[str, str]
+    _metrics: dict[str, Any]
+    _baggage: dict[str, Any]
+    _span_links: list[Any]
+    _is_remote: bool
+    _reactivate: bool
+    _otel_sampling_state_data: Optional[float]
+    _otel_sampling_state_owner: Optional[Context]
+    sampling_priority: Optional[Any]
+    dd_origin: Optional[str]
+    dd_user_id: Optional[str]
+    _trace_id_64bits: Optional[int]
+    _trace_flags: int
+    _traceflags: str
+    _traceparent: str
+    _tracestate: str
+
+    def __new__(
+        cls: type[_ContextT],
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        dd_origin: Optional[str] = None,
+        sampling_priority: Optional[float] = None,
+        meta: Optional[dict[str, str]] = None,
+        metrics: Optional[dict[str, Any]] = None,
+        span_links: Optional[list[Any]] = None,
+        baggage: Optional[dict[str, Any]] = None,
+        is_remote: bool = True,
+    ) -> _ContextT: ...
+    def __enter__(self: _ContextT) -> _ContextT: ...
+    def __exit__(self, *args: Any) -> None: ...
+    def __getstate__(self) -> tuple: ...
+    def __setstate__(self, state: tuple) -> None: ...
+    def set_baggage_item(self, key: str, value: Any) -> None: ...
+    def get_baggage_item(self, key: str) -> Optional[Any]: ...
+    def get_all_baggage_items(self) -> dict[str, Any]: ...
+    def remove_baggage_item(self, key: str) -> None: ...
+    def remove_all_baggage_items(self) -> None: ...
+    def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
+    def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
+    def _tracestate_entries(self, parent_id: Optional[int] = None) -> list[tuple[str, str]]: ...
+    def _publish_sampling_decision(
+        self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
+    ) -> None: ...
+    @staticmethod
+    def _init_tracestate_helpers() -> None: ...
+
 class SpanData:
     name: str
     service: Optional[str]
@@ -670,6 +1164,8 @@ class SpanData:
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
+    _parent: Optional[Any]  # parent Span, or None for a root span
+    _parent_context: Optional[Any]  # parent Context, or None
 
     def __new__(
         cls: type[_SpanDataT],
@@ -688,11 +1184,26 @@ class SpanData:
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    @property
+    def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
+    @property
+    def _local_root(self: _SpanDataT) -> _SpanDataT: ...
+    @_local_root.setter
+    def _local_root(self, value: SpanData) -> None: ...
+    @_local_root.deleter
+    def _local_root(self) -> None: ...
+    @property
+    def _service_entry_span(self: _SpanDataT) -> _SpanDataT: ...
+    @_service_entry_span.setter
+    def _service_entry_span(self, value: SpanData) -> None: ...
+    @_service_entry_span.deleter
+    def _service_entry_span(self) -> None: ...
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _has_meta_structs(self) -> bool: ...
     def _get_meta_structs(self) -> dict[str, Any]: ...
+    def _inherit_from_parent(self, parent: SpanData) -> None: ...
     def _set_link(
         self,
         trace_id: int,
@@ -707,8 +1218,8 @@ class SpanData:
         attributes: Optional[Mapping[str, _AttributeValueType]] = None,
         time_unix_nano: Optional[int] = None,
     ) -> None: ...
-    def _get_links(self) -> list["SpanLink"]: ...
-    def _get_events(self) -> list["SpanEvent"]: ...
+    def _get_links(self) -> list[SpanLink]: ...
+    def _get_events(self) -> list[SpanEvent]: ...
     def _has_links(self) -> bool: ...
     def _has_events(self) -> bool: ...
 
@@ -724,6 +1235,11 @@ class SpanData:
     def _get_str_attributes(self) -> Mapping[str, str]: ...
     def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
     def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+    def _set_default_context_attributes(
+        self,
+        meta: dict[str, str],
+        metrics: dict[str, Union[int, float]],
+    ) -> None: ...
 
 class SpanEvent:
     name: str
@@ -763,9 +1279,9 @@ class SpanLink:
 class ResultType:
     value: int
     name: str
-    RESULT_OK: "ResultType"
-    RESULT_EXCEPTION: "ResultType"
-    RESULT_UNDEFINED: "ResultType"
+    RESULT_OK: ResultType
+    RESULT_EXCEPTION: ResultType
+    RESULT_UNDEFINED: ResultType
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
@@ -798,6 +1314,18 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def process_metrics() -> tuple[int, int, int, int, int, int]:
+    """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
+
+    :return: A tuple of (cpu_time_sys_ns, cpu_time_user_ns, ctx_switches_voluntary,
+        ctx_switches_involuntary, num_threads, rss_bytes). The ctx-switch fields are
+        negative when unavailable on the current platform.
+    """
+    ...
+
+def total_memory_bytes() -> int:
+    """Return total physical RAM plus swap, in bytes."""
+    ...
 
 class config:
     """Native config module for tracer configuration managed in Rust."""
@@ -823,6 +1351,74 @@ class config:
 # Remote configuration
 # -----------------------------------------------------------------------------
 
+class MetricNamespace:
+    tracers: MetricNamespace
+    profilers: MetricNamespace
+    rum: MetricNamespace
+    appsec: MetricNamespace
+    ide_plugins: MetricNamespace
+    live_debugger: MetricNamespace
+    iast: MetricNamespace
+    general: MetricNamespace
+    telemetry: MetricNamespace
+    apm: MetricNamespace
+    sidecar: MetricNamespace
+    civisibility: MetricNamespace
+    mlobs: MetricNamespace
+    ddtraceapi: MetricNamespace
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class MetricType:
+    gauge: MetricType
+    count: MetricType
+    rate: MetricType
+    distribution: MetricType
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class MetricContext:
+    """Opaque handle for a registered metric context.
+
+    Returned by :meth:`TelemetryWorker.register_metric_context` and passed to
+    :meth:`TelemetryWorker.add_point`. Valid only for the worker that produced it.
+    """
+
+    ...
+
+class ConfigurationOrigin:
+    env_var: ConfigurationOrigin
+    otel_env_var: ConfigurationOrigin
+    code: ConfigurationOrigin
+    dd_config: ConfigurationOrigin
+    remote_config: ConfigurationOrigin
+    default: ConfigurationOrigin
+    local_stable_config: ConfigurationOrigin
+    fleet_stable_config: ConfigurationOrigin
+    calculated: ConfigurationOrigin
+    unknown: ConfigurationOrigin
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class LogLevel:
+    ERROR: LogLevel
+    WARN: LogLevel
+    DEBUG: LogLevel
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
 class RemoteConfigProduct:
     """A remote-config product. One class attribute per libdatadog product.
 
@@ -830,16 +1426,16 @@ class RemoteConfigProduct:
     name (e.g. ``"ASM_FEATURES"``); ``int()`` yields the discriminant.
     """
 
-    AgentConfig: "RemoteConfigProduct"
-    AgentTask: "RemoteConfigProduct"
-    ApmTracing: "RemoteConfigProduct"
-    Asm: "RemoteConfigProduct"
-    AsmData: "RemoteConfigProduct"
-    AsmDD: "RemoteConfigProduct"
-    AsmFeatures: "RemoteConfigProduct"
-    FfeFlags: "RemoteConfigProduct"
-    LiveDebugger: "RemoteConfigProduct"
-    LiveDebuggerSymbolDb: "RemoteConfigProduct"
+    AgentConfig: RemoteConfigProduct
+    AgentTask: RemoteConfigProduct
+    ApmTracing: RemoteConfigProduct
+    Asm: RemoteConfigProduct
+    AsmData: RemoteConfigProduct
+    AsmDd: RemoteConfigProduct
+    AsmFeatures: RemoteConfigProduct
+    FfeFlags: RemoteConfigProduct
+    LiveDebugging: RemoteConfigProduct
+    LiveDebuggingSymbolDb: RemoteConfigProduct
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -851,54 +1447,54 @@ class RemoteConfigCapabilities:
     capability; ``int()`` yields the bit position the client encodes.
     """
 
-    AsmActivation: "RemoteConfigCapabilities"
-    AsmIpBlocking: "RemoteConfigCapabilities"
-    AsmDdRules: "RemoteConfigCapabilities"
-    AsmExclusions: "RemoteConfigCapabilities"
-    AsmRequestBlocking: "RemoteConfigCapabilities"
-    AsmResponseBlocking: "RemoteConfigCapabilities"
-    AsmUserBlocking: "RemoteConfigCapabilities"
-    AsmCustomRules: "RemoteConfigCapabilities"
-    AsmCustomBlockingResponse: "RemoteConfigCapabilities"
-    AsmTrustedIps: "RemoteConfigCapabilities"
-    AsmApiSecuritySampleRate: "RemoteConfigCapabilities"
-    ApmTracingSampleRate: "RemoteConfigCapabilities"
-    ApmTracingLogsInjection: "RemoteConfigCapabilities"
-    ApmTracingHttpHeaderTags: "RemoteConfigCapabilities"
-    ApmTracingCustomTags: "RemoteConfigCapabilities"
-    AsmProcessorOverrides: "RemoteConfigCapabilities"
-    AsmCustomDataScanners: "RemoteConfigCapabilities"
-    AsmExclusionData: "RemoteConfigCapabilities"
-    ApmTracingEnabled: "RemoteConfigCapabilities"
-    ApmTracingDataStreamsEnabled: "RemoteConfigCapabilities"
-    AsmRaspSqli: "RemoteConfigCapabilities"
-    AsmRaspLfi: "RemoteConfigCapabilities"
-    AsmRaspSsrf: "RemoteConfigCapabilities"
-    AsmRaspShi: "RemoteConfigCapabilities"
-    AsmRaspXxe: "RemoteConfigCapabilities"
-    AsmRaspRce: "RemoteConfigCapabilities"
-    AsmRaspNosqli: "RemoteConfigCapabilities"
-    AsmRaspXss: "RemoteConfigCapabilities"
-    ApmTracingSampleRules: "RemoteConfigCapabilities"
-    CsmActivation: "RemoteConfigCapabilities"
-    AsmAutoUserInstrumMode: "RemoteConfigCapabilities"
-    AsmEndpointFingerprint: "RemoteConfigCapabilities"
-    AsmSessionFingerprint: "RemoteConfigCapabilities"
-    AsmNetworkFingerprint: "RemoteConfigCapabilities"
-    AsmHeaderFingerprint: "RemoteConfigCapabilities"
-    AsmTruncationRules: "RemoteConfigCapabilities"
-    AsmRaspCmdi: "RemoteConfigCapabilities"
-    ApmTracingEnableDynamicInstrumentation: "RemoteConfigCapabilities"
-    ApmTracingEnableExceptionReplay: "RemoteConfigCapabilities"
-    ApmTracingEnableCodeOrigin: "RemoteConfigCapabilities"
-    ApmTracingEnableLiveDebugging: "RemoteConfigCapabilities"
-    AsmDdMulticonfig: "RemoteConfigCapabilities"
-    AsmTraceTaggingRules: "RemoteConfigCapabilities"
-    AsmExtendedDataCollection: "RemoteConfigCapabilities"
-    ApmTracingMulticonfig: "RemoteConfigCapabilities"
-    FfeFlagConfigurationRules: "RemoteConfigCapabilities"
-    DdDataStreamsTransactionExtractors: "RemoteConfigCapabilities"
-    LlmObsActivation: "RemoteConfigCapabilities"
+    AsmActivation: RemoteConfigCapabilities
+    AsmIpBlocking: RemoteConfigCapabilities
+    AsmDdRules: RemoteConfigCapabilities
+    AsmExclusions: RemoteConfigCapabilities
+    AsmRequestBlocking: RemoteConfigCapabilities
+    AsmResponseBlocking: RemoteConfigCapabilities
+    AsmUserBlocking: RemoteConfigCapabilities
+    AsmCustomRules: RemoteConfigCapabilities
+    AsmCustomBlockingResponse: RemoteConfigCapabilities
+    AsmTrustedIps: RemoteConfigCapabilities
+    AsmApiSecuritySampleRate: RemoteConfigCapabilities
+    ApmTracingSampleRate: RemoteConfigCapabilities
+    ApmTracingLogsInjection: RemoteConfigCapabilities
+    ApmTracingHttpHeaderTags: RemoteConfigCapabilities
+    ApmTracingCustomTags: RemoteConfigCapabilities
+    AsmProcessorOverrides: RemoteConfigCapabilities
+    AsmCustomDataScanners: RemoteConfigCapabilities
+    AsmExclusionData: RemoteConfigCapabilities
+    ApmTracingEnabled: RemoteConfigCapabilities
+    ApmTracingDataStreamsEnabled: RemoteConfigCapabilities
+    AsmRaspSqli: RemoteConfigCapabilities
+    AsmRaspLfi: RemoteConfigCapabilities
+    AsmRaspSsrf: RemoteConfigCapabilities
+    AsmRaspShi: RemoteConfigCapabilities
+    AsmRaspXxe: RemoteConfigCapabilities
+    AsmRaspRce: RemoteConfigCapabilities
+    AsmRaspNosqli: RemoteConfigCapabilities
+    AsmRaspXss: RemoteConfigCapabilities
+    ApmTracingSampleRules: RemoteConfigCapabilities
+    CsmActivation: RemoteConfigCapabilities
+    AsmAutoUserInstrumMode: RemoteConfigCapabilities
+    AsmEndpointFingerprint: RemoteConfigCapabilities
+    AsmSessionFingerprint: RemoteConfigCapabilities
+    AsmNetworkFingerprint: RemoteConfigCapabilities
+    AsmHeaderFingerprint: RemoteConfigCapabilities
+    AsmTruncationRules: RemoteConfigCapabilities
+    AsmRaspCmdi: RemoteConfigCapabilities
+    ApmTracingEnableDynamicInstrumentation: RemoteConfigCapabilities
+    ApmTracingEnableExceptionReplay: RemoteConfigCapabilities
+    ApmTracingEnableCodeOrigin: RemoteConfigCapabilities
+    ApmTracingEnableLiveDebugging: RemoteConfigCapabilities
+    AsmDdMulticonfig: RemoteConfigCapabilities
+    AsmTraceTaggingRules: RemoteConfigCapabilities
+    AsmExtendedDataCollection: RemoteConfigCapabilities
+    ApmTracingMulticonfig: RemoteConfigCapabilities
+    FfeFlagConfigurationRules: RemoteConfigCapabilities
+    DdDataStreamsTransactionExtractors: RemoteConfigCapabilities
+    LlmObsActivation: RemoteConfigCapabilities
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -956,6 +1552,12 @@ class RemoteConfigClient:
     """Native single-target remote config client (origin process).
 
     Children consume published configs via :class:`RemoteConfigReader` instead.
+
+    Passing ``api_key`` (together with ``site`` and ``hostname``) selects agentless
+    mode: configs are fetched from ``config.<site>`` rather than from the agent.
+
+    ``config_root`` and ``director_root`` are raw signed TUF root metadata that replace the
+    roots libdatadog embeds for the site. This is mostly for testing. They apply to agentless mode only.
     """
 
     def __new__(
@@ -974,7 +1576,12 @@ class RemoteConfigClient:
         process_tags: Optional[list[tuple[str, str]]] = None,
         timeout_ms: int = 5000,
         test_session_token: Optional[str] = None,
-    ) -> "RemoteConfigClient": ...
+        site: Optional[str] = None,
+        api_key: Optional[str] = None,
+        hostname: Optional[str] = None,
+        config_root: Optional[str] = None,
+        director_root: Optional[str] = None,
+    ) -> RemoteConfigClient: ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""
         ...
@@ -993,6 +1600,13 @@ class RemoteConfigClient:
         ...
     def get_client_id(self) -> str:
         """The remote config client id (a UUID); stable for the process lifetime."""
+        ...
+    def get_refresh_interval(self) -> float:
+        """Seconds to wait before the next poll.
+
+        Agentless mode follows the interval the backend recommends, refreshed on
+        every successful fetch; against the agent this is a fixed default.
+        """
         ...
     def enable_shared_memory(self) -> None:
         """Enable cross-process broadcast. Call on the origin before forking."""
@@ -1188,7 +1802,7 @@ class HttpIoError(HttpClientError):
 def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...
 
 class OtelMetricsAggregatorBuilder:
-    """Builds an OtelMetricsAggregator wrapping libdatadog's OTel metrics aggregation + OTLP export."""
+    """Builds an OtelMetricsAggregator wrapping libdatadog metrics aggregation and OTLP export."""
 
     def __init__(self) -> None: ...
     def set_resource_service(self, service: str) -> OtelMetricsAggregatorBuilder: ...
@@ -1197,20 +1811,14 @@ class OtelMetricsAggregatorBuilder:
     def set_resource_attribute(self, key: str, value: str) -> OtelMetricsAggregatorBuilder: ...
     def set_metrics_exporter(
         self, endpoint: str, protocol: str, timeout_ms: int, headers: list[tuple[str, str]]
-    ) -> OtelMetricsAggregatorBuilder:
-        """Configure the OTLP metrics exporter. ``protocol`` is ``"grpc"`` or ``"http/protobuf"``."""
-        ...
-    def set_metrics_temporality(self, temporality: str) -> OtelMetricsAggregatorBuilder:
-        """``temporality`` is ``"delta"`` or ``"cumulative"``."""
-        ...
+    ) -> OtelMetricsAggregatorBuilder: ...
+    def set_metrics_temporality(self, temporality: str) -> OtelMetricsAggregatorBuilder: ...
     def set_export_interval(self, interval_ms: int) -> OtelMetricsAggregatorBuilder: ...
-    def build(self, shared_runtime: SharedRuntime) -> tuple[OtelMetricsAggregator, list[str]]:
-        """Build the aggregator. Returns the aggregator and a list of non-fatal build warnings."""
-        ...
+    def build(self) -> tuple[OtelMetricsAggregator, list[str]]: ...
     def debug(self) -> str: ...
 
 class OtelMetricsAggregator:
-    """Aggregates OTel metric measurements and exports them via OTLP. Primitives-only surface."""
+    """Aggregates OTel metric measurements and exports them via OTLP."""
 
     def register_instrument(
         self,
@@ -1221,21 +1829,61 @@ class OtelMetricsAggregator:
         meter_name: str = "",
         meter_version: Optional[str] = None,
         meter_schema_url: Optional[str] = None,
-    ) -> int:
-        """Register an instrument and return its opaque id. ``kind`` is one of ``"counter"``,
-        ``"up_down_counter"``, ``"histogram"``, ``"observable_gauge"``, ``"observable_counter"``,
-        ``"observable_up_down_counter"``. ``meter_*`` carry the instrumentation scope so exported
-        metrics keep the caller's ``get_meter`` identity.
-        """
-        ...
+    ) -> int: ...
+    def register_observable_instrument(
+        self,
+        name: str,
+        kind: str,
+        unit: Optional[str],
+        description: Optional[str],
+        meter_name: str,
+        meter_version: Optional[str],
+        meter_schema_url: Optional[str],
+        callback: Callable[[], list[tuple[float, list[tuple[str, str]]]]],
+    ) -> int: ...
     def record_counter(self, instrument_id: int, value: float, attrs: list[tuple[str, str]]) -> None: ...
     def record_up_down_counter(self, instrument_id: int, value: float, attrs: list[tuple[str, str]]) -> None: ...
     def record_histogram(self, instrument_id: int, value: float, attrs: list[tuple[str, str]]) -> None: ...
     def observe_gauge(self, instrument_id: int, value: float, attrs: list[tuple[str, str]]) -> None: ...
     def observe_counter(self, instrument_id: int, value: float, attrs: list[tuple[str, str]]) -> None: ...
-    def export_counters(self) -> tuple[int, int, int]:
-        """Returns ``(metrics_export_attempts, metrics_export_successes, metrics_export_failures)``."""
-        ...
+    def export_counters(self) -> tuple[int, int, int]: ...
     def force_flush(self) -> None: ...
     def shutdown(self) -> None: ...
     def drop(self) -> None: ...
+
+DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]]
+
+class BaseContextProvider(abc.ABC):
+    """A ``ContextProvider`` is an interface that provides the blueprint
+    for a callable class, capable to retrieve the current active
+    ``Context`` instance. Context providers must inherit this class
+    and implement:
+    * the ``active`` method, that returns the current active ``Context``
+    * the ``activate`` method, that sets the current active ``Context``
+
+    NOTE: at runtime this is a plain pyclass, not an ``abc.ABCMeta`` type --
+    direct instantiation still raises (via a ``__new__`` that always errors),
+    but incomplete subclasses aren't rejected at class-definition time, only
+    when the unimplemented ``_has_active_context``/``active`` are called.
+    Declared as ``abc.ABC`` here so type checkers keep flagging both cases the
+    same as they did before this class moved to Rust.
+    """
+
+    @abc.abstractmethod
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+    @abc.abstractmethod
+    def active(self) -> Optional[ActiveTrace]: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Optional[ActiveTrace]: ...
+
+class DefaultContextProvider(BaseContextProvider):
+    """Context provider that retrieves contexts from a context variable.
+
+    It is suitable for synchronous programming and for asynchronous executors
+    that support contextvars.
+    """
+
+    def _has_active_context(self) -> bool: ...
+    def activate(self, ctx: Optional[ActiveTrace]) -> None: ...
+    def active(self) -> Optional[ActiveTrace]: ...
+    def _update_active(self, span: Span) -> Optional[ActiveTrace]: ...

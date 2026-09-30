@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    internal: A memory leak triggered when using ``@tracer.wrap`` on
+    functions created at run time has been fixed.

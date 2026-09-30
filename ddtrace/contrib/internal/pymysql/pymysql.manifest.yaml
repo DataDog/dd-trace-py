@@ -1,0 +1,12 @@
+_v: 1
+name: pymysql
+display_name: PyMySQL
+description: Instruments PyMySQL database queries, stored procedure calls, transaction commits and rollbacks, and optionally
+  row-fetch operations.
+packages:
+- name: pymysql
+category:
+- db.client
+systems:
+- mysql
+creation_date: '2017-06-26'

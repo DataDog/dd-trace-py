@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where spans created under an auto-instrumented agent span
+    (CrewAI, Google ADK, LangGraph, LlamaIndex, Amazon Bedrock Agents, Claude Agent SDK, and
+    OpenAI Agents) were not attributed to that agent, leaving ``agent_attribution`` missing or
+    pointing at the wrong ancestor.

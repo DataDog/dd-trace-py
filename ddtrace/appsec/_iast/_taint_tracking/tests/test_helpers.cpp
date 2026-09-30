@@ -18,6 +18,29 @@ TEST_F(HasPyErrCheck, ErrorReturnsTrue)
     PyErr_Clear();
 }
 
+TEST_F(HasPyErrCheck, TakePyerrAsStringConsumesTheError)
+{
+    PyErr_SetString(PyExc_RuntimeError, "Test error");
+    EXPECT_STREQ(take_pyerr_as_string().c_str(), "RuntimeError: Test error");
+    EXPECT_EQ(PyErr_Occurred(), nullptr) << "the error must be taken, not left pending";
+    EXPECT_STREQ(take_pyerr_as_string().c_str(), "");
+}
+
+TEST_F(HasPyErrCheck, TakePyerrAsStringConsumesAMessageThatCannotBeEncoded)
+{
+    // A lone surrogate is not encodable to UTF-8, which is what formatting the message trips over.
+    // Reaching the caller with the error still set is the SystemError this all exists to prevent.
+    py::exec("import builtins\n"
+             "builtins._iast_unencodable = ValueError('bad path: \\udcff')\n");
+    const py::object exc = py::module_::import("builtins").attr("_iast_unencodable");
+    PyErr_SetObject(PyExc_ValueError, exc.ptr());
+    ASSERT_NE(PyErr_Occurred(), nullptr);
+
+    take_pyerr_as_string();
+
+    EXPECT_EQ(PyErr_Occurred(), nullptr) << "an unformattable error must still be consumed";
+}
+
 TEST_F(HasPyErrCheck, ClearError)
 {
     PyErr_SetString(PyExc_RuntimeError, "Test error");
@@ -47,6 +70,38 @@ TEST_F(PythonErrorGuardCheck, Error)
         EXPECT_TRUE(guard.has_error());
         EXPECT_STREQ(guard.error_as_stdstring().c_str(), "Test error");
         EXPECT_STREQ(guard.error_as_pystr().cast<std::string>().c_str(), "Test error");
+    }
+    PyErr_Clear();
+}
+
+TEST_F(PythonErrorGuardCheck, ErrorStringResultDoesNotLeakAReference)
+{
+    py::dict scope;
+    py::exec(R"(
+class ErrorWithStableString(Exception):
+    def __init__(self, rendered):
+        self.rendered = rendered
+
+    def __str__(self):
+        return self.rendered
+
+rendered = "Test error"
+error = ErrorWithStableString(rendered)
+)",
+             scope);
+
+    py::object rendered = scope["rendered"];
+    py::object error = scope["error"];
+    const auto refcount_before = Py_REFCNT(rendered.ptr());
+    PyErr_SetObject(reinterpret_cast<PyObject*>(Py_TYPE(error.ptr())), error.ptr());
+
+    {
+        PythonErrorGuard guard;
+        {
+            py::str error_string = guard.error_as_pystr();
+            EXPECT_EQ(Py_REFCNT(rendered.ptr()), refcount_before + 1);
+        }
+        EXPECT_EQ(Py_REFCNT(rendered.ptr()), refcount_before);
     }
     PyErr_Clear();
 }
@@ -755,10 +810,10 @@ TEST_F(ProcessFlagAddedArgsTest, NoAddedArgsOriginalNone)
     py::tuple args = py::make_tuple("arg1", "arg2");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
 
     // Should return args as no slicing is required
-    EXPECT_EQ(result, args.ptr());
+    EXPECT_EQ(result.ptr(), args.ptr());
 }
 
 // Test with added args, original function is None
@@ -769,10 +824,10 @@ TEST_F(ProcessFlagAddedArgsTest, AddedArgsOriginalNone)
     py::tuple args = py::make_tuple("arg1", "arg2", "added_arg");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
 
     // Should return the full argument list since no slicing is needed
-    EXPECT_EQ(result, args.ptr());
+    EXPECT_EQ(result.ptr(), args.ptr());
 }
 
 // Test with added args, original function is custom
@@ -786,8 +841,8 @@ TEST_F(ProcessFlagAddedArgsTest, AddedArgsOriginalCustomFunction)
     py::tuple args = py::make_tuple("arg1", "arg2", "added_arg");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
-    EXPECT_STREQ(AnyTextObjectToString(py::reinterpret_borrow<py::tuple>(result)).c_str(), "arg2");
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    EXPECT_STREQ(AnyTextObjectToString(result.cast<py::str>()).c_str(), "arg2");
 }
 
 // Test with no added args, original function is custom
@@ -800,6 +855,6 @@ TEST_F(ProcessFlagAddedArgsTest, NoAddedArgsOriginalCustomFunction)
     py::tuple args = py::make_tuple("arg1", "arg2");
     py::dict kwargs;
 
-    PyObject* result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
-    EXPECT_STREQ(AnyTextObjectToString(py::reinterpret_borrow<py::str>(result)).c_str(), "arg1");
+    py::object result = process_flag_added_args(orig_function, flag_added_args, args.ptr(), kwargs.ptr());
+    EXPECT_STREQ(AnyTextObjectToString(result.cast<py::str>()).c_str(), "arg1");
 }

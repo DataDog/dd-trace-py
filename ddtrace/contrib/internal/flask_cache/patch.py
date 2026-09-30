@@ -2,6 +2,8 @@
 Datadog trace code for flask_cache
 """
 
+from __future__ import annotations
+
 import logging
 import typing
 
@@ -14,8 +16,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer as ddtracer
-from ddtrace.vendor.debtcollector import deprecate
 
 from .utils import _extract_client
 from .utils import _extract_conn_tags
@@ -23,7 +25,7 @@ from .utils import _resource_from_cache_prefix
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Span
 
 
 log = logging.Logger(__name__)
@@ -86,7 +88,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self: str, cmd: bool) -> "Span":
+        def __trace(self: str, cmd: bool) -> Span:
             """
             Start a tracing with default attributes and tags
             """
@@ -124,7 +126,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
                 span.resource = _resource_from_cache_prefix("GET", self.config)
                 if len(args) > 0:
                     span._set_attribute(COMMAND_KEY, args[0])
-                result = super(TracedCache, self).get(*args, **kwargs)
+                result = super().get(*args, **kwargs)
                 span._set_attribute(db.ROWCOUNT, 1 if result else 0)
                 return result
 
@@ -136,7 +138,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
                 span.resource = _resource_from_cache_prefix("SET", self.config)
                 if len(args) > 0:
                     span._set_attribute(COMMAND_KEY, args[0])
-                return super(TracedCache, self).set(*args, **kwargs)
+                return super().set(*args, **kwargs)
 
         def add(self, *args, **kwargs):
             """
@@ -146,7 +148,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
                 span.resource = _resource_from_cache_prefix("ADD", self.config)
                 if len(args) > 0:
                     span._set_attribute(COMMAND_KEY, args[0])
-                return super(TracedCache, self).add(*args, **kwargs)
+                return super().add(*args, **kwargs)
 
         def delete(self, *args, **kwargs):
             """
@@ -156,7 +158,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
                 span.resource = _resource_from_cache_prefix("DELETE", self.config)
                 if len(args) > 0:
                     span._set_attribute(COMMAND_KEY, args[0])
-                return super(TracedCache, self).delete(*args, **kwargs)
+                return super().delete(*args, **kwargs)
 
         def delete_many(self, *args, **kwargs):
             """
@@ -165,7 +167,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
-                return super(TracedCache, self).delete_many(*args, **kwargs)
+                return super().delete_many(*args, **kwargs)
 
         def clear(self, *args, **kwargs):
             """
@@ -173,7 +175,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             """
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("CLEAR", self.config)
-                return super(TracedCache, self).clear(*args, **kwargs)
+                return super().clear(*args, **kwargs)
 
         def get_many(self, *args, **kwargs):
             """
@@ -182,7 +184,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
-                result = super(TracedCache, self).get_many(*args, **kwargs)
+                result = super().get_many(*args, **kwargs)
                 # get many returns a list, with either the key value or None if it doesn't exist
                 span._set_attribute(db.ROWCOUNT, sum(1 for val in result if val))
                 return result
@@ -195,6 +197,6 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
                 span.resource = _resource_from_cache_prefix("SET_MANY", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, list(args[0].keys()))
-                return super(TracedCache, self).set_many(*args, **kwargs)
+                return super().set_many(*args, **kwargs)
 
     return TracedCache

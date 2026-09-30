@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import textwrap
 import typing as t
 from unittest import mock
@@ -44,6 +45,7 @@ _USE_PLUGIN_V2 = True
 _PYTEST_SUPPORTS_ATR = _pytest_version_supports_atr()
 _PYTEST_SUPPORTS_EFD = _pytest_version_supports_efd()
 _PYTEST_SUPPORTS_ITR = _pytest_version_supports_itr()
+_USE_FILE_LEVEL_COVERAGE_DEFAULT = sys.version_info >= (3, 12)
 
 
 def _get_spans_from_list(
@@ -83,6 +85,13 @@ def _get_spans_from_list(
     return selected_spans
 
 
+def _assert_file_level_coverage(coverage_data, expected_files):
+    assert sorted(coverage_data.keys()) == expected_files
+    for file_name in expected_files:
+        assert coverage_data[file_name]
+        assert coverage_data[file_name][0][0] == 0
+
+
 def _assert_itr_tests_skipping_enabled_tag_propagated(spans: list[ddtrace.trace.Span], expected_value: str) -> None:
     propagated_span_types = {"test_session_end", "test_module_end", "test_suite_end", "test"}
     selected_spans = [span for span in spans if span.get_tag("type") in propagated_span_types]
@@ -104,12 +113,12 @@ class PytestTestCaseBase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
-        # AIDEV-NOTE: Anchor the pytester monkeypatch CWD *before* any test body
+        # Anchor the pytester monkeypatch CWD *before* any test body
         # runs. Tests that call os.chdir() directly before testdir.chdir() would
         # otherwise corrupt the saved CWD used during fixture teardown, leaking
         # wrong working directories to subsequent tests in the same xdist worker.
         testdir.chdir()
-        # AIDEV-NOTE: Clear outer xdist worker env vars for the duration of each
+        # Clear outer xdist worker env vars for the duration of each
         # test. Tests create CIVisibilityEncoderV01 instances and inline_run sessions
         # that read PYTEST_XDIST_WORKER at init/import time. If the outer test suite
         # runs with -n auto, the worker env var leaks and causes the encoder to filter
@@ -141,7 +150,7 @@ class PytestTestCaseBase(TracerTestCase):
         session starts and resumed after it completes, so that running this test suite with --ddtrace in the outer
         pytest does not disrupt the outer session.  The inner session creates its own instance on a clean stack.
         """
-        # AIDEV-NOTE: Suspend the outer CIVisibility instance (without stopping it) so that
+        # Suspend the outer CIVisibility instance (without stopping it) so that
         # the inner session starts with a clean stack.  The inner CIVisibilityPlugin does a
         # disable()/enable() cycle that would otherwise pop the outer instance off the stack.
         # _suspend() removes the outer instance without calling stop(); _resume() pushes it
@@ -192,6 +201,30 @@ class PytestTestCaseBase(TracerTestCase):
                 CIVisibility.disable()
             CIVisibility._resume(_suspended)
 
+    def make_xdist_worker_sitecustomize(self):
+        """Load sitecustomize.py in nested xdist workers without relying on PYTHONPATH."""
+        self.testdir.makeconftest(
+            """
+import os
+import runpy
+
+import pytest
+
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+
+_IS_XDIST_WORKER = bool(os.environ.get("PYTEST_XDIST_WORKER"))
+if _IS_XDIST_WORKER:
+    runpy.run_path(os.path.join(os.path.dirname(__file__), "sitecustomize.py"))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    if _IS_XDIST_WORKER and CIVisibility.enabled:
+        CIVisibility.disable()
+"""
+        )
+
     def subprocess_run(self, *args, env: t.Optional[dict[str, t.Optional[str]]] = None):
         """Execute test script with test tracer."""
         _base_env = dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false")
@@ -210,7 +243,7 @@ class PytestTestCase(PytestTestCaseBase):
         try:
             unpatch_sqlite()
         finally:
-            super(PytestTestCase, self).tearDown()
+            super().tearDown()
 
     def test_and_emit_get_version(self):
         version = get_version()
@@ -337,7 +370,7 @@ class PytestTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         test_span = spans[0]
-        assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
+        assert test_span.get_tag("test.command") == f"pytest -p no:randomly --ddtrace {file_name}"
 
     def test_legacy_plugin_env_var_emits_deprecation_warning(self):
         py_file = self.testdir.makepyfile(
@@ -399,9 +432,7 @@ class PytestTestCase(PytestTestCaseBase):
         ) as set_test_session_name_mock:
             self.inline_run("--ddtrace", file_name)
 
-        set_test_session_name_mock.assert_called_once_with(
-            test_command="pytest -p no:randomly --ddtrace {}".format(file_name)
-        )
+        set_test_session_name_mock.assert_called_once_with(test_command=f"pytest -p no:randomly --ddtrace {file_name}")
 
     def test_ini_no_ddtrace(self):
         """Test ini config, overridden by --no-ddtrace cli parameter."""
@@ -1096,7 +1127,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_names.append(os.path.basename(py_team_b_file.strpath))
-        codeowners = "* @default-team\n{0} @team-b @backup-b\n".format(os.path.basename(py_team_b_file.strpath))
+        codeowners = f"* @default-team\n{os.path.basename(py_team_b_file.strpath)} @team-b @backup-b\n"
         self.testdir.makefile("", CODEOWNERS=codeowners)
 
         self.inline_run("--ddtrace", *file_names)
@@ -1177,7 +1208,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert test_module_span.get_tag("test.module") == ""
         assert test_module_span.get_tag("test.status") == "pass"
         assert test_session_span.get_tag("test.status") == "pass"
-        assert test_suite_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
+        assert test_suite_span.get_tag("test.command") == f"pytest -p no:randomly --ddtrace {file_name}"
         assert test_suite_span.get_tag("test.suite") == str(file_name)
 
     def test_pytest_suites(self):
@@ -1850,9 +1881,12 @@ class PytestTestCase(PytestTestCaseBase):
 
         first_tag_data = _get_span_coverage_data(first_test_span, True)
         assert len(first_tag_data) == 2
-        assert sorted(first_tag_data.keys()) == ["/lib_fn.py", "/test_cov.py"]
-        assert first_tag_data["/lib_fn.py"] == [(1, 2)]
-        assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (7, 7)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(first_tag_data, ["/lib_fn.py", "/test_cov.py"])
+        else:
+            assert sorted(first_tag_data.keys()) == ["/lib_fn.py", "/test_cov.py"]
+            assert first_tag_data["/lib_fn.py"] == [(1, 2)]
+            assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (7, 7)]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
@@ -1860,15 +1894,18 @@ class PytestTestCase(PytestTestCaseBase):
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 3
-        assert sorted(second_tag_data.keys()) == ["/lib_fn.py", "/ret_false.py", "/test_cov.py"]
-        assert second_tag_data["/ret_false.py"] == [(1, 2)]
-        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (7, 9)]
-        # DEV: Due to the way we register import coverage, when the first test imports lib_fn, it gets recorded as an
-        # import dependency of the test module as a whole, so every test in the module that runs afterwards will have
-        # lib_fn as a dependency as well. This is suboptimal, but it's better to overcollect import coverage (which
-        # may lead to tests being run when they could be skipped) than to undercollect it (which might lead to tests
-        # being skipped when they shouldn't).
-        assert second_tag_data["/lib_fn.py"] == [(1, 1)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(second_tag_data, ["/lib_fn.py", "/ret_false.py", "/test_cov.py"])
+        else:
+            assert sorted(second_tag_data.keys()) == ["/lib_fn.py", "/ret_false.py", "/test_cov.py"]
+            assert second_tag_data["/ret_false.py"] == [(1, 2)]
+            assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (7, 9)]
+            # DEV: Due to the way we register import coverage, when the first test imports lib_fn, it gets recorded as
+            # an import dependency of the test module as a whole, so every test in the module that runs afterwards will
+            # have lib_fn as a dependency as well. This is suboptimal, but it's better to overcollect import coverage
+            # (which may lead to tests being run when they could be skipped) than to undercollect it (which might lead
+            # to tests being skipped when they shouldn't).
+            assert second_tag_data["/lib_fn.py"] == [(1, 1)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1951,9 +1988,12 @@ class PytestTestCase(PytestTestCaseBase):
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
-        assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
-        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (7, 9)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(second_tag_data, ["/test_cov.py", "/test_ret_false.py"])
+        else:
+            assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+            assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
+            assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (7, 9)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -2044,18 +2084,40 @@ class PytestTestCase(PytestTestCaseBase):
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
-        assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
-        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 4), (8, 10), (12, 15), (17, 18), (22, 25), (27, 28)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(second_tag_data, ["/test_cov.py", "/test_ret_false.py"])
+        else:
+            assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+            assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
+            assert second_tag_data["/test_cov.py"] == [
+                (1, 1),
+                (3, 4),
+                (8, 10),
+                (12, 15),
+                (17, 18),
+                (22, 25),
+                (27, 28),
+            ]
 
         third_test_span = spans[2]
         assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
 
         third_tag_data = _get_span_coverage_data(third_test_span, True)
         assert len(third_tag_data) == 2
-        assert sorted(third_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert third_tag_data["/test_cov.py"] == [(1, 1), (3, 4), (8, 8), (12, 15), (17, 20), (22, 25), (27, 28)]
-        assert third_tag_data["/test_ret_false.py"] == [(1, 2)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(third_tag_data, ["/test_cov.py", "/test_ret_false.py"])
+        else:
+            assert sorted(third_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+            assert third_tag_data["/test_cov.py"] == [
+                (1, 1),
+                (3, 4),
+                (8, 8),
+                (12, 15),
+                (17, 20),
+                (22, 25),
+                (27, 28),
+            ]
+            assert third_tag_data["/test_ret_false.py"] == [(1, 2)]
 
         fourth_test_span = spans[3]
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
@@ -2128,8 +2190,11 @@ class PytestTestCase(PytestTestCaseBase):
 
         first_tag_data = _get_span_coverage_data(first_test_span, True)
         assert len(first_tag_data) == 1
-        assert sorted(first_tag_data.keys()) == ["/test_cov.py"]
-        assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (9, 9)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(first_tag_data, ["/test_cov.py"])
+        else:
+            assert sorted(first_tag_data.keys()) == ["/test_cov.py"]
+            assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (9, 9)]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
@@ -2137,9 +2202,12 @@ class PytestTestCase(PytestTestCaseBase):
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
-        assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
-        assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (9, 11)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(second_tag_data, ["/test_cov.py", "/test_ret_false.py"])
+        else:
+            assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+            assert second_tag_data["/test_ret_false.py"] == [(1, 2)]
+            assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 3), (9, 11)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -2195,9 +2263,12 @@ class PytestTestCase(PytestTestCaseBase):
 
         tag_data = _get_span_coverage_data(test_span, True)
         assert len(tag_data) == 2
-        assert sorted(tag_data.keys()) == ["/lib_constant.py", "/test_cov.py"]
-        assert tag_data["/lib_constant.py"] == [(1, 1)]
-        assert tag_data["/test_cov.py"] == [(1, 1), (3, 3), (5, 6)]
+        if _USE_FILE_LEVEL_COVERAGE_DEFAULT:
+            _assert_file_level_coverage(tag_data, ["/lib_constant.py", "/test_cov.py"])
+        else:
+            assert sorted(tag_data.keys()) == ["/lib_constant.py", "/test_cov.py"]
+            assert tag_data["/lib_constant.py"] == [(1, 1)]
+            assert tag_data["/test_cov.py"] == [(1, 1), (3, 3), (5, 6)]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(
@@ -3156,12 +3227,10 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                 def test_outer_ok():
                     assert True
                 """
-                    )
                 )
             )
         os.mkdir("test_inner_package")
@@ -3306,12 +3375,10 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_outer_ok():
                         assert True
                     """
-                    )
                 )
             )
         os.mkdir("test_inner_package")
@@ -3450,12 +3517,10 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_outer_ok():
                         assert True
                     """
-                    )
                 )
             )
         os.mkdir("test_inner_package")
@@ -3561,12 +3626,10 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_outer_ok():
                         assert True
                     """
-                    )
                 )
             )
         os.mkdir("test_inner_package")
@@ -3712,12 +3775,10 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_outer_ok():
                         assert True
                     """
-                    )
                 )
             )
         os.mkdir("test_inner_package")
@@ -3860,12 +3921,10 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_outer_ok():
                         assert True
                     """
-                    )
                 )
             )
         os.mkdir("test_inner_package")
@@ -3988,8 +4047,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outermost_tests.py", "w") as test_outermost_tests_fd:
             test_outermost_tests_fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_outermost_test_ok():
                         assert True
 
@@ -4001,7 +4059,6 @@ class PytestTestCase(PytestTestCaseBase):
                         def test_outermost_ok(self):
                             assert True
                     """
-                    )
                 )
             )
 
@@ -4009,8 +4066,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_outer_package/test_outer_package_tests.py", "w") as outer_fd:
             outer_fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_outer_package_ok():
                         assert True
 
@@ -4022,7 +4078,6 @@ class PytestTestCase(PytestTestCaseBase):
                         def test_outer_package_class_two_ok(self):
                             assert True
                     """
-                    )
                 )
             )
 
@@ -4166,8 +4221,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_names.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_ok():
                         assert True
 
@@ -4179,7 +4233,6 @@ class PytestTestCase(PytestTestCaseBase):
                         def test_ok(self):
                             assert True
                     """
-                    )
                 )
             )
 
@@ -4241,12 +4294,10 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_hooks.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def test_ok():
                         assert True
                     """
-                    )
                 )
             )
 
@@ -4277,8 +4328,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("test_names.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def can_add(x, y):
                         return x + y
 
@@ -4298,15 +4348,13 @@ class PytestTestCase(PytestTestCaseBase):
                         def test_my_third_test(self):
                             assert True
                     """
-                    )
                 )
             )
 
         with open("test_string.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def is_equal_to_hello(x):
                         return x == "hello"
 
@@ -4314,7 +4362,6 @@ class PytestTestCase(PytestTestCaseBase):
                         actual_output = "hello2"
                         assert not actual_output == is_equal_to_hello(actual_output)
                     """
-                    )
                 )
             )
 
@@ -4354,8 +4401,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def add_two_number_list(list_1, list_2):
                         output_list = []
                         for number_a, number_b in zip(list_1, list_2):
@@ -4368,15 +4414,13 @@ class PytestTestCase(PytestTestCaseBase):
                             output_list.append(number_a * number_b)
                         return output_list
                     """
-                    )
                 )
             )
 
         with open("test_tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     from tools import add_two_number_list
 
                     def test_add_two_number_list():
@@ -4386,7 +4430,6 @@ class PytestTestCase(PytestTestCaseBase):
 
                         assert actual_output == [3,5,7,9,11,13,15,17]
                     """
-                    )
                 )
             )
 
@@ -4412,8 +4455,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def add_two_number_list(list_1, list_2):
                         output_list = []
                         for number_a, number_b in zip(list_1, list_2):
@@ -4426,15 +4468,13 @@ class PytestTestCase(PytestTestCaseBase):
                             output_list.append(number_a * number_b)
                         return output_list
                     """
-                    )
                 )
             )
 
         with open("test_tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     from tools import add_two_number_list
 
                     def test_add_two_number_list():
@@ -4444,7 +4484,6 @@ class PytestTestCase(PytestTestCaseBase):
 
                         assert actual_output == [3,5,7,9,11,13,15,17]
                     """
-                    )
                 )
             )
 
@@ -4467,8 +4506,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def add_two_number_list(list_1, list_2):
                         output_list = []
                         for number_a, number_b in zip(list_1, list_2):
@@ -4481,15 +4519,13 @@ class PytestTestCase(PytestTestCaseBase):
                             output_list.append(number_a * number_b)
                         return output_list
                     """
-                    )
                 )
             )
 
         with open("test_tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     from tools import add_two_number_list
 
                     def test_add_two_number_list():
@@ -4499,7 +4535,6 @@ class PytestTestCase(PytestTestCaseBase):
 
                         assert actual_output == [3,5,7,9,11,13,15,17]
                     """
-                    )
                 )
             )
 
@@ -4522,8 +4557,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def add_two_number_list(list_1, list_2):
                         output_list = []
                         for number_a, number_b in zip(list_1, list_2):
@@ -4536,15 +4570,13 @@ class PytestTestCase(PytestTestCaseBase):
                             output_list.append(number_a * number_b)
                         return output_list
                     """
-                    )
                 )
             )
 
         with open("test_tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     from tools import add_two_number_list
 
                     def test_add_two_number_list():
@@ -4554,7 +4586,6 @@ class PytestTestCase(PytestTestCaseBase):
 
                         assert actual_output == [3,5,7,9,11,13,15,17]
                     """
-                    )
                 )
             )
 
@@ -4583,8 +4614,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("my_decorators.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def outer_decorator(func):
                          def wrapper(*args, **kwargs):
                             return func(*args, **kwargs)
@@ -4596,15 +4626,13 @@ class PytestTestCase(PytestTestCaseBase):
                             return func(*args, **kwargs)
                          return wrapper
                     """
-                    )
                 )
             )
 
         with open("test_mydecorators.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     # this comment is line 2 and if you didn't know that it'd be easy to miscount below
                     from my_decorators import outer_decorator, inner_decorator
                     from unittest.mock import patch
@@ -4653,7 +4681,6 @@ class PytestTestCase(PytestTestCaseBase):
                         str2 = "string 2"
                         assert str1 == str2
                     """
-                    )
                 )
             )
 
@@ -4688,8 +4715,7 @@ class PytestTestCase(PytestTestCaseBase):
         with open("tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     def add_two_number_list(list_1, list_2):
                         output_list = []
                         for number_a, number_b in zip(list_1, list_2):
@@ -4702,15 +4728,13 @@ class PytestTestCase(PytestTestCaseBase):
                             output_list.append(number_a * number_b)
                         return output_list
                     """
-                    )
                 )
             )
 
         with open("test_tools.py", "w+") as fd:
             fd.write(
                 textwrap.dedent(
-                    (
-                        """
+                    """
                     from tools import add_two_number_list
 
                     def test_add_two_number_list():
@@ -4720,7 +4744,6 @@ class PytestTestCase(PytestTestCaseBase):
 
                         assert actual_output == [3,5,7,9,11,13,15,17]
                     """
-                    )
                 )
             )
 

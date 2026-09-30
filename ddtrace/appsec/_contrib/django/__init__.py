@@ -1,6 +1,8 @@
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import cast
 
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
@@ -21,17 +23,22 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._trace_utils import track_user_login_failure_event
 from ddtrace.appsec._trace_utils import track_user_login_success_event
 from ddtrace.appsec._utils import _hash_user_id
+from ddtrace.appsec._utils import _UserExtraInfo
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
 
+
+if TYPE_CHECKING:
+    from ddtrace.internal.native._native import SpanData
 
 log = get_logger(__name__)
 
@@ -99,12 +106,11 @@ def _on_django_auth(
 
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
+    user_id: Optional[object] = None
     for possible_key in userid_list:
         if possible_key in kwargs:
             user_id = kwargs[possible_key]
             break
-    else:
-        user_id = None
 
     if not result_user:
         with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
@@ -115,7 +121,7 @@ def _on_django_auth(
                 name=django_config.include_user_realname,
             )
             if user_extra.get("login") is None:
-                user_extra["login"] = user_id
+                user_extra["login"] = str(user_id) if user_id is not None else None
             user_id = user_id_found or user_id
             user_login = user_extra.get("login")
 
@@ -135,17 +141,16 @@ def get_user_info(
     info_retriever: _DjangoUserInfoRetriever,
     django_config: IntegrationConfig,
     kwargs: Optional[dict[str, Any]] = None,
-) -> tuple[Any, dict[str, Any]]:
+) -> tuple[Optional[object], _UserExtraInfo]:
     if kwargs is None:
         kwargs = {}
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
+    user_id: Optional[object] = None
     for possible_key in userid_list:
         if possible_key in kwargs:
             user_id = kwargs[possible_key]
             break
-    else:
-        user_id = None
 
     user_id_found, user_extra = info_retriever.get_user_info(
         login=True,
@@ -153,7 +158,7 @@ def get_user_info(
         name=django_config.include_user_realname,
     )
     if user_extra.get("login") is None and user_id:
-        user_extra["login"] = user_id
+        user_extra["login"] = str(user_id)
     return user_id_found or user_id, user_extra
 
 
@@ -188,12 +193,14 @@ def _on_django_process(
                 hash_login = _hash_user_id(user_login)
                 span._set_attribute(APPSEC.USER_LOGIN_USERNAME, hash_login)
             span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
-            set_user(None, hash_id, propagate=True, session_id=session_key, may_block=False, span=span)
+            set_user(
+                None, hash_id, propagate=True, session_id=session_key, may_block=False, span=cast("SpanData", span)
+            )
         elif mode == LOGIN_EVENTS_MODE.IDENT:
             if user_id:
                 span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
             if user_login:
-                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, str(user_login))
+                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, user_login)
             span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(
                 None,
@@ -203,7 +210,7 @@ def _on_django_process(
                 name=user_extra.get("name"),
                 session_id=session_key,
                 may_block=False,
-                span=span,
+                span=cast("SpanData", span),
             )
         if in_asm_context():
             custom_data = {
@@ -246,10 +253,9 @@ def _on_django_signup_user(
         if span is None:
             return
         _asm_manual_keep(span)
-        span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
+        span._set_attribute(APPSEC.USER_SIGNUP_EVENT_MODE, asm_config._user_event_mode)
         span._set_attribute(APPSEC.USER_SIGNUP_EVENT, "true")
-        if "login" in user_extra:
-            login = user_extra["login"]
+        if (login := user_extra.get("login")) is not None:
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
                 login = _hash_user_id(login)
             span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERNAME, login)
@@ -257,14 +263,14 @@ def _on_django_signup_user(
         if user_id:
             user_id = str(user_id)
             if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
-                user_id = _hash_user_id(str(user_id))
+                user_id = _hash_user_id(user_id)
             span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERID, user_id)
             span._set_attribute(APPSEC.USER_LOGIN_USERID, user_id)
 
 
 def _on_traced_get_response_pre(
     block_callable: Callable[[], None],
-    _ctx: ExecutionContext,
+    _ctx: ExecutionContext[Event],
     _request: Any,
     _before_request_tags: Any,
 ) -> None:

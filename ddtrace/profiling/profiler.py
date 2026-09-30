@@ -1,9 +1,9 @@
-# -*- encoding: utf-8 -*-
+from collections.abc import Mapping
 import json
 import logging
+import signal
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -35,7 +35,7 @@ from ddtrace.profiling.collector import threading
 LOG = logging.getLogger(__name__)
 
 
-class Profiler(object):
+class Profiler:
     """Run profiling while code is executed.
 
     Note that the whole Python process is profiled, not only the code executed. Data from all running threads are
@@ -46,8 +46,11 @@ class Profiler(object):
     _active_instance: Optional["Profiler"] = None
     _active_lock = Lock()
 
+    # The SIGTERM and SIGINT handlers in place after we last registered.
+    _exit_signal_handler: Optional[tuple[Any, Any]] = None
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
+        self._profiler: _ProfilerInstance = _ProfilerInstance(*args, **kwargs)
 
     def start(self) -> None:
         """Start the profiler."""
@@ -74,15 +77,25 @@ class Profiler(object):
 
             self._profiler.start()
             Profiler._active_instance = self
+            # Register again if application code has replaced the SIGTERM or SIGINT handler
+            # since the last start. If it chained on top of ours, our handler will run twice,
+            # which is harmless because the second call will find no active instance.
+            register_exit_signal_handler = (
+                Profiler._exit_signal_handler is None
+                or (
+                    signal.getsignal(signal.SIGTERM),
+                    signal.getsignal(signal.SIGINT),
+                )
+                != Profiler._exit_signal_handler
+            )
 
         atexit.register(self.stop)
 
         # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
         # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
         # so without this the last partial profile window is silently lost.
-        # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
-        # _active_lock is already held by the main thread (e.g. during start or stop).
-        atexit.register_on_exit_signal(self._stop_on_signal)
+        if register_exit_signal_handler:
+            Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -105,6 +118,13 @@ class Profiler(object):
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    @staticmethod
+    def _stop_active_instance_on_signal() -> None:
+        """Flush and stop whichever profiler is active when an exit signal arrives."""
+        active = Profiler._active_instance
+        if active is not None:
+            active._stop_on_signal()
 
     def _stop_on_signal(self) -> None:
         """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
@@ -314,7 +334,7 @@ class _ProfilerInstance(service.Service):
 
         if self._pytorch_collector_enabled:
 
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_pytorch_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
                     if any(type(c) is collector_class for c in self._collectors):
                         return
@@ -338,7 +358,7 @@ class _ProfilerInstance(service.Service):
                 self._collectors_on_import = []
 
             torch_hooks: list[tuple[str, Callable[[Any], None]]] = [
-                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
+                ("torch", lambda _: start_pytorch_collector(pytorch.TorchProfilerCollector)),
             ]
             self._collectors_on_import.extend(torch_hooks)
 
@@ -379,6 +399,22 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
+        # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
+        # inherit the patched GOT (and the activator skips a redundant re-install).
+        # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED
+        # (unset = on); that is not a ddtrace setting — see heap_gotter docs.
+        if profiling_config.native_heap.enabled:
+            from ddtrace.internal.datadog.profiling import heap_gotter
+
+            try:
+                if heap_gotter.install():
+                    mode: str = "live-heap" if heap_gotter.live_heap_enabled() else "allocation-only"
+                    LOG.info("Native heap profiling armed (GOT overrides installed, %s)", mode)
+                else:
+                    LOG.warning("Native heap profiling requested but GOT overrides were not installed")
+            except Exception:
+                LOG.error("Failed to arm native heap profiling", exc_info=True)
+
         collectors = []
         for col in self._collectors:
             try:
@@ -408,14 +444,30 @@ class _ProfilerInstance(service.Service):
             self._collectors_on_import = None
 
         if self._scheduler is not None:
-            self._scheduler.stop()
+            scheduler_stopped: bool = True
+            try:
+                self._scheduler.stop()
+            except service.ServiceStatusError:
+                pass
+            except Exception:
+                scheduler_stopped = False
+                LOG.error("Error while stopping the profile scheduler", exc_info=True)
+
             # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
             # collectors before the possibly running flush is finished.
-            if join:
-                self._scheduler.join()
+            # If stop failed, the worker may never be signaled, so joining it without a timeout could hang forever.
+            if join and scheduler_stopped:
+                try:
+                    self._scheduler.join()
+                except Exception:
+                    LOG.error("Error while joining the profile scheduler", exc_info=True)
+
             if flush:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
-                self._scheduler.flush()
+                try:
+                    self._scheduler.flush()
+                except Exception:
+                    LOG.error("Error while flushing the last profile", exc_info=True)
 
         for col in reversed(self._collectors):
             try:
@@ -423,7 +475,12 @@ class _ProfilerInstance(service.Service):
             except service.ServiceStatusError:
                 # It's possible some collector failed to start, ignore failure to stop
                 pass
+            except Exception:
+                LOG.error("Error while stopping collector %r", col, exc_info=True)
 
         if join:
             for col in reversed(self._collectors):
-                col.join()
+                try:
+                    col.join()
+                except Exception:
+                    LOG.error("Error while joining collector %r", col, exc_info=True)

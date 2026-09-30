@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where code coverage collected for Intelligent Test Runner (ITR) included files from ``site-packages`` or ``dist-packages`` directories.

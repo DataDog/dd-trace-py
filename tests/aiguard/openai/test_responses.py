@@ -812,7 +812,7 @@ class _RecordingClient:
     def __init__(self):
         self.calls: list = []
 
-    def evaluate(self, messages, options):
+    def evaluate(self, messages, options, **kwargs):
         self.calls.append(list(messages))
         return None
 

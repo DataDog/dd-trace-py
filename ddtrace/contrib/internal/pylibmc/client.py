@@ -22,8 +22,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 
 # Original Client class
@@ -53,7 +53,7 @@ class TracedClient(ObjectProxy):
                 category=DDTraceDeprecationWarning,
             )
 
-        super(TracedClient, self).__init__(client)
+        super().__init__(client)
         self._configure_client(client, service)
 
     @classmethod

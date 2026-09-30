@@ -457,6 +457,18 @@ has_pyerr_as_string()
     return error_guard.error_as_stdstring();
 }
 
+std::string
+take_pyerr_as_string()
+{
+    if (not PyErr_Occurred()) {
+        return {};
+    }
+    // error_already_set fetches and clears, and only an explicit restore() puts the error back, so
+    // a failure while formatting cannot leave the caller with a result and a pending error.
+    const py::error_already_set error;
+    return error.what();
+}
+
 // Returns a tuple with (all ranges, ranges of candidate_text)
 // FIXME: Take a PyList as parameter_list instead of a py::tuple (same for the
 // result)

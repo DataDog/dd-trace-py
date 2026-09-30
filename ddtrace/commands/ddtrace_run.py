@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 import argparse
 import logging
 import os
@@ -89,8 +88,9 @@ def _prepare_env(parser: argparse.ArgumentParser):
     if args.info:
         # Inline imports for performance.
         from ddtrace.internal.debug import pretty_collect
+        from ddtrace.trace import tracer
 
-        print(pretty_collect(color=not args.colorless))
+        print(pretty_collect(tracer, color=not args.colorless))
         sys.exit(0)
 
     root_dir = os.path.dirname(ddtrace.__file__)
@@ -131,13 +131,11 @@ def main():
 
     if os.path.basename(executable) == "uwsgi":
         print(
-            (
-                "ddtrace-run has known compatibility issues with uWSGI where the "
-                "tracer is not started properly in uWSGI workers which can cause "
-                "broken behavior. It is recommended you remove ddtrace-run and "
-                "update your uWSGI configuration following "
-                "https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi."
-            )
+            "ddtrace-run has known compatibility issues with uWSGI where the "
+            "tracer is not started properly in uWSGI workers which can cause "
+            "broken behavior. It is recommended you remove ddtrace-run and "
+            "update your uWSGI configuration following "
+            "https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi."
         )
 
     try:

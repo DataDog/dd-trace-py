@@ -38,9 +38,9 @@ See the :ref:`Configuration` page for more details on how to configure
 Dynamic Instrumentation.
 """
 
-from ddtrace.internal.module import lazy
+from ddtrace.internal.lazy import lazy
 
 
 @lazy
-def _():
+def _() -> None:
     from ddtrace.debugging._debugger import Debugger as DynamicInstrumentation  # noqa

@@ -1,0 +1,11 @@
+id: no-rst-double-backticks
+snapshots:
+  ? |
+    def get_version() -> str:
+        # ``logging.__version__`` deprecated
+        return ""
+  : labels:
+    - source: '# ``logging.__version__`` deprecated'
+      style: primary
+      start: 30
+      end: 66

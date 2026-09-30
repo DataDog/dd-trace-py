@@ -6,33 +6,28 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     // Early return: if left operand is not text-like, preserve native % behavior.
     // Do NOT coerce the right operand to a tuple; arithmetic expects the raw operand.
 
-    // Normalize parameters:
-    // - If mapping or tuple: use as-is (borrowed reference, do not INCREF/DECREF)
-    // - Else: pack single value into a new 1-tuple we own and must DECREF
-    PyObject* params = insert_tuple_or_obj; // borrowed
-    bool own_params = false;
+    // Keep borrowed parameters non-owning and retain only a tuple created here.
+    py::handle params(insert_tuple_or_obj);
+    py::object owned_params;
     if (!PyTuple_Check(insert_tuple_or_obj) && !PyMapping_Check(insert_tuple_or_obj)) {
-        params = PyTuple_Pack(1, insert_tuple_or_obj); // new ref
-        if (params == nullptr) {
+        owned_params = py::reinterpret_steal<py::object>(PyTuple_Pack(1, insert_tuple_or_obj));
+        if (!owned_params) {
             return nullptr;
         }
-        own_params = true;
+        params = owned_params;
     }
 
     PyObject* result = nullptr;
     if (PyUnicode_Check(text)) {
-        result = PyUnicode_Format(text, params);
+        result = PyUnicode_Format(text, params.ptr());
     } else if (PyBytes_Check(text) || PyByteArray_Check(text)) {
         // Use generic numeric remainder which maps to % operator without creating a method name
-        result = PyNumber_Remainder(text, params);
+        result = PyNumber_Remainder(text, params.ptr());
     } else {
         // Fallback: try generic % operator; if unsupported, Python will raise
-        result = PyNumber_Remainder(text, params);
+        result = PyNumber_Remainder(text, params.ptr());
     }
 
-    if (own_params) {
-        Py_DECREF(params);
-    }
     // result is a new reference from PyUnicode_Format/PyNumber_Remainder; return as-is
     return result;
 }
@@ -99,13 +94,13 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     }
     py::tuple formatted_parameters(list_formatted_parameters);
 
-    PyObject* applied_params = do_modulo(StringToPyObject(fmttext, py_str_type).ptr(), formatted_parameters.ptr());
-    if (applied_params == nullptr) {
+    py::object applied_params = py::reinterpret_steal<py::object>(
+      do_modulo(StringToPyObject(fmttext, py_str_type).ptr(), formatted_parameters.ptr()));
+    if (!applied_params) {
         return return_candidate_result();
     }
 
-    auto res_pyobject = api_convert_escaped_text_to_taint_text(applied_params, ranges_orig, py_str_type);
-    Py_DECREF(applied_params);
+    auto res_pyobject = api_convert_escaped_text_to_taint_text(applied_params.ptr(), ranges_orig, py_str_type);
     if (res_pyobject == nullptr) {
         return return_candidate_result();
     }

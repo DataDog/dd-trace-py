@@ -1,7 +1,7 @@
 {
   "version": "2.2",
   "metadata": {
-    "rules_version": "1.18.0"
+    "rules_version": "1.18.2"
   },
   "rules": [
     {
@@ -5682,88 +5682,14 @@
       "transformers": []
     },
     {
-      "id": "dog-920-100",
-      "name": "File upload with double extension",
-      "tags": {
-        "type": "http_protocol_violation",
-        "category": "attack_attempt",
-        "cwe": "434",
-        "capec": "1000/255/153/267/71",
-        "confidence": "0",
-        "module": "waf"
-      },
-      "conditions": [
-        {
-          "parameters": {
-            "inputs": [
-              {
-                "address": "server.request.body.filenames"
-              },
-              {
-                "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "x-filename"
-                ]
-              },
-              {
-                "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "x_filename"
-                ]
-              },
-              {
-                "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "x.filename"
-                ]
-              },
-              {
-                "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "x-file-name"
-                ]
-              },
-              {
-                "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "content-disposition"
-                ]
-              },
-              {
-                "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "upload-filename"
-                ]
-              },
-              {
-                "address": "server.request.headers.no_cookies",
-                "key_path": [
-                  "filename"
-                ]
-              }
-            ],
-            "regex": "\\w\\.[a-zA-Z0-9]{2,6}\\.[a-zA-Z0-9]+\\.?$",
-            "options": {
-              "case_sensitive": true,
-              "min_length": 6
-            }
-          },
-          "operator": "match_regex"
-        }
-      ],
-      "transformers": [
-        "removeNulls"
-      ]
-    },
-    {
       "id": "dog-920-110",
       "name": "Zipslip Attack - Unsafe Zip extraction",
       "tags": {
-        "type": "http_protocol_violation",
+        "type": "zipslip",
         "category": "attack_attempt",
         "cwe": "23",
         "capec": "1000/152/586",
-        "confidence": "0",
+        "confidence": "1",
         "module": "waf"
       },
       "conditions": [
@@ -5834,6 +5760,153 @@
             "regex": "(?:^|[/\\\\])\\.\\.[/\\\\]",
             "options": {
               "case_sensitive": true,
+              "min_length": 4
+            }
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": []
+    },
+    {
+      "id": "dog-920-111",
+      "name": "Zipslip Attack - Extraction of code files",
+      "tags": {
+        "type": "zipslip",
+        "category": "attack_attempt",
+        "cwe": "23",
+        "capec": "1000/152/586",
+        "confidence": "1",
+        "module": "waf"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.body.filenames"
+              },
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "x-filename"
+                ]
+              },
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "x_filename"
+                ]
+              },
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "x.filename"
+                ]
+              },
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "x-file-name"
+                ]
+              },
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "content-disposition"
+                ]
+              },
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "upload-filename"
+                ]
+              },
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "filename"
+                ]
+              }
+            ],
+            "regex": "\\.(?:zip|(?:(?:tar\\.)?gz|bz2|7z|xz)|rar|tar)$",
+            "options": {
+              "case_sensitive": false,
+              "min_length": 5
+            }
+          },
+          "operator": "match_regex"
+        },
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.io.fs.file_write"
+              }
+            ],
+            "regex": ".\\.(?:jsp|php|py|rb|sh|pl|cgi|action|tagx?|tld|js[fv]|js)$",
+            "options": {
+              "case_sensitive": false,
+              "min_length": 4
+            }
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": []
+    },
+    {
+      "id": "dog-920-121",
+      "name": "Zipslip Attack - Write to relative path",
+      "tags": {
+        "type": "zipslip",
+        "category": "attack_attempt",
+        "cwe": "23",
+        "capec": "1000/152/586",
+        "confidence": "0",
+        "module": "waf"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.io.fs.file_write"
+              }
+            ],
+            "regex": "(?:^|[/\\\\])\\.\\.[/\\\\]",
+            "options": {
+              "case_sensitive": true,
+              "min_length": 4
+            }
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": []
+    },
+    {
+      "id": "dog-920-122",
+      "name": "Zipslip Attack - Write code files",
+      "tags": {
+        "type": "zipslip",
+        "category": "attack_attempt",
+        "cwe": "23",
+        "capec": "1000/152/586",
+        "confidence": "0",
+        "module": "waf"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.io.fs.file_write"
+              }
+            ],
+            "regex": ".\\.(?:jsp|php|py|rb|sh|pl|cgi|action|tagx?|tld|js[fv]|js)$",
+            "options": {
+              "case_sensitive": false,
               "min_length": 4
             }
           },
@@ -6000,6 +6073,9 @@
                 "address": "server.request.body"
               },
               {
+                "address": "server.request.body.files_content"
+              },
+              {
                 "address": "grpc.server.request.message"
               },
               {
@@ -6009,7 +6085,7 @@
                 "address": "graphql.server.resolver"
               }
             ],
-            "regex": "<!DOCTYPE\\b.*<!ENTITY[^>]+SYSTEM\\s+[^>]+>",
+            "regex": "(?s)<!DOCTYPE\\b.*<!ENTITY[^>]+SYSTEM\\s+[^>]+>",
             "options": {
               "case_sensitive": false,
               "min_length": 24
@@ -6080,7 +6156,7 @@
       ]
     },
     {
-      "id": "dog-942-001",
+      "id": "dog-941-002",
       "name": "Blind XSS callback domains",
       "tags": {
         "type": "xss",
@@ -6117,6 +6193,53 @@
               }
             ],
             "regex": "https?:\\/\\/(?:.*\\.)?(?:bxss\\.(?:in|me)|xss\\.ht|js\\.rip)",
+            "options": {
+              "case_sensitive": false
+            }
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": []
+    },
+    {
+      "id": "dog-942-100",
+      "name": "Postgres exploit through SQL Injection (CVE-2026-2005)",
+      "tags": {
+        "type": "sql_injection",
+        "category": "attack_attempt",
+        "cwe": "83",
+        "capec": "1000/152/248/66",
+        "confidence": "1",
+        "module": "waf"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "server.request.headers.no_cookies"
+              },
+              {
+                "address": "grpc.server.request.message"
+              },
+              {
+                "address": "graphql.server.all_resolvers"
+              },
+              {
+                "address": "graphql.server.resolver"
+              }
+            ],
+            "regex": "\\bpgp_pub_decrypt_bytea\\(",
             "options": {
               "case_sensitive": false
             }
@@ -9106,6 +9229,36 @@
       "transformers": []
     },
     {
+      "id": "ua0-600-69x",
+      "name": "RedTail",
+      "tags": {
+        "type": "attack_tool",
+        "category": "attack_attempt",
+        "cwe": "200",
+        "capec": "1000/118/169",
+        "tool_name": "redtail",
+        "confidence": "0",
+        "module": "waf"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "user-agent"
+                ]
+              }
+            ],
+            "regex": "\\blibredtail-http\\b"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": []
+    },
+    {
       "id": "ua0-600-6xx",
       "name": "Stealthy scanner",
       "tags": {
@@ -9271,6 +9424,54 @@
       ],
       "transformers": [
         "lowercase"
+      ]
+    },
+    {
+      "id": "strc-920-100",
+      "name": "File upload with double extension",
+      "enabled": false,
+      "tags": {
+        "type": "http_protocol_violation",
+        "category": "attack_attempt",
+        "cwe": "434",
+        "capec": "1000/255/153/267/71",
+        "confidence": "0",
+        "module": "waf"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.body.filenames"
+              }
+            ],
+            "regex": "\\w\\.[a-zA-Z0-9]{2,6}\\.[a-zA-Z0-9]+\\.?$",
+            "options": {
+              "case_sensitive": true,
+              "min_length": 6
+            }
+          },
+          "operator": "match_regex"
+        },
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.body.filenames"
+              }
+            ],
+            "regex": "\\.(?:jpe?g|png|gif|bmp|tiff|ico|webp|svg|hei[cf]|pdf\\.pdf)\\.?$",
+            "options": {
+              "case_sensitive": false,
+              "min_length": 6
+            }
+          },
+          "operator": "!match_regex"
+        }
+      ],
+      "transformers": [
+        "removeNulls"
       ]
     },
     {
@@ -11694,6 +11895,46 @@
       }
     },
     {
+      "id": "dog-920-120",
+      "name": "Zipslip Attack - Read local archive file",
+      "tags": {
+        "type": "zipslip_trace_tagging",
+        "category": "attack_attempt",
+        "cwe": "23",
+        "capec": "1000/152/586",
+        "confidence": "0",
+        "module": "waf"
+      },
+      "min_version": "1.25.0",
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.io.fs.file"
+              }
+            ],
+            "regex": "\\.(?:zip|(?:(?:tar\\.)?gz|bz2|7z|xz)|rar|tar)$",
+            "options": {
+              "case_sensitive": false,
+              "min_length": 5
+            }
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "output": {
+        "event": false,
+        "keep": false,
+        "attributes": {
+          "appsec.events.zipslip.local_file_read": {
+            "value": true
+          }
+        }
+      }
+    },
+    {
       "id": "llm-001-000",
       "name": "LLM call",
       "tags": {
@@ -11870,6 +12111,66 @@
         ]
       },
       "evaluate": true,
+      "output": true
+    },
+    {
+      "id": "extract-auth",
+      "generator": "extract_schema",
+      "conditions": [
+        {
+          "operator": "equals",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "waf.context.processor",
+                "key_path": [
+                  "extract-schema"
+                ]
+              }
+            ],
+            "type": "boolean",
+            "value": true
+          }
+        }
+      ],
+      "parameters": {
+        "mappings": [
+          {
+            "inputs": [
+              {
+                "address": "server.request.jwt"
+              }
+            ],
+            "output": "_dd.appsec.s.req.jwt"
+          },
+          {
+            "inputs": [
+              {
+                "address": "server.request.cookies"
+              }
+            ],
+            "output": "_dd.appsec.s.req.cookies"
+          }
+        ],
+        "scanners": [
+          {
+            "tags": {
+              "category": "payment"
+            }
+          },
+          {
+            "tags": {
+              "category": "credentials"
+            }
+          },
+          {
+            "tags": {
+              "category": "pii"
+            }
+          }
+        ]
+      },
+      "evaluate": false,
       "output": true
     },
     {

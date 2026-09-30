@@ -8,7 +8,7 @@ on first access. It will be removed in 5.0.0.
 import typing
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 # Keep in sync with the public surface of ddtrace.aiguard.integrations.strands.
@@ -23,7 +23,7 @@ _PUBLIC = frozenset(
 
 def __getattr__(name: str) -> typing.Any:
     if name in _PUBLIC:
-        deprecate(  # type: ignore[no-untyped-call]
+        deprecate(
             prefix="ddtrace.appsec.ai_guard.integrations.strands is deprecated",
             message="Import from ddtrace.aiguard.integrations.strands instead.",
             removal_version="5.0.0",

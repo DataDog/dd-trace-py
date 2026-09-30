@@ -25,7 +25,7 @@ _coverage_instance: Optional[Any] = None
 _owns_coverage_instance = False
 _cached_coverage_percentage: Optional[float] = None
 
-# AIDEV-NOTE: External tools such as pytest-cov can own Coverage.current(). We may cache
+# External tools such as pytest-cov can own Coverage.current(). We may cache
 # their instance to generate reports, but must never stop, save, or erase it.
 
 
@@ -195,6 +195,11 @@ def stop_coverage(save: bool = True, erase: bool = False) -> Optional[Any]:
 
     if not _owns_coverage_instance:
         log.debug("Coverage instance is externally managed; skipping stop")
+        if erase:
+            # Clear our reference even though we don't own the instance.  The caller
+            # asked for a clean slate; we must not touch the external session but we
+            # must reflect the "not running" state in is_coverage_running().
+            reset_coverage_state()
         return cov
 
     try:

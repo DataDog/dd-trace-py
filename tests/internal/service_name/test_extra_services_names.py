@@ -10,38 +10,38 @@ def test_config_extra_service_names_fork(run_python_code_in_subprocess):
 import ddtrace.auto
 import ddtrace
 
-import re
 import os
 import sys
-import time
 
 children = []
 for i in range(10):
     pid = os.fork()
     if pid == 0:
         # Child process
-        service_name = f"extra_service_{i}"
-        ddtrace.config._add_extra_service(service_name)
-        # Ensure the child has time to save the service
-        for _ in range(30):
-            time.sleep(0.1)
-            if service_name in set(ddtrace.config._extra_services_queue.peekall()):
-                break
-        else:
-            msg = f"extra service name '{service_name}' not emitted by child"
-            raise RuntimeError(msg)
-        sys.exit(0)
+        ddtrace.config._add_extra_service(f"extra_service_{i}")
+        os._exit(0)
     else:
         # Parent process
         children.append(pid)
 
+failed = []
 for pid in children:
-    os.waitpid(pid, 0)
+    _, status = os.waitpid(pid, 0)
+    if status != 0:
+        failed.append(pid)
+if failed:
+    sys.stderr.write(f"child processes failed: {failed}\\n")
+    sys.exit(1)
 
 extra_services = ddtrace.config._get_extra_services()
 extra_services.discard("sqlite")  # coverage
-assert len(extra_services) == 10, extra_services
-assert all(re.match(r"extra_service_\\d+", service) for service in extra_services), extra_services
+expected = {f"extra_service_{i}" for i in range(10)}
+if extra_services != expected:
+    sys.stderr.write(
+        f"missing extra services: {expected - extra_services}; "
+        f"unexpected extra services: {extra_services - expected}\\n"
+    )
+    sys.exit(1)
 """
 
     env = os.environ.copy()

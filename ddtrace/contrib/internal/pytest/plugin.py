@@ -32,6 +32,7 @@ from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # n
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
 from ddtrace.contrib.internal.pytest._utils import _extract_span
+from ddtrace.contrib.internal.pytest._utils import is_enabled
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -57,11 +58,6 @@ PATCH_ALL_HELP_MSG = "Call ddtrace._patch_all before running tests."
 
 def _disable_telemetry_dependency_collection():
     telemetry_config.DEPENDENCY_COLLECTION = False
-
-
-def is_enabled(config):
-    """Check if the ddtrace plugin is enabled."""
-    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
 def pytest_addoption(parser):

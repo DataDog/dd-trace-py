@@ -1,23 +1,7 @@
-import sys
-
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.internal.module import ModuleWatchdog
 import tests.submod.stuff as stuff
-
-
-@pytest.fixture
-def no_pytest_loader():
-    from _pytest.assertion.rewrite import AssertionRewritingHook
-
-    i = next(i for i, hook in enumerate(sys.meta_path) if isinstance(hook, AssertionRewritingHook))
-    pytest_loader = sys.meta_path.pop(i)
-
-    try:
-        yield
-    finally:
-        sys.meta_path.insert(i, pytest_loader)
 
 
 @pytest.fixture
@@ -122,7 +106,9 @@ def test_discovery_after_external_wrapping():
 
     from ddtrace.debugging._debugger import DebuggerModuleWatchdog
     from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
+    ModuleCodeCollector.register("di")
     DebuggerModuleWatchdog.install()
 
     import tests.submod.stuff as stuff
@@ -145,23 +131,19 @@ def test_property_non_function_getter(stuff_discovery):
         stuff_discovery.by_name("PropertyStuff.foo")
 
 
-def test_custom_decorated_stuff(no_pytest_loader):
-    class DiscoveryModuleWatchdog(ModuleWatchdog):
-        def transform(self, code, module):
-            return FunctionDiscovery.transformer(code, module)
+@pytest.mark.subprocess
+def test_custom_decorated_stuff():
+    from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
-    DiscoveryModuleWatchdog.install()
+    ModuleCodeCollector.register("di")
 
-    try:
-        import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
 
-        fd = FunctionDiscovery.from_module(custom_decorated_stuff)
+    fd = FunctionDiscovery.from_module(custom_decorated_stuff)
 
-        (home,) = fd.at_line(17)
-        assert home.__qualname__ == "home"
-
-    finally:
-        DiscoveryModuleWatchdog.uninstall()
+    (home,) = fd.at_line(17)
+    assert home.__qualname__ == "home"
 
 
 @pytest.mark.subprocess
@@ -169,8 +151,10 @@ def test_discovery_after_external_wrapping_context():
     from ddtrace.debugging._debugger import DebuggerModuleWatchdog
     from ddtrace.debugging._function.discovery import FunctionDiscovery
     from ddtrace.internal.module import origin
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
     from ddtrace.internal.wrapping.context import WrappingContext
 
+    ModuleCodeCollector.register("di")
     DebuggerModuleWatchdog.install()
 
     import tests.submod.stuff as stuff

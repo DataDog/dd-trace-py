@@ -38,7 +38,8 @@ The integration uses **engine-side tracing** to capture all requests regardless 
    - Extracts and stores model name for span tagging
    - Forces ``log_stats=True`` to enable latency and token metrics collection
 
-2. **Context Injection** (``Processor.process_inputs``):
+2. **Context Injection** (``Processor.process_inputs`` / ``InputProcessor.process_inputs``):
+   - Uses ``Processor`` with vLLM < 0.14.0 and ``InputProcessor`` with vLLM >= 0.14.0
    - Injects Datadog trace context into ``trace_headers``
    - Context propagates through the engine automatically
 

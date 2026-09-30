@@ -50,6 +50,7 @@ def mock_evaluate_response(
     block: bool = True,
     sds_findings: Optional[list[Any]] = None,
     tag_probs: Optional[dict[str, float]] = None,
+    redaction_replacements: Optional[Any] = None,
 ) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
@@ -63,6 +64,8 @@ def mock_evaluate_response(
         attributes["sds_findings"] = sds_findings
     if tag_probs is not None:
         attributes["tag_probs"] = tag_probs
+    if redaction_replacements is not None:
+        attributes["redaction_replacements"] = redaction_replacements
     mock_response.get_json.return_value = {"data": {"attributes": attributes}}
     return mock_response
 

@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_py39_line_numbers():
     """
     In Python 3.9, `dis.findlinestarts()` (used to determine where to insert instrumentation calls) can return
@@ -33,13 +33,13 @@ def test_coverage_py39_line_numbers():
     )
 
     expected_executable = {
-        "tests/coverage/included_path/py39_line_numbers.py": {1, 3, 4, 7, 8, 9, 12, 13, 14, 17, 18, 19},
+        "tests/coverage/included_path/py39_line_numbers.py": {2, 5, 6, 9, 10, 11, 14, 15, 16, 19, 20, 21},
     }
     expected_covered = {
-        "tests/coverage/included_path/py39_line_numbers.py": {4, 8, 9, 13, 14, 18, 19},
+        "tests/coverage/included_path/py39_line_numbers.py": {6, 10, 11, 15, 16, 20, 21},
     }
     expected_covered_with_imports = {
-        "tests/coverage/included_path/py39_line_numbers.py": {1, 3, 4, 7, 8, 9, 12, 13, 14, 17, 18, 19},
+        "tests/coverage/included_path/py39_line_numbers.py": {2, 5, 6, 9, 10, 11, 14, 15, 16, 19, 20, 21},
     }
 
     assert executable == expected_executable, (

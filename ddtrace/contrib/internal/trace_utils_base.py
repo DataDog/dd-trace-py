@@ -1,6 +1,6 @@
+from collections.abc import Mapping
 import re
 from typing import Any
-from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -9,6 +9,7 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -49,7 +50,7 @@ def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
     #   - any digit is left unchanged
     #   - any block of any length of different ASCII chars is converted to a single underscore '_'
     normalized_name = _normalized_header_name(header_name)
-    return "http.{}.headers.{}".format(request_or_response, normalized_name)
+    return f"http.{request_or_response}.headers.{normalized_name}"
 
 
 def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:
@@ -115,11 +116,10 @@ def set_user(
     role: Optional[str] = None,
     session_id: Optional[str] = None,
     propagate: bool = False,
-    span: Optional[Span] = None,
+    span: Optional[SpanData] = None,
     may_block: bool = True,
     mode: str = "sdk",
-):
-    # type: (...) -> None
+) -> None:
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
@@ -160,7 +160,7 @@ def set_user(
         )
 
 
-def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, query: str) -> None:
+def _set_url_tag(integration_config: IntegrationConfig, span: SpanData, url: str, query: str) -> None:
     if not integration_config.http_tag_query_string:
         span._set_attribute(http.URL, strip_query_string(url))
     elif config._global_query_string_obfuscation_disabled:

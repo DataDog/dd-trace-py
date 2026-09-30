@@ -3,8 +3,8 @@ from typing import ClassVar
 from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
 
 from ._iast_request_context import _iast_end_request
@@ -37,13 +37,13 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         load_iast()
 
-    def on_span_start(self, span: Span):
+    def on_span_start(self, span: SpanProtocol):
         if span.span_type != SpanTypes.WEB:
             return
 
         _iast_start_request(span)
 
-    def on_span_finish(self, span: Span):
+    def on_span_finish(self, span: SpanProtocol):
         """Report reported vulnerabilities.
 
         Span Tags:

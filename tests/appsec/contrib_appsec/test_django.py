@@ -1,5 +1,7 @@
 import importlib
 import os
+from pathlib import Path
+import shutil
 
 import django
 from django.conf import settings
@@ -15,6 +17,25 @@ from tests.utils import scoped_tracer
 
 _FLAT_URLCONF = "tests.appsec.contrib_appsec.django_app.urls"
 _SUBAPP_URLCONF = "tests.appsec.contrib_appsec.django_app.urls_subapps"
+_DATABASE_TEMPLATE = Path(__file__).with_name("db.sqlite3")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def isolated_database(tmp_path_factory):
+    """Use a worker-local copy of the Django database template."""
+    database_path = tmp_path_factory.mktemp("appsec-django") / "db.sqlite3"
+    shutil.copyfile(_DATABASE_TEMPLATE, database_path)
+
+    os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
+    original_database_name = settings.DATABASES["default"]["NAME"]
+    settings.DATABASES["default"]["NAME"] = str(database_path)
+    try:
+        yield
+    finally:
+        from django.db import connections
+
+        connections.close_all()
+        settings.DATABASES["default"]["NAME"] = original_database_name
 
 
 class _Test_Django_Base:
@@ -244,7 +265,7 @@ def test_collect_django_routes_joins_regex_children_like_join_route(_isolated_en
     from django.urls import include
     from django.urls import re_path
 
-    from ddtrace.contrib.internal.django.patch import _collect_django_routes
+    from ddtrace.contrib.internal.django.routing import _collect_django_routes
 
     def users_view(request):
         return None
@@ -278,7 +299,7 @@ def test_collect_django_routes_handles_mixed_path_and_re_path(_isolated_endpoint
     from django.urls import path
     from django.urls import re_path
 
-    from ddtrace.contrib.internal.django.patch import _collect_django_routes
+    from ddtrace.contrib.internal.django.routing import _collect_django_routes
 
     def a(request):
         return None
@@ -302,7 +323,7 @@ def test_collect_pattern_methods_respects_require_http_methods(_django_ready):
     from django.views.decorators.csrf import csrf_exempt
     from django.views.decorators.http import require_http_methods
 
-    from ddtrace.contrib.internal.django.patch import _collect_pattern_methods
+    from ddtrace.contrib.internal.django.routing import _collect_pattern_methods
 
     @csrf_exempt
     @require_http_methods(["GET", "POST", "OPTIONS"])
@@ -315,7 +336,7 @@ def test_collect_pattern_methods_respects_require_http_methods(_django_ready):
 
 def test_collect_pattern_methods_undecorated_view_falls_back_to_wildcard(_django_ready):
     """A plain view with no method restriction and no http_method_names is tagged as '*'."""
-    from ddtrace.contrib.internal.django.patch import _collect_pattern_methods
+    from ddtrace.contrib.internal.django.routing import _collect_pattern_methods
 
     def view(request):
         return None

@@ -2,21 +2,22 @@
 Generic dbapi tracing code.
 """
 
-from typing import Mapping
+from collections.abc import Mapping
 from typing import Optional
 
 import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
@@ -42,8 +43,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -65,7 +65,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 removal_version="5.0.0",
             )
 
-        super(TracedCursor, self).__init__(cursor)
+        super().__init__(cursor)
 
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
@@ -76,9 +76,10 @@ class TracedCursor(wrapt.ObjectProxy):
         span_name = (
             cfg["_dbapi_span_operation_name"]
             if cfg and "_dbapi_span_operation_name" in cfg
-            else "{}.query".format(span_name_prefix)
+            else f"{span_name_prefix}.query"
         )
         self._self_datadog_name = span_name
+        self._self_dbapi_span_name_prefix = span_name_prefix
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
@@ -141,12 +142,13 @@ class TracedCursor(wrapt.ObjectProxy):
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
+        if isinstance(query, str):
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.executemany,
             self._self_datadog_name,
@@ -161,11 +163,12 @@ class TracedCursor(wrapt.ObjectProxy):
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
+        if isinstance(query, str):
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
-        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.execute,
             self._self_datadog_name,
@@ -264,9 +267,9 @@ class TracedConnection(wrapt.ObjectProxy):
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedCursor if cfg.trace_fetch_methods else TracedCursor
 
-        super(TracedConnection, self).__init__(conn)
+        super().__init__(conn)
         name = _get_vendor(conn)
-        self._self_datadog_name = "{}.connection".format(name)
+        self._self_datadog_name = f"{name}.connection"
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls

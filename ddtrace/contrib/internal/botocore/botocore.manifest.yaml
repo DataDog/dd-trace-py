@@ -1,0 +1,28 @@
+_v: 1
+name: botocore
+display_name: Botocore
+description: Instruments Botocore and Boto3 AWS calls, including database, object storage, messaging production and consumption,
+  Lambda invocations, and Bedrock model and agent operations.
+packages:
+- name: boto3
+- name: botocore
+category:
+- cloud_provider.client
+- db.client
+- faas
+- gen_ai
+- messaging.consumer
+- messaging.producer
+- object_store.client
+systems:
+- aws
+- aws.bedrock
+- aws.dynamodb
+- aws.eventbridge
+- aws.kinesis
+- aws.lambda
+- aws.s3
+- aws.sns
+- aws.sqs
+- aws.step_functions
+creation_date: '2017-03-16'

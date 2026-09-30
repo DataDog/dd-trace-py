@@ -10,6 +10,7 @@ import warnings
 import pytest
 
 from ddtrace.aiguard import AIGuardAbortError
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
@@ -391,7 +392,7 @@ def test_before_hook_materializes_iterator_messages():
         def __init__(self):
             self.evaluated = None
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.evaluated = list(messages)
             return None
 
@@ -426,6 +427,21 @@ def test_chat_sync_allow(mock_execute_request, openai_client):
     assert resp is not None
     # Before + after evaluations
     assert mock_execute_request.call_count == 2
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_chat_sync_reports_auto_call_path_telemetry(mock_execute_request, telemetry_mock, openai_client):
+    """Auto-instrumented evaluations attribute their metrics to auto/openai (APPSEC-69866)."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    request_metrics = [args[3] for args, _ in telemetry_mock.call_args_list if args[1] == AI_GUARD.REQUESTS_METRIC]
+    assert len(request_metrics) == 2  # before + after evaluations
+    for tags in request_metrics:
+        assert dict(tags)["source"] == AI_GUARD.SOURCE_AUTO
+        assert dict(tags)["integration"] == AI_GUARD.INTEGRATION_OPENAI
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])

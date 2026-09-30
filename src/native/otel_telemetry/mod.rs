@@ -3,7 +3,6 @@ use libdd_otel_telemetry::{
     OtelMetricsAggregator, OtelMetricsAggregatorBuilder, OtlpExporterConfig, OtlpProtocol,
     ResourceBuilder, Temporality,
 };
-use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{
     exceptions::{PyRuntimeError, PyTypeError, PyValueError},
     prelude::*,
@@ -17,8 +16,6 @@ use std::{
     },
     time::Duration,
 };
-
-use crate::shared_runtime::SharedRuntimePy;
 
 #[cfg(all(not(Py_3_13), not(PyPy), not(GraalPy)))]
 unsafe extern "C" {
@@ -173,15 +170,13 @@ impl OtelMetricsAggregatorBuilderPy {
     /// Consumes the wrapped builder. Returns the built aggregator together with any build
     /// warnings (e.g. an unsupported protocol for the compiled-in feature set) as plain strings
     /// for the caller to log — a misconfigured OTel pipeline never prevents this from succeeding.
-    fn build(
-        &mut self,
-        shared_runtime: PyRef<'_, SharedRuntimePy>,
-    ) -> PyResult<(OtelMetricsAggregatorPy, Vec<String>)> {
+    fn build(&mut self) -> PyResult<(OtelMetricsAggregatorPy, Vec<String>)> {
         let builder = self
             .try_take_builder()?
             .with_resource(std::mem::take(&mut self.resource).build());
-        let runtime = shared_runtime.as_arc();
-        let (aggregator, warnings) = builder.build::<ForkSafeRuntime>(Arc::clone(runtime));
+        let (aggregator, warnings) = builder
+            .build_with_default_runtime()
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
         let warnings = warnings.iter().map(|w| w.to_string()).collect();
         Ok((
             OtelMetricsAggregatorPy {

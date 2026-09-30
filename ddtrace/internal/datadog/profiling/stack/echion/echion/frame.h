@@ -51,6 +51,7 @@ class Frame
     StringTable::Key name = 0;
 
     unsigned line = 0;
+    bool is_in_gc = false;     // Whether the current frame has initiated garbage collection
     uintptr_t code_object = 0; // PyCodeObject address, matches Python's id(code)
     int lasti = -1;            // Last bytecode offset in _Py_CODEUNIT units
     int first_lineno = 0;      // co_firstlineno, used to detect code object address reuse

@@ -36,70 +36,112 @@ cdef extern from "<string_view>" namespace "std" nogil:
     cdef cppclass string_view:
         string_view(const char* s, size_t count)
 
-cdef extern from "sample.hpp" namespace "Datadog":
-    ctypedef struct Sample:
-        pass
-
-cdef extern from "ddup_interface.hpp":
+cdef extern from "sample.hpp":
     ctypedef struct PyFrameObject:
         pass
 
-    void ddup_config_env(string_view env)
-    void ddup_config_service(string_view service)
-    void ddup_config_version(string_view version)
-    void ddup_config_runtime(string_view runtime)
-    void ddup_config_runtime_version(string_view runtime_version)
-    void ddup_config_profiler_version(string_view profiler_version)
-    void ddup_config_url(string_view url)
-    void ddup_config_max_nframes(int max_nframes)
-    void ddup_config_timeline(bint enable)
-    void ddup_config_output_filename(string_view output_filename)
-    void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
-    void ddup_config_process_tags(string_view process_tags)
+cdef extern from "sample.hpp" namespace "Datadog":
+    cdef cppclass Sample:
+        bint push_walltime(int64_t walltime, int64_t count)
+        bint push_cputime(int64_t cputime, int64_t count)
+        bint push_acquire(int64_t acquire_time, int64_t count)
+        bint push_release(int64_t release_time, int64_t count)
+        bint push_alloc(int64_t size, int64_t count)
+        bint push_heap(int64_t size, int64_t count)
+        bint push_gpu_gputime(int64_t time, int64_t count)
+        bint push_gpu_memory(int64_t size, int64_t count)
+        bint push_gpu_flops(int64_t flops, int64_t count)
+        bint push_lock_name(string_view lock_name)
+        bint push_threadinfo(int64_t thread_id, int64_t thread_native_id, string_view thread_name)
+        bint push_task_id(uint64_t task_id)
+        bint push_task_name(string_view task_name)
+        bint push_span_id(uint64_t span_id)
+        bint push_local_root_span_id(uint64_t local_root_span_id)
+        bint push_trace_type(string_view trace_type)
+        bint push_exceptioninfo(string_view exception_type, int64_t count)
+        bint push_exception_message(string_view exception_message)
+        bint push_class_name(string_view class_name)
+        bint push_gpu_device_name(string_view device_name)
+        bint push_monotonic_ns(int64_t monotonic_ns)
+        bint push_absolute_ns(int64_t timestamp_ns)
+        void push_frame(string_view _name, string_view _filename, uint64_t address, int64_t line)
+        void push_pyframes(PyFrameObject* frame)
+        bint flush_sample()
 
-    void ddup_config_user_tag(string_view key, string_view val)
-    void ddup_config_sample_type(unsigned int type)
+cdef extern from "sample_manager.hpp" namespace "Datadog":
+    cdef cppclass SampleManager:
+        @staticmethod
+        void set_max_nframes(unsigned int max_nframes)
+
+        @staticmethod
+        void set_timeline(bint enable)
+
+        @staticmethod
+        void set_sample_pool_capacity(size_t capacity)
+
+        @staticmethod
+        Sample* start_sample()
+
+        @staticmethod
+        void drop_sample(Sample* sample)
+
+cdef extern from "uploader_builder.hpp" namespace "Datadog":
+    cdef cppclass UploaderBuilder:
+        @staticmethod
+        void set_env(string_view env)
+
+        @staticmethod
+        void set_service(string_view service)
+
+        @staticmethod
+        void set_version(string_view version)
+
+        @staticmethod
+        void set_runtime(string_view runtime)
+
+        @staticmethod
+        void set_runtime_id(string_view runtime_id)
+
+        @staticmethod
+        void set_process_id()
+
+        @staticmethod
+        void set_runtime_version(string_view runtime_version)
+
+        @staticmethod
+        void set_profiler_version(string_view profiler_version)
+
+        @staticmethod
+        void set_url(string_view url)
+
+        @staticmethod
+        void set_tag(string_view key, string_view val)
+
+        @staticmethod
+        void set_process_tags(string_view process_tags)
+
+        @staticmethod
+        void set_output_filename(string_view output_filename)
+
+        @staticmethod
+        void set_max_timeout_ms(uint64_t max_timeout_ms)
+
+cdef extern from "ddup_interface.hpp":
     void ddup_set_profiler_settings_json(string_view settings_json)
 
+    bint ddup_is_initialized()
     void ddup_start()
-    void ddup_set_runtime_id(string_view _id)
-    void ddup_set_process_id()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
-    void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
     bint ddup_upload() nogil
 
-    Sample *ddup_start_sample()
-    void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
-    void ddup_push_cputime(Sample *sample, int64_t cputime, int64_t count)
-    void ddup_push_acquire(Sample *sample, int64_t acquire_time, int64_t count)
-    void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
-    void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
-    void ddup_push_heap(Sample *sample, int64_t size, int64_t count)
-    void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
-    void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
-    void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
-    void ddup_push_lock_name(Sample *sample, string_view lock_name)
-    void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
-    void ddup_push_task_id(Sample *sample, uint64_t task_id)
-    void ddup_push_task_name(Sample *sample, string_view task_name)
-    void ddup_push_span_id(Sample *sample, uint64_t span_id)
-    void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
-    void ddup_push_trace_type(Sample *sample, string_view trace_type)
-    void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
-    void ddup_push_exception_message(Sample *sample, string_view exception_message)
-    void ddup_push_class_name(Sample *sample, string_view class_name)
-    void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
-    void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
-    void ddup_push_pyframes(Sample *sample, PyFrameObject* frame)
-    void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
-    void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
-    void ddup_flush_sample(Sample *sample)
-    void ddup_drop_sample(Sample *sample)
 
+cdef extern from "code_provenance.hpp" namespace "Datadog":
+    cdef cppclass CodeProvenance:
+        @staticmethod
+        CodeProvenance& get_instance()
 
-cdef extern from "code_provenance_interface.hpp":
-    void code_provenance_set_file_path(string_view file_path)
+        void set_file_path(string_view file_path)
 
 
 # Create wrappers for cython
@@ -115,11 +157,11 @@ cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
     if utf8_data != NULL:
         func(string_view(utf8_data, utf8_size))
 
-cdef call_ddup_config_user_tag(key: StringType, val: StringType):
+cdef call_uploader_builder_set_tag(key: StringType, val: StringType):
     if not key or not val:
         return
     if isinstance(key, bytes) and isinstance(val, bytes):
-        ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
+        UploaderBuilder.set_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
         return
     cdef const char* key_utf8_data
     cdef Py_ssize_t key_utf8_size
@@ -128,7 +170,7 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
     key_utf8_data = PyUnicode_AsUTF8AndSize(key, &key_utf8_size)
     val_utf8_data = PyUnicode_AsUTF8AndSize(val, &val_utf8_size)
     if key_utf8_data != NULL and val_utf8_data != NULL:
-        ddup_config_user_tag(
+        UploaderBuilder.set_tag(
             string_view(key_utf8_data, key_utf8_size),
             string_view(val_utf8_data, val_utf8_size)
         )
@@ -138,7 +180,7 @@ cdef call_code_provenance_set_file_path(str file_path):
     cdef Py_ssize_t file_path_size
     file_path_data = PyUnicode_AsUTF8AndSize(file_path, &file_path_size)
     if file_path_data != NULL:
-        code_provenance_set_file_path(string_view(file_path_data, file_path_size))
+        CodeProvenance.get_instance().set_file_path(string_view(file_path_data, file_path_size))
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
@@ -210,22 +252,22 @@ cdef call_ddup_push_lock_name(Sample* sample, lock_name: StringType):
     if not lock_name:
         return
     if isinstance(lock_name, bytes):
-        ddup_push_lock_name(sample, string_view(<const char*>lock_name, len(lock_name)))
+        sample.push_lock_name(string_view(<const char*>lock_name, len(lock_name)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(lock_name, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_lock_name(sample, string_view(utf8_data, utf8_size))
+        sample.push_lock_name(string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_frame(Sample* sample, name: StringType, filename: StringType,
                           uint64_t address, int64_t line):
     if not name or not filename:
         return
     if isinstance(name, bytes) and isinstance(filename, bytes):
-        ddup_push_frame(sample, string_view(<const char*>name, len(name)),
-                        string_view(<const char*>filename, len(filename)),
-                        address, line)
+        sample.push_frame(string_view(<const char*>name, len(name)),
+                          string_view(<const char*>filename, len(filename)),
+                          address, line)
         return
     cdef const char* name_utf8_data
     cdef Py_ssize_t name_utf8_size
@@ -234,94 +276,94 @@ cdef call_ddup_push_frame(Sample* sample, name: StringType, filename: StringType
     name_utf8_data = PyUnicode_AsUTF8AndSize(name, &name_utf8_size)
     filename_utf8_data = PyUnicode_AsUTF8AndSize(filename, &filename_utf8_size)
     if name_utf8_data != NULL and filename_utf8_data != NULL:
-        ddup_push_frame(sample, string_view(name_utf8_data, name_utf8_size),
-                        string_view(filename_utf8_data, filename_utf8_size),
-                        address, line)
+        sample.push_frame(string_view(name_utf8_data, name_utf8_size),
+                          string_view(filename_utf8_data, filename_utf8_size),
+                          address, line)
 
 cdef call_ddup_push_threadinfo(Sample* sample, int64_t thread_id, int64_t thread_native_id, thread_name: StringType):
     if not thread_name:
         return
     if isinstance(thread_name, bytes):
-        ddup_push_threadinfo(
-            sample, thread_id, thread_native_id, string_view(<const char*>thread_name, len(thread_name)))
+        sample.push_threadinfo(
+            thread_id, thread_native_id, string_view(<const char*>thread_name, len(thread_name)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(thread_name, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_threadinfo(sample, thread_id, thread_native_id, string_view(utf8_data, utf8_size))
+        sample.push_threadinfo(thread_id, thread_native_id, string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_task_name(Sample* sample, task_name: StringType):
     if not task_name:
         return
     if isinstance(task_name, bytes):
-        ddup_push_task_name(sample, string_view(<const char*>task_name, len(task_name)))
+        sample.push_task_name(string_view(<const char*>task_name, len(task_name)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(task_name, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_task_name(sample, string_view(utf8_data, utf8_size))
+        sample.push_task_name(string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_exceptioninfo(Sample* sample, exception_name: StringType, uint64_t count):
     if not exception_name:
         return
     if isinstance(exception_name, bytes):
-        ddup_push_exceptioninfo(sample, string_view(<const char*>exception_name, len(exception_name)), count)
+        sample.push_exceptioninfo(string_view(<const char*>exception_name, len(exception_name)), count)
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(exception_name, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_exceptioninfo(sample, string_view(utf8_data, utf8_size), count)
+        sample.push_exceptioninfo(string_view(utf8_data, utf8_size), count)
 
 cdef call_ddup_push_exception_message(Sample* sample, exception_message: StringType):
     if not exception_message:
         return
     if isinstance(exception_message, bytes):
-        ddup_push_exception_message(sample, string_view(<const char*>exception_message, len(exception_message)))
+        sample.push_exception_message(string_view(<const char*>exception_message, len(exception_message)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(exception_message, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_exception_message(sample, string_view(utf8_data, utf8_size))
+        sample.push_exception_message(string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
     if not class_name:
         return
     if isinstance(class_name, bytes):
-        ddup_push_class_name(sample, string_view(<const char*>class_name, len(class_name)))
+        sample.push_class_name(string_view(<const char*>class_name, len(class_name)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(class_name, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_class_name(sample, string_view(utf8_data, utf8_size))
+        sample.push_class_name(string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_gpu_device_name(Sample* sample, device_name: StringType):
     if not device_name:
         return
     if isinstance(device_name, bytes):
-        ddup_push_gpu_device_name(sample, string_view(<const char*>device_name, len(device_name)))
+        sample.push_gpu_device_name(string_view(<const char*>device_name, len(device_name)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(device_name, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_gpu_device_name(sample, string_view(utf8_data, utf8_size))
+        sample.push_gpu_device_name(string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
     if not trace_type:
         return
     if isinstance(trace_type, bytes):
-        ddup_push_trace_type(sample, string_view(<const char*>trace_type, len(trace_type)))
+        sample.push_trace_type(string_view(<const char*>trace_type, len(trace_type)))
         return
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     utf8_data = PyUnicode_AsUTF8AndSize(trace_type, &utf8_size)
     if utf8_data != NULL:
-        ddup_push_trace_type(sample, string_view(utf8_data, utf8_size))
+        sample.push_trace_type(string_view(utf8_data, utf8_size))
 
 # Conversion functions
 cdef uint64_t clamp_to_uint64_unsigned(value):
@@ -361,37 +403,37 @@ def config(
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
-    call_func_with_str(ddup_config_service, service)
+    call_func_with_str(UploaderBuilder.set_service, service)
 
     # Empty values are auto-populated in the backend (omitted in client)
     if env:
-        call_func_with_str(ddup_config_env, env)
+        call_func_with_str(UploaderBuilder.set_env, env)
     if version:
-        call_func_with_str(ddup_config_version, version)
+        call_func_with_str(UploaderBuilder.set_version, version)
     if output_filename:
-        call_func_with_str(ddup_config_output_filename, output_filename)
+        call_func_with_str(UploaderBuilder.set_output_filename, output_filename)
     if process_tags:
-        call_func_with_str(ddup_config_process_tags, process_tags)
+        call_func_with_str(UploaderBuilder.set_process_tags, process_tags)
 
     # Inherited
-    call_func_with_str(ddup_config_runtime, platform.python_implementation())
-    call_func_with_str(ddup_config_runtime_version, platform.python_version())
-    call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
+    call_func_with_str(UploaderBuilder.set_runtime, platform.python_implementation())
+    call_func_with_str(UploaderBuilder.set_runtime_version, platform.python_version())
+    call_func_with_str(UploaderBuilder.set_profiler_version, ddtrace.__version__)
 
     if max_nframes is not None:
-        ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
+        SampleManager.set_max_nframes(<int>clamp_to_int64_unsigned(max_nframes))
     if tags is not None:
         for key, val in tags.items():
             if key and val:
-                call_ddup_config_user_tag(key, val)
+                call_uploader_builder_set_tag(key, val)
 
     if timeline_enabled is True:
-        ddup_config_timeline(True)
+        SampleManager.set_timeline(True)
     if sample_pool_capacity:
-        ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
+        SampleManager.set_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
     if timeout is not None:
-        ddup_config_set_max_timeout_ms(clamp_to_uint64_unsigned(timeout))
+        UploaderBuilder.set_max_timeout_ms(clamp_to_uint64_unsigned(timeout))
 
 
 def start() -> None:
@@ -415,12 +457,12 @@ def _get_endpoint(tracer)-> str:
 def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
     global _code_provenance_set
 
-    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
-    ddup_set_process_id()
+    call_func_with_str(UploaderBuilder.set_runtime_id, get_runtime_id())
+    UploaderBuilder.set_process_id()
 
     role = get_process_role()
     if role is not None:
-        call_ddup_config_user_tag("process_type", role)
+        call_uploader_builder_set_tag("process_type", role)
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
@@ -429,7 +471,7 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
     endpoint = _get_endpoint(tracer)
-    call_func_with_str(ddup_config_url, endpoint)
+    call_func_with_str(UploaderBuilder.set_url, endpoint)
 
     if enable_code_provenance and not _code_provenance_set:
         code_provenance_file = get_code_provenance_file()
@@ -445,48 +487,52 @@ cdef class SampleHandle:
     cdef Sample *ptr
 
     def __cinit__(self):
-        self.ptr = ddup_start_sample()
+        self.ptr = NULL
+        ddup_start()
+        if not ddup_is_initialized():
+            return
+        self.ptr = SampleManager.start_sample()
 
     def __dealloc__(self):
         if self.ptr is not NULL:
-            ddup_drop_sample(self.ptr)
+            SampleManager.drop_sample(self.ptr)
             self.ptr = NULL  # defensively, in case of post-dealloc access in native
 
     def push_cputime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_cputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_cputime(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_walltime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_walltime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_walltime(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_acquire(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_acquire(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_acquire(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_release(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_release(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_release(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_alloc(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_alloc(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_alloc(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_heap(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_heap(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_gpu_gputime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_gpu_gputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_gpu_gputime(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_gpu_memory(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_gpu_memory(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_gpu_memory(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_gpu_flops(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+            self.ptr.push_gpu_flops(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -513,7 +559,7 @@ cdef class SampleHandle:
             frame_obj = <PyObject*>frame
             # Cast to PyFrameObject* - both are just pointers to the same memory
             frame_ptr = <PyFrameObject*>frame_obj
-            ddup_push_pyframes(self.ptr, frame_ptr)
+            self.ptr.push_pyframes(frame_ptr)
 
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -529,7 +575,7 @@ cdef class SampleHandle:
     def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
             if task_id is not None:
-                ddup_push_task_id(self.ptr, clamp_to_uint64_unsigned(task_id))
+                self.ptr.push_task_id(clamp_to_uint64_unsigned(task_id))
 
     def push_task_name(self, task_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -568,29 +614,29 @@ cdef class SampleHandle:
             return
         span_id = getattr(span, 'span_id', None)
         if span_id:
-            ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span_id))
+            self.ptr.push_span_id(clamp_to_uint64_unsigned(span_id))
         local_root = getattr(span, '_local_root', None)
         if not local_root:
             return
         local_root_span_id = getattr(local_root, 'span_id', None)
         if local_root_span_id:
-            ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(local_root_span_id))
+            self.ptr.push_local_root_span_id(clamp_to_uint64_unsigned(local_root_span_id))
         local_root_span_type = getattr(local_root, 'span_type', None)
         if local_root_span_type:
             call_ddup_push_trace_type(self.ptr, local_root_span_type)
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
+            self.ptr.push_monotonic_ns(<int64_t>monotonic_ns)
 
     def push_absolute_ns(self, timestamp_ns: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_absolute_ns(self.ptr, <int64_t>timestamp_ns)
+            self.ptr.push_absolute_ns(<int64_t>timestamp_ns)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use
         # this handle after flushing it.
         if self.ptr is not NULL:
-            ddup_flush_sample(self.ptr)
-            ddup_drop_sample(self.ptr)
+            self.ptr.flush_sample()
+            SampleManager.drop_sample(self.ptr)
             self.ptr = NULL

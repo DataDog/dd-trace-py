@@ -13,14 +13,21 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_SE
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
+from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES_WITH_PARTIAL_NOISE
+from tests.contrib.claude_agent_sdk.utils import MOCK_CUSTOM_TRANSPORT_NOISE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DEDUPE_ASSISTANT_SAME_MESSAGE_ID_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DEDUPE_TOOL_SPLIT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_PARALLEL_TOOL_USE_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_MESSAGES_NO_ASSISTANT_USAGE_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_MESSAGES_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_MESSAGES_SPLIT_TEXT_TOOL_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_PARTIAL_MESSAGES_STATUS_PASSTHROUGH_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_SUBAGENT_INTERLEAVED_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE
@@ -148,6 +155,36 @@ def mock_internal_client_with_usage(claude_agent_sdk):
 
 
 @pytest.fixture
+def mock_internal_client_partial_messages(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_PARTIAL_MESSAGES_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_partial_messages_no_assistant_usage(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_PARTIAL_MESSAGES_NO_ASSISTANT_USAGE_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_partial_messages_split_text_tool(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_PARTIAL_MESSAGES_SPLIT_TEXT_TOOL_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_partial_messages_status_passthrough(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_PARTIAL_MESSAGES_STATUS_PASSTHROUGH_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_subagent_interleaved(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_SUBAGENT_INTERLEAVED_SEQUENCE):
+        yield
+
+
+@pytest.fixture
 def mock_internal_client_assistant_message_error(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE):
         yield
@@ -156,6 +193,12 @@ def mock_internal_client_assistant_message_error(claude_agent_sdk):
 @pytest.fixture
 def mock_internal_client_assistant_message_error_text(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_custom_transport_noise(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_CUSTOM_TRANSPORT_NOISE_SEQUENCE):
         yield
 
 
@@ -186,6 +229,34 @@ def mock_client(claude_agent_sdk):
     client._query = mock_query
 
     # mock transport that handles writing messages
+    mock_transport = MagicMock()
+    mock_transport.write = AsyncMock(return_value=None)
+    client._transport = mock_transport
+
+    return client
+
+
+@pytest.fixture
+def mock_client_forced_partial_noise(claude_agent_sdk, claude_agent_sdk_llmobs):
+    """A client whose receive stream carries the partial-streaming events we inject at init.
+
+    Mirrors connect(prompt=...) followed by receive_response(): no query() call is made, so the
+    stream is untraced, but __init__ forced include_partial_messages on (_dd_forced_partial=True).
+
+    Depends on claude_agent_sdk_llmobs so LLM Observability is enabled before the client is
+    constructed — __init__ only forces partials when llmobs is on.
+    """
+
+    async def mock_receive_messages():
+        for msg in MOCK_CLIENT_RAW_MESSAGES_WITH_PARTIAL_NOISE:
+            yield msg
+
+    client = claude_agent_sdk.ClaudeSDKClient()
+
+    mock_query = MagicMock()
+    mock_query.receive_messages = mock_receive_messages
+    client._query = mock_query
+
     mock_transport = MagicMock()
     mock_transport.write = AsyncMock(return_value=None)
     client._transport = mock_transport

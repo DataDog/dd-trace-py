@@ -22,7 +22,7 @@ class TestApiSecurityManager:
             values=dict(
                 _asm_enabled=True,
                 _api_security_enabled=True,
-                _apm_tracing_enabled=True,
+                apm_tracing_enabled=True,
                 _api_security_parse_response_body=True,
             )
         ):
@@ -147,7 +147,7 @@ class TestApiSecurityManager:
         api_manager._should_collect_schema.return_value = should_collect_return
         mock_environment.entry_span.context.sampling_priority = sampling_priority
 
-        with override_global_config(values=dict(_apm_tracing_enabled=False)):
+        with override_global_config(values=dict(apm_tracing_enabled=False)):
             with patch("ddtrace.appsec._api_security.api_manager._asm_manual_keep") as mock_keep:
                 api_manager._schema_callback(mock_environment)
 
@@ -268,7 +268,7 @@ class TestApiSecurityManager:
             values=dict(
                 _asm_enabled=True,
                 _api_security_enabled=True,
-                _apm_tracing_enabled=True,
+                apm_tracing_enabled=True,
                 _api_security_parse_response_body=True,
             )
         ):
@@ -294,7 +294,7 @@ class TestApiSecurityManager:
             values=dict(
                 _asm_enabled=True,
                 _api_security_enabled=True,
-                _apm_tracing_enabled=True,
+                apm_tracing_enabled=True,
                 _api_security_parse_response_body=True,
             )
         ):
@@ -321,7 +321,7 @@ class TestApiSecurityManager:
             values=dict(
                 _asm_enabled=True,
                 _api_security_enabled=True,
-                _apm_tracing_enabled=True,
+                apm_tracing_enabled=True,
                 _api_security_parse_response_body=True,
             )
         ):

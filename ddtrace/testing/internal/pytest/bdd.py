@@ -8,6 +8,7 @@ import typing as t
 import pytest
 
 import ddtrace
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.test_data import TestTag
 
@@ -18,7 +19,6 @@ if t.TYPE_CHECKING:
     from pytest_bdd.parser import Scenario
     from pytest_bdd.parser import Step
 
-    from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 
 FRAMEWORK = "pytest_bdd"
 STEP_KIND = "pytest_bdd.step"
@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class BddTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
+    def __init__(self, main_plugin: TestOptPluginProtocol) -> None:
         self.main_plugin = main_plugin
         self.framework_version = self._get_framework_version()
 

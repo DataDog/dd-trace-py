@@ -92,8 +92,12 @@ class TestWrapModulesForIAST:
     @pytest.fixture
     def wrap_modules(self):
         """Create a WrapFunctonsForIAST instance for testing."""
+        # MODULES_TO_UNPATCH is process-wide and the global IAST patch can fill it at any point,
+        # so these tests assert on the entries they add rather than on its total size.
+        MODULES_TO_UNPATCH.clear()
         wrap_modules = WrapFunctonsForIAST()
         yield wrap_modules
+        wrap_modules.testing = True
         wrap_modules.testing_unpatch()
 
     def test_init(self, wrap_modules):
@@ -131,18 +135,20 @@ class TestWrapModulesForIAST:
         wrap_modules.testing = True
         wrap_modules.wrap_function("test_patch_with_testing", "test_function", "test_hook")
         mock_patch.return_value = True
+        already_registered = set(MODULES_TO_UNPATCH)
         wrap_modules.patch()
-        assert len(MODULES_TO_UNPATCH) == 1
+        assert MODULES_TO_UNPATCH - already_registered == wrap_modules.functions
 
     @patch("ddtrace.appsec._iast._patch_modules.IASTFunction.unpatch")
     def test_testing_unpatch(self, mock_unpatch, wrap_modules):
         """Test unpatching in testing mode."""
         wrap_modules.testing = True
         wrap_modules.wrap_function("test_testing_unpatch", "test_function", "test_hook")
+        already_registered = set(MODULES_TO_UNPATCH)
         wrap_modules.patch()
-        assert len(MODULES_TO_UNPATCH) == 1, f"There are more than 1 function: {MODULES_TO_UNPATCH}"
+        assert MODULES_TO_UNPATCH - already_registered == wrap_modules.functions
         wrap_modules.testing_unpatch()
-        mock_unpatch.assert_called_once()
+        assert mock_unpatch.call_count == len(already_registered) + 1
         assert len(MODULES_TO_UNPATCH) == 0
 
     @patch("ddtrace.appsec._iast._patch_modules.IASTFunction.unpatch")

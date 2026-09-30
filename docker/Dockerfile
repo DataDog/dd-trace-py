@@ -5,7 +5,6 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG RIOT_VERSION=0.22.0
 ARG UV_VERSION=0.11.14
 
 # http://bugs.python.org/issue19846
@@ -16,7 +15,7 @@ ENV LANG=C.UTF-8
 USER root
 
 # Create our bits user
-RUN useradd -ms /bin/bash bits
+RUN useradd -ms /bin/bash -u 1000 bits
 
 # Install system dependencies
 RUN apt-get update \
@@ -96,8 +95,12 @@ RUN apt-get update \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
 
+# Install ddtest before switching to the unprivileged user because /usr/local/bin is root-owned.
+ARG DDTEST_VERSION=1.7.0
+RUN curl -fsSL "https://github.com/DataDog/ddtest/releases/download/v${DDTEST_VERSION}/ddtest-linux-${TARGETARCH}" -o /usr/local/bin/ddtest \
+  && chmod +x /usr/local/bin/ddtest
 
-USER bits
+USER 1000
 WORKDIR /home/bits/
 
 ENV PYTHONUNBUFFERED=1
@@ -108,7 +111,7 @@ ENV PYTHON_CONFIGURE_OPTS=--enable-shared
 ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 
 # Install Rust toolchain
-# AIDEV-TODO: Pin to a specific rustup-init version with SHA256 verification.
+# TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- --default-toolchain stable -y
@@ -119,11 +122,14 @@ COPY .python-version /home/bits/
 # Allow running datadog-ci in CI with npx
 RUN npm install -g @datadog/datadog-ci
 
-# Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+# Install pyenv and necessary Python versions.
+# 3.15-dev is a rolling CPython 3.15 branch clone. Bumping pyenv retriggers
+# .github/workflows/testrunner.yml so the image is not stuck on 3.15.0b3+dev
+# (Jun 30 2026); rc1-built cp315 wheels fail to import on that interpreter.
+RUN git clone --depth 1 --branch "v2.8.4" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
-RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "uv==${UV_VERSION}"
+RUN pip install --no-cache-dir -U "uv==${UV_VERSION}"
 
 CMD ["/bin/bash"]

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: An issue where where streamed LLM requests could
+    leave spans unfinished and cause memory to grow in long-running
+    processes has been fixed.

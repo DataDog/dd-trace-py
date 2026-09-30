@@ -21,7 +21,6 @@ from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import OtelMetricsAggregatorBuilder
-from ddtrace.internal.native_runtime import get_native_runtime
 
 
 log = get_logger(__name__)
@@ -396,7 +395,7 @@ def build_meter_provider(
         builder = builder.set_metrics_temporality(temporality)
         builder = builder.set_export_interval(export_interval_ms)
 
-        aggregator, warnings = builder.build(get_native_runtime())
+        aggregator, warnings = builder.build()
         for warning in warnings:
             log.warning("OpenTelemetry metrics aggregator build warning: %s", warning)
         return aggregator
