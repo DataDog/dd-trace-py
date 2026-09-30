@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import itertools
 import os
 import subprocess
 import types
+from unittest import mock
 import uuid
 
 import django
@@ -15,7 +15,6 @@ from django.test import override_settings
 from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
-import mock
 import pytest
 
 from ddtrace import config
@@ -1651,7 +1650,8 @@ def test_cached_view():
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": (
-                "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
+                "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82."
+                "d41d8cd98f00b204e9800998ecf8..."
             ),
             "_dd.base_service": "ddtrace_subprocess_dir",
         }
@@ -1695,7 +1695,7 @@ def test_schematized_default_service_name(
         "v0": global_service_name or "django",
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -1713,11 +1713,11 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.service == "{}"
+    assert span.service == "{expected_service_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -1743,7 +1743,7 @@ def test_schematized_default_db_service_name(
         "v0": "defaultdb",
         "v1": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import django
 
 from tests.contrib.django.utils import setup_django_test_spans
@@ -1760,11 +1760,11 @@ with setup_django_test_spans() as test_spans, with_default_django_db(test_spans)
 
     span = spans[0]
     assert span.name == "sqlite.query"
-    assert span.service == "{}", span.service
+    assert span.service == "{expected_service_name}", span.service
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     env["DD_DJANGO_INSTRUMENT_DATABASES"] = "true"
@@ -1786,7 +1786,7 @@ def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schem
     expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
         schema_version
     ]
-    code = """
+    code = f"""
 import pytest
 import sys
 
@@ -1804,11 +1804,11 @@ def test(client, test_spans):
     assert len(spans) > 0
 
     span = spans[0]
-    assert span.name == "{}"
+    assert span.name == "{expected_operation_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -2039,6 +2039,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
     """
     # must be in this form to override headers (workaround for python 3.7 django tests)
     # which doesn't have support to use headers kwarg in client.get()
+    # PingFilter reserves trace ID 1 for snapshot health checks and drops those traces.
     test_headers = {
         "HTTP_X_DD_PROXY": "aws-apigateway",
         "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
@@ -2046,7 +2047,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
         "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
         "HTTP_X_DD_PROXY_STAGE": "stage",
-        "HTTP_X_DATADOG_TRACE_ID": "1",
+        "HTTP_X_DATADOG_TRACE_ID": "1234",
         "HTTP_X_DATADOG_PARENT_ID": "2",
         "HTTP_X_DATADOG_ORIGIN": "rum",
         "HTTP_X_DATADOG_SAMPLING_PRIORITY": "2",
@@ -2061,7 +2062,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
     assert aws_gateway_span is None
     web_span.assert_matches(
         name="django.request",
-        trace_id=1,
+        trace_id=1234,
         parent_id=2,
         metrics={
             _SAMPLING_PRIORITY_KEY: USER_KEEP,
@@ -2089,7 +2090,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
             url="https://local/",
             start=1736973768.0,
             is_distributed=True,
-            distributed_trace_id=1,
+            distributed_trace_id=1234,
             distributed_parent_id=2,
             distributed_sampling_priority=USER_KEEP,
         )
@@ -2097,7 +2098,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         # No test for SAMPLING_PRIORITY_KEY because it doesn't appear when the web span is a child
         web_span.assert_matches(
             name="django.request",
-            trace_id=1,
+            trace_id=1234,
         )
         assert len(test_spans.spans) == 27
 
@@ -2408,7 +2409,7 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
     env = os.environ.copy()
     env[env_var] = "true"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;import django;assert ddtrace.config.django.{}".format(instrument_x),
+        f"import ddtrace;import django;assert ddtrace.config.django.{instrument_x}",
         env=env,
     )
 
@@ -2432,7 +2433,7 @@ def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python
     env = os.environ.copy()
     env[env_var] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        "import ddtrace;import django;assert not ddtrace.config.django.{}".format(instrument_x),
+        f"import ddtrace;import django;assert not ddtrace.config.django.{instrument_x}",
         env=env,
     )
 

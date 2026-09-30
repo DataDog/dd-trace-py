@@ -40,7 +40,7 @@ from __future__ import annotations
 from typing import Any
 
 
-# AIDEV-NOTE: strands-agents is optional. Guard its imports so this module
+# strands-agents is optional. Guard its imports so this module
 # always imports cleanly — ``ddtrace.aiguard.__getattr__`` imports it directly
 # and relies on both classes being defined (real when strands is present, stub
 # otherwise). ``_HAS_STRANDS`` covers the hooks API (HookProvider); the separate
@@ -94,7 +94,7 @@ _INVOCATION_CTX_KEY = "_dd_ai_guard_ctx"
 _HANDLED_CONTENT_KEYS = frozenset({"text", "toolUse", "toolResult", "json"})
 _CONTROL_CONTENT_KEYS = frozenset({"cachePoint", "reasoningContent"})
 
-# AIDEV-NOTE: APMSP-3089 — non-text content must NOT be silently dropped.
+# APMSP-3089 — non-text content must NOT be silently dropped.
 # Dropping every non-text block made a document/image-only prompt produce zero
 # AI Guard messages, so evaluation was skipped while the model saw uninspected
 # content (a bypass). We emit a placeholder marker for each model-visible

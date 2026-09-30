@@ -1,5 +1,4 @@
-# -*- encoding: utf-8 -*-
-import typing  # noqa:F401
+import typing
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
@@ -22,23 +21,17 @@ class PeriodicService(service.Service):
         self._autorestart = autorestart
 
     @property
-    def interval(self):
-        # type: (...) -> float
+    def interval(self) -> float:
         return self._interval
 
     @interval.setter
-    def interval(
-        self,
-        value,  # type: float
-    ):
-        # type: (...) -> None
+    def interval(self, value: float) -> None:
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
             self._worker.interval = value
 
-    def _start_service(self, *args, **kwargs):
-        # type: (typing.Any, typing.Any) -> None
+    def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         """Start the periodic service."""
         self._worker = PeriodicThread(
             self.interval,
@@ -50,35 +43,31 @@ class PeriodicService(service.Service):
         self._worker.__autorestart__ = self._autorestart
         self._worker.start()
 
-    def _stop_service(self, *args, **kwargs):
-        # type: (typing.Any, typing.Any) -> None
+    def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         """Stop the periodic collector."""
         if self._worker:
             self._worker.stop()
-        super(PeriodicService, self)._stop_service(*args, **kwargs)  # type: ignore[safe-super]
+        super()._stop_service(*args, **kwargs)  # type: ignore[safe-super]
 
     def join(
         self,
-        timeout=None,  # type: typing.Optional[float]
-    ):
-        # type: (...) -> None
+        timeout: typing.Optional[float] = None,
+    ) -> None:
         if self._worker:
             self._worker.join(timeout)
 
     @staticmethod
-    def on_shutdown():
+    def on_shutdown(*args: typing.Any, **kwargs: typing.Any) -> None:
         pass
 
-    def periodic(self):
-        # type: (...) -> None
+    def periodic(self) -> None:
         pass
 
 
 class AwakeablePeriodicService(PeriodicService):
     """A service that runs periodically but that can also be awakened on demand."""
 
-    def awake(self):
-        # type: (...) -> None
+    def awake(self) -> None:
         if self._worker:
             self._worker.awake()
 

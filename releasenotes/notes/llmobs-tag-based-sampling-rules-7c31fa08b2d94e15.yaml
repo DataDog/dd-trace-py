@@ -1,0 +1,4 @@
+features:
+  - |
+    LLM Observability: Introduces tag-based head sampling via the ``DD_LLMOBS_SAMPLING_RULES`` environment variable,
+    which mirrors the format of ``DD_TRACE_SAMPLING_RULES``. See the documentation for details.

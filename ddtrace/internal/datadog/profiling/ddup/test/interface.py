@@ -32,7 +32,7 @@ sys.modules["ddtrace._trace.span"] = MagicMock()
 # Setup the Span object
 # This is terrible not-quite-copypasta, but this is just a quick-and-dirty harness.
 # This will get replaced in the next iteration
-class Span(object):
+class Span:
     def __init__(
         self,
         span_id: Optional[int] = None,

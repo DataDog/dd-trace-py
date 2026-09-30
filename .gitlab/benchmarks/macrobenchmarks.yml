@@ -9,6 +9,10 @@ include:
     file: 'images/templates/gitlab/notify-slo-breaches.template.yml'
   - project: 'DataDog/benchmarking-platform-tools'
     file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+  - local: ".gitlab/retry-policies.yml"
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
 
 workflow:
   auto_cancel:
@@ -40,6 +44,7 @@ candidate:
 
 .macrobenchmarks:
   stage: test
+  extends: .retry_on_infrastructure_failure
   needs: [ "candidate" ]
   tags: ["runner:apm-k8s-same-cpu"]
   rules:
@@ -47,14 +52,6 @@ candidate:
       interruptible: false
     - interruptible: true
   timeout: 1h
-  retry:
-    max: 2
-    when:
-      - unknown_failure
-      - data_integrity_failure
-      - runner_system_failure
-      - scheduler_failure
-      - api_failure
   when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |

@@ -35,13 +35,13 @@ class PatchMixin(unittest.TestCase):
         """
         Asserts that the module, given its name is imported.
         """
-        assert self.module_imported(modname), "{} module not imported".format(modname)
+        assert self.module_imported(modname), f"{modname} module not imported"
 
     def assert_not_module_imported(self, modname):
         """
         Asserts that the module, given its name is not imported.
         """
-        assert not self.module_imported(modname), "{} module is imported".format(modname)
+        assert not self.module_imported(modname), f"{modname} module is imported"
 
     def is_wrapped(self, obj):
         return is_wrapted(obj) or _dd_is_wrapped(obj)
@@ -50,13 +50,13 @@ class PatchMixin(unittest.TestCase):
         """
         Helper to assert that a given object is properly wrapped by wrapt.
         """
-        self.assertTrue(self.is_wrapped(obj), "{} is not wrapped".format(obj))
+        self.assertTrue(self.is_wrapped(obj), f"{obj} is not wrapped")
 
     def assert_not_wrapped(self, obj):
         """
         Helper to assert that a given object is not wrapped by wrapt.
         """
-        self.assertFalse(self.is_wrapped(obj), "{} is wrapped".format(obj))
+        self.assertFalse(self.is_wrapped(obj), f"{obj} is wrapped")
 
     def assert_not_double_wrapped(self, obj):
         """
@@ -127,7 +127,7 @@ def emit_integration_and_version_to_test_agent(integration_name, version, module
     assert response.status == 200
 
 
-class PatchTestCase(object):
+class PatchTestCase:
     """
     unittest or other test runners will pick up the base test case as a testcase
     since it inherits from unittest.TestCase unless we wrap it with this empty
@@ -276,7 +276,7 @@ class PatchTestCase(object):
             for test_attr in tests:
                 if test_attr in test_ignore:
                     continue
-                assert hasattr(self, test_attr), "{} not found in expected test attrs".format(test_attr)
+                assert hasattr(self, test_attr), f"{test_attr} not found in expected test attrs"
 
         def assert_module_patched(self, module):
             """

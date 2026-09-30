@@ -9,7 +9,6 @@ Usage: PYTHONPATH=$PYTHONPATH:~/.../dd-trace-py/ python -m scripts.iast.print_pa
 from ast import unparse
 import os
 import sys
-from typing import Text
 
 
 try:
@@ -31,7 +30,7 @@ except ImportError:
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
-def _get_patched_code(module_path: Text) -> str:
+def _get_patched_code(module_path: str) -> str:
     module_dir = os.path.dirname(module_path)
     sys.path.append(module_dir)
     module_name = os.path.splitext(os.path.basename(module_path))[0]

@@ -537,13 +537,18 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
         return ret
 
+    cdef Py_ssize_t _current_size(self):
+        return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+
     cpdef put(self, list trace):
         """Put a trace (i.e. a list of spans) in the buffer."""
         cdef int ret
+        cdef Py_ssize_t size_after
+        cdef Py_ssize_t size_before
 
         with self._lock:
             len_before = self.pk.length
-            size_before = self.size
+            size_before = self._current_size()
             try:
                 ret = self._pack_trace(trace)
                 if ret:  # should not happen.
@@ -554,11 +559,12 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
                 # TODO: We should probably ensure that the buffer size doesn't
                 # grow arbitrarily because of the PyMem_Realloc and if it does then
                 # free and reallocate with the appropriate size.
-                if self.size - size_before > self.max_item_size:
-                    raise BufferItemTooLarge(self.size - size_before)
+                size_after = self._current_size()
+                if size_after - size_before > self.max_item_size:
+                    raise BufferItemTooLarge(size_after - size_before)
 
-                if self.size > self.max_size:
-                    raise BufferFull(self.size - size_before)
+                if size_after > self.max_size:
+                    raise BufferFull(size_after - size_before)
 
                 self._count += 1
             except Exception:
@@ -570,7 +576,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     def size(self):
         """Return the size in bytes of the encoder buffer."""
         with self._lock:
-            return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+            return self._current_size()
 
     # ---- Abstract methods ----
 
@@ -1042,17 +1048,25 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             try:
                 self._st.append_raw(
                     PyLong_FromLong(<long> self.get_buffer()),
-                    <Py_ssize_t> super(MsgpackEncoderV05, self).size,
+                    MsgpackEncoderBase._current_size(self),
                 )
                 return [(self._st.flush(), len(self))]
             finally:
                 self._reset_buffer()
 
+    cdef Py_ssize_t _current_size(self):
+        return (
+            self._st.pk.length
+            - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+            + array_prefix_size(self._st._next_id)
+            + MsgpackEncoderBase._current_size(self)
+        )
+
     @property
     def size(self):
         """Return the size in bytes of the encoder buffer."""
         with self._lock:
-            return self._st.size + super(MsgpackEncoderV05, self).size
+            return self._current_size()
 
     cpdef put(self, list trace):
         with self._lock:
@@ -1072,7 +1086,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
     cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
         cdef int ret
-        cdef list meta, metrics
+        cdef dict meta, metrics
         cdef list span_links_list
         cdef list span_events_list
         cdef uint64_t span_id = span.span_id
@@ -1131,13 +1145,9 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             span_events_list = span._get_events()
             span_events = json_dumps([dict(event) for event in span_events_list])
 
-        # Filter meta to only str/bytes values
-        meta = []
-        for k, v in span._get_str_attributes().items():
-            if PyUnicode_Check(v) or PyBytesLike_Check(v):
-                meta.append((k, v))
-            else:
-                log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
+        # SpanData stores attributes by type, so these snapshots contain only
+        # string values and numeric values, respectively.
+        meta = span._get_str_attributes()
 
         ret = msgpack_pack_map(
             &self.pk,
@@ -1146,7 +1156,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
         if meta:
-            for k, v in meta:
+            for k, v in meta.items():
                 ret = self._pack_string(k)
                 if ret != 0:
                     return ret
@@ -1175,19 +1185,13 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
 
-        # Filter metrics to only number values
-        metrics = []
-        for k, v in span._get_numeric_attributes().items():
-            if PyLong_Check(v) or PyFloat_Check(v):
-                metrics.append((k, v))
-            else:
-                log.warning("[span ID %d] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
+        metrics = span._get_numeric_attributes()
 
         ret = msgpack_pack_map(&self.pk, len(metrics))
         if ret != 0:
             return ret
         if metrics:
-            for k, v in metrics:
+            for k, v in metrics.items():
                 ret = self._pack_string(k)
                 if ret != 0:
                     return ret

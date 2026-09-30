@@ -64,6 +64,25 @@ class AgentInstructionResolver(TypedDict, total=False):
     type: str
 
 
+class _AgentToolRequired(TypedDict):
+    name: str
+
+
+class AgentTool(_AgentToolRequired, total=False):
+    """One tool an agent declares it can call.
+
+    name is required; tools without one are silently dropped by the manifest builder.
+    parameters maps a name to ``{"type": ..., "required": True}``. An optional parameter omits
+    ``required`` rather than reporting it false, which is the shape the framework integrations
+    already emit, so a hand-declared tool renders the same as an auto-instrumented one. A JSON
+    Schema object (``{"type": "object", "properties": {...}, "required": [...]}``), the shape a
+    provider tool definition carries, is accepted and flattened to the same mapping.
+    """
+
+    description: str
+    parameters: dict[str, Any]
+
+
 class AgentManifest(TypedDict, total=False):
     """Declared agent configuration, reported on an agent span under _dd.agent_manifest.
 
@@ -114,6 +133,7 @@ class PromptResponse(TypedDict, total=False):
     ml_apps: list[str]
     last_version_created_at: str
     extracted_from: str
+    config: dict[str, JSONType]
 
 
 class PromptVersionResponse(TypedDict, total=False):
@@ -129,6 +149,7 @@ class PromptVersionResponse(TypedDict, total=False):
     author: str
     description: str
     ml_app: str
+    config: dict[str, JSONType]
 
 
 class DeletedPromptResponse(TypedDict, total=False):
@@ -198,6 +219,7 @@ class Prompt(TypedDict, total=False):
         rag_query_variables: list[str] - a list of variable key names that contains query information
         prompt_uuid: str - the uuid of the prompt (set internally by LLMObs.get_prompt)
         prompt_version_uuid: str - the uuid of the prompt version (set internally by LLMObs.get_prompt)
+        config: dict[str, JSONType] - application-consumed configuration stored with this prompt version
     """
 
     version: str
@@ -211,17 +233,37 @@ class Prompt(TypedDict, total=False):
     rag_query_variables: list[str]
     prompt_uuid: str
     prompt_version_uuid: str
+    config: dict[str, JSONType]
 
 
 class Agent(TypedDict, total=False):
     """
-    An Agent object that identifies a versioned agent.
+    An Agent object that declares the agent an agent span represents.
         version: str - user tag for the version of the agent.
+        name: str - overrides the agent's name, which defaults to the agent span's name.
+        instructions: str - the system instructions the agent runs with.
+        model: str - the model the agent is configured to call.
+        model_settings: dict[str, Any] - inference parameters. Only these keys are reported:
+            frequency_penalty, logit_bias, logprobs, max_tokens, parallel_tool_calls,
+            presence_penalty, seed, stop_sequences, temperature, timeout, tool_choice, top_k,
+            top_logprobs, top_p. Anything else is dropped, including provider-specific keys such as
+            extra_headers, since those can carry secrets.
+        tools: list[AgentTool] - the tools the agent declares it can call.
 
-    Set as an `agent_version` tag on the agent span only, never on its children.
+    ``version`` becomes an ``agent_version`` tag and the rest the agent's manifest, on agent spans
+    only. Declared through ``annotation_context``, both reach every agent span in the block.
+    Unreportable values are dropped rather than raising, and a key whose value is unset (``None``
+    or empty) declares nothing rather than erasing what an earlier annotation declared. Each
+    annotation shallow-updates the manifest key by key, including one an integration already
+    reported, so annotating one field leaves the rest.
     """
 
     version: str
+    name: str
+    instructions: str
+    model: str
+    model_settings: dict[str, Any]
+    tools: list[AgentTool]
 
 
 class _MetaIO(TypedDict, total=False):

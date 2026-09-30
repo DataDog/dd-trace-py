@@ -20,7 +20,7 @@ _SOURCE_ENV = "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE"
 _LEGACY_ENV = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
 
 
-# AIDEV-NOTE: numeric settings here parse leniently on purpose. This class is instantiated at
+# numeric settings here parse leniently on purpose. This class is instantiated at
 # module scope (see the bottom of this file), so letting envier raise on an unparsable value
 # turns it into an ImportError for ddtrace.openfeature and takes the whole application down at
 # startup rather than degrading one setting. dd-trace-java substitutes the default in the same

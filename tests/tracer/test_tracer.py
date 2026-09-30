@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 tests for Tracer and utilities.
 """
@@ -10,9 +9,9 @@ from os import getpid
 import sys
 import threading
 import time
+from unittest import mock
 from unittest.case import SkipTest
 
-import mock
 import pytest
 
 import ddtrace
@@ -213,7 +212,7 @@ class TracerTestCases(TracerTestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            class Foo(object):
+            class Foo:
                 @staticmethod
                 @self.tracer.wrap()
                 def s():
@@ -245,7 +244,7 @@ class TracerTestCases(TracerTestCase):
         """With DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true the class name is included in the span name."""
         with self.override_global_config({"_trace_wrap_span_name_include_class": True}):
 
-            class Foo(object):
+            class Foo:
                 @staticmethod
                 @self.tracer.wrap()
                 def s():
@@ -862,7 +861,7 @@ def test_tracer_url_default():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_no_timeout():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -876,7 +875,7 @@ def test_tracer_shutdown_no_timeout():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_timeout():
-    import mock
+    from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -895,8 +894,7 @@ def test_tracer_shutdown_timeout():
 )
 def test_tracer_shutdown():
     import os
-
-    import mock
+    from unittest import mock
 
     from ddtrace._trace.span import Span
     from ddtrace.trace import tracer as t
@@ -1354,7 +1352,7 @@ def test_runtime_id_fork():
 
 
 def test_filters(tracer, test_spans):
-    class FilterAll(object):
+    class FilterAll:
         def process_trace(self, trace):
             return None
 
@@ -1367,7 +1365,7 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 0
 
-    class FilterMutate(object):
+    class FilterMutate:
         def __init__(self, key, value):
             self.key = key
             self.value = value
@@ -1402,7 +1400,7 @@ def test_filters(tracer, test_spans):
         assert s.get_tag("boop") == "beep"
         assert s.get_tag("mats") == "sundin"
 
-    class FilterBroken(object):
+    class FilterBroken:
         def process_trace(self, trace):
             _ = 1 / 0
 
@@ -2171,7 +2169,7 @@ def test_gc_not_used_on_root_spans():
 
 @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
 def test_detect_agent_config_with_lambda_extension():
-    import mock
+    from unittest import mock
 
     def mock_os_path_exists(path):
         return path == "/opt/extensions/datadog-agent"
@@ -2191,7 +2189,7 @@ def test_detect_agent_config_with_lambda_extension():
 
 @pytest.mark.subprocess()
 def test_multiple_tracer_instances():
-    import mock
+    from unittest import mock
 
     import ddtrace
 

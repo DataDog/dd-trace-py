@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixes an issue where empty ``OTEL_*`` environment
+    variables override ddtrace defaults instead of being treated as unset.

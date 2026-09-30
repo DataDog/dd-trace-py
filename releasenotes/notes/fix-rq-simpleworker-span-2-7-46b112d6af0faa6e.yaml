@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    rq: Fixes an issue where the ``rq.worker.perform_job`` span was not created when jobs
+    were processed by ``rq.SimpleWorker`` on rq >= 2.7.

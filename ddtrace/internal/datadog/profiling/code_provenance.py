@@ -10,6 +10,7 @@ import tempfile
 import typing as t
 
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.settings import env
@@ -59,7 +60,7 @@ class CodeProvenance:
         # sys.stdlib_module_names was added in Python 3.10
         # For older versions, we could iterate over sys.modules.keys(), but that
         # would include all modules, not just stdlib modules.
-        if sys.version_info >= (3, 10):
+        if is_at_least_py(3, 10):
             for name in sys.stdlib_module_names:
                 try:
                     spec = importlib.util.find_spec(name)
