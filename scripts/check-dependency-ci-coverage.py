@@ -615,13 +615,12 @@ def check_coverage(
             # coverage: the majors a bare spec would cover are unknown.
             explicit_covers_required: bool = required_majors <= explicit_majors
             if has_latest and ci_info.latest_major is None and not explicit_covers_required:
-                reason = (
-                    f"{pkg_name}: PyPI lookup failed for '{pkg_name}' after {_PYPI_LOOKUP_ATTEMPTS} attempts "
-                    f"(request failed, timed out, or returned no version). "
-                    f"Cannot determine the latest major.\n"
-                    f"    pyproject.toml: {pyproject_loc}\n"
-                    f"    CI: {ci_locs}"
-                )
+                reason: str = f"""\
+{pkg_name}: PyPI lookup failed for '{pkg_name}' after {_PYPI_LOOKUP_ATTEMPTS} attempts \
+(request failed, timed out, or returned no version). \
+Cannot determine the latest major.
+    pyproject.toml: {pyproject_loc}
+    CI: {ci_locs}"""
                 add_issue("error", pkg_name, reason, ci_info)
                 continue
 
