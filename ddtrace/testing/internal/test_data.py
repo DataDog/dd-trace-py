@@ -398,6 +398,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST
         self.configuration_errors: dict[str, str] = {}
+        self.tests_deselected_by_testmon = 0
 
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
@@ -429,6 +430,9 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
             self.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] = TAG_TRUE if has_itr_skips else "false"
             self.tags[TestTag.ITR_TESTS_SKIPPING_TYPE] = self.itr_skipping_level.value
             self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = self.tests_skipped_by_itr
+
+        if self.tests_deselected_by_testmon > 0:
+            self.metrics[TestTag.TESTS_DESELECTED_BY_TESTMON_COUNT] = self.tests_deselected_by_testmon
 
 
 class TestTag:
@@ -475,6 +479,10 @@ class TestTag:
     ITR_DD_CI_ITR_TESTS_SKIPPED = "_dd.ci.itr.tests_skipped"
     ITR_TESTS_SKIPPING_TYPE = "test.itr.tests_skipping.type"
     ITR_TESTS_SKIPPING_COUNT = "test.itr.tests_skipping.count"
+
+    # Testmon deselection tracking — tests deselected by pytest-testmon (not technically skipped, but
+    # reported as a count in the session span for parity with ITR skip reporting).
+    TESTS_DESELECTED_BY_TESTMON_COUNT = "test.testmon.deselected.count"
 
     # Test File; used when test implementation file is different from test suite name (pytest-bdd).
     TEST_FILE = "test.file"
