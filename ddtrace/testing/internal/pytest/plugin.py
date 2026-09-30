@@ -51,6 +51,7 @@ from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.xdist import XdistManifest
 from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import is_xdist_worker_process
 from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
@@ -65,6 +66,8 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tia_artifacts import TIAArtifactClient
+from ddtrace.testing.internal.tia_artifacts import is_tia_v2_enabled
 from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
@@ -112,6 +115,7 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
     XDIST_MANIFEST_STASH_KEY = pytest.StashKey[XdistManifest]()
+    _TIA_SUITE_ID_STASH_KEY = pytest.StashKey[t.Any]()
     _HAS_STASH = True
 except AttributeError:
     # pytest < 7.0 does not have StashKey/Config.stash; fall back to a plain attribute name.
@@ -119,6 +123,7 @@ except AttributeError:
     _HAS_STASH = False
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
     XDIST_MANIFEST_STASH_KEY = "xdist_manifest_key"
+    _TIA_SUITE_ID_STASH_KEY = "tia_suite_id_key"
 
 
 def _stash_set(config, key, value):
@@ -386,6 +391,10 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._itr_ignored_suite_paths: list[Path] = []
         self._itr_unskippable_suites: set[SuiteRef] = set()
 
+        # Whether pytest-testmon is active in this session. When True, deselected items are counted
+        # as testmon deselections and reported in the session span.
+        self._testmon_active = False
+
         self.manager = session_manager
         self.session = self.manager.session
         self.xdist_manifest: t.Optional[XdistManifest] = None
@@ -478,6 +487,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
+            # Propagate number of testmon-deselected tests to the main process.
+            session.config.workeroutput["tests_deselected_by_testmon"] = self.session.tests_deselected_by_testmon
 
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
@@ -536,6 +547,24 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         if self.manager.settings.coverage_enabled:
             uninstall_coverage()
+
+        # When TIA v2 is enabled and testmon is active, upload the dependency database
+        # to the backend after the test run completes. Only the controller uploads;
+        # workers have already finished and the database is ready on disk.
+        # We create a fresh client because the lookup client's HTTP connector may be
+        # in a bad state after a 404 response (BackendConnector closes on 4xx errors).
+        if self._testmon_active and is_tia_v2_enabled() and not self.is_xdist_worker:
+            suite_id = _stash_get(session.config, _TIA_SUITE_ID_STASH_KEY, None)
+            try:
+                upload_client = TIAArtifactClient(
+                    connector_setup=self.manager.connector_setup,
+                    env_tags=self.manager.env_tags,
+                    workspace_path=self.manager.workspace_path,
+                )
+                _tia_v2_upload(upload_client, suite_id)
+                upload_client.close()
+            except Exception:
+                log.warning("TIA v2: failed to upload database", exc_info=True)
 
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)
@@ -677,6 +706,16 @@ class TestOptPlugin(TestOptPluginProtocol):
                 test_module.finish()
                 self.manager.writer.put_item(test_module)
                 TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+    def pytest_deselected(self, items: list[pytest.Item]) -> None:
+        """Count items deselected by pytest-testmon.
+
+        When testmon is active, deselected tests are tests that testmon determined do not need to run
+        based on coverage data. We count them so they can be reported in the session span as a metric,
+        providing visibility into how many tests testmon skipped — analogous to ITR's tests_skipped_by_itr.
+        """
+        if self._testmon_active:
+            self.session.tests_deselected_by_testmon += len(items)
 
     def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
@@ -1602,6 +1641,86 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
     return early_config.getoption(option) or early_config.getini(option) or f"--{option}" in args
 
 
+def _tia_v2_early_lookup(config: pytest.Config, session_manager: SessionManager) -> None:
+    """Look up the testmon dependency database from the TIA v2 backend.
+
+    Runs in pytest_load_initial_conftests, before any pytest_configure —
+    so the database file is on disk before testmon opens it.
+    Stores the client and suite_id on the config stash for later use by the plugin.
+    """
+    from ddtrace.testing.internal.tia_artifacts import compute_suite_id
+
+    testmon_datafile = ".testmondata"
+
+    try:
+        client = TIAArtifactClient(
+            connector_setup=session_manager.connector_setup,
+            env_tags=session_manager.env_tags,
+            workspace_path=session_manager.workspace_path,
+        )
+    except Exception:
+        log.warning("TIA v2: failed to create artifact client", exc_info=True)
+        return
+
+    suite_id = compute_suite_id(config)
+
+    # Always stash the client and suite_id so the plugin can use them for upload later,
+    # even if the lookup fails (404 on first run is expected).
+    _stash_set(config, _TIA_SUITE_ID_STASH_KEY, suite_id)
+
+    result = client.lookup(suite_id=suite_id)
+    if not result.success:
+        log.debug("TIA v2: lookup did not return a database (%s)", result.error)
+        return
+
+    database_bytes = result.database_bytes
+    if database_bytes is None:
+        log.debug("TIA v2: lookup returned no database bytes")
+        return
+
+    database_path = Path(testmon_datafile)
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    database_path.write_bytes(database_bytes)
+    log.debug(
+        "TIA v2: restored database (%d bytes) to %s (source_commit=%s)",
+        len(database_bytes),
+        database_path,
+        result.source_commit,
+    )
+
+
+def _tia_v2_upload(client: TIAArtifactClient, suite_id: t.Optional[str]) -> None:
+    """Upload the testmon dependency database to the TIA v2 backend.
+
+    Reads the database from the testmon datafile (default '.testmondata')
+    and uploads it.
+    """
+    import sqlite3  # nosec: B404
+
+    testmon_datafile = ".testmondata"
+
+    database_path = Path(testmon_datafile)
+    if not suite_id:
+        suite_id = database_path.parent.name or "pytest"
+
+    # Checkpoint the SQLite WAL so all data is flushed to the main database file
+    # before we read and upload it. testmon uses WAL mode, so committed data
+    # may still be in the -wal sidecar.
+    try:
+        conn = sqlite3.connect(str(database_path), timeout=5)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.close()
+    except Exception:
+        log.debug("TIA v2: could not checkpoint database before upload", exc_info=True)
+
+    result = client.upload(database_path=database_path, suite_id=suite_id)
+    if not result.success:
+        log.warning("TIA v2: upload failed (%s)", result.error)
+    else:
+        log.debug("TIA v2: uploaded database (deduplicated=%s)", result.deduplicated)
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
@@ -1640,6 +1759,12 @@ def pytest_load_initial_conftests(
     _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
+
+    # TIA v2: look up the testmon database before testmon's pytest_configure opens it.
+    # This runs in pytest_load_initial_conftests which executes before any pytest_configure,
+    # so the database file is on disk before testmon tries to open it.
+    if is_tia_v2_enabled() and not is_xdist_worker_process():
+        _tia_v2_early_lookup(early_config, session_manager)
 
     # NOTE: Coverage collection decision tree:
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
@@ -1740,6 +1865,18 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config.pluginmanager.register(plugin)
     config.pluginmanager.add_hookspecs(TestOptHooks)
+
+    # Detect pytest-testmon: when active, deselected items are counted as testmon deselections.
+    # testmon registers plugins as "TestmonSelect" and "TestmonCollect".
+    plugin._testmon_active = (
+        config.pluginmanager.hasplugin("TestmonSelect")
+        or config.pluginmanager.hasplugin("TestmonCollect")
+        or config.pluginmanager.hasplugin("testmon")
+    )
+
+    # When TIA v2 is enabled and testmon is active, the lookup already ran in
+    # pytest_load_initial_conftests (before testmon opened the database).
+    # Nothing to do here — the suite_id is stashed for later use in pytest_sessionfinish.
 
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
