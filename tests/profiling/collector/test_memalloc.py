@@ -988,16 +988,7 @@ def test_m_free_uninstalls_hooks_deterministic() -> None:
 
     Instead we use _test_invoke_module_free(), a test-only C function compiled
     in assert builds (DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY=1) that directly
-    calls memalloc_module_free().  This makes the test deterministic
-
-      Without fix (no memalloc_module_free / no m_free registered):
-        _test_invoke_module_free is absent from the module which would raise AttributeError
-        which is re-raised as AssertionError below which would cause the subprocess to exit with status 1
-        and the test to fail.
-
-      With fix (memalloc_module_free registered as m_free):
-        _test_invoke_module_free() uninstalls both hooks and sets memalloc_enabled = false
-        which would cause heap() to raise RuntimeError and the test to pass.
+    calls memalloc_module_free(). This makes the test deterministic
     """
     import pytest
 
@@ -1027,7 +1018,6 @@ def test_m_free_uninstalls_hooks_deterministic() -> None:
     invoke_fn()
 
     # Post-condition: memalloc_enabled must be false and hooks must be gone.
-    # Without the fix: heap() returns None here instead of raising.
     with pytest.raises(RuntimeError, match="not started"):
         _memalloc.heap()
 
