@@ -2654,6 +2654,9 @@ class LLMObs(Service):
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
 
         if not self.enabled:
+            # Mirrors the 0 integrations report while LLMObs is off. This sticks even if LLMObs is enabled
+            # before the span finishes: it was never activated, so LLMObs can't emit it.
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 0)
             return span
 
         _annotate_llmobs_span_data(
