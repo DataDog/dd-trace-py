@@ -2,6 +2,7 @@ import ast
 from pathlib import Path
 import re
 import sys
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -27,6 +28,10 @@ SPECIAL_CASES_ALLOWLIST = {
     "celery": ">=4.4",
     # pytest 6.0 cannot be tested due to our tests targeting later pytest versions.
     "pytest": ">=6.0",
+    # Dedicated mysql-connector suite was never migrated to suitespec after Riot removal
+    # (#19713). Registry regen only sees sqlalchemy's unpinned mysql-connector-python pins
+    # (9.4+), so min tested drifts above the supported >=8.0.5 claim.
+    "mysql": ">=8.0.5",
 }
 
 
@@ -60,16 +65,17 @@ def _get_integration_supported_versions(internal_contrib_dir: Path, integration_
             match = re.search(pattern, content, re.DOTALL)
 
             if match:
-                return_dict_str = match.group(1)
+                return_dict_str: str = match.group(1)
                 try:
                     # Try to safely evaluate the dictionary literal
-                    supported_versions = ast.literal_eval(return_dict_str)
-                    return supported_versions
+                    supported_versions: Any = ast.literal_eval(return_dict_str)
+                    if isinstance(supported_versions, dict):
+                        return {str(key): str(value) for key, value in supported_versions.items()}
                 except (ValueError, SyntaxError):
                     # If it's not a simple literal, try a simpler string-based approach
                     # Look for patterns like {"module": ">=1.0", "other": "*"}
-                    simple_pattern = r'"([^"]+)":\s*"([^"]*)"'
-                    matches = re.findall(simple_pattern, return_dict_str)
+                    simple_pattern: str = r'"([^"]+)":\s*"([^"]*)"'
+                    matches: list[tuple[str, str]] = re.findall(simple_pattern, return_dict_str)
                     if matches:
                         return dict(matches)
         except Exception:
@@ -92,16 +98,16 @@ def _parse_version_spec(version_spec: str) -> Optional[Union[str, Version]]:
         return None
 
 
-def _get_registry_min_version(registry_entry: dict) -> Optional[Version]:
+def _get_registry_min_version(registry_entry: dict[str, Any]) -> Optional[Version]:
     """Extract the minimum tested version from a registry entry."""
     if not registry_entry.get("is_tested", False):
         return None
 
-    tested_versions = registry_entry.get("tested_versions_by_dependency", {})
+    tested_versions: Any = registry_entry.get("tested_versions_by_dependency", {})
     if not tested_versions:
         return None
 
-    min_versions = []
+    min_versions: list[Version] = []
     for _, version_info in tested_versions.items():
         min_versions.append(Version(version_info["min"]))
 
@@ -109,12 +115,12 @@ def _get_registry_min_version(registry_entry: dict) -> Optional[Version]:
 
 
 def test_supported_versions_align_with_registry(
-    internal_contrib_dir: Path, registry_data: list[dict], integration_dir_names: set[str]
-):
+    internal_contrib_dir: Path, registry_data: list[dict[str, Any]], integration_dir_names: set[str]
+) -> None:
     """Test that minimum tested versions correspond to supported version constraints."""
-    errors = []
+    errors: list[str] = []
 
-    registry_by_name = {entry["integration_name"]: entry for entry in registry_data}
+    registry_by_name: dict[str, dict[str, Any]] = {entry["integration_name"]: entry for entry in registry_data}
 
     for integration_name in integration_dir_names:
         supported_versions = _get_integration_supported_versions(internal_contrib_dir, integration_name)
@@ -127,23 +133,24 @@ def test_supported_versions_align_with_registry(
         ):
             continue
 
-        tested_versions = registry_entry.get("tested_versions_by_dependency", {})
+        tested_versions: Any = registry_entry.get("tested_versions_by_dependency", {})
 
         for module_name, version_constraint in supported_versions.items():
             if version_constraint == "*":
                 continue
 
-            specifier = Specifier(version_constraint)
+            specifier: Specifier = Specifier(version_constraint)
 
             # Check if any dependency in registry has min tested version matching the constraint
-            found_matching_dependency = False
+            found_matching_dependency: bool = False
+            min_tested: Optional[str] = None
             for _, tested_range in tested_versions.items():
                 min_tested = tested_range.get("min")
                 if not min_tested:
                     continue
 
-                constraint_major_minor = _get_major_minor(specifier.version)
-                tested_major_minor = _get_major_minor(min_tested)
+                constraint_major_minor: tuple[int, int] = _get_major_minor(specifier.version)
+                tested_major_minor: tuple[int, int] = _get_major_minor(min_tested)
 
                 if tested_major_minor == constraint_major_minor:
                     found_matching_dependency = True
@@ -151,7 +158,7 @@ def test_supported_versions_align_with_registry(
 
             if not found_matching_dependency:
                 constraint_major_minor = _get_major_minor(specifier.version)
-                expected_major_minor = f"{constraint_major_minor[0]}.{constraint_major_minor[1]}"
+                expected_major_minor: str = f"{constraint_major_minor[0]}.{constraint_major_minor[1]}"
 
                 # we need to allowlist some special cases where we can't test the min version
                 if module_name in SPECIAL_CASES_ALLOWLIST:
@@ -166,19 +173,21 @@ def test_supported_versions_align_with_registry(
     assert not errors, "\n".join(errors)
 
 
-def test_docs_versions_align_with_tested_versions(documented_versions: dict[str, str], registry_data: list[dict]):
+def test_docs_versions_align_with_tested_versions(
+    documented_versions: dict[str, str], registry_data: list[dict[str, Any]]
+) -> None:
     """Test that minimum documented versions align with minimum tested versions."""
-    registry_by_name = {entry["integration_name"]: entry for entry in registry_data}
+    registry_by_name: dict[str, dict[str, Any]] = {entry["integration_name"]: entry for entry in registry_data}
 
-    misalignments = []
+    misalignments: list[str] = []
 
     for integration_name, doc_version_spec in documented_versions.items():
-        registry_entry = registry_by_name.get(integration_name)
+        registry_entry: Optional[dict[str, Any]] = registry_by_name.get(integration_name)
         if not registry_entry or not registry_entry.get("is_external_package"):
             continue
 
-        doc_version = _parse_version_spec(doc_version_spec)
-        registry_min_version = _get_registry_min_version(registry_entry)
+        doc_version: Optional[Union[str, Version]] = _parse_version_spec(doc_version_spec)
+        registry_min_version: Optional[Version] = _get_registry_min_version(registry_entry)
 
         if (
             doc_version == "*"
@@ -195,8 +204,8 @@ def test_docs_versions_align_with_tested_versions(documented_versions: dict[str,
             misalignments.append(f"{integration_name}: docs={doc_version} > tested={registry_min_version}")
         # we need to compare the major minor versions only since we disregard the patch version
         elif doc_version < registry_min_version:
-            doc_major_minor = _get_major_minor(doc_version)
-            tested_major_minor = _get_major_minor(registry_min_version)
+            doc_major_minor: tuple[int, int] = _get_major_minor(doc_version)
+            tested_major_minor: tuple[int, int] = _get_major_minor(registry_min_version)
             if doc_major_minor != tested_major_minor:
                 misalignments.append(f"{integration_name}: docs={doc_version} < tested={registry_min_version}")
 
@@ -204,9 +213,9 @@ def test_docs_versions_align_with_tested_versions(documented_versions: dict[str,
         pytest.fail("Version misalignments:\n" + "\n".join(f"  {m}" for m in misalignments))
 
 
-def test_tested_integrations_have_version_info(registry_data: list[dict]):
+def test_tested_integrations_have_version_info(registry_data: list[dict[str, Any]]) -> None:
     """Test that all tested external integrations have version information."""
-    missing = [
+    missing: list[str] = [
         entry["integration_name"]
         for entry in registry_data
         if (
@@ -220,11 +229,13 @@ def test_tested_integrations_have_version_info(registry_data: list[dict]):
         pytest.fail(f"Missing version info: {', '.join(sorted(missing))}")
 
 
-def test_documented_integrations_are_tested(documented_versions: dict[str, str], registry_data: list[dict]):
+def test_documented_integrations_are_tested(
+    documented_versions: dict[str, str], registry_data: list[dict[str, Any]]
+) -> None:
     """Test that documented external integrations are tested."""
-    registry_by_name = {entry["integration_name"]: entry for entry in registry_data}
+    registry_by_name: dict[str, dict[str, Any]] = {entry["integration_name"]: entry for entry in registry_data}
 
-    untested = [
+    untested: list[str] = [
         name
         for name in documented_versions
         if (
