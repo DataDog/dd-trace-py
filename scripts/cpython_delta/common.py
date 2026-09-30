@@ -25,6 +25,8 @@ FIXED_WATCH_PATHS: tuple[str, ...] = (
     "Include/internal/pycore_pystate.h",
     "Include/internal/pycore_runtime.h",
     "Include/internal/pycore_llist.h",
+    "Include/cpython/code.h",
+    "Include/cpython/pystate.h",
     "Include/cpython/genobject.h",
     "Objects/genobject.c",
     "Objects/frameobject.c",

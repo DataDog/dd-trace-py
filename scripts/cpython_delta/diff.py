@@ -62,6 +62,8 @@ _SYMBOL_TOKEN_RE: re.Pattern[str] = re.compile(
     r"""_PyFrame_SafeGetCode|_PyFrame_SafeGetLasti|_PyFrame_StackPeek"""
     r""")\b"""
 )
+# Identifier-shaped inventory symbols/parts that can appear in a CPython hunk.
+_JOINABLE_IDENT_RE: re.Pattern[str] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Ground-truth rows for the 3.14 → 3.15a7 backtest (analysis + #19269/#19272).
 # This list is that pair only. Do not score it against other tags.
@@ -235,21 +237,27 @@ def git_diff_paths(cpython: Path, old: str, new: str, paths: Iterable[str]) -> t
     return result.stdout, existing
 
 
+def _diff_line_mentions_symbol(line: str, symbol: str, prefix: str) -> bool:
+    """True when a +/- hunk line (not a +++ / --- file header) mentions ``symbol``."""
+    if not line.startswith(prefix) or line.startswith(prefix * 3):
+        return False
+    return re.search(rf"\b{re.escape(symbol)}\b", line) is not None
+
+
 def _classify_change(symbol: str, hunk_texts: list[str]) -> tuple[str, str]:
     """Return (change_kind, priority) heuristics."""
     joined: str = "\n".join(hunk_texts)
-    removed: bool = any(
-        line.startswith("-") and symbol in line and f"+{symbol}" not in joined for line in joined.splitlines()
-    )
-    added: bool = any(line.startswith("+") and symbol in line for line in joined.splitlines())
-    # Enum renumber: same name on both sides of a #define or enum line.
-    if symbol.startswith("FRAME_") and re.search(rf"[+-].*\b{re.escape(symbol)}\b.*=", joined):
+    lines: list[str] = joined.splitlines()
+    removed: bool = any(_diff_line_mentions_symbol(line, symbol, "-") for line in lines)
+    added: bool = any(_diff_line_mentions_symbol(line, symbol, "+") for line in lines)
+    # Enum renumber: same name must appear on both sides of a #define or enum line.
+    if symbol.startswith("FRAME_") and removed and added and re.search(rf"[+-].*\b{re.escape(symbol)}\b.*=", joined):
         return "renumbered_enum", "breaks_build" if "OWNED_BY" not in symbol else "silent_misread"
     if symbol == "FRAME_OWNED_BY_CSTACK" and removed and not added:
         return "removed", "silent_misread"
-    if symbol == "FRAME_COMPLETED" and removed:
+    if symbol == "FRAME_COMPLETED" and removed and not added:
         return "removed", "breaks_build"
-    if symbol == "FRAME_SUSPENDED_YIELD_FROM_LOCKED" and added:
+    if symbol == "FRAME_SUSPENDED_YIELD_FROM_LOCKED" and added and not removed:
         return "new_field_or_enum", "silent_misread"
     if symbol == "base_frame" and added:
         return "new_field_shifting_offsets", "advisory"
@@ -308,6 +316,58 @@ def _inventory_index(inventory: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return index
 
 
+def _inventory_join_tokens(inventory: dict[str, Any]) -> frozenset[str]:
+    """Identifier tokens from inventory that can appear in a CPython hunk.
+
+    Broader than ``_SYMBOL_TOKEN_RE`` so inventoried fields/types such as
+    ``co_code_adaptive``, ``current_frame``, ``PyCodeObject``, and ``task_node``
+    join to work items when they change.
+    """
+    tokens: set[str] = set()
+    for item in inventory.get("symbols", []):
+        if not isinstance(item, dict):
+            continue
+        candidates: list[str] = [str(item.get("symbol", ""))]
+        key: str = str(item.get("key", ""))
+        if ":" in key:
+            candidates.append(key.split(":", 1)[1])
+        for candidate in candidates:
+            if not candidate:
+                continue
+            if candidate == "sys.monitoring":
+                tokens.add(candidate)
+                continue
+            if _JOINABLE_IDENT_RE.match(candidate):
+                tokens.add(candidate)
+                continue
+            if "." in candidate:
+                for part in candidate.split("."):
+                    if _JOINABLE_IDENT_RE.match(part):
+                        tokens.add(part)
+    return frozenset(tokens)
+
+
+def _tokens_in_hunk(hunk: DiffHunk, inventory_tokens: frozenset[str]) -> set[str]:
+    """Union of curated hunk.symbols and inventory tokens found in the hunk.
+
+    Inventory tokens are matched against the full hunk text (including context)
+    so struct types that only appear on context lines still join. Curated
+    ``hunk.symbols`` remain sourced from +/- lines in ``parse_unified_diff``.
+    """
+    tokens: set[str] = set(hunk.symbols)
+    hunk_text: str = hunk.text()
+    if not hunk_text:
+        return tokens
+    for tok in inventory_tokens:
+        if tok == "sys.monitoring":
+            if "sys.monitoring" in hunk_text:
+                tokens.add(tok)
+            continue
+        if re.search(rf"\b{re.escape(tok)}\b", hunk_text):
+            tokens.add(tok)
+    return tokens
+
+
 def _sites_for_symbol(index: dict[str, dict[str, Any]], symbol: str) -> tuple[str | None, list[dict[str, Any]]]:
     needle: str = symbol.lower()
     item: dict[str, Any] | None = index.get(needle)
@@ -340,10 +400,12 @@ def join_worklist(
     hunks: list[DiffHunk],
 ) -> dict[str, Any]:
     index: dict[str, dict[str, Any]] = _inventory_index(inventory)
-    # Collect hunks per symbol that appear in the diff.
+    inventory_tokens: frozenset[str] = _inventory_join_tokens(inventory)
+    # Collect hunks per symbol that appear in the diff (curated + inventory).
     by_symbol: dict[str, list[DiffHunk]] = {}
+    hunk_token_sets: list[set[str]] = []
     for hunk in hunks:
-        tokens: set[str] = set(hunk.symbols)
+        tokens: set[str] = _tokens_in_hunk(hunk, inventory_tokens)
         # Always associate path-level awareness for inventory python_api rows
         # when Lib/asyncio or instrumentation changes.
         if hunk.path.startswith("Lib/asyncio") or hunk.path == "Python/instrumentation.c":
@@ -353,6 +415,7 @@ def join_worklist(
         if "genobject" in hunk.path:
             tokens.add("gi_frame_state")
             tokens.add("_PyFrame_StackPeek")
+        hunk_token_sets.append(tokens)
         for sym in tokens:
             by_symbol.setdefault(sym, []).append(hunk)
 
@@ -418,11 +481,11 @@ def join_worklist(
 
     # CPython hunks with no inventory intersection (awareness).
     awareness: list[dict[str, Any]] = []
-    for hunk in hunks:
-        if hunk.symbols and any(s in by_symbol for s in hunk.symbols):
+    for hunk, tokens in zip(hunks, hunk_token_sets):
+        if tokens and any(s in by_symbol for s in tokens):
             # Check whether any of those produced a work item with sites.
             continue
-        if not hunk.symbols:
+        if not tokens:
             awareness.append(
                 {
                     "path": hunk.path,
