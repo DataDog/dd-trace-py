@@ -177,8 +177,12 @@ fi
 
 echo ""
 
-if [[ "$CHECK_ONLY" == true ]]; then
-    echo "=== --check-only: skipping riot suites ==="
+if [[ "$QUICK" == true || "$CHECK_ONLY" == true ]]; then
+    if [[ "$CHECK_ONLY" == true ]]; then
+        echo "=== --check-only: skipping riot suites ==="
+    else
+        echo "=== --quick: skipping riot suites ==="
+    fi
     exit 0
 fi
 

@@ -23,50 +23,12 @@ __ https://github.com/DataDog/dd-trace-py/pull/19269
 __ https://github.com/DataDog/dd-trace-py/pull/19270
 __ https://github.com/DataDog/dd-trace-py/pull/19272
 
-Current status
---------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 15 20 65
-
-   * - Version
-     - Status
-     - Notes
-   * - 3.13
-     - Supported
-     - Supported. Not the current ``requires-python`` upper bound.
-   * - 3.14
-     - Supported (`PR #15546`__)
-     - Echion frame/task/asyncio, ``setup.py`` un-gating, Riot venv
-       splits, tests done. Baseline for local 314v315 A/B.
-   * - 3.15
-     - Bring-up (natives + asyncio merged; tooling/ADR open)
-     - Merged: native ABI (`PR #19269`__), asyncio
-       ``sys.monitoring`` (`PR #19272`__), prof-correctness gate
-       (`PR #19207`__), Cython/optional wheels (`PR #19861`__),
-       required wheels + lib_injection (`PR #20450`__).
-       Open: this runbook/tooling (`PR #19273`__), hermetic pip
-       (`PR #20474`__), ADR (`PR #20478`__).
-       Use ``0x030f0000`` guards. Full PR map:
-       ``docs/cpython-diffs/py315_pr_catalog.md``.
-   * - 3.16
-     - Next
-     - Copy the `Automation checklist for 3.16`_ below; follow the
-       PEP phase timeline.
-
-__ https://github.com/DataDog/dd-trace-py/pull/15546
-__ https://github.com/DataDog/dd-trace-py/pull/19269
-__ https://github.com/DataDog/dd-trace-py/pull/19272
-__ https://github.com/DataDog/dd-trace-py/pull/19207
-__ https://github.com/DataDog/dd-trace-py/pull/19861
-__ https://github.com/DataDog/dd-trace-py/pull/20450
-__ https://github.com/DataDog/dd-trace-py/pull/19273
-__ https://github.com/DataDog/dd-trace-py/pull/20474
-__ https://github.com/DataDog/dd-trace-py/pull/20478
+Live bring-up status (which PRs are merged vs open) lives in
+``scripts/py315-stack/PROFILING_STACK.md`` — keep that file current; do not
+duplicate a "current status" table here.
 
 Version hex quick reference
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 .. code-block:: text
 

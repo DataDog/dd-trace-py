@@ -120,20 +120,19 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
       - The profiler collects at least _MIN_WALL_TIME_SAMPLES wall-time samples
       - asyncio task names appear in the profiler output
     """
+    # Ensure the asyncio watchdog is registered before asyncio is imported /
+    # any loop is created. (Re-import is a no-op if already loaded.)
     import asyncio
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.internal.datadog.profiling import stack as _stack_ext
+    import ddtrace.profiling._asyncio  # noqa: F401
     from ddtrace.profiling.collector import stack as stack_collector
 
     if not ddup.is_available:
         return {"passed": False, "skipped": True, "reason": f"ddup unavailable: {ddup.failure_msg}"}
     if not _stack_ext.is_available:
         return {"passed": False, "skipped": True, "reason": f"stack unavailable: {_stack_ext.failure_msg}"}
-
-    # Ensure the asyncio watchdog is registered before any loop is created.
-    # (It may already be imported, but importing it again is a no-op.)
-    import ddtrace.profiling._asyncio  # noqa: F401
 
     pprof_prefix: str = os.path.join(tmpdir, "compat")
     output_filename: str = pprof_prefix + "." + str(os.getpid())
@@ -580,6 +579,9 @@ def main() -> None:
 
     args: argparse.Namespace = parser.parse_args()
 
+    if args.quick and args.baseline:
+        raise SystemExit("--quick cannot be combined with --baseline (quick omits profiler_samples)")
+
     # --- Subprocess mode ---
     if args.subprocess:
         _run_subprocess(quick=args.subprocess_quick)
@@ -670,6 +672,7 @@ def main() -> None:
         baselines = _load_baselines()
         if baseline_key not in baselines:
             print(f"No baseline for Python {baseline_key}. Run with --baseline on a known-good version first.")
+            all_passed = False
         else:
             failures: list[str] = _compare_with_baseline(results, baselines[baseline_key])
             if failures:
