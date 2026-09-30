@@ -1,0 +1,257 @@
+{
+  "_comment": "Profiling CPython version registry. Consumed by scripts/verify_profiler_compatibility.py and scripts/run-profiling-tests. Scaffold a new minor with: python scripts/verify_profiler_compatibility.py --scaffold 3.16. Sample baselines live in compatibility_baselines.json.",
+  "default_python": "3.15",
+  "versions": {
+    "3.14": {
+      "hex": "0x030e0000",
+      "major": 3,
+      "minor": 14,
+      "asyncio_hook": "wrap",
+      "uwsgi_supported": false,
+      "min_wall_time_samples": 5,
+      "expected_sample_types": [
+        "wall-time",
+        "cpu-time"
+      ],
+      "image_tags": [
+        "python/3.14"
+      ],
+      "layout_contracts": [
+        "tagged pointers on frame/code",
+        "asyncio_tasks_head linked lists"
+      ],
+      "checklist": {
+        "alpha": [
+          {
+            "id": "native_abi",
+            "done": true,
+            "note": "#15546"
+          },
+          {
+            "id": "gated_ci",
+            "done": true,
+            "note": "#15546"
+          },
+          {
+            "id": "prof_correctness_gate",
+            "done": true,
+            "note": "#19207"
+          }
+        ],
+        "beta": [
+          {
+            "id": "asyncio_hook",
+            "done": true,
+            "note": "wrap path"
+          },
+          {
+            "id": "collectors_ci",
+            "done": true,
+            "note": "#15546"
+          }
+        ],
+        "rc": [
+          {
+            "id": "engraver_images",
+            "done": true,
+            "note": "shipped"
+          },
+          {
+            "id": "optional_then_required_wheels",
+            "done": true,
+            "note": "shipped"
+          },
+          {
+            "id": "cython_pin",
+            "done": true,
+            "note": "n/a for 3.14 bring-up"
+          },
+          {
+            "id": "hermetic_prerelease_pin",
+            "done": true,
+            "note": "shipped"
+          }
+        ],
+        "final": [
+          {
+            "id": "ssi_oci",
+            "done": true,
+            "note": "enabled at final"
+          },
+          {
+            "id": "release_note",
+            "done": true,
+            "note": "#15546"
+          },
+          {
+            "id": "adr",
+            "done": true,
+            "note": "n/a"
+          }
+        ]
+      }
+    },
+    "3.15": {
+      "hex": "0x030f0000",
+      "major": 3,
+      "minor": 15,
+      "asyncio_hook": "sys.monitoring",
+      "uwsgi_supported": false,
+      "min_wall_time_samples": 2,
+      "expected_sample_types": [
+        "wall-time",
+        "cpu-time"
+      ],
+      "image_tags": [
+        "python/3.15",
+        "python/3.15.0rc2",
+        "python/3.15.0rc2-fips"
+      ],
+      "layout_contracts": [
+        "PyFrameState renumber",
+        "FRAME_OWNED_BY_CSTACK removed",
+        "FRAME_SUSPENDED_YIELD_FROM_LOCKED (free-threaded)"
+      ],
+      "checklist": {
+        "alpha": [
+          {
+            "id": "native_abi",
+            "done": true,
+            "note": "#19269 merged"
+          },
+          {
+            "id": "gated_ci",
+            "done": true,
+            "note": "#19270 merged"
+          },
+          {
+            "id": "prof_correctness_gate",
+            "done": true,
+            "note": "#19207 merged"
+          }
+        ],
+        "beta": [
+          {
+            "id": "asyncio_hook",
+            "done": true,
+            "note": "#19272 sys.monitoring; wrap stays below 3.15"
+          },
+          {
+            "id": "collectors_ci",
+            "done": true,
+            "note": "#19270 merged"
+          }
+        ],
+        "rc": [
+          {
+            "id": "engraver_images",
+            "done": true,
+            "note": "images#11732 merged; dd-source digests still track"
+          },
+          {
+            "id": "optional_then_required_wheels",
+            "done": true,
+            "note": "#19861 optional; #20450 required (merged)"
+          },
+          {
+            "id": "cython_pin",
+            "done": true,
+            "note": "#19861 Cython<3.3"
+          },
+          {
+            "id": "hermetic_prerelease_pin",
+            "done": false,
+            "note": "#20474 open \u2014 PEP 440 local versions in verify-package-version"
+          }
+        ],
+        "final": [
+          {
+            "id": "ssi_oci",
+            "done": false,
+            "note": "keep when:never until final; do not publish from wheel PR"
+          },
+          {
+            "id": "release_note",
+            "done": false,
+            "note": "customer-facing reno still open"
+          },
+          {
+            "id": "adr",
+            "done": false,
+            "note": "#20478 open (draft)"
+          }
+        ]
+      }
+    }
+  },
+  "checklist_template": {
+    "alpha": [
+      {
+        "id": "native_abi",
+        "done": false,
+        "note": "Echion/layout contracts + PY_VERSION_HEX guards"
+      },
+      {
+        "id": "gated_ci",
+        "done": false,
+        "note": "allow_failure compile job, then required"
+      },
+      {
+        "id": "prof_correctness_gate",
+        "done": false,
+        "note": "python_*_3.X prof-correctness jobs"
+      }
+    ],
+    "beta": [
+      {
+        "id": "asyncio_hook",
+        "done": false,
+        "note": "probe wrap(); if broken use sys.monitoring on new minor only"
+      },
+      {
+        "id": "collectors_ci",
+        "done": false,
+        "note": "setup.py native un-gate + riot matrix"
+      }
+    ],
+    "rc": [
+      {
+        "id": "engraver_images",
+        "done": false,
+        "note": "engraver python/3.X.YrcN{,-fips} within days of RC"
+      },
+      {
+        "id": "optional_then_required_wheels",
+        "done": false,
+        "note": "start optional (empty REQUIRED_PLATFORMS), then require"
+      },
+      {
+        "id": "cython_pin",
+        "done": false,
+        "note": "pin Cython upper bound if new minor breaks"
+      },
+      {
+        "id": "hermetic_prerelease_pin",
+        "done": false,
+        "note": "pin exact prerelease tag (aN \u2260 rcM ABI)"
+      }
+    ],
+    "final": [
+      {
+        "id": "ssi_oci",
+        "done": false,
+        "note": "enable SSI/OCI only at final \u2014 never from wheel PR"
+      },
+      {
+        "id": "release_note",
+        "done": false,
+        "note": "customer-facing reno"
+      },
+      {
+        "id": "adr",
+        "done": false,
+        "note": "readiness ADR if profiling claims support"
+      }
+    ]
+  }
+}

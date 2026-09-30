@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# One-button profiling test runner for Python 3.15 (and any future version).
+# One-button profiling test runner for the default (or requested) CPython minor.
+#
+# Default MAJOR.MINOR comes from scripts/profiles/profiling_versions.json
+# (field default_python). Override with --python.
 #
 # Runs all profiling test suites on the target Python version:
 #   - verify_profiler_compatibility.py (async guards + real profiler samples)
 #   - profile      (main profiling suite: asyncio, stack, threading, lock, etc.)
 #   - profile-memalloc  (memory allocator variants: malloc, pymalloc, debug)
-#   - profile-uwsgi is SKIPPED — capped at Python 3.13 (uwsgi not yet 3.15-compatible)
+#   - profile-uwsgi is SKIPPED when the registry marks uwsgi_supported=false
 #
 # Usage:
-#   scripts/run-profiling-tests                  # default: 3.15.0a7
+#   scripts/run-profiling-tests                  # default from profiling_versions.json
 #   scripts/run-profiling-tests --python 3.14    # another Python version
 #   scripts/run-profiling-tests --quick          # skip rebuild check + full riot suites;
 #                                                # only run compatibility script
@@ -18,11 +21,12 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPTS_DIR="$REPO_ROOT/scripts"
+REGISTRY_FILE="$REPO_ROOT/scripts/profiles/profiling_versions.json"
 
 # ---------------------------------------------------------------------------
 # Parse arguments
 # ---------------------------------------------------------------------------
-PYTHON_VERSION="3.15"
+PYTHON_VERSION=""
 QUICK=false
 CHECK_ONLY=false
 
@@ -47,6 +51,20 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -z "$PYTHON_VERSION" ]]; then
+    if [[ ! -f "$REGISTRY_FILE" ]]; then
+        echo "ERROR: version registry missing: $REGISTRY_FILE" >&2
+        exit 1
+    fi
+    PYTHON_VERSION="$(python3 -c "
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+print(data['default_python'])
+" "$REGISTRY_FILE")"
+fi
 
 # ---------------------------------------------------------------------------
 # Locate the Python interpreter
@@ -89,6 +107,7 @@ fi
 ACTUAL_VER=$("$PYTHON" -c "import sys; print(sys.version)")
 echo "=== Using Python: $ACTUAL_VER ==="
 echo "=== Binary: $PYTHON ==="
+echo "=== Registry default target: $PYTHON_VERSION ==="
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -205,6 +224,19 @@ if [[ "$missing_venvs" -ne 0 ]]; then
     exit 1
 fi
 
-echo "profile-uwsgi: SKIPPED (capped at Python 3.13 — uwsgi not yet 3.15-compatible)"
+UWSGI_SUPPORTED="$(python3 -c "
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+version = sys.argv[2]
+data = json.loads(path.read_text())
+entry = data.get('versions', {}).get(version, {})
+print('true' if entry.get('uwsgi_supported') else 'false')
+" "$REGISTRY_FILE" "$PYTHON_VERSION")"
+if [[ "$UWSGI_SUPPORTED" == "true" ]]; then
+    echo "profile-uwsgi: not wired in this runner yet (registry uwsgi_supported=true)"
+else
+    echo "profile-uwsgi: SKIPPED (registry uwsgi_supported=false for Python $PYTHON_VERSION)"
+fi
 echo ""
 echo "=== All profiling tests completed! ==="
