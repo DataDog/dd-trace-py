@@ -71,5 +71,5 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             span._set_attribute(http.QUERY_STRING, event.query)
 
         _set_inferred_proxy_tags(span, status_code)
-        for tk, tv in ctx.get_item("additional_tags", default=dict()).items():
+        for tk, tv in event.additional_tags.items():
             span._set_attribute(tk, tv)
