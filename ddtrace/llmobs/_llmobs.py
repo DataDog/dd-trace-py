@@ -2700,7 +2700,6 @@ class LLMObs(Service):
         """
         span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
         span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.enabled else 0)
-        # Skip the "unknown" defaults so a missing model is not reported as a model named "unknown".
         if model_name and model_name != UNKNOWN_MODEL_NAME:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
         if model_provider and model_provider != UNKNOWN_MODEL_PROVIDER:
