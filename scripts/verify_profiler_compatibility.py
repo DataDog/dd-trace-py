@@ -86,9 +86,9 @@ def _suite_asyncio_guards() -> dict[str, Any]:
     # registered first. The callback fires when asyncio is subsequently imported.
     # Importing asyncio triggers the ModuleWatchdog callback, which runs
     # _call_init_asyncio() — exercising all the hasattr guards.
+    # I001: stdlib-before-first-party sort would reverse this intentional order.
+    import ddtrace.profiling._asyncio as _asyncio_mod  # noqa: I001
     import asyncio
-
-    import ddtrace.profiling._asyncio as _asyncio_mod
 
     if not _asyncio_mod.ASYNCIO_IMPORTED:
         return {"passed": False, "error": "ASYNCIO_IMPORTED flag not set after asyncio import"}
@@ -122,11 +122,12 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
     """
     # Ensure the asyncio watchdog is registered before asyncio is imported /
     # any loop is created. (Re-import is a no-op if already loaded.)
+    # I001: stdlib-before-first-party sort would reverse this intentional order.
+    import ddtrace.profiling._asyncio  # noqa: F401, I001
     import asyncio
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.internal.datadog.profiling import stack as _stack_ext
-    import ddtrace.profiling._asyncio  # noqa: F401
     from ddtrace.profiling.collector import stack as stack_collector
 
     if not ddup.is_available:
