@@ -1,11 +1,11 @@
 #pragma once
 
 #include "constants.hpp"
+#include "result.hpp"
 #include "uploader.hpp"
 
 #include <string>
 #include <string_view>
-#include <variant>
 
 namespace Datadog {
 
@@ -31,7 +31,7 @@ class UploaderBuilder
     static void set_output_filename(std::string_view _output_filename);
     static void set_max_timeout_ms(uint64_t _max_timeout_ms);
 
-    static std::variant<Uploader, std::string> build();
+    static Result<Uploader> build();
 };
 
 } // namespace Datadog

@@ -2,52 +2,44 @@
 
 #include "profile_borrow.hpp"
 #include "profiler_state.hpp"
-#include "profiler_stats.hpp"
+#include "result.hpp"
 
-#include <datadog/profiling.h>
 #include <iostream>
+#include <utility>
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-// Inline helpers
 namespace {
 
-inline bool
-make_profile(const ddog_prof_Slice_SampleType& sample_types,
-             const struct ddog_prof_Period* period,
-             ddog_prof_Profile& profile)
+using ProfileResult = Datadog::Result<rust::Box<Datadog::ddprof::Profile>>;
+
+ProfileResult
+make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const Datadog::ddprof::Period& period)
 {
-    // Private helper function for creating a ddog_prof_Profile from arguments
-
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto maybe_dict = Datadog::ProfilerState::get().get_profiles_dictionary();
-    if (!maybe_dict) {
-        return false;
+    auto dict = Datadog::ProfilerState::get().borrow_dictionary();
+    if (!dict.has_value()) {
+        return Datadog::ErrorMessage{ "CXX ProfileDictionary is not initialized" };
     }
 
-    auto& dict = maybe_dict.value();
-    auto res = ddog_prof_Profile_with_dictionary(&profile, &dict, sample_types, period);
-    if (res.flags) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        if (!already_warned) {
-            already_warned = true;
-            const std::string errmsg = std::string(res.err);
-            std::cerr << errmsg << std::endl;
-        }
-        return false;
+    rust::Vec<Datadog::ddprof::SampleType> cxx_sample_types;
+    for (const auto sample_type : sample_types) {
+        cxx_sample_types.push_back(sample_type);
     }
-    return true;
+    auto result = Datadog::ddprof::Profile::create_with_dictionary(std::move(cxx_sample_types), period, dict->value);
+    if (!result->ok()) {
+        return Datadog::ErrorMessage{ std::string(result->message()) };
+    }
+
+    auto profile = result->take_value();
+    profile->set_error_policy(Datadog::ddprof::ErrorPolicy::PrintOncePerOperation);
+    return ProfileResult{ std::in_place_type<rust::Box<Datadog::ddprof::Profile>>, std::move(profile) };
 }
 
-}
+} // namespace
 
 void
 Datadog::Profile::cleanup()
 {
-    // Drop the profile and release its resources
-    ddog_prof_Profile_drop(&cur_profile);
+    const std::lock_guard<std::mutex> lock(profile_mtx);
+    cur_profile.reset();
 }
 
 void
@@ -55,7 +47,7 @@ Datadog::Profile::setup_samplers()
 {
     // TODO propagate error if no valid samplers are defined
     samplers.clear();
-    auto add_sampler = [this](ddog_prof_SampleType sample_type) {
+    auto add_sampler = [this](ddprof::SampleType sample_type) {
         const size_t idx = this->samplers.size();
         this->samplers.push_back(sample_type);
         return idx;
@@ -63,54 +55,54 @@ Datadog::Profile::setup_samplers()
 
     // Check which samplers were enabled by the user
     if (0U != (type_mask & SampleType::CPU)) {
-        val_idx.cpu_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_CPU_TIME);
-        val_idx.cpu_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_CPU_SAMPLES);
+        val_idx.cpu_time = add_sampler(ddprof::SampleType::CpuTime);
+        val_idx.cpu_count = add_sampler(ddprof::SampleType::CpuSamples);
     }
     if (0U != (type_mask & SampleType::Wall)) {
-        val_idx.wall_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_WALL_TIME);
-        val_idx.wall_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_WALL_SAMPLES);
+        val_idx.wall_time = add_sampler(ddprof::SampleType::WallTime);
+        val_idx.wall_count = add_sampler(ddprof::SampleType::WallSamples);
     }
     if (0U != (type_mask & SampleType::Exception)) {
-        val_idx.exception_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_EXCEPTION_SAMPLES);
+        val_idx.exception_count = add_sampler(ddprof::SampleType::ExceptionSamples);
     }
     if (0U != (type_mask & SampleType::LockAcquire)) {
-        val_idx.lock_acquire_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_ACQUIRE_WAIT);
-        val_idx.lock_acquire_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_ACQUIRE);
+        val_idx.lock_acquire_time = add_sampler(ddprof::SampleType::LockAcquireWait);
+        val_idx.lock_acquire_count = add_sampler(ddprof::SampleType::LockAcquire);
     }
     if (0U != (type_mask & SampleType::LockRelease)) {
-        val_idx.lock_release_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_RELEASE_HOLD);
-        val_idx.lock_release_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_RELEASE);
+        val_idx.lock_release_time = add_sampler(ddprof::SampleType::LockReleaseHold);
+        val_idx.lock_release_count = add_sampler(ddprof::SampleType::LockRelease);
     }
     if (0U != (type_mask & SampleType::Allocation)) {
-        val_idx.alloc_space = add_sampler(DDOG_PROF_SAMPLE_TYPE_ALLOC_SPACE);
-        val_idx.alloc_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_ALLOC_SAMPLES);
+        val_idx.alloc_space = add_sampler(ddprof::SampleType::AllocSpace);
+        val_idx.alloc_count = add_sampler(ddprof::SampleType::AllocSamples);
     }
     if (0U != (type_mask & SampleType::Heap)) {
-        val_idx.heap_space = add_sampler(DDOG_PROF_SAMPLE_TYPE_HEAP_SPACE);
-        val_idx.heap_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_HEAP_LIVE_SAMPLES);
+        val_idx.heap_space = add_sampler(ddprof::SampleType::HeapSpace);
+        val_idx.heap_count = add_sampler(ddprof::SampleType::HeapLiveSamples);
     }
     if (0U != (type_mask & SampleType::GPUTime)) {
-        val_idx.gpu_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_TIME);
-        val_idx.gpu_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_SAMPLES);
+        val_idx.gpu_time = add_sampler(ddprof::SampleType::GpuTime);
+        val_idx.gpu_count = add_sampler(ddprof::SampleType::GpuSamples);
     }
     if (0U != (type_mask & SampleType::GPUMemory)) {
         // In the backend the unit is called 'gpu-space', but maybe for consistency
         // it should be gpu-alloc-space
         // gpu-alloc-samples may be unused, but it's passed along for scaling purposes
-        val_idx.gpu_alloc_space = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_SPACE);
-        val_idx.gpu_alloc_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_ALLOC_SAMPLES);
+        val_idx.gpu_alloc_space = add_sampler(ddprof::SampleType::GpuSpace);
+        val_idx.gpu_alloc_count = add_sampler(ddprof::SampleType::GpuAllocSamples);
     }
     if (0U != (type_mask & SampleType::GPUFlops)) {
         // Technically "FLOPS" is a unit, but we call it a 'count' because no
         // other profiler uses it as a unit.
-        val_idx.gpu_flops = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS);
-        val_idx.gpu_flops_samples = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS_SAMPLES);
+        val_idx.gpu_flops = add_sampler(ddprof::SampleType::GpuFlops);
+        val_idx.gpu_flops_samples = add_sampler(ddprof::SampleType::GpuFlopsSamples);
     }
 
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.
     if (!samplers.empty()) {
-        default_period = { .sample_type = samplers[0], .value = 1 };
+        default_period = { .value_type = samplers[0], .value = 1 };
     }
 }
 
@@ -120,30 +112,21 @@ Datadog::Profile::get_sample_type_length()
     return samplers.size();
 }
 
-Datadog::ProfileBorrow
+std::optional<Datadog::ProfileBorrow>
 Datadog::Profile::borrow()
 {
-    return ProfileBorrow(*this);
+    std::unique_lock<std::mutex> lk(profile_mtx);
+    if (!cur_profile.has_value()) {
+        return std::nullopt;
+    }
+    return ProfileBorrow{ std::move(lk), *cur_profile.value(), cur_profiler_stats };
 }
 
-ddog_prof_Profile&
-Datadog::Profile::profile_borrow_internal()
-{
-    // Note: Caller is responsible for ensuring profile_release() is called
-    profile_mtx.lock();
-    return cur_profile;
-}
-
-void
-Datadog::Profile::profile_release()
-{
-    profile_mtx.unlock();
-}
-
-void
+bool
 Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
     std::call_once(init_once, [this, type, _max_nframes]() { one_time_init_impl(type, _max_nframes); });
+    return cur_profile.has_value();
 }
 
 void
@@ -170,13 +153,15 @@ Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
     setup_samplers();
 
     // We need to initialize the profiles
-    const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
-    if (!make_profile(sample_types, &default_period, cur_profile)) {
+    auto profile_result = make_profile(samplers, default_period);
+    if (const auto* err = Datadog::error_if_any(profile_result)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Error initializing cur_profile" << std::endl;
+            std::cerr << "Error initializing cur_profile: " << err->message << std::endl;
         }
+        return;
     }
+    cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
 }
 
 const Datadog::ValueIndex&
@@ -186,17 +171,15 @@ Datadog::Profile::val()
 }
 
 bool
-Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
+Datadog::Profile::collect(const ddprof::DictionarySample& sample, int64_t endtime_ns)
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
-    auto res = ddog_prof_Profile_add2(&cur_profile, sample, endtime_ns);
-    if (res.flags) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        if (!already_warned) {
-            already_warned = true;
-            const std::string errmsg = std::string(res.err);
-            std::cerr << errmsg << std::endl;
-        }
+    if (!cur_profile.has_value()) {
+        return false;
+    }
+    const auto ok = endtime_ns == 0 ? cur_profile.value()->add_dictionary_sample(sample)
+                                    : cur_profile.value()->add_dictionary_sample(sample, endtime_ns);
+    if (!ok) {
         return false;
     }
     return true;
@@ -206,34 +189,34 @@ void
 Datadog::Profile::prefork()
 {
     // Lock the profile mutex before fork to ensure the sampling thread is not
-    // mid-allocation inside ddog_prof_Profile_add2 when the fork happens.
-    // If the sampling thread is currently inside collect(), this will block
-    // until it finishes, guaranteeing the IndexSet<StackTrace> is in a
-    // fully-consistent state before the child calls ddog_prof_Profile_drop().
+    // mid-allocation inside add_dictionary_sample when the fork happens. If the sampling
+    // thread is currently inside collect(), this will block until it finishes,
+    // guaranteeing the IndexSet<StackTrace> is in a fully-consistent state
+    // before the child drops the profile.
     profile_mtx.lock();
 }
 
 void
-Datadog::Profile::postfork_parent()
+Datadog::Profile::unlock()
 {
     profile_mtx.unlock();
 }
 
 void
-Datadog::Profile::postfork_child()
+Datadog::Profile::reset_after_fork()
 {
-    // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
+    cur_profile.reset();
+}
 
-    // Drop the old profile - it references the old (now-released) dictionary
-    ddog_prof_Profile_drop(&cur_profile);
-
-    // Create a new profile with the new dictionary
-    const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
-    if (!make_profile(sample_types, &default_period, cur_profile)) {
-        std::cerr << "Error re-initializing profile after fork" << std::endl;
+bool
+Datadog::Profile::reinit_after_fork()
+{
+    auto profile_result = make_profile(samplers, default_period);
+    if (const auto* err = Datadog::error_if_any(profile_result)) {
+        std::cerr << "Error re-initializing profile after fork: " << err->message << std::endl;
+        return false;
     }
-
-    // Unlock profile_mtx, which was locked by prefork.
-    profile_mtx.unlock();
+    cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
+    return true;
 }

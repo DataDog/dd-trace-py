@@ -1,33 +1,19 @@
 #pragma once
 
-#include "profile.hpp"
+#include "libdatadog_helpers.hpp"
+#include "profiler_stats.hpp"
+
+#include <mutex>
 
 namespace Datadog {
 
-// Forward declaration
-class Profile;
-
-// RAII wrapper for borrowing both profile and stats under a single lock
-class ProfileBorrow
+// RAII guard for the active profile and its stats under profile_mtx.
+// Movable via unique_lock; non-copyable.
+struct ProfileBorrow
 {
-  private:
-    Profile* profile_ptr;
-
-  public:
-    explicit ProfileBorrow(Profile& profile);
-    ~ProfileBorrow();
-
-    // Disable copy
-    ProfileBorrow(const ProfileBorrow&) = delete;
-    ProfileBorrow& operator=(const ProfileBorrow&) = delete;
-
-    // Enable move
-    ProfileBorrow(ProfileBorrow&& other) noexcept;
-    ProfileBorrow& operator=(ProfileBorrow&& other) noexcept;
-
-    // Accessors
-    ddog_prof_Profile& profile();
-    ProfilerStats& stats();
+    std::unique_lock<std::mutex> lock;
+    ddprof::Profile& profile;
+    ProfilerStats& stats;
 };
 
 } // namespace Datadog

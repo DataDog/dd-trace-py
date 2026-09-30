@@ -5,6 +5,7 @@
 #include "sample.hpp"
 
 #include <numeric>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unistd.h>
@@ -130,15 +131,14 @@ join(const std::vector<std::string>& vec, const std::string& delim)
                            });
 }
 
-std::variant<Datadog::Uploader, std::string>
+Datadog::Result<Datadog::Uploader>
 Datadog::UploaderBuilder::build()
 {
     auto& state = ProfilerState::get();
 
-    // Setup the ddog_Exporter
-    ddog_Vec_Tag tags = ddog_Vec_Tag_new();
+    rust::Vec<ddprof::Tag> tags;
 
-    // Add the tags.  In the average case, the user has a structural problem with
+    // Add the tags. In the average case, the user has a structural problem with
     // one of their tags, but it's really annoying to have to iteratively fix several
     // tags, so we'll just collect all the reasons and report them all at once.
     std::vector<std::string> reasons{};
@@ -172,63 +172,51 @@ Datadog::UploaderBuilder::build()
     }
 
     if (!reasons.empty()) {
-        ddog_Vec_Tag_drop(tags);
-        return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
+        return Datadog::ErrorMessage{ "Error initializing exporter, missing or bad configuration: " +
+                                      join(reasons, ", ") };
     }
 
-    // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(
-      to_slice("dd-trace-py"),
-      to_slice(state.profiler_version),
-      to_slice(family),
-      &tags,
-      ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms, /*use_system_resolver=*/false));
-    ddog_Vec_Tag_drop(tags);
-
-    if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
-        auto& err = res.err;
-        std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
-        ddog_Error_drop(&err); // errmsg contains a copy of err.message
-        return errmsg;
+    auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(strings::bytes(g_library_name),
+                                                                          strings::bytes(state.profiler_version),
+                                                                          strings::bytes(family),
+                                                                          std::move(tags),
+                                                                          strings::bytes(state.url),
+                                                                          state.max_timeout_ms,
+                                                                          false);
+    if (!exporter_result->ok()) {
+        return Datadog::ErrorMessage{ std::string("Error initializing CXX exporter: ") +
+                                      std::string(exporter_result->message()) };
     }
+    auto profile_exporter = exporter_result->take_value();
 
-    auto* ddog_exporter = &res.ok;
-
-    // Perform profile encoding before creating the Uploader
-    // Also take the Profiler Stats and reset the one being written to
-    ddog_prof_Profile_SerializeResult encoded;
+    // Perform profile encoding before creating the Uploader.
+    // Also take the Profiler Stats and reset the one being written to.
+    std::optional<rust::Box<ddprof::EncodedProfile>> encoded;
     Datadog::ProfilerStats stats;
     {
         // Only keep the lock for the duration of the encoding operation.
-        auto borrowed = state.profile_state.borrow();
+        auto maybe_borrowed = state.profile_state.borrow();
+        if (!maybe_borrowed.has_value()) {
+            return Datadog::ErrorMessage{ "Profile is not available (not initialized or cleaned up)" };
+        }
+        auto& borrowed = *maybe_borrowed;
 
         // Swap the ProfilerStats (which replaces the one being written to with an empty state).
         // We do this first as we still want to reset ProfilerStats if the serialization fails.
-        std::swap(stats, borrowed.stats());
-        borrowed.stats().copy_fast_copy_metadata_from(stats);
+        std::swap(stats, borrowed.stats);
+        borrowed.stats.copy_fast_copy_metadata_from(stats);
 
-        // Try to encode the Profile (which will also reset it)
-        encoded = ddog_prof_Profile_serialize(&borrowed.profile(), nullptr, nullptr);
-        if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
-            auto err = encoded.err;
-            std::string errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
-            ddog_Error_drop(&err);
-            ddog_prof_Exporter_drop(ddog_exporter);
-            return errmsg;
+        auto encoded_result = borrowed.profile.serialize();
+        if (!encoded_result->ok()) {
+            return Datadog::ErrorMessage{ "Error serializing CXX profile: " + std::string(encoded_result->message()) };
         }
+        encoded = encoded_result->take_value();
     }
 
-    // We create a std::variant here instead of creating a temporary Uploader object.
-    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter, encoded.ok, std::move(stats) }
-    // because above code creates a temporary Uploader object, moves it into the
-    // variant, and then the destructor of the temporary Uploader object is called
-    // when the temporary Uploader object goes out of scope.
-    // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
-    // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         state.output_filename,
-                                                         *ddog_exporter,
-                                                         encoded.ok,
-                                                         stats,
-                                                         state.process_tags };
+    return Datadog::Result<Datadog::Uploader>{ std::in_place_type<Datadog::Uploader>,
+                                               state.output_filename,
+                                               std::move(profile_exporter),
+                                               std::move(*encoded),
+                                               stats,
+                                               state.process_tags };
 }

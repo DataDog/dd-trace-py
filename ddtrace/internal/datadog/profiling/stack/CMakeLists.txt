@@ -121,16 +121,18 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper
 if(APPLE)
     if(BUILD_TESTING AND LIB_INSTALL_DIR)
-        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..;${LIB_INSTALL_DIR}"
-                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(
+            ${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..;${LIB_INSTALL_DIR};${DD_WRAPPER_DIR}"
+                                         BUILD_WITH_INSTALL_RPATH TRUE)
     else()
         set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/.." BUILD_WITH_INSTALL_RPATH
                                                                                            TRUE)
     endif()
 elseif(UNIX)
     if(BUILD_TESTING AND LIB_INSTALL_DIR)
-        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..;${LIB_INSTALL_DIR}"
-                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(
+            ${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..;${LIB_INSTALL_DIR};${DD_WRAPPER_DIR}"
+                                         BUILD_WITH_INSTALL_RPATH TRUE)
     else()
         set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()

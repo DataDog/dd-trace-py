@@ -1,4 +1,3 @@
-# libdd is not compiled with sanitizers so probably that's why we get these
-# data races from ddog_ArrayQueue and Datadog::Sample operations
-race:ddog_ArrayQueue
+# libdd is not compiled with sanitizers, so suppress profiler sample-pool races
+# that TSan cannot see through consistently.
 race:Datadog::Sample::

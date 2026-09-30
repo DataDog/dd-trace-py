@@ -8,10 +8,10 @@
 #include <thread>
 #include <vector>
 
-// Test for race condition between threads using ProfilesDictionary and cleanup
+// Test for race condition between threads using ProfileDictionary and cleanup
 // The scenario:
 // 1. Multiple threads are actively calling intern_string/push_frame
-// 2. Main thread calls ddup_cleanup which releases the ProfilesDictionary
+// 2. Main thread calls ddup_cleanup which releases the ProfileDictionary
 // 3. Worker threads may still be mid-operation when dictionary is freed -> SEGFAULT
 
 struct SamplerArg
@@ -59,7 +59,7 @@ join_pthread_samplers(std::vector<pthread_t>& handles)
 // - C++ atexit calls ddup_cleanup() while sampling thread is still running
 //
 // IMPORTANT: After ddup_cleanup(), the threads will likely crash when they
-// try to use the freed ProfilesDictionary. This is the race we're testing.
+// try to use the freed ProfileDictionary. This is the race we're testing.
 void
 cleanup_while_sampling(unsigned int num_threads, unsigned int run_time_ms, unsigned int sleep_time_ns)
 {

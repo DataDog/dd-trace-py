@@ -2,27 +2,30 @@
 
 #include <array>
 #include <cstdint>
-#include <iostream>
+#include <exception>
 #include <optional>
 #include <string>
 #include <string_view>
 
-extern "C"
-{
-#include "datadog/profiling.h"
-}
+#include <datadog/profiling.hpp>
 
 namespace Datadog {
+namespace ddprof = datadog::profiling;
+
+using string_id = ddprof::DictionaryStringId;
+using function_id = ddprof::DictionaryFunctionId;
+
+namespace strings = ddprof::strings;
 
 // Intern a string into libdatadog, returning a string ID
 // (or nullopt if interning failed).
 // Passing the same string twice will deduplicate the string and return
 // the same string ID.
-// Note: although this function is a wrapper around libdatadog utilities,
-// it maintains a local cache of string -> string ID mappings to avoid
-// redundant FFI boundary-crossing calls.
-std::optional<ddog_prof_StringId2>
+std::optional<string_id>
 intern_string(std::string_view s);
+
+std::optional<function_id>
+intern_function(string_id name, string_id filename);
 
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then
@@ -77,26 +80,6 @@ enum class ExportLabelKey : std::uint8_t
     EXPORTER_LABELS(X_ENUM) Length_
 };
 
-inline ddog_CharSlice
-to_slice(std::string_view str)
-{
-    return { .ptr = str.data(), .len = str.size() };
-}
-
-inline ddog_ByteSlice
-to_byte_slice(std::string_view str)
-{
-    return { .ptr = reinterpret_cast<const uint8_t*>(str.data()), .len = str.size() };
-}
-
-inline std::string
-err_to_msg(const ddog_Error* err, std::string_view msg)
-{
-    auto ddog_err = ddog_Error_message(err);
-    std::string err_msg;
-    return std::string{ msg } + " (" + err_msg.assign(ddog_err.ptr, ddog_err.ptr + ddog_err.len) + ")";
-}
-
 inline std::string_view
 to_string(ExportTagKey key)
 {
@@ -124,34 +107,36 @@ to_string(ExportLabelKey key)
 }
 
 inline bool
-add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::string& errmsg)
+add_tag(rust::Vec<ddprof::Tag>& tags, std::string_view key, std::string_view val, std::string& errmsg)
 {
     static bool already_warned = false;
     if (key.empty() || val.empty()) {
         return false;
     }
 
-    ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
-    if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
+    // rust::Vec::push_back can still throw on allocation/panic. This is a local
+    // C++ guard for tag-vector construction, not libdatadog Rust Result<T>
+    // propagation through CXX.
+    try {
+        tags.push_back(ddprof::Tag{ strings::bytes(key), strings::bytes(val) });
+        return true;
+    } catch (const std::exception& err) {
         if (!already_warned) {
             already_warned = true;
-            errmsg = err_to_msg(&res.err, "");
-            std::cerr << errmsg << std::endl;
+            errmsg = err.what();
         }
-        ddog_Error_drop(&res.err);
         return false;
     }
-    return true;
 }
 
 inline bool
-add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
+add_tag(rust::Vec<ddprof::Tag>& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
 {
-    const std::string_view key_sv = to_string(key);
-    if (val.empty() || key_sv.empty()) {
+    auto key_sv = to_string(key);
+    if (key_sv.empty()) {
+        errmsg = "Invalid tag key";
         return false;
     }
-
     return add_tag(tags, key_sv, val, errmsg);
 }
 
@@ -159,7 +144,7 @@ namespace internal {
 
 // Fork-safe cached interning for label keys.
 // The cache is stored in the ProfilerState singleton and reset on fork.
-std::optional<ddog_prof_StringId2>
+std::optional<ddprof::DictionaryStringId>
 to_interned_string(ExportLabelKey key);
 
 } // namespace internal

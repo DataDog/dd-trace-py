@@ -64,10 +64,12 @@ function(dd_wrapper_add_test name)
 
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/.."
-                                                 BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(
+            ${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/..;${DD_WRAPPER_DIR}"
+                               BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/..;${DD_WRAPPER_DIR}"
+                                                 BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
     # Delay test discovery until test execution to avoid running sanitizer-built executables during build. The timeout
