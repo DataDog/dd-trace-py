@@ -2098,18 +2098,7 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9"
-                    ]
-                },
-                "supportedRange": ">=0.1",
-                "tested": [
-                    "0.1.53",
-                    "0.3.86"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.9",
                         "3.10",
                         "3.11",
                         "3.12"
@@ -2118,8 +2107,7 @@
                 "supportedRange": ">=0.1",
                 "tested": [
                     "0.1.53",
-                    "0.3.86",
-                    "1.5.3"
+                    "0.3.86"
                 ]
             }
         ]
@@ -2593,6 +2581,40 @@
                 "supportedRange": ">=1.0",
                 "tested": [
                     "1.0.2"
+                ]
+            }
+        ]
+    },
+    {
+        "dependencyName": "mysql-connector-python",
+        "integrationName": "mysql",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=8.0.5",
+                "tested": [
+                    "9.4.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10",
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=8.0.5",
+                "tested": [
+                    "9.5.0",
+                    "26.7.0"
                 ]
             }
         ]
