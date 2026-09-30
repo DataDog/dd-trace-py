@@ -82,7 +82,10 @@ def test_native_meter_provider_records():
     assert gauge is not None
     gauge.set(7, {"pool": "default"})
 
+    observations = []
+
     def _observe(options: CallbackOptions):
+        observations.append(options)
         return [Observation(42, {"pool": "default"})]
 
     meter.create_observable_gauge("pool.depth", callbacks=[_observe])
@@ -92,7 +95,100 @@ def test_native_meter_provider_records():
     # Flushing resolves the observable callbacks and drives the native exporter. It must never
     # raise and always returns a bool, whether or not a collector is actually reachable (export
     # failures are reported as False, not exceptions).
+    assert not hasattr(provider, "_reader")
     assert isinstance(provider.force_flush(), bool)
+    assert len(observations) >= 3
+    provider.shutdown()
+
+
+@requires_metrics_api
+@pytest.mark.subprocess(
+    env={
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "OTEL_METRIC_EXPORT_INTERVAL": "50",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://127.0.0.1:9",
+        "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT": "50",
+    },
+    err=None,
+)
+def test_native_reader_schedules_observable_callbacks():
+    """The Rust reader invokes Python callbacks without a Python periodic worker."""
+    import threading
+
+    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+
+    set_otel_meter_provider()
+
+    from opentelemetry.metrics import Observation
+    from opentelemetry.metrics import get_meter_provider
+
+    provider = get_meter_provider()
+    called = threading.Event()
+    callback_thread = []
+
+    def observe(options):
+        callback_thread.append(threading.get_ident())
+        called.set()
+        return [Observation(1)]
+
+    provider.get_meter("ddtrace.test").create_observable_gauge("queue.depth", callbacks=[observe])
+
+    assert called.wait(5)
+    assert callback_thread[0] != threading.get_ident()
+    assert not hasattr(provider, "_reader")
+    provider.shutdown()
+
+
+@requires_metrics_api
+@pytest.mark.skipif(not hasattr(__import__("os"), "fork"), reason="requires os.fork")
+@pytest.mark.subprocess(
+    env={
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "OTEL_METRIC_EXPORT_INTERVAL": "60000",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://127.0.0.1:1",
+        "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT": "50",
+    },
+    err=None,
+)
+def test_native_observable_callbacks_after_fork():
+    """A child process can collect observables registered before fork."""
+    import os
+    import signal
+
+    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+
+    set_otel_meter_provider()
+
+    from opentelemetry.metrics import Observation
+    from opentelemetry.metrics import get_meter_provider
+
+    provider = get_meter_provider()
+    observations = []
+
+    def observe(options):
+        observations.append(os.getpid())
+        return [Observation(1)]
+
+    meter = provider.get_meter("ddtrace.test")
+    counter = meter.create_counter("requests")
+    meter.create_observable_gauge("queue.depth", callbacks=[observe])
+    read_fd, write_fd = os.pipe()
+    child = os.fork()
+    if child == 0:
+        os.close(read_fd)
+        signal.alarm(10)
+        before = len(observations)
+        counter.add(1)
+        flushed = provider.force_flush()
+        collected = len(observations) > before
+        os.write(write_fd, f"{flushed}:{collected}".encode())
+        os._exit(0)
+
+    os.close(write_fd)
+    result = os.read(read_fd, 64).decode()
+    _, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
+    assert result == "False:True"
     provider.shutdown()
 
 

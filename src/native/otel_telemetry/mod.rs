@@ -1,15 +1,71 @@
 use libdd_otel_telemetry::{
-    InstrumentDescriptor, InstrumentId, InstrumentKind, OtelMetricsAggregator,
-    OtelMetricsAggregatorBuilder, OtlpExporterConfig, OtlpProtocol, ResourceBuilder, Temporality,
+    InstrumentDescriptor, InstrumentId, InstrumentKind, ObservableCallback, ObservableMeasurement,
+    OtelMetricsAggregator, OtelMetricsAggregatorBuilder, OtlpExporterConfig, OtlpProtocol,
+    ResourceBuilder, Temporality,
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{
-    exceptions::{PyRuntimeError, PyValueError},
+    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
     prelude::*,
+    types::PyAny,
 };
-use std::time::Duration;
+use std::{
+    ffi::c_int,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use crate::shared_runtime::SharedRuntimePy;
+
+#[cfg(all(not(Py_3_13), not(PyPy), not(GraalPy)))]
+unsafe extern "C" {
+    fn _Py_IsFinalizing() -> c_int;
+}
+
+fn python_is_finalizing() -> bool {
+    #[cfg(Py_3_13)]
+    {
+        return unsafe { pyo3::ffi::Py_IsFinalizing() != 0 };
+    }
+    #[cfg(all(not(Py_3_13), not(PyPy), not(GraalPy)))]
+    {
+        return unsafe { _Py_IsFinalizing() != 0 };
+    }
+    #[cfg(any(PyPy, GraalPy))]
+    {
+        false
+    }
+}
+
+fn adapt_python_callback(
+    callback: Py<PyAny>,
+    callbacks_enabled: Arc<AtomicBool>,
+) -> ObservableCallback {
+    Arc::new(move || {
+        if !callbacks_enabled.load(Ordering::Acquire) || python_is_finalizing() {
+            return Vec::new();
+        }
+        Python::try_attach(|py| {
+            match callback
+                .call0(py)
+                .and_then(|result| result.extract::<Vec<(f64, Vec<(String, String)>)>>(py))
+            {
+                Ok(measurements) => measurements
+                    .into_iter()
+                    .map(|(value, attributes)| ObservableMeasurement::new(value, attributes))
+                    .collect(),
+                Err(error) => {
+                    error.write_unraisable(py, Some(callback.bind(py)));
+                    Vec::new()
+                }
+            }
+        })
+        .unwrap_or_default()
+    })
+}
 
 fn parse_protocol(protocol: &str) -> PyResult<OtlpProtocol> {
     OtlpProtocol::from_config_str(protocol)
@@ -125,11 +181,12 @@ impl OtelMetricsAggregatorBuilderPy {
             .try_take_builder()?
             .with_resource(std::mem::take(&mut self.resource).build());
         let runtime = shared_runtime.as_arc();
-        let (aggregator, warnings) = builder.build::<ForkSafeRuntime>(runtime);
+        let (aggregator, warnings) = builder.build::<ForkSafeRuntime>(Arc::clone(runtime));
         let warnings = warnings.iter().map(|w| w.to_string()).collect();
         Ok((
             OtelMetricsAggregatorPy {
                 inner: Some(aggregator),
+                callbacks_enabled: Arc::new(AtomicBool::new(true)),
             },
             warnings,
         ))
@@ -144,6 +201,7 @@ impl OtelMetricsAggregatorBuilderPy {
 #[pyclass(name = "OtelMetricsAggregator")]
 pub struct OtelMetricsAggregatorPy {
     inner: Option<OtelMetricsAggregator>,
+    callbacks_enabled: Arc<AtomicBool>,
 }
 
 impl OtelMetricsAggregatorPy {
@@ -182,6 +240,41 @@ impl OtelMetricsAggregatorPy {
             descriptor = descriptor.with_description(description);
         }
         Ok(self.try_as_ref()?.register_instrument(descriptor).0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn register_observable_instrument(
+        &self,
+        py: Python<'_>,
+        name: &str,
+        kind: &str,
+        unit: Option<&str>,
+        description: Option<&str>,
+        meter_name: &str,
+        meter_version: Option<&str>,
+        meter_schema_url: Option<&str>,
+        callback: Py<PyAny>,
+    ) -> PyResult<u64> {
+        if !callback.bind(py).is_callable() {
+            return Err(PyTypeError::new_err("callback must be callable"));
+        }
+        let kind = parse_instrument_kind(kind)?;
+        let mut descriptor = InstrumentDescriptor::new(name, kind).with_scope(
+            meter_name,
+            meter_version.map(str::to_string),
+            meter_schema_url.map(str::to_string),
+        );
+        if let Some(unit) = unit {
+            descriptor = descriptor.with_unit(unit);
+        }
+        if let Some(description) = description {
+            descriptor = descriptor.with_description(description);
+        }
+        let callback = adapt_python_callback(callback, Arc::clone(&self.callbacks_enabled));
+        Ok(self
+            .try_as_ref()?
+            .register_observable_instrument(descriptor, callback)
+            .0)
     }
 
     fn record_counter(&self, id: u64, value: f64, attrs: Vec<(String, String)>) -> PyResult<()> {
@@ -229,32 +322,38 @@ impl OtelMetricsAggregatorPy {
         ))
     }
 
-    fn force_flush(&self) -> PyResult<()> {
-        self.try_as_ref()?
-            .force_flush()
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    fn force_flush(&self, py: Python<'_>) -> PyResult<()> {
+        let aggregator = self.try_as_ref()?;
+        py.detach(|| aggregator.force_flush())
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
         Ok(())
     }
 
-    fn shutdown(&mut self) -> PyResult<()> {
+    fn shutdown(&mut self, py: Python<'_>) -> PyResult<()> {
         if let Some(aggregator) = self.inner.take() {
-            aggregator
-                .shutdown()
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            let result = py.detach(move || aggregator.shutdown());
+            self.callbacks_enabled.store(false, Ordering::Release);
+            result.map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
+        } else {
+            self.callbacks_enabled.store(false, Ordering::Release);
         }
         Ok(())
     }
 
-    fn drop(&mut self) -> PyResult<()> {
-        drop(self.inner.take());
+    fn drop(&mut self, py: Python<'_>) -> PyResult<()> {
+        self.callbacks_enabled.store(false, Ordering::Release);
+        if let Some(aggregator) = self.inner.take() {
+            py.detach(move || drop(aggregator));
+        }
         Ok(())
     }
 }
 
 impl Drop for OtelMetricsAggregatorPy {
     fn drop(&mut self) {
+        self.callbacks_enabled.store(false, Ordering::Release);
         if let Some(aggregator) = self.inner.take() {
-            let _ = aggregator.shutdown();
+            std::thread::spawn(move || drop(aggregator));
         }
     }
 }

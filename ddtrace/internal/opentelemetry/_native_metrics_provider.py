@@ -11,18 +11,17 @@ so this reads as a drop-in OTel implementation. Only the metrics signal is handl
 still use the SDK path.
 """
 
-from threading import Lock
 from typing import Any
 from typing import Iterable
 from typing import Optional
-from typing import Sequence
 
 from opentelemetry import metrics as otel
 
+from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import OtelMetricsAggregatorBuilder
 from ddtrace.internal.native_runtime import get_native_runtime
-from ddtrace.internal.periodic import PeriodicService
 
 
 log = get_logger(__name__)
@@ -119,58 +118,71 @@ class Gauge(_GaugeBase):  # type: ignore[misc,valid-type]
         self._aggregator.observe_gauge(self._id, float(amount), _attrs(attributes))
 
 
-class _ObservableCallbackReader(PeriodicService):
-    """Resolves registered observable-instrument callbacks once per export interval.
+def _native_observable_callback(callbacks):
+    """Adapt OTel callbacks to the primitive measurements returned to Rust during collection."""
+    callbacks = list(callbacks or ())
 
-    Only the tracer can execute a user's Python callback, so this scheduling stays on the Python
-    side of the primitives-only boundary — the native aggregator just receives resolved values.
-    Each value is pushed through the ``feed`` function matching the instrument kind
-    (``observe_counter`` / ``observe_gauge`` / ``record_up_down_counter``).
-    """
-
-    def __init__(self, aggregator, interval_seconds: float) -> None:
-        super().__init__(interval=interval_seconds)
-        self._aggregator = aggregator
-        self._observables: list[tuple[int, Any, Sequence[Any]]] = []
-        self._lock = Lock()
-
-    def register(self, instrument_id: int, feed, callbacks) -> None:
-        if not callbacks:
-            return
-        with self._lock:
-            self._observables.append((instrument_id, feed, list(callbacks)))
-
-    def periodic(self) -> None:
-        self.collect()
-
-    def on_shutdown(self) -> None:  # type: ignore[override]  # base hook is a no-op staticmethod
-        self.collect()
-
-    def collect(self) -> None:
+    def collect() -> list[tuple[float, list[tuple[str, str]]]]:
+        measurements = []
         options = otel.CallbackOptions()
-        with self._lock:
-            observables = list(self._observables)
-        for instrument_id, feed, callbacks in observables:
-            for callback in callbacks:
-                try:
-                    for observation in _iter_observations(callback, options):
-                        feed(instrument_id, float(observation.value), _attrs(observation.attributes))
-                except Exception:
-                    log.debug("Error collecting OpenTelemetry observable instrument", exc_info=True)
+        for callback in callbacks:
+            try:
+                for observation in _iter_observations(callback, options):
+                    measurements.append((float(observation.value), _attrs(observation.attributes)))
+            except Exception:
+                log.debug("Error collecting OpenTelemetry observable instrument", exc_info=True)
+        return measurements
+
+    return collect
 
 
 class Meter(otel.Meter):
     """A ``Meter`` whose instruments forward to the native aggregator."""
 
-    def __init__(self, aggregator, reader, name, version=None, schema_url=None):
+    def __init__(self, aggregator, name, version=None, schema_url=None):
         super().__init__(name, version=version, schema_url=schema_url)
         self._aggregator = aggregator
-        self._reader = reader
         # Preserve this meter's instrumentation scope so exported metrics carry it (not the
         # crate's internal meter name).
         self._meter_name = name
         self._meter_version = version
         self._meter_schema_url = schema_url
+        self._instruments = []
+
+    def _track(self, instrument, name, kind, unit, description, native_callback=None):
+        instrument._name = name
+        instrument._kind = kind
+        instrument._unit = unit
+        instrument._description = description
+        instrument._native_callback = native_callback
+        self._instruments.append(instrument)
+        return instrument
+
+    def _rebind(self, aggregator):
+        self._aggregator = aggregator
+        for instrument in self._instruments:
+            if instrument._native_callback is None:
+                instrument_id = self._register(
+                    instrument._name,
+                    instrument._kind,
+                    instrument._unit,
+                    instrument._description,
+                )
+            else:
+                instrument_id = int(
+                    aggregator.register_observable_instrument(
+                        instrument._name,
+                        instrument._kind,
+                        instrument._unit or None,
+                        instrument._description or None,
+                        self._meter_name,
+                        self._meter_version,
+                        self._meter_schema_url,
+                        instrument._native_callback,
+                    )
+                )
+            instrument._aggregator = aggregator
+            instrument._id = instrument_id
 
     def _register(self, name, kind, unit, description) -> int:
         return int(
@@ -185,62 +197,139 @@ class Meter(otel.Meter):
             )
         )
 
+    def _register_observable(self, name, kind, callbacks, unit, description):
+        native_callback = _native_observable_callback(callbacks)
+        instrument_id = int(
+            self._aggregator.register_observable_instrument(
+                name,
+                kind,
+                unit or None,
+                description or None,
+                self._meter_name,
+                self._meter_version,
+                self._meter_schema_url,
+                native_callback,
+            )
+        )
+        return instrument_id, native_callback
+
     def create_counter(self, name, unit="", description=""):
         instrument_id = self._register(name, "counter", unit, description)
-        return Counter(self._aggregator, instrument_id, name, unit, description)
+        return self._track(
+            Counter(self._aggregator, instrument_id, name, unit, description),
+            name,
+            "counter",
+            unit,
+            description,
+        )
 
     def create_up_down_counter(self, name, unit="", description=""):
         instrument_id = self._register(name, "up_down_counter", unit, description)
-        return UpDownCounter(self._aggregator, instrument_id, name, unit, description)
+        return self._track(
+            UpDownCounter(self._aggregator, instrument_id, name, unit, description),
+            name,
+            "up_down_counter",
+            unit,
+            description,
+        )
 
     def create_histogram(self, name, unit="", description="", *, explicit_bucket_boundaries_advisory=None):
         instrument_id = self._register(name, "histogram", unit, description)
-        return Histogram(self._aggregator, instrument_id, name, unit, description)
+        return self._track(
+            Histogram(self._aggregator, instrument_id, name, unit, description),
+            name,
+            "histogram",
+            unit,
+            description,
+        )
 
     def create_gauge(self, name, unit="", description=""):
         # Synchronous gauge, backed by the same SDK gauge handle as an observable gauge; set()
         # pushes the value via observe_gauge. Always return our implementation (never the API's
         # base no-op), regardless of whether the running API re-exports the Gauge class.
         instrument_id = self._register(name, "observable_gauge", unit, description)
-        return Gauge(self._aggregator, instrument_id, name, unit, description)
+        return self._track(
+            Gauge(self._aggregator, instrument_id, name, unit, description),
+            name,
+            "observable_gauge",
+            unit,
+            description,
+        )
 
     def create_observable_counter(self, name, callbacks=None, unit="", description=""):
-        instrument_id = self._register(name, "observable_counter", unit, description)
-        self._reader.register(instrument_id, self._aggregator.observe_counter, callbacks)
-        return ObservableCounter(self._aggregator, instrument_id, name, callbacks, unit, description)
+        instrument_id, native_callback = self._register_observable(
+            name, "observable_counter", callbacks, unit, description
+        )
+        return self._track(
+            ObservableCounter(self._aggregator, instrument_id, name, callbacks, unit, description),
+            name,
+            "observable_counter",
+            unit,
+            description,
+            native_callback,
+        )
 
     def create_observable_gauge(self, name, callbacks=None, unit="", description=""):
-        instrument_id = self._register(name, "observable_gauge", unit, description)
-        self._reader.register(instrument_id, self._aggregator.observe_gauge, callbacks)
-        return ObservableGauge(self._aggregator, instrument_id, name, callbacks, unit, description)
+        instrument_id, native_callback = self._register_observable(
+            name, "observable_gauge", callbacks, unit, description
+        )
+        return self._track(
+            ObservableGauge(self._aggregator, instrument_id, name, callbacks, unit, description),
+            name,
+            "observable_gauge",
+            unit,
+            description,
+            native_callback,
+        )
 
     def create_observable_up_down_counter(self, name, callbacks=None, unit="", description=""):
-        instrument_id = self._register(name, "observable_up_down_counter", unit, description)
-        self._reader.register(instrument_id, self._aggregator.record_up_down_counter, callbacks)
-        return ObservableUpDownCounter(self._aggregator, instrument_id, name, callbacks, unit, description)
+        instrument_id, native_callback = self._register_observable(
+            name, "observable_up_down_counter", callbacks, unit, description
+        )
+        return self._track(
+            ObservableUpDownCounter(self._aggregator, instrument_id, name, callbacks, unit, description),
+            name,
+            "observable_up_down_counter",
+            unit,
+            description,
+            native_callback,
+        )
 
 
 class MeterProvider(otel.MeterProvider):
     """A ``MeterProvider`` backed by the native ``OtelMetricsAggregator``."""
 
-    def __init__(self, aggregator, reader):
+    def __init__(self, aggregator, aggregator_factory):
         self._aggregator = aggregator
-        self._reader = reader
+        self._aggregator_factory = aggregator_factory
+        self._orphaned_after_fork = []
         self._meters: dict[tuple[str, Optional[str], Optional[str]], Meter] = {}
-        self._lock = Lock()
+        self._lock = forksafe.Lock()
+        self._shutdown = False
+        self._atexit = self.shutdown
+        atexit.register(self._atexit)
+        forksafe.register(self._after_fork)
+
+    def _after_fork(self):
+        if self._shutdown:
+            return
+        old_aggregator = self._aggregator
+        self._aggregator = self._aggregator_factory()
+        # Its native reader thread disappeared at fork, so defer destruction until process exit.
+        self._orphaned_after_fork.append(old_aggregator)
+        for meter in self._meters.values():
+            meter._rebind(self._aggregator)
 
     def get_meter(self, name, version=None, schema_url=None, attributes=None):
         key = (name, version, schema_url)
         with self._lock:
             meter = self._meters.get(key)
             if meter is None:
-                meter = Meter(self._aggregator, self._reader, name, version, schema_url)
+                meter = Meter(self._aggregator, name, version, schema_url)
                 self._meters[key] = meter
             return meter
 
     def force_flush(self, timeout_millis=10000):
-        # Resolve observable instruments first so their latest values are included in the flush.
-        self._reader.collect()
         try:
             self._aggregator.force_flush()
         except Exception:
@@ -249,10 +338,12 @@ class MeterProvider(otel.MeterProvider):
         return True
 
     def shutdown(self, timeout_millis=30000):
-        try:
-            self._reader.stop()
-        except Exception:
-            log.debug("Error stopping observable metrics reader", exc_info=True)
+        with self._lock:
+            if self._shutdown:
+                return
+            self._shutdown = True
+        atexit.unregister(self._atexit)
+        forksafe.unregister(self._after_fork)
         try:
             self._aggregator.shutdown()
         except Exception:
@@ -290,23 +381,24 @@ def build_meter_provider(
     rules, so this shim never hardcodes those keys. ``resource_attributes`` carries only the
     remaining generic attributes (e.g. DD_TAGS, host.name).
     """
-    builder = OtelMetricsAggregatorBuilder()
-    if service:
-        builder = builder.set_resource_service(service)
-    if env:
-        builder = builder.set_resource_env(env)
-    if version:
-        builder = builder.set_resource_version(version)
-    for key, value in resource_attributes.items():
-        builder = builder.set_resource_attribute(str(key), str(value))
-    builder = builder.set_metrics_exporter(endpoint, protocol, timeout_ms, _parse_headers(headers))
-    builder = builder.set_metrics_temporality(temporality)
-    builder = builder.set_export_interval(export_interval_ms)
 
-    aggregator, warnings = builder.build(get_native_runtime())
-    for warning in warnings:
-        log.warning("OpenTelemetry metrics aggregator build warning: %s", warning)
+    def build_aggregator():
+        builder = OtelMetricsAggregatorBuilder()
+        if service:
+            builder = builder.set_resource_service(service)
+        if env:
+            builder = builder.set_resource_env(env)
+        if version:
+            builder = builder.set_resource_version(version)
+        for key, value in resource_attributes.items():
+            builder = builder.set_resource_attribute(str(key), str(value))
+        builder = builder.set_metrics_exporter(endpoint, protocol, timeout_ms, _parse_headers(headers))
+        builder = builder.set_metrics_temporality(temporality)
+        builder = builder.set_export_interval(export_interval_ms)
 
-    reader = _ObservableCallbackReader(aggregator, export_interval_ms / 1000.0)
-    reader.start()
-    return MeterProvider(aggregator, reader)
+        aggregator, warnings = builder.build(get_native_runtime())
+        for warning in warnings:
+            log.warning("OpenTelemetry metrics aggregator build warning: %s", warning)
+        return aggregator
+
+    return MeterProvider(build_aggregator(), build_aggregator)
