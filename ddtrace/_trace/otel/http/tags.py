@@ -265,7 +265,10 @@ class OTelHTTPSpanAttributes:
 
     def _is_error_status(self, status_code: int) -> bool:
         if self.is_client:
-            return status_code >= 400
+            setting = "DD_TRACE_HTTP_CLIENT_ERROR_STATUSES"
+            if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
+                return status_code >= 400
+            return bool(config._http_client.is_error_code(status_code))
         setting = "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"
         if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
             # OTel treats any code at or above 500 as an error.

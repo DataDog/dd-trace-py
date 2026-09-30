@@ -462,6 +462,11 @@ class Config:
                     return True
             return False
 
+    class _HTTPClientConfig(_HTTPServerConfig):
+        # Same behavior as the server configuration, with its own environment variable and default.
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "400-599")
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
+
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -573,6 +578,7 @@ class Config:
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
