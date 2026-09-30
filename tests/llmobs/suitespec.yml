@@ -256,6 +256,43 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
+  llmobs_staging:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@llmobs'
+      - tests/llmobs/*
+      - tests/cassettes/anthropic/*
+      - tests/cassettes/azure_openai/*
+      - tests/cassettes/bedrock/*
+      - tests/cassettes/datadog/*
+      - tests/cassettes/genai/*
+      - tests/cassettes/openai/*
+      - tests/cassettes/vertexai/*
+      - tests/cassettes/tests.llmobs.*
+    snapshot: true
+    no_proxy: true
+    venvs_per_job: 2
+    allow_failure: true
+    services: [ddagent_staging]
+    env:
+      DD_SITE: "datad0g.com"
+      DD_API_KEY: ${DD_LLMOBS_STAGING_API_KEY}
+      DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
+    matrix:
+      command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
+      variants:
+        - name: llmobs
+          python: ['3.9']
+          dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1']
+        - name: llmobs
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1', deepeval, 'pydantic-evals>=1.31']
+        - name: llmobs
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: ['pydantic~=1.10', pytest-xdist]
+          command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
     paths:
       - '@bootstrap'

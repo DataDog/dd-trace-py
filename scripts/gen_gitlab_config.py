@@ -110,7 +110,7 @@ class JobSpec:
         lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
         lines.append(f"  extends: {base}")
 
-        if self.suite == "llmobs::llmobs":
+        if self.suite == "llmobs::llmobs_staging":
             lines[-1] = f"  extends: [{base}]"
             # TIA v2 settings: disable ITR, use resource_group for serial execution
             self.env = self.env or {}

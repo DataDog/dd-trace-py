@@ -169,7 +169,7 @@ class TestRunner:
         python_version = _python_hint_to_version(environment.python)
         return (
             self.in_ci
-            and environment.suite == "llmobs::llmobs"
+            and environment.suite == "llmobs::llmobs_staging"
             and python_version is not None
             and python_version >= _TESTMON_MIN_PYTHON_VERSION
         )
@@ -697,7 +697,7 @@ class TestRunner:
             except TestEnvironmentError as error:
                 print(f"❌ {error}")
                 return False
-            if environment.suite == "llmobs::llmobs" and self.in_ci:
+            if environment.suite == "llmobs::llmobs_staging" and self.in_ci:
                 _tia_log(
                     "environment_prepared",
                     environment=environment.hash,
@@ -733,7 +733,7 @@ class TestRunner:
                 print(f"\n▶️  Executing {environment.hash}: {' '.join(command)}")
                 started = time.monotonic()
                 result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
-                if environment.suite == "llmobs::llmobs" and self.in_ci:
+                if environment.suite == "llmobs::llmobs_staging" and self.in_ci:
                     _tia_log(
                         "run_finish",
                         environment=environment.hash,

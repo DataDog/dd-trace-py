@@ -65,7 +65,7 @@ extract_test_artifacts:
       # TIA experiments retain sources for dependency tracking. Other test jobs
       # remove the checkout package so Python imports use the wheel.
       if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" &&
-            "${TEST_SUITE:-}" != "llmobs::llmobs" ]]; then
+            "${TEST_SUITE:-}" != "llmobs::llmobs_staging" ]]; then
         rm -r "$CI_PROJECT_DIR/ddtrace"
       fi
     # Keep repository test helpers (and TIA experiment sources) importable.

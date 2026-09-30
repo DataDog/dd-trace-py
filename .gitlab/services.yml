@@ -11,6 +11,15 @@
       DD_REMOTE_CONFIGURATION_KEY: invalid_but_this_is_fine
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
+  ddagent_staging:
+    name: registry.ddbuild.io/images/mirror/datadog/agent:7.40.1
+    alias: ddagent_staging
+    variables:
+      DD_HOSTNAME: ddagent_staging
+      LOG_LEVEL: ERROR
+      DD_SITE: ${DD_LLMOBS_STAGING_SITE}
+      DD_API_KEY: ${DD_LLMOBS_STAGING_API_KEY}
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
     name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.43.0
     alias: testagent

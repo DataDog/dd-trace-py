@@ -66,18 +66,22 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     assert "$DD_API_KEY" not in config
 
 
-def test_testmon_is_enabled_for_llmobs(gen_gitlab_config_mod):
-    config = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+def test_testmon_is_enabled_for_llmobs_staging(gen_gitlab_config_mod):
+    config = str(gen_gitlab_config_mod.JobSpec(name="llmobs_staging", stage="llmobs", suite="llmobs::llmobs_staging"))
     assert "DD_CIVISIBILITY_ITR_ENABLED: 0" in config
     assert "resource_group: tia-" in config
-    other = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer"))
+    other = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
     assert "resource_group: tia-" not in other
+    other2 = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer"))
+    assert "resource_group: tia-" not in other2
 
 
 def test_testmon_preserves_snapshot_base(gen_gitlab_config_mod):
     with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value=".riot/requirements/wait.txt"):
         config = str(
-            gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs", snapshot=True)
+            gen_gitlab_config_mod.JobSpec(
+                name="llmobs_staging", stage="llmobs", suite="llmobs::llmobs_staging", snapshot=True
+            )
         )
     assert "extends: [.test_base_snapshot]" in config
 
