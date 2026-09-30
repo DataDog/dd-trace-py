@@ -129,7 +129,7 @@ class ProfilerState
 
     // ProfileDictionary handle
     std::mutex profiles_dictionary_mtx{};
-    std::optional<rust::Box<ddprof::ProfileDictionary>> profiles_dictionary{};
+    std::optional<rust::Box<ddprof::ProfileDictionary>> profiles_dictionary;
 };
 
 } // namespace Datadog
