@@ -257,6 +257,11 @@ apm-sdks-benchmarks:
     # all". Inside a child pipeline that variable is the child's own ID, not
     # this (parent) pipeline's, so it must be passed explicitly.
     TARGET_REF: $CI_PIPELINE_ID
+    # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
+    # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
+    # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
+    # so downstream code must treat that literal as unset.
+    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
   trigger:
     include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
     strategy: depend
