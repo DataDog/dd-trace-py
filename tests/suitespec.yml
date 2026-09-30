@@ -9,6 +9,7 @@ components:
     - scripts/ddtest
     - pyproject.toml
     - tests/conftest.py
+    - tests/otel_semantics_snapshot.py
     - tests/utils.py
     - tests/__init__.py
     - tests/suitespec.yml

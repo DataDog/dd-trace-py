@@ -65,6 +65,7 @@ from tests.suitespec import get_test_environments  # noqa: E402
 
 # Constants
 TESTAGENT_PORT_DEFAULT = 9126
+TESTAGENT_OTLP_PORT_DEFAULT = 4318
 PODMAN_COMPAT_ENV_VAR = "DD_TEST_PODMAN_COMPAT"
 BASE_COMPOSE_FILE = ROOT / "docker-compose.base.yml"
 DOCKER_COMPOSE_FILE = ROOT / "docker-compose.yml"
@@ -241,6 +242,7 @@ class TestRunner:
                 # concurrent worktree; the first always gets port 9126.
                 print("⚠️  Port conflict detected, retrying testagent with a random port...")
                 os.environ["TESTAGENT_HOST_PORT"] = "0"
+                os.environ["TESTAGENT_OTLP_HOST_PORT"] = "0"
                 try:
                     cmd = self._compose_command("up", "-d", *services)
                     subprocess.run(cmd, cwd=self.root, check=True)
@@ -279,6 +281,27 @@ class TestRunner:
         url = f"http://localhost:{TESTAGENT_PORT_DEFAULT}"
         print(f"⚠️  Falling back to {url}")
         return url
+
+    def get_testagent_otlp_url(self) -> str:
+        """Discover the testagent OTLP HTTP URL by querying its dynamically assigned host port."""
+        default_url = f"http://localhost:{TESTAGENT_OTLP_PORT_DEFAULT}"
+        if self.podman_compat:
+            return default_url
+
+        try:
+            result = subprocess.run(
+                self._compose_command("port", "testagent", str(TESTAGENT_OTLP_PORT_DEFAULT)),
+                capture_output=True,
+                text=True,
+                cwd=self.root,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                host_port = result.stdout.strip().rsplit(":", 1)[-1]
+                return f"http://localhost:{host_port}"
+        except Exception as e:
+            print(f"⚠️  Failed to discover testagent OTLP port: {e}")
+
+        return default_url
 
     def stop_services(self, services: set[str]) -> bool:
         """Stop and remove Docker services."""
@@ -731,10 +754,16 @@ class TestRunner:
                     return False
                 env["DD_TRACE_AGENT_URL"] = testagent_url
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
+                if not self.in_ci:
+                    # In CI, tests derive the OTLP URL from the testagent host instead.
+                    env["DD_TEST_OTLP_URL"] = self.get_testagent_otlp_url()
+                    print(f"🔧 Setting DD_TEST_OTLP_URL={env['DD_TEST_OTLP_URL']} for OTLP snapshot tests")
 
             forwarded_env = {key: env[key] for key in suite_env}
             if needs_testagent:
                 forwarded_env["DD_TRACE_AGENT_URL"] = env["DD_TRACE_AGENT_URL"]
+                if "DD_TEST_OTLP_URL" in env:
+                    forwarded_env["DD_TEST_OTLP_URL"] = env["DD_TEST_OTLP_URL"]
             suite_success = self._run_environments(
                 environments,
                 forwarded_env,
