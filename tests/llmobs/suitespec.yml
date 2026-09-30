@@ -77,13 +77,13 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['claude-agent-sdk==0.0.23', pytest-asyncio]
         - name: claude_agent_sdk
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['claude-agent-sdk==0.1.29', pytest-asyncio]
         - name: claude_agent_sdk
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['claude-agent-sdk==0.1.49', pytest-asyncio]
         - name: claude_agent_sdk
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [claude-agent-sdk, pytest-asyncio]
   google_adk:
     venvs_per_job: 3
@@ -120,7 +120,6 @@ suites:
       command: pytest {cmdargs} tests/contrib/google_genai
       variants:
         - name: google_genai
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, google-genai]
   vertexai:
     paths:
@@ -162,7 +161,7 @@ suites:
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
         # PR #20079: Python 3.14 is covered by the latest dependency row only.
         - name: llama_index
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
     venvs_per_job: 4
@@ -417,7 +416,7 @@ suites:
           dependencies: [vcrpy, pytest-asyncio, openai, 'openai-agents~=0.14.0']
         - name: openai_agents
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
   pydantic_ai:
     venvs_per_job: 5
