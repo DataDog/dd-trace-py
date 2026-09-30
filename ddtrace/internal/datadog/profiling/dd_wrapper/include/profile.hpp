@@ -43,7 +43,7 @@ class Profile
 
     // Active libdatadog profile. Created during initialization and recreated after
     // reset/fork; empty when initialization fails or after cleanup.
-    std::optional<rust::Box<ddprof::Profile>> cur_profile{};
+    std::optional<rust::Box<ddprof::Profile>> cur_profile;
     Datadog::ProfilerStats cur_profiler_stats{};
 
     void one_time_init_impl(SampleType type, unsigned int _max_nframes);
