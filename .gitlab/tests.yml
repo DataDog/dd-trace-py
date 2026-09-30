@@ -230,6 +230,7 @@ extract_test_artifacts:
     - .ddtest_base_gpu_snapshot
 
 # Databases are isolated by branch, job shard, dependency environment, and command.
+# Only standalone gzip databases are persisted; WAL data is checkpointed before compression.
 # Artifacts retain evidence; the cache supplies the next pipeline's starting database.
 .llmobs_tia:
   variables:
@@ -239,14 +240,14 @@ extract_test_artifacts:
   cache:
     key: tia-v1-$CI_COMMIT_REF_SLUG-$CI_JOB_NAME_SLUG
     paths:
-      - .tia/databases/
+      - .tia/databases/**/.testmondata.gz
     policy: pull-push
     when: on_success
   artifacts:
     when: always
     paths:
       - core.*
-      - .tia/
+      - .tia/databases/**/.testmondata.gz
     reports:
       junit: test-results/junit*.xml
     expire_in: 1 week

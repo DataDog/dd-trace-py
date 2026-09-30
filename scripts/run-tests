@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
 import fnmatch
+import gzip
 import hashlib
 import json
 import os
@@ -36,6 +37,7 @@ import tempfile
 import time
 from typing import Iterator
 from typing import TypeVar
+import zlib
 
 from packaging.version import InvalidVersion
 from packaging.version import Version
@@ -150,6 +152,80 @@ def _tia_log(event: str, **fields) -> None:
 
 def _database_sizes(database: Path) -> dict[str, int]:
     return {path.name: path.stat().st_size for path in database.parent.glob(database.name + "*") if path.is_file()}
+
+
+def _restore_testmon_database(database: Path) -> dict:
+    archive = database.with_suffix(".gz")
+    started = time.monotonic()
+    if not archive.exists():
+        return {"restored": False, "seconds": time.monotonic() - started}
+    # The archive itself is expected; mixing it with a stale WAL is not safe.
+    if any(path != archive for path in database.parent.glob(database.name + "*")):
+        raise ValueError(f"cannot restore {archive} alongside uncompressed database files")
+    compressed_bytes = archive.stat().st_size
+    with tempfile.NamedTemporaryFile(dir=database.parent, delete=False) as target:
+        temporary = Path(target.name)
+        try:
+            with gzip.open(archive, "rb") as source:
+                shutil.copyfileobj(source, target)
+            target.close()
+            temporary.replace(database)
+        except (EOFError, zlib.error) as error:
+            raise OSError(f"invalid testmon archive: {archive}") from error
+        finally:
+            temporary.unlink(missing_ok=True)
+    archive.unlink()
+    return {
+        "restored": True,
+        "seconds": time.monotonic() - started,
+        "compressed_bytes": compressed_bytes,
+        "database_bytes": database.stat().st_size,
+    }
+
+
+def _compress_testmon_database(database: Path) -> dict:
+    started = time.monotonic()
+    if not database.exists():
+        return {"stored": False, "seconds": time.monotonic() - started}
+    before = _database_sizes(database)
+    # All pytest workers have exited. Refuse to discard WAL data if another reader/writer remains.
+    connection = sqlite3.connect(database, timeout=0)
+    try:
+        busy, _, _ = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        if busy:
+            raise sqlite3.OperationalError(f"testmon WAL checkpoint is busy: {database}")
+        if connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0] != "delete":
+            raise sqlite3.OperationalError(f"cannot make testmon database standalone: {database}")
+    finally:
+        connection.close()
+    checkpoint_seconds = time.monotonic() - started
+    database_bytes = database.stat().st_size
+    archive = database.with_suffix(".gz")
+    gzip_started = time.monotonic()
+    with tempfile.NamedTemporaryFile(dir=database.parent, delete=False) as target:
+        temporary = Path(target.name)
+        try:
+            with (
+                database.open("rb") as source,
+                gzip.GzipFile(filename="", mode="wb", compresslevel=6, fileobj=target, mtime=0) as compressed,
+            ):
+                shutil.copyfileobj(source, compressed)
+            target.close()
+            temporary.replace(archive)
+        finally:
+            temporary.unlink(missing_ok=True)
+    gzip_seconds = time.monotonic() - gzip_started
+    database.unlink()
+    return {
+        "stored": True,
+        "seconds": time.monotonic() - started,
+        "checkpoint_seconds": checkpoint_seconds,
+        "gzip_seconds": gzip_seconds,
+        "gzip_level": 6,
+        "database_bytes_before_checkpoint": sum(before.values()),
+        "database_bytes": database_bytes,
+        "compressed_bytes": archive.stat().st_size,
+    }
 
 
 def _atomic_write(path: Path, contents: str) -> None:
@@ -641,8 +717,9 @@ class TestRunner:
         if diagnostics not in ("off", "selection", "full"):
             raise ValueError("DD_LLMOBS_TIA_DIAGNOSTICS must be off, selection, or full")
         database = self._testmon_database(environment, run)
-        before = _database_sizes(database)
         fields = {"environment": environment.hash, "python": environment.python}
+        _tia_log("database_restore", **fields, **_restore_testmon_database(database))
+        before = _database_sizes(database)
         _tia_log(
             "run_start",
             **fields,
@@ -692,8 +769,12 @@ class TestRunner:
                 database_bytes_after=sum(after.values()),
                 database_growth_bytes=sum(after.values()) - sum(before.values()),
                 database_files_after=after,
-                timing_scope="pytest process; excludes installation, diagnostics, and CI cache/artifact transfers",
+                timing_scope=(
+                    "pytest process; excludes installation, diagnostics, database restore/store, "
+                    "and CI cache/artifact transfers"
+                ),
             )
+            _tia_log("database_store", **fields, **_compress_testmon_database(database))
             if diagnostics == "off":
                 return result.returncode
             # Probes run after the measured process, each on a separate incoming DB copy.
@@ -1054,6 +1135,12 @@ Examples:
 LLMObs CI logging:
   [TIA] logs report process/setup time, pytest phases, outcomes, configuration,
   and uncompressed DB bytes. Database presence does not prove testmon reused it.
+  Only .testmondata.gz is persisted. database_restore logs gunzip time;
+  database_store logs SQLite checkpoint time, gzip level 6 time, and archive bytes.
+  SQLite merges committed WAL data before compression and removes its sidecars.
+  Add restore/store seconds to test_process_seconds for local execution cost;
+  cache/artifact transfer time is separate. A missing archive starts cold or uses
+  an existing uncompressed cache during migration.
   DD_LLMOBS_TIA_DIAGNOSTICS=selection adds collection probes and excluded test IDs.
   DD_LLMOBS_TIA_DIAGNOSTICS=full also compares full runs with/without recording
   and checks for failures in excluded tests. The default is off.

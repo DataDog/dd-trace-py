@@ -1,8 +1,11 @@
+from contextlib import closing
+import gzip
 import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
 import sys
 from types import ModuleType
 from types import SimpleNamespace
@@ -28,6 +31,105 @@ def runner_module(monkeypatch):
         loader.exec_module(module)
     sys.path[:] = original_path
     return module
+
+
+@pytest.mark.parametrize("journal_mode", ["WAL", "DELETE"])
+def test_database_gzip_roundtrip_preserves_committed_data(runner_module, tmp_path, journal_mode):
+    database = tmp_path / ".testmondata"
+    # Leave the WAL on disk as a worker exiting without closing SQLite would.
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os, sqlite3, sys; "
+            "db = sqlite3.connect(sys.argv[1]); "
+            "db.execute('PRAGMA journal_mode=' + sys.argv[2]); "
+            "db.execute('CREATE TABLE state (value TEXT)'); "
+            "db.execute(\"INSERT INTO state VALUES ('committed')\"); "
+            "db.commit(); os._exit(0)",
+            str(database),
+            journal_mode,
+        ],
+        check=True,
+    )
+    if journal_mode == "WAL":
+        assert Path(str(database) + "-wal").stat().st_size > 0
+    stored = runner_module._compress_testmon_database(database)
+    archive = database.with_suffix(".gz")
+    assert list(tmp_path.iterdir()) == [archive]
+    assert stored["stored"]
+    assert stored["compressed_bytes"] == archive.stat().st_size
+    assert stored["database_bytes"] == len(gzip.decompress(archive.read_bytes()))
+    assert stored["seconds"] >= stored["checkpoint_seconds"] + stored["gzip_seconds"] >= 0
+    restored = runner_module._restore_testmon_database(database)
+    assert restored["restored"]
+    assert restored["compressed_bytes"] == stored["compressed_bytes"]
+    assert restored["seconds"] >= 0
+    assert list(tmp_path.iterdir()) == [database]
+    with closing(sqlite3.connect(database)) as connection:
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+        assert connection.execute("SELECT value FROM state").fetchall() == [("committed",)]
+        connection.execute("INSERT INTO state VALUES ('next run')")
+        connection.commit()
+    runner_module._compress_testmon_database(database)
+    runner_module._restore_testmon_database(database)
+    with closing(sqlite3.connect(database)) as connection:
+        assert connection.execute("SELECT count(*) FROM state").fetchone() == (2,)
+
+
+def test_busy_checkpoint_keeps_database_and_wal(runner_module, tmp_path):
+    database = tmp_path / ".testmondata"
+    with closing(sqlite3.connect(database)) as writer, closing(sqlite3.connect(database)) as reader:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("CREATE TABLE state (value TEXT)")
+        reader.execute("BEGIN")
+        reader.execute("SELECT * FROM state").fetchall()
+        writer.execute("INSERT INTO state VALUES ('committed')")
+        writer.commit()
+        with pytest.raises(sqlite3.OperationalError, match="checkpoint is busy"):
+            runner_module._compress_testmon_database(database)
+        assert database.exists()
+        assert Path(str(database) + "-wal").stat().st_size > 0
+        assert not database.with_suffix(".gz").exists()
+        assert writer.execute("SELECT value FROM state").fetchone() == ("committed",)
+
+
+def test_invalid_gzip_does_not_publish_partial_database(runner_module, tmp_path):
+    database = tmp_path / ".testmondata"
+    archive = database.with_suffix(".gz")
+    archive.write_bytes(gzip.compress(b"partial database")[:-5])
+    with pytest.raises(OSError, match="invalid testmon archive"):
+        runner_module._restore_testmon_database(database)
+    assert list(tmp_path.iterdir()) == [archive]
+
+
+def test_gzip_failure_keeps_database(runner_module, monkeypatch, tmp_path):
+    database = tmp_path / ".testmondata"
+    with closing(sqlite3.connect(database)) as connection:
+        connection.execute("CREATE TABLE state (value TEXT)")
+    monkeypatch.setattr(runner_module.shutil, "copyfileobj", mock.Mock(side_effect=OSError("disk full")))
+    with pytest.raises(OSError, match="disk full"):
+        runner_module._compress_testmon_database(database)
+    assert list(tmp_path.iterdir()) == [database]
+
+
+def test_restore_refuses_stale_wal(runner_module, tmp_path):
+    database = tmp_path / ".testmondata"
+    archive = database.with_suffix(".gz")
+    archive.write_bytes(gzip.compress(b"database"))
+    wal = Path(str(database) + "-wal")
+    wal.write_bytes(b"stale")
+    with pytest.raises(ValueError, match="alongside uncompressed"):
+        runner_module._restore_testmon_database(database)
+    assert wal.read_bytes() == b"stale"
+    assert archive.exists()
+
+
+def test_database_compression_cold_start(runner_module, tmp_path):
+    database = tmp_path / "missing" / ".testmondata"
+    assert not runner_module._restore_testmon_database(database)["restored"]
+    assert not runner_module._compress_testmon_database(database)["stored"]
+    assert not database.parent.exists()
 
 
 @pytest.mark.parametrize(
@@ -58,10 +160,12 @@ def test_diagnostics_preserve_incoming_database_and_exit_code(
     run = SimpleNamespace(command="pytest -n auto {cmdargs} tests/llmobs", environment={})
     database = runner._testmon_database(environment, run)
     database.parent.mkdir(parents=True)
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection:
         connection.execute("PRAGMA journal_mode=WAL").fetchone()
         connection.execute("CREATE TABLE state (value TEXT)")
         connection.execute("INSERT INTO state VALUES ('incoming')")
+        connection.commit()
+    runner_module._compress_testmon_database(database)
     monkeypatch.setenv("DD_LLMOBS_TIA_DIAGNOSTICS", diagnostics)
     phases = []
     events = []
@@ -71,9 +175,10 @@ def test_diagnostics_preserve_incoming_database_and_exit_code(
         env = dict(assignment.split("=", 1) for assignment in command[1:-3])
         phase = env["DD_LLMOBS_TIA_PHASE"]
         phases.append(phase)
-        with sqlite3.connect(env["TESTMON_DATAFILE"]) as connection:
+        with closing(sqlite3.connect(env["TESTMON_DATAFILE"])) as connection:
             assert connection.execute("SELECT value FROM state").fetchone() == ("incoming",)
             connection.execute("UPDATE state SET value = ?", (phase,))
+            connection.commit()
         selected = ["keep"] if phase in ("normal", "selection") else ["keep", "exclude"]
         failed = ["exclude"] if phase == "full_baseline" and baseline_failure else []
         Path(env["DD_LLMOBS_TIA_INVENTORY"]).write_text(
@@ -95,7 +200,11 @@ def test_diagnostics_preserve_incoming_database_and_exit_code(
 
     monkeypatch.setattr(runner_module.subprocess, "run", execute)
     assert runner._run_tia(environment, prepared, run, ["--ddtrace"], {}) == (exit_code or int(baseline_failure))
-    with sqlite3.connect(database) as connection:
+    assert list(database.parent.iterdir()) == [database.with_suffix(".gz")]
+    assert next(event for event in events if event["event"] == "database_restore")["restored"]
+    assert next(event for event in events if event["event"] == "database_store")["stored"]
+    runner_module._restore_testmon_database(database)
+    with closing(sqlite3.connect(database)) as connection:
         assert connection.execute("SELECT value FROM state").fetchone() == ("normal",)
     assert len(phases) == {"off": 1, "selection": 3, "full": 5}[diagnostics]
     if diagnostics != "off":
