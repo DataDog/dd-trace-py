@@ -1,4 +1,4 @@
 fixes:
   - |
     profiling: fixes a crash where mem profiler state was not reset during shutdown, so allocations during
-               shutdown could cause a crash
+    shutdown could cause a crash
