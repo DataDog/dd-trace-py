@@ -8,6 +8,7 @@ from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY
+from ddtrace.constants import _SDK_OTLP_EXPORT_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
@@ -23,6 +24,7 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -257,6 +259,14 @@ class TraceTagsProcessor(TraceProcessor):
                 span._set_attribute("language", "python")
             if p_tags := process_tags.process_tags:
                 span._set_attribute(PROCESS_TAGS, p_tags)
+            # Mark native (agent msgpack) export so the backend can distinguish it from OTLP export.
+            # With OTLP export enabled the marker is omitted: libdatadog would otherwise turn it into an
+            # OTLP span attribute, and the OTLP resource carries _dd.sdk.otlp_export=true instead.
+            # Known accepted gaps: agentless with an OTLP endpoint targeting intake, and the Lambda
+            # LogWriter, report OTLP in config but export natively, so the marker is omitted; the backend
+            # falls back to classifying those spans as native via _dd.tracer_version/language.
+            if not agent_config.trace_otlp_export_enabled:
+                span._set_attribute(_SDK_OTLP_EXPORT_KEY, "false")
             # for 128 bit trace ids
             # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
             trace_id = span.trace_id

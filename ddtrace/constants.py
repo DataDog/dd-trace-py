@@ -31,6 +31,9 @@ _DJM_ENABLED_KEY = "_dd.djm.enabled"
 _FILTER_KEPT_KEY = "_dd.filter.kept"
 _AI_OBS_ENABLED_KEY = "_dd.ai_obs.enabled"
 _INFERRED_SPAN_KEY = "_dd.inferred_span"
+# Private: marks native (agent msgpack) exported trace chunks so the backend can distinguish
+# native Datadog SDK export from OTLP export. Not part of the public API.
+_SDK_OTLP_EXPORT_KEY = "_dd.sdk.otlp_export"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
 _CONFIG_ENDPOINT_ENV = "_DD_CONFIG_ENDPOINT"

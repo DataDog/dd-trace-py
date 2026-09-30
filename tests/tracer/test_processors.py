@@ -12,6 +12,7 @@ from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterPr
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SDK_OTLP_EXPORT_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -25,6 +26,7 @@ from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
@@ -1042,6 +1044,74 @@ def test_trace_tag_processor_no_language_tag_otel_semantics_enabled(tracer):
             pass
 
     assert parent.get_tag("language") is None
+
+
+def test_trace_tag_processor_sets_sdk_otlp_export_false_on_chunk_root(tracer):
+    # Native (agent msgpack) export marks each chunk root with _dd.sdk.otlp_export="false"
+    with mock.patch.object(agent_config, "trace_otlp_export_enabled", False):
+        with tracer.trace("parent") as parent:
+            with tracer.trace("child") as child:
+                pass
+
+    assert parent.get_tag(_SDK_OTLP_EXPORT_KEY) == "false"
+    assert child.get_tag(_SDK_OTLP_EXPORT_KEY) is None
+
+
+def test_trace_tag_processor_sets_sdk_otlp_export_false_on_each_partial_flush_chunk():
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
+    aggr.writer = DummyWriter()
+
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(parent)
+    children = []
+    for name in ("child1", "child2", "child3"):
+        child = Span(name, on_finish=[aggr.on_span_finish])
+        child.trace_id = parent.trace_id
+        child.parent_id = parent.span_id
+        child._local_root = parent
+        aggr.on_span_start(child)
+        children.append(child)
+
+    with mock.patch.object(agent_config, "trace_otlp_export_enabled", False):
+        children[0].finish()
+        children[1].finish()
+        first_chunk = aggr.writer.pop()
+        children[2].finish()
+        parent.finish()
+        second_chunk = aggr.writer.pop()
+
+    assert first_chunk == children[:2]
+    # The final chunk keeps span start order, so the local root leads it.
+    assert second_chunk == [parent, children[2]]
+    for chunk in (first_chunk, second_chunk):
+        assert chunk[0].get_tag(_SDK_OTLP_EXPORT_KEY) == "false"
+        assert all(s.get_tag(_SDK_OTLP_EXPORT_KEY) is None for s in chunk[1:])
+
+
+def test_trace_tag_processor_omits_sdk_otlp_export_when_otlp_export_enabled(tracer):
+    # With OTLP export the marker lives on the OTLP resource (set by libdatadog), not on span meta
+    with mock.patch.object(agent_config, "trace_otlp_export_enabled", True):
+        with tracer.trace("parent") as parent:
+            with tracer.trace("child") as child:
+                pass
+
+    assert parent.get_tag(_SDK_OTLP_EXPORT_KEY) is None
+    assert child.get_tag(_SDK_OTLP_EXPORT_KEY) is None
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": None})
+def test_trace_tag_processor_omits_sdk_otlp_export_with_otel_traces_exporter_otlp():
+    from ddtrace._trace.processor import TraceTagsProcessor
+    from ddtrace.constants import _SDK_OTLP_EXPORT_KEY
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.trace import Span
+
+    assert agent_config.trace_otlp_export_enabled
+    parent = Span("parent")
+    child = Span("child", trace_id=parent.trace_id, parent_id=parent.span_id)
+    TraceTagsProcessor().process_trace([parent, child])
+    assert parent.get_tag(_SDK_OTLP_EXPORT_KEY) is None
+    assert child.get_tag(_SDK_OTLP_EXPORT_KEY) is None
 
 
 def test_register_unregister_span_processor(tracer):

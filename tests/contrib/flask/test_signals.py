@@ -121,6 +121,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
                         "language",
                         "_dd.base_service",
                         "_dd.tags.process",
+                        "_dd.sdk.otlp_export",
                     ]
                 ),
             )
@@ -171,6 +172,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
                     "language",
                     "_dd.base_service",
                     "_dd.tags.process",
+                    "_dd.sdk.otlp_export",
                 ]
             ),
         )
@@ -194,6 +196,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
                     "language",
                     "_dd.base_service",
                     "_dd.tags.process",
+                    "_dd.sdk.otlp_export",
                 ]
             ),
         )
