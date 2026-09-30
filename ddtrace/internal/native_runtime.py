@@ -42,8 +42,10 @@ class NativeRuntime(SharedRuntime):
 
     def _install_subprocess_fork_hook(self) -> None:
         # subprocess and asyncio call _posixsubprocess.fork_exec directly, so
-        # os.register_at_fork never runs for them. Mark that path before libc
-        # fork handlers, which otherwise wait on a resolver lock they already hold.
+        # os.register_at_fork never runs for them. On macOS, libSystem locks the
+        # resolver before our pthread_atfork handler. That handler pauses runtime
+        # workers, and a worker inside getaddrinfo needs the same lock, so the
+        # pause deadlocks. Mark this thread first so the handler skips the pause.
         if not _is_darwin():
             return
 
