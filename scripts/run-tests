@@ -128,7 +128,6 @@ class PreparedEnvironment:
     path: Path
     requirements_contents: str
     identity: str
-    editable: bool
 
     @property
     def requirements(self) -> Path:
@@ -411,7 +410,6 @@ class TestRunner:
     def _prepare_environment(
         self,
         environment: TestEnvironment,
-        project_artifact: Path | None,
         unpin_dependencies: bool = False,
     ) -> PreparedEnvironment:
         lockfile = self.root / environment.lockfile
@@ -422,21 +420,16 @@ class TestRunner:
             contents = "".join(f"{dependency}\n" for dependency in environment.direct_dependencies)
         else:
             contents = lockfile.read_text()
-        if project_artifact is None:
+        if self.in_ci:
+            artifact = self._prebuilt_ddtrace_wheel(environment.python)
+            project_identity = artifact.read_bytes()
+            project_requirement = str(artifact)
+        else:
             project_file = self.root / "pyproject.toml"
             if not project_file.is_file():
                 raise TestEnvironmentError(f"project metadata does not exist: {project_file}")
             project_identity = project_file.read_bytes()
             project_requirement = "-e ."
-            editable = True
-        else:
-            artifact = self.root / project_artifact
-            if not artifact.is_file():
-                raise TestEnvironmentError(f"project artifact does not exist: {artifact}")
-            artifact = artifact.resolve()
-            project_identity = artifact.read_bytes()
-            project_requirement = str(artifact)
-            editable = False
 
         filtered = "".join(
             line
@@ -453,7 +446,7 @@ class TestRunner:
                     environment.python.encode(),
                     contents.encode(),
                     project_identity,
-                    b"editable-compat" if editable else b"wheel",
+                    b"wheel" if self.in_ci else b"editable-compat",
                 )
             )
         )
@@ -461,7 +454,6 @@ class TestRunner:
             path=TEST_ENVIRONMENT_ROOT / environment.hash,
             requirements_contents=requirements_contents,
             identity=identity,
-            editable=editable,
         )
 
     def _environment_is_current(self, prepared: PreparedEnvironment) -> bool:
@@ -499,10 +491,10 @@ class TestRunner:
         environment: TestEnvironment,
         prepared: PreparedEnvironment,
         command_env: dict[str, str],
-        reuse_current: bool,
+        rebuild: bool,
     ) -> bool:
         with self._environment_lock(prepared):
-            if reuse_current and self._environment_is_current(prepared):
+            if not rebuild and self._environment_is_current(prepared):
                 return False
 
             (self.root / prepared.path / TEST_ENVIRONMENT_COMPLETE).unlink(missing_ok=True)
@@ -520,8 +512,10 @@ class TestRunner:
                 "--strict",
                 "--no-progress",
             ]
-            if prepared.editable:
+            if not self.in_ci:
                 install.extend(["--config-settings-package", "ddtrace:editable_mode=compat"])
+                if rebuild:
+                    install.extend(["--refresh-package", "ddtrace"])
             commands = (
                 [
                     "uv",
@@ -551,7 +545,7 @@ class TestRunner:
             raise TestEnvironmentError(
                 f"expected one prebuilt ddtrace wheel for Python {python} in {wheel_directory}, found {len(wheels)}"
             )
-        return wheels[0].relative_to(self.root)
+        return wheels[0].resolve()
 
     def _container_command(self, command: list[str], environment: dict[str, str]) -> list[str]:
         assignments = [f"{key}={value}" for key, value in sorted(environment.items())]
@@ -592,12 +586,12 @@ class TestRunner:
         environments: list[TestEnvironment],
         forwarded_env: dict[str, str],
         test_args: list[str],
-        skip_ddtrace_install: bool,
+        rebuild: bool,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
 
-        if skip_ddtrace_install:
-            print("\n⚡ Reusing prebuilt or current ddtrace installations (-s)")
+        if rebuild:
+            print("\n🔨 Rebuilding the local test environment (-r)")
 
         unpin_dependencies = os.environ.get("UNPIN_DEPENDENCIES", "").lower() == "true"
         for environment in environments:
@@ -605,17 +599,8 @@ class TestRunner:
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
-                if self.in_ci:
-                    if not skip_ddtrace_install:
-                        raise TestEnvironmentError(
-                            "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
-                        )
-                    project_artifact = self._prebuilt_ddtrace_wheel(environment.python)
-                else:
-                    project_artifact = None
                 prepared = self._prepare_environment(
                     environment,
-                    project_artifact,
                     unpin_dependencies=unpin_dependencies,
                 )
                 command_env = self._command_environment(prepared, build_env)
@@ -629,15 +614,13 @@ class TestRunner:
                     environment,
                     prepared,
                     command_env,
-                    reuse_current=skip_ddtrace_install,
+                    rebuild=rebuild,
                 )
             except TestEnvironmentError as error:
                 print(f"❌ {error}")
                 return False
             if rebuilt:
                 print("   ✅ Test environment synchronized successfully")
-            elif skip_ddtrace_install:
-                print("   ✅ Reusing current test environment; ddtrace install skipped")
             else:
                 print("   ✅ Reusing current test environment")
 
@@ -660,7 +643,7 @@ class TestRunner:
         self,
         selected_environments: list[TestEnvironment],
         test_args: list[str] | None = None,
-        skip_ddtrace_install: bool = False,
+        rebuild: bool = False,
     ) -> bool:
         """Execute the selected environments with per-suite service management."""
         if not selected_environments:
@@ -737,7 +720,7 @@ class TestRunner:
                 environments,
                 forwarded_env,
                 test_args or [],
-                skip_ddtrace_install,
+                rebuild,
             )
 
             # Stop services for this suite
@@ -816,8 +799,8 @@ Examples:
   # Run tests for changes since main branch
   scripts/run-tests --git-base=main
 
-  # Reuse a current ddtrace installation for faster reruns
-  scripts/run-tests -s --venv <hash>
+  # Rebuild ddtrace after changing native sources
+  scripts/run-tests -r --venv <hash>
 
   # Pass additional arguments to pytest
   scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
@@ -831,10 +814,17 @@ Examples:
     )
 
     parser.add_argument(
+        "-r",
+        "--rebuild",
+        action="store_true",
+        help="Rebuild the local test environment and refresh the editable ddtrace package",
+    )
+
+    parser.add_argument(
         "-s",
         "--skip-ddtrace-install",
         action="store_true",
-        help="Reuse a current ddtrace installation instead of reinstalling it",
+        help="Deprecated no-op; matching environments are reused by default",
     )
 
     parser.add_argument(
@@ -864,7 +854,13 @@ Examples:
         test_args = []
 
     args = parser.parse_args(script_args)
-    skip_ddtrace_install = args.skip_ddtrace_install
+    rebuild = args.rebuild
+    if args.skip_ddtrace_install:
+        print(
+            "⚠️ -s/--skip-ddtrace-install is a no-op; environments are reused by default. "
+            "Use -r/--rebuild to refresh the installation.",
+            file=sys.stderr,
+        )
 
     runner = TestRunner()
 
@@ -880,7 +876,7 @@ Examples:
         success = runner.run_tests(
             environments_with_suite,
             test_args=test_args,
-            skip_ddtrace_install=skip_ddtrace_install,
+            rebuild=rebuild,
         )
         return 0 if success else 1
 
@@ -928,7 +924,7 @@ Examples:
     success = runner.run_tests(
         selected_environments,
         test_args=test_args,
-        skip_ddtrace_install=skip_ddtrace_install,
+        rebuild=rebuild,
     )
 
     return 0 if success else 1
