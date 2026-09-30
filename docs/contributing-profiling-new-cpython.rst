@@ -670,9 +670,8 @@ Check off only after the named script or job is green. Manual items say so.
   ``compare-cpython-versions`` until ``cpython_delta`` lands). Verify:
   worklist reviewed.
 * [ ] Scaffold version registry / baselines
-  (``verify_profiler_compatibility.py --scaffold 3.16`` when available;
-  else add ``0x03100000`` + baseline entry by hand). Verify:
-  ``--python 3.16 --quick`` PASSes import guards.
+  (``python scripts/verify_profiler_compatibility.py --scaffold 3.16``).
+  Verify: ``--python 3.16 --quick`` PASSes import guards.
 * [ ] Native ABI + layout contracts compiled on 3.16-dev. Verify: cmake /
   gtest layout contracts green; gated CI ``allow_failure`` job compiles.
 * [ ] pyo3 bump in libdatadog if limited-API requires it. Verify: crashtracker
