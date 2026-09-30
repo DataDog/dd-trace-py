@@ -100,6 +100,34 @@ async def test_resource_with_otel_semantics(test_spans):
     assert span.get_tag("http.url") is None
 
 
+@pytest.mark.snapshot(otel_semantics=True, ignores=["user_agent.original"])
+def test_otel_semantics_snapshot(ddtrace_run_python_code_in_subprocess):
+    code = (
+        """
+import asyncio
+
+import aiohttp
+
+from ddtrace.trace import tracer
+
+
+async def test():
+    async with aiohttp.ClientSession() as session:
+        async with session.get("%s") as resp:
+            assert resp.status == 200
+
+
+asyncio.run(test())
+tracer.flush()
+    """
+        % URL_200
+    )
+    # The snapshot context adds the OTel semantics and OTLP export settings to the environment.
+    env = os.environ.copy()
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+
+
 @pytest.mark.asyncio
 async def test_200_request_distributed_tracing(tracer):
     async with aiohttp.ClientSession() as session:
