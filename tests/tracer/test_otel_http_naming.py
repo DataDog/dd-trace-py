@@ -420,8 +420,7 @@ def test_otel_span_attributes_honors_custom_client_error_statuses(
     span = Span("request", span_type=SpanTypes.HTTP)
     attributes = OTelHTTPSpanAttributes(span, integration_config)
 
-    with mock.patch.object(http_semantics, "otel_number", return_value=status_code):
-        attributes.set_status_code(status_code)
+    attributes.set_status_code(status_code)
 
     assert span.error == expected_error
     assert span.get_tag(ERROR_TYPE) == (str(status_code) if expected_error else None)
@@ -553,7 +552,6 @@ def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
 def test_otel_span_attributes_explicit_default_client_status_does_not_expand():
     from unittest import mock
 
-    from ddtrace._trace import http_semantics
     from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
     from ddtrace.ext import SpanTypes
     from ddtrace.internal.settings._config import config
@@ -563,8 +561,7 @@ def test_otel_span_attributes_explicit_default_client_status_does_not_expand():
     span = Span("http.request", span_type=SpanTypes.HTTP)
 
     assert config._http_client.error_statuses_configured is True
-    with mock.patch.object(http_semantics, "otel_number", return_value=600):
-        OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
+    OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
 
     assert span.error == 0
 
