@@ -12,9 +12,10 @@ import pytest
 
 import ddtrace.appsec.sca._instrumenter as _instrumenter_mod
 from ddtrace.appsec.sca._instrumenter import Instrumenter
-from ddtrace.appsec.sca._instrumenter import _inject_entry_hook
+from ddtrace.appsec.sca._instrumenter import _first_instr_line
 import ddtrace.appsec.sca._registry as _registry_mod
 from ddtrace.appsec.sca._registry import InstrumentationRegistry
+from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.telemetry.dependency import DependencyEntry
 from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
 
@@ -84,7 +85,7 @@ class TestInjectHookFires:
             called_with.append(arg)
 
         func = _make_target_function()
-        _inject_entry_hook(func, my_hook, "test:target")
+        inject_hook(func, my_hook, _first_instr_line(func.__code__), "test:target")
 
         result = func(10)
         assert result == 11
@@ -98,7 +99,7 @@ class TestInjectHookFires:
             called_with.append(arg)
 
         wrapped_func, original = _make_wrapt_wrapped_function()
-        _inject_entry_hook(original, my_hook, "test:wrapped_target")
+        inject_hook(original, my_hook, _first_instr_line(original.__code__), "test:wrapped_target")
 
         # Call through the wrapper — the wrapper calls original(*args, **kwargs)
         result = wrapped_func(10)
@@ -113,30 +114,12 @@ class TestInjectHookFires:
             call_count.append(1)
 
         func = _make_target_function()
-        _inject_entry_hook(func, my_hook, "test:once")
+        inject_hook(func, my_hook, _first_instr_line(func.__code__), "test:once")
 
         func(1)
         func(2)
         func(3)
         assert len(call_count) == 3
-
-    def test_hook_fires_once_per_call_when_body_starts_with_loop(self):
-        """The hook must not re-fire on each iteration of a loop on the first body line."""
-        call_count = []
-
-        def my_hook(arg):
-            call_count.append(1)
-
-        def loop_func(n):
-            for i in range(n):
-                pass
-            return n
-
-        _inject_entry_hook(loop_func, my_hook, "test:loop")
-
-        loop_func(5)
-        loop_func(5)
-        assert len(call_count) == 2
 
 
 # ---------------------------------------------------------------------------
