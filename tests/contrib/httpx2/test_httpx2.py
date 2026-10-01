@@ -53,7 +53,7 @@ def test_patching():
 
 @pytest.mark.skipif(not hasattr(httpx2, "alias_httpx"), reason="httpx2.alias_httpx requires httpx2>=2.9.0")
 @pytest.mark.subprocess(ddtrace_run=True)
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_alias_httpx():
     import httpx2
 
