@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    algoliasearch: This fix resolves an ``IndexError`` raised when ``collect_query_text``
+    is enabled and the search query is passed as a keyword argument.

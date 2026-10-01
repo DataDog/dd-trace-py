@@ -133,7 +133,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
-            span._set_attribute("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
+            query_text = wrapt_kwargs.get("query", wrapt_args[0] if wrapt_args else None)
+            if query_text is not None:
+                span._set_attribute("query.text", query_text)
 
         query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
 
