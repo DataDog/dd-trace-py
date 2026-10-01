@@ -714,8 +714,8 @@ integrations:
   - mysql-connector-python
   tested_versions_by_dependency:
     mysql-connector-python:
-      min: 8.0.5
-      max: 9.4.0
+      min: 9.4.0
+      max: 26.7.0
 
 - integration_name: mysqldb
   is_external_package: true

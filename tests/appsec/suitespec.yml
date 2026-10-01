@@ -66,7 +66,7 @@ suites:
           dependencies: [requests, urllib3, cryptography, simplejson, grpcio, pytest-asyncio, protobuf, pytest-xdist, 'pip<25', pycryptodome]
         - name: appsec_iast_default
           dependencies: [requests, urllib3, cryptography, simplejson, grpcio, pytest-asyncio, protobuf, pytest-xdist, 'pip<25']
-          python: ['3.14']
+          python: ['3.14', '3.15']
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
