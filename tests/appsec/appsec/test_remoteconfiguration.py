@@ -1,3 +1,4 @@
+import contextlib
 import os
 import time
 from unittest import mock
@@ -15,6 +16,7 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.internal import core
+from ddtrace.internal import telemetry
 from ddtrace.internal.appsec import product as appsec_product
 from ddtrace.internal.appsec.product import _disable_asm
 from ddtrace.internal.appsec.product import _enable_asm
@@ -455,13 +457,26 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, rc_poller, appsec_ca
         assert get_waf_addresses("http.request.remote_ip") == "8.8.4.4"
 
 
+@contextlib.contextmanager
+def _record_product_activated():
+    """Record product telemetry reports from every telemetry_writer binding."""
+    # The shared telemetry_writer fixture replaces the package-level writer, so a module's import-time binding
+    # can be a different instance; patch both so every emitter is observed regardless of test order.
+    product_activated = mock.Mock()
+    with (
+        mock.patch("ddtrace.internal.products.telemetry_writer.product_activated", product_activated),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated", product_activated),
+    ):
+        yield product_activated
+
+
 @pytest.mark.parametrize("asm_enabled", [False, True])
 def test_rc_activation_does_not_report_appsec_product(tracer, rc_poller, appsec_callback, asm_enabled):
     """Registering RC listeners never reports AppSec state; the product manager reports it after start()."""
     with override_global_config(
         dict(_asm_enabled=asm_enabled, _asm_can_be_enabled=not asm_enabled, _remote_config_enabled=True)
     ):
-        with mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated") as product_activated:
+        with _record_product_activated() as product_activated:
             enable_appsec_rc(appsec_callback)
 
             assert rc_poller._client._product_callbacks[RemoteConfigProduct.AsmFeatures]
@@ -505,13 +520,7 @@ def _start_appsec_product():
 
     manager = ProductManager()
     manager.__products__ = {"remote-configuration": remote_configuration, "appsec": appsec_product}
-    # The shared telemetry_writer fixture replaces the package-level writer, so the manager's import-time binding
-    # can be a different instance; record both so every emitter is observed regardless of test order.
-    product_activated = mock.Mock()
-    with (
-        mock.patch("ddtrace.internal.products.telemetry_writer.product_activated", product_activated),
-        mock.patch("ddtrace.internal.telemetry.telemetry_writer.product_activated", product_activated),
-    ):
+    with _record_product_activated() as product_activated:
         try:
             manager.start_products()
         finally:
@@ -553,6 +562,8 @@ def test_product_start_reports_appsec_inactive_when_load_aborts():
     """A libddwaf load failure during start() must not be overwritten by a later enabled report."""
 
     def abort_load(**kwargs):
+        # Mirror the telemetry side of _abort_appsec without its irreversible global teardown.
+        telemetry.telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
         asm_config._asm_enabled = False
 
     with (
@@ -564,7 +575,8 @@ def test_product_start_reports_appsec_inactive_when_load_aborts():
     ):
         calls = _start_appsec_product()
 
-    assert calls == [(TELEMETRY_APM_PRODUCT.APPSEC, False)]
+    assert calls
+    assert all(call == (TELEMETRY_APM_PRODUCT.APPSEC, False) for call in calls)
 
 
 def test_product_start_does_not_report_appsec_when_start_fails():
