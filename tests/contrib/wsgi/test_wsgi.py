@@ -10,6 +10,8 @@ from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from ddtrace.trace import tracer as global_tracer
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -695,3 +697,76 @@ def test_construct_url_query_string_backfilled_when_raw_uri_lacks_it():
         "QUERY_STRING": "a=1&b=2",
     }
     assert construct_url(environ) == "http://localhost:8000/users?a=1&b=2"
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
+def test_otel_semantics_server_span_attributes():
+    from webtest import TestApp
+
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    statuses = {"/ok": "200 OK", "/teapot": "418 I'm a teapot", "/broken": "500 Internal Server Error"}
+
+    def application(environ, start_response):
+        start_response(statuses.get(environ["PATH_INFO"], "404 Not Found"), [("Content-Type", "text/plain")])
+        return [b"*"]
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = TestApp(DDWSGIMiddleware(application))
+
+        def request_span(path, method="GET"):
+            spans.reset()
+            client.request(path, method=method, headers=TEST_HEADERS, expect_errors=True)
+            return next(span for span in spans.get_spans() if span.name == "wsgi.request")
+
+        # A generic WSGI app has no route, so the resource is the method alone for every status.
+        span = request_span("/ok?q=1")
+        assert_otel_server_span(span, method="GET", status=200, path="/ok", query="q=1", resource="GET")
+
+        span = request_span("/ok", method="PROPFIND")
+        assert_otel_server_span(
+            span, method="_OTHER", original_method="PROPFIND", status=200, path="/ok", resource="HTTP"
+        )
+
+        span = request_span("/no/such/path/123")
+        assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+        span = request_span("/teapot")
+        assert_otel_server_span(span, method="GET", status=418, path="/teapot", resource="GET")
+
+        span = request_span("/broken")
+        assert_otel_server_span(span, method="GET", status=500, path="/broken", resource="GET")
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV)
+def test_otel_semantics_server_error_statuses_override():
+    from webtest import TestApp
+
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    def application(environ, start_response):
+        status = "500 Internal Server Error" if environ["PATH_INFO"] == "/broken" else "404 Not Found"
+        start_response(status, [("Content-Type", "text/plain")])
+        return [b"*"]
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = TestApp(DDWSGIMiddleware(application))
+
+        client.get("/missing", headers=TEST_HEADERS, expect_errors=True)
+        span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
+        assert_otel_server_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
+
+        spans.reset()
+        client.get("/broken", headers=TEST_HEADERS, expect_errors=True)
+        span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
+        assert_otel_server_span(span, method="GET", status=500, path="/broken", resource="GET", error=False)
