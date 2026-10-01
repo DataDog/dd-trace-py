@@ -97,13 +97,15 @@ class AgentManifest(TypedDict, total=False):
     system_prompts: list[str]
     extra_instructions: list[AgentInstructionResolver]
     model: str
+    model_provider: str
     model_settings: dict[str, Any]
     agent_settings: dict[str, Any]
     tools: list[dict[str, Any]]
     capabilities: list[AgentCapability]
     data_contracts: dict[str, Any]
     guardrails: list[str]
-    handoffs: list[Any]
+    # A list of targets, or {"allow_delegation": bool} for frameworks that only report a flag.
+    handoffs: Union[list[dict[str, Any]], dict[str, Any]]
     handoff_description: str
     memory_policies: list[str]
     metadata: dict[str, Any]

@@ -40,7 +40,7 @@ EXPECTED_SYSTEM_MESSAGE_DATA = {
 }
 
 
-def expected_agent_manifest(max_iterations=None):
+def expected_agent_manifest(max_turns=None):
     """Helper to build expected agent manifest."""
     manifest = {
         "framework": "Claude Agent SDK",
@@ -52,10 +52,9 @@ def expected_agent_manifest(max_iterations=None):
             {"name": "Write"},
             {"name": "Grep"},
         ],
-        "dependencies": {"mcp_servers": []},
     }
-    if max_iterations is not None:
-        manifest["max_iterations"] = max_iterations
+    if max_turns is not None:
+        manifest["agent_settings"] = {"max_turns": max_turns}
     return manifest
 
 

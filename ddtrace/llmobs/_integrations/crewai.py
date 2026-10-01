@@ -10,12 +10,20 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._integrations.agent_manifest import as_str
+from ddtrace.llmobs._integrations.agent_manifest import build_agent_manifest
+from ddtrace.llmobs._integrations.agent_manifest import callable_name
+from ddtrace.llmobs._integrations.agent_manifest import filter_model_settings
+from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import normalize_tool
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import AgentCapability
+from ddtrace.llmobs.types import AgentManifest
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
@@ -246,52 +254,23 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _tag_agent_manifest(self, span, agent):
         if not agent:
             return
-
-        manifest = {}
-        manifest["framework"] = "CrewAI"
-        manifest["name"] = agent.role if hasattr(agent, "role") and agent.role else "CrewAI Agent"
-        if hasattr(agent, "goal"):
-            manifest["goal"] = agent.goal
-        if hasattr(agent, "backstory"):
-            manifest["backstory"] = agent.backstory
-        if hasattr(agent, "llm"):
-            if hasattr(agent.llm, "model"):
-                manifest["model"] = agent.llm.model
-            model_settings = {}
-            if hasattr(agent.llm, "max_tokens"):
-                model_settings["max_tokens"] = agent.llm.max_tokens
-            if hasattr(agent.llm, "temperature"):
-                model_settings["temperature"] = agent.llm.temperature
-            if model_settings:
-                manifest["model_settings"] = model_settings
-        if hasattr(agent, "allow_delegation"):
-            manifest["handoffs"] = {"allow_delegation": agent.allow_delegation}
-        code_execution_permissions = {}
-        if hasattr(agent, "allow_code_execution"):
-            manifest["code_execution_permissions"] = {"allow_code_execution": agent.allow_code_execution}
-        if hasattr(agent, "code_execution_mode"):
-            manifest["code_execution_permissions"] = {"code_execution_mode": agent.code_execution_mode}
-        if code_execution_permissions:
-            manifest["code_execution_permissions"] = code_execution_permissions
-        if hasattr(agent, "max_iter"):
-            manifest["max_iterations"] = agent.max_iter
-        if hasattr(agent, "tools"):
-            manifest["tools"] = self._get_agent_tools(agent.tools)
-
-        _annotate_llmobs_span_data(span, agent_manifest=manifest)
-
-    def _get_agent_tools(self, tools):
-        if not tools or not isinstance(tools, list):
-            return []
-        formatted_tools = []
-        for tool in tools:
-            tool_dict = {}
-            if hasattr(tool, "name"):
-                tool_dict["name"] = tool.name
-            if hasattr(tool, "description"):
-                tool_dict["description"] = tool.description
-            formatted_tools.append(tool_dict)
-        return formatted_tools
+        manifest = build_agent_manifest(
+            FRAMEWORK_NAME,
+            agent,
+            (
+                ("labels", _manifest_labels),
+                ("instructions", _manifest_instructions),
+                ("model", _manifest_model),
+                ("tools", _manifest_tools),
+                ("capabilities", _manifest_capabilities),
+                ("handoffs", _manifest_handoffs),
+                ("guardrails", _manifest_guardrails),
+                ("agent_settings", _manifest_agent_settings),
+            ),
+            self._integration_name,
+        )
+        if manifest:
+            _annotate_llmobs_span_data(span, agent_manifest=dict(manifest))
 
     def _llmobs_set_tags_flow(self, span, args, kwargs, response):
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or {}
@@ -520,3 +499,102 @@ def _get_crew_id(span, operation):
             parent_id = span.parent_id
         return f"crew_{span.trace_id}_{parent_id}"
     return f"{span.trace_id}"
+
+
+FRAMEWORK_NAME = "CrewAI"
+
+# CrewAI LLM attribute to its generic model_settings key. stop is left out: CrewAI sets its own stop
+# words on the LLM at run time.
+_LLM_SETTINGS_KEYS = {
+    "temperature": "temperature",
+    "max_tokens": "max_tokens",
+    "top_p": "top_p",
+    "seed": "seed",
+    "presence_penalty": "presence_penalty",
+    "frequency_penalty": "frequency_penalty",
+    "timeout": "timeout",
+}
+
+
+def _manifest_labels(agent: Any) -> AgentManifest:
+    role = getattr(agent, "role", None)
+    return {"name": role if isinstance(role, str) and role else "CrewAI Agent"}
+
+
+def _manifest_instructions(agent: Any) -> AgentManifest:
+    # CrewAI builds the agent's system prompt from its goal and backstory.
+    texts = [as_str(getattr(agent, "goal", None)), as_str(getattr(agent, "backstory", None))]
+    templates = [as_str(getattr(agent, attr, None)) for attr in ("system_template", "prompt_template")]
+    return {
+        "instructions": "\n\n".join(text for text in texts if text),
+        "system_prompts": [template for template in templates if template],
+    }
+
+
+def _manifest_model(agent: Any) -> AgentManifest:
+    llm = getattr(agent, "llm", None)
+    model = llm if isinstance(llm, str) else as_str(getattr(llm, "model", None))
+    settings = {key: getattr(llm, attr, None) for attr, key in _LLM_SETTINGS_KEYS.items()}
+    return {"model": model, "model_settings": filter_model_settings(settings)}
+
+
+def _manifest_tools(agent: Any) -> AgentManifest:
+    tools: list[dict[str, Any]] = []
+    for tool in getattr(agent, "tools", None) or []:
+        description = as_str(getattr(tool, "description", None))
+        entry = normalize_tool(
+            getattr(tool, "name", None),
+            _extract_tool_description_field(description) if description else None,
+            _tool_json_schema(tool),
+        )
+        if entry:
+            tools.append(entry)
+    return {"tools": tools}
+
+
+def _tool_json_schema(tool: Any) -> Optional[dict[str, Any]]:
+    model_json_schema = getattr(getattr(tool, "args_schema", None), "model_json_schema", None)
+    if not callable(model_json_schema):
+        return None
+    try:
+        schema = model_json_schema()
+    except Exception:
+        return None
+    return schema if isinstance(schema, dict) else None
+
+
+def _manifest_capabilities(agent: Any) -> AgentManifest:
+    capabilities: list[AgentCapability] = [
+        {"name": type(source).__name__, "type": "knowledge"}
+        for source in getattr(agent, "knowledge_sources", None) or []
+    ]
+    return {"capabilities": capabilities}
+
+
+def _manifest_handoffs(agent: Any) -> AgentManifest:
+    # CrewAI delegates to any crew member rather than declaring targets, so only the flag is known.
+    allow_delegation = getattr(agent, "allow_delegation", None)
+    return {"handoffs": {"allow_delegation": allow_delegation}} if isinstance(allow_delegation, bool) else {}
+
+
+def _manifest_guardrails(agent: Any) -> AgentManifest:
+    guardrail = getattr(agent, "guardrail", None)
+    if isinstance(guardrail, str):
+        return {"guardrails": [guardrail]}
+    if callable(guardrail):
+        return {"guardrails": [callable_name(guardrail)]}
+    return {}
+
+
+def _manifest_agent_settings(agent: Any) -> AgentManifest:
+    settings: dict[str, Any] = {}
+    for attr in ("max_iter", "max_rpm", "max_execution_time", "max_retry_limit"):
+        value = getattr(agent, attr, None)
+        if is_number(value):
+            settings[attr] = value
+    if getattr(agent, "allow_code_execution", None) is True:
+        settings["allow_code_execution"] = True
+        settings["code_execution_mode"] = as_str(getattr(agent, "code_execution_mode", None))
+    if getattr(agent, "reasoning", None) is True:
+        settings["reasoning"] = True
+    return {"agent_settings": settings}

@@ -141,7 +141,7 @@ class TestLLMObsClaudeAgentSdk:
             metadata={
                 "max_turns": 3,
                 "stop_reason": "end_turn",
-                "_dd": {"agent_manifest": expected_agent_manifest(max_iterations=3)},
+                "_dd": {"agent_manifest": expected_agent_manifest(max_turns=3)},
             },
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
@@ -236,7 +236,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="agent",
             input_value=safe_json(input_msgs),
             output_value=safe_json([{"content": ""}]),
-            metadata={"_dd": {"agent_manifest": {"framework": "Claude Agent SDK"}}},
+            metadata={},
             metrics={},
             tags=COMMON_TAGS,
             error={"type": "builtins.ValueError", "message": "Connection failed", "stack": ANY},

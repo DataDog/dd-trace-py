@@ -10,10 +10,16 @@ from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.agent_manifest import build_agent_manifest
+from ddtrace.llmobs._integrations.agent_manifest import callable_name
+from ddtrace.llmobs._integrations.agent_manifest import config_value
+from ddtrace.llmobs._integrations.agent_manifest import as_str
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import AgentCapability
+from ddtrace.llmobs.types import AgentManifest
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
@@ -139,7 +145,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 span.set_tag(ERROR_TYPE, error_type)
                 span.set_tag(ERROR_MSG, error_message)
 
-        agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
+        agent_manifest = self._build_agent_manifest(model, kwargs.get("options"), init_system_message)
 
         _annotate_llmobs_span_data(
             span,
@@ -149,25 +155,25 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             metadata=metadata,
             output_value=output_messages,
             metrics=metrics,
-            agent_manifest=agent_manifest,
+            agent_manifest=agent_manifest or None,
         )
 
-    def _build_agent_manifest(
-        self, model: str, metadata: dict[str, Any], init_system_message: dict[str, Any]
-    ) -> dict[str, Any]:
-        manifest: dict[str, Any] = {}
-        manifest["framework"] = "Claude Agent SDK"
-        if model:
-            manifest["model"] = model
-        if init_system_message:
-            tools = init_system_message.get("tools", []) or []
-            manifest["tools"] = [{"name": tool} for tool in tools]
-        if init_system_message:
-            mcp_servers = init_system_message.get("mcp_servers", []) or []
-            manifest["dependencies"] = {"mcp_servers": mcp_servers}
-        if "max_turns" in metadata:
-            manifest["max_iterations"] = metadata["max_turns"]
-        return manifest
+    def _build_agent_manifest(self, model: str, options: Any, init_system_message: dict[str, Any]) -> dict[str, Any]:
+        declared = {"model": model, "options": options, "init": init_system_message or {}}
+        manifest = build_agent_manifest(
+            FRAMEWORK_NAME,
+            declared,
+            (
+                ("model", lambda d: {"model": as_str(d["model"])}),
+                ("instructions", lambda d: _manifest_instructions(d["options"])),
+                ("tools", _manifest_tools),
+                ("handoffs", lambda d: _manifest_handoffs(d["options"])),
+                ("guardrails", lambda d: _manifest_guardrails(d["options"])),
+                ("agent_settings", lambda d: _manifest_agent_settings(d["options"])),
+            ),
+            self._integration_name,
+        )
+        return dict(manifest)
 
     def _extract_input_messages(self, prompt: Any, span: Span) -> list[Message]:
         prompt_wrapper = span._get_ctx_item("_dd_prompt_wrapper") if span else None
@@ -479,3 +485,75 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         if s.lower().endswith("m"):
             return round(float(s[:-1]) * 1_000_000)
         return int(float(s))
+
+
+FRAMEWORK_NAME = "Claude Agent SDK"
+
+_AGENT_SETTINGS_OPTIONS = (
+    "max_turns",
+    "max_budget_usd",
+    "max_thinking_tokens",
+    "permission_mode",
+    "allowed_tools",
+    "disallowed_tools",
+)
+
+
+def _manifest_instructions(options: Any) -> AgentManifest:
+    system_prompt = getattr(options, "system_prompt", None)
+    if isinstance(system_prompt, str):
+        return {"instructions": system_prompt}
+    if isinstance(system_prompt, dict):
+        # A preset is Claude Code's own prompt, resolved by the CLI, plus optional appended text.
+        fields: AgentManifest = {"instructions": as_str(system_prompt.get("append"))}
+        preset = as_str(system_prompt.get("preset"))
+        if preset:
+            fields["extra_instructions"] = [{"type": "preset", "name": preset}]
+        return fields
+    return {}
+
+
+def _manifest_tools(declared: dict[str, Any]) -> AgentManifest:
+    # The init message lists every tool the session can call, built-ins included; allowed_tools only
+    # lists the ones that skip the permission prompt, so it is not the tool set.
+    init = declared["init"]
+    tools = [{"name": tool} for tool in init.get("tools") or [] if isinstance(tool, str) and tool]
+    servers = getattr(declared["options"], "mcp_servers", None)
+    if isinstance(servers, dict):
+        names = [name for name in servers if isinstance(name, str)]
+    else:
+        # The init entries also carry a connection status, which is per run and so not reported.
+        names = [as_str(_get_attr(server, "name", None)) for server in init.get("mcp_servers") or []]
+    capabilities: list[AgentCapability] = [{"name": name, "type": "mcp"} for name in names if name]
+    return {"tools": tools, "capabilities": capabilities}
+
+
+def _manifest_handoffs(options: Any) -> AgentManifest:
+    agents = getattr(options, "agents", None)
+    if not isinstance(agents, dict):
+        return {}
+    return {
+        "handoffs": [
+            {"agent_name": name, "handoff_description": as_str(getattr(definition, "description", None))}
+            for name, definition in agents.items()
+            if isinstance(name, str) and name
+        ]
+    }
+
+
+def _manifest_guardrails(options: Any) -> AgentManifest:
+    """The permission callback and PreToolUse hooks, which can deny a tool call before it runs."""
+    guardrails: list[str] = []
+    can_use_tool = getattr(options, "can_use_tool", None)
+    if callable(can_use_tool):
+        guardrails.append(callable_name(can_use_tool))
+    hooks = getattr(options, "hooks", None)
+    if isinstance(hooks, dict):
+        for matcher in hooks.get("PreToolUse") or []:
+            guardrails.extend(callable_name(fn) for fn in getattr(matcher, "hooks", None) or [] if callable(fn))
+    return {"guardrails": guardrails}
+
+
+def _manifest_agent_settings(options: Any) -> AgentManifest:
+    settings = {key: config_value(getattr(options, key, None)) for key in _AGENT_SETTINGS_OPTIONS}
+    return {"agent_settings": settings}
