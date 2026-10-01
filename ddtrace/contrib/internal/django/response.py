@@ -80,6 +80,8 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
 
 def traced_resolve_request(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     resolver_match = func(*args, **kwargs)
+    if not config._otel_trace_semantics_enabled:
+        return resolver_match
     request = get_argument_value(args, kwargs, 1, "request")
     if request is not None:
         # The AppSec callback can block during this dispatch. Store Django's resolved

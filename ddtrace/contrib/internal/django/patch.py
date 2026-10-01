@@ -239,7 +239,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     ret = func(*args, **kwargs)
 
     if django.VERSION < (3, 1):
-        # AIDEV-NOTE: First-position view middleware is Django <3.1's only post-resolution,
+        # First-position view middleware is Django <3.1's only post-resolution,
         # pre-application hook that does not rerun custom converters.
         instance._view_middleware.insert(0, _dispatch_resolved_request)
 
@@ -258,7 +258,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
 def _dispatch_resolved_request(
     request: Any, _callback: Any, _callback_args: tuple[Any, ...], _callback_kwargs: dict[str, Any]
 ) -> None:
-    if not _pre_31_resolve_request_enabled:
+    if not _pre_31_resolve_request_enabled or not config._otel_trace_semantics_enabled:
         return
     resolver_match = getattr(request, "resolver_match", None)
     if resolver_match is not None:
