@@ -73,6 +73,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
                 # whether to trace the query string. aiohttp supports a
                 # per-application override instead.
                 query=event.query if event.trace_query_string is None else None,
+                query_tagged_separately=event.trace_query_string is not None,
                 status_code=status_code,
                 request_headers=event.request_headers,
                 response_headers=dict(res_headers) if res_headers is not None else None,

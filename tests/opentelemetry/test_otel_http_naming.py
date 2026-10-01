@@ -164,6 +164,23 @@ def test_set_url_tags_otel_server_preserves_path_parameters(tracer, url, raw_uri
     assert span.get_tag(otel_http.URL_QUERY) is None
 
 
+def test_set_url_tags_otel_server_query_falls_back_to_the_url_unless_tagged_separately(tracer):
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
+    url = "https://example.com/users?page=2"
+
+    with tracer.trace("web.request") as from_url:
+        set_url_tags_otel_server(integration_config, from_url, url, None)
+    assert from_url.get_tag(otel_http.URL_QUERY) == "page=2"
+
+    with tracer.trace("web.request") as separate:
+        set_url_tags_otel_server(integration_config, separate, url, None, query_tagged_separately=True)
+    assert separate.get_tag(otel_http.URL_QUERY) is None
+
+    with tracer.trace("web.request") as explicit:
+        set_url_tags_otel_server(integration_config, explicit, url, "page=3", query_tagged_separately=True)
+    assert explicit.get_tag(otel_http.URL_QUERY) == "page=3"
+
+
 def test_set_url_tags_otel_server_keeps_leading_double_slash_in_raw_uri(tracer):
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
 

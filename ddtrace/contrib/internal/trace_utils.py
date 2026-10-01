@@ -457,6 +457,7 @@ def set_http_meta(
     headers_are_case_sensitive: bool = False,
     route: Optional[str] = None,
     response_cookies: Optional[dict[str, str]] = None,
+    query_tagged_separately: bool = False,
 ) -> None:
     """
     Set HTTP metas on the span
@@ -466,6 +467,7 @@ def set_http_meta(
     :param status_code: the HTTP status code
     :param status_msg: the HTTP status message
     :param query: the HTTP query part of the URI as a string
+    :param query_tagged_separately: the caller tags the query string itself, so it must not be read from the URL
     :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
     :param request_headers: the HTTP request headers
     :param response_headers: the HTTP response headers
@@ -491,6 +493,7 @@ def set_http_meta(
             raw_uri=raw_uri,
             server_address=server_address,
             fallback_server_address=target_host,
+            query_tagged_separately=query_tagged_separately,
         )
     else:
         if url is not None:
