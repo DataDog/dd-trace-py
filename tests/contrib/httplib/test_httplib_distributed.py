@@ -1,10 +1,12 @@
 # Standard library
 import contextlib
 import http.client as httplib
+from unittest import mock
 
 import wrapt
 
 # Project
+from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from tests.utils import TracerTestCase
 
@@ -65,3 +67,24 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
         with self.override_config("httplib", dict(distributed_tracing=False)):
             self.request()
         self.check_disabled()
+
+    def test_otel_resource_set_before_header_injection(self):
+        # Sampling is decided when headers are injected, so sampling rules matching on
+        # resource must already see the OTel resource at that point.
+        seen = []
+
+        def record_inject(span_context, headers, *args, **kwargs):
+            seen.append(self.tracer.current_span().resource)
+
+        with (
+            mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+            mock.patch("ddtrace.contrib.internal.httplib.patch.HTTPPropagator.inject", side_effect=record_inject),
+            self.override_config("httplib", dict(distributed_tracing=True)),
+        ):
+            for method in ("GET", "BREW"):
+                conn = self.get_http_connection(SOCKET)
+                conn.send = lambda data: None
+                with contextlib.closing(conn):
+                    conn.request(method, "/status/200")
+
+        assert seen == ["GET", "HTTP"]
