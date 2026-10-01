@@ -23,9 +23,11 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.django.patch import _dispatch_resolved_request
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.response import traced_resolve_request
+from ddtrace.contrib.internal.django.utils import _request_path_params
 from ddtrace.contrib.internal.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -51,9 +53,65 @@ def test_resolver_match_is_stored_before_appsec_dispatch():
         assert request.resolver_match is resolver_match
         raise RuntimeError("blocked")
 
-    with mock.patch("ddtrace.contrib.internal.django.response.core.dispatch", side_effect=assert_match_is_available):
+    with (
+        mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+        mock.patch("ddtrace.contrib.internal.django.response.core.dispatch", side_effect=assert_match_is_available),
+    ):
         with pytest.raises(RuntimeError, match="blocked"):
             traced_resolve_request(lambda *_args, **_kwargs: resolver_match, (mock.Mock(), request), {})
+
+
+def test_resolve_request_is_neutral_with_otel_semantics_disabled():
+    request = mock.Mock(spec=["method"])
+    resolver_match = mock.Mock()
+
+    with (
+        mock.patch.object(config, "_otel_trace_semantics_enabled", False),
+        mock.patch("ddtrace.contrib.internal.django.response.core.dispatch") as dispatch,
+    ):
+        assert traced_resolve_request(lambda *_args, **_kwargs: resolver_match, (mock.Mock(), request), {}) is (
+            resolver_match
+        )
+
+    dispatch.assert_not_called()
+    assert not hasattr(request, "resolver_match")
+
+
+def test_pre_31_resolved_request_dispatch_is_neutral_with_otel_semantics_disabled():
+    request = mock.Mock()
+
+    with (
+        mock.patch.object(config, "_otel_trace_semantics_enabled", False),
+        mock.patch("ddtrace.contrib.internal.django.patch._pre_31_resolve_request_enabled", True),
+        mock.patch("ddtrace.contrib.internal.django.patch.core.dispatch") as dispatch,
+    ):
+        _dispatch_resolved_request(request, None, (), {})
+
+    dispatch.assert_not_called()
+
+
+def test_request_path_params_resolves_route_with_otel_semantics_disabled():
+    request = mock.Mock(spec=["urlconf", "path_info"], urlconf=None, path_info="/")
+    resolver_match = mock.Mock(kwargs={"pk": 1}, args=())
+
+    with (
+        mock.patch.object(config, "_otel_trace_semantics_enabled", False),
+        mock.patch("ddtrace.contrib.internal.django.utils.get_resolver") as get_resolver,
+    ):
+        get_resolver.return_value.resolve.return_value = resolver_match
+        assert _request_path_params(request) == {"pk": 1}
+
+
+def test_request_path_params_does_not_resolve_route_with_otel_semantics_enabled():
+    request = mock.Mock(spec=["urlconf", "path_info"], urlconf=None, path_info="/")
+
+    with (
+        mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+        mock.patch("ddtrace.contrib.internal.django.utils.get_resolver") as get_resolver,
+    ):
+        assert _request_path_params(request) is None
+
+    get_resolver.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
