@@ -2,6 +2,18 @@ variables:
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
   SLS_CI_BRANCH: v1.3.0
 
+.serverless_benchmark_changes: &serverless_benchmark_changes
+  - .gitlab-ci.yml
+  - .gitlab/benchmarks/serverless.yml
+  - .gitlab/package.yml
+  - .gitlab/scripts/build-wheel.sh
+  - .gitlab/validate-ddtrace-package.py
+  - setup.py
+  - pyproject.toml
+  - ddtrace/internal/serverless/**/*
+  - ddtrace/contrib/internal/aws_lambda/**/*
+  - tests/contrib/aws_lambda/**/*
+
 benchmark-serverless:
   stage: benchmarks
   trigger:
@@ -13,7 +25,9 @@ benchmark-serverless:
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
-    - allow_failure: false
+    - if: !reference [.run_all_tests]
+    - changes: *serverless_benchmark_changes
+    - when: never
   variables:
     DD_TAGS: "SLS_CI_BRANCH:$SLS_CI_BRANCH"
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID

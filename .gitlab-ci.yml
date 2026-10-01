@@ -157,6 +157,7 @@ run-tests-trigger:
    strategy: depend
 
 serverless lambda tests:
+  extends: .serverless_rules
   stage: tests
   trigger:
     project: DataDog/datadog-lambda-python

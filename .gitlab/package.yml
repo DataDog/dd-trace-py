@@ -29,6 +29,25 @@ variables:
   - "v133965508-8f84bce-manylinux2014_x86_64"
   - "v133965497-8f84bce-musllinux_1_2_x86_64"
 
+.serverless_changes: &serverless_changes
+  - .gitlab-ci.yml
+  - .gitlab/benchmarks/serverless.yml
+  - .gitlab/package.yml
+  - .gitlab/scripts/build-wheel.sh
+  - .gitlab/validate-ddtrace-package.py
+  - setup.py
+  - pyproject.toml
+  - ddtrace/internal/serverless/**/*
+  - ddtrace/contrib/internal/aws_lambda/**/*
+  - tests/contrib/aws_lambda/**/*
+
+.serverless_rules:
+  rules:
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+    - if: !reference [.run_all_tests]
+    - changes: *serverless_changes
+    - when: never
+
 .build_base:
   stage: package
   variables:
@@ -145,7 +164,9 @@ variables:
     - .gitlab/scripts/build-wheel.sh
 
 "build linux serverless":
-  extends: "build linux"
+  extends:
+    - "build linux"
+    - .serverless_rules
   parallel:
     matrix:
       - ARCH_TAG: "amd64"
@@ -316,7 +337,9 @@ variables:
 
 # Only the limited artifacts needed by downstream serverless jobs
 "upload serverless":
-  extends: .upload_wheels_base
+  extends:
+    - .upload_wheels_base
+    - .serverless_rules
   needs:
     - job: "build linux serverless"
       artifacts: true
@@ -568,7 +591,9 @@ download_dependency_wheels:
     - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
-  extends: .package_base
+  extends:
+    - .package_base
+    - .serverless_rules
   needs:
     - "build linux serverless"
     - "package version"
