@@ -1361,6 +1361,7 @@ def test_otel_semantics_client_attributes():
     cfg = Config()
     cfg.myint = IntegrationConfig(cfg, "myint")
     with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        span._set_attribute("span.kind", "client")
         set_http_meta(
             span,
             cfg.myint,
@@ -1396,6 +1397,7 @@ def test_otel_semantics_client_trace_query_string_keeps_obfuscated_query():
     cfg.myint.http_tag_query_string = False
     cfg.myint.http.trace_query_string = True
     with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        span._set_attribute("span.kind", "client")
         set_http_meta(
             span,
             cfg.myint,
@@ -1417,6 +1419,7 @@ def test_otel_semantics_client_url_redacts_password_containing_at_sign():
     cfg = Config()
     cfg.myint = IntegrationConfig(cfg, "myint")
     with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        span._set_attribute("span.kind", "client")
         set_http_meta(span, cfg.myint, url="https://user:p@ssword@api.example.com/v1/items")
 
         assert span.get_tag("url.full") == "https://REDACTED:REDACTED@api.example.com/v1/items"
@@ -1434,6 +1437,7 @@ def test_otel_semantics_client_default_port_from_scheme():
     cfg = Config()
     cfg.myint = IntegrationConfig(cfg, "myint")
     with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        span._set_attribute("span.kind", "client")
         set_http_meta(span, cfg.myint, url="https://api.example.com/v1/items")
 
         assert span.get_tag("server.address") == "api.example.com"
@@ -1463,6 +1467,7 @@ def test_otel_semantics_client_method_normalization():
             scoped_tracer() as tracer,
             tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span,
         ):
+            span._set_attribute("span.kind", "client")
             set_http_meta(span, cfg.myint, method=raw)
             assert span.get_tag("http.request.method") == expected, raw
             assert span.get_tag("http.request.method_original") == expected_original, raw
@@ -1485,6 +1490,7 @@ def test_otel_semantics_client_uses_fixed_error_statuses():
             scoped_tracer() as tracer,
             tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span,
         ):
+            span._set_attribute("span.kind", "client")
             set_http_meta(span, cfg.myint, status_code=status_code)
             assert (span.error, span.get_tag("error.type")) == expected
 
@@ -1502,6 +1508,7 @@ def test_otel_semantics_client_status_does_not_overwrite_exception_error_type():
     cfg = Config()
     cfg.myint = IntegrationConfig(cfg, "myint")
     with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        span._set_attribute("span.kind", "client")
         try:
             raise ValueError("boom")
         except ValueError:
@@ -1525,6 +1532,7 @@ def test_otel_semantics_client_numeric_attributes_typed_for_otlp():
     cfg = Config()
     cfg.myint = IntegrationConfig(cfg, "myint")
     with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        span._set_attribute("span.kind", "client")
         set_http_meta(span, cfg.myint, url="http://localhost:8080/x", status_code=200)
 
         assert span.get_tag("http.response.status_code") is None
@@ -1541,6 +1549,7 @@ def test_otel_client_semantics_flag_is_read_per_call(int_config):
         assert span.get_tag("http.method") == "get"
 
     span = Span("http.request", span_type="http")
+    span._set_attribute("span.kind", "client")
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
         trace_utils.set_http_meta(span, int_config.myint, method="get")
         assert span.get_tag("http.request.method") == "GET"
