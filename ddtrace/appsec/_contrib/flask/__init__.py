@@ -7,8 +7,6 @@ from typing import Callable
 from typing import Optional
 from typing import cast
 
-from ddtrace._trace.http_semantics import http_block_metadata
-from ddtrace._trace.http_semantics import set_url_tags_server
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import _set_headers_and_response
@@ -23,6 +21,8 @@ from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
+from ddtrace.contrib.internal.trace_utils_base import http_block_metadata
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
 from ddtrace.internal import core
 from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS

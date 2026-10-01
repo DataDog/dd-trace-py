@@ -5,8 +5,6 @@ import json
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.http_semantics import http_block_metadata
-from ddtrace._trace.http_semantics import set_url_tags_server
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
@@ -15,6 +13,8 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
+from ddtrace.contrib.internal.trace_utils_base import http_block_metadata
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
