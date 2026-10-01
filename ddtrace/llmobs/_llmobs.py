@@ -722,8 +722,7 @@ class LLMObs(Service):
             return False
 
         # Agent annotations are applied here, where the span kind is known: annotation_context
-        # reaches every span in its block, but only agent spans carry the manifest. An agent reports
-        # its own version and any other span the version of the agent it ran under.
+        # reaches every span in its block, but only agent spans carry the manifest.
         if span_kind == "agent":
             agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
             if agent_annotation:

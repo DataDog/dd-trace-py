@@ -2090,8 +2090,19 @@ def test_annotation_context_agent_version_reaches_agent_subtrees_only(llmobs):
     assert "agent_version" not in get_llmobs_tags(workflow_span)
 
 
+def test_agent_version_option_wins_over_annotation_context(llmobs):
+    with llmobs.annotation_context(agent={"version": "from_context"}):
+        with llmobs.agent(name="test_agent", version="from_option") as agent_span:
+            with llmobs.tool(name="test_tool") as tool_span:
+                pass
+    for span in (agent_span, tool_span):
+        assert get_llmobs_tags(span)["agent_version"] == "from_option"
+
+
 def test_user_supplied_agent_version_tag_is_left_alone(llmobs):
-    """`tags` is an arbitrary user namespace, so an app already using this key keeps it."""
+    """`tags` is an arbitrary user namespace, so an app already using this key keeps it when no
+    versioned agent is above the span.
+    """
     with llmobs.annotation_context(tags={"agent_version": "mine-v1"}):
         with llmobs.workflow(name="test_workflow") as workflow_span:
             pass
