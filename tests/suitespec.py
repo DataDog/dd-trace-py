@@ -163,11 +163,12 @@ def _requirement_key(requirement: str) -> str:
     return f"{name}{extras or ''}".lower().replace("_", "-")
 
 
+_HASH_LENGTH = 12
+
+
 def _test_environment_hash(name: str, python: str, dependencies: tuple[str, ...]) -> str:
-    packages = " ".join(f"'{dependency}'" for dependency in dependencies)
-    payload = f"{name!r}Interpreter(_hint={python!r}){packages}".encode()
-    digest = int(hashlib.sha256(payload).hexdigest(), 16)
-    return f"{digest % ((1 << 61) - 1):x}"[:7]
+    payload = "\n".join((name, python, *sorted(dependencies, key=str.casefold)))
+    return hashlib.sha256(payload.encode()).hexdigest()[:_HASH_LENGTH]
 
 
 def _merge_dependencies(*groups: tuple[str, ...]) -> tuple[str, ...]:
