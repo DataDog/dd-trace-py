@@ -147,6 +147,23 @@ def test_set_url_tags_otel_server():
     assert span.get_metric(net.SERVER_PORT) == 443
 
 
+def test_set_url_tags_otel_server_query_falls_back_to_the_url_unless_tagged_separately():
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
+    url = "https://example.com/users?page=2"
+
+    from_url = Span("web.request")
+    set_url_tags_otel_server(integration_config, from_url, url, None)
+    assert from_url.get_tag(http.OTEL_URL_QUERY) == "page=2"
+
+    separate = Span("web.request")
+    set_url_tags_otel_server(integration_config, separate, url, None, query_tagged_separately=True)
+    assert separate.get_tag(http.OTEL_URL_QUERY) is None
+
+    explicit = Span("web.request")
+    set_url_tags_otel_server(integration_config, explicit, url, "page=3", query_tagged_separately=True)
+    assert explicit.get_tag(http.OTEL_URL_QUERY) == "page=3"
+
+
 def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("http.request")
