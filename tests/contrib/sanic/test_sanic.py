@@ -283,10 +283,16 @@ async def test_otel_semantics_sets_complete_request_metadata(client, test_spans)
     assert _response_status(response) == 200
     request_span = test_spans.pop_traces()[0][0]
     assert request_span.get_tag("http.request.method") == "GET"
-    assert request_span.get_tag("http.route") == "/hello/<first_name>"
     assert request_span.get_metric("http.response.status_code") == 200
     assert request_span.get_tag("url.path") == "/hello/foo"
-    assert request_span.resource == "GET /hello/<first_name>"
+    if sanic_version < (21, 0, 0):
+        # Before 21.0 there is no routing hook, so the span carries no route and is named from
+        # the method alone rather than from the raw URL path.
+        assert request_span.get_tag("http.route") is None
+        assert request_span.resource == "GET"
+    else:
+        assert request_span.get_tag("http.route") == "/hello/<first_name>"
+        assert request_span.resource == "GET /hello/<first_name>"
 
 
 @pytest.mark.asyncio
