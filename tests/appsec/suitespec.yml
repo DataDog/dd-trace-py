@@ -212,6 +212,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
+      - tests/appsec/integrations/fixtures/*
       - tests/appsec/integrations/packages_tests/*
     retry: 2
     services:
