@@ -72,12 +72,6 @@
                   }
                 },
                 {
-                  "key": "django.user.is_authenticated",
-                  "value": {
-                    "string_value": "False"
-                  }
-                },
-                {
                   "key": "django.view",
                   "value": {
                     "string_value": "fn-view"
