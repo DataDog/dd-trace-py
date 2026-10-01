@@ -11,7 +11,6 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
@@ -174,8 +173,9 @@ class OTelHTTPSpanAttributes:
         self._normalized_method = span.get_tag(http.OTEL_REQUEST_METHOD)
         self._original_method = span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL)
 
-        kind = span.get_tag(SPAN_KIND)
-        self.is_client = kind == SpanKind.CLIENT if kind is not None else span.span_type == SpanTypes.HTTP
+        # Direction must be explicit: span_type HTTP is also used by integrations that
+        # create server spans (e.g. Ray Serve proxy requests), so it cannot imply a client.
+        self.is_client = span.get_tag(SPAN_KIND) == SpanKind.CLIENT
 
     def set_method(self, method: Optional[str]) -> None:
         if method is None:
@@ -204,9 +204,10 @@ class OTelHTTPSpanAttributes:
                     set_url_tags_otel_client(self._integration_config, self._span, url, query)
                 else:
                     set_url_tags_otel_server(self._integration_config, self._span, url, query, raw_uri)
-            except ValueError:
+            except ValueError as e:
                 # A malformed optional URL must not suppress metadata supplied separately.
-                log.debug("failed to parse http url %r", url)
+                # The URL is not logged because it may carry credentials or a sensitive query.
+                log.debug("failed to parse http url: %s", type(e).__name__)
         elif query is not None and (
             self._integration_config.http_tag_query_string or self._integration_config.trace_query_string
         ):

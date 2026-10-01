@@ -16,6 +16,7 @@ from ddtrace._trace.otel.http.tags import set_url_tags_otel_client
 from ddtrace._trace.otel.http.tags import set_url_tags_otel_server
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -197,7 +198,9 @@ def server_error_statuses():
 @pytest.mark.parametrize(
     "span_type, span_kind, expected",
     [
-        (SpanTypes.HTTP, None, True),
+        # Ray Serve proxy requests are HTTP server spans that carry no span.kind.
+        (SpanTypes.HTTP, None, False),
+        (SpanTypes.HTTP, SpanKind.CLIENT, True),
         (SpanTypes.WEB, None, False),
         (SpanTypes.WEB, SpanKind.CLIENT, True),
         (SpanTypes.HTTP, SpanKind.SERVER, False),
@@ -244,6 +247,7 @@ def test_otel_span_attributes_set_method_clears_stale_original_method(integratio
 
 def test_otel_span_attributes_dispatches_client_and_server_urls(integration_config):
     client_span = Span("request", span_type=SpanTypes.HTTP)
+    client_span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     server_span = Span("request", span_type=SpanTypes.WEB)
 
     OTelHTTPSpanAttributes(client_span, integration_config).set_url("https://example.com/users/42?token=secret")
@@ -321,25 +325,28 @@ def test_otel_span_attributes_malformed_url_does_not_abort_later_metadata(integr
 
 
 @pytest.mark.parametrize(
-    "span_type, status_code, expected_error",
+    "span_type, span_kind, status_code, expected_error",
     [
-        (SpanTypes.HTTP, 399, 0),
-        (SpanTypes.HTTP, 400, 1),
-        (SpanTypes.WEB, 499, 0),
-        (SpanTypes.WEB, 500, 1),
-        (SpanTypes.WEB, 600, 1),
-        (SpanTypes.WEB, 700, 1),
+        (SpanTypes.HTTP, SpanKind.CLIENT, 399, 0),
+        (SpanTypes.HTTP, SpanKind.CLIENT, 400, 1),
+        (SpanTypes.WEB, None, 499, 0),
+        (SpanTypes.WEB, None, 500, 1),
+        (SpanTypes.WEB, None, 600, 1),
+        (SpanTypes.WEB, None, 700, 1),
     ],
 )
 def test_otel_span_attributes_status_error_semantics(
     integration_config,
     server_error_statuses,
     span_type,
+    span_kind,
     status_code,
     expected_error,
 ):
     server_error_statuses.error_statuses = "500-599"
     span = Span("request", span_type=span_type)
+    if span_kind is not None:
+        span._set_attribute(SPAN_KIND, span_kind)
     attributes = OTelHTTPSpanAttributes(span, integration_config)
 
     attributes.set_status_code(str(status_code))
@@ -462,6 +469,7 @@ def test_otel_span_attributes_preserves_method_and_route_across_calls(integratio
 
 def test_otel_span_attributes_client_resource_ignores_server_route(integration_config):
     span = Span("http.request", span_type=SpanTypes.HTTP)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
     attributes = OTelHTTPSpanAttributes(span, integration_config)
     attributes.set_method("get")
 
@@ -536,3 +544,30 @@ def test_otel_semantics_flag_resolves_identically_when_disabled():
     assert agent_config._trace_otel_semantics_enabled is False
     assert config._otel_trace_semantics_enabled is False
     assert _is_otlp_traces_exporter_enabled(otel_config.exporter) is False
+
+
+@pytest.mark.parametrize("span_type, span_kind", [(SpanTypes.WEB, None), (SpanTypes.HTTP, SpanKind.CLIENT)])
+def test_otel_span_attributes_malformed_url_is_not_logged(integration_config, span_type, span_kind):
+    span = Span("request", span_type=span_type)
+    if span_kind is not None:
+        span._set_attribute(SPAN_KIND, span_kind)
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    with mock.patch.object(http_semantics.log, "debug") as debug:
+        attributes.set_url("http://user:hunter2@[::1/path?token=secret")
+
+    debug.assert_called_once()
+    logged = " ".join(str(arg) for arg in debug.call_args.args)
+    assert "failed to parse http url" in logged
+    assert "hunter2" not in logged
+    assert "secret" not in logged
+
+
+def test_set_http_meta_http_span_without_kind_keeps_legacy_tags(integration_config):
+    # Ray Serve proxy requests are HTTP spans with no span.kind and must not be treated as clients.
+    span = Span("proxy_request", span_type=SpanTypes.HTTP)
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        trace_utils.set_http_meta(span, integration_config, method="GET", url="http://example.com/x", status_code=200)
+
+    assert span.get_tag(http.OTEL_URL_FULL) is None
