@@ -9,7 +9,6 @@ use pyo3::{
     types::PyAny,
 };
 use std::{
-    ffi::c_int,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -17,32 +16,12 @@ use std::{
     time::Duration,
 };
 
-#[cfg(all(not(Py_3_13), not(PyPy), not(GraalPy)))]
-unsafe extern "C" {
-    fn _Py_IsFinalizing() -> c_int;
-}
-
-#[cfg(Py_3_13)]
-fn python_is_finalizing() -> bool {
-    unsafe { pyo3::ffi::Py_IsFinalizing() != 0 }
-}
-
-#[cfg(all(not(Py_3_13), not(PyPy), not(GraalPy)))]
-fn python_is_finalizing() -> bool {
-    unsafe { _Py_IsFinalizing() != 0 }
-}
-
-#[cfg(any(PyPy, GraalPy))]
-fn python_is_finalizing() -> bool {
-    false
-}
-
 fn adapt_python_callback(
     callback: Py<PyAny>,
     callbacks_enabled: Arc<AtomicBool>,
 ) -> ObservableCallback {
     Arc::new(move || {
-        if !callbacks_enabled.load(Ordering::Acquire) || python_is_finalizing() {
+        if !callbacks_enabled.load(Ordering::Acquire) {
             return Vec::new();
         }
         Python::try_attach(|py| {
