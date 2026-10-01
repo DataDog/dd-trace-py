@@ -9,6 +9,8 @@ from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.webclient import Client
@@ -370,3 +372,114 @@ class TestAPIGatewayTracing(PyramidBase):
                     else:
                         web_span = spans[0]
                         assert web_span._parent is None
+
+
+def _otel_pyramid_app():
+    from pyramid.config import Configurator
+    from pyramid.response import Response
+    import webtest
+
+    def user(request):
+        return Response("user")
+
+    def teapot(request):
+        return Response("short and stout", status=418)
+
+    def broken(request):
+        return Response("oops", status=500)
+
+    with Configurator() as configurator:
+        configurator.add_route("user", "/users/{user_id}")
+        configurator.add_view(user, route_name="user")
+        configurator.add_route("teapot", "/teapot")
+        configurator.add_view(teapot, route_name="teapot")
+        configurator.add_route("broken", "/broken")
+        configurator.add_view(broken, route_name="broken")
+        return webtest.TestApp(configurator.make_wsgi_app(), lint=False)
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
+def test_otel_semantics_server_span_attributes():
+    from functools import partial
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.contrib.pyramid.test_pyramid import _otel_pyramid_app
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    assert_span = partial(assert_otel_server_span, peer_address=False)
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = _otel_pyramid_app()
+
+        def request_span(path, method="GET"):
+            spans.reset()
+            response = client.request(path, method=method, headers=TEST_HEADERS, expect_errors=True)
+            return response, next(span for span in spans.get_spans() if span.name == "pyramid.request")
+
+        response, span = request_span("/users/42?q=1")
+        assert response.status_int == 200
+        assert_span(
+            span,
+            method="GET",
+            status=200,
+            path="/users/42",
+            query="q=1",
+            route="/users/{user_id}",
+            resource="GET /users/{user_id}",
+        )
+
+        response, span = request_span("/users/42", method="PROPFIND")
+        assert response.status_int == 200
+        assert_span(
+            span,
+            method="_OTHER",
+            original_method="PROPFIND",
+            status=200,
+            path="/users/42",
+            route="/users/{user_id}",
+            resource="HTTP /users/{user_id}",
+        )
+
+        # An unmatched route must not leak the URL path into the resource.
+        response, span = request_span("/no/such/path/123")
+        assert response.status_int == 404
+        assert_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+        response, span = request_span("/teapot")
+        assert response.status_int == 418
+        assert_span(span, method="GET", status=418, path="/teapot", route="/teapot", resource="GET /teapot")
+
+        response, span = request_span("/broken")
+        assert response.status_int == 500
+        assert_span(span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken")
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True, err=None)
+def test_otel_semantics_server_error_statuses_override():
+    from functools import partial
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.contrib.pyramid.test_pyramid import _otel_pyramid_app
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    assert_span = partial(assert_otel_server_span, peer_address=False)
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = _otel_pyramid_app()
+
+        client.get("/missing", headers=TEST_HEADERS, expect_errors=True)
+        span = next(span for span in spans.get_spans() if span.name == "pyramid.request")
+        assert_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
+
+        spans.reset()
+        client.get("/broken", headers=TEST_HEADERS, expect_errors=True)
+        span = next(span for span in spans.get_spans() if span.name == "pyramid.request")
+        assert_span(
+            span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken", error=False
+        )
