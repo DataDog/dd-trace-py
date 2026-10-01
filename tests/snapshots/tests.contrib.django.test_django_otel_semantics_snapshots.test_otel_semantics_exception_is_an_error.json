@@ -74,7 +74,13 @@
                 {
                   "key": "django.view",
                   "value": {
-                    "string_value": "fn-view"
+                    "string_value": "error-500"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "string_value": "500"
                   }
                 },
                 {
@@ -86,13 +92,13 @@
                 {
                   "key": "http.response.status_code",
                   "value": {
-                    "int_value": "200"
+                    "int_value": "500"
                   }
                 },
                 {
                   "key": "http.route",
                   "value": {
-                    "string_value": "^fn-view/$"
+                    "string_value": "^error-500/$"
                   }
                 },
                 {
@@ -110,7 +116,7 @@
                 {
                   "key": "url.path",
                   "value": {
-                    "string_value": "/fn-view/"
+                    "string_value": "/error-500/"
                   }
                 },
                 {
@@ -123,10 +129,12 @@
               "end_time_unix_nano": "<end_time_unix_nano>",
               "flags": 1,
               "kind": "SPAN_KIND_SERVER",
-              "name": "GET ^fn-view/$",
+              "name": "GET ^error-500/$",
               "span_id": "span_1",
               "start_time_unix_nano": "<start_time_unix_nano>",
-              "status": {},
+              "status": {
+                "code": "STATUS_CODE_ERROR"
+              },
               "trace_id": "trace_1"
             },
             {
@@ -154,16 +162,25 @@
                   "value": {
                     "string_value": "django"
                   }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "string_value": "builtins.Exception"
+                  }
                 }
               ],
               "end_time_unix_nano": "<end_time_unix_nano>",
               "flags": 1,
               "kind": "SPAN_KIND_INTERNAL",
-              "name": "tests.contrib.django.views.function_view",
+              "name": "tests.contrib.django.views.error_500",
               "parent_span_id": "span_1",
               "span_id": "span_2",
               "start_time_unix_nano": "<start_time_unix_nano>",
-              "status": {},
+              "status": {
+                "code": "STATUS_CODE_ERROR",
+                "message": "Error 500"
+              },
               "trace_id": "trace_1"
             }
           ]
