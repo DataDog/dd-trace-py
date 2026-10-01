@@ -8,10 +8,10 @@ integrations:
   tested_versions_by_dependency:
     aiobotocore:
       min: 1.0.7
-      max: 3.9.0
+      max: 3.9.1
     botocore:
       min: 1.15.32
-      max: 1.43.56
+      max: 1.43.75
 
 - integration_name: aiohttp
   is_external_package: true
@@ -714,8 +714,8 @@ integrations:
   - mysql-connector-python
   tested_versions_by_dependency:
     mysql-connector-python:
-      min: 8.0.5
-      max: 9.4.0
+      min: 9.4.0
+      max: 26.7.0
 
 - integration_name: mysqldb
   is_external_package: true
