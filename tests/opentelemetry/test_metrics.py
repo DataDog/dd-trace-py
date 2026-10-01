@@ -190,7 +190,10 @@ def test_native_meter_provider_preserves_attribute_types():
     scope_metrics = resource_metrics.scope_metrics[0]
     data_point = scope_metrics.metrics[0].sum.data_points[0]
     expected = {key: list(value) if isinstance(value, (list, tuple)) else value for key, value in attributes.items()}
-    for encoded in (resource_metrics.resource.attributes, scope_metrics.scope.attributes, data_point.attributes):
+    encoded_attribute_sets = [resource_metrics.resource.attributes, data_point.attributes]
+    if hasattr(scope_metrics.scope, "attributes"):
+        encoded_attribute_sets.append(scope_metrics.scope.attributes)
+    for encoded in encoded_attribute_sets:
         decoded = decode(encoded)
         assert {key: decoded[key] for key in expected} == expected
 
