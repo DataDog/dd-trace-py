@@ -22,11 +22,10 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
-from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.native._native.ddwaf import Result
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
@@ -194,7 +193,7 @@ def test_blocking_exception_is_not_exception_derived():
 
 
 def _blocking_waf_result():
-    return DDWaf_result(1, [], {WAF_ACTIONS.BLOCK_ACTION: {}}, 0.0, 0.0, False, _observator(), {})
+    return Result(matched=True, actions={WAF_ACTIONS.BLOCK_ACTION: {}})
 
 
 @contextlib.contextmanager

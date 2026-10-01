@@ -6,7 +6,7 @@ import json
 from typing import Optional
 from urllib.parse import parse_qs
 
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
+from ddtrace.appsec._waf_types import WafInput
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
@@ -31,7 +31,7 @@ def parse_http_body(
     normalized_headers: dict[str, str],
     body: Optional[str],
     is_body_base64: bool,
-) -> DDWafInputType:
+) -> WafInput:
     """Parse a request body based on the content-type header."""
     if body is None:
         return None

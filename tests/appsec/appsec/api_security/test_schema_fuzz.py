@@ -3,7 +3,7 @@ from hypothesis import strategies as st
 import pytest
 
 import ddtrace.appsec._constants as constants
-from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._waf import DDWaf
 
 
 def build_schema(obj):

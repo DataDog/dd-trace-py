@@ -1,0 +1,1024 @@
+{
+  "checkouts": {
+    "baseline": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+    "candidate": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf"
+  },
+  "python": "3.14.7 (main, Aug 14 2026, 15:24:10) [Clang 22.1.3 ]",
+  "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+  "samples": {
+    "get": {
+      "baseline": [
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5663263749956968,
+          "requests_per_second": 1765.7662509672066,
+          "server_cpu_us_per_request": 527.923,
+          "latency_p50_us": 539.583,
+          "latency_p95_us": 716.0,
+          "rss_bytes": 83361792,
+          "evidence": {
+            "cpu_seconds": 0.781293,
+            "rss_bytes": 83361792,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5423592910010484,
+          "requests_per_second": 1843.79620040116,
+          "server_cpu_us_per_request": 503.21900000000005,
+          "latency_p50_us": 525.458,
+          "latency_p95_us": 611.666,
+          "rss_bytes": 83230720,
+          "evidence": {
+            "cpu_seconds": 0.717682,
+            "rss_bytes": 83230720,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5285927500008256,
+          "requests_per_second": 1891.8155801388461,
+          "server_cpu_us_per_request": 492.343,
+          "latency_p50_us": 519.0,
+          "latency_p95_us": 564.334,
+          "rss_bytes": 83460096,
+          "evidence": {
+            "cpu_seconds": 0.720556,
+            "rss_bytes": 83460096,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5371170829967014,
+          "requests_per_second": 1861.7914634566582,
+          "server_cpu_us_per_request": 499.266,
+          "latency_p50_us": 519.375,
+          "latency_p95_us": 657.75,
+          "rss_bytes": 83034112,
+          "evidence": {
+            "cpu_seconds": 0.712364,
+            "rss_bytes": 83034112,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5241557080007624,
+          "requests_per_second": 1907.8300297715073,
+          "server_cpu_us_per_request": 487.912,
+          "latency_p50_us": 515.459,
+          "latency_p95_us": 553.75,
+          "rss_bytes": 83197952,
+          "evidence": {
+            "cpu_seconds": 0.704033,
+            "rss_bytes": 83197952,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        }
+      ],
+      "candidate": [
+        {
+          "requests": 1000,
+          "wall_seconds": 0.4958479589986382,
+          "requests_per_second": 2016.7472344133344,
+          "server_cpu_us_per_request": 455.18100000000004,
+          "latency_p50_us": 474.833,
+          "latency_p95_us": 599.584,
+          "rss_bytes": 79364096,
+          "evidence": {
+            "cpu_seconds": 0.686884,
+            "rss_bytes": 79364096,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5291795839948463,
+          "requests_per_second": 1889.717650198952,
+          "server_cpu_us_per_request": 486.509,
+          "latency_p50_us": 510.458,
+          "latency_p95_us": 666.166,
+          "rss_bytes": 79167488,
+          "evidence": {
+            "cpu_seconds": 0.707882,
+            "rss_bytes": 79167488,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.47355612499814015,
+          "requests_per_second": 2111.6821158293064,
+          "server_cpu_us_per_request": 435.68300000000005,
+          "latency_p50_us": 465.417,
+          "latency_p95_us": 505.125,
+          "rss_bytes": 79446016,
+          "evidence": {
+            "cpu_seconds": 0.656468,
+            "rss_bytes": 79446016,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.4782918749988312,
+          "requests_per_second": 2090.773547015499,
+          "server_cpu_us_per_request": 438.951,
+          "latency_p50_us": 470.625,
+          "latency_p95_us": 508.042,
+          "rss_bytes": 79134720,
+          "evidence": {
+            "cpu_seconds": 0.650308,
+            "rss_bytes": 79134720,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.4711553749948507,
+          "requests_per_second": 2122.4420925070185,
+          "server_cpu_us_per_request": 435.33,
+          "latency_p50_us": 463.75,
+          "latency_p95_us": 495.541,
+          "rss_bytes": 79478784,
+          "evidence": {
+            "cpu_seconds": 0.660887,
+            "rss_bytes": 79478784,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        }
+      ]
+    },
+    "body": {
+      "baseline": [
+        {
+          "requests": 1000,
+          "wall_seconds": 4.065795208000054,
+          "requests_per_second": 245.95434566707934,
+          "server_cpu_us_per_request": 4010.5020000000004,
+          "latency_p50_us": 4060.334,
+          "latency_p95_us": 4228.917,
+          "rss_bytes": 84066304,
+          "evidence": {
+            "cpu_seconds": 4.33126,
+            "rss_bytes": 84066304,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 4.112965000000258,
+          "requests_per_second": 243.133603130573,
+          "server_cpu_us_per_request": 4056.037,
+          "latency_p50_us": 4092.667,
+          "latency_p95_us": 4391.208,
+          "rss_bytes": 84115456,
+          "evidence": {
+            "cpu_seconds": 4.373884,
+            "rss_bytes": 84115456,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 4.176506999996491,
+          "requests_per_second": 239.43453225406788,
+          "server_cpu_us_per_request": 4113.972000000001,
+          "latency_p50_us": 4135.917,
+          "latency_p95_us": 4536.083,
+          "rss_bytes": 84066304,
+          "evidence": {
+            "cpu_seconds": 4.443995,
+            "rss_bytes": 84066304,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 4.125632292001683,
+          "requests_per_second": 242.38708862607285,
+          "server_cpu_us_per_request": 4069.8299999999995,
+          "latency_p50_us": 4112.375,
+          "latency_p95_us": 4339.959,
+          "rss_bytes": 84541440,
+          "evidence": {
+            "cpu_seconds": 4.401726,
+            "rss_bytes": 84541440,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 4.217874209003639,
+          "requests_per_second": 237.08625493509524,
+          "server_cpu_us_per_request": 4159.773,
+          "latency_p50_us": 4162.791,
+          "latency_p95_us": 4658.75,
+          "rss_bytes": 83869696,
+          "evidence": {
+            "cpu_seconds": 4.485183,
+            "rss_bytes": 83869696,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        }
+      ],
+      "candidate": [
+        {
+          "requests": 1000,
+          "wall_seconds": 3.5283527499996126,
+          "requests_per_second": 283.4183741974523,
+          "server_cpu_us_per_request": 3466.055,
+          "latency_p50_us": 3488.75,
+          "latency_p95_us": 3911.875,
+          "rss_bytes": 79478784,
+          "evidence": {
+            "cpu_seconds": 3.790215,
+            "rss_bytes": 79478784,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 3.490892832996906,
+          "requests_per_second": 286.4596674374296,
+          "server_cpu_us_per_request": 3434.864,
+          "latency_p50_us": 3487.125,
+          "latency_p95_us": 3639.667,
+          "rss_bytes": 79888384,
+          "evidence": {
+            "cpu_seconds": 3.740913,
+            "rss_bytes": 79888384,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 3.6159938749988214,
+          "requests_per_second": 276.5491410021611,
+          "server_cpu_us_per_request": 3556.935,
+          "latency_p50_us": 3586.041,
+          "latency_p95_us": 3972.458,
+          "rss_bytes": 79708160,
+          "evidence": {
+            "cpu_seconds": 3.862215,
+            "rss_bytes": 79708160,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 3.4897480419967906,
+          "requests_per_second": 286.5536388202434,
+          "server_cpu_us_per_request": 3431.298,
+          "latency_p50_us": 3495.792,
+          "latency_p95_us": 3592.208,
+          "rss_bytes": 79757312,
+          "evidence": {
+            "cpu_seconds": 3.73463,
+            "rss_bytes": 79757312,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 3.592734042002121,
+          "requests_per_second": 278.3395565352593,
+          "server_cpu_us_per_request": 3535.548,
+          "latency_p50_us": 3545.625,
+          "latency_p95_us": 3939.417,
+          "rss_bytes": 79986688,
+          "evidence": {
+            "cpu_seconds": 3.85059,
+            "rss_bytes": 79986688,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        }
+      ]
+    },
+    "unicode": {
+      "baseline": [
+        {
+          "requests": 1000,
+          "wall_seconds": 6.470613124998636,
+          "requests_per_second": 154.54486007463333,
+          "server_cpu_us_per_request": 6407.162,
+          "latency_p50_us": 6345.042,
+          "latency_p95_us": 7116.916,
+          "rss_bytes": 84934656,
+          "evidence": {
+            "cpu_seconds": 6.812759,
+            "rss_bytes": 84934656,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 6.734948249999434,
+          "requests_per_second": 148.47924035646213,
+          "server_cpu_us_per_request": 6660.954,
+          "latency_p50_us": 6642.042,
+          "latency_p95_us": 7327.75,
+          "rss_bytes": 84918272,
+          "evidence": {
+            "cpu_seconds": 7.079892,
+            "rss_bytes": 84918272,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 6.546704333995876,
+          "requests_per_second": 152.7486119706334,
+          "server_cpu_us_per_request": 6484.084,
+          "latency_p50_us": 6483.416,
+          "latency_p95_us": 7107.708,
+          "rss_bytes": 84983808,
+          "evidence": {
+            "cpu_seconds": 6.911455,
+            "rss_bytes": 84983808,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 6.806773208001687,
+          "requests_per_second": 146.91248987471073,
+          "server_cpu_us_per_request": 6724.953,
+          "latency_p50_us": 6723.667,
+          "latency_p95_us": 7391.125,
+          "rss_bytes": 84033536,
+          "evidence": {
+            "cpu_seconds": 7.172154,
+            "rss_bytes": 84033536,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 6.652887249998457,
+          "requests_per_second": 150.31067902138759,
+          "server_cpu_us_per_request": 6583.288000000001,
+          "latency_p50_us": 6587.458,
+          "latency_p95_us": 7138.167,
+          "rss_bytes": 84770816,
+          "evidence": {
+            "cpu_seconds": 7.000549,
+            "rss_bytes": 84770816,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        }
+      ],
+      "candidate": [
+        {
+          "requests": 1000,
+          "wall_seconds": 6.050986290996661,
+          "requests_per_second": 165.26231458959222,
+          "server_cpu_us_per_request": 5961.101,
+          "latency_p50_us": 5955.709,
+          "latency_p95_us": 6761.5,
+          "rss_bytes": 80740352,
+          "evidence": {
+            "cpu_seconds": 6.329765,
+            "rss_bytes": 80740352,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 2.0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 2.0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 5.974744957995426,
+          "requests_per_second": 167.37116095002452,
+          "server_cpu_us_per_request": 5907.792000000001,
+          "latency_p50_us": 5919.709,
+          "latency_p95_us": 6415.125,
+          "rss_bytes": 81379328,
+          "evidence": {
+            "cpu_seconds": 6.335848,
+            "rss_bytes": 81379328,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 6.050098458996217,
+          "requests_per_second": 165.28656628935454,
+          "server_cpu_us_per_request": 5968.151,
+          "latency_p50_us": 5904.541,
+          "latency_p95_us": 6892.334,
+          "rss_bytes": 80658432,
+          "evidence": {
+            "cpu_seconds": 6.35717,
+            "rss_bytes": 80658432,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 6.2270378329994855,
+          "requests_per_second": 160.5899991004732,
+          "server_cpu_us_per_request": 6122.223,
+          "latency_p50_us": 6136.958,
+          "latency_p95_us": 6867.667,
+          "rss_bytes": 80920576,
+          "evidence": {
+            "cpu_seconds": 6.539713,
+            "rss_bytes": 80920576,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 1.0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 1.0,
+          "events": 0
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 6.324663207997219,
+          "requests_per_second": 158.1111858629168,
+          "server_cpu_us_per_request": 6239.083,
+          "latency_p50_us": 6288.417,
+          "latency_p95_us": 6844.75,
+          "rss_bytes": 81248256,
+          "evidence": {
+            "cpu_seconds": 6.648541,
+            "rss_bytes": 81248256,
+            "waf_traces": 1030,
+            "events": 0,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 0
+        }
+      ]
+    },
+    "blocked": {
+      "baseline": [
+        {
+          "requests": 1000,
+          "wall_seconds": 0.622445749999315,
+          "requests_per_second": 1606.5657127566546,
+          "server_cpu_us_per_request": 580.254,
+          "latency_p50_us": 595.75,
+          "latency_p95_us": 804.875,
+          "rss_bytes": 83886080,
+          "evidence": {
+            "cpu_seconds": 0.822679,
+            "rss_bytes": 83886080,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5406208749991492,
+          "requests_per_second": 1849.7250961712748,
+          "server_cpu_us_per_request": 502.769,
+          "latency_p50_us": 525.75,
+          "latency_p95_us": 633.709,
+          "rss_bytes": 82083840,
+          "evidence": {
+            "cpu_seconds": 0.729329,
+            "rss_bytes": 82083840,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5939367500031949,
+          "requests_per_second": 1683.6809643360523,
+          "server_cpu_us_per_request": 547.724,
+          "latency_p50_us": 561.625,
+          "latency_p95_us": 788.792,
+          "rss_bytes": 83623936,
+          "evidence": {
+            "cpu_seconds": 0.772129,
+            "rss_bytes": 83623936,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5630302499994286,
+          "requests_per_second": 1776.1035042096137,
+          "server_cpu_us_per_request": 522.53,
+          "latency_p50_us": 539.25,
+          "latency_p95_us": 705.875,
+          "rss_bytes": 83312640,
+          "evidence": {
+            "cpu_seconds": 0.76074,
+            "rss_bytes": 83312640,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5632757499988656,
+          "requests_per_second": 1775.329401278173,
+          "server_cpu_us_per_request": 519.522,
+          "latency_p50_us": 540.916,
+          "latency_p95_us": 719.334,
+          "rss_bytes": 83705856,
+          "evidence": {
+            "cpu_seconds": 0.748015,
+            "rss_bytes": 83705856,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._ddwaf.waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/dd-trace-py",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        }
+      ],
+      "candidate": [
+        {
+          "requests": 1000,
+          "wall_seconds": 0.538902334003069,
+          "requests_per_second": 1855.6238058421643,
+          "server_cpu_us_per_request": 496.07,
+          "latency_p50_us": 512.75,
+          "latency_p95_us": 715.333,
+          "rss_bytes": 79298560,
+          "evidence": {
+            "cpu_seconds": 0.737835,
+            "rss_bytes": 79298560,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5077054590001353,
+          "requests_per_second": 1969.645947808754,
+          "server_cpu_us_per_request": 469.213,
+          "latency_p50_us": 490.666,
+          "latency_p95_us": 624.708,
+          "rss_bytes": 79233024,
+          "evidence": {
+            "cpu_seconds": 0.702585,
+            "rss_bytes": 79233024,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.4947306670001126,
+          "requests_per_second": 2021.3018248164763,
+          "server_cpu_us_per_request": 456.41099999999994,
+          "latency_p50_us": 479.041,
+          "latency_p95_us": 587.417,
+          "rss_bytes": 79265792,
+          "evidence": {
+            "cpu_seconds": 0.689657,
+            "rss_bytes": 79265792,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.48275183299847413,
+          "requests_per_second": 2071.4576965742162,
+          "server_cpu_us_per_request": 444.12300000000005,
+          "latency_p50_us": 467.167,
+          "latency_p95_us": 568.041,
+          "rss_bytes": 79183872,
+          "evidence": {
+            "cpu_seconds": 0.673964,
+            "rss_bytes": 79183872,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        },
+        {
+          "requests": 1000,
+          "wall_seconds": 0.5070248749980237,
+          "requests_per_second": 1972.2898210938818,
+          "server_cpu_us_per_request": 464.634,
+          "latency_p50_us": 476.917,
+          "latency_p95_us": 694.583,
+          "rss_bytes": 79560704,
+          "evidence": {
+            "cpu_seconds": 0.685012,
+            "rss_bytes": 79560704,
+            "waf_traces": 1030,
+            "events": 1030,
+            "timeouts": 0,
+            "backend": "ddtrace.appsec._waf",
+            "checkout": "/Users/florentin.labelle/go/src/github.com/DataDog/datadog-apm-python/.worktrees/dd-trace-py-libddwaf",
+            "native_version": "2.1.0",
+            "required_addresses": 36,
+            "initialized": true
+          },
+          "timeouts": 0,
+          "events": 1000
+        }
+      ]
+    }
+  },
+  "medians": {
+    "get": {
+      "baseline": {
+        "server_cpu_us_per_request": 499.266,
+        "latency_p50_us": 519.375,
+        "latency_p95_us": 611.666,
+        "requests_per_second": 1861.7914634566582,
+        "rss_bytes": 83230720
+      },
+      "candidate": {
+        "server_cpu_us_per_request": 438.951,
+        "latency_p50_us": 470.625,
+        "latency_p95_us": 508.042,
+        "requests_per_second": 2090.773547015499,
+        "rss_bytes": 79364096
+      }
+    },
+    "body": {
+      "baseline": {
+        "server_cpu_us_per_request": 4069.8299999999995,
+        "latency_p50_us": 4112.375,
+        "latency_p95_us": 4391.208,
+        "requests_per_second": 242.38708862607285,
+        "rss_bytes": 84066304
+      },
+      "candidate": {
+        "server_cpu_us_per_request": 3466.055,
+        "latency_p50_us": 3495.792,
+        "latency_p95_us": 3911.875,
+        "requests_per_second": 283.4183741974523,
+        "rss_bytes": 79757312
+      }
+    },
+    "unicode": {
+      "baseline": {
+        "server_cpu_us_per_request": 6583.288000000001,
+        "latency_p50_us": 6587.458,
+        "latency_p95_us": 7138.167,
+        "requests_per_second": 150.31067902138759,
+        "rss_bytes": 84918272
+      },
+      "candidate": {
+        "server_cpu_us_per_request": 5968.151,
+        "latency_p50_us": 5955.709,
+        "latency_p95_us": 6844.75,
+        "requests_per_second": 165.26231458959222,
+        "rss_bytes": 80920576
+      }
+    },
+    "blocked": {
+      "baseline": {
+        "server_cpu_us_per_request": 522.53,
+        "latency_p50_us": 540.916,
+        "latency_p95_us": 719.334,
+        "requests_per_second": 1775.329401278173,
+        "rss_bytes": 83623936
+      },
+      "candidate": {
+        "server_cpu_us_per_request": 464.634,
+        "latency_p50_us": 479.041,
+        "latency_p95_us": 624.708,
+        "requests_per_second": 1972.2898210938818,
+        "rss_bytes": 79265792
+      }
+    }
+  },
+  "native_sha256": {
+    "ddtrace/internal/native/_native.cpython-314-darwin.so": "7cef7cbe61f6c7a8ef3baf3f641ed9206aed17a64405548b9fd6e31473b84447"
+  },
+  "scope": "single Waitress worker and Flask application; HTTP keepalive; separate loopback HTTP client; real tracer and bundled rules; export replaced with counting sink; baseline and candidate checkouts; warm requests"
+}

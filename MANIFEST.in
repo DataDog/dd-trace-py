@@ -1,10 +1,13 @@
 graft cmake
 graft ddtrace
 graft src
+include scripts/build-native.py
 
 recursive-exclude ddtrace *.manifest.yaml
+recursive-exclude ddtrace *.so *.dylib *.dll *.pyd *.pyc
 recursive-exclude * **/__pycache__/*
 prune benchmarks/
 prune releasenotes/
 prune src/native/target*
 prune src/native_heap_gotter/target*
+prune ddtrace/appsec/_ddwaf
