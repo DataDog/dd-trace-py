@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue where an application thread could hang
+    indefinitely when probes, Exception Replay, or Code Origin produced data faster
+    than it could be uploaded.
