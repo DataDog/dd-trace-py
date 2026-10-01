@@ -189,8 +189,9 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
-            # Early AppSec blocking bypasses Django's resolver assignment.
-            request.resolver_match = resolver_match
+            if config._otel_trace_semantics_enabled:
+                # Early AppSec blocking bypasses Django's resolver assignment.
+                request.resolver_match = resolver_match
 
         if hasattr(resolver_match[0], "view_class"):
             # In django==4.0, view.__name__ defaults to <module>.views.view
@@ -459,7 +460,12 @@ def _request_path_params(request):
     try:
         resolver_match = getattr(request, "resolver_match", None)
         if resolver_match is None:
-            return None
+            if config._otel_trace_semantics_enabled:
+                return None
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            if resolver is None:
+                return None
+            resolver_match = resolver.resolve(request.path_info)
         return resolver_match.kwargs or resolver_match.args or None
     except Exception:
         log.debug("Django request_path_params extraction failed", exc_info=True)
