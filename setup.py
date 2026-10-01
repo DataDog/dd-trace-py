@@ -120,7 +120,6 @@ NATIVE_CRATE = HERE / "src" / "native"
 NATIVE_HEAP_GOTTER_CRATE: Path = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
 SETUP_CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
-OBSOLETE_WAF_DIR = DDTRACE_DIR / "appsec" / "_ddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
@@ -174,8 +173,6 @@ BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT = _env_truthy("DD_PROFILING_NATIVE_HEAP_TE
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
-
-LIBDDWAF_VERSION = "2.1.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -286,12 +283,6 @@ def is_64_bit_python():
 
 
 rust_features = ["stats"]
-NATIVE_WAF = CURRENT_OS == "Windows" or (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python())
-WAF_LINK_MODE = os.environ.get("DD_WAF_LINK_MODE", "static")
-if NATIVE_WAF:
-    if WAF_LINK_MODE not in ("static", "source", "system"):
-        raise ValueError("DD_WAF_LINK_MODE must be static, source, or system")
-    rust_features.append({"static": "waf", "source": "waf-source", "system": "waf-system"}[WAF_LINK_MODE])
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
     rust_features.append("profiling")
     if not SERVERLESS_BUILD:
@@ -306,12 +297,6 @@ class PatchedDistribution(Distribution):
         # Tell ext_hashes about your manually-built Rust artifact
 
         rust_env = os.environ.copy()
-        if NATIVE_WAF:
-            if WAF_LINK_MODE == "source":
-                rust_env.pop("LIBDDWAF_PREFIX", None)
-            elif WAF_LINK_MODE == "system" and "LIBDDWAF_PREFIX" not in rust_env:
-                raise RuntimeError("System linking requires LIBDDWAF_PREFIX")
-        self._waf_prefix = rust_env.get("LIBDDWAF_PREFIX")
         rust_env["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
         self.rust_extensions = [
             RustExtension(
@@ -338,23 +323,11 @@ class ExtensionHashes(build_ext):
                     sources = ext.get_sources()
                 elif isinstance(ext, RustExtension):
                     source_path = Path(ext.path).parent
-                    sources = []
-                    for entry in source_path.iterdir():
-                        if entry.is_dir():
-                            if entry.name.startswith("target"):
-                                continue
-                            sources.extend(
-                                p
-                                for p in entry.rglob("*")
-                                if p.is_file() and (entry.name != "appsec" or p.suffix != ".md")
-                            )
-                        elif entry.is_file():
-                            sources.append(entry)
-                    if NATIVE_WAF:
-                        if prefix := dist._waf_prefix:
-                            prefix = Path(prefix)
-                            sources.extend(prefix.glob("include/*.h"))
-                            sources.extend(prefix.glob("lib/*ddwaf*"))
+                    sources = [
+                        p
+                        for p in source_path.glob("**/*")
+                        if p.is_file() and not p.relative_to(source_path).parts[0].startswith("target")
+                    ]
                 else:
                     # Hash the explicit .pyx sources plus all .pxd files found
                     # under ddtrace/.  .pxd files act like C headers — a change
@@ -521,20 +494,8 @@ class CustomBuildPy(BuildPyCommand):
         # here defeats those checks and forces a full rebuild every time.
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
-        # Remove the obsolete binding package from source and incremental wheel staging.
-        shutil.rmtree(OBSOLETE_WAF_DIR, ignore_errors=True)
-        self._clean_staged_waf()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
-
-    def _clean_staged_waf(self):
-        """Remove the obsolete package, including Python files, from incremental staging.
-
-        Setuptools updates build_lib without deleting files removed from source.
-        """
-        if not self.build_lib:
-            return
-        shutil.rmtree(Path(self.build_lib) / OBSOLETE_WAF_DIR.relative_to(HERE), ignore_errors=True)
 
     def find_data_files(self, package, src_dir):
         """Strip build/source artifacts from wheel data files."""
@@ -575,7 +536,6 @@ class CleanLibraries(CleanCommand):
 
     @staticmethod
     def remove_artifacts() -> None:
-        shutil.rmtree(OBSOLETE_WAF_DIR, True)
         CleanLibraries.remove_native_extensions()
 
     @staticmethod

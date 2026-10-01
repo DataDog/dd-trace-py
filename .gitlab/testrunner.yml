@@ -15,6 +15,9 @@ variables:
     # 3.15 ships as "3.15-dev", but its executable is still python3.15.
     # TODO(vlad): Drop the -dev suffix once the testrunner image installs GA 3.15.
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
+    - uv pip install --system --python python3.12 --only-binary=:all: libclang==18.1.1
+    - export LIBCLANG_PATH="$(python3.12 -c 'from clang.cindex import Config; print(Config.library_path)')"
+    - export BINDGEN_EXTRA_CLANG_ARGS="${BINDGEN_EXTRA_CLANG_ARGS:-} -isystem $(gcc -print-file-name=include)"
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh

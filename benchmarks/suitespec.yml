@@ -60,7 +60,6 @@ components:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/*
     - ddtrace/internal/settings/asm.py
-    - src/native/appsec/waf/*
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py

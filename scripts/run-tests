@@ -13,8 +13,7 @@ This script helps developers run the appropriate test suites based on changed fi
 It maps source files to their corresponding test suites and provides granular control
 over which specific test environments to run.
 
-By default this runs mapped test suites. With --local-python, explicit test paths
-run in an already installed environment without building or starting services.
+Note: This runs entire test suites, not individual test files.
 """
 
 from __future__ import annotations
@@ -864,16 +863,7 @@ Examples:
         script_args = sys.argv[1:]
         test_args = []
 
-    parser.add_argument("--local-python", help="run explicit test paths with an existing local interpreter")
     args = parser.parse_args(script_args)
-    if args.local_python:
-        if not args.files or args.venv or args.all_suites or args.list:
-            parser.error("--local-python requires explicit test paths and cannot select suites")
-        environment = os.environ.copy()
-        environment["PYTHONPATH"] = str(ROOT)
-        return subprocess.run(
-            [args.local_python, "-m", "pytest", *args.files, *test_args], cwd=ROOT, env=environment
-        ).returncode
     skip_ddtrace_install = args.skip_ddtrace_install
 
     runner = TestRunner()
