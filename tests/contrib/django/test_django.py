@@ -90,6 +90,18 @@ def test_pre_31_resolved_request_dispatch_is_neutral_with_otel_semantics_disable
     dispatch.assert_not_called()
 
 
+@pytest.mark.skipif(django.VERSION >= (3, 1), reason="the view middleware hook only exists before Django 3.1")
+@pytest.mark.parametrize("enabled", [False, True])
+def test_pre_31_view_middleware_hook_is_installed_only_with_otel_semantics(enabled):
+    from django.core.handlers.base import BaseHandler
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", enabled):
+        handler = BaseHandler()
+        handler.load_middleware()
+
+    assert (_dispatch_resolved_request in handler._view_middleware) is enabled
+
+
 def test_request_path_params_resolves_route_with_otel_semantics_disabled():
     request = mock.Mock(spec=["urlconf", "path_info"], urlconf=None, path_info="/")
     resolver_match = mock.Mock(kwargs={"pk": 1}, args=())
