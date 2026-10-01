@@ -255,6 +255,9 @@ experiments:
           - name: span-add-metrics
             thresholds:
               - execution_time < 93.50 ms
+          - name: span-add-one-tag
+            thresholds:
+              - execution_time < 20.50 ms
           - name: span-add-tags
             thresholds:
               - execution_time < 155.00 ms
