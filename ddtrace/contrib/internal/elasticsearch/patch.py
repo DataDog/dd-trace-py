@@ -7,12 +7,12 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace import _limits
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -107,11 +107,9 @@ def _patch(transport):
     if hasattr(transport, "Transport"):
         transport._datadog_patch = True
         _w(transport.Transport, "perform_request", _get_perform_request(transport))
-        Pin().onto(transport.Transport)
     if hasattr(transport, "AsyncTransport"):
         transport._datadog_patch = True
         _w(transport.AsyncTransport, "perform_request", _get_perform_request_async(transport))
-        Pin().onto(transport.AsyncTransport)
 
 
 def unpatch():
@@ -133,15 +131,12 @@ def _unpatch(transport):
 
 def _get_perform_request_coro(transport):
     def _perform_request(func, instance, args, kwargs):
-        pin = Pin.get_from(instance)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             yield func(*args, **kwargs)
             return
 
         with tracer.trace("elasticsearch.query", span_type=SpanTypes.ELASTICSEARCH) as span:
-            set_service_and_source(span, ext_service(pin, config.elasticsearch), config.elasticsearch)
-            if pin.tags:
-                span.set_tags(pin.tags)
+            set_service_and_source(span, ext_service(None, config.elasticsearch), config.elasticsearch)
 
             span._set_attribute(COMPONENT, config.elasticsearch.integration_name)
 
