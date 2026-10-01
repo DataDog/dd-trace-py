@@ -1553,6 +1553,8 @@ def test_otel_semantics_error_statuses_defaults():
 
     def tag(span_type, status_code):
         with scoped_tracer() as tracer, tracer.start_span("request", span_type=span_type, activate=False) as span:
+            if span_type == SpanTypes.HTTP:
+                span._set_attribute("span.kind", "client")
             set_http_meta(span, cfg.myint, status_code=status_code)
             return span.error, span.get_tag("error.type")
 
