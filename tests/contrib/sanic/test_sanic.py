@@ -277,10 +277,7 @@ async def test_resource_name(tracer, client, url, expected_json, expected_resour
 
 @pytest.mark.asyncio
 async def test_otel_semantics_sets_complete_request_metadata(client, test_spans):
-    with (
-        mock.patch.object(config, "_otel_trace_semantics_enabled", True),
-        mock.patch("ddtrace._trace.http_semantics.otel_number", side_effect=lambda value: value),
-    ):
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
         response = await client.get("/hello/foo")
 
     assert _response_status(response) == 200
@@ -290,6 +287,18 @@ async def test_otel_semantics_sets_complete_request_metadata(client, test_spans)
     assert request_span.get_metric("http.response.status_code") == 200
     assert request_span.get_tag("url.path") == "/hello/foo"
     assert request_span.resource == "GET /hello/<first_name>"
+
+
+@pytest.mark.asyncio
+async def test_otel_semantics_unmatched_route_does_not_leak_url_path(client, test_spans):
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        response = await client.get("/nonexistent")
+
+    assert _response_status(response) == 404
+    request_span = test_spans.pop_traces()[0][0]
+    assert request_span.get_tag("http.route") is None
+    assert request_span.resource == "GET"
+    assert request_span.get_tag("url.path") == "/nonexistent"
 
 
 @pytest.mark.asyncio
