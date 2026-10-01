@@ -8,10 +8,10 @@ integrations:
   tested_versions_by_dependency:
     aiobotocore:
       min: 1.0.7
-      max: 3.9.0
+      max: 3.9.1
     botocore:
       min: 1.15.32
-      max: 1.43.56
+      max: 1.43.75
 
 - integration_name: aiohttp
   is_external_package: true
@@ -95,7 +95,7 @@ integrations:
   tested_versions_by_dependency:
     anyio:
       min: 3.4.0
-      max: 4.15.0
+      max: 4.15.1
 
 - integration_name: aredis
   is_external_package: true
@@ -154,10 +154,10 @@ integrations:
   tested_versions_by_dependency:
     datadog-lambda:
       min: 6.105.0
-      max: 8.127.0
+      max: 8.128.0
     datadog_lambda:
       min: 6.105.0
-      max: 8.127.0
+      max: 8.128.0
 
 - integration_name: azure_cosmos
   is_external_package: true
@@ -167,7 +167,7 @@ integrations:
   tested_versions_by_dependency:
     azure-cosmos:
       min: 4.9.0
-      max: 4.15.0
+      max: 4.17.1
 
 - integration_name: azure_durable_functions
   is_external_package: true
@@ -211,7 +211,7 @@ integrations:
   tested_versions_by_dependency:
     azure-servicebus:
       min: 7.14.2
-      max: 7.14.2
+      max: 7.14.3
 
 - integration_name: boto
   is_external_package: true
@@ -255,7 +255,7 @@ integrations:
   tested_versions_by_dependency:
     celery:
       min: 5.5.3
-      max: 5.5.3
+      max: 5.6.3
 
 - integration_name: cherrypy
   is_external_package: true
@@ -275,7 +275,7 @@ integrations:
   tested_versions_by_dependency:
     claude-agent-sdk:
       min: 0.0.23
-      max: 0.1.49
+      max: 0.2.160
 
 - integration_name: consul
   is_external_package: true
@@ -367,7 +367,7 @@ integrations:
       max: 9.4.2
     elasticsearch:
       min: 7.13.4
-      max: 9.5.0
+      max: 9.5.1
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0
@@ -385,7 +385,7 @@ integrations:
       max: 7.17.13
     opensearch-py:
       min: 1.1.0
-      max: 3.0.0
+      max: 3.2.0
 
 - integration_name: falcon
   is_external_package: true
@@ -463,7 +463,7 @@ integrations:
   tested_versions_by_dependency:
     google-cloud-pubsub:
       min: 2.10.0
-      max: 2.37.0
+      max: 2.41.0
 
 - integration_name: google_genai
   is_external_package: true
@@ -473,7 +473,7 @@ integrations:
   tested_versions_by_dependency:
     google-genai:
       min: 1.21.1
-      max: 1.41.0
+      max: 2.25.0
 
 - integration_name: graphql
   is_external_package: true
@@ -493,7 +493,7 @@ integrations:
   tested_versions_by_dependency:
     grpcio:
       min: 1.34.1
-      max: 1.75.1
+      max: 1.84.0
 
 - integration_name: gunicorn
   is_external_package: true
@@ -503,7 +503,7 @@ integrations:
   tested_versions_by_dependency:
     gunicorn:
       min: 20.0.4
-      max: 23.0.0
+      max: 26.2.0
 
 - integration_name: httplib
   is_external_package: false
@@ -607,13 +607,13 @@ integrations:
   tested_versions_by_dependency:
     llama-index:
       min: 0.11.23
-      max: 0.14.24
+      max: 0.14.25
     llama-index-core:
       min: 0.11.23
-      max: 0.14.24
+      max: 0.14.25
     llama_index:
       min: 0.11.23
-      max: 0.14.24
+      max: 0.14.25
 
 - integration_name: logbook
   is_external_package: true
@@ -647,7 +647,7 @@ integrations:
   tested_versions_by_dependency:
     mako:
       min: 1.0.14
-      max: 1.4.1
+      max: 1.4.3
 
 - integration_name: mariadb
   is_external_package: true
@@ -714,8 +714,8 @@ integrations:
   - mysql-connector-python
   tested_versions_by_dependency:
     mysql-connector-python:
-      min: 8.0.5
-      max: 9.4.0
+      min: 9.4.0
+      max: 26.7.0
 
 - integration_name: mysqldb
   is_external_package: true
@@ -745,7 +745,7 @@ integrations:
   tested_versions_by_dependency:
     openai-agents:
       min: 0.0.16
-      max: 0.22.0
+      max: 0.22.3
 
 - integration_name: protobuf
   is_external_package: true
@@ -755,7 +755,7 @@ integrations:
   tested_versions_by_dependency:
     protobuf:
       min: 6.33.6
-      max: 7.35.1
+      max: 7.36.2
 
 - integration_name: psycopg
   is_external_package: true
@@ -766,10 +766,10 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.3.4
+      max: 3.3.6
     psycopg2-binary:
       min: 2.9.10
-      max: 2.9.10
+      max: 2.9.13
 
 - integration_name: pydantic_ai
   is_external_package: true
@@ -819,7 +819,7 @@ integrations:
   tested_versions_by_dependency:
     pymysql:
       min: 0.10.1
-      max: 1.2.0
+      max: 1.2.3
 
 - integration_name: pynamodb
   is_external_package: true
@@ -859,7 +859,7 @@ integrations:
   tested_versions_by_dependency:
     pytest:
       min: 6.2.5
-      max: 9.0.3
+      max: 9.1.1
 
 - integration_name: pytest_bdd
   is_external_package: true
@@ -971,7 +971,7 @@ integrations:
   tested_versions_by_dependency:
     snowflake-connector-python:
       min: 2.4.6
-      max: 3.17.2
+      max: 4.0.0
 
 - integration_name: sqlalchemy
   is_external_package: true
@@ -995,7 +995,7 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
-      max: 1.6.0
+      max: 1.7.0
 
 - integration_name: structlog
   is_external_package: true
@@ -1047,7 +1047,7 @@ integrations:
   tested_versions_by_dependency:
     urllib3:
       min: 1.25.8
-      max: 2.7.0
+      max: 2.8.0
 
 - integration_name: valkey
   is_external_package: true
