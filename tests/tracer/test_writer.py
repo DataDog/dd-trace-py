@@ -1310,7 +1310,11 @@ def test_writer_telemetry_platform_mock_does_not_rebuild_exporter_on_import_cold
 
 @pytest.mark.subprocess(
     env={
-        "DD_TAGS": "team:apm,tier:backend,service:ignored,env:ignored,version:ignored,runtime_id:ignored",
+        "DD_TAGS": (
+            "team:apm,tier:backend,service:ignored,env:ignored,version:ignored,runtime_id:ignored,"
+            # SDK adoption markers are reserved, matched case-insensitively
+            "_dd.sdk.otlp_export:ignored,Datadog.SDK.Semantics:ignored"
+        ),
         "DD_TRACE_STATS_ADDITIONAL_TAGS": "customer.tier,region",
     }
 )

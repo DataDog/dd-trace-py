@@ -1088,6 +1088,25 @@ def test_trace_tag_processor_sets_sdk_otlp_export_false_on_each_partial_flush_ch
         assert all(s.get_tag(_SDK_OTLP_EXPORT_KEY) is None for s in chunk[1:])
 
 
+def test_trace_tag_processor_sets_sdk_otlp_export_false_on_single_span_sampled_span():
+    # With client-side stats the chunk root may be dropped by sampling, so trace tags also go on
+    # the first single-span-sampled span; it must carry the native-export marker too.
+    root = Span("root")
+    sampled = Span("sampled", trace_id=root.trace_id, parent_id=root.span_id)
+    sampled.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+    second_sampled = Span("second_sampled", trace_id=root.trace_id, parent_id=root.span_id)
+    second_sampled.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+
+    with override_global_config(dict(_trace_compute_stats=True)):
+        with mock.patch.object(agent_config, "trace_otlp_export_enabled", False):
+            TraceTagsProcessor().process_trace([root, sampled, second_sampled])
+
+    assert root.get_tag(_SDK_OTLP_EXPORT_KEY) == "false"
+    assert sampled.get_tag(_SDK_OTLP_EXPORT_KEY) == "false"
+    # Only the first single-span-sampled span is tagged
+    assert second_sampled.get_tag(_SDK_OTLP_EXPORT_KEY) is None
+
+
 def test_trace_tag_processor_omits_sdk_otlp_export_when_otlp_export_enabled(tracer):
     # With OTLP export the marker lives on the OTLP resource (set by libdatadog), not on span meta
     with mock.patch.object(agent_config, "trace_otlp_export_enabled", True):
