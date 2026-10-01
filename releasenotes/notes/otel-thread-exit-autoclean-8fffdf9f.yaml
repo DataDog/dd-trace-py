@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes a native memory leak on Linux when ``DD_TRACE_OTEL_CTX_ENABLED`` is set to ``true`` and a thread exits while an OpenTelemetry thread context is still attached.
