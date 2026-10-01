@@ -92,6 +92,19 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 0
 
+    @TracerTestCase.run_in_subprocess(env_overrides={"DD_LOGS_OTEL_ENABLED": "true"})
+    def test_otel_export_not_traced(self):
+        pool = urllib3.connectionpool.HTTPConnectionPool("collector.example", 4318)
+        response = urllib3.response.HTTPResponse(status=200)
+        with mock.patch.object(pool, "_make_request", return_value=response):
+            out = pool.urlopen(
+                "POST",
+                "/v1/logs",
+                headers={"User-Agent": "OTel-OTLP-Exporter-Python/1.45.0"},
+            )
+        assert out.status == 200
+        assert self.pop_spans() == []
+
     def test_args_kwargs(self):
         """
         Test that args are kwargs are correctly inferred from the target function's

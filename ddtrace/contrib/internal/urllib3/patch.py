@@ -1,3 +1,5 @@
+from typing import Mapping
+from typing import Optional
 from urllib import parse
 
 import urllib3
@@ -9,6 +11,8 @@ from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
+from ddtrace.internal.constants import USER_AGENT_HEADER
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
@@ -96,7 +100,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
 
-    if not is_tracing_enabled():
+    if not is_tracing_enabled() or _is_otlp_export(request_headers):
         return func(*args, **kwargs)
 
     service = hostname if config.urllib3.split_by_domain else trace_utils.ext_service(None, config.urllib3)
@@ -130,3 +134,13 @@ def _wrap_urlopen(func, instance, args, kwargs):
         finally:
             if response is not None:
                 ctx.event.set_response(response)
+
+
+def _is_otlp_export(headers: Optional[Mapping[str, str]]) -> bool:
+    if not config._otel_enabled or not headers:
+        return False
+    for name, value in headers.items():
+        if name.lower() == USER_AGENT_HEADER:
+            normalized_user_agent = value.lower().replace(" ", "-")
+            return OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent
+    return False
