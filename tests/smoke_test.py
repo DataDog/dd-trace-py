@@ -69,13 +69,22 @@ if __name__ == "__main__":
 
         print("Running WAF module load test...")
         # Proceed with the WAF module load test
-        import ddtrace.appsec._ddwaf  # noqa: F401
+        import ddtrace.appsec._waf  # noqa: F401
 
         assert module.loaded
 
         from ddtrace.internal.products import manager
 
         assert not manager._failed, "product plugins failed to load: %s" % (manager._failed,)
+
+        if platform.system() in ("Linux", "Darwin", "Windows"):
+            from ddtrace.internal.native._native import ddwaf
+
+            assert ddwaf.version()
+            assert ddwaf.encode({"message": "snowman \u2603"}).materialize() == {"message": "snowman \u2603"}
+            from ddtrace.appsec._waf import DDWaf
+
+            assert issubclass(DDWaf, ddwaf.Builder)
 
         print("WAF module load test completed successfully")
     else:

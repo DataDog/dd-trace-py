@@ -13,7 +13,6 @@ import shutil
 import subprocess
 import sys
 import sysconfig
-import tarfile
 import time
 import typing as t
 import warnings
@@ -31,7 +30,6 @@ from setuptools.command.build_py import build_py as BuildPyCommand  # isort: ski
 from pathlib import Path  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
 from distutils.dep_util import newer_group  # isort: skip
-from distutils.util import get_platform  # isort: skip
 
 
 try:
@@ -50,7 +48,6 @@ except ImportError:
 from functools import wraps
 from urllib.error import HTTPError
 from urllib.error import URLError
-from urllib.request import urlretrieve
 
 
 HERE = Path(__file__).resolve().parent
@@ -122,7 +119,8 @@ NATIVE_CRATE = HERE / "src" / "native"
 # strip, and packaging path as the other profiling native artifacts.
 NATIVE_HEAP_GOTTER_CRATE: Path = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
-LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
+SETUP_CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
+OBSOLETE_WAF_DIR = DDTRACE_DIR / "appsec" / "_ddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
@@ -283,39 +281,17 @@ def retry_download(
     return decorator
 
 
-def verify_checksum_from_file(sha256_filename, filename):
-    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    expected_checksum, expected_filename = list(filter(None, open(sha256_filename).read().strip().split(" ")))
-    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
-    try:
-        assert expected_filename.endswith(Path(filename).name)
-        assert expected_checksum == actual_checksum
-    except AssertionError:
-        print("Checksum verification error: Checksum and/or filename don't match:")
-        print("expected checksum: %s" % expected_checksum)
-        print("actual checksum: %s" % actual_checksum)
-        print("expected filename: %s" % expected_filename)
-        print("actual filename: %s" % filename)
-        sys.exit(1)
-
-
-def verify_checksum_from_hash(expected_checksum, filename):
-    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
-    try:
-        assert expected_checksum == actual_checksum
-    except AssertionError:
-        print("Checksum verification error: Checksum mismatch:")
-        print("expected checksum: %s" % expected_checksum)
-        print("actual checksum: %s" % actual_checksum)
-        sys.exit(1)
-
-
 def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
 rust_features = ["stats"]
+NATIVE_WAF = CURRENT_OS == "Windows" or (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python())
+WAF_LINK_MODE = os.environ.get("DD_WAF_LINK_MODE", "static")
+if NATIVE_WAF:
+    if WAF_LINK_MODE not in ("static", "source", "system"):
+        raise ValueError("DD_WAF_LINK_MODE must be static, source, or system")
+    rust_features.append({"static": "waf", "source": "waf-source", "system": "waf-system"}[WAF_LINK_MODE])
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
     rust_features.append("profiling")
     if not SERVERLESS_BUILD:
@@ -330,6 +306,12 @@ class PatchedDistribution(Distribution):
         # Tell ext_hashes about your manually-built Rust artifact
 
         rust_env = os.environ.copy()
+        if NATIVE_WAF:
+            if WAF_LINK_MODE == "source":
+                rust_env.pop("LIBDDWAF_PREFIX", None)
+            elif WAF_LINK_MODE == "system" and "LIBDDWAF_PREFIX" not in rust_env:
+                raise RuntimeError("System linking requires LIBDDWAF_PREFIX")
+        self._waf_prefix = rust_env.get("LIBDDWAF_PREFIX")
         rust_env["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
         self.rust_extensions = [
             RustExtension(
@@ -356,13 +338,23 @@ class ExtensionHashes(build_ext):
                     sources = ext.get_sources()
                 elif isinstance(ext, RustExtension):
                     source_path = Path(ext.path).parent
-                    sources = [
-                        _
-                        for _ in source_path.glob("**/*")
-                        if _.is_file()
-                        and _.relative_to(source_path).parts[0]
-                        != f"target{sys.version_info.major}.{sys.version_info.minor}"
-                    ]
+                    sources = []
+                    for entry in source_path.iterdir():
+                        if entry.is_dir():
+                            if entry.name.startswith("target"):
+                                continue
+                            sources.extend(
+                                p
+                                for p in entry.rglob("*")
+                                if p.is_file() and (entry.name != "appsec" or p.suffix != ".md")
+                            )
+                        elif entry.is_file():
+                            sources.append(entry)
+                    if NATIVE_WAF:
+                        if prefix := dist._waf_prefix:
+                            prefix = Path(prefix)
+                            sources.extend(prefix.glob("include/*.h"))
+                            sources.extend(prefix.glob("lib/*ddwaf*"))
                 else:
                     # Hash the explicit .pyx sources plus all .pxd files found
                     # under ddtrace/.  .pxd files act like C headers — a change
@@ -488,175 +480,6 @@ class CustomBuildRust(build_rust):
                 )
 
 
-class LibraryDownload:
-    CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
-    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
-
-    name: t.Optional[str] = None
-    download_dir: Path = Path.cwd()
-    version: t.Optional[str] = None
-    url_root: t.Optional[str] = None
-    available_releases: dict[str, list[str]] = {}
-    expected_checksums: t.Optional[dict[str, dict[str, str]]] = None
-    translate_suffix: dict[str, tuple[str, ...]] = {}
-
-    @classmethod
-    def download_artifacts(cls):
-        suffixes = cls.translate_suffix[CURRENT_OS]
-        download_dir = Path(cls.download_dir)
-        download_dir.mkdir(parents=True, exist_ok=True)  # No need to check if it exists
-
-        # If the version has changed since the last download, wipe and re-fetch.
-        # This ensures version bumps are picked up even in incremental builds where
-        # CleanLibraries.remove_artifacts() is skipped.
-        version_sentinel = download_dir / ".version"
-        if cls.version and version_sentinel.exists() and version_sentinel.read_text().strip() != cls.version:
-            shutil.rmtree(download_dir)
-            download_dir.mkdir(parents=True, exist_ok=True)
-
-        for arch in cls.available_releases[CURRENT_OS]:
-            if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
-                # We cannot include the dynamic libraries for other architectures here.
-                continue
-            elif CURRENT_OS == "Darwin":
-                # Detect build type for macos:
-                # https://github.com/pypa/cibuildwheel/blob/main/cibuildwheel/macos.py#L250
-                target_platform = os.getenv("PLAT")
-                # Darwin Universal2 should bundle both architectures
-                if target_platform and not target_platform.endswith(("universal2", arch)):
-                    continue
-            elif CURRENT_OS == "Windows":
-                if arch == "win32" and is_64_bit_python():
-                    continue  # Skip 32-bit builds on 64-bit Python
-                elif arch in ["x64", "arm64"] and not is_64_bit_python():
-                    continue  # Skip 64-bit builds on 32-bit Python
-                elif arch == "arm64" and platform.machine().lower() not in ["arm64", "aarch64"]:
-                    continue  # Skip ARM64 builds on non-ARM64 machines
-                elif arch == "x64" and platform.machine().lower() not in ["amd64", "x86_64"]:
-                    continue  # Skip x64 builds on non-x64 machines
-
-            arch_dir = download_dir / arch
-
-            # A source checkout can be shared between host and container builds.
-            # Only the library for this OS/architecture makes an existing directory complete.
-            lib_dir = arch_dir / "lib"
-            if all((lib_dir / f"lib{cls.name}{suffix}").is_file() for suffix in suffixes):
-                continue
-
-            archive_dir = cls.get_package_name(arch, CURRENT_OS)
-            archive_name = cls.get_archive_name(arch, CURRENT_OS)
-
-            download_address = "%s/%s/%s" % (
-                cls.url_root,
-                cls.version,
-                archive_name,
-            )
-
-            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else Path(archive_name)
-            if cls.USE_CACHE and not cls.CACHE_DIR.exists():
-                cls.CACHE_DIR.mkdir(parents=True)
-
-            if not (cls.USE_CACHE and download_dest.exists()):
-                print(f"Downloading {archive_name} to {download_dest}")
-                start_ns = time.time_ns()
-
-                # Create retry-wrapped download function
-                @retry_download()
-                def download_file(url, dest):
-                    """Download file with automatic retry on transient errors."""
-                    return urlretrieve(url, str(dest))
-
-                filename, _ = download_file(download_address, download_dest)
-
-                # Verify checksum of downloaded file
-                if cls.expected_checksums is None:
-                    sha256_address = download_address + ".sha256"
-                    sha256_dest = str(download_dest) + ".sha256"
-                    sha256_filename, _ = download_file(sha256_address, sha256_dest)
-                    verify_checksum_from_file(sha256_filename, str(download_dest))
-                else:
-                    expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
-                    verify_checksum_from_hash(expected_checksum, str(download_dest))
-
-                DebugMetadata.download_times[archive_name] = time.time_ns() - start_ns
-
-            else:
-                # If the file exists in the cache, we will use it
-                filename = str(download_dest)
-                print(f"Using cached {filename}")
-
-            # Open the tarfile first to get the files needed.
-            # This could be solved with "r:gz" mode, that allows random access
-            # but that approach does not work on Windows
-            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
-                dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
-
-            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
-                tar.extractall(members=dynfiles, path=HERE)
-
-            extracted_dir = Path(HERE / archive_dir)
-            if arch_dir.exists():
-                # A host and container can use the same architecture name with different library suffixes.
-                shutil.copytree(extracted_dir, arch_dir, dirs_exist_ok=True)
-                shutil.rmtree(extracted_dir)
-            else:
-                extracted_dir.rename(arch_dir)
-
-            # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
-            lib_dir = arch_dir / "lib"
-            for suffix in suffixes:
-                original_file = lib_dir / f"{cls.name}{suffix}"
-                if original_file.exists():
-                    renamed_file = lib_dir / f"lib{cls.name}{suffix}"
-                    original_file.rename(renamed_file)
-
-            if not cls.USE_CACHE:
-                Path(filename).unlink()
-
-        # Record the version so future incremental runs can detect bumps.
-        if cls.version:
-            (download_dir / ".version").write_text(cls.version)
-
-    @classmethod
-    def run(cls) -> None:
-        cls.download_artifacts()
-
-    @classmethod
-    def get_package_name(cls, arch, os) -> str:
-        raise NotImplementedError()
-
-    @classmethod
-    def get_archive_name(cls, arch, os):
-        return cls.get_package_name(arch, os) + ".tar.gz"
-
-
-class LibDDWafDownload(LibraryDownload):
-    name = "ddwaf"
-    download_dir = LIBDDWAF_DOWNLOAD_DIR
-    version = LIBDDWAF_VERSION
-    url_root = "https://github.com/DataDog/libddwaf/releases/download"
-    available_releases = {
-        "Windows": ["arm64", "win32", "x64"],
-        "Darwin": ["arm64", "x86_64"],
-        "Linux": ["aarch64", "x86_64"],
-    }
-    translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
-
-    @classmethod
-    def get_package_name(cls, arch, os):
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
-        return archive_dir
-
-    @classmethod
-    def get_archive_name(cls, arch, os):
-        os_name = os.lower()
-        if os_name == "linux":
-            archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
-        else:
-            archive_dir = "lib%s-%s-%s-%s.tar.gz" % (cls.name, cls.version, os_name, arch)
-        return archive_dir
-
-
 # Source/build file extensions that should never appear in a binary wheel.
 # These live alongside .py files in package dirs but are only needed for compiling.
 _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
@@ -682,18 +505,7 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
 )
 
 
-class LibraryDownloader(BuildPyCommand):
-    # Opt out of bundling libddwaf, for distribution packagers that must build
-    # from source and package libddwaf separately. See docs/build_system.rst.
-    user_options = BuildPyCommand.user_options + [
-        ("no-bundle-libddwaf", None, "do not download libddwaf; load the system library at runtime"),
-    ]
-    boolean_options = BuildPyCommand.boolean_options + ["no-bundle-libddwaf"]
-
-    def initialize_options(self) -> None:
-        BuildPyCommand.initialize_options(self)
-        self.no_bundle_libddwaf = 0
-
+class CustomBuildPy(BuildPyCommand):
     def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
         # is set to True when the package is being installed in editable mode, which we need to know
@@ -707,37 +519,22 @@ class LibraryDownloader(BuildPyCommand):
         # existing .so files (restored from ext_cache or left from the previous
         # build) to determine whether recompilation is needed.  Deleting them
         # here defeats those checks and forces a full rebuild every time.
-        # LibraryDownload.download_artifacts() handles version bumps internally
-        # via a .version sentinel, so libddwaf is always re-fetched when its
-        # version changes even when CleanLibraries.remove_artifacts() is skipped.
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
-        if self.no_bundle_libddwaf:
-            if CURRENT_OS != "Linux":
-                raise RuntimeError(
-                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no system "
-                    "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
-                    "so libddwaf must be bundled" % CURRENT_OS
-                )
-            print("Not bundling libddwaf: the runtime will load the system library")
-            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
-        else:
-            LibDDWafDownload.run()
-        self._clean_staged_libddwaf()
+        # Remove the obsolete binding package from source and incremental wheel staging.
+        shutil.rmtree(OBSOLETE_WAF_DIR, ignore_errors=True)
+        self._clean_staged_waf()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
 
-    def _clean_staged_libddwaf(self):
-        """Drop a previously staged libddwaf so the wheel mirrors the source tree.
+    def _clean_staged_waf(self):
+        """Remove the obsolete package, including Python files, from incremental staging.
 
-        Setuptools copies new and updated files into build_lib but never removes
-        files that disappeared from the source tree, so a library staged by an
-        earlier build would still reach the wheel of a --no-bundle-libddwaf
-        build and shadow the system one at load time.
+        Setuptools updates build_lib without deleting files removed from source.
         """
         if not self.build_lib:
             return
-        shutil.rmtree(Path(self.build_lib) / LIBDDWAF_DOWNLOAD_DIR.relative_to(HERE), ignore_errors=True)
+        shutil.rmtree(Path(self.build_lib) / OBSOLETE_WAF_DIR.relative_to(HERE), ignore_errors=True)
 
     def find_data_files(self, package, src_dir):
         """Strip build/source artifacts from wheel data files."""
@@ -778,7 +575,7 @@ class CleanLibraries(CleanCommand):
 
     @staticmethod
     def remove_artifacts() -> None:
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+        shutil.rmtree(OBSOLETE_WAF_DIR, True)
         CleanLibraries.remove_native_extensions()
 
     @staticmethod
@@ -805,7 +602,7 @@ class CleanLibraries(CleanCommand):
                 egg.unlink(missing_ok=True)
             elif egg.is_dir():
                 shutil.rmtree(egg, True)
-        cmake_deps = LibraryDownload.CACHE_DIR / "_cmake_deps"
+        cmake_deps = SETUP_CACHE_DIR / "_cmake_deps"
         if cmake_deps.exists():
             shutil.rmtree(cmake_deps, True)
 
@@ -893,7 +690,7 @@ SHARED_DEPS: list[SharedDep] = [
         cmake_dir=HERE / "cmake" / "abseil",
         version="20250127.1",
         cmake_var="ABSL_INSTALL_DIR",
-        install_dir=LibraryDownload.CACHE_DIR / "_cmake_deps" / f"absl_install_{platform.machine()}",
+        install_dir=SETUP_CACHE_DIR / "_cmake_deps" / f"absl_install_{platform.machine()}",
         platforms=("Linux", "Darwin"),
         should_skip=_absl_should_skip,
     ),
@@ -1370,7 +1167,7 @@ class CustomBuildExt(build_ext):
         """
         args = [
             f"-DCMAKE_BUILD_TYPE={build_type or COMPILE_MODE}",
-            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
+            f"-DFETCHCONTENT_BASE_DIR={SETUP_CACHE_DIR / '_cmake_deps'}",
         ]
         sccache_path = os.getenv("DD_SCCACHE_PATH")
         if sccache_path:
@@ -1426,7 +1223,7 @@ class CustomBuildExt(build_ext):
             extension_name
         ).stem  # e.g. "_native.cpython-314-darwin.so" -> "_native.cpython-314-darwin"
         cmake_args += [
-            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps' / ext_cache_key}",
+            f"-DFETCHCONTENT_BASE_DIR={SETUP_CACHE_DIR / '_cmake_deps' / ext_cache_key}",
         ]
 
         # Add sccache support if available
@@ -1947,7 +1744,6 @@ setup(
         # Type stubs and markers for all packages
         "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
@@ -1958,7 +1754,7 @@ setup(
     zip_safe=False,
     cmdclass={
         "build_ext": CustomBuildExt,
-        "build_py": LibraryDownloader,
+        "build_py": CustomBuildPy,
         "build_rust": CustomBuildRust,
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,

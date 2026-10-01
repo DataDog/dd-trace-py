@@ -34,9 +34,9 @@ def _report_asm_enabled() -> None:
 def _abort_appsec(failure_msg: str) -> None:
     """Disable AppSec and prevent it from being enabled through remote configuration
 
-    This is called in case of non-recoverable AppSec load-time failure, such as a libddwaf loading error.
+    This is called in case of non-recoverable AppSec load-time failure, such as a native WAF binding import error.
     """
-    log.warning("Disabling AppSec: libddwaf failed to load (%s)", failure_msg or "unknown error")
+    log.warning("Disabling AppSec: WAF initialization failed (%s)", failure_msg or "unknown error")
 
     if asm_config._asm_enabled:
         from ddtrace.internal.telemetry import telemetry_writer
@@ -49,7 +49,6 @@ def _abort_appsec(failure_msg: str) -> None:
     asm_config._asm_libddwaf_available = False
     asm_config._asm_rc_enabled = False
     asm_config._load_modules = False
-    asm_config._ddwaf_version = "error"
 
     from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 

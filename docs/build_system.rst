@@ -220,16 +220,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.10.0:
 
-  DD_SETUP_CACHE_DOWNLOADS:
-    type: Boolean
-    default: True
-
-    description: |
-        Caches the download of artifacts needed by the build process.
-
-    version_added:
-        v3.10.0:
-
   DD_DOWNLOAD_MAX_RETRIES:
     type: Integer
     default: 10
@@ -283,55 +273,52 @@ These environment variables modify aspects of the build process.
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
 
-Using a system-provided libddwaf
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building libddwaf
+~~~~~~~~~~~~~~~~
 
-By default the build downloads the prebuilt libddwaf binaries from GitHub releases and bundles the one matching the target
-architecture into the package. Distribution packagers cannot do that: they build from source with no network access, and
-package libddwaf separately rather than vendoring it.
+AppSec bindings are part of the Rust ``_native`` extension on Windows and
+64-bit Linux/macOS. Windows builds still require implementation and qualification.
+The libddwaf-rust FFI generation step requires a shared libclang on the build
+machine (``LIBCLANG_PATH`` can point to a custom LLVM installation). It is not
+a runtime wheel dependency. ``DD_WAF_LINK_MODE`` selects how it links libddwaf:
 
-The ``build_py`` command therefore takes a ``--no-bundle-libddwaf`` option. With it, nothing is downloaded and no library is
-bundled. Being a command option rather than an environment variable, it is set through ``setup.cfg``, which is how it
-reaches ``build_py`` through a PEP 517 frontend such as ``pip``:
+- ``static`` (default): libddwaf-sys downloads a target-specific release archive
+  and links the native library into ``_native``. Wheels contain no separate
+  shared libddwaf payload. ``LIBDDWAF_PREFIX`` can supply an existing installation.
+- ``source``: compile the pinned native source from libddwaf-rust. No prebuilt
+  native archive is downloaded. Cargo dependencies must be available locally
+  for an offline build.
+- ``system``: link a shared libddwaf from ``LIBDDWAF_PREFIX``. The prefix must
+  contain ``include/ddwaf.h`` and ``lib/libddwaf.*`` at build time. A compatible
+  shared library must be available to the dynamic linker when ``_native`` imports.
 
-.. code-block:: ini
+Windows uses the same native bindings and libddwaf-sys acquisition/linking.
+The pinned dependency supports x64 but rejects ARM64 and 32-bit x86. Windows
+qualification remains pending. The former ctypes bindings and standalone DLL
+download path are removed.
 
-    [build_py]
-    no_bundle_libddwaf = 1
+Native archive acquisition
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It can also be passed on the command line for a direct ``python setup.py build_py --no-bundle-libddwaf`` invocation. Default
-builds read no such section and bundle the library as before.
+libddwaf-sys downloads and extracts native releases into Cargo's build output.
+The tracer does not maintain a separate archive cache or verify archive checksums.
+When that build script reruns it may download the release again. Cargo offline
+mode does not prevent these HTTP requests; use an existing ``LIBDDWAF_PREFIX``
+or source mode with cached Cargo inputs for builds without network access.
 
-How the library is found at runtime
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+System linking
+^^^^^^^^^^^^^^
 
-The loader uses the bundled library when the package contains one. When it does not — which is what the option produces,
-but also what a partial or damaged install looks like — it asks the dynamic linker instead, trying ``libddwaf.so.2`` and
-then ``libddwaf.so``. Both names are tried because libddwaf's own CMake sets no ``SOVERSION``: an install built from
-upstream sources is plain ``libddwaf.so``, while a distribution that adds a ``SOVERSION`` ships ``libddwaf.so.2`` in its
-runtime package and keeps ``libddwaf.so`` in ``-devel``. The versioned name is tried first so that the runtime package is
-preferred over a development symlink.
+Use ``DD_WAF_LINK_MODE=system`` and ``LIBDDWAF_PREFIX`` for distribution builds
+that package libddwaf separately. Unlike the former ctypes fallback, system
+linking needs the development headers and linkable library at build time.
+The distribution must declare a runtime dependency on that shared library.
+Prefer the pinned version, ``LIBDDWAF_VERSION`` in ``setup.py``.
 
-Because an unversioned SONAME guarantees no ABI, the loader checks ``ddwaf_get_version()`` once the library is in: anything
-that is not 2.x is refused.
-
-What the packaging must guarantee
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-- The library is installed where the dynamic linker looks for it — a normal ``/usr/lib64`` install registered in
-  ``ld.so.cache`` is enough, and ``-devel`` is not required since the versioned name is tried first. ``LD_LIBRARY_PATH``
-  also works.
-- The package declares a runtime dependency on libddwaf. The library is loaded at import time, not linked at build time, so
-  the build succeeds whether or not libddwaf is installed.
-- libddwaf 2.x, at least 2.0.0: every ``ddwaf_*`` symbol ddtrace resolves is present in 2.0.0, whose public header is
-  identical to 2.0.1's. ``LIBDDWAF_VERSION`` in ``setup.py`` is the version ddtrace pins and tests against, so prefer that
-  one; a 3.x will need a new ddtrace release.
-
-If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disables itself; the rest of the tracer is
-unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
-
-Linux only: elsewhere the runtime has no system library to fall back to, so the build fails rather than produce a package
-whose AppSec cannot load.
+For an already installed development environment, ``scripts/build-native.py``
+rebuilds only ``_native`` with the selected interpreter and supports
+``--link-mode`` and ``--offline``. See ``docs/appsec-native-waf.md`` and
+``src/native/appsec/waf/README.md`` for API, conversion semantics, and validation.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -347,11 +334,11 @@ How the Build Works
 
     scripts/run-tests
       └─ pip install -e .
-           ├─ build_py  → LibraryDownloader.run()
+           ├─ build_py  → CustomBuildPy.run()
            │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
-           │    └─ LibDDWafDownload.run()
+           │    └─ remove obsolete WAF package from wheel staging
            └─ build_ext → CustomBuildExt.run()
-                ├─ build_rust()          → Rust _native extension
+                ├─ build_rust()          → libddwaf-sys acquisition + Rust _native extension
                 ├─ build_libdd_wrapper() → libdd_wrapper.so (C++)
                 ├─ build_shared_deps()   → absl (once, cached by sentinel file)
                 └─ super().run()         → build_extension() for every ext
@@ -377,7 +364,7 @@ Key Files
    * - File
      - Purpose
    * - ``setup.py``
-     - ``CustomBuildExt``, ``CMakeExtension.get_sources()``, ``DebugMetadata``, ``LibraryDownloader``
+     - ``CustomBuildExt``, ``CMakeExtension.get_sources()``, ``DebugMetadata``, ``CustomBuildPy``
    * - ``scripts/ext_cache.py``
      - Cache/restore ``.so`` files and shared C++ dependency install trees
    * - ``cmake/abseil/CMakeLists.txt``
@@ -402,7 +389,7 @@ Known Root Causes of Warm Rebuilds
 
 1. **``CleanLibraries.remove_artifacts()`` deletes restored ``.so`` files**
 
-   ``setup.py`` → ``LibraryDownloader.run()`` → ``CleanLibraries.remove_artifacts()``
+   ``setup.py`` → ``CustomBuildPy.run()`` → ``CleanLibraries.remove_artifacts()``
    used to wipe all ``.so`` files unconditionally on every run, defeating any cache
    restore. Fixed by guarding with ``if not CustomBuildExt.INCREMENTAL:``.
 

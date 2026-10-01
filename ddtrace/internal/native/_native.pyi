@@ -14,6 +14,10 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
+from . import _native_ddwaf
+
+ddwaf = _native_ddwaf
+
 # Mirror of ddtrace._trace.provider.ActiveTrace (a Span or a Context).
 ActiveTrace = Union[Span, Context]
 
