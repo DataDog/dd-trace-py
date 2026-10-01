@@ -475,7 +475,7 @@ class Config:
 
     class _HTTPClientConfig(_HTTPServerConfig):
         # Same behavior as the server configuration, with its own environment variable and default.
-        _default_error_statuses = "400-599"
+        _default_error_statuses = "400-499"
         _error_statuses_from_env = (
             _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", report_telemetry=False) is not None
         )
