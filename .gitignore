@@ -169,7 +169,7 @@ CLAUDE.local.md
 .riot/venv*
 .riot/envs/
 .riot/.build.lock
-.riot/requirements/*.in
+tests/requirements_locks/*.in
 
 # Riot venvs built inside the testrunner container (see docker-compose.yml
 # RIOT_ENV_BASE_PATH) — kept separate from .riot/venv* to avoid mixing Linux
