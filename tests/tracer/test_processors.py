@@ -1093,9 +1093,9 @@ def test_trace_tag_processor_sets_sdk_otlp_export_false_on_single_span_sampled_s
     # the first single-span-sampled span; it must carry the native-export marker too.
     root = Span("root")
     sampled = Span("sampled", trace_id=root.trace_id, parent_id=root.span_id)
-    sampled.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+    sampled._set_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
     second_sampled = Span("second_sampled", trace_id=root.trace_id, parent_id=root.span_id)
-    second_sampled.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+    second_sampled._set_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
 
     with override_global_config(dict(_trace_compute_stats=True)):
         with mock.patch.object(agent_config, "trace_otlp_export_enabled", False):
