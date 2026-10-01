@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "asgi.spec_version": "2.1",
@@ -45,6 +46,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "asgi.spec_version": "2.1",
@@ -80,6 +82,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "asgi.version": "3.2",
@@ -114,6 +117,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "asgi",
@@ -147,6 +151,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "asgi",
@@ -178,6 +183,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "asgi",
@@ -210,6 +216,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "asgi",
@@ -242,6 +249,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a5fc81700000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "asgi",

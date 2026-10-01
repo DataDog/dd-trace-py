@@ -12,6 +12,7 @@
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
       "_dd.p.tid": "69f39df800000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp3l966snu,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
@@ -41,6 +42,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39df800000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp3l966snu,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",

@@ -10,6 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92e1b00000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "eventhub",
@@ -45,6 +46,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92e1a00000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "send_event",

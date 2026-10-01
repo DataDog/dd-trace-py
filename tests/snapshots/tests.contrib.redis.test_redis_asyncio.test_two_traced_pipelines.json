@@ -12,6 +12,7 @@
       "_dd.base_service": "tests.contrib.redis",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de776600000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.redis",
       "language": "python",

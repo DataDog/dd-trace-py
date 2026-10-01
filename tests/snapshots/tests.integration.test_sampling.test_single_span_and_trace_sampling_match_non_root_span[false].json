@@ -12,6 +12,7 @@
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
       "_dd.p.tid": "69f39df900000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpxvuj8i8c,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "language": "python",
       "runtime-id": "a4b049e74a4e45189fd855f5e7f7081f"

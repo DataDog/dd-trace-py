@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f0693c00000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "aws_durable_execution_sdk_python",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_durable_execution_sdk_python",
       "aws.durable.execution_arn": "5990c73f-ac73-4756-ba5f-048b7f04c33c",
@@ -67,6 +68,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f0693b00000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "aws_durable_execution_sdk_python",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_durable_execution_sdk_python",
       "aws.durable.execution_arn": "5990c73f-ac73-4756-ba5f-048b7f04c33c",

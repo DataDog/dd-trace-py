@@ -1284,9 +1284,6 @@ def snapshot_context(
     ignores = list(ignores or [])
     if not token.startswith("tests.internal.test_process_tags."):
         ignores.append("meta._dd.tags.process")
-    # Native-export adoption marker set on every chunk root; covered by unit tests in
-    # tests/tracer/test_processors.py.
-    ignores.append("meta._dd.sdk.otlp_export")
     # LLMObs APM shadow tags (`_dd.llmobs.*`) are derived from the response and
     # vary by cassette/SDK version. Their wiring is covered by dedicated unit
     # tests in tests/llmobs and tests/contrib/<integration>/test_*_llmobs.py,

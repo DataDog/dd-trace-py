@@ -17,6 +17,7 @@
       "_dd.p.tid": "69dd2d5b00000000",
       "_dd.p.ts": "02",
       "_dd.runtime_family": "python",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "flask",
       "_dd.tags.process": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.auto:flask",
       "actor.ip": "8.8.4.4",

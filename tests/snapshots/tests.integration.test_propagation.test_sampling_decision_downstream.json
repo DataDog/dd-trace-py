@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-4",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",

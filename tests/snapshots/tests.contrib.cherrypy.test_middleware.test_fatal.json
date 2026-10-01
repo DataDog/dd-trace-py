@@ -12,6 +12,7 @@
       "_dd.base_service": "pytest",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6ab63a6000000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:pytest,entrypoint.name:main,entrypoint.type:script,entrypoint.workdir:project,svc.auto:pytest",
       "component": "cherrypy",
