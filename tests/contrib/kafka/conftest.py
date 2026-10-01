@@ -30,7 +30,7 @@ def kafka_ready():
         except Exception as e:
             last_err = e
         time.sleep(0.5)
-    raise RuntimeError("Kafka at {} not ready after 30s: {}".format(BOOTSTRAP_SERVERS, last_err))
+    raise RuntimeError(f"Kafka at {BOOTSTRAP_SERVERS} not ready after 30s: {last_err}")
 
 
 KEY = "test_key"

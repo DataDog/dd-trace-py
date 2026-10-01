@@ -179,7 +179,7 @@ class MockCIVisibilityServer:
         self.server: t.Optional[HTTPServer] = None
         self.thread: t.Optional[threading.Thread] = None
 
-    def __enter__(self) -> "MockCIVisibilityServer":
+    def __enter__(self) -> MockCIVisibilityServer:
         self.server = HTTPServer(("127.0.0.1", 0), _MockCIVisibilityHandler)
         self.server.recorded_payloads = []  # type: ignore[attr-defined]
         self.server.recorded_request_paths = []  # type: ignore[attr-defined]

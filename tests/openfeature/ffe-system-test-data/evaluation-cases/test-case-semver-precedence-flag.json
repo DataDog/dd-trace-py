@@ -1,0 +1,170 @@
+[
+  {
+    "description": "Multi-digit numeric prerelease identifiers compare by numeric value, not lexicographically: 1.0.0-beta.2 must precede 1.0.0-beta.11. An implementation that string-compares identifiers would treat \"2\" as greater than \"11\" and fail to match.",
+    "attributes": {
+      "app_version": "10.0.0-beta.2"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "numeric-prerelease"
+    },
+    "targetingKey": "numeric-prerelease",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Build metadata is ignored for equality: 1.0.0+linux and 1.0.0+darwin have equal precedence, so SEMVER_EQ matches.",
+    "attributes": {
+      "app_version": "20.0.0+linux"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "build-equal-precedence"
+    },
+    "targetingKey": "build-equal-precedence",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Dotted/multi-segment build metadata is ignored for equality: 4.0.0+exp.sha.5114f85 equals 4.0.0.",
+    "attributes": {
+      "app_version": "30.0.0+exp.sha.5114f85"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "build-dotted-eq"
+    },
+    "targetingKey": "build-dotted-eq",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Build metadata is ignored for SEMVER_LTE: 4.0.0+build.42 <= 4.0.0 is true (match).",
+    "attributes": {
+      "app_version": "40.0.0+build.42"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "build-lte"
+    },
+    "targetingKey": "build-lte",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Build metadata is ignored for SEMVER_GTE: 4.0.0+build.42 >= 4.0.0 is true (match).",
+    "attributes": {
+      "app_version": "50.0.0+build.42"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "build-gte"
+    },
+    "targetingKey": "build-gte",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Build metadata is ignored for SEMVER_NEQ: 4.0.0+build.42 != 4.0.0 is false (no match), so the evaluation falls through to the default.",
+    "attributes": {
+      "app_version": "60.0.0+build.42"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "DEFAULT",
+      "value": "unknown"
+    },
+    "targetingKey": "build-neq",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Build metadata is ignored for SEMVER_LT: 4.0.0+build.42 < 4.0.0 is false (no match), so the evaluation falls through to the default.",
+    "attributes": {
+      "app_version": "70.0.0+build.42"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "DEFAULT",
+      "value": "unknown"
+    },
+    "targetingKey": "build-lt",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Build metadata is ignored for SEMVER_GT: 4.0.0+build.42 > 4.0.0 is false (no match), so the evaluation falls through to the default.",
+    "attributes": {
+      "app_version": "80.0.0+build.42"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "DEFAULT",
+      "value": "unknown"
+    },
+    "targetingKey": "build-gt",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Alphanumeric prerelease ordering: 1.0.0-alpha precedes 1.0.0-alpha.1 (fewer identifiers first), so SEMVER_LT matches.",
+    "attributes": {
+      "app_version": "90.0.0-alpha"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "alpha-before-alpha-1"
+    },
+    "targetingKey": "alpha-before-alpha-1",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Alphanumeric prerelease ordering: numeric identifiers have lower precedence than alphanumeric (1.0.0-alpha.1 precedes 1.0.0-alpha.beta), so SEMVER_LT matches.",
+    "attributes": {
+      "app_version": "91.0.0-alpha.1"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "alpha-1-before-alpha-beta"
+    },
+    "targetingKey": "alpha-1-before-alpha-beta",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Alphanumeric prerelease ordering: identifiers are compared lexicographically (1.0.0-alpha.beta precedes 1.0.0-beta), so SEMVER_LT matches.",
+    "attributes": {
+      "app_version": "92.0.0-alpha.beta"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "alpha-beta-before-beta"
+    },
+    "targetingKey": "alpha-beta-before-beta",
+    "variationType": "STRING"
+  },
+  {
+    "description": "Alphanumeric prerelease ordering: a prerelease version precedes the corresponding release (1.0.0-beta precedes 1.0.0), so SEMVER_LT matches.",
+    "attributes": {
+      "app_version": "93.0.0-beta"
+    },
+    "defaultValue": "unknown",
+    "flag": "semver-precedence-test",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "beta-before-release"
+    },
+    "targetingKey": "beta-before-release",
+    "variationType": "STRING"
+  }
+]

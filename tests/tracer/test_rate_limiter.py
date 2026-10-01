@@ -1,6 +1,6 @@
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter

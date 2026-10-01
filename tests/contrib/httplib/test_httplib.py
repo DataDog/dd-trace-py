@@ -24,26 +24,26 @@ from tests.utils import override_global_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = "localhost:8001"
-URL_200 = "http://{}/status/200".format(SOCKET)
-URL_500 = "http://{}/status/500".format(SOCKET)
-URL_404 = "http://{}/status/404".format(SOCKET)
+URL_200 = f"http://{SOCKET}/status/200"
+URL_500 = f"http://{SOCKET}/status/500"
+URL_404 = f"http://{SOCKET}/status/404"
 
 
-class HTTPLibBaseMixin(object):
+class HTTPLibBaseMixin:
     SPAN_NAME = "http.client.request"
 
     def to_str(self, value):
         return value.decode("utf-8")
 
     def setUp(self):
-        super(HTTPLibBaseMixin, self).setUp()
+        super().setUp()
 
         patch()
 
     def tearDown(self):
         unpatch()
 
-        super(HTTPLibBaseMixin, self).tearDown()
+        super().tearDown()
 
 
 # Main test cases for httplib/http.client and urllib2/urllib.request
@@ -363,9 +363,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled when configured
         with self.override_config("httplib", {}):
-            from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
+            from ddtrace.internal.settings.integration import IntegrationConfig
 
-            integration_config = config.httplib  # type: IntegrationConfig
+            integration_config: IntegrationConfig = config.httplib
             integration_config.http.trace_headers(["my-header", "access-control-allow-origin"])
             conn = self.get_http_connection(SOCKET)
             with contextlib.closing(conn):

@@ -9,8 +9,8 @@ Without DISABLE: Handler called on every line execution
 With DISABLE: Handler called once per unique line
 """
 
+from collections.abc import Generator
 from typing import Callable
-from typing import Generator
 
 import bm
 

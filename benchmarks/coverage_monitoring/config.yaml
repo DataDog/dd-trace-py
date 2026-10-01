@@ -1,0 +1,19 @@
+# Control for subprocess and generated-corpus noise.
+baseline: &base
+  ncontexts: 1000
+  nmodules: 25
+  functions_per_module: 4
+  modules_per_context: 3
+  collect_coverage: false
+  file_level_coverage: false
+
+# Line-level coverage records each executable line through LINE events.
+line_level:
+  <<: *base
+  collect_coverage: true
+
+# File-level coverage records each executed file through PY_START events.
+file_level:
+  <<: *base
+  collect_coverage: true
+  file_level_coverage: true

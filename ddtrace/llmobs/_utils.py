@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
@@ -7,10 +10,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Iterator
-from typing import Mapping
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -41,6 +41,7 @@ from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
@@ -266,7 +267,7 @@ def _unserializable_default_repr(obj):
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return "[Unserializable object: {}]".format(repr(obj))
+        return f"[Unserializable object: {repr(obj)}]"
 
 
 _MAX_NESTED_META_DEPTH = 12
@@ -311,7 +312,7 @@ def _sanitize_span_event_data(obj: Any) -> Any:
             try:
                 return str(node)
             except Exception:
-                return "[Unserializable object of type {}]".format(type(node).__name__)
+                return f"[Unserializable object of type {type(node).__name__}]"
         return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
@@ -530,8 +531,15 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
       4. neither when even the id would exceed the budget.
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
+
+    Both keys describe the span being injected, but meta is trace-scoped and shared by every
+    span in the trace, so a value written by an earlier span outlives it. Whatever does not apply
+    to this span is cleared, or it would be propagated as if it did.
     """
+    if agent_name is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_NAME_KEY, None)
     if agent_span_id is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
         return
     meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
     if agent_name is not None:
@@ -1127,3 +1135,6 @@ def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: O
             value = metrics.get(llmobs_key)
             if value is not None:
                 span._set_attribute(gen_ai_key, value)
+    # Without this tag, the backend processor identifies gen_ai tags on the APM span and creates
+    # a duplicate LLMObs span.
+    span.set_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY, "true")

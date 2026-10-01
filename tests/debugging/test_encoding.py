@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from collections import defaultdict
 from collections import namedtuple
 import inspect
@@ -33,7 +31,7 @@ from tests.debugging.test_safety import SideEffects
 from tests.debugging.utils import create_snapshot_line_probe
 
 
-class Custom(object):
+class Custom:
     def __init__(self):
         self.some_arg = ({"Hello": [None, 42, True, None, {b"World"}, 0.07]},)
 
@@ -41,7 +39,7 @@ class Custom(object):
         pass
 
 
-class Node(object):
+class Node:
     def __init__(self, name, left=None, right=None):
         self.name = name
         self.left = left
@@ -51,7 +49,7 @@ class Node(object):
         return "Node(%s, %s, %s)" % (self.name, self.left, self.right)
 
 
-class Tree(object):
+class Tree:
     def __init__(self, name, root):
         self.name = name
         self.root = root
@@ -358,7 +356,7 @@ def test_encoding_zero_fields():
     }
 
 
-class CountBudget(object):
+class CountBudget:
     """Make stopping condition for the value capturing deterministic."""
 
     __name__ = "CountBudget"
@@ -447,7 +445,7 @@ def test_encoding_stopping_cond_level(count, result):
 
 @pytest.mark.parametrize("count,nfields", [(1, 0), (5, 2), (10, 5)])
 def test_encoding_stopping_cond_fields(count, nfields):
-    class Obj(object):
+    class Obj:
         pass
 
     a = Obj()

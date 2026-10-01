@@ -95,7 +95,7 @@ class ProbeStatusLogger:
             msgs.append(self._queue.get_nowait())
 
         try:
-            self._write_payload_with_backoff(f"[{','.join(msgs)}]".encode("utf-8"))
+            self._write_payload_with_backoff(f"[{','.join(msgs)}]".encode())
         except Exception:
             log.error("Failed to write probe status after retries", exc_info=True)
 

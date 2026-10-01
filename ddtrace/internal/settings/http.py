@@ -1,4 +1,4 @@
-from typing import Mapping  # noqa:F401
+from collections.abc import Mapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -10,7 +10,7 @@ from ddtrace.internal.utils.http import normalize_header_name
 log = get_logger(__name__)
 
 
-class HttpConfig(object):
+class HttpConfig:
     """
     Configuration object that expose an API to set and retrieve both global and integration specific settings
     related to the http context.
