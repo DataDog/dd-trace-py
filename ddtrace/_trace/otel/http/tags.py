@@ -174,6 +174,15 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
             span._set_attribute(otel_http.SERVER_PORT, port)
 
 
+def is_otel_server_error_status(status_code: int) -> bool:
+    """Whether a server response with this status marks the span as an error under OTel semantics."""
+    setting = "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"
+    if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
+        # OTel treats any code at or above 500 as an error.
+        return status_code >= 500
+    return bool(config._http_server.is_error_code(status_code))
+
+
 # This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
@@ -269,11 +278,7 @@ class OTelHTTPSpanAttributes:
             if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
                 return status_code >= 400
             return bool(config._http_client.is_error_code(status_code))
-        setting = "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"
-        if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
-            # OTel treats any code at or above 500 as an error.
-            return status_code >= 500
-        return bool(config._http_server.is_error_code(status_code))
+        return is_otel_server_error_status(status_code)
 
     def set_user_agent(self, user_agent: Optional[str]) -> None:
         if user_agent:
