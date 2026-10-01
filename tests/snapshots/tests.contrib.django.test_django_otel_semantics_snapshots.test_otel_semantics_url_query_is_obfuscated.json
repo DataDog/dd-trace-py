@@ -114,6 +114,12 @@
                   }
                 },
                 {
+                  "key": "url.query",
+                  "value": {
+                    "string_value": "<redacted>&page=2"
+                  }
+                },
+                {
                   "key": "url.scheme",
                   "value": {
                     "string_value": "http"
