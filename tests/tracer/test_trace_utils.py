@@ -1633,6 +1633,46 @@ def test_otel_semantics_url_query_is_obfuscated():
         assert span.get_tag("url.path") == "/login"
 
 
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_server_url_query_falls_back_to_url():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer:
+        with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+            set_http_meta(span, cfg.myint, url="http://localhost/login?token=leaked&page=2", query=None)
+            assert span.get_tag("url.query") == "<redacted>&page=2"
+
+        with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+            set_http_meta(span, cfg.myint, url="http://localhost/login", query=None)
+            assert span.get_tag("url.query") is None
+
+        with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+            set_http_meta(span, cfg.myint, url="http://localhost/login?a=1", query="")
+            assert span.get_tag("url.query") is None
+
+
+@pytest.mark.subprocess(env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "DD_HTTP_SERVER_TAG_QUERY_STRING": "false"})
+def test_otel_semantics_server_url_query_fallback_respects_opt_out():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+        set_http_meta(span, cfg.myint, url="http://localhost/login?page=2", query=None)
+        assert span.get_tag("url.query") is None
+        assert span.get_tag("url.path") == "/login"
+
+
 @pytest.mark.subprocess(env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "DD_TRACE_CLIENT_IP_ENABLED": "true"})
 def test_otel_semantics_client_ip_attributes():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
