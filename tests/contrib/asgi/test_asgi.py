@@ -24,6 +24,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -1024,3 +1026,124 @@ async def test_unfinished_non_llm_child_not_finished_when_request_completes(test
     assert worker_span.duration_ns is None
     assert test_spans.pop_traces() == []
     worker_span.finish()
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
+def test_otel_semantics_server_span_attributes():
+    import asyncio
+
+    from asgiref.testing import ApplicationCommunicator
+
+    from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+    from tests.contrib.otel_http_server import TEST_CLIENT_ADDRESS
+    from tests.contrib.otel_http_server import TEST_USER_AGENT
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    statuses = {"/ok": 200, "/teapot": 418, "/broken": 500}
+
+    async def app(scope, receive, send):
+        await receive()
+        status = statuses.get(scope["path"], 404)
+        await send({"type": "http.response.start", "status": status, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": b"*"})
+
+    async def request(spans, path, method="GET", query=b""):
+        spans.reset()
+        scope = {
+            "type": "http",
+            "method": method,
+            "path": path,
+            "query_string": query,
+            "scheme": "http",
+            "server": ("127.0.0.1", 8080),
+            "client": ("127.0.0.1", 32767),
+            "headers": [
+                [b"user-agent", TEST_USER_AGENT.encode()],
+                [b"x-forwarded-for", TEST_CLIENT_ADDRESS.encode()],
+            ],
+        }
+        communicator = ApplicationCommunicator(TraceMiddleware(app), scope)
+        await communicator.send_input({"type": "http.request", "body": b""})
+        await communicator.receive_output(1)
+        await communicator.receive_output(1)
+        await communicator.wait()
+        return spans.get_root_span()
+
+    async def run():
+        with scoped_tracer() as tracer:
+            spans = TracerSpanContainer(tracer)
+
+            # A generic ASGI app has no route, so the resource is the method alone for every status.
+            span = await request(spans, "/ok", query=b"q=1")
+            assert_otel_server_span(span, method="GET", status=200, path="/ok", query="q=1", resource="GET")
+            assert span.get_metric("server.port") == 8080
+
+            span = await request(spans, "/ok", method="PROPFIND")
+            assert_otel_server_span(
+                span, method="_OTHER", original_method="PROPFIND", status=200, path="/ok", resource="HTTP"
+            )
+
+            span = await request(spans, "/no/such/path/123")
+            assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+            span = await request(spans, "/teapot")
+            assert_otel_server_span(span, method="GET", status=418, path="/teapot", resource="GET")
+
+            span = await request(spans, "/broken")
+            assert_otel_server_span(span, method="GET", status=500, path="/broken", resource="GET")
+
+    asyncio.run(run())
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV)
+def test_otel_semantics_server_error_statuses_override():
+    import asyncio
+
+    from asgiref.testing import ApplicationCommunicator
+
+    from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+    from tests.contrib.otel_http_server import TEST_CLIENT_ADDRESS
+    from tests.contrib.otel_http_server import TEST_USER_AGENT
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    async def app(scope, receive, send):
+        await receive()
+        status = 500 if scope["path"] == "/broken" else 404
+        await send({"type": "http.response.start", "status": status, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": b"*"})
+
+    async def request(spans, path):
+        spans.reset()
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": path,
+            "query_string": b"",
+            "scheme": "http",
+            "server": ("127.0.0.1", 8080),
+            "client": ("127.0.0.1", 32767),
+            "headers": [
+                [b"user-agent", TEST_USER_AGENT.encode()],
+                [b"x-forwarded-for", TEST_CLIENT_ADDRESS.encode()],
+            ],
+        }
+        communicator = ApplicationCommunicator(TraceMiddleware(app), scope)
+        await communicator.send_input({"type": "http.request", "body": b""})
+        await communicator.receive_output(1)
+        await communicator.receive_output(1)
+        await communicator.wait()
+        return spans.get_root_span()
+
+    async def run():
+        with scoped_tracer() as tracer:
+            spans = TracerSpanContainer(tracer)
+            span = await request(spans, "/missing")
+            assert_otel_server_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
+            span = await request(spans, "/broken")
+            assert_otel_server_span(span, method="GET", status=500, path="/broken", resource="GET", error=False)
+
+    asyncio.run(run())
