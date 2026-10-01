@@ -1,0 +1,30 @@
+# LLM Validation Platform — dd-trace-py config
+model: claude-opus-4-8
+runs: 3
+# The instruction file(s) this repo monitors (candidate = the PR's copy, baseline = main's). Repo-relative.
+# Single source of truth for *which* files are validated; the CI trigger derives its watch paths from this too.
+# List more than one to validate the combined instruction set (e.g. AGENTS.md + a Claude skill file).
+instruction_files:
+  - AGENTS.md
+default_level: full
+presets:
+  minimum: # the 1 flagship case. The gating default.
+    cases: ["python-tracer-testing-mandate-001"]
+    runs: 4 # 4 runs = 8 pairwise comparisons. runs=3 was too noisy (same inputs
+    # swung 0% -> 33%); 4 keeps a clear regression confidently below the
+    # 0.55 CI guard (so it FAILs) while trimming ~1/3 of the cost vs 6.
+  medium: # first 4 cases. The initial-adoption run.
+    max_cases: 4
+    runs: 3
+  full: # whole suite.
+    runs: 3
+# A case blocks the merge on a confident regression by default; mark a case `only_warn: true` to soften it.
+# These thresholds decide when a *blocking* case's pairwise regression actually FAILs:
+policy:
+  noise_threshold: 1.0
+  pairwise_win_floor: 0.45 # candidate loses the pairwise majority on a case -> regression (WARN for only_warn cases)
+  blocking_fail_floor: 0.45 # a blocking case below this can FAIL (== win floor: any majority loss).
+  # Lower it (e.g. 0.40) to allow a blocking-case WARN band.
+  blocking_fail_ci_upper: 0.55 # ...but only when the win-rate CI upper bound is below this (a CONFIDENT loss).
+  # A wide-CI coin-flip (e.g. 33% [0%-68%] at runs=3) WARNs instead of blocking.
+  # Calibrated from real runs: 0% [0-0%] and 25% [0-53%] FAIL; 33% [0-68%] WARNs.

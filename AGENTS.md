@@ -97,10 +97,10 @@ fixtures section in `docs/contributing-testing.rst` for the update workflow.
 
 See `docs/troubleshooting.rst`. Covers common issues including:
 
-- Installation failures and missing native extensions
-- Traces not appearing in the Datadog app
-- Connection errors sending to the agent
-- Build failures and `ModuleNotFoundError` in test environments
+- Installation failures and missing native extensions.
+- Traces not appearing in the Datadog app.
+- Connection errors sending to the agent.
+- Build failures and `ModuleNotFoundError` in test environments.
 
 ## Skills
 
