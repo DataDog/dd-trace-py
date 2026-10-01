@@ -1259,7 +1259,7 @@ class CustomBuildExt(build_ext):
     def try_strip_symbols(so_file):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
             try:
-                subprocess.run(["strip", "-g", so_file], check=True)
+                subprocess.run(["strip", "--strip-unneeded", so_file], check=True)
             except subprocess.CalledProcessError as e:
                 print(f"WARNING: stripping '{so_file}' returned non-zero exit status ({e.returncode}), ignoring")
             except Exception as e:
@@ -1296,7 +1296,7 @@ class CustomBuildExt(build_ext):
             if not Path(debug_out).is_file() or Path(debug_out).stat().st_size == 0:
                 print(f"WARNING: failed to create heap-gotter debug sidecar for {so_file}", flush=True)
                 return None
-            subprocess.run([strip_bin, "-g", so_path], check=True)
+            subprocess.run([strip_bin, "--strip-unneeded", so_path], check=True)
             subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_path], check=True)
             return Path(debug_out)
         except subprocess.CalledProcessError as e:
