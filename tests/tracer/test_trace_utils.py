@@ -1614,6 +1614,32 @@ def test_otel_semantics_client_status_does_not_overwrite_exception_error_type():
         assert span.get_tag("error.type") == "builtins.ValueError"
 
 
+@pytest.mark.subprocess(env=dict(_OTEL_SEMANTICS_SUBPROCESS_ENV, DD_TRACE_CLIENT_IP_ENABLED="true"))
+def test_otel_semantics_client_addresses_are_only_reported_on_server_spans():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer:
+        with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as server_span:
+            set_http_meta(server_span, cfg.myint, peer_ip="203.0.113.7")
+        assert server_span.get_tag("client.address") == "203.0.113.7"
+        assert server_span.get_tag("network.peer.address") == "203.0.113.7"
+
+        with tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as client_span:
+            client_span._set_attribute("span.kind", "client")
+            set_http_meta(client_span, cfg.myint, peer_ip="203.0.113.7")
+        assert client_span.get_tag("client.address") is None
+        assert client_span.get_tag("network.peer.address") is None
+        # The legacy attributes are not written either, since OTel semantics replace them.
+        assert client_span.get_tag("http.client_ip") is None
+        assert client_span.get_tag("network.client.ip") is None
+
+
 @pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_url_query_is_obfuscated():
     from ddtrace.contrib.internal.trace_utils import set_http_meta

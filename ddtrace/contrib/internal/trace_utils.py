@@ -544,13 +544,14 @@ def set_http_meta(
 
     if _should_collect_client_ip():
         request_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
-        if otel_http is not None:
-            otel_http.set_client_addresses(request_ip, peer_ip)
-        else:
+        if otel_http is None:
             if request_ip:
                 span._set_attribute(http.CLIENT_IP, request_ip)
             if peer_ip:
                 span._set_attribute("network.client.ip", peer_ip)
+        elif not otel_http.is_client:
+            # An outgoing request has no client address, so only server spans report one.
+            otel_http.set_client_addresses(request_ip, peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
