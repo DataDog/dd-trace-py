@@ -60,6 +60,12 @@
                   }
                 },
                 {
+                  "key": "client.address",
+                  "value": {
+                    "string_value": "127.0.0.1"
+                  }
+                },
+                {
                   "key": "component",
                   "value": {
                     "string_value": "django"
@@ -96,6 +102,12 @@
                   }
                 },
                 {
+                  "key": "network.peer.address",
+                  "value": {
+                    "string_value": "127.0.0.1"
+                  }
+                },
+                {
                   "key": "server.address",
                   "value": {
                     "string_value": "localhost"
@@ -117,6 +129,12 @@
                   "key": "url.scheme",
                   "value": {
                     "string_value": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "string_value": "otel-semantics-test"
                   }
                 }
               ],
