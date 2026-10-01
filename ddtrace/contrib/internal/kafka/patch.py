@@ -188,7 +188,9 @@ def traced_produce(func, instance, args, kwargs):
     cluster_id = _get_cluster_id(instance, topic)
 
     event = KafkaProducerEvent(
-        operation=schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
+        operation_name=schematize_messaging_operation(
+            kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND
+        ),
         topic=topic,
         bootstrap_servers=instance._dd_bootstrap_servers,
         distributed_headers=tracing_headers,
@@ -281,7 +283,9 @@ def _instrument_message(messages, start_ns, instance, err):
                 distributed_context = extracted
 
     event = KafkaConsumeEvent(
-        operation=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+        operation_name=schematize_messaging_operation(
+            kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING
+        ),
         topic=topic,
         group_id=instance._group_id,
         distributed_context=distributed_context,

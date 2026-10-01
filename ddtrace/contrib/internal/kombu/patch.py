@@ -104,7 +104,7 @@ def traced_receive(func, instance, args, kwargs):
     exchange = message.delivery_info["exchange"]
 
     event = MessagingConsumeEvent(
-        operation=schematize_messaging_operation(
+        operation_name=schematize_messaging_operation(
             kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING
         ),
         request_headers=message.headers,
@@ -136,7 +136,7 @@ def traced_publish(func, instance, args, kwargs):
 
     exchange_name = get_exchange_from_args(args)
     event = MessagingProducerEvent(
-        operation=schematize_messaging_operation(
+        operation_name=schematize_messaging_operation(
             kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND
         ),
         distributed_headers=args[HEADER_POS],

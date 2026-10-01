@@ -24,13 +24,10 @@ class MessagingEvents(str, Enum):
 class MessagingEvent(TracingEvent):
     """Shared tracing data for messaging operations."""
 
-    operation: str = event_field()
+    operation_name: str = event_field()
 
     # Use to add additional tags after the span was created
     additional_tags: dict[str, str] = event_field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        self.operation_name = self.operation
 
 
 @dataclass

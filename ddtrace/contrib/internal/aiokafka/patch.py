@@ -109,7 +109,7 @@ async def traced_send(func, instance, args, kwargs):
     tracing_headers = {}
 
     event = KafkaProducerEvent(
-        operation=schematize_messaging_operation(PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
+        operation_name=schematize_messaging_operation(PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         topic=topic,
         bootstrap_servers=bootstrap_servers,
         distributed_headers=tracing_headers,
@@ -190,7 +190,7 @@ async def traced_getone(func, instance, args, kwargs):
     # Parent via extracted context without activating it, so a surrounding local
     # span stays active after getone returns.
     event = KafkaConsumeEvent(
-        operation=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
+        operation_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
         topic=topic,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
@@ -233,7 +233,7 @@ async def traced_getmany(func, instance, args, kwargs):
     bootstrap_servers = instance._client._bootstrap_servers
 
     event = KafkaConsumeEvent(
-        operation=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
+        operation_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
         topic=None,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
