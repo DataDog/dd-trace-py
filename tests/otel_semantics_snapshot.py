@@ -173,7 +173,10 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
     for span in spans:
         start = int(span["start_time_unix_nano"])
         end = int(span["end_time_unix_nano"])
-        assert 0 < start <= end, f"span {span['name']!r} has an invalid time range: {start}..{end}"
+        # Raised explicitly because this module is not rewritten by pytest, so an assert would be a no-op
+        # under PYTHONOPTIMIZE.
+        if not 0 < start <= end:
+            raise AssertionError(f"span {span['name']!r} has an invalid time range: {start}..{end}")
         span["start_time_unix_nano"] = "<start_time_unix_nano>"
         span["end_time_unix_nano"] = "<end_time_unix_nano>"
         span["trace_id"] = trace_ids[span["trace_id"]]
@@ -219,5 +222,6 @@ def assert_otel_semantics_snapshot(
 ) -> None:
     """Fetch the OTLP traces exported under ``token`` and compare them with their snapshot file."""
     requests = fetch_otlp_requests(token, timeout=timeout)
-    assert _span_count(requests) > 0, f"no OTLP spans received by the test agent for session '{token}'"
+    if _span_count(requests) <= 0:
+        raise AssertionError(f"no OTLP spans received by the test agent for session '{token}'")
     assert_matches_snapshot(normalize_otlp_requests(requests, ignores), snapshot_dir / f"{token}.json")
