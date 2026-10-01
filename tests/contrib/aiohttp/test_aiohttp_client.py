@@ -100,8 +100,8 @@ async def test_resource_with_otel_semantics(test_spans):
     assert span.get_tag("http.url") is None
 
 
-@pytest.mark.snapshot(otel_semantics=True, ignores=["user_agent.original"])
-def test_otel_semantics_snapshot(ddtrace_run_python_code_in_subprocess):
+# aiohttp is the one client integration with OTel semantics snapshots; they cover every client case in the RFC.
+def _run_otel_snapshot(ddtrace_run_python_code_in_subprocess, request, env=None):
     code = (
         """
 import asyncio
@@ -113,19 +113,58 @@ from ddtrace.trace import tracer
 
 async def test():
     async with aiohttp.ClientSession() as session:
-        async with session.get("%s") as resp:
-            assert resp.status == 200
+        %s
 
 
 asyncio.run(test())
 tracer.flush()
     """
-        % URL_200
+        % request
     )
     # The snapshot context adds the OTel semantics and OTLP export settings to the environment.
-    env = os.environ.copy()
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    run_env = os.environ.copy()
+    run_env.update(env or {})
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=run_env)
     assert status == 0, err
+
+
+@pytest.mark.snapshot(otel_semantics=True, ignores=["user_agent.original"])
+def test_otel_semantics_snapshot(ddtrace_run_python_code_in_subprocess):
+    request = 'async with session.get("%s") as resp:\n            assert resp.status == 200' % URL_200
+    _run_otel_snapshot(ddtrace_run_python_code_in_subprocess, request)
+
+
+@pytest.mark.parametrize("status_code", [302, 400, 500])
+@pytest.mark.snapshot(otel_semantics=True, ignores=["user_agent.original"])
+def test_otel_semantics_status_snapshot(status_code, ddtrace_run_python_code_in_subprocess):
+    # Client spans are errors (with error.type set to the status code) for 4xx and 5xx, and not for 3xx.
+    request = 'async with session.get("%s/status/%d", allow_redirects=False) as resp:\n            pass' % (
+        URL,
+        status_code,
+    )
+    _run_otel_snapshot(ddtrace_run_python_code_in_subprocess, request)
+
+
+@pytest.mark.snapshot(otel_semantics=True, ignores=["user_agent.original"])
+def test_otel_semantics_unknown_method_snapshot(ddtrace_run_python_code_in_subprocess):
+    # A method the RFC does not list becomes _OTHER, keeps the original method and names the span HTTP.
+    request = 'async with session.request("FOO", "%s") as resp:\n            pass' % URL_200
+    _run_otel_snapshot(ddtrace_run_python_code_in_subprocess, request)
+
+
+@pytest.mark.snapshot(otel_semantics=True, ignores=["user_agent.original"])
+def test_otel_semantics_url_full_redaction_snapshot(ddtrace_run_python_code_in_subprocess):
+    # url.full must not contain credentials and must have its sensitive query values obfuscated.
+    request = 'async with session.get("%s/status/200?token=secret&foo=bar") as resp:\n            pass' % URL_AUTH
+    _run_otel_snapshot(ddtrace_run_python_code_in_subprocess, request)
+
+
+@pytest.mark.snapshot(otel_semantics=True, ignores=["user_agent.original"])
+def test_otel_semantics_custom_error_statuses_snapshot(ddtrace_run_python_code_in_subprocess):
+    # A configured error range takes precedence over the OTel default, and error.type is the status code.
+    request = 'async with session.get("%s") as resp:\n            pass' % URL_200
+    env = {"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "200"}
+    _run_otel_snapshot(ddtrace_run_python_code_in_subprocess, request, env=env)
 
 
 @pytest.mark.asyncio
