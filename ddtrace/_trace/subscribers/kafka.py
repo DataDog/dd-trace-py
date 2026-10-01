@@ -96,8 +96,9 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
     @classmethod
     def on_ended(cls, ctx: core.ExecutionContext[MessagingConsumeEvent], _exc_info: ExcInfo) -> None:
         event = cast(KafkaConsumeEvent, ctx.event)
+        span = span_from_context(ctx)
         set_kafka_meta(
-            span_from_context(ctx),
+            span,
             cluster_id=event.cluster_id,
             topic=event.topic,
             bootstrap_servers=event.bootstrap_servers,
@@ -109,3 +110,5 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
             received_message=event.received_message,
             topics_partitions=event.topics_partitions,
         )
+        if event.error is not None:
+            span.set_exc_info(type(event.error), event.error, event.error.__traceback__)

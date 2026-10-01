@@ -1,4 +1,3 @@
-import sys
 from time import time
 from time import time_ns
 
@@ -294,6 +293,7 @@ def _instrument_message(messages, start_ns, instance, err):
         component=config.kafka.integration_name,
         integration_config=config.kafka,
         service=trace_utils.ext_service(None, config.kafka),
+        error=err,
     )
 
     with core.context_with_event(event) as event_ctx:
@@ -332,9 +332,6 @@ def _instrument_message(messages, start_ns, instance, err):
                 pass
             event.tombstone = is_tombstone
             event.message_offset = message_offset
-
-        if err is not None:
-            span.set_exc_info(*sys.exc_info())
 
 
 def traced_commit(func, instance, args, kwargs):

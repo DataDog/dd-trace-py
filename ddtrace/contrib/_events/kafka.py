@@ -33,3 +33,4 @@ class KafkaConsumeEvent(MessagingConsumeEvent, KafkaEvent):
     group_id: Optional[str] = event_field(default=None)
     received_message: Optional[bool] = event_field(default=None)
     topics_partitions: Optional[dict[str, list[int]]] = event_field(default=None)
+    error: Optional[BaseException] = event_field(default=None)

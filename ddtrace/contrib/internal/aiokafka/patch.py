@@ -200,6 +200,7 @@ async def traced_getone(func, instance, args, kwargs):
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
         service=trace_utils.ext_service(None, config.aiokafka),
+        error=err,
     )
 
     with core.context_with_event(event) as ctx:
@@ -220,8 +221,6 @@ async def traced_getone(func, instance, args, kwargs):
                 event.message_offset = message.offset
 
         core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
-        if err is not None:
-            span.set_exc_info(type(err), err, err.__traceback__)
 
     if err is not None:
         raise err
