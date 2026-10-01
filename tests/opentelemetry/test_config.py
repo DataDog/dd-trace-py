@@ -471,28 +471,18 @@ def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
 )
 def test_explicit_otlp_settings_win_over_agentless():
     """A user pointing OTLP at their own collector must keep it, agentless or not."""
-    from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
-    from ddtrace.internal.settings import env
     from ddtrace.internal.settings._opentelemetry import otel_config
 
-    assert otel_config.exporter.METRICS_PROTOCOL == "http/json"
-    # ddtrace must not override the global endpoint the user set...
-    _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/json", "metrics"
-    )
-    # ...nor attach Datadog credentials to a third-party collector.
-    assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") is None
+    exporter = otel_config.exporter
+    assert exporter.METRICS_PROTOCOL == "http/json"
+    assert "dd-api-key" not in exporter.METRICS_HEADERS
 
 
 @pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
 def test_agentless_otlp_export_carries_the_api_key():
-    from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings._opentelemetry import otel_config
 
-    _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/protobuf", "metrics"
-    )
-    assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") == "dd-api-key=foobarkey"
+    assert otel_config.exporter.METRICS_HEADERS == "dd-api-key=foobarkey"
 
 
 @pytest.mark.subprocess(
@@ -605,13 +595,9 @@ def test_explicit_protocol_survives_agentless():
 )
 def test_api_key_is_appended_to_custom_headers_for_the_intake():
     """The intake still needs authenticating; dropping the key over a custom header loses the data."""
-    from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings._opentelemetry import otel_config
 
-    _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/protobuf", "metrics"
-    )
-    assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") == "x-team=apm,x-env=prod,dd-api-key=foobarkey"
+    assert otel_config.exporter.METRICS_HEADERS == "x-team=apm,x-env=prod,dd-api-key=foobarkey"
 
 
 @pytest.mark.subprocess(
@@ -619,13 +605,9 @@ def test_api_key_is_appended_to_custom_headers_for_the_intake():
 )
 def test_global_custom_headers_are_carried_over_with_the_api_key():
     """Signal-specific headers replace the global ones, so they have to be copied across."""
-    from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings._opentelemetry import otel_config
 
-    _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/protobuf", "metrics"
-    )
-    assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") == "x-team=apm,dd-api-key=foobarkey"
+    assert otel_config.exporter.METRICS_HEADERS == "x-team=apm,dd-api-key=foobarkey"
 
 
 @pytest.mark.subprocess(
@@ -636,13 +618,9 @@ def test_global_custom_headers_are_carried_over_with_the_api_key():
     }
 )
 def test_a_user_supplied_api_key_header_is_left_alone():
-    from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
-    from ddtrace.internal.settings import env
+    from ddtrace.internal.settings._opentelemetry import otel_config
 
-    _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/protobuf", "metrics"
-    )
-    assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") == "dd-api-key=set-by-the-user"
+    assert otel_config.exporter.METRICS_HEADERS == "dd-api-key=set-by-the-user"
 
 
 @pytest.mark.subprocess(
