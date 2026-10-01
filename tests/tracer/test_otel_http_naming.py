@@ -30,7 +30,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.settings._config import config
 from ddtrace.trace import Span
-from tests.utils import override_env
 
 
 @pytest.mark.parametrize(
@@ -104,20 +103,6 @@ def test_set_instrumentation_resource_reads_semantics_flag_per_call():
         assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) == "otel resource"
 
 
-def test_otel_number_reads_export_configuration_per_call():
-    with override_env(
-        {
-            "DD_TRACE_OTEL_SEMANTICS_ENABLED": "false",
-            "OTEL_TRACES_EXPORTER": "",
-            "DD_TRACE_AGENT_PROTOCOL_VERSION": "",
-        }
-    ):
-        assert http_semantics.otel_number(443) == "443"
-
-    with override_env({"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}):
-        assert http_semantics.otel_number(443) == 443
-
-
 @pytest.mark.parametrize(
     "netloc, expected",
     [
@@ -146,37 +131,35 @@ def test_set_url_tags_otel_server():
     span = Span("web.request")
 
     with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
-        with mock.patch.object(http_semantics, "otel_number", side_effect=str):
-            set_url_tags_otel_server(
-                integration_config,
-                span,
-                "https://example.com/users/42?token=secret",
-                "token=secret",
-                raw_uri="/users/%34%32?token=secret",
-            )
+        set_url_tags_otel_server(
+            integration_config,
+            span,
+            "https://example.com/users/42?token=secret",
+            "token=secret",
+            raw_uri="/users/%34%32?token=secret",
+        )
 
     assert span.get_tag(http.OTEL_URL_SCHEME) == "https"
     assert span.get_tag(http.OTEL_URL_PATH) == "/users/%34%32"
     assert span.get_tag(http.OTEL_URL_QUERY) == "token=redacted"
     assert span.get_tag(net.SERVER_ADDRESS) == "example.com"
-    assert span.get_tag(net.SERVER_PORT) == "443"
+    assert span.get_metric(net.SERVER_PORT) == 443
 
 
 def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("http.request")
 
-    with mock.patch.object(http_semantics, "otel_number", side_effect=str):
-        set_url_tags_otel_client(
-            integration_config,
-            span,
-            "https://user:password@example.com/search?q=secret",
-            "q=secret",
-        )
+    set_url_tags_otel_client(
+        integration_config,
+        span,
+        "https://user:password@example.com/search?q=secret",
+        "q=secret",
+    )
 
     assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search"
     assert span.get_tag(net.SERVER_ADDRESS) == "example.com"
-    assert span.get_tag(net.SERVER_PORT) == "443"
+    assert span.get_metric(net.SERVER_PORT) == 443
 
 
 def test_semantics_dependent_helpers_read_flag_per_call():
@@ -193,8 +176,7 @@ def test_semantics_dependent_helpers_read_flag_per_call():
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
         set_url_tags_server(integration_config, otel_span, "https://example.com/path?secret=true", "secret=true")
         set_method_tag(otel_span, "get")
-        with mock.patch.object(http_semantics, "otel_number", return_value=204):
-            set_status_code_tag(otel_span, 204)
+        set_status_code_tag(otel_span, 204)
         assert user_agent_tag() == http.OTEL_USER_AGENT_ORIGINAL
 
     assert datadog_span.get_tag(http.URL) == "https://example.com/path"
@@ -264,15 +246,14 @@ def test_http_block_metadata_uses_active_semantics():
         }
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        with mock.patch.object(http_semantics, "otel_number", return_value=403):
-            with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
-                assert http_block_metadata("get", 403, "token=secret", "agent") == {
-                    http.OTEL_RESPONSE_STATUS_CODE: 403,
-                    http.OTEL_REQUEST_METHOD: "GET",
-                    http.OTEL_REQUEST_METHOD_ORIGINAL: "get",
-                    http.OTEL_URL_QUERY: "token=redacted",
-                    http.OTEL_USER_AGENT_ORIGINAL: "agent",
-                }
+        with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
+            assert http_block_metadata("get", 403, "token=secret", "agent") == {
+                http.OTEL_RESPONSE_STATUS_CODE: 403,
+                http.OTEL_REQUEST_METHOD: "GET",
+                http.OTEL_REQUEST_METHOD_ORIGINAL: "get",
+                http.OTEL_URL_QUERY: "token=redacted",
+                http.OTEL_USER_AGENT_ORIGINAL: "agent",
+            }
 
 
 @pytest.fixture
@@ -331,12 +312,11 @@ def test_otel_span_attributes_dispatches_client_and_server_urls(integration_conf
     client_span = Span("request", span_type=SpanTypes.HTTP)
     server_span = Span("request", span_type=SpanTypes.WEB)
 
-    with mock.patch.object(http_semantics, "otel_number", side_effect=str):
-        OTelHTTPSpanAttributes(client_span, integration_config).set_url("https://example.com/users/42?token=secret")
-        OTelHTTPSpanAttributes(server_span, integration_config).set_url(
-            "https://example.com/users/42?token=secret",
-            raw_uri="/users/%34%32?token=secret",
-        )
+    OTelHTTPSpanAttributes(client_span, integration_config).set_url("https://example.com/users/42?token=secret")
+    OTelHTTPSpanAttributes(server_span, integration_config).set_url(
+        "https://example.com/users/42?token=secret",
+        raw_uri="/users/%34%32?token=secret",
+    )
 
     assert client_span.get_tag(http.OTEL_URL_FULL) == "https://example.com/users/42"
     assert client_span.get_tag(http.OTEL_URL_PATH) is None
@@ -359,12 +339,11 @@ def test_otel_span_attributes_server_address_precedence(integration_config):
     explicit_span = Span("request")
     fallback_span = Span("request")
 
-    with mock.patch.object(http_semantics, "otel_number", side_effect=str):
-        OTelHTTPSpanAttributes(url_span, integration_config).set_url(
-            "https://url.example/path",
-            server_address="explicit.example",
-            fallback_server_address="fallback.example",
-        )
+    OTelHTTPSpanAttributes(url_span, integration_config).set_url(
+        "https://url.example/path",
+        server_address="explicit.example",
+        fallback_server_address="fallback.example",
+    )
     OTelHTTPSpanAttributes(explicit_span, integration_config).set_url(
         None,
         server_address="explicit.example",
@@ -390,8 +369,7 @@ def test_otel_span_attributes_malformed_url_does_not_abort_later_metadata(integr
         server_address="explicit.example",
         fallback_server_address="fallback.example",
     )
-    with mock.patch.object(http_semantics, "otel_number", return_value=503):
-        attributes.set_status_code(503)
+    attributes.set_status_code(503)
     attributes.set_resource("/users/{id}")
 
     assert span.get_tag(net.SERVER_ADDRESS) == "explicit.example"
@@ -421,8 +399,7 @@ def test_otel_span_attributes_status_error_semantics(
     span = Span("request", span_type=span_type)
     attributes = OTelHTTPSpanAttributes(span, integration_config)
 
-    with mock.patch.object(http_semantics, "otel_number", return_value=status_code):
-        attributes.set_status_code(str(status_code))
+    attributes.set_status_code(str(status_code))
 
     assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == status_code
     assert span.error == expected_error
@@ -449,8 +426,7 @@ def test_otel_span_attributes_honors_custom_server_error_statuses(
     span = Span("request", span_type=SpanTypes.WEB)
     attributes = OTelHTTPSpanAttributes(span, integration_config)
 
-    with mock.patch.object(http_semantics, "otel_number", return_value=status_code):
-        attributes.set_status_code(status_code)
+    attributes.set_status_code(status_code)
 
     assert span.error == expected_error
 
@@ -472,8 +448,7 @@ def test_otel_span_attributes_status_preserves_exception_error_type(integration_
     span._set_attribute(ERROR_TYPE, "ValueError")
     attributes = OTelHTTPSpanAttributes(span, integration_config)
 
-    with mock.patch.object(http_semantics, "otel_number", return_value=503):
-        attributes.set_status_code(503)
+    attributes.set_status_code(503)
 
     assert span.error == 1
     assert span.get_tag(ERROR_TYPE) == "ValueError"
@@ -530,7 +505,6 @@ def test_otel_span_attributes_client_resource_ignores_server_route(integration_c
 def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
     from unittest import mock
 
-    from ddtrace._trace import http_semantics
     from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
     from ddtrace.ext import SpanTypes
     from ddtrace.internal.settings._config import config
@@ -540,8 +514,7 @@ def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
     span = Span("web.request", span_type=SpanTypes.WEB)
 
     assert config._http_server.error_statuses_configured is True
-    with mock.patch.object(http_semantics, "otel_number", return_value=600):
-        OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
+    OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
 
     assert span.error == 0
 
@@ -560,3 +533,27 @@ def test_otel_semantics_overrides_conflicting_schema_and_peer_service_settings()
 
     assert SCHEMA_VERSION == "v0"
     assert _ps_config.set_defaults_enabled is False
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_otel_semantics_flag_resolves_identically_when_enabled():
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert agent_config._trace_otel_semantics_enabled is True
+    assert config._otel_trace_semantics_enabled is True
+    assert _is_otlp_traces_exporter_enabled(otel_config.exporter) is True
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"}, err=None)
+def test_otel_semantics_flag_resolves_identically_when_disabled():
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert agent_config._trace_otel_semantics_enabled is False
+    assert config._otel_trace_semantics_enabled is False
+    assert _is_otlp_traces_exporter_enabled(otel_config.exporter) is False

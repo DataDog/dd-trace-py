@@ -15,8 +15,6 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import redact_query_string
@@ -31,11 +29,6 @@ _DEFAULT_KNOWN_HTTP_METHODS = frozenset(
     ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "QUERY")
 )
 OTHER_HTTP_METHOD = "_OTHER"
-
-
-def otel_number(value: int) -> Union[int, str]:
-    """Preserve typed OTLP values while supporting the MsgPack string meta map."""
-    return value if _is_otlp_traces_exporter_enabled(otel_config.exporter) else str(value)
 
 
 @cached()
@@ -138,7 +131,7 @@ def set_url_tags_otel_server(
     if address:
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
-            span._set_attribute(net.SERVER_PORT, otel_number(port))
+            span._set_attribute(net.SERVER_PORT, port)
 
     # Either existing query-string option enables url.query capture.
     if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
@@ -172,7 +165,7 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
     if address:
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
-            span._set_attribute(net.SERVER_PORT, otel_number(port))
+            span._set_attribute(net.SERVER_PORT, port)
 
 
 # This writer deliberately does not read the OTel semantics feature flag. Callers
@@ -238,7 +231,7 @@ class OTelHTTPSpanAttributes:
             log.debug("failed to convert http status code %r to int", status_code)
             return
 
-        self._span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, otel_number(int_status_code))
+        self._span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, int_status_code)
         if not self._is_error_status(int_status_code):
             return
 
@@ -302,7 +295,7 @@ def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
     except (TypeError, ValueError):
         log.debug("failed to convert http status code %r to int", status_code)
         return
-    span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, otel_number(int_status_code))
+    span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, int_status_code)
 
 
 def set_method_tag(span: Span, method: str) -> None:
@@ -338,7 +331,7 @@ def http_block_metadata(
             metadata[http.USER_AGENT] = user_agent
         return metadata
 
-    metadata[http.OTEL_RESPONSE_STATUS_CODE] = otel_number(int(status_code))
+    metadata[http.OTEL_RESPONSE_STATUS_CODE] = int(status_code)
     if method is not None:
         normalized_method, original_method = normalize_http_method(method)
         metadata[http.OTEL_REQUEST_METHOD] = normalized_method
