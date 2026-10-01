@@ -10,3 +10,9 @@ grpc-10-metrics:
 grpc-100-metrics:
   metric_count: 100
   protocol: grpc
+50000-metrics:
+  metric_count: 50000
+  protocol: http/protobuf
+grpc-50000-metrics:
+  metric_count: 50000
+  protocol: grpc

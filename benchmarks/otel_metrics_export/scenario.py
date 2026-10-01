@@ -40,7 +40,9 @@ def _start_grpc_receiver():
     service = grpc.method_handlers_generic_handler(
         "opentelemetry.proto.collector.metrics.v1.MetricsService", {"Export": handler}
     )
-    server = grpc.server(ThreadPoolExecutor(max_workers=1))
+    server = grpc.server(
+        ThreadPoolExecutor(max_workers=1), options=(("grpc.max_receive_message_length", 64 * 1024 * 1024),)
+    )
     server.add_generic_rpc_handlers((service,))
     port = server.add_insecure_port("127.0.0.1:0")
     server.start()
