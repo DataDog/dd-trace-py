@@ -6,6 +6,8 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.http_semantics import normalize_http_method
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -19,6 +21,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
@@ -119,6 +122,14 @@ def _wrap_request(func, instance, args, kwargs):
         span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         instance._datadog_span = span
+
+        if config._otel_trace_semantics_enabled:
+            # Name the span before injection: the sampling decision made there must see the
+            # OTel resource.
+            method = get_argument_value(args, kwargs, 0, "method")
+            if isinstance(method, str):
+                normalized_method, original_method = normalize_http_method(method)
+                set_otel_http_resource(span, normalized_method, original_method)
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
