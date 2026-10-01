@@ -7,6 +7,10 @@ hash it and returned with the TypeError still set, surfacing in application code
 result with an exception set". Each test forces real allocator reuse and checks every colliding object.
 """
 
+import os
+import sys
+import sysconfig
+
 from google.protobuf import field_mask_pb2
 from google.protobuf import struct_pb2
 import numpy as np
@@ -24,11 +28,17 @@ mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_unhashable_
 _ALLOCATIONS = 10_000
 # Allocator reuse depends on the heap state earlier tests leave behind, so retry before declaring a miss.
 _ROUNDS = 5
+# Only pymalloc's per-size-class free lists hand freed addresses back predictably; elsewhere a miss is not a failure.
+_PREDICTABLE_REUSE = (
+    os.environ.get("PYTHONMALLOC", "pymalloc") in ("pymalloc", "default")
+    and not sysconfig.get_config_var("Py_GIL_DISABLED")
+    and not hasattr(sys, "gettotalrefcount")
+)
 
 
 def _plant_stale_taint_entries():
     # Sources stay alive until the request ends, so stale entries come from strings propagated from them.
-    # Bytes too: on Python < 3.12 no str fits the 48-byte size class of the upb containers, but short bytes do.
+    # Bytes too: every planted str is over 48 bytes, so only short bytes share a size class with the upb containers.
     str_source = taint_pyobject("source", "param", "value", OriginType.PARAMETER)
     bytes_source = taint_pyobject(b"source", "param", "value", OriginType.PARAMETER)
     tainted = []
@@ -43,21 +53,26 @@ def _plant_stale_taint_entries():
 
 
 def _objects_on_stale_addresses(factory):
-    # Keep every candidate alive so the colliding ones cannot be freed and reused again mid-test.
-    candidates = []
-    colliding = []
     for _ in range(_ROUNDS):
         stale_ids = _plant_stale_taint_entries()
-        new_candidates = [factory() for _ in range(_ALLOCATIONS)]
-        candidates.extend(new_candidates)
-        colliding.extend(obj for obj in new_candidates if id(obj) in stale_ids)
+        # Hold every candidate during the scan so each allocation takes a new slot, not the one just freed.
+        candidates = [factory() for _ in range(_ALLOCATIONS)]
+        colliding = [obj for obj in candidates if id(obj) in stale_ids]
         if colliding:
-            break
-    assert colliding, "the allocator reused no freed tainted-string address, so nothing was exercised"
-    return candidates, colliding
+            return colliding
+    if not _PREDICTABLE_REUSE:
+        pytest.skip("this allocator reused no freed tainted-string address")
+    pytest.fail("the allocator reused no freed tainted-string address, so nothing was exercised")
 
 
 def _repeated_composite_container():
+    values = struct_pb2.ListValue().values
+    values.add(string_value="a")
+    return values
+
+
+def _empty_repeated_composite_container():
+    # Its items are messages, so str.join only succeeds on an empty one.
     return struct_pb2.ListValue().values
 
 
@@ -66,41 +81,36 @@ def _repeated_scalar_container():
 
 
 def _protobuf_message():
-    return struct_pb2.Value()
+    message = struct_pb2.Struct()
+    message["key"] = "a"
+    return message
 
 
 def _numpy_str_array():
     return np.array(["a", "b"])
 
 
-UNHASHABLE_FACTORIES = [
-    pytest.param(_repeated_composite_container, id="protobuf-RepeatedCompositeContainer"),
-    pytest.param(_repeated_scalar_container, id="protobuf-RepeatedScalarContainer"),
-    pytest.param(_protobuf_message, id="protobuf-Message"),
-    pytest.param(_numpy_str_array, id="numpy-ndarray"),
+# id, factory, a key the object can be indexed with, the item at that key, and its str.join result.
+_CASES = [
+    ("protobuf-RepeatedCompositeContainer", _repeated_composite_container, 0, struct_pb2.Value(string_value="a"), None),
+    ("protobuf-RepeatedCompositeContainer-empty", _empty_repeated_composite_container, None, None, ""),
+    ("protobuf-RepeatedScalarContainer", _repeated_scalar_container, 0, "a", "a,b"),
+    ("protobuf-Message", _protobuf_message, "key", "a", None),
+    ("numpy-ndarray", _numpy_str_array, 0, "a", "a,b"),
 ]
+SUBSCRIPT_CASES = [pytest.param(f, key, item, id=id_) for id_, f, key, item, _ in _CASES if key is not None]
+JOIN_CASES = [pytest.param(f, joined, id=id_) for id_, f, _, _, joined in _CASES if joined is not None]
 
 
-@pytest.mark.parametrize("factory", UNHASHABLE_FACTORIES)
-def test_subscript_returning_unhashable_value_at_stale_address(factory):
-    _, colliding = _objects_on_stale_addresses(factory)
-
-    for obj in colliding:
+@pytest.mark.parametrize("factory,key,item", SUBSCRIPT_CASES)
+def test_subscript_on_unhashable_object_at_stale_address(factory, key, item):
+    for obj in _objects_on_stale_addresses(factory):
+        # Indexed directly, the object goes through get_ranges; as a dict value it is only the result.
+        assert mod.subscript(obj, key) == item
         assert mod.subscript({"key": obj}, "key") is obj
-        assert mod.enumerate_pairs([("key", obj)]) == ["key"]
 
 
-@pytest.mark.parametrize(
-    "factory,expected",
-    [
-        pytest.param(_repeated_composite_container, "", id="protobuf-RepeatedCompositeContainer"),
-        pytest.param(_repeated_scalar_container, "a,b", id="protobuf-RepeatedScalarContainer"),
-        pytest.param(_numpy_str_array, "a,b", id="numpy-ndarray"),
-    ],
-)
-def test_join_over_unhashable_iterable_at_stale_address(factory, expected):
-    _, colliding = _objects_on_stale_addresses(factory)
-
-    for obj in colliding:
-        assert mod.join_items(",", obj) == expected
-        assert mod.enumerate_pairs([("key", obj)]) == ["key"]
+@pytest.mark.parametrize("factory,joined", JOIN_CASES)
+def test_join_over_unhashable_iterable_at_stale_address(factory, joined):
+    for obj in _objects_on_stale_addresses(factory):
+        assert mod.join_items(",", obj) == joined

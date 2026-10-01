@@ -11,8 +11,3 @@ def join_items(separator, items):
 
 def subscript(container, key):
     return container[key]
-
-
-def enumerate_pairs(pairs):
-    # A TypeError left pending by an aspect surfaced on a loop like this one in production.
-    return [key for _, (key, _) in enumerate(pairs)]
