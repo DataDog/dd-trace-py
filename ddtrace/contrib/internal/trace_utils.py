@@ -593,7 +593,9 @@ def _set_http_meta_otel(
     otel_http.set_status_code(status_code)
     if request_headers:
         otel_http.set_user_agent(_get_request_header_user_agent(request_headers, headers_are_case_sensitive))
-    otel_http.set_client_addresses(client_ip, network_peer_ip)
+    if not otel_http.is_client:
+        # An outgoing request has no client address, so only server spans report one.
+        otel_http.set_client_addresses(client_ip, network_peer_ip)
     otel_http.set_resource(route)
 
 
