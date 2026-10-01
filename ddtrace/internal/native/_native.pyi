@@ -1,4 +1,5 @@
 import abc
+from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Iterator
 from collections.abc import Mapping
@@ -10,6 +11,8 @@ from typing import Literal
 from typing import Optional
 from typing import TypeVar
 from typing import Union
+
+from opentelemetry.util.types import AttributeValue
 
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
@@ -1799,6 +1802,38 @@ class HttpIoError(HttpClientError):
     """
 
 def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...
+def build_otel_metrics_provider(
+    service: Optional[str],
+    env: Optional[str],
+    version: Optional[str],
+    resource_attributes: list[tuple[str, AttributeValue]],
+    endpoint: str,
+    protocol: str,
+    timeout_ms: int,
+    headers: str,
+    temporality: str,
+    export_interval_ms: int,
+) -> tuple[OtelMetricsProvider, list[str]]: ...
+
+class OtelMetricsProvider:
+    """A slim FFI handle to the Rust-owned OpenTelemetry metrics provider."""
+
+    def register_instrument(
+        self,
+        name: str,
+        kind: str,
+        unit: Optional[str] = None,
+        description: Optional[str] = None,
+        meter_name: str = "",
+        meter_version: Optional[str] = None,
+        meter_schema_url: Optional[str] = None,
+        meter_attributes: list[tuple[str, AttributeValue]] = ...,
+        callback: Optional[Callable[[], list[tuple[float, list[tuple[str, AttributeValue]]]]]] = None,
+    ) -> int: ...
+    def record(self, instrument_id: int, value: float, attrs: list[tuple[str, AttributeValue]]) -> None: ...
+    def export_counters(self) -> tuple[int, int, int]: ...
+    def force_flush(self) -> None: ...
+    def shutdown(self) -> None: ...
 
 DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]]
 

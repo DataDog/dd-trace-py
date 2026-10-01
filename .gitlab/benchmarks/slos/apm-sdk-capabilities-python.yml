@@ -135,6 +135,13 @@ experiments:
           - name: httppropagationinject-with_tags_max_size
             thresholds:
               - execution_time < 0.04 ms
+          # otelmetricsexport
+          - name: otelmetricsexport-10-metrics
+            thresholds:
+              - execution_time < 0.60 ms
+          - name: otelmetricsexport-100-metrics
+            thresholds:
+              - execution_time < 1.10 ms
           # otelsdkspan
           - name: otelsdkspan-add-event
             thresholds:

@@ -193,6 +193,17 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  otel_metrics_export:
+    paths:
+      - '@opentelemetry'
+      - ddtrace/internal/settings/_opentelemetry.py
+      - src/native/otel_telemetry/*
+      - src/native/Cargo.toml
+      - src/native/Cargo.lock
+      - benchmarks/otel_metrics_export/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   recursive_computation:
     paths:
       - '@bootstrap'

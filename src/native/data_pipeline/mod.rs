@@ -205,11 +205,12 @@ impl TraceExporterBuilderPy {
         runtime_id: String,
         debug_enabled: bool,
     ) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?.enable_telemetry(TelemetryConfig {
-            heartbeat: heartbeat_ms,
-            runtime_id: Some(runtime_id),
-            debug_enabled,
-        });
+        slf.try_as_mut()?
+            .set_runtime_id(&runtime_id)
+            .enable_telemetry(TelemetryConfig {
+                heartbeat: heartbeat_ms,
+                debug_enabled,
+            });
         Ok(slf.into())
     }
 

@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use libdd_capabilities_impl::{HttpClientCapability, NativeCapabilities};
+use libdd_capabilities_impl::NativeCapabilities;
 use libdd_common::{parse_uri, Endpoint};
 use libdd_remote_config::fetch::{
     AgentlessConfig, ConfigApplyState, ConfigInvariants, ConfigOptions, SingleChangesFetcher,
@@ -231,7 +231,7 @@ impl RemoteConfigClient {
         // The fetcher owns the storage; it's reached later via
         // `fetcher.fetcher.file_storage()`.
         let storage = ShmStorage::new();
-        let http = NativeCapabilities::new_without_connection_pooling();
+        let http = NativeCapabilities::new();
         let fetcher = if is_agentless {
             rt.block_on(SingleChangesFetcher::new(
                 storage, target, runtime_id, options, http,

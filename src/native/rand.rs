@@ -224,6 +224,7 @@ mod tests {
 }
 
 /// Register the rand module functions and set up fork safety.
+#[allow(clippy::items_after_test_module)]
 pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Release store: any thread that subsequently does an Acquire load will see this value,
     // even if it was created before module import.

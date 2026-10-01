@@ -1,0 +1,4 @@
+10-metrics:
+  metric_count: 10
+100-metrics:
+  metric_count: 100

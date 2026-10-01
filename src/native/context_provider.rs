@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use pyo3::{
     exceptions::{PyNotImplementedError, PyTypeError},
     types::{PyAnyMethods as _, PyDict, PyModule, PyModuleMethods as _, PyTuple, PyType},
-    Bound, Py, PyAny, PyResult, Python,
+    Bound, Py, PyAny, PyClassInitializer, PyResult, Python,
 };
 
 use crate::contextvar::{contextvar_get, contextvar_new, safe_contextvar_set};
@@ -190,8 +190,8 @@ pub struct DefaultContextProvider;
 #[pyo3::pymethods]
 impl DefaultContextProvider {
     #[new]
-    fn new() -> (Self, BaseContextProvider) {
-        (DefaultContextProvider, BaseContextProvider)
+    fn new() -> PyClassInitializer<Self> {
+        PyClassInitializer::from(BaseContextProvider).add_subclass(DefaultContextProvider)
     }
 
     /// Returns whether there is an active context in the current execution.

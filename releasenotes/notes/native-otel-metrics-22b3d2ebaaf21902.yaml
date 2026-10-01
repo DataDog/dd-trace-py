@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    OpenTelemetry metrics: Adds a native-backed metrics provider when
+    ``DD_METRICS_OTEL_ENABLED=true``, moving Datadog-managed aggregation and export out of Python.
