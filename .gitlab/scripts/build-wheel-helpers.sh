@@ -11,6 +11,20 @@ section_end() {
 }
 
 
+# libddwaf-sys needs the libclang C API when generating bindings.
+setup_libclang() {
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    if command -v apk &> /dev/null; then
+      apk add --no-cache clang-libclang
+    else
+      uv pip install --system --python python --only-binary=:all: libclang==18.1.1
+      export LIBCLANG_PATH="$(python -c 'from clang.cindex import Config; print(Config.library_path)')"
+      # The libclang wheel needs the existing compiler's standard C headers.
+      export BINDGEN_EXTRA_CLANG_ARGS="${BINDGEN_EXTRA_CLANG_ARGS:-} -isystem $(gcc -print-file-name=include)"
+    fi
+  fi
+}
+
 # Setup Rust (verify/install if needed)
 setup_rust() {
   section_start "install_rust" "Rust toolchain"
@@ -287,6 +301,7 @@ PY
 setup() {
   setup_env
   setup_python
+  setup_libclang
   setup_rust
 }
 

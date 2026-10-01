@@ -201,11 +201,6 @@ ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 src/native/appsec/                    @DataDog/asm-python
 ddtrace/internal/native/_native_ddwaf.pyi    @DataDog/asm-python
-tests/internal/test_native_waf_packaging.py @DataDog/asm-python
-tests/internal/test_native_waf_platform.py  @DataDog/asm-python
-scripts/build-native.py             @DataDog/asm-python @DataDog/apm-core-python
-benchmarks/appsec_waf/              @DataDog/asm-python
-docs/appsec-native-waf.md           @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python

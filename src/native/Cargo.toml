@@ -13,8 +13,6 @@ codegen-units = 1
 [features]
 default = ["waf"]
 waf = ["dep:libddwaf", "dep:libddwaf-sys"]
-waf-source = ["waf", "libddwaf/source-static"]
-waf-system = ["waf", "libddwaf/dynamic-link"]
 crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:libdd-ffe"]

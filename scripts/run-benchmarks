@@ -40,7 +40,6 @@ import fnmatch
 import json
 import os
 from pathlib import Path
-import shlex
 import subprocess
 import sys
 import uuid
@@ -52,7 +51,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from tests.suitespec import get_patterns  # noqa: E402
 from tests.suitespec import get_suites  # noqa: E402
-
 
 BENCHMARK_SUITE_PREFIX = "benchmarks::"
 
@@ -116,7 +114,7 @@ class BenchmarkRunner:
                     matches.extend(fnmatch.filter(expanded_files, pattern))
 
                 if matches:
-                    scenario = suite_name[len(BENCHMARK_SUITE_PREFIX) :]
+                    scenario = suite_name[len(BENCHMARK_SUITE_PREFIX):]
                     matching[scenario] = suite_config.copy()
                     matching[scenario]["matched_files"] = matches
                     matching[scenario]["suite_name"] = suite_name
@@ -132,7 +130,7 @@ class BenchmarkRunner:
         result = {}
         for suite_name, suite_config in all_suites.items():
             if suite_name.startswith(BENCHMARK_SUITE_PREFIX):
-                scenario = suite_name[len(BENCHMARK_SUITE_PREFIX) :]
+                scenario = suite_name[len(BENCHMARK_SUITE_PREFIX):]
                 result[scenario] = suite_config.copy()
                 result[scenario]["suite_name"] = suite_name
         return result
@@ -195,7 +193,7 @@ class BenchmarkRunner:
         if configs:
             print(f"  Configs:   {configs}")
         if profile:
-            print("  Profiling: enabled (viztracer)")
+            print(f"  Profiling: enabled (viztracer)")
         print(f"  Command:   {' '.join(cmd)}")
 
         if dry_run:
@@ -250,9 +248,7 @@ Examples:
         "--git-base", default="HEAD", help="Git ref to compare against (default: HEAD for local changes)"
     )
     parser.add_argument("--list", action="store_true", help="Output JSON with matching suites (for AI agents)")
-    parser.add_argument(
-        "--all-suites", action="store_true", help="Show all benchmark suites regardless of file changes"
-    )
+    parser.add_argument("--all-suites", action="store_true", help="Show all benchmark suites regardless of file changes")
     parser.add_argument(
         "--scenario",
         action="append",
@@ -264,7 +260,7 @@ Examples:
         "--run-id",
         default=None,
         help="Reuse an existing run ID to add scenarios to a previous run's artifact directory. "
-        "Defaults to a new UUID per invocation.",
+             "Defaults to a new UUID per invocation.",
     )
     parser.add_argument(
         "--baseline",
@@ -278,11 +274,7 @@ Examples:
         help="Candidate ddtrace version to test (default: '.' = local source)",
     )
     parser.add_argument("--configs", default="", help="Comma-separated list of config variants to run (default: all)")
-    parser.add_argument(
-        "--artifacts",
-        default="./benchmark-artifacts/",
-        help="Directory to save benchmark artifacts (default: ./benchmark-artifacts/)",
-    )
+    parser.add_argument("--artifacts", default="./benchmark-artifacts/", help="Directory to save benchmark artifacts (default: ./benchmark-artifacts/)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would run without executing")
     parser.add_argument(
         "--profile",
@@ -290,45 +282,7 @@ Examples:
         help="Collect viztracer profiling data (saved to artifacts/<run-id>/<scenario>/*/viztracer/)",
     )
 
-    parser.add_argument(
-        "--waf-http", action="store_true", help="Compare tracer checkouts over real Flask HTTP requests"
-    )
-    parser.add_argument(
-        "--local-python", default=sys.executable, help="Existing interpreter for the WAF HTTP benchmark"
-    )
-    parser.add_argument("--requests", type=int, default=1000, help="Measured requests per WAF checkout sample")
-    parser.add_argument("--repeats", type=int, default=7, help="Fresh-process samples per WAF checkout")
     args = parser.parse_args()
-    if args.waf_http:
-        if args.list:
-            print(
-                json.dumps(
-                    {
-                        "scenario": "appsec_waf",
-                        "checkouts": ["baseline", "candidate"],
-                        "workloads": ["get", "body", "unicode", "blocked"],
-                        "execution": "local HTTP",
-                    }
-                )
-            )
-            return 0
-        command = [
-            args.local_python,
-            str(Path(__file__).resolve().parents[1] / "benchmarks/appsec_waf/runner.py"),
-            "--requests",
-            str(args.requests),
-            "--repeats",
-            str(args.repeats),
-            "--artifacts",
-            args.artifacts or "artifacts/appsec-waf",
-        ]
-        command.extend(["--baseline", args.baseline, "--candidate", args.candidate])
-        if args.configs:
-            command.extend(["--workloads", args.configs])
-        if args.dry_run:
-            print(shlex.join(command))
-            return 0
-        return subprocess.run(command).returncode
 
     runner = BenchmarkRunner()
 
@@ -387,12 +341,12 @@ Examples:
     print(f"\nMatching benchmark suites ({len(matching_suites)}):")
     for scenario in sorted(matching_suites):
         configs = runner.get_scenario_configs(scenario)
-        preview = ", ".join(list(configs)[:4])
-        suffix = "..." if len(configs) > 4 else ""
-        print(f"  {scenario}  ({len(configs)} configs: {preview}{suffix})")
+        print(f"  {scenario}  ({len(configs)} configs: {', '.join(list(configs.keys())[:4])}{'...' if len(configs) > 4 else ''})")
 
     if len(matching_suites) > 5:
-        print(f"\nWarning: {len(matching_suites)} suites matched (likely broad core/tracing change).")
+        print(
+            f"\nWarning: {len(matching_suites)} suites matched (likely broad core/tracing change)."
+        )
         print("Use --scenario <name> to run a specific one, or --list for JSON output.")
     else:
         print("\nUse --scenario <name> to run one of these, or --list for JSON output.")
