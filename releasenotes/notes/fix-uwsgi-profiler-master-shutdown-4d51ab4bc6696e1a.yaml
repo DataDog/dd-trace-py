@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes an issue where applications using uWSGI master mode with multiple processes and
+    ``py-call-uwsgi-fork-hooks`` can crash during shutdown when profiling is enabled.
