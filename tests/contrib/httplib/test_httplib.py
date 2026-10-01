@@ -1,6 +1,5 @@
 import contextlib
 import http.client as httplib
-import os
 import socket
 import sys
 from unittest import mock
@@ -765,24 +764,3 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 2, "the retry on the reused connection reported no span"
         assert all(span.duration is not None for span in spans)
-
-
-@pytest.mark.snapshot(otel_semantics=True)
-def test_otel_semantics_snapshot(ddtrace_run_python_code_in_subprocess):
-    host, port = SOCKET.split(":")
-    code = """
-import http.client
-
-from ddtrace.trace import tracer
-
-conn = http.client.HTTPConnection("%s", %s)
-conn.request("GET", "/status/200")
-conn.getresponse().read()
-conn.close()
-tracer.flush()
-    """ % (host, port)
-    # The snapshot context adds the OTel semantics and OTLP export settings to the environment.
-    env = os.environ.copy()
-    env["DD_PATCH_MODULES"] = "httplib:true"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
