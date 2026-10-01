@@ -150,7 +150,8 @@ async def _langchain_claimed_agenerate(func: Callable[..., Any], instance: Any, 
 # installed per class: at patch time for the classes that exist, and from
 # __init_subclass__ for the ones defined later.
 _buffered_model_classes: "weakref.WeakSet[type]" = weakref.WeakSet()
-_buffered_methods: list[tuple[type, str]] = []
+# Held weakly so dynamically defined model classes can still be garbage-collected.
+_buffered_methods: "weakref.WeakKeyDictionary[type, list[str]]" = weakref.WeakKeyDictionary()
 # Each hooked base with the __init_subclass__ it defined itself, if any.
 _hooked_bases: list[tuple[type, Any]] = []
 _buffer_install_lock = RLock()
@@ -183,7 +184,7 @@ def _install_stream_buffers(client: AIGuardClient, base: type, is_chat: bool, mo
                 if name in klass.__dict__:
                     try:
                         wrap(klass, name, partial(wrapper, client, is_chat))
-                        _buffered_methods.append((klass, name))
+                        _buffered_methods.setdefault(klass, []).append(name)
                     except Exception:
                         logger.debug("AI Guard langchain: failed to buffer %s.%s", klass, name, exc_info=True)
         _buffered_model_classes.update(walked)
@@ -224,11 +225,12 @@ def _remove_stream_buffers() -> None:
             except Exception:
                 logger.debug("AI Guard langchain: failed to unhook %s", base, exc_info=True)
         _hooked_bases.clear()
-        for klass, name in _buffered_methods:
-            try:
-                unwrap(klass, name)
-            except Exception:
-                logger.debug("AI Guard langchain: failed to unbuffer %s.%s", klass, name, exc_info=True)
+        for klass, names in list(_buffered_methods.items()):
+            for name in names:
+                try:
+                    unwrap(klass, name)
+                except Exception:
+                    logger.debug("AI Guard langchain: failed to unbuffer %s.%s", klass, name, exc_info=True)
         _buffered_methods.clear()
         _buffered_model_classes.clear()
 

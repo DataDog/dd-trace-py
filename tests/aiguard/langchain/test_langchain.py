@@ -1626,6 +1626,26 @@ def test_unpatch_removes_stream_buffers(langchain):
     assert hasattr(FakeListChatModel.__dict__["_stream"], "__wrapped__")
 
 
+def test_stream_buffers_do_not_keep_dynamic_model_classes_alive(langchain):
+    import gc
+    import weakref
+
+    from ddtrace.aiguard.integrations._langchain import _buffered_methods
+
+    class _DynamicModel(_SelfReportingChatModel):
+        def _stream(self, *args, **kwargs):
+            yield from super()._stream(*args, **kwargs)
+
+    assert hasattr(_DynamicModel.__dict__["_stream"], "__wrapped__")
+    assert _buffered_methods[_DynamicModel] == ["_stream"]
+
+    model_class = weakref.ref(_DynamicModel)
+    del _DynamicModel
+    gc.collect()
+
+    assert model_class() is None
+
+
 def test_merge_message_chunks_matches_chunk_addition():
     from ddtrace.aiguard.integrations._langchain import _merge_message_chunks
 
