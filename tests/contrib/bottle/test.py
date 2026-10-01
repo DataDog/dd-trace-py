@@ -1,4 +1,5 @@
 import bottle
+import pytest
 import webtest
 
 import ddtrace
@@ -7,6 +8,8 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -565,3 +568,163 @@ class TraceBottleTest(TracerTestCase):
                     web_span = traces[0][0]
                     assert web_span.name == "bottle.request"
                     assert web_span._parent is None
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_span_attributes():
+    from functools import partial
+
+    import bottle
+    import webtest
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    assert_span = partial(assert_otel_server_span, peer_address=False)
+
+    app = bottle.Bottle()
+
+    @app.route("/hi/<name>")
+    def hi(name):
+        return "hi %s" % name
+
+    @app.route("/hi/<name>", method="PROPFIND")
+    def hi_propfind(name):
+        return "hi %s" % name
+
+    @app.route("/gone")
+    def gone():
+        bottle.response.status = 410
+        return "gone"
+
+    @app.route("/missing/<name>")
+    def missing(name):
+        bottle.response.status = 404
+        return "missing"
+
+    @app.route("/broken")
+    def broken():
+        bottle.response.status = 500
+        return "oops"
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = webtest.TestApp(app, lint=False)
+
+        def request_span(path, method="GET"):
+            spans.reset()
+            response = client.request(path, method=method, headers=TEST_HEADERS, expect_errors=True)
+            return response, spans.get_root_span()
+
+        response, span = request_span("/hi/dougie?q=1")
+        assert response.status_int == 200
+        assert_span(
+            span,
+            method="GET",
+            status=200,
+            path="/hi/dougie",
+            query="q=1",
+            route="/hi/<name>",
+            resource="GET /hi/<name>",
+        )
+
+        response, span = request_span("/hi/dougie", method="PROPFIND")
+        assert response.status_int == 200
+        assert_span(
+            span,
+            method="_OTHER",
+            original_method="PROPFIND",
+            status=200,
+            path="/hi/dougie",
+            route="/hi/<name>",
+            resource="HTTP /hi/<name>",
+        )
+
+        # A 404 raised by a matched route reports the route template, never the URL path.
+        response, span = request_span("/missing/secret-123")
+        assert response.status_int == 404
+        assert_span(
+            span,
+            method="GET",
+            status=404,
+            path="/missing/secret-123",
+            route="/missing/<name>",
+            resource="GET /missing/<name>",
+        )
+
+        response, span = request_span("/gone")
+        assert response.status_int == 410
+        assert_span(span, method="GET", status=410, path="/gone", route="/gone", resource="GET /gone")
+
+        response, span = request_span("/broken")
+        assert response.status_int == 500
+        assert_span(span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken")
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True)
+def test_otel_semantics_server_error_statuses_override():
+    import bottle
+    import webtest
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = bottle.Bottle()
+
+    @app.route("/missing")
+    def missing():
+        bottle.response.status = 404
+        return "missing"
+
+    @app.route("/broken")
+    def broken():
+        bottle.response.status = 500
+        return "oops"
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = webtest.TestApp(app, lint=False)
+
+        assert client.get("/missing", headers=TEST_HEADERS, expect_errors=True).status_int == 404
+        span = spans.get_root_span()
+        assert span.error == 1
+        assert span.get_tag("error.type") == "404"
+        assert span.resource == "GET /missing"
+        assert span.get_metric("http.response.status_code") == 404
+
+        spans.reset()
+        assert client.get("/broken", headers=TEST_HEADERS, expect_errors=True).status_int == 500
+        span = spans.get_root_span()
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+        assert span.resource == "GET /broken"
+        assert span.get_metric("http.response.status_code") == 500
+
+
+# Product bug: the plugin re-raises the HTTPError from abort() inside context_with_event
+# (ddtrace/contrib/internal/bottle/trace.py:76-86), so the exception marks a 404 span as an error
+# even though only 5xx statuses are errors under OTel semantics.
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_abort_4xx_is_not_an_error():
+    import bottle
+    import webtest
+
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = bottle.Bottle()
+
+    @app.route("/missing")
+    def missing():
+        bottle.abort(404)
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        webtest.TestApp(app, lint=False).get("/missing", expect_errors=True)
+        span = spans.get_root_span()
+        assert span.get_metric("http.response.status_code") == 404
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
