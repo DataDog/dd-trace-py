@@ -34,7 +34,7 @@ Both layers must work together. The patch layer identifies the operation and pas
 | Purpose | File |
 |---------|------|
 | Base LLM integration class | `ddtrace/llmobs/_integrations/base.py` (`BaseLLMIntegration`) |
-| Stream handler base classes | `ddtrace/llmobs/_integrations/base_stream_handler.py` (`BaseStreamHandler`, `StreamHandler`, `AsyncStreamHandler`) |
+| Stream handler base classes | `ddtrace/internal/utils/stream_handler.py` (`BaseStreamHandler`, `StreamHandler`, `AsyncStreamHandler`) |
 | Shared utilities | `ddtrace/llmobs/_integrations/utils.py` |
 | LLMObs annotation helper | `ddtrace/llmobs/_utils.py` (`_annotate_llmobs_span_data`) |
 | LLMObs constants | `ddtrace/llmobs/_constants.py` |
@@ -117,6 +117,7 @@ Note two already-shipped integrations predate this key: bedrock and the claude-a
 - **Event-based patch wrappers** should not call `span.set_exc_info()`, `span.finish()`, or `integration.llmobs_set_tags()` directly; the tracing subscriber handles that when the event ends
 - **Direct integration spans** must keep `integration.llmobs_set_tags()` and span lifecycle handling aligned with the closest current reference
 - **Integration instance** must be stored on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
+- **Contrib must work without LLMObs**: the integration instance is only created when LLMObs is loaded, so event-based patch code reads it with `getattr(module, "_datadog_integration", None)` and passes an `apm_tagger` (from `ddtrace/contrib/internal/{name}/_utils.py`, built on `ddtrace/internal/llm/`) for APM-side tags. Anthropic is the reference.
 
 ## Message Types
 

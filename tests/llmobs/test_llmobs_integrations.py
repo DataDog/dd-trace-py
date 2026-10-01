@@ -15,7 +15,7 @@ def mock_integration_config(ddtrace_global_config):
 
 @pytest.fixture(scope="function")
 def ddtrace_global_config():
-    with mock.patch("ddtrace.llmobs._integrations.base.config") as mock_global_config:
+    with mock.patch("ddtrace.internal.llm.apm.config") as mock_global_config:
         mock_global_config._llmobs_agentless_enabled = False
         mock_global_config._llmobs_sample_rate = 1.0
         mock_global_config._dd_api_key = "<not-a-real-key>"

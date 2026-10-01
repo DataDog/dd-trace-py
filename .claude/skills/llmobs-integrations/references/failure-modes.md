@@ -14,7 +14,7 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 **Causes:**
 1. `submit_to_llmobs=True` not set on `LlmRequestEvent` for event-based patch code
 2. `ctx.dispatch_ended_event()` not called, so `LlmTracingSubscriber` never calls `integration.llmobs_set_tags()`
-3. Integration not instantiated -- `module._datadog_integration` is `None`
+3. Integration not instantiated -- `module._datadog_integration` is `None` (expected when LLMObs is disabled; if the library was patched before LLMObs loaded, a backfill in `ddtrace/llmobs/_integrations/__init__.py` is needed)
 4. `llmobs_enabled` returns `False` -- LLMObs not configured in tracer config
 
 **Fix:**

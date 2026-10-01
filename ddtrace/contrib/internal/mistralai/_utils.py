@@ -1,9 +1,9 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.internal.utils.stream_handler import AsyncStreamHandler
+from ddtrace.internal.utils.stream_handler import BaseStreamHandler
+from ddtrace.internal.utils.stream_handler import StreamHandler
 from ddtrace.llmobs._utils import _get_attr
 
 

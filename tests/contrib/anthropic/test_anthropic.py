@@ -37,6 +37,43 @@ def test_global_tags(anthropic, request_vcr, test_spans):
     assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
 
 
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "false", "ANTHROPIC_API_KEY": "<not-a-real-key>"})
+def test_apm_tags_without_llmobs_loaded():
+    """APM spans get the model, provider, and token usage tags even when ddtrace.llmobs is never imported."""
+    import sys
+
+    import anthropic
+
+    from ddtrace.contrib.internal.anthropic.patch import patch
+    from tests.contrib.anthropic.utils import get_request_vcr
+    from tests.utils import scoped_tracer
+
+    patch()
+    assert not hasattr(anthropic, "_datadog_integration")
+
+    with scoped_tracer() as tracer:
+        with get_request_vcr().use_cassette("anthropic_completion.yaml"):
+            anthropic.Anthropic().messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
+            )
+        span = tracer._span_aggregator.writer.pop()[0]
+
+    assert "ddtrace.llmobs" not in sys.modules
+    assert span.span_type is None
+    assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
+    assert span.get_tag("_dd.llmobs.model_name") == "claude-3-opus-20240229"
+    assert span.get_tag("_dd.llmobs.model_provider") == "anthropic"
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") is not None
+    assert span.get_metric("_dd.llmobs.output_tokens") is not None
+    assert span.get_metric("_dd.llmobs.total_tokens") == (
+        span.get_metric("_dd.llmobs.input_tokens") + span.get_metric("_dd.llmobs.output_tokens")
+    )
+
+
 @pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
 def test_anthropic_llm_sync_create(anthropic, request_vcr):
     llm = anthropic.Anthropic()

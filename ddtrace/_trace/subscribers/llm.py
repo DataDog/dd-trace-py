@@ -6,13 +6,10 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.llm.apm import is_instrumented_proxy_url
+from ddtrace.internal.llm.constants import PROXY_REQUEST
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
-
-
-# Duplicated from ddtrace.llmobs._constants to avoid importing
-# ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
-_PROXY_REQUEST = "llmobs.proxy_request"
 
 
 log = get_logger(__name__)
@@ -22,8 +19,8 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
     """Shared tracing logic for all LLM integrations.
 
     Handles span creation, base tag setting, proxy detection,
-    and LLMObs tag extraction. Provider-specific logic is delegated
-    to the integration object carried by the event.
+    and LLMObs tag extraction. Provider-specific logic is delegated to the
+    event's apm_tagger when present, and otherwise to its LLMObs integration.
     """
 
     event_names = (LlmRequestEvent.event_name,)
@@ -40,19 +37,28 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._remove_attribute(COMPONENT)
         span._remove_attribute(SPAN_KIND)
 
-        event.llmobs_integration._set_base_span_tags(
-            span,
-            model=event.model,
-            provider=event.provider,
-            instance=event.instance,
-        )
+        integration = event.llmobs_integration
+        tagger = event.apm_tagger
+        if tagger is not None:
+            tagger.set_base_span_tags(span, event.model, event.instance)
+            base_url = tagger.get_base_url(event.instance)
+        elif integration is not None:
+            integration._set_base_span_tags(
+                span,
+                model=event.model,
+                provider=event.provider,
+                instance=event.instance,
+            )
+            base_url = integration._get_base_url(instance=event.instance)
+        else:
+            base_url = None
 
-        base_url = event.llmobs_integration._get_base_url(instance=event.instance)
-        if event.llmobs_integration._is_instrumented_proxy_url(base_url):
-            span._set_ctx_item(_PROXY_REQUEST, True)
-        event.llmobs_integration._annotate_integration_tag(span)
-        # Stamp kind at start; no ddtrace.llmobs import pulled into this module.
-        event.llmobs_integration._stamp_llmobs_span_kind_at_start(span, event.operation, operation=event.operation)
+        if is_instrumented_proxy_url(base_url):
+            span._set_ctx_item(PROXY_REQUEST, True)
+        if integration is not None:
+            integration._annotate_integration_tag(span)
+            # Stamp kind at start; no ddtrace.llmobs import pulled into this module.
+            integration._stamp_llmobs_span_kind_at_start(span, event.operation, operation=event.operation)
 
     @classmethod
     def on_ended(
@@ -67,10 +73,20 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         dispatch_ended_event().
         """
         event: LlmRequestEvent = ctx.event
-        event.llmobs_integration.llmobs_set_tags(
-            span_from_context(ctx),
-            args=[],
-            kwargs=event.request_kwargs,
-            response=event.response,
-            operation=event.operation,
-        )
+        span = span_from_context(ctx)
+        integration = event.llmobs_integration
+        tagger = event.apm_tagger
+        if tagger is not None:
+            try:
+                tagger.set_apm_shadow_tags(span, event.response, integration is not None and integration.llmobs_enabled)
+            except Exception:
+                log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
+        if integration is not None:
+            integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs=event.request_kwargs,
+                response=event.response,
+                operation=event.operation,
+                set_apm_shadow_tags=tagger is None,
+            )

@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 from typing import Optional
@@ -150,3 +151,18 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
 def format_trace_id(trace_id: int) -> str:
     """Translate a trace ID to a string format supported by the backend."""
     return f"{trace_id:032x}" if trace_id > MAX_UINT_64BITS else str(trace_id)
+
+
+def _get_attr(o: object, attr: str, default: object) -> Any:
+    # Convenience method to get an attribute from an object or dict
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
+
+
+def safe_load_json(value: str) -> Any:
+    try:
+        loaded_value = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        loaded_value = {"value": str(value)}
+    return loaded_value

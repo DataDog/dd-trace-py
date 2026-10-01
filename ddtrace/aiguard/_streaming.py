@@ -24,8 +24,8 @@ import wrapt
 from ddtrace.aiguard._context import is_aiguard_context_active
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
+from ddtrace.internal.utils.stream_handler import AsyncStreamHandler
+from ddtrace.internal.utils.stream_handler import BaseStreamHandler
 
 
 logger = ddlogger.get_logger(__name__)
@@ -146,7 +146,7 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
     # ------------------------------------------------------------------
     # Context-manager protocol
     #
-    # TracedStream.__enter__() (base_stream_handler.py) has two branches:
+    # TracedStream.__enter__() (ddtrace/internal/utils/stream_handler.py) has two branches:
     #   - non-manager (raw Stream): returns ``self`` (the TracedStream).
     #   - manager (MessageStreamManager): returns a NEW TracedStream
     #     wrapping the inner MessageStream.

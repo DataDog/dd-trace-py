@@ -5,11 +5,11 @@ import anthropic
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
+from ddtrace.internal.utils.stream_handler import AsyncStreamHandler
+from ddtrace.internal.utils.stream_handler import StreamHandler
+from ddtrace.internal.utils.stream_handler import make_traced_stream
 
 
 log = get_logger(__name__)

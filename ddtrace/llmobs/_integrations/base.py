@@ -2,39 +2,25 @@ import abc
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.llm.apm import apply_shadow_metrics
+from ddtrace.internal.llm.apm import is_instrumented_proxy_url
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_PROMPT
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integration_api import annotate
 from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_tracked_prompt
-from ddtrace.llmobs._utils import set_gen_ai_apm_tags
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -142,12 +128,18 @@ class BaseLLMIntegration:
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        set_apm_shadow_tags: bool = True,
     ) -> None:
-        """Extract input/output information from the request and response to be submitted to LLMObs."""
-        try:
-            self._set_apm_shadow_tags(span, args, kwargs, response, operation)
-        except Exception:
-            log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
+        """Extract input/output information from the request and response to be submitted to LLMObs.
+
+        set_apm_shadow_tags is False when the contrib integration already tagged the APM span itself
+        (see LlmRequestEvent.apm_tagger), so the shadow tags aren't computed twice.
+        """
+        if set_apm_shadow_tags:
+            try:
+                self._set_apm_shadow_tags(span, args, kwargs, response, operation)
+            except Exception:
+                log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
         if not self.llmobs_enabled:
             return
         try:
@@ -203,42 +195,17 @@ class BaseLLMIntegration:
         model_provider: Optional[str] = None,
     ) -> None:
         """Set shadow metric/tag values on the APM span from extracted metrics."""
-        span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
-        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.llmobs_enabled else 0)
-        if model_name:
-            span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
-        if model_provider:
-            span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
-        # Only when LLMObs is off; otherwise _prepare_llmobs_span_data emits these at span finish
-        # with better values. set_gen_ai_apm_tags also marks the span as artificially tagged, so
-        # the backend can tell these apart from user-set gen_ai.* tags and skip creating a
-        # duplicate LLMObs span for it.
-        if not self.llmobs_enabled:
-            llmobs_data = {
-                LLMOBS_STRUCT.META: {
-                    LLMOBS_STRUCT.MODEL_NAME: model_name,
-                    LLMOBS_STRUCT.MODEL_PROVIDER: model_provider,
-                },
-                LLMOBS_STRUCT.METRICS: metrics,
-            }
-            set_gen_ai_apm_tags(span, llmobs_data, span_kind)
-        if span_kind in ("llm", "embedding") and metrics:
-            for llmobs_key, shadow_key in (
-                (INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY),
-                (OUTPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY),
-                (TOTAL_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY),
-                (CACHE_READ_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY),
-                (CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY),
-            ):
-                value = metrics.get(llmobs_key)
-                if value is not None:
-                    span._set_attribute(shadow_key, value)
+        apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            self.llmobs_enabled,
+            model_name=model_name,
+            model_provider=model_provider,
+        )
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None
 
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:
-        if not base_url:
-            return False
-        instrumented_proxy_urls = config._llmobs_instrumented_proxy_urls or set()
-        return base_url in instrumented_proxy_urls
+        return is_instrumented_proxy_url(base_url)

@@ -3,19 +3,10 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib.internal.anthropic import _utils as anthropic_utils
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import REQUEST_BASE_URL
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import anthropic_tool_call_from_block
 from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
@@ -31,13 +22,6 @@ from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
-
-
-MODEL = "anthropic.request.model"
-
-_ANTHROPIC_MODEL_PROVIDER = "anthropic"
-_BEDROCK_MODEL_PROVIDER = "amazon"
-_VERTEX_MODEL_PROVIDER = "google"
 
 
 def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, str], str]]:
@@ -72,14 +56,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         api_key: Optional[str] = None,
         **kwargs: dict[str, Any],
     ) -> None:
-        """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
-        # Store base_url per-span rather than on the singleton integration so a streaming
-        # span that finalizes after concurrent requests still resolves the right provider.
-        base_url = self._get_base_url(**kwargs)
-        if base_url is not None:
-            span._set_ctx_item(REQUEST_BASE_URL, base_url)
-        if model is not None:
-            span._set_attribute(MODEL, model)
+        anthropic_utils.set_base_span_tags(span, model=model, instance=kwargs.get("instance"))
 
     def _llmobs_set_tags(
         self,
@@ -112,7 +89,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             finish_reason = _get_attr(response, "stop_reason", None) or _get_attr(response, "finish_reason", None)
             if finish_reason:
                 parameters["finish_reason"] = str(finish_reason)
-        span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
+        span_kind = anthropic_utils.get_span_kind(span)
 
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
@@ -120,7 +97,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
-            model_name=span.get_tag("anthropic.request.model") or "",
+            model_name=span.get_tag(anthropic_utils.MODEL) or "",
             model_provider=self._get_model_provider(span),
             input_messages=input_messages,
             metadata=parameters,
@@ -130,17 +107,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         )
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
-        span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
-        usage = _get_attr(response, "usage", {})
-        metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
-        model_name = span.get_tag("anthropic.request.model")
-        self._apply_shadow_metrics(
-            span,
-            metrics,
-            span_kind,
-            model_name=model_name,
-            model_provider=self._get_model_provider(span),
-        )
+        anthropic_utils.set_apm_shadow_tags(span, response, self.llmobs_enabled)
 
     def _extract_input_message(
         self, messages: list[dict[str, Any]], system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None
@@ -223,63 +190,13 @@ class AnthropicIntegration(BaseLLMIntegration):
         return get_messages_from_anthropic_content(_get_attr(response, "role", ""), _get_attr(response, "content", ""))
 
     def _extract_usage(self, span: Span, usage: dict[str, Any]):
-        if not usage:
-            return
-        input_tokens = _get_attr(usage, "input_tokens", None)
-        output_tokens = _get_attr(usage, "output_tokens", None)
-        cache_write_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
-        cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
-
-        metrics = {}
-
-        # `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
-        # the total tokens sent to the model to be consistent with other model providers.
-        metrics[INPUT_TOKENS_METRIC_KEY] = (input_tokens or 0) + (cache_write_tokens or 0) + (cache_read_tokens or 0)
-
-        if output_tokens is not None:
-            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if INPUT_TOKENS_METRIC_KEY in metrics and output_tokens is not None:
-            metrics[TOTAL_TOKENS_METRIC_KEY] = metrics[INPUT_TOKENS_METRIC_KEY] + output_tokens
-
-        if cache_write_tokens is not None:
-            metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
-            cache_creation_breakdown = _get_attr(usage, "cache_creation", {})
-            cache_creation_1h_tokens = _get_attr(cache_creation_breakdown, "ephemeral_1h_input_tokens", None)
-            cache_creation_5m_tokens = _get_attr(cache_creation_breakdown, "ephemeral_5m_input_tokens", None)
-            if cache_creation_1h_tokens is None and cache_creation_5m_tokens is None:
-                # Legacy API response without cache_creation breakdown; assume all writes are 5m TTL.
-                cache_creation_5m_tokens = cache_write_tokens
-            metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = cache_creation_1h_tokens or 0
-            metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_5m_tokens or 0
-
-        if cache_read_tokens is not None:
-            metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
-        return metrics
+        return anthropic_utils.extract_usage(usage)
 
     def _get_model_provider(self, span: Span) -> str:
-        """Resolve the model provider from the request base_url captured on the span.
-
-        Returns "amazon" if the base_url contains "bedrock".
-        Returns "google" if the base_url contains "google".
-        Returns "anthropic" if the base_url contains "anthropic".
-        Returns "unknown" when the base_url is missing or unrecognized.
-        """
-        base_url = (span._get_ctx_item(REQUEST_BASE_URL) or "").lower()
-        if not base_url:
-            return UNKNOWN_MODEL_PROVIDER
-        if "bedrock" in base_url:
-            return _BEDROCK_MODEL_PROVIDER
-        if "google" in base_url:
-            return _VERTEX_MODEL_PROVIDER
-        if "anthropic" in base_url:
-            return _ANTHROPIC_MODEL_PROVIDER
-        return UNKNOWN_MODEL_PROVIDER
+        return anthropic_utils.get_model_provider(span)
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
-        instance = kwargs.get("instance")
-        client = getattr(instance, "_client", None)
-        base_url = getattr(client, "_base_url", None) if client else None
-        return str(base_url) if base_url else None
+        return anthropic_utils.get_base_url(kwargs.get("instance"))
 
     def _extract_tools(self, tools: Optional[Any]) -> list[ToolDefinition]:
         return get_tool_definitions_from_anthropic_tools(tools)

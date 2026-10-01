@@ -1,12 +1,14 @@
 import sys
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 import anthropic
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LLMObsIntegrationLike
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.anthropic import _utils as anthropic_utils
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
 from ddtrace.contrib.internal.trace_utils import int_service
@@ -36,15 +38,17 @@ config._add("anthropic", {})
 
 
 def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: LLMObsIntegrationLike = anthropic._datadog_integration
+    # Only present when LLMObs is loaded; APM tagging goes through apm_tagger either way.
+    integration: Optional[LLMObsIntegrationLike] = getattr(anthropic, "_datadog_integration", None)
     event = LlmRequestEvent(
         component="anthropic",
         integration_config=config.anthropic,
-        service=int_service(None, integration.integration_config),
+        service=int_service(None, config.anthropic),
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
         model=kwargs.get("model", ""),
         llmobs_integration=integration,
+        apm_tagger=anthropic_utils.apm_tagger,
         submit_to_llmobs=True,
         request_kwargs=kwargs,
         instance=instance,
@@ -76,15 +80,17 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
 
 
 async def traced_async_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: LLMObsIntegrationLike = anthropic._datadog_integration
+    # Only present when LLMObs is loaded; APM tagging goes through apm_tagger either way.
+    integration: Optional[LLMObsIntegrationLike] = getattr(anthropic, "_datadog_integration", None)
     event = LlmRequestEvent(
         component="anthropic",
         integration_config=config.anthropic,
-        service=int_service(None, integration.integration_config),
+        service=int_service(None, config.anthropic),
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
         model=kwargs.get("model", ""),
         llmobs_integration=integration,
+        apm_tagger=anthropic_utils.apm_tagger,
         submit_to_llmobs=True,
         request_kwargs=kwargs,
         instance=instance,
@@ -166,4 +172,5 @@ def unpatch() -> None:
         unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "create")
         unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "stream")
 
-    delattr(anthropic, "_datadog_integration")
+    if hasattr(anthropic, "_datadog_integration"):
+        delattr(anthropic, "_datadog_integration")

@@ -12,8 +12,8 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.internal.claude_agent_sdk.utils import extract_partial_message_usage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
+from ddtrace.internal.utils.stream_handler import AsyncStreamHandler
+from ddtrace.internal.utils.stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message

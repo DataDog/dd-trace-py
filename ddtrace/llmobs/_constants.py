@@ -1,6 +1,86 @@
 from enum import Enum
 from typing import Final
 
+from ddtrace.internal.llm.constants import (
+    CACHE_READ_INPUT_TOKENS_METRIC_KEY as CACHE_READ_INPUT_TOKENS_METRIC_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import (
+    CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY as CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY as CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    CACHE_WRITE_INPUT_TOKENS_METRIC_KEY as CACHE_WRITE_INPUT_TOKENS_METRIC_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import (
+    GEN_AI_APPLICATION_NAME_TAG_KEY as GEN_AI_APPLICATION_NAME_TAG_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import (
+    GEN_AI_CONVERSATION_ID_TAG_KEY as GEN_AI_CONVERSATION_ID_TAG_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import GEN_AI_OPERATION_NAME_TAG_KEY as GEN_AI_OPERATION_NAME_TAG_KEY  # noqa: F401
+from ddtrace.internal.llm.constants import GEN_AI_PROVIDER_NAME_TAG_KEY as GEN_AI_PROVIDER_NAME_TAG_KEY  # noqa: F401
+from ddtrace.internal.llm.constants import GEN_AI_REQUEST_MODEL_TAG_KEY as GEN_AI_REQUEST_MODEL_TAG_KEY  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY as GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY as GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY as GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import (
+    GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY as GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY as GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY as GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import INPUT_TOKENS_METRIC_KEY as INPUT_TOKENS_METRIC_KEY  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY as LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY as LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY as LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY as LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY as LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY as LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY as LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY as LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import (
+    LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY as LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY,
+)  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY as LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import OUTPUT_TOKENS_METRIC_KEY as OUTPUT_TOKENS_METRIC_KEY  # noqa: F401
+from ddtrace.internal.llm.constants import PROXY_REQUEST as PROXY_REQUEST  # noqa: F401
+from ddtrace.internal.llm.constants import (
+    REASONING_OUTPUT_TOKENS_METRIC_KEY as REASONING_OUTPUT_TOKENS_METRIC_KEY,  # noqa: F401
+)
+from ddtrace.internal.llm.constants import REQUEST_BASE_URL as REQUEST_BASE_URL  # noqa: F401
+from ddtrace.internal.llm.constants import TOTAL_TOKENS_METRIC_KEY as TOTAL_TOKENS_METRIC_KEY  # noqa: F401
+from ddtrace.internal.llm.constants import UNKNOWN_MODEL_NAME as UNKNOWN_MODEL_NAME  # noqa: F401
+from ddtrace.internal.llm.constants import UNKNOWN_MODEL_PROVIDER as UNKNOWN_MODEL_PROVIDER  # noqa: F401
+
 
 class LLMObsExportMode(str, Enum):
     """The primary path LLMObs span data takes to Datadog.
@@ -53,8 +133,6 @@ PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
-UNKNOWN_MODEL_PROVIDER = "unknown"
-UNKNOWN_MODEL_NAME = "unknown"
 
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
@@ -72,15 +150,7 @@ LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 
-INPUT_TOKENS_METRIC_KEY = "input_tokens"
-OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
-TOTAL_TOKENS_METRIC_KEY = "total_tokens"
-CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
-CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
-REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
-CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
-CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
 # Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
 # token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
@@ -88,29 +158,6 @@ INPUT_COST_METRIC_KEY = "input_cost"
 OUTPUT_COST_METRIC_KEY = "output_cost"
 TOTAL_COST_METRIC_KEY = "total_cost"
 
-LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
-LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
-LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY = "_dd.llmobs.total_tokens"
-LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.cache_read_input_tokens"
-LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.cache_write_input_tokens"
-LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
-LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
-LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
-LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
-LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY = "_dd.llmobs.artificial_gen_ai_tags"
-
-GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
-GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
-GEN_AI_PROVIDER_NAME_TAG_KEY = "gen_ai.provider.name"
-GEN_AI_APPLICATION_NAME_TAG_KEY = "gen_ai.application.name"
-GEN_AI_CONVERSATION_ID_TAG_KEY = "gen_ai.conversation.id"
-
-GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.input_tokens"
-GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.output_tokens"
-GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY = "gen_ai.usage.total_tokens"
-GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_read_input_tokens"
-GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_write_input_tokens"
-GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.reasoning_output_tokens"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -174,9 +221,6 @@ OAI_HANDOFF_TOOL_ARG = "{}"
 
 LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
-PROXY_REQUEST = "llmobs.proxy_request"
-
-REQUEST_BASE_URL = "llmobs.request_base_url"
 
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"

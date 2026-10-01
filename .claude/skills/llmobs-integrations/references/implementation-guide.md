@@ -94,6 +94,9 @@ Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_ev
 
 Key points:
 - Construct `LlmRequestEvent(..., llmobs_integration=integration, submit_to_llmobs=True, request_kwargs=kwargs, ...)`
+- Contrib code must not import `ddtrace.llmobs`. The integration object only exists when LLMObs is loaded, so read it with `getattr(module, "_datadog_integration", None)`; `llmobs_integration` is optional on the event. Use `int_service(None, config.mylib)` rather than reading the integration's config.
+- Put APM span tagging (model tag, base URL, provider, token usage, `_dd.llmobs.*` shadow tags) in `ddtrace/contrib/internal/{name}/_utils.py` and pass an `LlmApmTagger` implementation as `apm_tagger=` so APM spans are fully tagged without LLMObs. Shared helpers live in `ddtrace/internal/llm/` (`apm.apply_shadow_metrics`, `apm.is_instrumented_proxy_url`, `constants`). When `apm_tagger` is set, the subscriber calls `llmobs_set_tags(..., set_apm_shadow_tags=False)` so the shadow tags aren't computed twice; the `BaseLLMIntegration` subclass should delegate its `_set_base_span_tags` / `_set_apm_shadow_tags` / `_extract_usage` to the same helpers. See `ddtrace/contrib/internal/anthropic/_utils.py`.
+- If the library can be patched before LLMObs loads, backfill `_datadog_integration` in `ddtrace/llmobs/_integrations/__init__.py` (see `_backfill_anthropic_integration`).
 - The event/subscriber path owns span creation and finishing; patch wrappers should not call `tracer.trace()`, `integration.trace()`, or create spans directly for standard request spans
 - Use `with core.context_with_event(event, dispatch_end_event=False) as ctx:` when streaming or when the wrapper needs to dispatch the ended event manually
 - For non-streaming success, set `event.response = resp` and call `ctx.dispatch_ended_event()`
@@ -105,7 +108,7 @@ Some older or specialized integrations still call `integration.trace()` and `int
 
 ## Streaming
 
-Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/llmobs/_integrations/base_stream_handler.py`:
+Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/internal/utils/stream_handler.py`:
 
 - `initialize_chunk_storage()` — set up accumulators for content, usage, role
 - `process_chunk(chunk)` — accumulate text, tool blocks, usage from each chunk

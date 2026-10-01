@@ -16,8 +16,8 @@ from ddtrace.llmobs._integrations._bedrock_inference_profiles import begin_resol
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_resolve_failure
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
+from ddtrace.internal.utils.stream_handler import StreamHandler
+from ddtrace.internal.utils.stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
 from ddtrace.llmobs._integrations.bedrock_utils import _AMAZON
 from ddtrace.llmobs._integrations.bedrock_utils import _ANTHROPIC

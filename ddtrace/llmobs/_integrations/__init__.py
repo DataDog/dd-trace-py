@@ -9,6 +9,7 @@ from importlib import import_module
 import sys
 from typing import Any
 
+from ddtrace import config
 from ddtrace.internal import core
 
 
@@ -61,3 +62,17 @@ def _on_anthropic_integration_create(integration_config: Any) -> None:
 # dispatches "anthropic.integration.create" and this listener builds and stashes the integration
 # object, instead of contrib importing and constructing AnthropicIntegration itself.
 core.on("anthropic.integration.create", _on_anthropic_integration_create)
+
+
+def _backfill_anthropic_integration() -> None:
+    # anthropic may have been patched before this package was loaded (e.g. LLMObs enabled after
+    # patch_all), in which case "anthropic.integration.create" fired with no listener registered.
+    anthropic = sys.modules.get("anthropic")
+    if anthropic is None or not getattr(anthropic, "_datadog_patch", False):
+        return
+    if getattr(anthropic, "_datadog_integration", None) is not None:
+        return
+    _on_anthropic_integration_create(config.anthropic)
+
+
+_backfill_anthropic_integration()
