@@ -23,7 +23,6 @@ from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git
 from ddtrace.internal import atexit
@@ -78,8 +77,6 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
-from ddtrace.llmobs._constants import LLMOBS_CLIENT_IP_CORE_KEY
-from ddtrace.llmobs._constants import LLMOBS_NETWORK_CLIENT_IP_CORE_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
@@ -567,35 +564,6 @@ def _normalize_llmobs_meta(
         llmobs_meta.pop(LLMOBS_STRUCT.OUTPUT, None)
 
 
-def _on_set_http_meta_for_llmobs(
-    span: Any,
-    _request_ip: Optional[str],
-    _raw_uri: Optional[str],
-    _route: Optional[str],
-    _method: Optional[str],
-    request_headers: Optional[Any],
-    _request_cookies: Optional[Any],
-    _parsed_query: Optional[Any],
-    _request_path_params: Optional[Any],
-    _request_body: Any,
-    _status_code: Optional[Any],
-    _response_headers: Optional[Any],
-    _response_cookies: Optional[Any],
-    peer_ip: Optional[str] = None,
-    headers_are_case_sensitive: bool = False,
-) -> None:
-    # Stash the candidate client IP so it can be copied onto LLMObs spans at finish time.
-    # Restricted to inbound server (WEB/SERVERLESS) spans so outbound HTTP client spans
-    # can't overwrite the key with forwarded-IP headers from downstream calls.
-    if span.span_type not in (SpanTypes.WEB, SpanTypes.SERVERLESS):
-        return
-    candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-    if candidate_ip:
-        core.set_item(LLMOBS_CLIENT_IP_CORE_KEY, candidate_ip)
-    if peer_ip:
-        core.set_item(LLMOBS_NETWORK_CLIENT_IP_CORE_KEY, peer_ip)
-
-
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
@@ -704,23 +672,24 @@ class LLMObs(Service):
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
 
     def _enrich_with_http_client_ip(self, span: Span) -> None:
+        # Only enrich the LLMObs root span; non-root spans join against the root at query time.
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        if llmobs_data.get(LLMOBS_STRUCT.PARENT_ID, ROOT_PARENT_ID) != ROOT_PARENT_ID:
+            return
         local_root = span._local_root
-        # Prefer tags already on the local root span (e.g. set by AppSec/retrieve_client_ip).
-        client_ip = (local_root.get_tag("http.client_ip") if local_root else None) or core.find_item(
-            LLMOBS_CLIENT_IP_CORE_KEY
-        )
-        network_client_ip = (local_root.get_tag("network.client.ip") if local_root else None) or core.find_item(
-            LLMOBS_NETWORK_CLIENT_IP_CORE_KEY
-        )
+        if not local_root:
+            return
+        # Read IP tags set by AppSec or DD_TRACE_CLIENT_IP_ENABLED on the APM root span.
+        client_ip = local_root.get_tag("http.client_ip")
+        network_client_ip = local_root.get_tag("network.client.ip")
         if not client_ip and not network_client_ip:
             return
-        tags = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
-        if tags is None:
-            return
+        ip_tags = {}
         if client_ip:
-            tags["http.client_ip"] = client_ip
+            ip_tags["http.client_ip"] = client_ip
         if network_client_ip:
-            tags["network.client.ip"] = network_client_ip
+            ip_tags["network.client.ip"] = network_client_ip
+        _annotate_llmobs_span_data(span, tags=ip_tags)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -951,7 +920,6 @@ class LLMObs(Service):
         # Remove listener hooks for span events
         core.reset_listeners("trace.span_start", self._on_span_start)
         core.reset_listeners("trace.span_finish", self._on_span_finish)
-        core.reset_listeners("set_http_meta_for_asm", _on_set_http_meta_for_llmobs)
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
         core.reset_listeners(
             "http.activate_distributed_headers",
@@ -1121,7 +1089,6 @@ class LLMObs(Service):
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)
             core.on("trace.span_finish", cls._instance._on_span_finish)
-            core.on("set_http_meta_for_asm", _on_set_http_meta_for_llmobs)
             core.on("http.span_inject", cls._inject_llmobs_context)
             core.on(
                 "http.activate_distributed_headers",
