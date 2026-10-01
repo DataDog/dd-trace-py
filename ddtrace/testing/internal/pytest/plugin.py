@@ -554,17 +554,22 @@ class TestOptPlugin(TestOptPluginProtocol):
         # We create a fresh client because the lookup client's HTTP connector may be
         # in a bad state after a 404 response (BackendConnector closes on 4xx errors).
         if self._testmon_active and is_tia_v2_enabled() and not self.is_xdist_worker:
-            suite_id = _stash_get(session.config, _TIA_SUITE_ID_STASH_KEY, None)
-            try:
-                upload_client = TIAArtifactClient(
-                    connector_setup=self.manager.connector_setup,
-                    env_tags=self.manager.env_tags,
-                    workspace_path=self.manager.workspace_path,
-                )
-                _tia_v2_upload(upload_client, suite_id)
-                upload_client.close()
-            except Exception:
-                log.warning("TIA v2: failed to upload database", exc_info=True)
+            # Skip upload when no tests ran (all deselected by testmon — nothing changed).
+            # The downloaded database was not modified, so re-uploading is wasteful.
+            if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
+                log.debug("TIA v2: skipping upload — no tests ran (all deselected)")
+            else:
+                suite_id = _stash_get(session.config, _TIA_SUITE_ID_STASH_KEY, None)
+                try:
+                    upload_client = TIAArtifactClient(
+                        connector_setup=self.manager.connector_setup,
+                        env_tags=self.manager.env_tags,
+                        workspace_path=self.manager.workspace_path,
+                    )
+                    _tia_v2_upload(upload_client, suite_id)
+                    upload_client.close()
+                except Exception:
+                    log.warning("TIA v2: failed to upload database", exc_info=True)
 
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)
