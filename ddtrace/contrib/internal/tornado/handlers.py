@@ -67,6 +67,9 @@ async def execute(func, handler, args, kwargs):
             core.dispatch("web.request.start", (ctx, config.tornado))
 
             http_route, path_params = _find_route(handler.application.default_router.rules, handler.request)
+            if http_route is None and not config._otel_trace_semantics_enabled:
+                # Without OTel semantics an unmatched request is reported with this placeholder route.
+                http_route = _UNMATCHED_ROUTE
             if http_route is not None and isinstance(http_route, str):
                 req_span._set_attribute("http.route", http_route)
             setattr(request, REQUEST_SPAN_KEY, req_span)
@@ -219,6 +222,9 @@ def _path_for_path_match(matcher: PathMatches) -> str:
     return _regex_to_route(matcher.regex.pattern)
 
 
+_UNMATCHED_ROUTE = "^$"
+
+
 def _find_route(initial_rule_set, request):
     """
     We have to walk through the same chain of rules that tornado does to find a matching rule.
@@ -239,7 +245,7 @@ def _find_route(initial_rule_set, request):
             elif hasattr(rule.target, "rules"):
                 rules.extendleft(reversed(rule.target.rules))
 
-    return "^$", {}
+    return None, {}
 
 
 def _on_flush(func, handler, args, kwargs):
