@@ -48,6 +48,25 @@ variables:
     - changes: *serverless_changes
     - when: never
 
+.package_build_changes: &package_build_changes
+  - .gitlab-ci.yml
+  - .gitlab/package.yml
+  - .gitlab/scripts/build-sdist.sh
+  - .gitlab/scripts/build-wheel.sh
+  - .gitlab/validate-ddtrace-package.py
+  - setup.py
+  - pyproject.toml
+  - MANIFEST.in
+  - ddtrace/**/*.c
+  - ddtrace/**/*.cc
+  - ddtrace/**/*.cpp
+  - ddtrace/**/*.h
+  - ddtrace/**/*.hpp
+  - ddtrace/**/*.pxd
+  - ddtrace/**/*.pyx
+  - src/native/**/*
+  - src/native_heap_gotter/**/*
+
 .build_base:
   stage: package
   variables:
@@ -381,6 +400,10 @@ variables:
   needs:
     - job: "build sdist"
       artifacts: true
+  rules:
+    - if: !reference [.run_all_tests]
+    - changes: *package_build_changes
+    - when: never
   script:
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR

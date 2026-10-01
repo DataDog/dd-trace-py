@@ -698,6 +698,8 @@ prof-correctness:
     - job: "upload all"
   timeout: 60m
   rules:
+    - if: !reference [.is_gh_merge_queue]
+    - if: !reference [.is_devflow_merge_queue]
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     # Bare rules:changes is true for web/API/tag pipelines; require a push.
@@ -760,6 +762,13 @@ lib_injection_tests:
   stage: tests
   tags: [ "arch:amd64" ]
   image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
+  rules:
+    - if: !reference [.run_all_tests]
+    - changes:
+        - .gitlab-ci.yml
+        - lib-injection/**/*
+        - tests/lib_injection/**/*
+    - when: never
   script: |
     echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
     pyenv --version
@@ -809,8 +818,7 @@ profiling_native:
     - .profiling_native_base
     - .retry_on_all_failure
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: !reference [.run_all_tests]
     - changes:
         - .gitlab-ci.yml
         # Native source files by extension (C, C++, Cython, CMake modules)
