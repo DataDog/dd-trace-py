@@ -41,6 +41,19 @@ if is_at_least_py(3, 15):
         def __init__(self) -> None:
             # lineno -> list of (hook, arg) pairs in registration order
             self._hooks: dict[int, list[tuple[HookType, Any]]] = {}
+            # Fired once per call via PY_START; a line hook on a loop header would
+            # fire once per iteration instead.
+            self._entry_hooks: list[tuple[HookType, Any]] = []
+
+        def on_py_start(self, code: Any, instruction_offset: int) -> Any:
+            if not self._entry_hooks:
+                return _monitoring._DISABLE
+            for hook, arg in self._entry_hooks:
+                try:
+                    hook(arg)
+                except Exception:
+                    log.debug("entry hook failed", exc_info=True)
+            return None
 
         def on_py_line(self, code: Any, line_number: int) -> Any:
             hooks: list[tuple[HookType, Any]] | None = self._hooks.get(line_number)
@@ -65,7 +78,7 @@ if is_at_least_py(3, 15):
 
         @property
         def is_empty(self) -> bool:
-            return not self._hooks
+            return not self._hooks and not self._entry_hooks
 
     # Identity-keyed (not CodeType.__eq__) weak mapping: code object -> _LineHookHandler.
     # Distinct code objects can compare structurally equal (e.g. repeated identical
@@ -175,6 +188,22 @@ if is_at_least_py(3, 15):
         failed: list[HookInfoType] = eject_hooks(f, [(hook, line, arg)])
         if failed:
             raise InvalidLine("Line %d does not contain a hook" % line)
+        return f
+
+    def inject_entry_hook(f: FunctionType, hook: HookType, arg: Any) -> FunctionType:
+        """Call hook(arg) once per invocation of f, at function entry."""
+        code: CodeType = get_function_code(f)
+        with _line_hook_lock:
+            handler: _LineHookHandler | None = _line_hook_registry.get(code)
+            if handler is None:
+                handler = _LineHookHandler()
+                handler._entry_hooks.append((hook, arg))
+                _line_hook_registry[code] = handler
+                _monitoring.register(code, handler)
+            else:
+                handler._entry_hooks.append((hook, arg))
+                # A handler with no entry hooks DISABLE'd PY_START on its first call.
+                _monitoring.refresh(code, _monitoring._E.PY_START)
         return f
 
 else:

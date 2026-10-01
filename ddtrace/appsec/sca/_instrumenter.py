@@ -10,19 +10,20 @@ import sys
 import types
 from types import FunctionType
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
 
 from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.appsec.sca._resolver import SymbolResolver
 from ddtrace.appsec.sca._types import CveTarget
+from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils.inspection import linenos
 
 
 if TYPE_CHECKING:
@@ -78,17 +79,18 @@ elif sys.version_info < (3, 15):
         return code.co_firstlineno
 
 
+if sys.version_info >= (3, 15):
+    from ddtrace.internal.bytecode_injection import inject_entry_hook
+
+    def _inject_entry_hook(func: FunctionType, hook: HookType, arg: Any) -> None:
+        """Hook PY_START, as sys.monitoring never reports the def line and re-fires loop-header lines."""
+        inject_entry_hook(func, hook, arg)
+
 else:
 
-    def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first body line on Python 3.15+, since sys.monitoring never reports the def line."""
-        import dis
-
-        valid_lines = linenos(code)
-        for instr in dis.get_instructions(code):
-            if instr.line_number in valid_lines:
-                return instr.line_number
-        return code.co_firstlineno
+    def _inject_entry_hook(func: FunctionType, hook: HookType, arg: Any) -> None:
+        """Inject hook on the first instruction line, which runs once per call."""
+        inject_hook(func, hook, _first_instr_line(func.__code__), arg)
 
 
 def _get_caller_info() -> tuple[str, int, str]:
@@ -214,17 +216,11 @@ class Instrumenter:
                     self.registry.add_target(qualified_name, pending=False)
 
                 original_code = func.__code__
-                # co_firstlineno is the `def` line, but on
-                # Python <3.11 the bytecode instructions start on the first
-                # body line (the line after `def`), and on 3.15+ the def line
-                # cannot be hooked. Use the first hookable instruction line.
-                first_line = _first_instr_line(original_code)
-
-                inject_hook(func, sca_detection_hook, first_line, qualified_name)
+                _inject_entry_hook(func, sca_detection_hook, qualified_name)
 
                 self.registry.mark_instrumented(qualified_name, original_code)
 
-                log.debug("Instrumented: %s at line %d", qualified_name, first_line)
+                log.debug("Instrumented: %s", qualified_name)
                 return True
 
             except Exception:
