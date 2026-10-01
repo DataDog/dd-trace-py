@@ -5,7 +5,7 @@ Extract debug symbols from wheels and create separate debug symbol packages.
 This script:
 1. Processes each .so/.dylib file in the wheel (excluding files that match ignore patterns)
 2. Creates debug symbols (.debug files on Linux, .dSYM bundles on macOS) for each .so/.dylib file
-3. Strips debug symbols from the original .so/.dylib files
+3. Strips symbols not needed at runtime from the original .so/.dylib files
 4. Packages debug symbols into a separate zip file (with proper recursive copying for .dSYM bundles)
 5. Updates the wheel with stripped .so/.dylib files
 
@@ -216,8 +216,8 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
 
             # Verify that the debug file was created and contains debug symbols
             if verify_debug_file(Path(debug_out)):
-                # Strip the debug symbols from the .so file
-                subprocess.run([strip, "-g", so_file], check=True)
+                # Keep only symbols required for relocation and dynamic linking.
+                subprocess.run([strip, "--strip-unneeded", so_file], check=True)
 
                 # Link the debug symbols to the .so file
                 subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_file], check=True)
