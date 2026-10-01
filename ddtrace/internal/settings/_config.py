@@ -464,7 +464,7 @@ class Config:
 
     class _HTTPClientConfig(_HTTPServerConfig):
         # Same behavior as the server configuration, with its own environment variable and default.
-        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "400-599")
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "400-499")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
     def __init__(self) -> None:

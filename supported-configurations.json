@@ -4445,7 +4445,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": "400-599"
+        "default": "400-499"
       }
     ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
