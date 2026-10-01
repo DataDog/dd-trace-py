@@ -4,7 +4,6 @@ from collections.abc import Sequence
 import contextvars
 from functools import partial
 import json
-import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -27,6 +26,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -153,7 +153,7 @@ _buffered_model_classes: "weakref.WeakSet[type]" = weakref.WeakSet()
 _buffered_methods: list[tuple[type, str]] = []
 # Each hooked base with the __init_subclass__ it defined itself, if any.
 _hooked_bases: list[tuple[type, Any]] = []
-_buffer_install_lock = threading.RLock()
+_buffer_install_lock = RLock()
 
 # The model whose stream a buffer is reading, so a subclass _stream calling
 # super()._stream on the same model is buffered once. Another model streamed
