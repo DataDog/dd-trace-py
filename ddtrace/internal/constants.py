@@ -113,6 +113,7 @@ REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 PROCESS_TAGS = "_dd.tags.process"
 PROPAGATED_HASH = "_dd.propagated_hash"
+SDK_OTLP_EXPORT_KEY = "_dd.sdk.otlp_export"
 _SERVICE_SOURCE = "_dd.svc_src"
 
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"

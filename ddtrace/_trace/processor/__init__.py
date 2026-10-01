@@ -8,7 +8,6 @@ from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY
-from ddtrace.constants import _SDK_OTLP_EXPORT_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
@@ -18,6 +17,7 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import PROCESS_TAGS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import SDK_OTLP_EXPORT_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -260,7 +260,7 @@ class TraceTagsProcessor(TraceProcessor):
             if p_tags := process_tags.process_tags:
                 span._set_attribute(PROCESS_TAGS, p_tags)
             if not agent_config.trace_otlp_export_enabled:
-                span._set_attribute(_SDK_OTLP_EXPORT_KEY, "false")
+                span._set_attribute(SDK_OTLP_EXPORT_KEY, "false")
             # for 128 bit trace ids
             # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
             trace_id = span.trace_id
