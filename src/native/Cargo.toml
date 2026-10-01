@@ -81,6 +81,12 @@ libc = "0.2"
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_LibraryLoader",
+] }
+
 [build-dependencies]
 pyo3-build-config = "0.29"
 build_common = { git = "https://github.com/DataDog/libdatadog", branch = "munir/otel-telemetry-libdatadog", features = [
