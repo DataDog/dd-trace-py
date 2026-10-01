@@ -1628,7 +1628,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#fc49066452e60f443fdf596a476687420429d78a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1655,7 +1655,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities-impl"
 version = "6.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#fc49066452e60f443fdf596a476687420429d78a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1709,7 +1709,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "7.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#fc49066452e60f443fdf596a476687420429d78a"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2022,7 +2022,7 @@ dependencies = [
 [[package]]
 name = "libdd-otel-telemetry"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#fc49066452e60f443fdf596a476687420429d78a"
 dependencies = [
  "http 1.4.2",
  "libdd-shared-runtime 5.0.0",
@@ -2178,7 +2178,7 @@ dependencies = [
 [[package]]
 name = "libdd-shared-runtime"
 version = "5.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#6b0ceac30b73c3f8bad08f4d9f878fefa505defd"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotel-telemetry-libdatadog#fc49066452e60f443fdf596a476687420429d78a"
 dependencies = [
  "async-trait",
  "futures",

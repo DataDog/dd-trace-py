@@ -1,18 +1,6 @@
-"""An OpenTelemetry ``MeterProvider`` backed by libdatadog's Rust metrics SDK.
-
-This implements the ``opentelemetry-api`` metrics interfaces (``MeterProvider`` / ``Meter`` / the
-instrument types) as a thin shim: every call is forwarded into a native provider handle
-over a primitives-only boundary — opaque instrument ids, float values, and string attribute pairs.
-libdatadog owns aggregation, resource building, and OTLP export, so ddtrace needs neither the
-``opentelemetry-sdk`` nor ``opentelemetry-exporter-otlp`` packages for metrics.
-
-Classes mirror the OpenTelemetry SDK's own naming (``MeterProvider``, ``Meter``, ``Counter`` …)
-so this reads as a drop-in OTel implementation. Only the metrics signal is handled here; logs
-still use the SDK path.
-"""
+"""OpenTelemetry metrics API objects backed by libdatadog's Rust SDK."""
 
 from typing import Any
-from typing import Iterable
 from typing import Optional
 
 from opentelemetry import metrics as otel
@@ -21,17 +9,15 @@ from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import build_otel_metrics_provider as _build_native_metrics_provider
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
 
 
 def _attrs(attributes: Optional[dict[str, Any]]) -> list[tuple[str, str]]:
-    """Flatten OTel attributes to the string key/value pairs the native boundary accepts.
-
-    The native aggregator currently only accepts string attribute values; non-string values are
-    stringified. Sequence values are joined so a single instrument call never explodes into many.
-    """
+    """Convert OTel attributes to primitive string pairs."""
     if not attributes:
         return []
     pairs = []
@@ -42,77 +28,48 @@ def _attrs(attributes: Optional[dict[str, Any]]) -> list[tuple[str, str]]:
     return pairs
 
 
-def _iter_observations(callback: Any, options: "otel.CallbackOptions") -> Iterable[Any]:
-    """Invoke a single observable-instrument callback and return its ``Observation``s.
-
-    Supports the plain-callable form ``cb(options) -> Iterable[Observation]``, which is what
-    virtually all instrumentation uses. Generator-style callbacks are best-effort iterated.
-    """
-    result = callback(options) if callable(callback) else callback
-    if result is None:
-        return []
-    return list(result)
-
-
-class Counter(otel.Counter):
-    def __init__(self, native, instrument_id, name, unit="", description=""):
+class _Instrument:
+    def __init__(self, native, instrument_id=0):
         self._native = native
         self._id = instrument_id
 
+    def _record(self, amount, attributes):
+        self._native.record(self._id, float(amount), _attrs(attributes))
+
+
+class Counter(_Instrument, otel.Counter):
     def add(self, amount, attributes=None, context=None):
-        self._native.record_counter(self._id, float(amount), _attrs(attributes))
+        self._record(amount, attributes)
 
 
-class UpDownCounter(otel.UpDownCounter):
-    def __init__(self, native, instrument_id, name, unit="", description=""):
-        self._native = native
-        self._id = instrument_id
-
+class UpDownCounter(_Instrument, otel.UpDownCounter):
     def add(self, amount, attributes=None, context=None):
-        self._native.record_up_down_counter(self._id, float(amount), _attrs(attributes))
+        self._record(amount, attributes)
 
 
-class Histogram(otel.Histogram):
-    def __init__(self, native, instrument_id, name, unit="", description="", explicit_bucket_boundaries_advisory=None):
-        self._native = native
-        self._id = instrument_id
-
+class Histogram(_Instrument, otel.Histogram):
     def record(self, amount, attributes=None, context=None):
-        self._native.record_histogram(self._id, float(amount), _attrs(attributes))
+        self._record(amount, attributes)
 
 
-class ObservableCounter(otel.ObservableCounter):
-    def __init__(self, native, instrument_id, name, callbacks=None, unit="", description=""):
-        self._native = native
-        self._id = instrument_id
+class ObservableCounter(_Instrument, otel.ObservableCounter):
+    pass
 
 
-class ObservableGauge(otel.ObservableGauge):
-    def __init__(self, native, instrument_id, name, callbacks=None, unit="", description=""):
-        self._native = native
-        self._id = instrument_id
+class ObservableGauge(_Instrument, otel.ObservableGauge):
+    pass
 
 
-class ObservableUpDownCounter(otel.ObservableUpDownCounter):
-    def __init__(self, native, instrument_id, name, callbacks=None, unit="", description=""):
-        self._native = native
-        self._id = instrument_id
+class ObservableUpDownCounter(_Instrument, otel.ObservableUpDownCounter):
+    pass
 
 
-# Synchronous Gauge: subclass opentelemetry's `Gauge` when the running API exports it, otherwise a
-# plain object. `Meter.create_gauge` exists as a base no-op from ~1.22, but some versions don't
-# re-export the `Gauge` class from `opentelemetry.metrics`, so never depend on it being importable —
-# the caller only needs `.set()`.
 _GaugeBase = getattr(otel, "Gauge", object)
 
 
-class Gauge(_GaugeBase):  # type: ignore[misc,valid-type]
-    def __init__(self, native, instrument_id, name, unit="", description=""):
-        self._native = native
-        self._id = instrument_id
-
+class Gauge(_Instrument, _GaugeBase):  # type: ignore[misc,valid-type]
     def set(self, amount, attributes=None, context=None):
-        self._native.observe_gauge(self._id, float(amount), _attrs(attributes))
+        self._record(amount, attributes)
 
 
 def _native_observable_callback(callbacks):
@@ -124,7 +81,7 @@ def _native_observable_callback(callbacks):
         options = otel.CallbackOptions()
         for callback in callbacks:
             try:
-                for observation in _iter_observations(callback, options):
+                for observation in callback(options) or ():
                     measurements.append((float(observation.value), _attrs(observation.attributes)))
             except Exception:
                 log.debug("Error collecting OpenTelemetry observable instrument", exc_info=True)
@@ -134,173 +91,60 @@ def _native_observable_callback(callbacks):
 
 
 class Meter(otel.Meter):
-    """A ``Meter`` whose instruments forward through the native handle."""
-
-    def __init__(self, native, name, version=None, schema_url=None):
+    def __init__(self, native, name, version=None, schema_url=None, attributes=None):
         super().__init__(name, version=version, schema_url=schema_url)
         self._native = native
-        # Preserve this meter's instrumentation scope so exported metrics carry it (not the
-        # crate's internal meter name).
-        self._meter_name = name
-        self._meter_version = version
-        self._meter_schema_url = schema_url
+        self._scope = (name, version, schema_url, _attrs(attributes))
         self._instruments = []
 
-    def _track(self, instrument, name, kind, unit, description, native_callback=None):
-        instrument._name = name
-        instrument._kind = kind
-        instrument._unit = unit
-        instrument._description = description
-        instrument._native_callback = native_callback
+    def _create(self, cls, name, kind, unit, description, callbacks=None, observable=False):
+        callback = _native_observable_callback(callbacks) if observable else None
+        instrument = cls(self._native)
+        instrument._registration = (name, kind, unit or None, description or None, *self._scope, callback)
+        instrument._id = int(self._native.register_instrument(*instrument._registration))
         self._instruments.append(instrument)
         return instrument
 
     def _rebind(self, native):
         self._native = native
         for instrument in self._instruments:
-            if instrument._native_callback is None:
-                instrument_id = self._register(
-                    instrument._name,
-                    instrument._kind,
-                    instrument._unit,
-                    instrument._description,
-                )
-            else:
-                instrument_id = int(
-                    native.register_observable_instrument(
-                        instrument._name,
-                        instrument._kind,
-                        instrument._unit or None,
-                        instrument._description or None,
-                        self._meter_name,
-                        self._meter_version,
-                        self._meter_schema_url,
-                        instrument._native_callback,
-                    )
-                )
             instrument._native = native
-            instrument._id = instrument_id
-
-    def _register(self, name, kind, unit, description) -> int:
-        return int(
-            self._native.register_instrument(
-                name,
-                kind,
-                unit or None,
-                description or None,
-                self._meter_name,
-                self._meter_version,
-                self._meter_schema_url,
-            )
-        )
-
-    def _register_observable(self, name, kind, callbacks, unit, description):
-        native_callback = _native_observable_callback(callbacks)
-        instrument_id = int(
-            self._native.register_observable_instrument(
-                name,
-                kind,
-                unit or None,
-                description or None,
-                self._meter_name,
-                self._meter_version,
-                self._meter_schema_url,
-                native_callback,
-            )
-        )
-        return instrument_id, native_callback
+            instrument._id = int(native.register_instrument(*instrument._registration))
 
     def create_counter(self, name, unit="", description=""):
-        instrument_id = self._register(name, "counter", unit, description)
-        return self._track(
-            Counter(self._native, instrument_id, name, unit, description),
-            name,
-            "counter",
-            unit,
-            description,
-        )
+        return self._create(Counter, name, "counter", unit, description)
 
     def create_up_down_counter(self, name, unit="", description=""):
-        instrument_id = self._register(name, "up_down_counter", unit, description)
-        return self._track(
-            UpDownCounter(self._native, instrument_id, name, unit, description),
-            name,
-            "up_down_counter",
-            unit,
-            description,
-        )
+        return self._create(UpDownCounter, name, "up_down_counter", unit, description)
 
     def create_histogram(self, name, unit="", description="", *, explicit_bucket_boundaries_advisory=None):
-        instrument_id = self._register(name, "histogram", unit, description)
-        return self._track(
-            Histogram(self._native, instrument_id, name, unit, description),
-            name,
-            "histogram",
-            unit,
-            description,
-        )
+        return self._create(Histogram, name, "histogram", unit, description)
 
     def create_gauge(self, name, unit="", description=""):
-        # Synchronous gauge, backed by the same SDK gauge handle as an observable gauge; set()
-        # pushes the value via observe_gauge. Always return our implementation (never the API's
-        # base no-op), regardless of whether the running API re-exports the Gauge class.
-        instrument_id = self._register(name, "observable_gauge", unit, description)
-        return self._track(
-            Gauge(self._native, instrument_id, name, unit, description),
-            name,
-            "observable_gauge",
-            unit,
-            description,
-        )
+        return self._create(Gauge, name, "observable_gauge", unit, description)
 
     def create_observable_counter(self, name, callbacks=None, unit="", description=""):
-        instrument_id, native_callback = self._register_observable(
-            name, "observable_counter", callbacks, unit, description
-        )
-        return self._track(
-            ObservableCounter(self._native, instrument_id, name, callbacks, unit, description),
-            name,
-            "observable_counter",
-            unit,
-            description,
-            native_callback,
-        )
+        return self._create(ObservableCounter, name, "observable_counter", unit, description, callbacks, True)
 
     def create_observable_gauge(self, name, callbacks=None, unit="", description=""):
-        instrument_id, native_callback = self._register_observable(
-            name, "observable_gauge", callbacks, unit, description
-        )
-        return self._track(
-            ObservableGauge(self._native, instrument_id, name, callbacks, unit, description),
-            name,
-            "observable_gauge",
-            unit,
-            description,
-            native_callback,
-        )
+        return self._create(ObservableGauge, name, "observable_gauge", unit, description, callbacks, True)
 
     def create_observable_up_down_counter(self, name, callbacks=None, unit="", description=""):
-        instrument_id, native_callback = self._register_observable(
-            name, "observable_up_down_counter", callbacks, unit, description
-        )
-        return self._track(
-            ObservableUpDownCounter(self._native, instrument_id, name, callbacks, unit, description),
-            name,
-            "observable_up_down_counter",
-            unit,
-            description,
-            native_callback,
+        return self._create(
+            ObservableUpDownCounter, name, "observable_up_down_counter", unit, description, callbacks, True
         )
 
 
 class MeterProvider(otel.MeterProvider):
     """A ``MeterProvider`` backed by the Rust OpenTelemetry metrics SDK."""
 
-    def __init__(self, native, native_factory):
+    def __init__(self, native, native_factory, protocol):
         self._native = native
         self._native_factory = native_factory
+        self._telemetry_tags = (("protocol", "grpc" if protocol == "grpc" else "http"), ("encoding", "protobuf"))
+        self._reported_export_counters = (0, 0, 0)
         self._orphaned_after_fork = []
-        self._meters: dict[tuple[str, Optional[str], Optional[str]], Meter] = {}
+        self._meters: dict[tuple[str, Optional[str], Optional[str], tuple[tuple[str, str], ...]], Meter] = {}
         self._lock = forksafe.Lock()
         self._shutdown = False
         self._atexit = self.shutdown
@@ -312,17 +156,19 @@ class MeterProvider(otel.MeterProvider):
             return
         old_native = self._native
         self._native = self._native_factory()
+        self._reported_export_counters = (0, 0, 0)
         # Its native reader thread disappeared at fork, so defer destruction until process exit.
         self._orphaned_after_fork.append(old_native)
         for meter in self._meters.values():
             meter._rebind(self._native)
 
     def get_meter(self, name, version=None, schema_url=None, attributes=None):
-        key = (name, version, schema_url)
+        scope_attributes = tuple(sorted(_attrs(attributes)))
+        key = (name, version, schema_url, scope_attributes)
         with self._lock:
             meter = self._meters.get(key)
             if meter is None:
-                meter = Meter(self._native, name, version, schema_url)
+                meter = Meter(self._native, name, version, schema_url, attributes)
                 self._meters[key] = meter
             return meter
 
@@ -331,8 +177,20 @@ class MeterProvider(otel.MeterProvider):
             self._native.force_flush()
         except Exception:
             log.debug("Error flushing native OpenTelemetry metrics", exc_info=True)
+            self._report_export_telemetry()
             return False
+        self._report_export_telemetry()
         return True
+
+    def _report_export_telemetry(self):
+        counters = self._native.export_counters()
+        names = ("otel.metrics_export_attempts", "otel.metrics_export_successes", "otel.metrics_export_failures")
+        for name, current, previous in zip(names, counters, self._reported_export_counters):
+            if current > previous:
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS, name, current - previous, self._telemetry_tags
+                )
+        self._reported_export_counters = counters
 
     def shutdown(self, timeout_millis=30000):
         with self._lock:
@@ -384,4 +242,4 @@ def build_meter_provider(
             log.warning("OpenTelemetry metrics provider build warning: %s", warning)
         return native
 
-    return MeterProvider(build_native_provider(), build_native_provider)
+    return MeterProvider(build_native_provider(), build_native_provider, protocol)

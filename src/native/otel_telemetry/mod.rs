@@ -152,37 +152,9 @@ impl OtelMetricsProviderPy {
 
 #[pymethods]
 impl OtelMetricsProviderPy {
-    /// `kind` is one of `"counter"`, `"up_down_counter"`, `"histogram"`, `"observable_gauge"`,
-    /// `"observable_counter"`, `"observable_up_down_counter"`.
     #[allow(clippy::too_many_arguments)]
     fn register_instrument(
         &self,
-        name: &str,
-        kind: &str,
-        unit: Option<&str>,
-        description: Option<&str>,
-        meter_name: &str,
-        meter_version: Option<&str>,
-        meter_schema_url: Option<&str>,
-    ) -> PyResult<u64> {
-        let kind = parse_instrument_kind(kind)?;
-        let mut descriptor = InstrumentDescriptor::new(name, kind).with_scope(
-            meter_name,
-            meter_version.map(str::to_string),
-            meter_schema_url.map(str::to_string),
-        );
-        if let Some(unit) = unit {
-            descriptor = descriptor.with_unit(unit);
-        }
-        if let Some(description) = description {
-            descriptor = descriptor.with_description(description);
-        }
-        Ok(self.try_as_ref()?.register_instrument(descriptor).0)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn register_observable_instrument(
-        &self,
         py: Python<'_>,
         name: &str,
         kind: &str,
@@ -191,75 +163,45 @@ impl OtelMetricsProviderPy {
         meter_name: &str,
         meter_version: Option<&str>,
         meter_schema_url: Option<&str>,
-        callback: Py<PyAny>,
+        meter_attributes: Vec<(String, String)>,
+        callback: Option<Py<PyAny>>,
     ) -> PyResult<u64> {
-        if !callback.bind(py).is_callable() {
-            return Err(PyTypeError::new_err("callback must be callable"));
-        }
         let kind = parse_instrument_kind(kind)?;
-        let mut descriptor = InstrumentDescriptor::new(name, kind).with_scope(
-            meter_name,
-            meter_version.map(str::to_string),
-            meter_schema_url.map(str::to_string),
-        );
+        let mut descriptor = InstrumentDescriptor::new(name, kind)
+            .with_scope(
+                meter_name,
+                meter_version.map(str::to_string),
+                meter_schema_url.map(str::to_string),
+            )
+            .with_scope_attributes(meter_attributes);
         if let Some(unit) = unit {
             descriptor = descriptor.with_unit(unit);
         }
         if let Some(description) = description {
             descriptor = descriptor.with_description(description);
         }
-        let callback = adapt_python_callback(callback, Arc::clone(&self.callbacks_enabled));
-        Ok(self
-            .try_as_ref()?
-            .register_observable_instrument(descriptor, callback)
-            .0)
+        let provider = self.try_as_ref()?;
+        let id = if let Some(callback) = callback {
+            if !callback.bind(py).is_callable() {
+                return Err(PyTypeError::new_err("callback must be callable"));
+            }
+            let callback = adapt_python_callback(callback, Arc::clone(&self.callbacks_enabled));
+            provider.register_observable_instrument(descriptor, callback)
+        } else {
+            provider.register_instrument(descriptor)
+        };
+        Ok(id.0)
     }
 
-    fn record_counter(
+    fn record(
         &self,
         py: Python<'_>,
         id: u64,
         value: f64,
         attrs: Vec<(String, String)>,
     ) -> PyResult<()> {
-        let aggregator = self.try_as_ref()?;
-        py.detach(|| aggregator.record_counter(InstrumentId(id), value, &attrs));
-        Ok(())
-    }
-
-    fn record_up_down_counter(
-        &self,
-        py: Python<'_>,
-        id: u64,
-        value: f64,
-        attrs: Vec<(String, String)>,
-    ) -> PyResult<()> {
-        let aggregator = self.try_as_ref()?;
-        py.detach(|| aggregator.record_up_down_counter(InstrumentId(id), value, &attrs));
-        Ok(())
-    }
-
-    fn record_histogram(
-        &self,
-        py: Python<'_>,
-        id: u64,
-        value: f64,
-        attrs: Vec<(String, String)>,
-    ) -> PyResult<()> {
-        let aggregator = self.try_as_ref()?;
-        py.detach(|| aggregator.record_histogram(InstrumentId(id), value, &attrs));
-        Ok(())
-    }
-
-    fn observe_gauge(
-        &self,
-        py: Python<'_>,
-        id: u64,
-        value: f64,
-        attrs: Vec<(String, String)>,
-    ) -> PyResult<()> {
-        let aggregator = self.try_as_ref()?;
-        py.detach(|| aggregator.observe_gauge(InstrumentId(id), value, &attrs));
+        let provider = self.try_as_ref()?;
+        py.detach(|| provider.record(InstrumentId(id), value, &attrs));
         Ok(())
     }
 

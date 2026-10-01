@@ -560,6 +560,19 @@ def test_custom_collector_keeps_the_grpc_protocol_default():
 
 
 @pytest.mark.subprocess(
+    env={"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318/"},
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["http/protobuf", "grpc"]},
+)
+def test_global_metrics_endpoint_uses_protocol_path():
+    import os
+
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    suffix = "v1/metrics" if os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"] == "http/protobuf" else ""
+    assert otel_config.exporter.METRICS_ENDPOINT == f"http://collector:4318/{suffix}"
+
+
+@pytest.mark.subprocess(
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",

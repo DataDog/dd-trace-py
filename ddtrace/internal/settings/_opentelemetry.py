@@ -70,8 +70,15 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 
 
 def _derive_metrics_endpoint(config: "ExporterConfig"):
+    if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
+        return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", metrics_endpoint)
+    if global_endpoint := env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        global_endpoint = t.cast(str, get_config("OTEL_EXPORTER_OTLP_ENDPOINT", global_endpoint))
+        if config.METRICS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
+            return global_endpoint.rstrip("/") + config.METRICS_PATH
+        return global_endpoint
     default_endpoint = _default_endpoint(config, config.METRICS_PROTOCOL, config.METRICS_PATH)
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", default_endpoint)
+    return default_endpoint
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
