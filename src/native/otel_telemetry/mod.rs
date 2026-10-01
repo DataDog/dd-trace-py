@@ -1,12 +1,12 @@
 use libdd_otel_telemetry::{
-    parse_otlp_headers, InstrumentDescriptor, InstrumentId, InstrumentKind, ObservableCallback,
-    ObservableMeasurement, OtelMetricsAggregator, OtelMetricsAggregatorBuilder, OtlpExporterConfig,
-    OtlpProtocol, ResourceBuilder, Temporality,
+    parse_otlp_headers, AttributeArray, AttributeValue, InstrumentDescriptor, InstrumentId,
+    InstrumentKind, KeyValue, ObservableCallback, ObservableMeasurement, OtelMetricsAggregator,
+    OtelMetricsAggregatorBuilder, OtlpExporterConfig, OtlpProtocol, ResourceBuilder, Temporality,
 };
 use pyo3::{
     exceptions::{PyRuntimeError, PyTypeError, PyValueError},
     prelude::*,
-    types::PyAny,
+    types::{PyAny, PyBool, PyFloat, PyInt, PyList, PyString, PyTuple},
 };
 use std::{
     sync::{
@@ -15,6 +15,106 @@ use std::{
     },
     time::Duration,
 };
+
+fn parse_attribute_scalar(value: &Bound<'_, PyAny>) -> PyResult<AttributeValue> {
+    if value.is_instance_of::<PyBool>() {
+        return value.extract().map(AttributeValue::Bool);
+    }
+    if value.is_instance_of::<PyInt>() {
+        return value.extract().map(AttributeValue::I64);
+    }
+    if value.is_instance_of::<PyFloat>() {
+        return value.extract().map(AttributeValue::F64);
+    }
+    if value.is_instance_of::<PyString>() {
+        return value
+            .extract::<String>()
+            .map(|value| AttributeValue::String(value.into()));
+    }
+    Err(PyTypeError::new_err(
+        "attribute values must be bool, int, float, str, or a homogeneous sequence of those types",
+    ))
+}
+
+fn parse_attribute_array<'py>(
+    values: impl IntoIterator<Item = Bound<'py, PyAny>>,
+) -> PyResult<AttributeValue> {
+    let values = values
+        .into_iter()
+        .map(|value| parse_attribute_scalar(&value))
+        .collect::<PyResult<Vec<_>>>()?;
+    let Some(first) = values.first() else {
+        return Ok(AttributeValue::Array(AttributeArray::String(Vec::new())));
+    };
+    match first {
+        AttributeValue::Bool(_) => values
+            .into_iter()
+            .map(|value| match value {
+                AttributeValue::Bool(value) => Ok(value),
+                _ => Err(PyTypeError::new_err(
+                    "attribute value sequences must be homogeneous",
+                )),
+            })
+            .collect::<PyResult<Vec<_>>>()
+            .map(AttributeArray::Bool)
+            .map(AttributeValue::Array),
+        AttributeValue::I64(_) => values
+            .into_iter()
+            .map(|value| match value {
+                AttributeValue::I64(value) => Ok(value),
+                _ => Err(PyTypeError::new_err(
+                    "attribute value sequences must be homogeneous",
+                )),
+            })
+            .collect::<PyResult<Vec<_>>>()
+            .map(AttributeArray::I64)
+            .map(AttributeValue::Array),
+        AttributeValue::F64(_) => values
+            .into_iter()
+            .map(|value| match value {
+                AttributeValue::F64(value) => Ok(value),
+                _ => Err(PyTypeError::new_err(
+                    "attribute value sequences must be homogeneous",
+                )),
+            })
+            .collect::<PyResult<Vec<_>>>()
+            .map(AttributeArray::F64)
+            .map(AttributeValue::Array),
+        AttributeValue::String(_) => values
+            .into_iter()
+            .map(|value| match value {
+                AttributeValue::String(value) => Ok(value),
+                _ => Err(PyTypeError::new_err(
+                    "attribute value sequences must be homogeneous",
+                )),
+            })
+            .collect::<PyResult<Vec<_>>>()
+            .map(AttributeArray::String)
+            .map(AttributeValue::Array),
+        AttributeValue::Array(_) => unreachable!("nested attribute arrays are rejected"),
+        _ => unreachable!("all OpenTelemetry attribute variants are handled"),
+    }
+}
+
+fn parse_attribute_value(value: &Bound<'_, PyAny>) -> PyResult<AttributeValue> {
+    if let Ok(values) = value.cast::<PyList>() {
+        return parse_attribute_array(values.iter());
+    }
+    if let Ok(values) = value.cast::<PyTuple>() {
+        return parse_attribute_array(values.iter());
+    }
+    parse_attribute_scalar(value)
+}
+
+fn parse_attributes(
+    py: Python<'_>,
+    attributes: Vec<(String, Py<PyAny>)>,
+) -> PyResult<Vec<KeyValue>> {
+    attributes
+        .into_iter()
+        .map(|(key, value)| Ok(KeyValue::new(key, parse_attribute_value(value.bind(py))?)))
+        .collect()
+}
 
 fn adapt_python_callback(
     callback: Py<PyAny>,
@@ -27,12 +127,19 @@ fn adapt_python_callback(
         Python::try_attach(|py| {
             match callback
                 .call0(py)
-                .and_then(|result| result.extract::<Vec<(f64, Vec<(String, String)>)>>(py))
-            {
-                Ok(measurements) => measurements
-                    .into_iter()
-                    .map(|(value, attributes)| ObservableMeasurement::new(value, attributes))
-                    .collect(),
+                .and_then(|result| result.extract::<Vec<(f64, Vec<(String, Py<PyAny>)>)>>(py))
+                .and_then(|measurements| {
+                    measurements
+                        .into_iter()
+                        .map(|(value, attributes)| {
+                            Ok(ObservableMeasurement::new(
+                                value,
+                                parse_attributes(py, attributes)?,
+                            ))
+                        })
+                        .collect::<PyResult<Vec<_>>>()
+                }) {
+                Ok(measurements) => measurements,
                 Err(error) => {
                     error.write_unraisable(py, Some(callback.bind(py)));
                     Vec::new()
@@ -66,10 +173,11 @@ fn parse_instrument_kind(kind: &str) -> PyResult<InstrumentKind> {
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn build_otel_metrics_provider(
+    py: Python<'_>,
     service: Option<&str>,
     env: Option<&str>,
     version: Option<&str>,
-    resource_attributes: Vec<(String, String)>,
+    resource_attributes: Vec<(String, Py<PyAny>)>,
     endpoint: &str,
     protocol: &str,
     timeout_ms: u64,
@@ -87,8 +195,8 @@ fn build_otel_metrics_provider(
     if let Some(version) = version {
         resource = resource.with_version(version);
     }
-    for (key, value) in resource_attributes {
-        resource = resource.with_attribute(key, value);
+    for attribute in parse_attributes(py, resource_attributes)? {
+        resource = resource.with_attribute(attribute.key, attribute.value);
     }
 
     let protocol = parse_protocol(protocol)?;
@@ -142,7 +250,7 @@ impl OtelMetricsProviderPy {
         meter_name: &str,
         meter_version: Option<&str>,
         meter_schema_url: Option<&str>,
-        meter_attributes: Vec<(String, String)>,
+        meter_attributes: Vec<(String, Py<PyAny>)>,
         callback: Option<Py<PyAny>>,
     ) -> PyResult<u64> {
         let kind = parse_instrument_kind(kind)?;
@@ -152,7 +260,7 @@ impl OtelMetricsProviderPy {
                 meter_version.map(str::to_string),
                 meter_schema_url.map(str::to_string),
             )
-            .with_scope_attributes(meter_attributes);
+            .with_scope_attributes(parse_attributes(py, meter_attributes)?);
         if let Some(unit) = unit {
             descriptor = descriptor.with_unit(unit);
         }
@@ -177,9 +285,10 @@ impl OtelMetricsProviderPy {
         py: Python<'_>,
         id: u64,
         value: f64,
-        attrs: Vec<(String, String)>,
+        attrs: Vec<(String, Py<PyAny>)>,
     ) -> PyResult<()> {
         let provider = self.try_as_ref()?;
+        let attrs = parse_attributes(py, attrs)?;
         py.detach(|| provider.record(InstrumentId(id), value, &attrs));
         Ok(())
     }

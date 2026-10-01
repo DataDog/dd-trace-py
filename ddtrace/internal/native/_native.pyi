@@ -12,6 +12,8 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from opentelemetry.util.types import AttributeValue
+
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
@@ -1804,7 +1806,7 @@ def build_otel_metrics_provider(
     service: Optional[str],
     env: Optional[str],
     version: Optional[str],
-    resource_attributes: list[tuple[str, str]],
+    resource_attributes: list[tuple[str, AttributeValue]],
     endpoint: str,
     protocol: str,
     timeout_ms: int,
@@ -1825,10 +1827,10 @@ class OtelMetricsProvider:
         meter_name: str = "",
         meter_version: Optional[str] = None,
         meter_schema_url: Optional[str] = None,
-        meter_attributes: list[tuple[str, str]] = ...,
-        callback: Optional[Callable[[], list[tuple[float, list[tuple[str, str]]]]]] = None,
+        meter_attributes: list[tuple[str, AttributeValue]] = ...,
+        callback: Optional[Callable[[], list[tuple[float, list[tuple[str, AttributeValue]]]]]] = None,
     ) -> int: ...
-    def record(self, instrument_id: int, value: float, attrs: list[tuple[str, str]]) -> None: ...
+    def record(self, instrument_id: int, value: float, attrs: list[tuple[str, AttributeValue]]) -> None: ...
     def export_counters(self) -> tuple[int, int, int]: ...
     def force_flush(self) -> None: ...
     def shutdown(self) -> None: ...

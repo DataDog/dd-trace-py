@@ -1,9 +1,20 @@
 """OpenTelemetry metrics API objects backed by libdatadog's Rust SDK."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from collections.abc import Iterable
+from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Any
 from typing import Optional
+from typing import TypeVar
+from typing import Union
 
 from opentelemetry import metrics as otel
+from opentelemetry.context import Context
+from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import AttributeValue
 
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -16,39 +27,47 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 log = get_logger(__name__)
 
 
-def _attrs(attributes: Optional[dict[str, Any]]) -> list[tuple[str, str]]:
-    """Convert OTel attributes to primitive string pairs."""
+MeasurementValue = Union[int, float]
+AttributePairs = list[tuple[str, AttributeValue]]
+_InstrumentT = TypeVar("_InstrumentT", bound="_Instrument")
+
+
+def _attrs(attributes: Attributes) -> AttributePairs:
+    """Freeze OTel attribute sequences while preserving their value types."""
     if not attributes:
         return []
-    pairs = []
+    pairs: AttributePairs = []
     for key, value in attributes.items():
-        if isinstance(value, (list, tuple)):
-            value = ",".join(str(v) for v in value)
-        pairs.append((str(key), str(value)))
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            value = tuple(value)
+        pairs.append((key, value))
     return pairs
 
 
 class _Instrument:
-    def __init__(self, native, instrument_id=0):
+    def __init__(self, native: Any, instrument_id: int = 0) -> None:
         self._native = native
         self._id = instrument_id
+        self._registration: tuple[Any, ...] = ()
 
-    def _record(self, amount, attributes):
+    def _record(self, amount: MeasurementValue, attributes: Attributes) -> None:
         self._native.record(self._id, float(amount), _attrs(attributes))
 
 
 class Counter(_Instrument, otel.Counter):
-    def add(self, amount, attributes=None, context=None):
+    def add(self, amount: MeasurementValue, attributes: Attributes = None, context: Optional[Context] = None) -> None:
         self._record(amount, attributes)
 
 
 class UpDownCounter(_Instrument, otel.UpDownCounter):
-    def add(self, amount, attributes=None, context=None):
+    def add(self, amount: MeasurementValue, attributes: Attributes = None, context: Optional[Context] = None) -> None:
         self._record(amount, attributes)
 
 
 class Histogram(_Instrument, otel.Histogram):
-    def record(self, amount, attributes=None, context=None):
+    def record(
+        self, amount: MeasurementValue, attributes: Attributes = None, context: Optional[Context] = None
+    ) -> None:
         self._record(amount, attributes)
 
 
@@ -68,16 +87,18 @@ _GaugeBase = getattr(otel, "Gauge", object)
 
 
 class Gauge(_Instrument, _GaugeBase):  # type: ignore[misc,valid-type]
-    def set(self, amount, attributes=None, context=None):
+    def set(self, amount: MeasurementValue, attributes: Attributes = None, context: Optional[Context] = None) -> None:
         self._record(amount, attributes)
 
 
-def _native_observable_callback(callbacks):
+def _native_observable_callback(
+    callbacks: Optional[Iterable[Callable[[otel.CallbackOptions], Iterable[otel.Observation]]]],
+) -> Callable[[], list[tuple[float, AttributePairs]]]:
     """Adapt OTel callbacks to the primitive measurements returned to Rust during collection."""
     callbacks = list(callbacks or ())
 
-    def collect() -> list[tuple[float, list[tuple[str, str]]]]:
-        measurements = []
+    def collect() -> list[tuple[float, AttributePairs]]:
+        measurements: list[tuple[float, AttributePairs]] = []
         options = otel.CallbackOptions()
         for callback in callbacks:
             try:
@@ -91,13 +112,29 @@ def _native_observable_callback(callbacks):
 
 
 class Meter(otel.Meter):
-    def __init__(self, native, name, version=None, schema_url=None, attributes=None):
+    def __init__(
+        self,
+        native: Any,
+        name: str,
+        version: Optional[str] = None,
+        schema_url: Optional[str] = None,
+        attributes: Attributes = None,
+    ) -> None:
         super().__init__(name, version=version, schema_url=schema_url)
         self._native = native
         self._scope = (name, version, schema_url, _attrs(attributes))
-        self._instruments = []
+        self._instruments: list[_Instrument] = []
 
-    def _create(self, cls, name, kind, unit, description, callbacks=None, observable=False):
+    def _create(
+        self,
+        cls: type[_InstrumentT],
+        name: str,
+        kind: str,
+        unit: str,
+        description: str,
+        callbacks: Optional[Iterable[Callable[[otel.CallbackOptions], Iterable[otel.Observation]]]] = None,
+        observable: bool = False,
+    ) -> _InstrumentT:
         callback = _native_observable_callback(callbacks) if observable else None
         instrument = cls(self._native)
         instrument._registration = (name, kind, unit or None, description or None, *self._scope, callback)
@@ -105,31 +142,56 @@ class Meter(otel.Meter):
         self._instruments.append(instrument)
         return instrument
 
-    def _rebind(self, native):
+    def _rebind(self, native: Any) -> None:
         self._native = native
         for instrument in self._instruments:
             instrument._native = native
             instrument._id = int(native.register_instrument(*instrument._registration))
 
-    def create_counter(self, name, unit="", description=""):
+    def create_counter(self, name: str, unit: str = "", description: str = "") -> Counter:
         return self._create(Counter, name, "counter", unit, description)
 
-    def create_up_down_counter(self, name, unit="", description=""):
+    def create_up_down_counter(self, name: str, unit: str = "", description: str = "") -> UpDownCounter:
         return self._create(UpDownCounter, name, "up_down_counter", unit, description)
 
-    def create_histogram(self, name, unit="", description="", *, explicit_bucket_boundaries_advisory=None):
+    def create_histogram(
+        self,
+        name: str,
+        unit: str = "",
+        description: str = "",
+        *,
+        explicit_bucket_boundaries_advisory: Optional[Sequence[float]] = None,
+    ) -> Histogram:
         return self._create(Histogram, name, "histogram", unit, description)
 
-    def create_gauge(self, name, unit="", description=""):
+    def create_gauge(self, name: str, unit: str = "", description: str = "") -> Gauge:
         return self._create(Gauge, name, "observable_gauge", unit, description)
 
-    def create_observable_counter(self, name, callbacks=None, unit="", description=""):
+    def create_observable_counter(
+        self,
+        name: str,
+        callbacks: Optional[Iterable[Callable[[otel.CallbackOptions], Iterable[otel.Observation]]]] = None,
+        unit: str = "",
+        description: str = "",
+    ) -> ObservableCounter:
         return self._create(ObservableCounter, name, "observable_counter", unit, description, callbacks, True)
 
-    def create_observable_gauge(self, name, callbacks=None, unit="", description=""):
+    def create_observable_gauge(
+        self,
+        name: str,
+        callbacks: Optional[Iterable[Callable[[otel.CallbackOptions], Iterable[otel.Observation]]]] = None,
+        unit: str = "",
+        description: str = "",
+    ) -> ObservableGauge:
         return self._create(ObservableGauge, name, "observable_gauge", unit, description, callbacks, True)
 
-    def create_observable_up_down_counter(self, name, callbacks=None, unit="", description=""):
+    def create_observable_up_down_counter(
+        self,
+        name: str,
+        callbacks: Optional[Iterable[Callable[[otel.CallbackOptions], Iterable[otel.Observation]]]] = None,
+        unit: str = "",
+        description: str = "",
+    ) -> ObservableUpDownCounter:
         return self._create(
             ObservableUpDownCounter, name, "observable_up_down_counter", unit, description, callbacks, True
         )
@@ -144,7 +206,7 @@ class MeterProvider(otel.MeterProvider):
         self._telemetry_tags = (("protocol", "grpc" if protocol == "grpc" else "http"), ("encoding", "protobuf"))
         self._reported_export_counters = (0, 0, 0)
         self._orphaned_after_fork = []
-        self._meters: dict[tuple[str, Optional[str], Optional[str], tuple[tuple[str, str], ...]], Meter] = {}
+        self._meters: dict[tuple[str, Optional[str], Optional[str], tuple[tuple[str, AttributeValue], ...]], Meter] = {}
         self._lock = forksafe.Lock()
         self._shutdown = False
         self._atexit = self.shutdown
@@ -162,7 +224,13 @@ class MeterProvider(otel.MeterProvider):
         for meter in self._meters.values():
             meter._rebind(self._native)
 
-    def get_meter(self, name, version=None, schema_url=None, attributes=None):
+    def get_meter(
+        self,
+        name: str,
+        version: Optional[str] = None,
+        schema_url: Optional[str] = None,
+        attributes: Attributes = None,
+    ) -> Meter:
         scope_attributes = tuple(sorted(_attrs(attributes)))
         key = (name, version, schema_url, scope_attributes)
         with self._lock:
@@ -209,7 +277,7 @@ def build_meter_provider(
     service: Optional[str],
     env: Optional[str],
     version: Optional[str],
-    resource_attributes: dict[str, str],
+    resource_attributes: Mapping[str, AttributeValue],
     endpoint: str,
     protocol: str,
     timeout_ms: int,
@@ -230,7 +298,7 @@ def build_meter_provider(
             service,
             env,
             version,
-            [(str(key), str(value)) for key, value in resource_attributes.items()],
+            _attrs(resource_attributes),
             endpoint,
             protocol,
             timeout_ms,

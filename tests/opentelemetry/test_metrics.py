@@ -1,8 +1,16 @@
+import importlib.util
+
 from opentelemetry import version
 import pytest
 
 
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
+try:
+    HAS_OTEL_PROTO = (
+        importlib.util.find_spec("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2") is not None
+    )
+except ModuleNotFoundError:
+    HAS_OTEL_PROTO = False
 
 # v1.15.0 is the minimum opentelemetry-api version ddtrace supports for metrics.
 requires_metrics_api = pytest.mark.skipif(
@@ -99,6 +107,92 @@ def test_native_meter_provider_records():
     assert isinstance(provider.force_flush(), bool)
     assert len(observations) >= 3
     provider.shutdown()
+
+
+@requires_metrics_api
+@pytest.mark.skipif(
+    not HAS_OTEL_PROTO,
+    reason="opentelemetry-proto is required to inspect OTLP payloads",
+)
+@pytest.mark.subprocess(err=None)
+def test_native_meter_provider_preserves_attribute_types():
+    """Resource, scope, and measurement attributes retain their OTel API types in OTLP."""
+    from http.server import BaseHTTPRequestHandler
+    from http.server import HTTPServer
+    import threading
+
+    from opentelemetry.proto.collector.metrics.v1 import metrics_service_pb2
+
+    from ddtrace.internal.opentelemetry._native_metrics_provider import build_meter_provider
+
+    requests = []
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_POST(self):
+            requests.append(self.rfile.read(int(self.headers["Content-Length"])))
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, fmt, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    attributes = {
+        "bool": True,
+        "int": 42,
+        "float": 1.5,
+        "string": "value",
+        "bools": [True, False],
+        "ints": (1, 2),
+        "floats": [1.5, 2.5],
+        "strings": ("a", "b"),
+    }
+    provider = build_meter_provider(
+        None,
+        None,
+        None,
+        attributes,
+        "http://127.0.0.1:%d/v1/metrics" % server.server_port,
+        "http/protobuf",
+        1000,
+        "",
+        "delta",
+        60000,
+    )
+    try:
+        meter = provider.get_meter("ddtrace.test", attributes=attributes)
+        meter.create_counter("requests").add(1, attributes)
+        assert provider.force_flush() is True
+    finally:
+        provider.shutdown()
+        server.shutdown()
+        server.server_close()
+        server_thread.join()
+
+    def decode(encoded):
+        decoded = {}
+        for attribute in encoded:
+            value = attribute.value
+            value_type = value.WhichOneof("value")
+            if value_type == "array_value":
+                decoded[attribute.key] = [getattr(item, item.WhichOneof("value")) for item in value.array_value.values]
+            else:
+                decoded[attribute.key] = getattr(value, value_type)
+        return decoded
+
+    request = metrics_service_pb2.ExportMetricsServiceRequest.FromString(requests[0])
+    resource_metrics = request.resource_metrics[0]
+    scope_metrics = resource_metrics.scope_metrics[0]
+    data_point = scope_metrics.metrics[0].sum.data_points[0]
+    expected = {key: list(value) if isinstance(value, (list, tuple)) else value for key, value in attributes.items()}
+    for encoded in (resource_metrics.resource.attributes, scope_metrics.scope.attributes, data_point.attributes):
+        decoded = decode(encoded)
+        assert {key: decoded[key] for key in expected} == expected
 
 
 @requires_metrics_api
