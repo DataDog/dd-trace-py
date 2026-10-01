@@ -131,7 +131,7 @@ impl ContentsArena {
     fn append(&mut self, bytes: &[u8]) -> usize {
         let off = self.used;
         let end = off + bytes.len();
-        self.mapped.ensure_space(end.max(1));
+        let _ = self.mapped.ensure_space(end.max(1));
         self.mapped.as_slice_mut()[off..end].copy_from_slice(bytes);
         self.used = end;
         self.live += bytes.len();
@@ -157,7 +157,7 @@ impl ContentsArena {
 
     /// Overwrite the whole arena with `buf` (used by compaction).
     fn overwrite(&mut self, buf: &[u8]) {
-        self.mapped.ensure_space(buf.len().max(1));
+        let _ = self.mapped.ensure_space(buf.len().max(1));
         self.mapped.as_slice_mut()[..buf.len()].copy_from_slice(buf);
         self.used = buf.len();
         self.live = buf.len();
@@ -731,7 +731,7 @@ mod tests {
         content: &[u8],
     ) -> Entry {
         let end = offset + path.len() + content.len();
-        contents.ensure_space(end.max(1));
+        let _ = contents.ensure_space(end.max(1));
         let buf = contents.as_slice_mut();
         buf[offset..offset + path.len()].copy_from_slice(path.as_bytes());
         buf[offset + path.len()..end].copy_from_slice(content);
