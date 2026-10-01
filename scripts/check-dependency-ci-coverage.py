@@ -48,6 +48,7 @@ from functools import lru_cache
 from pathlib import Path
 import re
 import sys
+import time
 from typing import Any
 
 from packaging.requirements import Requirement
@@ -98,6 +99,7 @@ class SilencedItem:
 
 
 _PYPI_LOOKUP_ATTEMPTS: int = 3
+_PYPI_LOOKUP_BACKOFF_S: tuple[float, ...] = (1.0, 2.0)
 
 
 def _fetch_pypi_latest(url: str) -> Version | None:
@@ -130,14 +132,19 @@ def _fetch_pypi_latest(url: str) -> Version | None:
 def get_pypi_latest_version(package: str) -> Version | None:
     """Query PyPI for the latest version of a package.
 
-    Retries a small fixed number of times. Returns None when every attempt
-    fails, times out, or returns no version.
+    Retries a small fixed number of times, with backoff between failures.
+    Returns None when every attempt fails, times out, or returns no version.
     """
     url: str = f"https://pypi.org/pypi/{package}/json"
-    for _ in range(_PYPI_LOOKUP_ATTEMPTS):
+    for attempt in range(_PYPI_LOOKUP_ATTEMPTS):
         latest: Version | None = _fetch_pypi_latest(url)
         if latest is not None:
             return latest
+        is_last: bool = attempt + 1 >= _PYPI_LOOKUP_ATTEMPTS
+        if is_last:
+            break
+        delay_s: float = _PYPI_LOOKUP_BACKOFF_S[attempt]
+        time.sleep(delay_s)
     return None
 
 

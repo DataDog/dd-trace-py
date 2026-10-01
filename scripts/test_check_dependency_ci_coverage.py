@@ -17,6 +17,8 @@ from pathlib import Path
 import types
 import unittest
 from unittest.mock import Mock
+from unittest.mock import _patch
+from unittest.mock import call
 from unittest.mock import patch
 
 from packaging.version import Version
@@ -75,6 +77,9 @@ def _wrapt_ci(latest_major: int | None) -> dict[str, object]:
 class CheckDependencyCiCoverageTest(unittest.TestCase):
     def setUp(self) -> None:
         _coverage.get_pypi_latest_version.cache_clear()
+        sleep_patch: _patch[Mock] = patch.object(_coverage.time, "sleep")
+        self.sleep: Mock = sleep_patch.start()
+        self.addCleanup(sleep_patch.stop)
 
     def test_empty_wrapt_lookup_is_not_missing_coverage(self) -> None:
         timeout: requests.exceptions.Timeout = requests.exceptions.Timeout("timed out")
@@ -85,6 +90,7 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
             latest: Version | None = _coverage.get_pypi_latest_version("wrapt")
 
         self.assertEqual(get.call_count, _coverage._PYPI_LOOKUP_ATTEMPTS)
+        self.assertEqual(self.sleep.call_args_list, [call(1.0), call(2.0)])
         self.assertIsNone(latest)
 
         result: tuple[list[str], list[str], list[object]] = _coverage.check_coverage(
@@ -105,6 +111,7 @@ class CheckDependencyCiCoverageTest(unittest.TestCase):
             latest: Version | None = _coverage.get_pypi_latest_version("wrapt")
 
         self.assertEqual(get.call_count, 1)
+        self.assertEqual(self.sleep.call_count, 0)
         self.assertIsNotNone(latest)
         resolved: Version = latest if latest is not None else Version("0")
         self.assertEqual(resolved.major, 3)
