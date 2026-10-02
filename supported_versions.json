@@ -3341,34 +3341,14 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.12"
-                    ]
-                },
-                "supportedRange": "*",
-                "tested": [
-                    "5.2.0"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.13"
-                    ]
-                },
-                "supportedRange": "*",
-                "tested": [
-                    "5.1.1"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.12",
+                        "3.13",
                         "3.14"
                     ]
                 },
                 "supportedRange": "*",
                 "tested": [
-                    "6.4.0"
+                    "8.1.0"
                 ]
             }
         ]
