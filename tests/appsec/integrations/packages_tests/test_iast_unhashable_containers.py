@@ -90,22 +90,25 @@ def _numpy_str_array():
     return np.array(["a", "b"])
 
 
-# id, factory, a key the object can be indexed with, the item at that key, and its str.join result.
-_CASES = [
-    ("protobuf-RepeatedCompositeContainer", _repeated_composite_container, 0, struct_pb2.Value(string_value="a"), None),
-    ("protobuf-RepeatedCompositeContainer-empty", _empty_repeated_composite_container, None, None, ""),
-    ("protobuf-RepeatedScalarContainer", _repeated_scalar_container, 0, "a", "a,b"),
-    ("protobuf-Message", _protobuf_message, "key", "a", None),
-    ("numpy-ndarray", _numpy_str_array, 0, "a", "a,b"),
+SUBSCRIPT_CASES = [
+    pytest.param(
+        _repeated_composite_container, 0, struct_pb2.Value(string_value="a"), id="protobuf-RepeatedCompositeContainer"
+    ),
+    pytest.param(_repeated_scalar_container, 0, "a", id="protobuf-RepeatedScalarContainer"),
+    pytest.param(_protobuf_message, "key", "a", id="protobuf-Message"),
+    pytest.param(_numpy_str_array, 0, "a", id="numpy-ndarray"),
 ]
-SUBSCRIPT_CASES = [pytest.param(f, key, item, id=id_) for id_, f, key, item, _ in _CASES if key is not None]
-JOIN_CASES = [pytest.param(f, joined, id=id_) for id_, f, _, _, joined in _CASES if joined is not None]
+JOIN_CASES = [
+    pytest.param(_empty_repeated_composite_container, "", id="protobuf-RepeatedCompositeContainer-empty"),
+    pytest.param(_repeated_scalar_container, "a,b", id="protobuf-RepeatedScalarContainer"),
+    pytest.param(_numpy_str_array, "a,b", id="numpy-ndarray"),
+]
 
 
 @pytest.mark.parametrize("factory,key,item", SUBSCRIPT_CASES)
 def test_subscript_on_unhashable_object_at_stale_address(factory, key, item):
     for obj in _objects_on_stale_addresses(factory):
-        # Indexed directly, the object goes through get_ranges; as a dict value it is only the result.
+        # Indexed directly, the object is index_aspect's lookup candidate; as a dict value, the dict branch reaches it.
         assert mod.subscript(obj, key) == item
         assert mod.subscript({"key": obj}, "key") is obj
 
