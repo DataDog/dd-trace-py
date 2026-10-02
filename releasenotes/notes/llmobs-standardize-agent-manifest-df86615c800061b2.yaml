@@ -1,0 +1,17 @@
+---
+features:
+  - |
+    LLM Observability: CrewAI, Google ADK, LangGraph, OpenAI Agents, and Claude Agent SDK agent spans
+    now report agent configuration with a consistent set of fields, including instructions, tool
+    parameters, handoffs, and settings where the framework declares them.
+fixes:
+  - |
+    LLM Observability: Fixes an issue where traces fail to be sent in agentless mode with
+    ``TypeError: Object of type function is not JSON serializable`` when a Google ADK agent uses a
+    callable instruction provider.
+  - |
+    LLM Observability: Fixes an issue where the agent configuration reported for OpenAI Agents could
+    include ``extra_headers``, ``extra_body``, and hosted MCP tool headers.
+  - |
+    LLM Observability: Fixes an issue where the model was missing from the Google ADK agent
+    configuration when the agent's model is set as a string.

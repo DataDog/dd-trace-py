@@ -3,6 +3,7 @@
 import math
 import types
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -172,6 +173,88 @@ def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = (), budg
     return None
 
 
+ManifestSection = tuple[str, Callable[[Any], AgentManifest]]
+
+
+def build_agent_manifest(
+    framework: str, agent: Any, sections: tuple[ManifestSection, ...], integration_name: str
+) -> AgentManifest:
+    """Run each section in isolation, merge them, and drop the fields that mean "not configured".
+
+    A section that raises costs only its own fields, so a framework change inside one cannot blank
+    the rest. The result is passed through wire_value so it always survives JSON encoding.
+    """
+    manifest: AgentManifest = {}
+    for name, section in sections:
+        try:
+            manifest.update(section(agent))
+        except Exception:
+            log.debug("failed to build %s agent manifest section %s", integration_name, name, exc_info=True)
+    try:
+        wired = wire_value(prune_empty(manifest))
+    except Exception:
+        log.debug("failed to finalize %s agent manifest", integration_name, exc_info=True)
+        return {}
+    if not wired:
+        return {}
+    wired["framework"] = framework
+    return cast(AgentManifest, wired)
+
+
+def as_str(value: Any) -> str:
+    """str-only: the span encoder reprs what it cannot encode, and a repr can carry anything.
+
+    A non-string reports "", which prune_empty drops like any other unset value.
+    """
+    return value if isinstance(value, str) else ""
+
+
+def config_value(value: Any) -> Any:
+    """JSON-native form of a declared config value. Pydantic models are dumped; other objects drop."""
+    if hasattr(value, "model_dump"):
+        try:
+            value = value.model_dump(exclude_none=True)
+        except Exception:
+            return None
+    return wire_value(value)
+
+
+def filter_model_settings(settings: Any) -> dict[str, Any]:
+    """Inference params filtered by ALLOWED_MODEL_SETTINGS_KEYS. Non-mappings report nothing."""
+    if not isinstance(settings, dict):
+        return {}
+    allowed: dict[str, Any] = {}
+    for key, value in settings.items():
+        if key not in ALLOWED_MODEL_SETTINGS_KEYS or not is_flat_scalar_value(value):
+            continue
+        # prune_empty drops what wire_value could not encode, so assign it either way.
+        allowed[key] = wire_value(value)
+    return allowed
+
+
+def instruction_fields(value: Any, resolver_type: str = "dynamic_instructions") -> AgentManifest:
+    """Static text as instructions. A callable's text is only known at run time, so it ships by name.
+
+    The callable is never invoked, and str() of it is avoided because its memory address changes
+    every process, which would report an instruction change on every deploy.
+    """
+    if isinstance(value, str):
+        return {"instructions": value}
+    if callable(value):
+        return {"extra_instructions": [{"type": resolver_type, "name": callable_name(value)}]}
+    return {}
+
+
+def normalize_tool(name: Any, description: Any = None, parameters: Any = None) -> Optional[dict[str, Any]]:
+    """One tool as {name, description?, parameters?}, the shape every integration emits.
+
+    parameters accepts a JSON Schema object or the {param: {type, required}} mapping.
+    """
+    if not isinstance(name, str) or not name:
+        return None
+    return {"name": name, "description": as_str(description), "parameters": tool_parameters(parameters)}
+
+
 def build_manual_agent_manifest(agent: Any) -> AgentManifest:
     """Build the manifest a caller declared through LLMObs.annotate(agent=...).
 
@@ -229,21 +312,8 @@ def _manual_model_name(agent: dict[str, Any]) -> AgentManifest:
 
 
 def _manual_model_settings(agent: dict[str, Any]) -> AgentManifest:
-    """Inference params filtered by ALLOWED_MODEL_SETTINGS_KEYS.
-
-    Separate from _manual_model_name so a malformed settings dict does not discard a valid model.
-    """
-    fields: AgentManifest = {}
-    settings = agent.get("model_settings")
-    if isinstance(settings, dict):
-        allowed: dict[str, Any] = {}
-        for key, value in settings.items():
-            if key not in ALLOWED_MODEL_SETTINGS_KEYS or not is_flat_scalar_value(value):
-                continue
-            # prune_empty drops what wire_value could not encode, so assign it either way.
-            allowed[key] = wire_value(value)
-        fields["model_settings"] = allowed
-    return fields
+    """Separate from _manual_model_name so a malformed settings dict does not discard a valid model."""
+    return {"model_settings": filter_model_settings(agent.get("model_settings"))}
 
 
 def _manual_tools(agent: dict[str, Any]) -> AgentManifest:
@@ -265,7 +335,7 @@ def _manual_tools(agent: dict[str, Any]) -> AgentManifest:
             {
                 "name": name,
                 "description": description if isinstance(description, str) else None,
-                "parameters": _manual_tool_parameters(tool.get("parameters")),
+                "parameters": tool_parameters(tool.get("parameters")),
             }
         )
     wired = wire_value(tools)
@@ -274,7 +344,7 @@ def _manual_tools(agent: dict[str, Any]) -> AgentManifest:
     return fields
 
 
-def _manual_tool_parameters(parameters: Any) -> dict[str, Any]:
+def tool_parameters(parameters: Any) -> dict[str, Any]:
     """{param: {type?, required?}}, matching what the framework integrations extract."""
     if not isinstance(parameters, dict):
         return {}

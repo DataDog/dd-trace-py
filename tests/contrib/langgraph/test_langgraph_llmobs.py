@@ -378,26 +378,17 @@ class TestLangGraphLLMObs:
 
         expected_agent_a_manifest = {
             "framework": "LangGraph",
-            "max_iterations": 25,
-            "dependencies": ["a_list", "which"],
             "name": "agent_a",
-            "tools": [],
         }
 
         expected_conditional_agent_manifest = {
             "framework": "LangGraph",
-            "max_iterations": 25,
-            "dependencies": ["a_list", "which"],
             "name": conditional_agent_name,
-            "tools": [],
         }
 
         expected_agent_d_manifest = {
             "framework": "LangGraph",
-            "max_iterations": 25,
-            "dependencies": ["a_list", "which"],
             "name": "agent_d",
-            "tools": [],
         }
 
         agent_a_metadata = get_llmobs_metadata(agent_a_span) or {}
@@ -419,22 +410,14 @@ class TestLangGraphLLMObs:
 
         expected_agent_manifest = {
             "framework": "LangGraph",
-            "max_iterations": 25,
-            "dependencies": ["messages"],
             "name": "not_your_average_bostonian",
             "tools": [
                 {
                     "name": "add",
                     "description": "Adds two numbers together",
                     "parameters": {
-                        "a": {
-                            "title": "A",
-                            "type": "integer",
-                        },
-                        "b": {
-                            "title": "B",
-                            "type": "integer",
-                        },
+                        "a": {"type": "integer", "required": True},
+                        "b": {"type": "integer", "required": True},
                     },
                 }
             ],
@@ -460,22 +443,14 @@ class TestLangGraphLLMObs:
 
         expected_agent_manifest = {
             "framework": "LangGraph",
-            "max_iterations": 25,
-            "dependencies": ["a_list"],
             "name": "custom_agent_with_tool_node",
             "tools": [
                 {
                     "name": "add",
                     "description": "Adds two numbers together",
                     "parameters": {
-                        "a": {
-                            "title": "A",
-                            "type": "integer",
-                        },
-                        "b": {
-                            "title": "B",
-                            "type": "integer",
-                        },
+                        "a": {"type": "integer", "required": True},
+                        "b": {"type": "integer", "required": True},
                     },
                 }
             ],
@@ -496,7 +471,8 @@ class TestLangGraphLLMObs:
         agent_span = _find_span_by_name(spans, "agent")
 
         agent_metadata = get_llmobs_metadata(agent_span) or {}
-        assert agent_metadata.get("_dd", {}).get("agent_manifest", {}).get("max_iterations") == 100
+        manifest = agent_metadata.get("_dd", {}).get("agent_manifest", {})
+        assert manifest.get("agent_settings", {}).get("recursion_limit") == 100
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_with_tool_calls_integrations_enabled(
