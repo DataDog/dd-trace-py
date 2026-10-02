@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    vllm: Fixes an issue where the first inference request fails with an ``AttributeError`` and
+    the vLLM engine shuts down when the vLLM integration is enabled with vLLM 0.20.0 or later.
