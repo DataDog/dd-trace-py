@@ -69,7 +69,7 @@ class NativeRuntime(SharedRuntime):
         # pid, which stops allow_after_fork_child from arming the lazy restart that would otherwise
         # abandon the inherited runtime on first use.
         self._paused = False
-        
+
     def _install_subprocess_fork_hook(self) -> None:
         # subprocess and asyncio call _posixsubprocess.fork_exec directly, so
         # os.register_at_fork never runs for them. On macOS, libSystem locks the
