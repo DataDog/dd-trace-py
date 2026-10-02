@@ -1,9 +1,16 @@
+from collections.abc import AsyncIterator
+from collections.abc import Iterator
 from collections.abc import Sequence
+import contextvars
+from functools import partial
 import json
 from typing import Any
 from typing import Callable
 from typing import Optional
 import uuid
+import weakref
+
+import wrapt
 
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import AIGuardClient
@@ -12,12 +19,14 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
-from ddtrace.aiguard._context import reset_aiguard_context_active_current
-from ddtrace.aiguard._context import set_aiguard_context_active
+from ddtrace.aiguard._context import Phase
+from ddtrace.aiguard._context import aiguard_context
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.aiguard import aiguard_config
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -36,8 +45,6 @@ action_agents_classes = (
 
 
 def _langchain_patch(client: AIGuardClient) -> None:
-    from functools import partial
-
     # langchain < 1.0: agents subclass one of the action-agent classes and
     # decide tool calls through ``plan`` / ``aplan``. Each is wrapped in its
     # own try/except because the available classes vary across versions.
@@ -58,6 +65,20 @@ def _langchain_patch(client: AIGuardClient) -> None:
         wrap("langgraph.prebuilt.tool_node", "ToolNode._arun_one", partial(_langchain_toolnode_arun_one, client))
     except Exception:
         logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
+
+    # AI Guard owns the LangChain claims: each is taken and released in one frame of
+    # these wrappers, so the handle never has to travel through the contrib.
+    # Installed after the contrib's wrappers, so these are the outermost layer.
+    try:
+        from langchain_core.language_models.chat_models import BaseChatModel
+        from langchain_core.language_models.llms import BaseLLM
+
+        for base, is_chat in ((BaseChatModel, True), (BaseLLM, False)):
+            wrap(base, "generate", _langchain_claimed_generate)
+            wrap(base, "agenerate", _langchain_claimed_agenerate)
+            _buffer_model_classes(client, base, is_chat)
+    except Exception:
+        logger.debug("Failed to instrument langchain models", exc_info=True)
 
 
 def _langchain_unpatch() -> None:
@@ -86,6 +107,459 @@ def _langchain_unpatch() -> None:
         unwrap(ToolNode, "_arun_one")
     except Exception:
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
+
+    try:
+        from langchain_core.language_models.chat_models import BaseChatModel
+        from langchain_core.language_models.llms import BaseLLM
+
+        for base in (BaseChatModel, BaseLLM):
+            for method in ("generate", "agenerate"):
+                unwrap(base, method)
+    except Exception:
+        logger.debug("Failed to unpatch langchain models", exc_info=True)
+
+    _remove_stream_buffers()
+
+
+def _langchain_claimed_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    """Hold both phases for a generate call: its .before and .after listeners evaluate both."""
+    evaluated = _BUFFER_EVALUATED.set(set())
+    generating = _GENERATING_MODEL.set(instance)
+    try:
+        with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+            return func(*args, **kwargs)
+    finally:
+        _GENERATING_MODEL.reset(generating)
+        _BUFFER_EVALUATED.reset(evaluated)
+
+
+async def _langchain_claimed_agenerate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    """Async twin of _langchain_claimed_generate; the claim spans the awaited call in this task."""
+    evaluated = _BUFFER_EVALUATED.set(set())
+    generating = _GENERATING_MODEL.set(instance)
+    try:
+        with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+            return await func(*args, **kwargs)
+    finally:
+        _GENERATING_MODEL.reset(generating)
+        _BUFFER_EVALUATED.reset(evaluated)
+
+
+# Model streams are buffered at each model's own _stream / _astream, below
+# LangChain's callbacks: stream(), astream_events(), LangGraph's messages stream
+# and generate's internal streaming all hand tokens to callbacks after reading
+# _stream, so buffering there keeps every one of them behind the verdict. It also
+# stays below LangChain's per-chunk read timeout, which wraps each provider read
+# inside _astream. Subclasses define _stream themselves, so the wrappers are
+# installed per class: at patch time for the classes that exist, and from
+# __init_subclass__ for the ones defined later.
+_buffered_model_classes: "weakref.WeakSet[type]" = weakref.WeakSet()
+# Held weakly so dynamically defined model classes can still be garbage-collected.
+_buffered_methods: "weakref.WeakKeyDictionary[type, list[str]]" = weakref.WeakKeyDictionary()
+# Each hooked base with the __init_subclass__ it defined itself, if any.
+_hooked_bases: list[tuple[type, Any]] = []
+_buffer_install_lock = RLock()
+
+# The model whose stream a buffer is reading, so a subclass _stream calling
+# super()._stream on the same model is buffered once. Another model streamed
+# during that read (a router model's inner model) gets its own buffer.
+_BUFFERED_MODEL: contextvars.ContextVar[Optional[object]] = contextvars.ContextVar(
+    "ai_guard_langchain_buffered_model", default=None
+)
+
+# The model whose generate call is running: its .before listener already evaluated
+# the request, so that model's stream buffer must not evaluate it again.
+_GENERATING_MODEL: contextvars.ContextVar[Optional[object]] = contextvars.ContextVar(
+    "ai_guard_langchain_generating_model", default=None
+)
+
+# Payloads a stream buffer evaluated during the current generate call, so its
+# .after listener does not evaluate the same response again. Scoped to the call
+# rather than marked on the message: a cached response carries no such record.
+_BUFFER_EVALUATED: contextvars.ContextVar[Optional[set[str]]] = contextvars.ContextVar(
+    "ai_guard_langchain_buffer_evaluated", default=None
+)
+
+
+def _install_stream_buffers(client: AIGuardClient, base: type, is_chat: bool, model_cls: type) -> None:
+    if model_cls in _buffered_model_classes:
+        return
+    with _buffer_install_lock:
+        walked = []
+        for klass in model_cls.__mro__:
+            if klass is base or klass in _buffered_model_classes or not issubclass(klass, base):
+                continue
+            walked.append(klass)
+            for name, wrapper in _STREAM_METHODS if is_chat else _STREAM_METHODS[:2]:
+                if name in klass.__dict__:
+                    try:
+                        wrap(klass, name, partial(wrapper, client, is_chat))
+                        _buffered_methods.setdefault(klass, []).append(name)
+                    except Exception:
+                        logger.debug("AI Guard langchain: failed to buffer %s.%s", klass, name, exc_info=True)
+        _buffered_model_classes.update(walked)
+
+
+def _buffer_model_classes(client: AIGuardClient, base: type, is_chat: bool) -> None:
+    """Buffer every existing subclass of base, and hook __init_subclass__ for the ones defined later."""
+    original = base.__dict__.get("__init_subclass__")
+
+    def __init_subclass__(cls: type, **kwargs: Any) -> None:
+        if original is not None:
+            original.__get__(None, cls)(**kwargs)
+        else:
+            super(base, cls).__init_subclass__(**kwargs)  # type: ignore[arg-type]
+        try:
+            _install_stream_buffers(client, base, is_chat, cls)
+        except Exception:
+            logger.debug("AI Guard langchain: failed to buffer %s streams", cls, exc_info=True)
+
+    with _buffer_install_lock:
+        base.__init_subclass__ = classmethod(__init_subclass__)  # type: ignore[assignment,arg-type]
+        _hooked_bases.append((base, original))
+        pending = list(base.__subclasses__())
+        while pending:
+            klass = pending.pop()
+            _install_stream_buffers(client, base, is_chat, klass)
+            pending.extend(klass.__subclasses__())
+
+
+def _remove_stream_buffers() -> None:
+    with _buffer_install_lock:
+        for base, original in _hooked_bases:
+            try:
+                if original is not None:
+                    base.__init_subclass__ = original  # type: ignore[method-assign]
+                else:
+                    del base.__init_subclass__
+            except Exception:
+                logger.debug("AI Guard langchain: failed to unhook %s", base, exc_info=True)
+        _hooked_bases.clear()
+        for klass, names in list(_buffered_methods.items()):
+            for name in names:
+                try:
+                    unwrap(klass, name)
+                except Exception:
+                    logger.debug("AI Guard langchain: failed to unbuffer %s.%s", klass, name, exc_info=True)
+        _buffered_methods.clear()
+        _buffered_model_classes.clear()
+
+
+def _langchain_buffered_stream(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """Wrapper for a model's _stream: see _buffered_stream."""
+    if _BUFFERED_MODEL.get() is instance:
+        return func(*args, **kwargs)
+    evaluate = partial(_evaluate_buffered_stream, client, is_chat)
+    return _buffered_stream(client, is_chat, evaluate, func, instance, args, kwargs)
+
+
+def _langchain_buffered_astream(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """Wrapper for a model's _astream: see _buffered_stream."""
+    if _BUFFERED_MODEL.get() is instance:
+        return func(*args, **kwargs)
+    evaluate = partial(_evaluate_buffered_stream, client, is_chat)
+    return _buffered_astream(client, is_chat, evaluate, func, instance, args, kwargs)
+
+
+def _langchain_buffered_events(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """Wrapper for a chat model's native _stream_chat_model_events, which LangChain reads instead of _stream."""
+    if _BUFFERED_MODEL.get() is instance:
+        return func(*args, **kwargs)
+    return _buffered_stream(client, is_chat, partial(_evaluate_buffered_events, client), func, instance, args, kwargs)
+
+
+def _langchain_buffered_aevents(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """Async twin of _langchain_buffered_events, for _astream_chat_model_events."""
+    if _BUFFERED_MODEL.get() is instance:
+        return func(*args, **kwargs)
+    return _buffered_astream(client, is_chat, partial(_evaluate_buffered_events, client), func, instance, args, kwargs)
+
+
+# Methods buffered on each model class. The protocol-event hooks (langchain-core
+# 1.4+) exist on chat models only and serve stream_events / astream_events v3
+# without calling _stream.
+_STREAM_METHODS = (
+    ("_stream", _langchain_buffered_stream),
+    ("_astream", _langchain_buffered_astream),
+    ("_stream_chat_model_events", _langchain_buffered_events),
+    ("_astream_chat_model_events", _langchain_buffered_aevents),
+)
+
+_END = object()
+
+
+async def _anext_or_end(iterator: Any) -> Any:
+    # The anext() builtin needs Python 3.10.
+    try:
+        return await iterator.__anext__()
+    except StopAsyncIteration:
+        return _END
+
+
+def _buffered_stream(
+    client: AIGuardClient,
+    is_chat: bool,
+    evaluate: Callable[[Any, Any, list[Any]], None],
+    func: Callable[..., Any],
+    instance: Any,
+    args: Any,
+    kwargs: Any,
+) -> Iterator[Any]:
+    """Evaluate the request, read the model's whole stream, evaluate it, then replay it.
+
+    Both phases are claimed only while the model is read, so the provider below
+    skips its own checks and nothing the caller runs between chunks is claimed.
+    With stream analysis off the stream passes through, claimed only for the
+    first read, which is where the provider sends its request. Every read is
+    marked as this model's, so a super()._stream it delegates to later is not
+    buffered again.
+    """
+    _evaluate_buffered_request(client, is_chat, instance, args, kwargs)
+    iterator = None
+    try:
+        if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
+            with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+                in_buffer = _BUFFERED_MODEL.set(instance)
+                try:
+                    iterator = iter(func(*args, **kwargs))
+                    item = next(iterator, _END)
+                finally:
+                    _BUFFERED_MODEL.reset(in_buffer)
+            while item is not _END:
+                yield item
+                in_buffer = _BUFFERED_MODEL.set(instance)
+                try:
+                    item = next(iterator, _END)
+                finally:
+                    _BUFFERED_MODEL.reset(in_buffer)
+            return
+
+        events: list[tuple[bool, Any]] = []
+        args, kwargs = _defer_run_manager(args, kwargs, events, _DeferredRunManager)
+        with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+            in_buffer = _BUFFERED_MODEL.set(instance)
+            try:
+                iterator = iter(func(*args, **kwargs))
+                for item in iterator:
+                    events.append((True, item))
+            finally:
+                _BUFFERED_MODEL.reset(in_buffer)
+    finally:
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            close()
+    evaluate(args, kwargs, [item for is_item, item in events if is_item])
+    for is_item, event in events:
+        if is_item:
+            yield event
+        else:
+            deferred_call, call_args, call_kwargs = event
+            deferred_call(*call_args, **call_kwargs)
+
+
+async def _buffered_astream(
+    client: AIGuardClient,
+    is_chat: bool,
+    evaluate: Callable[[Any, Any, list[Any]], None],
+    func: Callable[..., Any],
+    instance: Any,
+    args: Any,
+    kwargs: Any,
+) -> AsyncIterator[Any]:
+    """Async twin of _buffered_stream; the claim spans each awaited read in this task."""
+    _evaluate_buffered_request(client, is_chat, instance, args, kwargs)
+    iterator = None
+    try:
+        if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
+            with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+                in_buffer = _BUFFERED_MODEL.set(instance)
+                try:
+                    iterator = func(*args, **kwargs).__aiter__()
+                    item = await _anext_or_end(iterator)
+                finally:
+                    _BUFFERED_MODEL.reset(in_buffer)
+            while item is not _END:
+                yield item
+                in_buffer = _BUFFERED_MODEL.set(instance)
+                try:
+                    item = await _anext_or_end(iterator)
+                finally:
+                    _BUFFERED_MODEL.reset(in_buffer)
+            return
+
+        events: list[tuple[bool, Any]] = []
+        args, kwargs = _defer_run_manager(args, kwargs, events, _AsyncDeferredRunManager)
+        with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+            in_buffer = _BUFFERED_MODEL.set(instance)
+            try:
+                iterator = func(*args, **kwargs).__aiter__()
+                async for item in iterator:
+                    events.append((True, item))
+            finally:
+                _BUFFERED_MODEL.reset(in_buffer)
+    finally:
+        # A cancelled or timed-out read must still release the provider stream.
+        aclose = getattr(iterator, "aclose", None)
+        if aclose is not None:
+            await aclose()
+    evaluate(args, kwargs, [item for is_item, item in events if is_item])
+    for is_item, event in events:
+        if is_item:
+            yield event
+        else:
+            deferred_call, call_args, call_kwargs = event
+            await deferred_call(*call_args, **call_kwargs)
+
+
+class _DeferredRunManager(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt ships no stubs
+    """Run manager handed to a buffered _stream: tokens it reports are held until the verdict.
+
+    Providers report each token to the run manager from inside _stream (LLM
+    streams, and chat models streaming inside generate), which would reach
+    callbacks while the stream is still being read.
+    """
+
+    def __init__(self, wrapped: Any, events: list[tuple[bool, Any]]) -> None:
+        super().__init__(wrapped)
+        self._self_events = events
+
+    def on_llm_new_token(self, *args: Any, **kwargs: Any) -> None:
+        self._self_events.append((False, (self.__wrapped__.on_llm_new_token, args, kwargs)))
+
+
+class _AsyncDeferredRunManager(_DeferredRunManager):
+    async def on_llm_new_token(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
+        self._self_events.append((False, (self.__wrapped__.on_llm_new_token, args, kwargs)))
+
+
+def _defer_run_manager(
+    args: Any, kwargs: dict[str, Any], events: list[tuple[bool, Any]], proxy: type
+) -> tuple[Any, dict[str, Any]]:
+    """Swap the run_manager argument of _stream(messages, stop, run_manager, ...) for a deferring proxy."""
+    if kwargs.get("run_manager") is not None:
+        return args, {**kwargs, "run_manager": proxy(kwargs["run_manager"], events)}
+    if len(args) > 2 and args[2] is not None:
+        return (*args[:2], proxy(args[2], events), *args[3:]), kwargs
+    return args, kwargs
+
+
+def _merge_message_chunks(messages: list[Any]) -> Any:
+    """Sum message chunks the way LangChain assembles a streamed message."""
+    from langchain_core.messages import AIMessageChunk
+
+    try:
+        from langchain_core.messages.ai import add_ai_message_chunks
+    except ImportError:  # langchain-core < 0.2
+        add_ai_message_chunks = None
+    if add_ai_message_chunks is not None and all(isinstance(message, AIMessageChunk) for message in messages):
+        # One merge of all chunks; adding them pairwise re-merges the growing prefix every time.
+        return add_ai_message_chunks(messages[0], *messages[1:])
+    merged = messages[0]
+    for message in messages[1:]:
+        merged = merged + message
+    return merged
+
+
+def _payload_key(messages: list[Message]) -> str:
+    return json.dumps(messages, sort_keys=True, default=str)
+
+
+def _evaluate_buffered_request(client: AIGuardClient, is_chat: bool, instance: Any, args: Any, kwargs: Any) -> None:
+    """Evaluate a buffered stream's request before the model reads it, unless its generate call already did.
+
+    stream(), astream() and direct _stream reads (stream_events v3) have no other
+    request check: the buffer's claim makes the provider below skip its own.
+    """
+    from langchain_core.messages import HumanMessage
+
+    if _GENERATING_MODEL.get() is instance:
+        return
+    try:
+        if is_chat:
+            messages = list(get_argument_value(args, kwargs, 0, "messages") or ())
+        else:
+            messages = [HumanMessage(content=get_argument_value(args, kwargs, 0, "prompt"))]
+    except Exception:
+        logger.debug("AI Guard langchain: failed to read streamed request; skipping evaluation", exc_info=True)
+        return
+    _evaluate_langchain_messages(client, messages)
+
+
+def _evaluate_buffered_stream(client: AIGuardClient, is_chat: bool, args: Any, kwargs: Any, chunks: list[Any]) -> None:
+    """Evaluate a buffered model stream's request plus its reconstructed response.
+
+    On a clean verdict the tool calls are recorded as evaluated on the last
+    chunk: chunk addition carries response_metadata into the message the caller
+    or the legacy agent's output parser assembles, so the agent hook does not
+    evaluate the same call again.
+    """
+    from langchain_core.messages import HumanMessage
+
+    if not chunks:
+        return
+    # Conversion fails open: an error here must not break the caller's stream. Only
+    # the verdict below may raise, and only AIGuardAbortError.
+    try:
+        if is_chat:
+            request_messages = _convert_messages(list(get_argument_value(args, kwargs, 0, "messages") or ()))
+            response = _merge_message_chunks([chunk.message for chunk in chunks])
+            response_messages = _convert_response_message(response)
+        else:
+            request_messages = _convert_messages([HumanMessage(content=get_argument_value(args, kwargs, 0, "prompt"))])
+            text = "".join(chunk.text for chunk in chunks)
+            response_messages = [Message(role="assistant", content=text)] if text else []
+    except Exception:
+        logger.debug("AI Guard langchain: failed to convert streamed call; skipping evaluation", exc_info=True)
+        return
+    if not response_messages or not _evaluate_langchain_response(client, request_messages, response_messages):
+        return
+    _record_buffer_evaluated(request_messages, response_messages)
+    if is_chat:
+        fingerprints = _message_tool_call_fingerprints(response)
+        if fingerprints:
+            _record_evaluated_fingerprints(chunks[-1].message, fingerprints)
+
+
+def _evaluate_buffered_events(client: AIGuardClient, args: Any, kwargs: Any, events: list[Any]) -> None:
+    """Evaluate a buffered native event stream's request plus the message its events assemble."""
+    from langchain_core.language_models.chat_model_stream import ChatModelStream
+
+    if not events:
+        return
+    try:
+        accumulator = ChatModelStream()
+        for event in events:
+            accumulator.dispatch(event)
+        response = accumulator.output_message
+        if response is None:
+            return
+        request_messages = _convert_messages(list(get_argument_value(args, kwargs, 0, "messages") or ()))
+        response_messages = _convert_response_message(response)
+    except Exception:
+        logger.debug("AI Guard langchain: failed to convert streamed events; skipping evaluation", exc_info=True)
+        return
+    if response_messages and _evaluate_langchain_response(client, request_messages, response_messages):
+        _record_buffer_evaluated(request_messages, response_messages)
+
+
+def _record_buffer_evaluated(request_messages: list[Message], response_messages: list[Message]) -> None:
+    evaluated = _BUFFER_EVALUATED.get()
+    if evaluated is not None:
+        evaluated.add(_payload_key(request_messages + response_messages))
+
+
+def _evaluated_by_stream_buffer(request_messages: list[Message], response_messages: list[Message]) -> bool:
+    """Whether a stream buffer in this generate call already evaluated exactly this payload."""
+    evaluated = _BUFFER_EVALUATED.get()
+    return bool(evaluated) and _payload_key(request_messages + response_messages) in evaluated  # type: ignore[operator]
 
 
 def _langchain_agent_plan(
@@ -257,8 +731,12 @@ def _message_tool_call_fingerprints(message: Any) -> list[str]:
 def _mark_tool_calls_evaluated(message: Any) -> None:
     """Record the tool calls this message asked for as evaluated."""
     fingerprints = _message_tool_call_fingerprints(message)
-    if not fingerprints:
-        return
+    if fingerprints:
+        _record_evaluated_fingerprints(message, fingerprints)
+
+
+def _record_evaluated_fingerprints(message: Any, fingerprints: list[str]) -> None:
+    """Store fingerprints on message, which may be a chunk the evaluated calls are later summed from."""
     metadata = getattr(message, "response_metadata", None)
     if isinstance(metadata, dict):
         metadata[_EVALUATED_KEY] = fingerprints
@@ -392,7 +870,7 @@ def _langchain_chatmodel_generate_after(client: AIGuardClient, message_lists: An
     """Listener for langchain.chatmodel.generate.after and its async twin.
 
     Provider integrations (OpenAI, Anthropic) skip their own response evaluation
-    while the LangChain context counter is active, so without this listener the
+    while LangChain holds the response phase, so without this listener the
     model response reached the caller unevaluated.
 
     generations[i] holds the candidates produced for message_lists[i]; zip pairs
@@ -401,7 +879,12 @@ def _langchain_chatmodel_generate_after(client: AIGuardClient, message_lists: An
     generations = getattr(result, "generations", None) or []
     for messages, prompt_generations in zip(message_lists, generations):
         response_messages = _convert_generations(prompt_generations)
-        if response_messages and _evaluate_langchain_response(client, _convert_messages(messages), response_messages):
+        if not response_messages:
+            continue
+        request_messages = _convert_messages(messages)
+        if _evaluated_by_stream_buffer(request_messages, response_messages) or _evaluate_langchain_response(
+            client, request_messages, response_messages
+        ):
             _mark_generations_evaluated(prompt_generations)
 
 
@@ -412,8 +895,11 @@ def _langchain_llm_generate_after(client: AIGuardClient, prompts: Any, result: A
     generations = getattr(result, "generations", None) or []
     for prompt, prompt_generations in zip(prompts, generations):
         response_messages = _convert_generations(prompt_generations)
-        if response_messages:
-            _evaluate_langchain_response(client, _convert_messages([HumanMessage(content=prompt)]), response_messages)
+        if not response_messages:
+            continue
+        request_messages = _convert_messages([HumanMessage(content=prompt)])
+        if not _evaluated_by_stream_buffer(request_messages, response_messages):
+            _evaluate_langchain_response(client, request_messages, response_messages)
 
 
 def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, kwargs: Any) -> Any:
@@ -550,7 +1036,6 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: Any) -> Optional[Any]:
-    set_aiguard_context_active()
     for messages in message_lists:
         result = _evaluate_langchain_messages(client, messages)
         if result is not None:
@@ -559,56 +1044,14 @@ def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: A
 
 
 def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optional[Any]:
-    """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
+    """langchain.llm.[a]generate.before listener -- see the chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
-    set_aiguard_context_active()
     for prompt in prompts:
         result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
         if result is not None:
             return result
     return None
-
-
-def _langchain_generate_finally(*args: Any, **kwargs: Any) -> None:
-    """Paired ``.finally`` listener for the four langchain ``generate`` events.
-
-    Releases the AI Guard active counter that the matching ``.before``
-    listener bumped. Dispatched from the contrib's ``finally`` block so it
-    fires on every exit path — success, block (``core.dispatch(..., allow_raise=True)``
-    raises out of ``.before``), or exception inside the underlying LLM call. The
-    counter reset is a no-op when the counter is already zero, so listener
-    invocations that don't pair with a ``.before`` set are safe.
-    """
-    reset_aiguard_context_active_current()
-
-
-def _langchain_chatmodel_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
-    input_arg = get_argument_value(args, kwargs, 0, "input")
-    messages = instance._convert_input(input_arg).to_messages()
-    return _evaluate_langchain_messages(client, messages)
-
-
-def _langchain_llm_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
-    from langchain_core.messages import HumanMessage
-
-    input_arg = get_argument_value(args, kwargs, 0, "input")
-    prompt = instance._convert_input(input_arg).to_string()
-    return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
-
-
-def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
-    """Paired ``.stream.started`` listener for langchain stream events.
-
-    Acquires the AI Guard active-context counter for the duration of stream
-    iteration. Dispatched from ``BaseLangchainStreamHandler.start_stream``
-    (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
-    by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
-    iteration entry — so a stream created but never iterated cannot bump
-    the depth. The matching reset happens in
-    :func:`_langchain_generate_finally` via the ``.stream.finally`` event.
-    """
-    set_aiguard_context_active()
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> Optional[Any]:

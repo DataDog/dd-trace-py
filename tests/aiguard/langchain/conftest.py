@@ -51,6 +51,23 @@ def langchain_openai(langchain):
 
 
 @pytest.fixture
+def openai_stream_evaluation(langchain_openai):
+    """Patch the OpenAI integration with stream response evaluation on, underneath LangChain.
+
+    The flag must be on before patching: the buffered-stream wrappers are installed at patch time.
+    """
+    from ddtrace.contrib.internal.openai.patch import patch as openai_patch
+    from ddtrace.contrib.internal.openai.patch import unpatch as openai_unpatch
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        openai_patch()
+        try:
+            yield
+        finally:
+            openai_unpatch()
+
+
+@pytest.fixture
 def openai_url() -> str:
     """
     Use the request recording endpoint of the testagent to capture requests to OpenAI

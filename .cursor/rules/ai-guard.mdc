@@ -58,7 +58,7 @@ ddtrace/aiguard/
 ├── _initialization.py      # load_ai_guard(): lazy, gated on DD_AI_GUARD_ENABLED
 ├── _listener.py            # ai_guard_listen(): registers all core.on(...) hooks,
 │                           #   gated per integration by DD_AI_GUARD_<LLM>_ENABLED
-├── _context.py             # contextvar depth counter to avoid double-scanning
+├── _context.py             # phase-scoped (REQUEST/RESPONSE) claims to avoid double-scanning
 ├── _common.py              # _get(), wrap_abort_error(), evaluate_auto() helpers
 ├── _redaction.py           # applies the service's redaction_replacements
 ├── _trace_utils.py         # _aiguard_manual_keep(): force-keep the AI Guard trace
@@ -135,7 +135,7 @@ Events currently consumed:
 | OpenAI Responses | `openai.responses.create.before` / `.after` |
 | OpenAI (stream wrappers) | `openai.patch` / `.unpatch` |
 | Anthropic | `anthropic.messages.create.before` / `.after`, `anthropic.patch` / `.unpatch` |
-| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate,stream}.before` / `.finally`, `langchain.{chatmodel,llm}.stream.started`, `langchain.patch` / `.unpatch` |
+| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate}.before`, `langchain.{chatmodel,llm}.{generate,agenerate}.after`, `langchain.patch` / `.unpatch` |
 | HTTP (client IP) | `set_http_meta_for_asm` |
 
 ### 3. Provider converters → canonical `Message` shape
@@ -172,10 +172,79 @@ messages are the redacted ones — never slice on them.
 ### 5. Double-scan avoidance (`_context.py`)
 
 A framework integration (LangChain, Strands) and a provider integration
-(OpenAI, Anthropic) can both fire for the same call. To avoid scanning twice,
-the framework wraps its dispatch + LLM call with the `aiguard_context()`
-context manager (a contextvar depth counter), and provider listeners
-short-circuit when `is_aiguard_context_active()` returns `True`.
+(OpenAI, Anthropic) can both fire for the same call. The framework **claims the
+phases it evaluates itself** (`Phase.REQUEST`, `Phase.RESPONSE`), and each
+provider check skips only the phase it guards:
+
+| Integration | Claims |
+|-------------|--------|
+| LangChain `generate` / `agenerate` | `REQUEST` + `RESPONSE` for the whole call |
+| LangChain model `_stream` / `_astream` | `REQUEST` + `RESPONSE` while the model stream is read (request and response evaluated by the buffer, see below); with stream analysis off, only for the first read |
+| Strands | `REQUEST` + `RESPONSE` |
+
+| Provider check | Phase |
+|----------------|-------|
+| Request evaluation (OpenAI Chat / Responses, Anthropic) | `is_aiguard_context_active(Phase.REQUEST)` |
+| Non-streaming response evaluation | `is_aiguard_context_active(Phase.RESPONSE)` |
+| Buffered stream response evaluation (`_streaming.py`) | `is_aiguard_context_active(Phase.RESPONSE)` |
+
+Never claim a phase the framework does not actually evaluate: claiming
+`RESPONSE` on a path that cannot scan the response silences the provider's
+check and leaves the response unevaluated (APPSEC-70286).
+
+AI Guard takes the LangChain claims in its own wrappers around `BaseChatModel` /
+`BaseLLM` `generate` / `agenerate`, installed by `_langchain_patch` at
+`langchain.patch`. The LangChain contrib only dispatches product-agnostic
+`.before` / `.after` events and carries no AI Guard state.
+
+Streamed responses are buffered around each model class's own `_stream` /
+`_astream` (`_buffered_stream`), not in `stream()` and not by the provider's
+buffer. Chat models that implement the langchain-core 1.4 protocol-event hooks
+(`_stream_chat_model_events` / `_astream_chat_model_events`) get the same buffer
+on those hooks, because `stream_events` / `astream_events` v3 read them instead
+of `_stream`. Subclasses define those methods themselves, so the wrappers are
+installed per class: at `langchain.patch` for every existing subclass, and from
+an `__init_subclass__` hook on `BaseChatModel` / `BaseLLM` for classes defined
+later (`_buffer_model_classes`). Installing on first use of `generate` or
+`stream` is not enough: paths such as `stream_events(version="v3")` read
+`_stream` directly. A buffer skips only a `super()._stream` call on the model it
+is already reading, on every read of that model, not only the first; another model streamed during that read (a router model's
+inner model) gets its own buffer. The layer matters:
+
+- **Below LangChain's callbacks.** `stream()`, `astream_events()`, LangGraph's
+  `stream_mode="messages"` and generate's internal streaming all hand each
+  token to callbacks after reading `_stream`. A buffer on `stream()` would
+  deliver tokens to them before the verdict, and would finish the model run
+  before `astream_events()` could emit any stream event. Providers that report
+  tokens to the run manager from inside `_stream` get a deferring run manager
+  (`_DeferredRunManager`) whose tokens are replayed after the verdict.
+- **Above the provider.** LangChain wraps every provider read inside `_astream`
+  in its own read timeout, so a provider buffer that drains the whole stream on
+  the first read turns a long generation into a timeout.
+- **Request first.** The buffer evaluates the request before it claims and
+  reads the model, unless that model's own `generate` is running
+  (`_GENERATING_MODEL`), whose `.before` listener already did. A direct
+  `_stream` read has no other request check, and the claim makes the provider
+  skip its own. AI Guard does not listen to `.stream.before`.
+- **Once per call.** When generate streams internally, the buffer records the
+  payload it evaluated and the `.generate.after` listener skips that exact
+  payload. The record is scoped to the generate call, so a cached response is
+  still evaluated.
+
+The buffer also raises the `BaseException`-based `AIGuardAbortError`, which
+`with_fallbacks` and retry policies cannot swallow the way they swallow the
+provider's `Exception`-based abort errors.
+
+Claims are shared objects, not per-context counters, so a release from a
+different asyncio task is seen by the claiming task (APPSEC-70282). Keep the
+handle returned by `set_aiguard_context_active(...)` and release it with
+`reset_aiguard_context_active(handle)`. Prefer `aiguard_context(...)` in an AI
+Guard-owned wrapper, which claims and releases in one frame (LangChain). Only
+when a framework's own hooks split claim and release, carry the handle on
+per-call state the framework provides (Strands `invocation_state`); never add
+AI Guard state to a contrib integration to carry it. Never release by searching
+the current context for "the latest claim": that misses claims made in another
+task and takes an inner call's claim when calls nest.
 
 ## Configuration
 
@@ -239,10 +308,12 @@ must be imported from `ddtrace.aiguard.integrations.strands`.
   silently dropping data.
 - **`allow_raise=True` is required** at dispatch sites that must be able to
   block, so `AIGuardAbortError` can propagate out of the patched call.
-- **Respect the context counter.** When adding a framework integration that
-  may nest over a provider integration, wrap with `aiguard_context()` and have
-  the provider listener honor `is_aiguard_context_active()`.
-- **Preserve invariant comments** for lazy import timing, stream counter
+- **Respect phase-scoped claims.** When adding a framework integration that
+  may nest over a provider integration, claim only the phases it evaluates
+  (`aiguard_context(Phase.REQUEST, ...)` or `set_aiguard_context_active(...)`
+  with the handle kept for release), and have every provider check name its
+  phase (`is_aiguard_context_active(Phase.REQUEST)` / `(Phase.RESPONSE)`).
+- **Preserve invariant comments** for lazy import timing, stream claim
   lifecycle, and legacy message translation when editing nearby code. Do not add
   new `AIDEV-*` labels (deprecated — see AGENTS.md).
 - **Tests** live under `tests/aiguard/`. Use the `run-tests` skill;
