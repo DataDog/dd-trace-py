@@ -1,11 +1,11 @@
 import _thread
+from collections.abc import Generator
 import os
 from pathlib import Path
 import sys
 import threading
 import time
 from typing import TYPE_CHECKING
-from typing import Generator
 from unittest.mock import patch
 import uuid
 
@@ -576,7 +576,7 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
 
 
 def test_collect_once_with_class(tmp_path: Path) -> None:
-    class SomeClass(object):
+    class SomeClass:
         @classmethod
         def sleep_class(cls) -> None:
             return cls().sleep_instance()
@@ -638,12 +638,15 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
     (e.g., using 'foobar' instead of 'self' or 'cls').
     """
 
-    class SomeClass(object):
+    class SomeClass:
         @classmethod
-        def sleep_class(foobar, cls) -> None:  # pyright: ignore[reportSelfClsParameterName]
+        def sleep_class(foobar: type["SomeClass"], cls: int) -> None:  # pyright: ignore[reportSelfClsParameterName]
             return foobar().sleep_instance(cls)
 
-        def sleep_instance(foobar, self) -> None:  # pyright: ignore[reportUnusedParameter, reportSelfClsParameterName]
+        def sleep_instance(
+            foobar: "SomeClass",  # pyright: ignore[reportSelfClsParameterName]
+            self: int,  # pyright: ignore[reportUnusedParameter]
+        ) -> None:
             for _ in range(10):
                 time.sleep(0.1)
 
@@ -675,7 +678,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 pprof_utils.StackLocation(
                     function_name="sleep_instance",
                     filename="test_stack.py",
-                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
+                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 5,
                 ),
                 pprof_utils.StackLocation(
                     function_name="sleep_class",
@@ -685,7 +688,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class_not_right_type",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 26,
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 29,
                 ),
             ],
         ),
@@ -1072,11 +1075,11 @@ for num in range(MAX_FN_NUM):
     exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
 
 exec(
-    """def _f{MAX_FN_NUM}():
+    f"""def _f{MAX_FN_NUM}():
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
+      time.sleep(2)"""
 )
 
 

@@ -124,16 +124,21 @@ def test_mistralai_embed_create_error(mistral_client):
         )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.mistralai.test_mistralai.test_mistralai_embed_create",
-    ignores=["resource"],
-)
-async def test_mistralai_embed_create_async(mistral_client):
+async def test_mistralai_embed_create_async(mistral_client, test_spans):
     await mistral_client.embeddings.create_async(
         model="mistral-embed",
         inputs=["Why is the sky blue?", "What is your age?"],
         **FULL_EMBED_REQUEST_KWARGS,
     )
+
+    traces = test_spans.pop_traces()
+    spans = [s for trace in traces for s in trace]
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "mistralai.request"
+    assert span.resource == "Embeddings.create_async"
+    assert span.get_tag("mistralai.request.model") == "mistral-embed"
+    assert span.get_tag("mistralai.request.provider") == "mistral"
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)

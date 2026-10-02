@@ -8,7 +8,7 @@ from tests.debugging.utils import create_snapshot_line_probe
 
 class DummyProbeStatusLogger(ProbeStatusLogger):
     def __init__(self, *args, **kwargs):
-        super(DummyProbeStatusLogger, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._flush_queue = []
 
     def _write_payload(self, body: bytes):

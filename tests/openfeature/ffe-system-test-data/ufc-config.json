@@ -1,0 +1,5131 @@
+{
+  "createdAt": "2024-04-17T19:40:53.716Z",
+  "format": "SERVER",
+  "environment": {
+    "name": "Test",
+    "unknownEnvironmentField": "ignored"
+  },
+  "unknownTopLevelField": "ignored",
+  "unknownTopLevelNull": null,
+  "flags": {
+    "empty_flag": {
+      "key": "empty_flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {},
+      "allocations": []
+    },
+    "disabled_flag": {
+      "key": "disabled_flag",
+      "enabled": false,
+      "variationType": "INTEGER",
+      "variations": {},
+      "allocations": []
+    },
+    "no_allocations_flag": {
+      "key": "no_allocations_flag",
+      "enabled": true,
+      "variationType": "JSON",
+      "variations": {
+        "control": {
+          "key": "control",
+          "value": {
+            "variant": "control"
+          }
+        },
+        "treatment": {
+          "key": "treatment",
+          "value": {
+            "variant": "treatment"
+          }
+        }
+      },
+      "allocations": []
+    },
+    "numeric_flag": {
+      "key": "numeric_flag",
+      "enabled": true,
+      "variationType": "NUMERIC",
+      "variations": {
+        "e": {
+          "key": "e",
+          "value": 2.7182818
+        },
+        "pi": {
+          "key": "pi",
+          "value": 3.1415926
+        }
+      },
+      "allocations": [
+        {
+          "key": "rollout",
+          "splits": [
+            {
+              "variationKey": "pi",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "regex-flag": {
+      "key": "regex-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "partial-example": {
+          "key": "partial-example",
+          "value": "partial-example"
+        },
+        "test": {
+          "key": "test",
+          "value": "test"
+        },
+        "capturing-groups": {
+          "key": "capturing-groups",
+          "value": "capturing-groups"
+        },
+        "unicode-word-boundary": {
+          "key": "unicode-word-boundary",
+          "value": "unicode-word-boundary"
+        },
+        "comma-quantifier": {
+          "key": "comma-quantifier",
+          "value": "comma-quantifier"
+        },
+        "literal-whitespace": {
+          "key": "literal-whitespace",
+          "value": "literal-whitespace"
+        }
+      },
+      "allocations": [
+        {
+          "key": "comma-quantifier",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "comma_regex_case",
+                  "operator": "MATCHES",
+                  "value": "a{1,3}"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "comma-quantifier",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "literal-whitespace",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "whitespace_regex_case",
+                  "operator": "MATCHES",
+                  "value": " exact "
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "literal-whitespace",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "capturing-groups",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": "^([[:alnum:]._%+-]+)@capture\\.example$"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "capturing-groups",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "unicode-word-boundary",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": "(?u)\\bmañana\\b"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "unicode-word-boundary",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "partial-example",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": "@example\\.com"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "partial-example",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "test",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": ".*@test\\.com"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "test",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "numeric-one-of": {
+      "key": "numeric-one-of",
+      "enabled": true,
+      "variationType": "INTEGER",
+      "variations": {
+        "1": {
+          "key": "1",
+          "value": 1
+        },
+        "2": {
+          "key": "2",
+          "value": 2
+        },
+        "3": {
+          "key": "3",
+          "value": 3
+        }
+      },
+      "allocations": [
+        {
+          "key": "1-for-1",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "number",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "1"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "1",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "2-for-123456789",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "number",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "123456789"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "2",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "3-for-not-2",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "number",
+                  "operator": "NOT_ONE_OF",
+                  "value": [
+                    "2"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "3",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "boolean-one-of-matches": {
+      "key": "boolean-one-of-matches",
+      "enabled": true,
+      "variationType": "INTEGER",
+      "variations": {
+        "1": {
+          "key": "1",
+          "value": 1
+        },
+        "2": {
+          "key": "2",
+          "value": 2
+        },
+        "3": {
+          "key": "3",
+          "value": 3
+        },
+        "4": {
+          "key": "4",
+          "value": 4
+        },
+        "5": {
+          "key": "5",
+          "value": 5
+        }
+      },
+      "allocations": [
+        {
+          "key": "1-for-one-of",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "one_of_flag",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "1",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "2-for-matches",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "matches_flag",
+                  "operator": "MATCHES",
+                  "value": "true"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "2",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "3-for-not-one-of",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "not_one_of_flag",
+                  "operator": "NOT_ONE_OF",
+                  "value": [
+                    "false"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "3",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "4-for-not-matches",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "not_matches_flag",
+                  "operator": "NOT_MATCHES",
+                  "value": "false"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "4",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "5-for-matches-null",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "null_flag",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "null"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "5",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "empty_string_flag": {
+      "key": "empty_string_flag",
+      "enabled": true,
+      "comment": "Testing the empty string as a variation value",
+      "variationType": "STRING",
+      "variations": {
+        "empty_string": {
+          "key": "empty_string",
+          "value": ""
+        },
+        "non_empty": {
+          "key": "non_empty",
+          "value": "non_empty"
+        }
+      },
+      "allocations": [
+        {
+          "key": "allocation-empty",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "MATCHES",
+                  "value": "US"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "empty_string",
+              "shards": [
+                {
+                  "salt": "allocation-empty-shards",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "non_empty",
+              "shards": [
+                {
+                  "salt": "allocation-empty-shards",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "kill-switch": {
+      "key": "kill-switch",
+      "enabled": true,
+      "variationType": "BOOLEAN",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": true
+        },
+        "off": {
+          "key": "off",
+          "value": false
+        }
+      },
+      "allocations": [
+        {
+          "key": "on-for-NA",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "US",
+                    "Canada",
+                    "Mexico"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "on",
+              "shards": [
+                {
+                  "salt": "some-salt",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "on-for-age-50+",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "age",
+                  "operator": "GTE",
+                  "value": 50
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "on",
+              "shards": [
+                {
+                  "salt": "some-salt",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "off-for-all",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "off",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "comparator-operator-test": {
+      "key": "comparator-operator-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "small": {
+          "key": "small",
+          "value": "small"
+        },
+        "medium": {
+          "key": "medium",
+          "value": "medium"
+        },
+        "large": {
+          "key": "large",
+          "value": "large"
+        }
+      },
+      "allocations": [
+        {
+          "key": "small-size",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "size",
+                  "operator": "LT",
+                  "value": 10
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "small",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "medum-size",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "size",
+                  "operator": "GTE",
+                  "value": 10
+                },
+                {
+                  "attribute": "size",
+                  "operator": "LTE",
+                  "value": 20
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "medium",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "large-size",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "size",
+                  "operator": "GT",
+                  "value": 25
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "large",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-comparison-test": {
+      "key": "semver-comparison-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "legacy": {
+          "key": "legacy",
+          "value": "legacy"
+        },
+        "stable": {
+          "key": "stable",
+          "value": "stable"
+        },
+        "beta": {
+          "key": "beta",
+          "value": "beta"
+        },
+        "launch": {
+          "key": "launch",
+          "value": "launch"
+        },
+        "future": {
+          "key": "future",
+          "value": "future"
+        },
+        "maximum": {
+          "key": "maximum",
+          "value": "maximum"
+        }
+      },
+      "allocations": [
+        {
+          "key": "maximum-version",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "9007199254740991.9007199254740991.9007199254740991"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "maximum",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "legacy-versions",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LTE",
+                  "value": "1.2.3-alpha.4"
+                }
+              ]
+            },
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GT",
+                  "value": "1.2.3-alpha.4"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "2.3.4"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "legacy",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "stable-versions",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GTE",
+                  "value": "2.3.4"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "3.4.5-beta.2"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "stable",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "beta-versions",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GTE",
+                  "value": "3.4.5-beta.2"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "4.5.6-rc.1"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "beta",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "launch-version",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "4.5.6-rc.1"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "launch",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "future-versions",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GT",
+                  "value": "4.5.6-rc.1"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_NEQ",
+                  "value": "5.6.7"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "future",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-test": {
+      "key": "semver-invalid-comparand-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses an invalid configured SemVer comparand. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "18446744073709551616.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-waterfall-test": {
+      "key": "semver-invalid-comparand-waterfall-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately places an invalid configured SemVer comparand in a non-last allocation of a waterfall, followed by a valid default allocation. SDKs must reject the whole flag during parsing rather than skipping the invalid allocation and falling through to the default.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        },
+        "fallback": {
+          "key": "fallback",
+          "value": "fallback"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "18446744073709551616.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "default",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "fallback",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "start-and-end-date-test": {
+      "key": "start-and-end-date-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "old": {
+          "key": "old",
+          "value": "old"
+        },
+        "current": {
+          "key": "current",
+          "value": "current"
+        },
+        "new": {
+          "key": "new",
+          "value": "new"
+        }
+      },
+      "allocations": [
+        {
+          "key": "old-versions",
+          "splits": [
+            {
+              "variationKey": "old",
+              "shards": []
+            }
+          ],
+          "endAt": "2002-10-31T09:00:00.594Z",
+          "doLog": true
+        },
+        {
+          "key": "future-versions",
+          "splits": [
+            {
+              "variationKey": "new",
+              "shards": []
+            }
+          ],
+          "startAt": "2052-10-31T09:00:00.594Z",
+          "doLog": true
+        },
+        {
+          "key": "current-versions",
+          "splits": [
+            {
+              "variationKey": "current",
+              "shards": []
+            }
+          ],
+          "startAt": "2022-10-31T09:00:00.594Z",
+          "endAt": "2050-10-31T09:00:00.594Z",
+          "doLog": true
+        }
+      ]
+    },
+    "null-operator-test": {
+      "key": "null-operator-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "old": {
+          "key": "old",
+          "value": "old"
+        },
+        "new": {
+          "key": "new",
+          "value": "new"
+        }
+      },
+      "allocations": [
+        {
+          "key": "null-operator",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "size",
+                  "operator": "IS_NULL",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "conditions": [
+                {
+                  "attribute": "size",
+                  "operator": "LT",
+                  "value": 10
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "old",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "not-null-operator",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "size",
+                  "operator": "IS_NULL",
+                  "value": false
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "new",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "new-user-onboarding": {
+      "key": "new-user-onboarding",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "control": {
+          "key": "control",
+          "value": "control"
+        },
+        "red": {
+          "key": "red",
+          "value": "red"
+        },
+        "blue": {
+          "key": "blue",
+          "value": "blue"
+        },
+        "green": {
+          "key": "green",
+          "value": "green"
+        },
+        "yellow": {
+          "key": "yellow",
+          "value": "yellow"
+        },
+        "purple": {
+          "key": "purple",
+          "value": "purple"
+        }
+      },
+      "allocations": [
+        {
+          "key": "id rule",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "id",
+                  "operator": "MATCHES",
+                  "value": "zach"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "purple",
+              "shards": []
+            }
+          ],
+          "doLog": false
+        },
+        {
+          "key": "internal users",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": "@mycompany.com"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "green",
+              "shards": []
+            }
+          ],
+          "doLog": false
+        },
+        {
+          "key": "experiment",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "NOT_ONE_OF",
+                  "value": [
+                    "US",
+                    "Canada",
+                    "Mexico"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "control",
+              "shards": [
+                {
+                  "salt": "traffic-new-user-onboarding-experiment",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 6000
+                    }
+                  ]
+                },
+                {
+                  "salt": "split-new-user-onboarding-experiment",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 5000
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "variationKey": "red",
+              "shards": [
+                {
+                  "salt": "traffic-new-user-onboarding-experiment",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 6000
+                    }
+                  ]
+                },
+                {
+                  "salt": "split-new-user-onboarding-experiment",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 5000,
+                      "end": 8000
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "variationKey": "yellow",
+              "shards": [
+                {
+                  "salt": "traffic-new-user-onboarding-experiment",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 6000
+                    }
+                  ]
+                },
+                {
+                  "salt": "split-new-user-onboarding-experiment",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 8000,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "rollout",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "US",
+                    "Canada",
+                    "Mexico"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "blue",
+              "shards": [
+                {
+                  "salt": "split-new-user-onboarding-rollout",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 8000
+                    }
+                  ]
+                }
+              ],
+              "extraLogging": {
+                "allocationvalue_type": "rollout",
+                "owner": "hippo"
+              }
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "integer-flag": {
+      "key": "integer-flag",
+      "enabled": true,
+      "variationType": "INTEGER",
+      "variations": {
+        "one": {
+          "key": "one",
+          "value": 1
+        },
+        "two": {
+          "key": "two",
+          "value": 2
+        },
+        "three": {
+          "key": "three",
+          "value": 3
+        }
+      },
+      "allocations": [
+        {
+          "key": "targeted allocation",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "US",
+                    "Canada",
+                    "Mexico"
+                  ]
+                }
+              ]
+            },
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": ".*@example.com"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "three",
+              "shards": [
+                {
+                  "salt": "full-range-salt",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "50/50 split",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "one",
+              "shards": [
+                {
+                  "salt": "split-numeric-flag-some-allocation",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 5000
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "variationKey": "two",
+              "shards": [
+                {
+                  "salt": "split-numeric-flag-some-allocation",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 5000,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "json-config-flag": {
+      "key": "json-config-flag",
+      "enabled": true,
+      "variationType": "JSON",
+      "variations": {
+        "one": {
+          "key": "one",
+          "value": {
+            "integer": 1,
+            "string": "one",
+            "float": 1.0
+          }
+        },
+        "two": {
+          "key": "two",
+          "value": {
+            "integer": 2,
+            "string": "two",
+            "float": 2.0
+          }
+        },
+        "empty": {
+          "key": "empty",
+          "value": {}
+        }
+      },
+      "allocations": [
+        {
+          "key": "Optionally Force Empty",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "Force Empty",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "empty",
+              "shards": [
+                {
+                  "salt": "full-range-salt",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "50/50 split",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "one",
+              "shards": [
+                {
+                  "salt": "traffic-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                },
+                {
+                  "salt": "split-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 5000
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "variationKey": "two",
+              "shards": [
+                {
+                  "salt": "traffic-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000
+                    }
+                  ]
+                },
+                {
+                  "salt": "split-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 5000,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "special-characters": {
+      "key": "special-characters",
+      "enabled": true,
+      "variationType": "JSON",
+      "variations": {
+        "de": {
+          "key": "de",
+          "value": {
+            "a": "kümmert",
+            "b": "schön"
+          }
+        },
+        "ua": {
+          "key": "ua",
+          "value": {
+            "a": "піклуватися",
+            "b": "любов"
+          }
+        },
+        "zh": {
+          "key": "zh",
+          "value": {
+            "a": "照顾",
+            "b": "漂亮"
+          }
+        },
+        "emoji": {
+          "key": "emoji",
+          "value": {
+            "a": "🤗",
+            "b": "🌸"
+          }
+        }
+      },
+      "allocations": [
+        {
+          "key": "allocation-test",
+          "splits": [
+            {
+              "variationKey": "de",
+              "shards": [
+                {
+                  "salt": "split-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 2500
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "variationKey": "ua",
+              "shards": [
+                {
+                  "salt": "split-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 2500,
+                      "end": 5000
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "variationKey": "zh",
+              "shards": [
+                {
+                  "salt": "split-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 5000,
+                      "end": 7500
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "variationKey": "emoji",
+              "shards": [
+                {
+                  "salt": "split-json-flag",
+                  "totalShards": 10000,
+                  "ranges": [
+                    {
+                      "start": 7500,
+                      "end": 10000
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-default",
+          "splits": [
+            {
+              "variationKey": "de",
+              "shards": []
+            }
+          ],
+          "doLog": false
+        }
+      ]
+    },
+    "string_flag_with_special_characters": {
+      "key": "string_flag_with_special_characters",
+      "enabled": true,
+      "comment": "Testing the string with special characters and spaces",
+      "variationType": "STRING",
+      "variations": {
+        "string_with_spaces": {
+          "key": "string_with_spaces",
+          "value": " a b c d e f "
+        },
+        "string_with_only_one_space": {
+          "key": "string_with_only_one_space",
+          "value": " "
+        },
+        "string_with_only_multiple_spaces": {
+          "key": "string_with_only_multiple_spaces",
+          "value": "       "
+        },
+        "string_with_dots": {
+          "key": "string_with_dots",
+          "value": ".a.b.c.d.e.f."
+        },
+        "string_with_only_one_dot": {
+          "key": "string_with_only_one_dot",
+          "value": "."
+        },
+        "string_with_only_multiple_dots": {
+          "key": "string_with_only_multiple_dots",
+          "value": "......."
+        },
+        "string_with_comas": {
+          "key": "string_with_comas",
+          "value": ",a,b,c,d,e,f,"
+        },
+        "string_with_only_one_coma": {
+          "key": "string_with_only_one_coma",
+          "value": ","
+        },
+        "string_with_only_multiple_comas": {
+          "key": "string_with_only_multiple_comas",
+          "value": ",,,,,,,"
+        },
+        "string_with_colons": {
+          "key": "string_with_colons",
+          "value": ":a:b:c:d:e:f:"
+        },
+        "string_with_only_one_colon": {
+          "key": "string_with_only_one_colon",
+          "value": ":"
+        },
+        "string_with_only_multiple_colons": {
+          "key": "string_with_only_multiple_colons",
+          "value": ":::::::"
+        },
+        "string_with_semicolons": {
+          "key": "string_with_semicolons",
+          "value": ";a;b;c;d;e;f;"
+        },
+        "string_with_only_one_semicolon": {
+          "key": "string_with_only_one_semicolon",
+          "value": ";"
+        },
+        "string_with_only_multiple_semicolons": {
+          "key": "string_with_only_multiple_semicolons",
+          "value": ";;;;;;;"
+        },
+        "string_with_slashes": {
+          "key": "string_with_slashes",
+          "value": "/a/b/c/d/e/f/"
+        },
+        "string_with_only_one_slash": {
+          "key": "string_with_only_one_slash",
+          "value": "/"
+        },
+        "string_with_only_multiple_slashes": {
+          "key": "string_with_only_multiple_slashes",
+          "value": "///////"
+        },
+        "string_with_dashes": {
+          "key": "string_with_dashes",
+          "value": "-a-b-c-d-e-f-"
+        },
+        "string_with_only_one_dash": {
+          "key": "string_with_only_one_dash",
+          "value": "-"
+        },
+        "string_with_only_multiple_dashes": {
+          "key": "string_with_only_multiple_dashes",
+          "value": "-------"
+        },
+        "string_with_underscores": {
+          "key": "string_with_underscores",
+          "value": "_a_b_c_d_e_f_"
+        },
+        "string_with_only_one_underscore": {
+          "key": "string_with_only_one_underscore",
+          "value": "_"
+        },
+        "string_with_only_multiple_underscores": {
+          "key": "string_with_only_multiple_underscores",
+          "value": "_______"
+        },
+        "string_with_plus_signs": {
+          "key": "string_with_plus_signs",
+          "value": "+a+b+c+d+e+f+"
+        },
+        "string_with_only_one_plus_sign": {
+          "key": "string_with_only_one_plus_sign",
+          "value": "+"
+        },
+        "string_with_only_multiple_plus_signs": {
+          "key": "string_with_only_multiple_plus_signs",
+          "value": "+++++++"
+        },
+        "string_with_equal_signs": {
+          "key": "string_with_equal_signs",
+          "value": "=a=b=c=d=e=f="
+        },
+        "string_with_only_one_equal_sign": {
+          "key": "string_with_only_one_equal_sign",
+          "value": "="
+        },
+        "string_with_only_multiple_equal_signs": {
+          "key": "string_with_only_multiple_equal_signs",
+          "value": "======="
+        },
+        "string_with_dollar_signs": {
+          "key": "string_with_dollar_signs",
+          "value": "$a$b$c$d$e$f$"
+        },
+        "string_with_only_one_dollar_sign": {
+          "key": "string_with_only_one_dollar_sign",
+          "value": "$"
+        },
+        "string_with_only_multiple_dollar_signs": {
+          "key": "string_with_only_multiple_dollar_signs",
+          "value": "$$$$$$$"
+        },
+        "string_with_at_signs": {
+          "key": "string_with_at_signs",
+          "value": "@a@b@c@d@e@f@"
+        },
+        "string_with_only_one_at_sign": {
+          "key": "string_with_only_one_at_sign",
+          "value": "@"
+        },
+        "string_with_only_multiple_at_signs": {
+          "key": "string_with_only_multiple_at_signs",
+          "value": "@@@@@@@"
+        },
+        "string_with_amp_signs": {
+          "key": "string_with_amp_signs",
+          "value": "&a&b&c&d&e&f&"
+        },
+        "string_with_only_one_amp_sign": {
+          "key": "string_with_only_one_amp_sign",
+          "value": "&"
+        },
+        "string_with_only_multiple_amp_signs": {
+          "key": "string_with_only_multiple_amp_signs",
+          "value": "&&&&&&&"
+        },
+        "string_with_hash_signs": {
+          "key": "string_with_hash_signs",
+          "value": "#a#b#c#d#e#f#"
+        },
+        "string_with_only_one_hash_sign": {
+          "key": "string_with_only_one_hash_sign",
+          "value": "#"
+        },
+        "string_with_only_multiple_hash_signs": {
+          "key": "string_with_only_multiple_hash_signs",
+          "value": "#######"
+        },
+        "string_with_percentage_signs": {
+          "key": "string_with_percentage_signs",
+          "value": "%a%b%c%d%e%f%"
+        },
+        "string_with_only_one_percentage_sign": {
+          "key": "string_with_only_one_percentage_sign",
+          "value": "%"
+        },
+        "string_with_only_multiple_percentage_signs": {
+          "key": "string_with_only_multiple_percentage_signs",
+          "value": "%%%%%%%"
+        },
+        "string_with_tilde_signs": {
+          "key": "string_with_tilde_signs",
+          "value": "~a~b~c~d~e~f~"
+        },
+        "string_with_only_one_tilde_sign": {
+          "key": "string_with_only_one_tilde_sign",
+          "value": "~"
+        },
+        "string_with_only_multiple_tilde_signs": {
+          "key": "string_with_only_multiple_tilde_signs",
+          "value": "~~~~~~~"
+        },
+        "string_with_asterix_signs": {
+          "key": "string_with_asterix_signs",
+          "value": "*a*b*c*d*e*f*"
+        },
+        "string_with_only_one_asterix_sign": {
+          "key": "string_with_only_one_asterix_sign",
+          "value": "*"
+        },
+        "string_with_only_multiple_asterix_signs": {
+          "key": "string_with_only_multiple_asterix_signs",
+          "value": "*******"
+        },
+        "string_with_single_quotes": {
+          "key": "string_with_single_quotes",
+          "value": "'a'b'c'd'e'f'"
+        },
+        "string_with_only_one_single_quote": {
+          "key": "string_with_only_one_single_quote",
+          "value": "'"
+        },
+        "string_with_only_multiple_single_quotes": {
+          "key": "string_with_only_multiple_single_quotes",
+          "value": "'''''''"
+        },
+        "string_with_question_marks": {
+          "key": "string_with_question_marks",
+          "value": "?a?b?c?d?e?f?"
+        },
+        "string_with_only_one_question_mark": {
+          "key": "string_with_only_one_question_mark",
+          "value": "?"
+        },
+        "string_with_only_multiple_question_marks": {
+          "key": "string_with_only_multiple_question_marks",
+          "value": "???????"
+        },
+        "string_with_exclamation_marks": {
+          "key": "string_with_exclamation_marks",
+          "value": "!a!b!c!d!e!f!"
+        },
+        "string_with_only_one_exclamation_mark": {
+          "key": "string_with_only_one_exclamation_mark",
+          "value": "!"
+        },
+        "string_with_only_multiple_exclamation_marks": {
+          "key": "string_with_only_multiple_exclamation_marks",
+          "value": "!!!!!!!"
+        },
+        "string_with_opening_parentheses": {
+          "key": "string_with_opening_parentheses",
+          "value": "(a(b(c(d(e(f("
+        },
+        "string_with_only_one_opening_parenthese": {
+          "key": "string_with_only_one_opening_parenthese",
+          "value": "("
+        },
+        "string_with_only_multiple_opening_parentheses": {
+          "key": "string_with_only_multiple_opening_parentheses",
+          "value": "((((((("
+        },
+        "string_with_closing_parentheses": {
+          "key": "string_with_closing_parentheses",
+          "value": ")a)b)c)d)e)f)"
+        },
+        "string_with_only_one_closing_parenthese": {
+          "key": "string_with_only_one_closing_parenthese",
+          "value": ")"
+        },
+        "string_with_only_multiple_closing_parentheses": {
+          "key": "string_with_only_multiple_closing_parentheses",
+          "value": ")))))))"
+        }
+      },
+      "allocations": [
+        {
+          "key": "allocation-test-string_with_spaces",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_spaces",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_spaces",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_space",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_space",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_space",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_spaces",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_spaces",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_spaces",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_dots",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_dots",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_dots",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_dot",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_dot",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_dot",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_dots",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_dots",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_dots",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_comas",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_comas",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_comas",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_coma",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_coma",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_coma",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_comas",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_comas",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_comas",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_colons",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_colons",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_colons",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_colon",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_colon",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_colon",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_colons",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_colons",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_colons",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_semicolons",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_semicolons",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_semicolons",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_semicolon",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_semicolon",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_semicolon",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_semicolons",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_semicolons",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_semicolons",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_slashes",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_slashes",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_slashes",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_slash",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_slash",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_slash",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_slashes",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_slashes",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_slashes",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_dashes",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_dashes",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_dashes",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_dash",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_dash",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_dash",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_dashes",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_dashes",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_dashes",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_underscores",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_underscores",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_underscores",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_underscore",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_underscore",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_underscore",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_underscores",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_underscores",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_underscores",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_plus_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_plus_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_plus_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_plus_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_plus_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_plus_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_plus_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_plus_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_plus_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_equal_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_equal_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_equal_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_equal_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_equal_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_equal_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_equal_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_equal_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_equal_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_dollar_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_dollar_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_dollar_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_dollar_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_dollar_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_dollar_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_dollar_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_dollar_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_dollar_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_at_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_at_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_at_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_at_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_at_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_at_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_at_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_at_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_at_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_amp_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_amp_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_amp_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_amp_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_amp_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_amp_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_amp_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_amp_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_amp_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_hash_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_hash_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_hash_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_hash_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_hash_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_hash_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_hash_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_hash_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_hash_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_percentage_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_percentage_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_percentage_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_percentage_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_percentage_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_percentage_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_percentage_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_percentage_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_percentage_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_tilde_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_tilde_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_tilde_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_tilde_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_tilde_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_tilde_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_tilde_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_tilde_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_tilde_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_asterix_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_asterix_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_asterix_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_asterix_sign",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_asterix_sign",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_asterix_sign",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_asterix_signs",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_asterix_signs",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_asterix_signs",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_single_quotes",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_single_quotes",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_single_quotes",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_single_quote",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_single_quote",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_single_quote",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_single_quotes",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_single_quotes",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_single_quotes",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_question_marks",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_question_marks",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_question_marks",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_question_mark",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_question_mark",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_question_mark",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_question_marks",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_question_marks",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_question_marks",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_exclamation_marks",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_exclamation_marks",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_exclamation_marks",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_exclamation_mark",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_exclamation_mark",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_exclamation_mark",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_exclamation_marks",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_exclamation_marks",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_exclamation_marks",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_opening_parentheses",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_opening_parentheses",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_opening_parentheses",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_opening_parenthese",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_opening_parenthese",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_opening_parenthese",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_opening_parentheses",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_opening_parentheses",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_opening_parentheses",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_closing_parentheses",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_closing_parentheses",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_closing_parentheses",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_one_closing_parenthese",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_one_closing_parenthese",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_one_closing_parenthese",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "allocation-test-string_with_only_multiple_closing_parentheses",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "string_with_only_multiple_closing_parentheses",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "string_with_only_multiple_closing_parentheses",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "boolean-false-assignment": {
+      "key": "boolean-false-assignment",
+      "enabled": true,
+      "variationType": "BOOLEAN",
+      "variations": {
+        "false-variation": {
+          "key": "false-variation",
+          "value": false
+        },
+        "true-variation": {
+          "key": "true-variation",
+          "value": true
+        }
+      },
+      "allocations": [
+        {
+          "key": "disable-feature",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "should_disable_feature",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "false-variation",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "enable-feature",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "should_disable_feature",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "false"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "true-variation",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ],
+      "totalShards": 10000
+    },
+    "empty-string-variation": {
+      "key": "empty-string-variation",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "empty-content": {
+          "key": "empty-content",
+          "value": ""
+        },
+        "detailed-content": {
+          "key": "detailed-content",
+          "value": "detailed_content"
+        }
+      },
+      "allocations": [
+        {
+          "key": "minimal-content",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "content_type",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "minimal"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "empty-content",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "full-content",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "content_type",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "full"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "detailed-content",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ],
+      "totalShards": 10000
+    },
+    "falsy-value-assignments": {
+      "key": "falsy-value-assignments",
+      "enabled": true,
+      "variationType": "INTEGER",
+      "variations": {
+        "zero-limit": {
+          "key": "zero-limit",
+          "value": 0
+        },
+        "premium-limit": {
+          "key": "premium-limit",
+          "value": 100
+        }
+      },
+      "allocations": [
+        {
+          "key": "free-tier-limit",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "plan_tier",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "free"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "zero-limit",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "premium-tier-limit",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "plan_tier",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "premium"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "premium-limit",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ],
+      "totalShards": 10000
+    },
+    "empty-targeting-key-flag": {
+      "key": "empty-targeting-key-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": "on-value"
+        },
+        "off": {
+          "key": "off",
+          "value": "off-value"
+        }
+      },
+      "allocations": [
+        {
+          "key": "default-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "on",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "microsecond-date-test": {
+      "key": "microsecond-date-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "expired": {
+          "key": "expired",
+          "value": "expired"
+        },
+        "active": {
+          "key": "active",
+          "value": "active"
+        },
+        "future": {
+          "key": "future",
+          "value": "future"
+        }
+      },
+      "allocations": [
+        {
+          "key": "expired-allocation",
+          "splits": [
+            {
+              "variationKey": "expired",
+              "shards": []
+            }
+          ],
+          "endAt": "2002-10-31T09:00:00.594321Z",
+          "doLog": true
+        },
+        {
+          "key": "future-allocation",
+          "splits": [
+            {
+              "variationKey": "future",
+              "shards": []
+            }
+          ],
+          "startAt": "2052-10-31T09:00:00.123456Z",
+          "doLog": true
+        },
+        {
+          "key": "active-allocation",
+          "splits": [
+            {
+              "variationKey": "active",
+              "shards": []
+            }
+          ],
+          "startAt": "2022-10-31T09:00:00.235982Z",
+          "endAt": "2050-10-31T09:00:00.987654Z",
+          "doLog": true
+        }
+      ]
+    },
+    "unknown-fields-tolerance-flag": {
+      "key": "unknown-fields-tolerance-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately contains unknown fields at every fixed-schema UFC level. SDKs must ignore those fields and evaluate the flag normally.",
+      "unknownFlagField": "ignored",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": "on",
+          "unknownVariationField": "ignored"
+        }
+      },
+      "allocations": [
+        {
+          "key": "unknown-fields-allocation",
+          "unknownAllocationField": "ignored",
+          "rules": [
+            {
+              "unknownRuleField": "ignored",
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "US"
+                  ],
+                  "unknownConditionField": "ignored"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "on",
+              "unknownSplitField": "ignored",
+              "shards": [
+                {
+                  "salt": "unknown-fields-tolerance-flag",
+                  "totalShards": 10000,
+                  "unknownShardField": "ignored",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000,
+                      "unknownRangeField": "ignored"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "operator-grease-flag": {
+      "key": "operator-grease-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses an unknown condition operator. SDKs must remove this flag rather than falling through to the catch-all allocation or rejecting the whole config.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        },
+        "on": {
+          "key": "on",
+          "value": "on"
+        }
+      },
+      "allocations": [
+        {
+          "key": "grease-allocation",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "NOT_A_REAL_OPERATOR",
+                  "value": "anything"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "default-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "on",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "invalid-regex-flag": {
+      "key": "invalid-regex-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses the invalid regex *@datadoghq.com. SDKs must remove this flag rather than falling through to a later allocation or rejecting the whole config.",
+      "variations": {
+        "invalid-regex-match": {
+          "key": "invalid-regex-match",
+          "value": "invalid-regex-match"
+        },
+        "catch-all": {
+          "key": "catch-all",
+          "value": "catch-all"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-regex-allocation",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": "*@datadoghq.com"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "invalid-regex-match",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "invalid-regex-catch-all",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "catch-all",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "variant-type-mismatch-flag": {
+      "key": "variant-type-mismatch-flag",
+      "enabled": true,
+      "variationType": "INTEGER",
+      "comment": "This flag is intentionally invalid: one variation contains a string even though the flag declares INTEGER values. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "invalid": {
+          "key": "invalid",
+          "value": "not-an-integer"
+        },
+        "valid": {
+          "key": "valid",
+          "value": 0
+        }
+      },
+      "allocations": [
+        {
+          "key": "default-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "invalid",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "invalid-gt-condition-flag": {
+      "key": "invalid-gt-condition-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately gives GT a string operand. SDKs must remove this flag rather than falling through to the catch-all allocation.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        },
+        "catch-all": {
+          "key": "catch-all",
+          "value": "catch-all"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-gt-allocation",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "age",
+                  "operator": "GT",
+                  "value": "not-a-number"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "invalid-gt-catch-all",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "catch-all",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "invalid-one-of-condition-flag": {
+      "key": "invalid-one-of-condition-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately gives ONE_OF a scalar operand. SDKs must remove this flag rather than falling through to the catch-all allocation.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        },
+        "catch-all": {
+          "key": "catch-all",
+          "value": "catch-all"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-one-of-allocation",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "role",
+                  "operator": "ONE_OF",
+                  "value": "admin"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "invalid-one-of-catch-all",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "catch-all",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "invalid-is-null-condition-flag": {
+      "key": "invalid-is-null-condition-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately gives IS_NULL a non-boolean operand. SDKs must remove this flag rather than falling through to the catch-all allocation.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        },
+        "catch-all": {
+          "key": "catch-all",
+          "value": "catch-all"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-is-null-allocation",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "deleted_at",
+                  "operator": "IS_NULL",
+                  "value": "not-a-boolean"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "invalid-is-null-catch-all",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "catch-all",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "malformed-allocations-flag": {
+      "key": "malformed-allocations-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: allocations must be an array. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": "on"
+        }
+      },
+      "allocations": "this-is-not-a-list"
+    },
+    "missing-split-shards-flag": {
+      "key": "missing-split-shards-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: split.shards is required even when the intended split is unsharded. SDKs must treat omitted shards differently from an explicit empty shards array.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        }
+      },
+      "allocations": [
+        {
+          "key": "malformed-split-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "trap"
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "overflow-total-shards-flag": {
+      "key": "overflow-total-shards-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: split.shards[].totalShards must fit in an unsigned 32-bit integer. SDKs must remove this flag rather than overflowing or poisoning the whole config.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        }
+      },
+      "allocations": [
+        {
+          "key": "malformed-shard-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": [
+                {
+                  "salt": "overflow-total-shards-flag",
+                  "totalShards": 4294967296,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "negative-shard-range-start-flag": {
+      "key": "negative-shard-range-start-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: split.shards[].ranges[].start must be an unsigned integer. SDKs must remove this flag rather than treating a negative range as matching traffic.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        }
+      },
+      "allocations": [
+        {
+          "key": "malformed-shard-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": [
+                {
+                  "salt": "negative-shard-range-start-flag",
+                  "totalShards": 100,
+                  "ranges": [
+                    {
+                      "start": -1,
+                      "end": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "null-shard-range-flag": {
+      "key": "null-shard-range-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: split.shards[].ranges[] contains null. SDKs must remove this flag rather than panicking or poisoning the whole config.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        },
+        "catch-all": {
+          "key": "catch-all",
+          "value": "catch-all"
+        }
+      },
+      "allocations": [
+        {
+          "key": "null-shard-range-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": [
+                {
+                  "salt": "null-shard-range-flag",
+                  "totalShards": 8192,
+                  "ranges": [
+                    null
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "null-shard-range-catch-all",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "catch-all",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "valid-flag-after-invalid-config": {
+      "key": "valid-flag-after-invalid-config",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This valid neighbor proves malformed or unsupported flags do not poison the rest of the remote config.",
+      "variations": {
+        "expected": {
+          "key": "expected",
+          "value": "expected"
+        }
+      },
+      "allocations": [
+        {
+          "key": "default-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "expected",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-precedence-test": {
+      "key": "semver-precedence-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "Isolates SemVer precedence rules that are easy to get wrong: multi-digit numeric prerelease ordering (beta.2 < beta.11), build-metadata-ignored across every operator (EQ/NEQ/LT/LTE/GT/GTE), and alphanumeric prerelease ordering (alpha < alpha.1 < alpha.beta < beta < release). Each allocation gates on a unique SEMVER_EQ attribute version so test attributes cannot cross-match other allocations; negative build-metadata cases (NEQ/LT/GT) fall through to DEFAULT.",
+      "variations": {
+        "numeric-prerelease": {
+          "key": "numeric-prerelease",
+          "value": "numeric-prerelease"
+        },
+        "build-equal-precedence": {
+          "key": "build-equal-precedence",
+          "value": "build-equal-precedence"
+        },
+        "build-dotted-eq": {
+          "key": "build-dotted-eq",
+          "value": "build-dotted-eq"
+        },
+        "build-lte": {
+          "key": "build-lte",
+          "value": "build-lte"
+        },
+        "build-gte": {
+          "key": "build-gte",
+          "value": "build-gte"
+        },
+        "alpha-before-alpha-1": {
+          "key": "alpha-before-alpha-1",
+          "value": "alpha-before-alpha-1"
+        },
+        "alpha-1-before-alpha-beta": {
+          "key": "alpha-1-before-alpha-beta",
+          "value": "alpha-1-before-alpha-beta"
+        },
+        "alpha-beta-before-beta": {
+          "key": "alpha-beta-before-beta",
+          "value": "alpha-beta-before-beta"
+        },
+        "beta-before-release": {
+          "key": "beta-before-release",
+          "value": "beta-before-release"
+        },
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "numeric-prerelease",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "10.0.0-beta.2"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "10.0.0-beta.11"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "numeric-prerelease",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "build-equal-precedence",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "20.0.0+linux"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "20.0.0+darwin"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "build-equal-precedence",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "build-dotted-eq",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "30.0.0+exp.sha.5114f85"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "30.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "build-dotted-eq",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "build-lte",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "40.0.0+build.42"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LTE",
+                  "value": "40.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "build-lte",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "build-gte",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "50.0.0+build.42"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GTE",
+                  "value": "50.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "build-gte",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "build-neq",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "60.0.0+build.42"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_NEQ",
+                  "value": "60.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "build-lt",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "70.0.0+build.42"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "70.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "build-gt",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "80.0.0+build.42"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GT",
+                  "value": "80.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "alpha-before-alpha-1",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "90.0.0-alpha"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "90.0.0-alpha.1"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "alpha-before-alpha-1",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "alpha-1-before-alpha-beta",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "91.0.0-alpha.1"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "91.0.0-alpha.beta"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "alpha-1-before-alpha-beta",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "alpha-beta-before-beta",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "92.0.0-alpha.beta"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "92.0.0-beta"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "alpha-beta-before-beta",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "beta-before-release",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "93.0.0-beta"
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_LT",
+                  "value": "93.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "beta-before-release",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-version-parts-input-test": {
+      "key": "semver-version-parts-input-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "Exercises one- through five-part runtime attributes using only canonical three-part configured comparands, so comparand ingestion cannot prevent an input case from running. Scenario gates isolate each runtime comparison.",
+      "variations": {
+        "one-part-input": {
+          "key": "one-part-input",
+          "value": "one-part-input"
+        },
+        "two-part-input": {
+          "key": "two-part-input",
+          "value": "two-part-input"
+        },
+        "four-part-input": {
+          "key": "four-part-input",
+          "value": "four-part-input"
+        },
+        "five-part-input": {
+          "key": "five-part-input",
+          "value": "five-part-input"
+        }
+      },
+      "allocations": [
+        {
+          "key": "one-part-input",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "scenario",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "one-part-input"
+                  ]
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "18.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "one-part-input",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "two-part-input",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "scenario",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "two-part-input"
+                  ]
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "18.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "two-part-input",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "four-part-input",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "scenario",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "four-part-input"
+                  ]
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GT",
+                  "value": "17.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "four-part-input",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "five-part-input",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "scenario",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "five-part-input"
+                  ]
+                },
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GT",
+                  "value": "17.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "five-part-input",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-version-parts-one-part-comparand-test": {
+      "key": "semver-version-parts-one-part-comparand-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "Isolates a one-part configured SemVer comparand from every other extended comparand shape.",
+      "variations": {
+        "one-part-comparand": {
+          "key": "one-part-comparand",
+          "value": "one-part-comparand"
+        }
+      },
+      "allocations": [
+        {
+          "key": "one-part-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "18"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "one-part-comparand",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-version-parts-two-part-comparand-test": {
+      "key": "semver-version-parts-two-part-comparand-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "Isolates a two-part configured SemVer comparand from every other extended comparand shape.",
+      "variations": {
+        "two-part-comparand": {
+          "key": "two-part-comparand",
+          "value": "two-part-comparand"
+        }
+      },
+      "allocations": [
+        {
+          "key": "two-part-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "18.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "two-part-comparand",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-version-parts-four-part-comparand-test": {
+      "key": "semver-version-parts-four-part-comparand-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "Isolates a four-part configured SemVer comparand while the runtime attribute remains a canonical three-part version.",
+      "variations": {
+        "four-part-comparand": {
+          "key": "four-part-comparand",
+          "value": "four-part-comparand"
+        }
+      },
+      "allocations": [
+        {
+          "key": "four-part-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GT",
+                  "value": "18.0.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "four-part-comparand",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-version-parts-five-part-comparand-test": {
+      "key": "semver-version-parts-five-part-comparand-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "Isolates a five-part configured SemVer comparand while the runtime attribute remains a canonical three-part version.",
+      "variations": {
+        "five-part-comparand": {
+          "key": "five-part-comparand",
+          "value": "five-part-comparand"
+        }
+      },
+      "allocations": [
+        {
+          "key": "five-part-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_GT",
+                  "value": "18.0.0.0.0"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "five-part-comparand",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-syntax-test": {
+      "key": "semver-invalid-comparand-syntax-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses a non-parseable SemVer comparand. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "not-a-version"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-valid-comparand-hyphenated-prerelease-test": {
+      "key": "semver-valid-comparand-hyphenated-prerelease-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag uses a valid SemVer comparand with repeated hyphens inside its prerelease identifiers.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "valid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "1.2.3----R-S.12.9.1--.12+meta"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-consecutive-dots-test": {
+      "key": "semver-invalid-comparand-consecutive-dots-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses consecutive dots in its SemVer prerelease comparand. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "1.0.0-alpha..1"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-dot-suffix-test": {
+      "key": "semver-invalid-comparand-dot-suffix-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses a Ruby-style dot-suffixed SemVer comparand. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "1.2.3.DEV"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-vprefix-test": {
+      "key": "semver-invalid-comparand-vprefix-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses a v-prefixed SemVer comparand, which is not valid SemVer. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "v1.2.3"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-leading-zero-test": {
+      "key": "semver-invalid-comparand-leading-zero-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses a leading-zero core component in its SemVer comparand. SDKs must remove this flag without rejecting the full configuration.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": "01.2.3"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "semver-invalid-comparand-non-string-test": {
+      "key": "semver-invalid-comparand-non-string-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses a non-string (JSON number) SemVer comparand. SDKs must reject this as an invalid comparand without rejecting the full configuration.",
+      "variations": {
+        "matched": {
+          "key": "matched",
+          "value": "matched"
+        }
+      },
+      "allocations": [
+        {
+          "key": "invalid-comparand",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "app_version",
+                  "operator": "SEMVER_EQ",
+                  "value": 1.2
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "matched",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    }
+  }
+}

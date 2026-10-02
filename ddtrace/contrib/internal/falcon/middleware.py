@@ -9,7 +9,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 
 
-class TraceMiddleware(object):
+class TraceMiddleware:
     def __init__(self, tracer=None, service=None, distributed_tracing=None):
         if service is None:
             service = schematize_service_name("falcon")
@@ -26,7 +26,7 @@ class TraceMiddleware(object):
 
         # A Falcon application may contain multiple TraceMiddleware instances,
         # so each instance must store its own execution context.
-        self._request_context_key = "ddtrace.falcon.request_context.{}".format(id(self))
+        self._request_context_key = f"ddtrace.falcon.request_context.{id(self)}"
 
         if distributed_tracing is not None:
             config.falcon["distributed_tracing"] = distributed_tracing

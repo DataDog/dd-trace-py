@@ -9,7 +9,7 @@ from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
 
 
-class FalconTestMixin(object):
+class FalconTestMixin:
     def make_test_call(self, url, method="get", expected_status_code=None, **kwargs):
         func = getattr(self.client, "simulate_%s" % (method,))
         out = func(url, **kwargs)
@@ -240,7 +240,7 @@ class FalconTestCase(FalconTestMixin):
         observed = {}
         test_tracer = self.tracer
 
-        class Resource(object):
+        class Resource:
             def on_get(self, req, resp):
                 span = test_tracer.current_root_span()
                 assert span is not None
@@ -259,10 +259,7 @@ class FalconTestCase(FalconTestMixin):
             expected_status_code=200,
         )
 
-        expected_resource = "GET {}.{}".format(
-            Resource.__module__,
-            Resource.__name__,
-        )
+        expected_resource = f"GET {Resource.__module__}.{Resource.__name__}"
 
         assert response.status_code == 200
         assert observed == {

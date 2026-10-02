@@ -134,9 +134,7 @@ async def test_send_and_wait_with_distributed_tracing():
 
     with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
         async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
-            await producer.send_and_wait(
-                topic, value=PAYLOAD, key=KEY, headers=[("some_header", "some_value".encode("utf-8"))]
-            )
+            await producer.send_and_wait(topic, value=PAYLOAD, key=KEY, headers=[("some_header", b"some_value")])
 
         async with consumer_ctx([topic]) as consumer:
             result = await consumer.getone()

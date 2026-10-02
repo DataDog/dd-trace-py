@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
@@ -7,10 +10,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Iterator
-from typing import Mapping
 from typing import Optional
-from typing import Sequence
 from typing import Union
 from typing import cast
 
@@ -41,6 +41,7 @@ from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
@@ -52,8 +53,11 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import MessagePlaceholder
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import _Meta
@@ -70,7 +74,9 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
+ValidatedPromptDict = dict[
+    str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message], list[ChatTemplateItem]]
+]
 
 
 def resolve_llmobs_git_metadata() -> tuple[str, str]:
@@ -166,12 +172,16 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
 
     if chat_template:
         if not isinstance(chat_template, list):
-            raise TypeError("chat_template must be a list of dictionaries with string-string key value pairs.")
+            raise TypeError("chat_template must be a list of message or placeholder dictionaries.")
         for ct in chat_template:
-            if not (isinstance(ct, dict) and all(k in ct for k in ("role", "content"))):
-                raise TypeError(
-                    "Each 'chat_template' entry should be a string-string dictionary with role and content keys."
-                )
+            if not isinstance(ct, dict):
+                raise TypeError("Each 'chat_template' entry must be a message or placeholder dictionary.")
+            item = cast(dict[str, Any], ct)
+            if item.get("type") == "placeholder":
+                if not isinstance(item.get("name"), str) or not item["name"]:
+                    raise TypeError("Each message placeholder must have a non-empty string name.")
+            elif not all(k in item for k in ("role", "content")):
+                raise TypeError("Each 'chat_template' message must have role and content keys.")
 
     if variables:
         if not isinstance(variables, dict):
@@ -181,10 +191,14 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
         if not all(isinstance(k, str) for k in variables):
             raise TypeError("Keys of 'variables' must all be strings.")
 
-    final_chat_template = []
+    final_chat_template: list[ChatTemplateItem] = []
     if chat_template:
         for msg in chat_template:
-            final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
+            item = cast(dict[str, Any], msg)
+            if item.get("type") == "placeholder":
+                final_chat_template.append(MessagePlaceholder(type="placeholder", name=item["name"]))
+            else:
+                final_chat_template.append(ChatMessage(role=item["role"], content=item["content"]))
 
     if prompt_uuid and not isinstance(prompt_uuid, str):
         raise TypeError(f"prompt_uuid: {prompt_uuid} must be a string, received {type(prompt_uuid).__name__}")
@@ -266,7 +280,7 @@ def _unserializable_default_repr(obj):
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
-        return "[Unserializable object: {}]".format(repr(obj))
+        return f"[Unserializable object: {repr(obj)}]"
 
 
 _MAX_NESTED_META_DEPTH = 12
@@ -311,7 +325,7 @@ def _sanitize_span_event_data(obj: Any) -> Any:
             try:
                 return str(node)
             except Exception:
-                return "[Unserializable object of type {}]".format(type(node).__name__)
+                return f"[Unserializable object of type {type(node).__name__}]"
         return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
@@ -1134,3 +1148,6 @@ def set_gen_ai_apm_tags(span: Span, llmobs_data: Mapping[str, Any], span_kind: O
             value = metrics.get(llmobs_key)
             if value is not None:
                 span._set_attribute(gen_ai_key, value)
+    # Without this tag, the backend processor identifies gen_ai tags on the APM span and creates
+    # a duplicate LLMObs span.
+    span.set_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY, "true")

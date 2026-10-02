@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
+from tests.utils import override_config
 from tests.webclient import Client
 
 
@@ -64,9 +65,11 @@ def _wait_for_server_ready(client: Client, server_process, port: int, use_multip
                     sock.settimeout(0.2)
                     sock.connect(("0.0.0.0", int(port)))
             else:
-                timeout = min(10.0, max(0.5, deadline - time.monotonic()))
-                response = client.get_ignored("/", timeout=timeout)
+                with override_config("requests", dict(distributed_tracing=False)):
+                    # Never cap this: a timed-out probe is still served, so a retry would be served twice.
+                    response = client.get_ignored("/", timeout=max(0.5, deadline - time.monotonic()))
                 assert response.status_code == 200, f"server answered {response.status_code}"
+            assert _process_exit_code(server_process) is None, "server process exited during startup"
             return
         except Exception:
             # A server that died on import is never going to answer, so spending the rest of
@@ -427,7 +430,7 @@ def appsec_application_server(
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
-        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
+        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = f"X-Datadog-Test-Session-Token:{token}"
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
     else:

@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 

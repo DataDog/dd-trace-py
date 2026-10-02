@@ -1,5 +1,3 @@
-from typing import Text
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -24,7 +22,7 @@ class XSS(VulnerabilityBase):
     secure_mark = VulnerabilityType.XSS
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
@@ -95,7 +93,7 @@ def _iast_jinja2_xss(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def _iast_report_xss(code_string: Text):
+def _iast_report_xss(code_string: str):
     try:
         if is_iast_request_enabled():
             if isinstance(code_string, IAST.TEXT_TYPES) and XSS.has_quota() and XSS.is_tainted_pyobject(code_string):
