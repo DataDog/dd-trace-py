@@ -1,5 +1,10 @@
 # stdlib
 import contextlib
+from types import FunctionType
+from typing import Any
+from typing import Generator
+from typing import Optional
+from typing import cast
 
 # 3p
 import pymongo
@@ -24,6 +29,7 @@ from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.trace import tracer
 
+from .parse import Command
 from .parse import parse_msg
 from .parse import parse_query
 from .parse import parse_spec
@@ -39,8 +45,12 @@ from .utils import setup_checkout_span_tags
 
 VERSION = pymongo.version_tuple
 
-
-if VERSION >= (4, 9):
+if VERSION >= (4, 18):
+    from pymongo.synchronous.command_runner import run_bulk_write_command
+    from pymongo.synchronous.cursor_base import _CursorBase
+    from pymongo.synchronous.pool import Connection
+    from pymongo.synchronous.pool import Pool
+elif VERSION >= (4, 9):
     from pymongo.synchronous.pool import Connection
     from pymongo.synchronous.server import Server
 elif VERSION >= (4, 5):
@@ -63,36 +73,50 @@ class TracedMongoClient(ObjectProxy):
 
 def patch_pymongo_sync_modules():
     """Patch synchronous pymongo modules."""
-    if VERSION >= (3, 12):
+    if VERSION >= (4, 18):
+        _w(_CursorBase._run_with_conn, _trace_server_run_operation_and_with_response)
+    elif VERSION >= (3, 12):
         _w(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
         _w(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
         _w(Server.send_message_with_response, _trace_server_send_message_with_response)
 
-    if VERSION >= (4, 5):
+    if VERSION >= (4, 18):
+        _w(Pool.checkout, traced_get_socket)
+    elif VERSION >= (4, 5):
         _w(Server.checkout, traced_get_socket)
     else:
         _w(Server.get_socket, traced_get_socket)
     _w(Connection.command, _trace_socket_command)
-    _w(Connection.write_command, _trace_socket_write_command)
+    if VERSION >= (4, 18):
+        _w(run_bulk_write_command, _trace_bulk_write_command)
+    else:
+        _w(Connection.write_command, _trace_socket_write_command)
 
 
 def unpatch_pymongo_sync_modules():
     """Unpatch synchronous pymongo modules."""
-    if VERSION >= (3, 12):
+    if VERSION >= (4, 18):
+        _u(_CursorBase._run_with_conn, _trace_server_run_operation_and_with_response)
+    elif VERSION >= (3, 12):
         _u(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
         _u(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
         _u(Server.send_message_with_response, _trace_server_send_message_with_response)
 
-    if VERSION >= (4, 5):
+    if VERSION >= (4, 18):
+        _u(Pool.checkout, traced_get_socket)
+    elif VERSION >= (4, 5):
         _u(Server.checkout, traced_get_socket)
     else:
         _u(Server.get_socket, traced_get_socket)
     _u(Connection.command, _trace_socket_command)
-    _u(Connection.write_command, _trace_socket_write_command)
+    if VERSION >= (4, 18):
+        _u(run_bulk_write_command, _trace_bulk_write_command)
+    else:
+        _u(Connection.write_command, _trace_socket_write_command)
 
 
 def datadog_trace_operation(operation, wrapped):
@@ -192,16 +216,8 @@ def _trace_socket_command(func, args, kwargs):
         return func(*args, **kwargs)
 
 
-def parse_socket_write_command_msg(args, kwargs):
-    """
-    Parse socket write command msg.
-
-    Returns:
-        tuple: (socket_instance, cmd) if parsing succeeds and tracing should proceed
-        None: if parsing fails or tracing should be skipped
-    """
-    socket_instance = get_argument_value(args, kwargs, 0, "self")
-    msg = get_argument_value(args, kwargs, 2, "msg")
+def parse_write_command_msg(socket_instance: Any, msg: bytes) -> Optional[tuple[Any, Command]]:
+    """Parse a raw write command message for tracing."""
     cmd = None
     try:
         cmd = parse_msg(msg)
@@ -215,6 +231,26 @@ def parse_socket_write_command_msg(args, kwargs):
     return (socket_instance, cmd)
 
 
+def parse_socket_write_command_msg(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[tuple[Any, Command]]:
+    """
+    Parse socket write command msg.
+
+    Returns:
+        tuple: (socket_instance, cmd) if parsing succeeds and tracing should proceed
+        None: if parsing fails or tracing should be skipped
+    """
+    socket_instance = get_argument_value(args, kwargs, 0, "self")
+    msg = cast(bytes, get_argument_value(args, kwargs, 2, "msg"))
+    return parse_write_command_msg(socket_instance, msg)
+
+
+def parse_bulk_write_command(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Optional[tuple[Any, Command]]:
+    """Parse a PyMongo 4.18+ bulk write command for tracing."""
+    bulk_write_context = get_argument_value(args, kwargs, 0, "bwc")
+    msg = cast(bytes, get_argument_value(args, kwargs, 3, "msg"))
+    return parse_write_command_msg(bulk_write_context.conn, msg)
+
+
 def _trace_socket_write_command(func, args, kwargs):
     parsed = parse_socket_write_command_msg(args, kwargs)
     if parsed is None:
@@ -225,6 +261,25 @@ def _trace_socket_write_command(func, args, kwargs):
         result = func(*args, **kwargs)
         if result:
             s._set_attribute(db.ROWCOUNT, result.get("n", -1))
+        return result
+
+
+def _trace_bulk_write_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Trace acknowledged bulk writes through PyMongo's shared command runner."""
+    # If the write is unacknowledged, we skip tracing and return the result of the original function.
+    if kwargs.get("unacknowledged", False):
+        return func(*args, **kwargs)
+
+    parsed = parse_bulk_write_command(args, kwargs)
+    if parsed is None:
+        return func(*args, **kwargs)
+
+    socket_instance, cmd = parsed
+    with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        result = func(*args, **kwargs)
+        result_docs = result[0] if result else None
+        if result_docs:
+            s._set_attribute(db.ROWCOUNT, result_docs[0].get("n", -1))
         return result
 
 
@@ -254,12 +309,15 @@ def trace_cmd(cmd, socket_instance, address):
 
 
 @contextlib.contextmanager
-def traced_get_socket(func, args, kwargs):
+def traced_get_socket(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Generator[Any, None, None]:
+    """Trace synchronous connection checkout outside SDAM monitor pools."""
     instance = get_argument_value(args, kwargs, 0, "self")
-    if not tracer.enabled:
+
+    # If the tracer is disabled or the instance is an SDAM monitor pool, we don't trace the checkout.
+    if not tracer.enabled or getattr(instance, "is_sdam", False):
         with func(*args, **kwargs) as sock_info:
             yield sock_info
-            return
+        return
 
     with create_checkout_span() as span:
         with func(*args, **kwargs) as sock_info:
