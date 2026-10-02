@@ -531,9 +531,9 @@ class TestTestOptWriter:
         thread-local connectors.
 
         ``BackendConnector`` subclasses ``threading.local`` so each thread gets its own
-        HTTP connection via ``__init__``. The background thread opens one when the
-        periodic task calls ``_send_events``; ``wait_finish()`` also closes the caller
-        thread's connector defensively in case that thread ever opened one.
+        HTTP connection via ``__init__``. The background thread opens one during
+        ``start()``; ``wait_finish()`` also closes the caller thread's connector
+        defensively in case that thread ever opened one.
 
         Without explicit ``close()`` calls on both threads the underlying sockets are
         left open, producing ``ResourceWarning: unclosed socket``.
@@ -564,6 +564,37 @@ class TestTestOptWriter:
         caller_closes = [t for t in close_caller_threads if t == main_thread_name]
         assert bg_closes, "connector.close() was never called from the background task thread"
         assert caller_closes, "connector.close() was never called from the caller thread (via wait_finish)"
+
+    @patch("http.client.HTTPSConnection")
+    def test_writer_thread_builds_connection_during_start(self, mock_https: Mock) -> None:
+        """Regression for GitHub 20584: the writer thread must construct its
+        HTTPSConnection during start(), not on the first flush.
+
+        If construction is deferred until the first upload, a test that has
+        patched http.client (vcrpy) can bind the uploader to that cassette.
+        """
+        threads: list[str] = []
+
+        def _factory(*args: t.Any, **kwargs: t.Any) -> Mock:
+            threads.append(threading.current_thread().name)
+            return Mock()
+
+        mock_https.side_effect = _factory
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        main_thread = threading.main_thread().name
+        assert threads, "main thread did not build an HTTPSConnection"
+        assert threads[0] == main_thread
+        before = len(threads)
+
+        writer.start()
+        try:
+            new_threads = threads[before:]
+            assert new_threads, "writer thread did not build an HTTPSConnection during start()"
+            assert any(name != main_thread for name in new_threads)
+        finally:
+            writer.signal_finish()
+            writer.wait_finish()
 
 
 class TestTestCoverageWriter:
