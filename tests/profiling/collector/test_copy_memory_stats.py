@@ -194,7 +194,7 @@ def test_fast_copy_faulthandler_enable_during_warmup() -> None:
     err=None,
 )
 def test_fast_copy_fork_during_warmup() -> None:
-    """A child forked mid-warmup re-runs the warmup decision rather than inheriting it (PROF-15342)."""
+    """A child forked mid-warmup re-runs the warmup decision rather than inheriting it (PROF-16020)."""
     import os
 
     from ddtrace.internal.datadog.profiling.stack import _stack
