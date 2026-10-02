@@ -6,6 +6,7 @@ import typing
 
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace.internal import core
+from ddtrace.internal import forksafe
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
@@ -14,6 +15,8 @@ from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.profiling import _asyncio
+from ddtrace.profiling import _span_links
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
@@ -23,9 +26,27 @@ from ddtrace.trace import Tracer
 LOG = logging.getLogger(__name__)
 
 
+def _span_info(span: typing.Optional[typing.Union[Context, SpanData]]) -> typing.Optional[_span_links._SpanInfo]:
+    if isinstance(span, SpanData):
+        local_root = typing.cast(typing.Any, span)._local_root
+        # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
+        # the new span, so read distributed local-root metadata from the parent Context.
+        if span._parent is None and span.parent_id is not None and span._parent_context is not None:
+            propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(span._parent_context)
+            local_root_span_id = propagated_root_span_id or local_root.span_id
+            local_root_span_type = propagated_root_span_type or local_root.span_type
+        else:
+            local_root_span_id = local_root.span_id
+            local_root_span_type = local_root.span_type
+        return _span_links._SpanInfo(span.span_id, local_root_span_id, local_root_span_type)
+    if isinstance(span, Context) and span.span_id is not None:
+        local_root_span_id, span_type = context_meta.read_profiler_link(span)
+        return _span_links._SpanInfo(span.span_id, local_root_span_id, span_type)
+    return None
+
+
 def _unlink_finished_span(span: SpanData) -> None:
-    """Remove physical-thread attribution derived from a finished span."""
-    stack.unlink_finished_span(span.span_id)
+    _span_links.unlink_finished_span(span.span_id)
 
 
 class StackCollector(collector.Collector):
@@ -105,39 +126,35 @@ class StackCollector(collector.Collector):
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
                 core.on("trace.span_finish", _unlink_finished_span)
+                _span_links.start_span_linking(self._current_span_link)
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
                 core.reset_listeners("trace.span_finish", _unlink_finished_span)
                 raise
+            # Register after the tracer's fork hook so reset is followed by republishing its restored active context.
+            forksafe.register(self._child_after_fork)
+
+    def _current_span_link(self) -> tuple[typing.Optional[_span_links._SpanInfo], typing.Optional[SpanData]]:
+        if self.tracer is None:
+            return None, None
+        active = self.tracer.context_provider.active()
+        return _span_info(active), active if isinstance(active, SpanData) else None
 
     def _link_span(
         self,
         provider: BaseContextProvider,
         span: typing.Optional[typing.Union[Context, SpanData]],
     ) -> None:
-        if self.tracer is None or provider is not self.tracer.context_provider:
-            return
-        if isinstance(span, SpanData):
-            span_id = span.span_id
-            local_root = typing.cast(typing.Any, span)._local_root
-            # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
-            # the new span, so read the distributed local-root metadata directly from the parent Context. This works
-            # across both thread and greenlet context propagation without relying on physical-thread-local state.
-            if span._parent is None and span.parent_id is not None and span._parent_context is not None:
-                propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(
-                    span._parent_context
-                )
-                local_root_span_id = propagated_root_span_id or local_root.span_id
-                local_root_span_type = propagated_root_span_type or local_root.span_type
-            else:
-                local_root_span_id = local_root.span_id
-                local_root_span_type = local_root.span_type
-            stack.link_span(span_id, local_root_span_id, local_root_span_type)
-        elif isinstance(span, Context) and span.span_id is not None:
-            local_root_span_id, span_type = context_meta.read_profiler_link(span)
-            stack.link_span(span.span_id, local_root_span_id, span_type)
-        else:
-            stack.clear_span()
+        if self.tracer is not None and provider is self.tracer.context_provider:
+            _span_links.link_span(_span_info(span), span if isinstance(span, SpanData) else None)
+
+    def _child_after_fork(self) -> None:
+        _span_links._reset_span_link_state()
+        _asyncio.link_existing_loop_to_current_thread()
+        if self.tracer is not None:
+            active = self.tracer.context_provider.active()
+            if active is not None:
+                self._link_span(self.tracer.context_provider, active)
 
     @staticmethod
     def snapshot() -> None:
@@ -177,8 +194,10 @@ class StackCollector(collector.Collector):
                 LOG.debug("Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
         if self.tracer is not None:
+            forksafe.unregister(self._child_after_fork)
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
             core.reset_listeners("trace.span_finish", _unlink_finished_span)
+        _span_links.stop_span_linking()
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
