@@ -17,12 +17,14 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import PROCESS_TAGS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import SDK_OTLP_EXPORT_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -257,6 +259,8 @@ class TraceTagsProcessor(TraceProcessor):
                 span._set_attribute("language", "python")
             if p_tags := process_tags.process_tags:
                 span._set_attribute(PROCESS_TAGS, p_tags)
+            if not agent_config.trace_otlp_export_enabled:
+                span._set_attribute(SDK_OTLP_EXPORT_KEY, "false")
             # for 128 bit trace ids
             # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
             trace_id = span.trace_id

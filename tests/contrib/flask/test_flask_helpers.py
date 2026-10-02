@@ -59,6 +59,7 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
             "component",
             "language",
             "_dd.tags.process",
+            "_dd.sdk.otlp_export",
         }
 
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
@@ -99,6 +100,7 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
             "_dd.base_service",
             "_dd.p.tid",
             "_dd.tags.process",
+            "_dd.sdk.otlp_export",
         }
 
         self.assertEqual(spans[1].name, "flask.do_teardown_request")

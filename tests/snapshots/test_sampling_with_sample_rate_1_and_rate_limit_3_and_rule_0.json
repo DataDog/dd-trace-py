@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
+      "_dd.sdk.otlp_export": "false",
       "language": "python",
       "runtime-id": "9d1cfdf7026e45dea46fc4c83768cc7b"
     },

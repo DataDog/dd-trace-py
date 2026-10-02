@@ -14,6 +14,7 @@
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6936a28c00000000",
+      "_dd.sdk.otlp_export": "false",
       "language": "python",
       "runtime-id": "3ba78b6a59db4075ba8116247bfff62c",
       "vllm.request.model": "facebook/opt-125m",

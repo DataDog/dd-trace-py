@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "redis",
       "component": "redis",
       "db.system": "redis",
@@ -48,6 +49,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "redis",
       "component": "redis",
       "db.system": "redis",

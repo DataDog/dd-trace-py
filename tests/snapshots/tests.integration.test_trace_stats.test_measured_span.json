@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -53,6 +54,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -95,6 +97,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -137,6 +140,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -179,6 +183,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -221,6 +226,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -263,6 +269,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -305,6 +312,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -347,6 +355,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -389,6 +398,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -431,6 +441,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -476,6 +487,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -521,6 +533,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -566,6 +579,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -611,6 +625,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -656,6 +671,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -701,6 +717,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -746,6 +763,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -791,6 +809,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
@@ -836,6 +855,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f39e4500000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",

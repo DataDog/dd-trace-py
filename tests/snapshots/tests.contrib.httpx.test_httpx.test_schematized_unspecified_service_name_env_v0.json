@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de7a6400000000",
+      "_dd.sdk.otlp_export": "false",
       "_dd.svc_src": "httpx",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpswu8fuiq,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "httpx",

@@ -1044,6 +1044,21 @@ def test_trace_tag_processor_no_language_tag_otel_semantics_enabled(tracer):
     assert parent.get_tag("language") is None
 
 
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp"})
+def test_trace_tag_processor_omits_sdk_otlp_export_with_otlp_export():
+    # With OTLP export the marker lives on the OTLP resource (set by libdatadog), not on span meta.
+    # Native export is covered by the snapshot tests, which expect the marker on every chunk root.
+    from ddtrace._trace.processor import TraceTagsProcessor
+    from ddtrace.internal.constants import SDK_OTLP_EXPORT_KEY
+    from ddtrace.trace import Span
+
+    parent = Span("parent")
+    child = Span("child", trace_id=parent.trace_id, parent_id=parent.span_id)
+    TraceTagsProcessor().process_trace([parent, child])
+    assert parent.get_tag(SDK_OTLP_EXPORT_KEY) is None
+    assert child.get_tag(SDK_OTLP_EXPORT_KEY) is None
+
+
 def test_register_unregister_span_processor(tracer):
     class TestProcessor(SpanProcessor):
         def on_span_start(self, span):

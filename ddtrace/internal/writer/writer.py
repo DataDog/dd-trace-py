@@ -84,7 +84,18 @@ class _SpanWithContext(Protocol):
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
-_OTLP_TRACER_TAG_RESERVED_KEYS = frozenset({"service", "env", "version", "runtime_id", "runtime-id"})
+_OTLP_TRACER_TAG_RESERVED_KEYS = frozenset(
+    {
+        "service",
+        "env",
+        "version",
+        "runtime_id",
+        "runtime-id",
+        # SDK adoption markers are owned by the tracer/libdatadog; user global tags must not echo them.
+        "_dd.sdk.otlp_export",
+        "datadog.sdk.semantics",
+    }
+)
 
 
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:

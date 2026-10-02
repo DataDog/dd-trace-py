@@ -62,6 +62,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
                     "component",
                     "language",
                     "_dd.tags.process",
+                    "_dd.sdk.otlp_export",
                 ]
             ),
         )
@@ -116,6 +117,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
                     "component",
                     "language",
                     "_dd.tags.process",
+                    "_dd.sdk.otlp_export",
                 ]
             ),
         )
