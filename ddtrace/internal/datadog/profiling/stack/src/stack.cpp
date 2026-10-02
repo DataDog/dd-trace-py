@@ -900,6 +900,9 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
         fast_copy_user_disabled = true;
     }
     fast_copy_desired = want && safe_memcpy_initialized;
+    // Sticky foreign takeover: never reselect safe_memcpy across stop/set_fast_copy/restart
+    // while the flag is set, or the next sampling thread skips warmup with memcpy active
+    // under a foreign SIGSEGV/SIGBUS handler (PROF-15342).
     const bool enable_fast_copy = want && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
     if (want && !enable_fast_copy) {
         mark_fast_copy_syscall_fallback();
