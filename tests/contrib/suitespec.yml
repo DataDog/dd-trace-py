@@ -2205,6 +2205,13 @@ suites:
           dependencies: [pytest-randomly, pymysql]
   pynamodb:
     venvs_per_job: 6
+    env:
+      # Packed PynamoDB environments exceed the VPA-sized memory during job setup.
+      DD_DISABLE_VPA: 'true'
+      KUBERNETES_CPU_REQUEST: '2'
+      KUBERNETES_CPU_LIMIT: '2'
+      KUBERNETES_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_MEMORY_LIMIT: '8Gi'
     paths:
       - '@bootstrap'
       - '@core'
