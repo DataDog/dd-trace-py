@@ -1,6 +1,8 @@
 from cpython.ref cimport PyObject
 from libc.stdint cimport uintptr_t
 
+from types import ModuleType
+
 from wrapt.importer import when_imported
 
 from ddtrace.internal.settings.profiling import config
@@ -10,7 +12,7 @@ _gevent_helper = None
 _gevent_support_initialized = False
 
 
-def _initialize_gevent_module(gevent):
+def _initialize_gevent_module(gevent: ModuleType) -> None:
     global _gevent_helper
     from ddtrace.profiling import _gevent
 
