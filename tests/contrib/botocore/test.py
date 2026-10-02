@@ -2800,6 +2800,30 @@ class BotocoreTest(TracerTestCase):
         self._test_kinesis_put_records_trace_injection("unparsable_data_obj", records, verify=False)
 
     @mock_kinesis
+    def test_kinesis_get_records_json_array_payload_does_not_raise(self):
+        # JSON arrays are valid Kinesis Data blobs. Instrumentation extracts
+        # `_datadog` with data_obj.get(...), which raises AttributeError when
+        # the decoded payload is a list rather than a dict. GetRecords must
+        # still return the AWS response in that case.
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "kinesis_get_records_json_array"
+        shard_id, _ = self._kinesis_create_stream(client, stream_name)
+
+        payload = [{"id": 1}, {"id": 2}]
+        client.put_record(
+            StreamName=stream_name,
+            Data=json.dumps(payload),
+            PartitionKey="pk",
+        )
+        self.pop_spans()
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+        response = client.get_records(ShardIterator=shard_iterator)
+
+        assert len(response["Records"]) == 1
+        assert json.loads(response["Records"][0]["Data"]) == payload
+
+    @mock_kinesis
     def test_kinesis_put_records_newline_bytes_trace_injection(self):
         # (dict -> json string -> bytes + new line)[]
         json_string = json.dumps({"json-string": "bytes"}) + "\n"
