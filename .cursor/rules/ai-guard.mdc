@@ -199,13 +199,16 @@ AI Guard takes the LangChain claims in its own wrappers around `BaseChatModel` /
 
 Streamed responses are buffered around each model class's own `_stream` /
 `_astream` (`_buffered_stream`), not in `stream()` and not by the provider's
-buffer. Subclasses define those methods themselves, so the wrappers are
+buffer. Chat models that implement the langchain-core 1.4 protocol-event hooks
+(`_stream_chat_model_events` / `_astream_chat_model_events`) get the same buffer
+on those hooks, because `stream_events` / `astream_events` v3 read them instead
+of `_stream`. Subclasses define those methods themselves, so the wrappers are
 installed per class: at `langchain.patch` for every existing subclass, and from
 an `__init_subclass__` hook on `BaseChatModel` / `BaseLLM` for classes defined
 later (`_buffer_model_classes`). Installing on first use of `generate` or
 `stream` is not enough: paths such as `stream_events(version="v3")` read
 `_stream` directly. A buffer skips only a `super()._stream` call on the model it
-is already reading; another model streamed during that read (a router model's
+is already reading, on every read of that model, not only the first; another model streamed during that read (a router model's
 inner model) gets its own buffer. The layer matters:
 
 - **Below LangChain's callbacks.** `stream()`, `astream_events()`, LangGraph's

@@ -1668,6 +1668,121 @@ def test_stream_falling_back_to_invoke_evaluates_the_request_once(mock_execute_r
     assert len(requests) == 1
 
 
+class _ClosableChunks:
+    """Class-based sync iterator, like an SDK stream: exhausting or failing it does not close it."""
+
+    def __init__(self, texts, fail_after=None):
+        self.closed = False
+        self._texts = list(texts)
+        self._fail_after = fail_after
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._fail_after is not None and len(self._texts) <= self._fail_after:
+            raise RuntimeError("provider read failed")
+        if not self._texts:
+            raise StopIteration
+        return ChatGenerationChunk(message=AIMessageChunk(content=self._texts.pop(0)))
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["drained", "failed"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_buffered_stream_closes_the_provider_iterator(mock_execute_request, langchain, fail):
+    provider_stream = _ClosableChunks(["a", "b"], fail_after=1 if fail else None)
+
+    class _IteratorModel(_SelfReportingChatModel):
+        def _stream(self, *args, **kwargs):
+            return provider_stream
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with _stream_evaluation_on():
+        if fail:
+            with pytest.raises(RuntimeError, match="provider read failed"):
+                list(_IteratorModel()._stream([HumanMessage(content="hi")]))
+        else:
+            assert _chunk_text(c.message for c in _IteratorModel()._stream([HumanMessage(content="hi")])) == "ab"
+
+    assert provider_stream.closed
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_delayed_super_stream_delegation_is_not_buffered_again(mock_execute_request, langchain):
+    """With stream analysis off, a subclass that yields first and delegates later stays one buffered stream."""
+
+    class _DelegatesLater(_SelfReportingChatModel):
+        def _stream(self, *args, **kwargs):
+            yield ChatGenerationChunk(message=AIMessageChunk(content="intro "))
+            yield from super()._stream(*args, **kwargs)
+
+    # A second request evaluation would block after "intro " was already delivered.
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    chunks = list(_DelegatesLater()._stream([HumanMessage(content="hi")]))
+
+    assert _chunk_text(c.message for c in chunks) == "intro self reported"
+    assert mock_execute_request.call_count == 1
+
+
+def _native_events_model(reads):
+    pytest.importorskip("langchain_core.language_models.chat_model_stream")
+    from langchain_core.language_models._compat_bridge import message_to_events
+
+    class _NativeEventsModel(BaseChatModel):
+        """Serves stream_events v3 through the langchain-core 1.4 protocol hook instead of _stream."""
+
+        @property
+        def _llm_type(self) -> str:
+            return "fake-native-events"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            raise NotImplementedError
+
+        def _stream_chat_model_events(self, messages, stop=None, run_manager=None, **kwargs):
+            reads.append(True)
+            yield from message_to_events(AIMessage(content="native answer", id="native-1"))
+
+    return _NativeEventsModel()
+
+
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_native_protocol_events_are_buffered(mock_execute_request, langchain, decision):
+    reads = []
+    model = _native_events_model(reads)
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+
+    with _stream_evaluation_on():
+        stream = model.stream_events(input="hi", version="v3")
+        if decision == "DENY":
+            with pytest.raises(AIGuardAbortError):
+                stream.output
+        else:
+            assert stream.output.text == "native answer"
+
+    assert reads == [True]
+    assert mock_execute_request.call_count == 2
+    assert _evaluated_messages(mock_execute_request, 0) == [{"role": "user", "content": "hi"}]
+    assert _evaluated_messages(mock_execute_request, 1)[-1] == {"role": "assistant", "content": "native answer"}
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_native_protocol_events_request_is_blocked_before_the_model_is_read(mock_execute_request, langchain):
+    reads = []
+    model = _native_events_model(reads)
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        model.stream_events(input="hi", version="v3").output
+
+    assert reads == []
+
+
 class _HangingProviderStream:
     """Class-based async iterator, like an SDK stream: cancelling its read does not close it."""
 

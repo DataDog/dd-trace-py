@@ -190,7 +190,7 @@ def _install_stream_buffers(client: AIGuardClient, base: type, is_chat: bool, mo
             if klass is base or klass in _buffered_model_classes or not issubclass(klass, base):
                 continue
             walked.append(klass)
-            for name, wrapper in (("_stream", _langchain_buffered_stream), ("_astream", _langchain_buffered_astream)):
+            for name, wrapper in _STREAM_METHODS if is_chat else _STREAM_METHODS[:2]:
                 if name in klass.__dict__:
                     try:
                         wrap(klass, name, partial(wrapper, client, is_chat))
@@ -251,7 +251,8 @@ def _langchain_buffered_stream(
     """Wrapper for a model's _stream: see _buffered_stream."""
     if _BUFFERED_MODEL.get() is instance:
         return func(*args, **kwargs)
-    return _buffered_stream(client, is_chat, func, instance, args, kwargs)
+    evaluate = partial(_evaluate_buffered_stream, client, is_chat)
+    return _buffered_stream(client, is_chat, evaluate, func, instance, args, kwargs)
 
 
 def _langchain_buffered_astream(
@@ -260,55 +261,104 @@ def _langchain_buffered_astream(
     """Wrapper for a model's _astream: see _buffered_stream."""
     if _BUFFERED_MODEL.get() is instance:
         return func(*args, **kwargs)
-    return _buffered_astream(client, is_chat, func, instance, args, kwargs)
+    evaluate = partial(_evaluate_buffered_stream, client, is_chat)
+    return _buffered_astream(client, is_chat, evaluate, func, instance, args, kwargs)
 
+
+def _langchain_buffered_events(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """Wrapper for a chat model's native _stream_chat_model_events, which LangChain reads instead of _stream."""
+    if _BUFFERED_MODEL.get() is instance:
+        return func(*args, **kwargs)
+    return _buffered_stream(client, is_chat, partial(_evaluate_buffered_events, client), func, instance, args, kwargs)
+
+
+def _langchain_buffered_aevents(
+    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
+    """Async twin of _langchain_buffered_events, for _astream_chat_model_events."""
+    if _BUFFERED_MODEL.get() is instance:
+        return func(*args, **kwargs)
+    return _buffered_astream(client, is_chat, partial(_evaluate_buffered_events, client), func, instance, args, kwargs)
+
+
+# Methods buffered on each model class. The protocol-event hooks (langchain-core
+# 1.4+) exist on chat models only and serve stream_events / astream_events v3
+# without calling _stream.
+_STREAM_METHODS = (
+    ("_stream", _langchain_buffered_stream),
+    ("_astream", _langchain_buffered_astream),
+    ("_stream_chat_model_events", _langchain_buffered_events),
+    ("_astream_chat_model_events", _langchain_buffered_aevents),
+)
 
 _END = object()
 
 
+async def _anext_or_end(iterator: Any) -> Any:
+    # The anext() builtin needs Python 3.10.
+    try:
+        return await iterator.__anext__()
+    except StopAsyncIteration:
+        return _END
+
+
 def _buffered_stream(
-    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+    client: AIGuardClient,
+    is_chat: bool,
+    evaluate: Callable[[Any, Any, list[Any]], None],
+    func: Callable[..., Any],
+    instance: Any,
+    args: Any,
+    kwargs: Any,
 ) -> Iterator[Any]:
     """Evaluate the request, read the model's whole stream, evaluate it, then replay it.
 
     Both phases are claimed only while the model is read, so the provider below
     skips its own checks and nothing the caller runs between chunks is claimed.
     With stream analysis off the stream passes through, claimed only for the
-    first read, which is where the provider sends its request.
+    first read, which is where the provider sends its request. Every read is
+    marked as this model's, so a super()._stream it delegates to later is not
+    buffered again.
     """
     _evaluate_buffered_request(client, is_chat, instance, args, kwargs)
-    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
-        iterator = None
-        try:
+    iterator = None
+    try:
+        if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
             with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
                 in_buffer = _BUFFERED_MODEL.set(instance)
                 try:
                     iterator = iter(func(*args, **kwargs))
-                    first = next(iterator, _END)
+                    item = next(iterator, _END)
                 finally:
                     _BUFFERED_MODEL.reset(in_buffer)
-            if first is _END:
-                return
-            yield first
-            yield from iterator
-        finally:
-            close = getattr(iterator, "close", None)
-            if close is not None:
-                close()
-        return
+            while item is not _END:
+                yield item
+                in_buffer = _BUFFERED_MODEL.set(instance)
+                try:
+                    item = next(iterator, _END)
+                finally:
+                    _BUFFERED_MODEL.reset(in_buffer)
+            return
 
-    events: list[tuple[bool, Any]] = []
-    args, kwargs = _defer_run_manager(args, kwargs, events, _DeferredRunManager)
-    with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
-        in_buffer = _BUFFERED_MODEL.set(instance)
-        try:
-            for chunk in func(*args, **kwargs):
-                events.append((True, chunk))
-        finally:
-            _BUFFERED_MODEL.reset(in_buffer)
-    _evaluate_buffered_stream(client, is_chat, args, kwargs, [chunk for is_chunk, chunk in events if is_chunk])
-    for is_chunk, event in events:
-        if is_chunk:
+        events: list[tuple[bool, Any]] = []
+        args, kwargs = _defer_run_manager(args, kwargs, events, _DeferredRunManager)
+        with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+            in_buffer = _BUFFERED_MODEL.set(instance)
+            try:
+                iterator = iter(func(*args, **kwargs))
+                for item in iterator:
+                    events.append((True, item))
+            finally:
+                _BUFFERED_MODEL.reset(in_buffer)
+    finally:
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            close()
+    evaluate(args, kwargs, [item for is_item, item in events if is_item])
+    for is_item, event in events:
+        if is_item:
             yield event
         else:
             deferred_call, call_args, call_kwargs = event
@@ -316,50 +366,53 @@ def _buffered_stream(
 
 
 async def _buffered_astream(
-    client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+    client: AIGuardClient,
+    is_chat: bool,
+    evaluate: Callable[[Any, Any, list[Any]], None],
+    func: Callable[..., Any],
+    instance: Any,
+    args: Any,
+    kwargs: Any,
 ) -> AsyncIterator[Any]:
     """Async twin of _buffered_stream; the claim spans each awaited read in this task."""
     _evaluate_buffered_request(client, is_chat, instance, args, kwargs)
-    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
-        iterator = None
-        try:
+    iterator = None
+    try:
+        if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
             with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
                 in_buffer = _BUFFERED_MODEL.set(instance)
                 try:
                     iterator = func(*args, **kwargs).__aiter__()
-                    try:
-                        first = await iterator.__anext__()
-                    except StopAsyncIteration:
-                        return
+                    item = await _anext_or_end(iterator)
                 finally:
                     _BUFFERED_MODEL.reset(in_buffer)
-            yield first
-            async for chunk in iterator:
-                yield chunk
-        finally:
-            aclose = getattr(iterator, "aclose", None)
-            if aclose is not None:
-                await aclose()
-        return
+            while item is not _END:
+                yield item
+                in_buffer = _BUFFERED_MODEL.set(instance)
+                try:
+                    item = await _anext_or_end(iterator)
+                finally:
+                    _BUFFERED_MODEL.reset(in_buffer)
+            return
 
-    events: list[tuple[bool, Any]] = []
-    args, kwargs = _defer_run_manager(args, kwargs, events, _AsyncDeferredRunManager)
-    with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
-        in_buffer = _BUFFERED_MODEL.set(instance)
-        iterator = None
-        try:
-            iterator = func(*args, **kwargs).__aiter__()
-            async for chunk in iterator:
-                events.append((True, chunk))
-        finally:
-            _BUFFERED_MODEL.reset(in_buffer)
-            # A cancelled or timed-out drain must still release the provider stream.
-            aclose = getattr(iterator, "aclose", None)
-            if aclose is not None:
-                await aclose()
-    _evaluate_buffered_stream(client, is_chat, args, kwargs, [chunk for is_chunk, chunk in events if is_chunk])
-    for is_chunk, event in events:
-        if is_chunk:
+        events: list[tuple[bool, Any]] = []
+        args, kwargs = _defer_run_manager(args, kwargs, events, _AsyncDeferredRunManager)
+        with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
+            in_buffer = _BUFFERED_MODEL.set(instance)
+            try:
+                iterator = func(*args, **kwargs).__aiter__()
+                async for item in iterator:
+                    events.append((True, item))
+            finally:
+                _BUFFERED_MODEL.reset(in_buffer)
+    finally:
+        # A cancelled or timed-out read must still release the provider stream.
+        aclose = getattr(iterator, "aclose", None)
+        if aclose is not None:
+            await aclose()
+    evaluate(args, kwargs, [item for is_item, item in events if is_item])
+    for is_item, event in events:
+        if is_item:
             yield event
         else:
             deferred_call, call_args, call_kwargs = event
@@ -468,13 +521,39 @@ def _evaluate_buffered_stream(client: AIGuardClient, is_chat: bool, args: Any, k
         return
     if not response_messages or not _evaluate_langchain_response(client, request_messages, response_messages):
         return
-    evaluated = _BUFFER_EVALUATED.get()
-    if evaluated is not None:
-        evaluated.add(_payload_key(request_messages + response_messages))
+    _record_buffer_evaluated(request_messages, response_messages)
     if is_chat:
         fingerprints = _message_tool_call_fingerprints(response)
         if fingerprints:
             _record_evaluated_fingerprints(chunks[-1].message, fingerprints)
+
+
+def _evaluate_buffered_events(client: AIGuardClient, args: Any, kwargs: Any, events: list[Any]) -> None:
+    """Evaluate a buffered native event stream's request plus the message its events assemble."""
+    from langchain_core.language_models.chat_model_stream import ChatModelStream
+
+    if not events:
+        return
+    try:
+        accumulator = ChatModelStream()
+        for event in events:
+            accumulator.dispatch(event)
+        response = accumulator.output_message
+        if response is None:
+            return
+        request_messages = _convert_messages(list(get_argument_value(args, kwargs, 0, "messages") or ()))
+        response_messages = _convert_response_message(response)
+    except Exception:
+        logger.debug("AI Guard langchain: failed to convert streamed events; skipping evaluation", exc_info=True)
+        return
+    if response_messages and _evaluate_langchain_response(client, request_messages, response_messages):
+        _record_buffer_evaluated(request_messages, response_messages)
+
+
+def _record_buffer_evaluated(request_messages: list[Message], response_messages: list[Message]) -> None:
+    evaluated = _BUFFER_EVALUATED.get()
+    if evaluated is not None:
+        evaluated.add(_payload_key(request_messages + response_messages))
 
 
 def _evaluated_by_stream_buffer(request_messages: list[Message], response_messages: list[Message]) -> bool:
