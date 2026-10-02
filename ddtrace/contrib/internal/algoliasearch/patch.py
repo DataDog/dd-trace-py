@@ -27,14 +27,21 @@ V3 = parse_version("3.0")
 
 try:
     import algoliasearch
-    from algoliasearch.version import VERSION
 
-    algoliasearch_version = parse_version(VERSION)
+    try:
+        from algoliasearch.version import VERSION
+    except ImportError:
+        # algoliasearch >= 4 is a generated client and replaced the version
+        # submodule with a package level __version__.
+        VERSION = getattr(algoliasearch, "__version__", "")
+
+    algoliasearch_version = parse_version(VERSION) if VERSION else V0
 
     # Default configuration
     config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
-    algoliasearch_version = VERSION = V0
+    algoliasearch_version = V0
+    VERSION = ""
 
 
 def get_version() -> str:
