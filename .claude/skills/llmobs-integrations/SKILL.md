@@ -19,14 +19,16 @@ LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They 
 
 LLMObs integrations consist of two cooperating layers:
 
-1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle and LLMObs tag extraction.
+1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle. The patch layer must not import from `ddtrace.llmobs`.
 2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and token metrics.
+3. **LLMObs Subscribers** (`ddtrace/llmobs/_contrib/{name}/`) -- subscribe to the `LlmEvents` span lifecycle events (`SPAN_STARTING`, `SPAN_STARTED`, `SPAN_FINISHING`) that `LlmTracingSubscriber` dispatches, filter on `ctx.event.component`, and call the integration layer. `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py` registers them when the library is patched.
 
-Both layers must work together. The patch layer identifies the operation and passes request/response data through the event; the integration layer controls what data is extracted.
+The layers must work together. The patch layer identifies the operation and passes request/response data through the event; the subscribers connect the event to the integration layer, which controls what data is extracted.
 
 ## Active Patch Patterns
 
-- **Event-based request spans**: Use `LlmRequestEvent` with `core.context_with_event()` for new standard request/response LLM integrations. Anthropic is the canonical reference. This is the preferred pattern.
+- **Event-based request spans with LLMObs subscribers**: Use `LlmRequestEvent` with `core.context_with_event()`, leave `llmobs_integration` unset, and add subscribers under `ddtrace/llmobs/_contrib/{name}/`. Anthropic is the canonical reference. This is the preferred pattern.
+- **Event-based request spans with `llmobs_integration`**: Older event-based integrations pass `llmobs_integration=integration` on the event, and `LlmTracingSubscriber` calls the integration directly. This makes the contrib import LLMObs code; do not use it for new work.
 - **Direct integration spans**: Some existing or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly, especially for child spans, agent/tool spans, or integrations not yet migrated. Google GenAI, OpenAI tool spans, and Claude Agent SDK are useful references.
 
 ## Key Files
@@ -116,7 +118,8 @@ Note two already-shipped integrations predate this key: bedrock and the claude-a
 - **Streaming** must use `BaseStreamHandler`/`AsyncStreamHandler` -- never consume streams directly
 - **Event-based patch wrappers** should not call `span.set_exc_info()`, `span.finish()`, or `integration.llmobs_set_tags()` directly; the tracing subscriber handles that when the event ends
 - **Direct integration spans** must keep `integration.llmobs_set_tags()` and span lifecycle handling aligned with the closest current reference
-- **Integration instance** must be stored on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
+- **Integration instance**: subscriber-based integrations build it lazily in the LLMObs subscriber (see `ddtrace/llmobs/_contrib/anthropic/subscribers.py`); older integrations store it on the module as `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
+- **Subscriber registration**: subscriber-based integrations hook `{name}.patch`/`{name}.unpatch` core events in `listen_integrations()` and stay registered while LLMObs is disabled, because they also set the APM shadow tags
 
 ## Message Types
 
