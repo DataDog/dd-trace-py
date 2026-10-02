@@ -543,6 +543,29 @@
         ]
     },
     {
+        "dependencyName": "aws-sdk-bedrock-runtime",
+        "integrationName": "aws_sdk_bedrock_runtime",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.12",
+                        "3.13"
+                    ]
+                },
+                "supportedRange": ">=0.11.0",
+                "tested": [
+                    "0.11.0"
+                ]
+            }
+        ],
+        "aliases": [
+            "aws_sdk_bedrock_runtime"
+        ],
+        "pinned": true
+    },
+    {
         "dependencyName": "azure-cosmos",
         "integrationName": "azure_cosmos",
         "autoInstrumented": true,
