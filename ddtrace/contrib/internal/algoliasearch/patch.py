@@ -23,7 +23,9 @@ APP_NAME = "algoliasearch"
 V0 = parse_version("0.0")
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
-V3 = parse_version("3.0")
+# 4.0 prereleases sort below 4.0 and already ship the rewritten client, so the
+# cutoff has to sit below them rather than at 4.0 itself.
+V4 = parse_version("4.0.dev0")
 
 try:
     import algoliasearch
@@ -63,7 +65,7 @@ def patch():
 
     if algoliasearch_version < V2 and algoliasearch_version >= V1:
         _w(algoliasearch.index, "Index.search", _patched_search)
-    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+    elif algoliasearch_version >= V2 and algoliasearch_version < V4:
         from algoliasearch import search_index
 
         _w(search_index, "SearchIndex.search", _patched_search)
@@ -80,7 +82,7 @@ def unpatch():
 
         if algoliasearch_version < V2 and algoliasearch_version >= V1:
             _u(algoliasearch.index.Index, "search")
-        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+        elif algoliasearch_version >= V2 and algoliasearch_version < V4:
             from algoliasearch import search_index
 
             _u(search_index.SearchIndex, "search")
@@ -117,7 +119,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
     if algoliasearch_version < V2 and algoliasearch_version >= V1:
         function_query_arg_name = "args"
-    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+    elif algoliasearch_version >= V2 and algoliasearch_version < V4:
         function_query_arg_name = "request_options"
     else:
         return func(*wrapt_args, **wrapt_kwargs)

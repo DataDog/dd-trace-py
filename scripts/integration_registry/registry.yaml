@@ -75,7 +75,7 @@ integrations:
   tested_versions_by_dependency:
     algoliasearch:
       min: 2.6.3
-      max: 2.6.3
+      max: 3.0.0
 
 - integration_name: anthropic
   is_external_package: true
