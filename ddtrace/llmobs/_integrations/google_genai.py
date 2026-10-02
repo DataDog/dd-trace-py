@@ -1,7 +1,8 @@
 from typing import Any
 from typing import Optional
+from typing import cast
 
-from ddtrace._trace.span import Span
+from ddtrace.internal.native._native import SpanData
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
@@ -47,7 +48,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
     def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
+        self, span: SpanData, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
     ) -> None:
         if provider is not None:
             span._set_attribute("google_genai.request.provider", provider)
@@ -56,7 +57,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: SpanData,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -66,7 +67,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         if response is not None:
             model_name = getattr(response, "model_version", "") or model_name
         _annotate_llmobs_span_data(
-            span,
+            cast(Any, span),
             kind=operation,
             model_name=model_name,
             model_provider=provider_name,
