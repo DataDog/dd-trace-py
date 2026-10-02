@@ -124,20 +124,24 @@ def _langchain_unpatch() -> None:
 def _langchain_claimed_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     """Hold both phases for a generate call: its .before and .after listeners evaluate both."""
     evaluated = _BUFFER_EVALUATED.set(set())
+    generating = _GENERATING_MODEL.set(instance)
     try:
         with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
             return func(*args, **kwargs)
     finally:
+        _GENERATING_MODEL.reset(generating)
         _BUFFER_EVALUATED.reset(evaluated)
 
 
 async def _langchain_claimed_agenerate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     """Async twin of _langchain_claimed_generate; the claim spans the awaited call in this task."""
     evaluated = _BUFFER_EVALUATED.set(set())
+    generating = _GENERATING_MODEL.set(instance)
     try:
         with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
             return await func(*args, **kwargs)
     finally:
+        _GENERATING_MODEL.reset(generating)
         _BUFFER_EVALUATED.reset(evaluated)
 
 
@@ -161,6 +165,12 @@ _buffer_install_lock = RLock()
 # during that read (a router model's inner model) gets its own buffer.
 _BUFFERED_MODEL: contextvars.ContextVar[Optional[object]] = contextvars.ContextVar(
     "ai_guard_langchain_buffered_model", default=None
+)
+
+# The model whose generate call is running: its .before listener already evaluated
+# the request, so that model's stream buffer must not evaluate it again.
+_GENERATING_MODEL: contextvars.ContextVar[Optional[object]] = contextvars.ContextVar(
+    "ai_guard_langchain_generating_model", default=None
 )
 
 # Payloads a stream buffer evaluated during the current generate call, so its
@@ -259,13 +269,14 @@ _END = object()
 def _buffered_stream(
     client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
 ) -> Iterator[Any]:
-    """Read the model's whole stream, evaluate it, then replay it.
+    """Evaluate the request, read the model's whole stream, evaluate it, then replay it.
 
     Both phases are claimed only while the model is read, so the provider below
     skips its own checks and nothing the caller runs between chunks is claimed.
     With stream analysis off the stream passes through, claimed only for the
     first read, which is where the provider sends its request.
     """
+    _evaluate_buffered_request(client, is_chat, instance, args, kwargs)
     if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
         iterator = None
         try:
@@ -308,6 +319,7 @@ async def _buffered_astream(
     client: AIGuardClient, is_chat: bool, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
 ) -> AsyncIterator[Any]:
     """Async twin of _buffered_stream; the claim spans each awaited read in this task."""
+    _evaluate_buffered_request(client, is_chat, instance, args, kwargs)
     if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
         iterator = None
         try:
@@ -334,11 +346,17 @@ async def _buffered_astream(
     args, kwargs = _defer_run_manager(args, kwargs, events, _AsyncDeferredRunManager)
     with aiguard_context(Phase.REQUEST, Phase.RESPONSE):
         in_buffer = _BUFFERED_MODEL.set(instance)
+        iterator = None
         try:
-            async for chunk in func(*args, **kwargs):
+            iterator = func(*args, **kwargs).__aiter__()
+            async for chunk in iterator:
                 events.append((True, chunk))
         finally:
             _BUFFERED_MODEL.reset(in_buffer)
+            # A cancelled or timed-out drain must still release the provider stream.
+            aclose = getattr(iterator, "aclose", None)
+            if aclose is not None:
+                await aclose()
     _evaluate_buffered_stream(client, is_chat, args, kwargs, [chunk for is_chunk, chunk in events if is_chunk])
     for is_chunk, event in events:
         if is_chunk:
@@ -399,6 +417,27 @@ def _merge_message_chunks(messages: list[Any]) -> Any:
 
 def _payload_key(messages: list[Message]) -> str:
     return json.dumps(messages, sort_keys=True, default=str)
+
+
+def _evaluate_buffered_request(client: AIGuardClient, is_chat: bool, instance: Any, args: Any, kwargs: Any) -> None:
+    """Evaluate a buffered stream's request before the model reads it, unless its generate call already did.
+
+    stream(), astream() and direct _stream reads (stream_events v3) have no other
+    request check: the buffer's claim makes the provider below skip its own.
+    """
+    from langchain_core.messages import HumanMessage
+
+    if _GENERATING_MODEL.get() is instance:
+        return
+    try:
+        if is_chat:
+            messages = list(get_argument_value(args, kwargs, 0, "messages") or ())
+        else:
+            messages = [HumanMessage(content=get_argument_value(args, kwargs, 0, "prompt"))]
+    except Exception:
+        logger.debug("AI Guard langchain: failed to read streamed request; skipping evaluation", exc_info=True)
+        return
+    _evaluate_langchain_messages(client, messages)
 
 
 def _evaluate_buffered_stream(client: AIGuardClient, is_chat: bool, args: Any, kwargs: Any, chunks: list[Any]) -> None:
@@ -934,20 +973,6 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optio
         if result is not None:
             return result
     return None
-
-
-def _langchain_chatmodel_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
-    input_arg = get_argument_value(args, kwargs, 0, "input")
-    messages = instance._convert_input(input_arg).to_messages()
-    return _evaluate_langchain_messages(client, messages)
-
-
-def _langchain_llm_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
-    from langchain_core.messages import HumanMessage
-
-    input_arg = get_argument_value(args, kwargs, 0, "input")
-    prompt = instance._convert_input(input_arg).to_string()
-    return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> Optional[Any]:

@@ -1603,8 +1603,75 @@ def test_stream_read_directly_is_buffered_for_classes_defined_before_and_after_p
             chunks = list(model_class()._stream([HumanMessage(content="hi")]))
 
         assert "".join(chunk.message.content for chunk in chunks) == "self reported"
-        assert mock_execute_request.call_count == 1, model_class
-        assert _evaluated_messages(mock_execute_request, 0)[-1] == {"role": "assistant", "content": "self reported"}
+        # The request, then the request plus the buffered response.
+        assert mock_execute_request.call_count == 2, model_class
+        assert _evaluated_messages(mock_execute_request, 0) == [{"role": "user", "content": "hi"}]
+        assert _evaluated_messages(mock_execute_request, 1)[-1] == {"role": "assistant", "content": "self reported"}
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_stream_read_directly_blocks_request_before_the_model_is_read(mock_execute_request, langchain, decision):
+    """With stream analysis off nothing else checks a direct _stream read's request: the buffer claims it."""
+    reads = []
+
+    class _RecordingModel(_SelfReportingChatModel):
+        def _stream(self, *args, **kwargs):
+            reads.append(True)
+            yield from super()._stream(*args, **kwargs)
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(AIGuardAbortError):
+        list(_RecordingModel()._stream([HumanMessage(content="hi")]))
+
+    assert mock_execute_request.call_count == 1
+    assert _evaluated_messages(mock_execute_request, 0) == [{"role": "user", "content": "hi"}]
+    assert reads == []
+
+
+class _HangingProviderStream:
+    """Class-based async iterator, like an SDK stream: cancelling its read does not close it."""
+
+    def __init__(self):
+        self.closed = False
+        self._sent = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        import asyncio
+
+        if not self._sent:
+            self._sent = True
+            return ChatGenerationChunk(message=AIMessageChunk(content="partial"))
+        await asyncio.Event().wait()
+
+    async def aclose(self):
+        self.closed = True
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_cancelled_buffered_astream_closes_the_provider_stream(mock_execute_request, langchain):
+    import asyncio
+
+    provider_stream = _HangingProviderStream()
+
+    class _HangingModel(_SelfReportingChatModel):
+        def _astream(self, *args, **kwargs):
+            return provider_stream
+
+    async def consume():
+        return [chunk async for chunk in _HangingModel()._astream([HumanMessage(content="hi")])]
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with _stream_evaluation_on(), pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(consume(), timeout=0.1)
+
+    assert provider_stream.closed
 
 
 def test_unpatch_removes_stream_buffers(langchain):

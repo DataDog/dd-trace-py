@@ -21,10 +21,8 @@ from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_a
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
-from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_before
-from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
@@ -74,11 +72,9 @@ def _langchain_listen(client: AIGuardClient) -> None:
 
     core.on("langchain.chatmodel.generate.before", partial(_langchain_chatmodel_generate_before, client))
     core.on("langchain.chatmodel.agenerate.before", partial(_langchain_chatmodel_generate_before, client))
-    core.on("langchain.chatmodel.stream.before", partial(_langchain_chatmodel_stream_before, client))
 
     core.on("langchain.llm.generate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
-    core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
     # LangChain claims the response phase for these paths, which makes the
     # OpenAI / Anthropic listeners skip their own response evaluation. These
