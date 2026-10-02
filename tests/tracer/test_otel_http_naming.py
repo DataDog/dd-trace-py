@@ -271,6 +271,15 @@ def server_error_statuses():
         config._http_server.error_statuses = original
 
 
+@pytest.fixture
+def client_error_statuses():
+    original = config._http_client.error_statuses
+    try:
+        yield config._http_client
+    finally:
+        config._http_client.error_statuses = original
+
+
 @pytest.mark.parametrize(
     "span_type, span_kind, expected",
     [
@@ -386,6 +395,7 @@ def test_otel_span_attributes_malformed_url_does_not_abort_later_metadata(integr
     [
         (SpanTypes.HTTP, SpanKind.CLIENT, 399, 0),
         (SpanTypes.HTTP, SpanKind.CLIENT, 400, 1),
+        (SpanTypes.HTTP, SpanKind.CLIENT, 600, 1),
         (SpanTypes.WEB, None, 499, 0),
         (SpanTypes.WEB, None, 500, 1),
         (SpanTypes.WEB, None, 600, 1),
@@ -447,6 +457,49 @@ def test_programmatic_server_error_status_state_restores(server_error_statuses):
 
     server_error_statuses.error_statuses = original_statuses
     assert server_error_statuses.error_statuses_configured is original_configured
+
+
+@pytest.mark.parametrize(
+    "status_code, expected_error",
+    [
+        (200, 1),
+        (404, 0),
+        (500, 0),
+    ],
+)
+def test_otel_span_attributes_honors_custom_client_error_statuses(
+    integration_config,
+    client_error_statuses,
+    status_code,
+    expected_error,
+):
+    client_error_statuses.error_statuses = "200"
+    span = Span("request", span_type=SpanTypes.HTTP)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    attributes.set_status_code(status_code)
+
+    assert span.error == expected_error
+    assert span.get_tag(ERROR_TYPE) == (str(status_code) if expected_error else None)
+
+
+def test_client_error_statuses_do_not_change_server_statuses(client_error_statuses, server_error_statuses):
+    client_error_statuses.error_statuses = "200"
+
+    assert client_error_statuses.is_error_code(200) is True
+    assert server_error_statuses.is_error_code(200) is False
+
+
+def test_programmatic_client_error_status_state_restores(client_error_statuses):
+    original_statuses = client_error_statuses.error_statuses
+    original_configured = client_error_statuses.error_statuses_configured
+
+    client_error_statuses.error_statuses = "404-412"
+    assert client_error_statuses.error_statuses_configured is True
+
+    client_error_statuses.error_statuses = original_statuses
+    assert client_error_statuses.error_statuses_configured is original_configured
 
 
 def test_otel_span_attributes_status_preserves_exception_error_type(integration_config, server_error_statuses):
@@ -522,6 +575,27 @@ def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
     span = Span("web.request", span_type=SpanTypes.WEB)
 
     assert config._http_server.error_statuses_configured is True
+    OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
+
+    assert span.error == 0
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_CLIENT_ERROR_STATUSES": "400-599"})
+def test_otel_span_attributes_explicit_default_client_status_does_not_expand():
+    from unittest import mock
+
+    from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
+    from ddtrace.constants import SPAN_KIND
+    from ddtrace.ext import SpanKind
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import config
+    from ddtrace.trace import Span
+
+    integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
+    span = Span("http.request", span_type=SpanTypes.HTTP)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+
+    assert config._http_client.error_statuses_configured is True
     OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
 
     assert span.error == 0

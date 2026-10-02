@@ -225,6 +225,17 @@ Traces
          If a tag name is not supplied the header name will be used. For example if
          ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.headers.user-agent`` and ``http.<response/request>.headers.content-type``.
 
+   DD_TRACE_HTTP_CLIENT_ERROR_STATUSES:
+     type: String
+     default: "400-499"
+
+     description: |
+        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP
+        client request. Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
+        This setting is applied when ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` is enabled, where it sets the span
+        error status and the ``error.type`` attribute. With ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` enabled and this
+        setting not set, any status code of 400 or above is an error.
+
    DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
      default: True

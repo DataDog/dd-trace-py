@@ -1,0 +1,158 @@
+{
+  "resource_spans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "string_value": "ddtrace_subprocess_dir"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "string_value": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "string_value": "datadog"
+            }
+          }
+        ]
+      },
+      "scope_spans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "attributes": [
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "string_value": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "string_value": "aiohttp_client"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "int_value": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "int_value": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "string_value": "aiohttp_client"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "string_value": "405"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "string_value": "_OTHER"
+                  }
+                },
+                {
+                  "key": "http.request.method_original",
+                  "value": {
+                    "string_value": "FOO"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "int_value": "405"
+                  }
+                },
+                {
+                  "key": "http.status_msg",
+                  "value": {
+                    "string_value": "METHOD NOT ALLOWED"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "string_value": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "int_value": "8001"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "string_value": "http://localhost:8001/status/200"
+                  }
+                }
+              ],
+              "end_time_unix_nano": "<end_time_unix_nano>",
+              "flags": 1,
+              "kind": "SPAN_KIND_CLIENT",
+              "name": "HTTP",
+              "span_id": "span_1",
+              "start_time_unix_nano": "<start_time_unix_nano>",
+              "status": {
+                "code": "STATUS_CODE_ERROR"
+              },
+              "trace_id": "trace_1"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "string_value": "aiohttp"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "int_value": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "string_value": "aiohttp"
+                  }
+                }
+              ],
+              "end_time_unix_nano": "<end_time_unix_nano>",
+              "flags": 1,
+              "kind": "SPAN_KIND_CLIENT",
+              "name": "TCPConnector.connect",
+              "parent_span_id": "span_1",
+              "span_id": "span_2",
+              "start_time_unix_nano": "<start_time_unix_nano>",
+              "status": {},
+              "trace_id": "trace_1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
