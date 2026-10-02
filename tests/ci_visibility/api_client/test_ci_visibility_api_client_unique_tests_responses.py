@@ -67,8 +67,27 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
     def test_civisibility_api_client_known_tests_parsed(self, known_test_response, expected_tests):
         """Tests that the client correctly returns known tests from API response"""
         client = self._get_test_client()
-        with mock.patch.object(client, "_do_request", return_value=known_test_response):
+        with (
+            mock.patch.object(client, "_do_request", return_value=known_test_response),
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_tests_count"
+            ) as mock_count,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_pages_fetched"
+            ) as mock_pages,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_total_fetch_ms"
+            ) as mock_fetch_ms,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_total_request_ms"
+            ) as mock_request_ms,
+        ):
             assert client.fetch_known_tests(read_from_cache=False) == expected_tests
+            # Verify pagination metrics were recorded
+            mock_count.assert_called_once_with(len(expected_tests))
+            mock_pages.assert_called_once_with(1)
+            mock_fetch_ms.assert_called_once()
+            mock_request_ms.assert_called_once()
 
     @pytest.mark.parametrize(
         "do_request_side_effect",
@@ -105,9 +124,26 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
         with (
             mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5),
             mock.patch("ddtrace.internal.utils.retry.sleep"),
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_tests_count"
+            ) as mock_count,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_pages_fetched"
+            ) as mock_pages,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_total_fetch_ms"
+            ) as mock_fetch_ms,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_total_request_ms"
+            ) as mock_request_ms,
         ):
             settings = client.fetch_known_tests(read_from_cache=False)
             assert settings is None
+            # No pagination metrics should be emitted on failure
+            mock_count.assert_not_called()
+            mock_pages.assert_not_called()
+            mock_fetch_ms.assert_not_called()
+            mock_request_ms.assert_not_called()
 
     def test_civisibility_api_client_known_tests_paginated(self):
         client = self._get_test_client()
@@ -120,7 +156,31 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
             page_info={"cursor": None, "size": 1, "has_next": False},
         )
 
-        with mock.patch.object(client, "_do_request", side_effect=[response_page_1, response_page_2]):
-            assert client.fetch_known_tests(read_from_cache=False) == set(
+        with (
+            mock.patch.object(client, "_do_request", side_effect=[response_page_1, response_page_2]),
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_tests_count"
+            ) as mock_count,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_pages_fetched"
+            ) as mock_pages,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_total_fetch_ms"
+            ) as mock_fetch_ms,
+            mock.patch(
+                "ddtrace.internal.ci_visibility._api_client.record_early_flake_detection_total_request_ms"
+            ) as mock_request_ms,
+        ):
+            expected_tests = set(
                 _make_fqdn_test_ids([("module1", "suite1.py", "test1"), ("module1", "suite1.py", "test2")])
             )
+            assert client.fetch_known_tests(read_from_cache=False) == expected_tests
+            # Verify 2 pages were fetched and timing metrics were recorded
+            mock_count.assert_called_once_with(2)
+            mock_pages.assert_called_once_with(2)
+            mock_fetch_ms.assert_called_once()
+            mock_request_ms.assert_called_once()
+            # Total fetch time should be >= sum of request times
+            total_fetch_ms = mock_fetch_ms.call_args[0][0]
+            total_request_ms = mock_request_ms.call_args[0][0]
+            assert total_fetch_ms >= total_request_ms
