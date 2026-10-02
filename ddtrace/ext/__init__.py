@@ -1,4 +1,4 @@
-class SpanTypes(object):
+class SpanTypes:
     CACHE = "cache"
     CASSANDRA = "cassandra"
     COSMOS = "cosmosdb"
@@ -22,7 +22,7 @@ class SpanTypes(object):
     RAY = "ray"
 
 
-class SpanKind(object):
+class SpanKind:
     CLIENT = "client"
     SERVER = "server"
     PRODUCER = "producer"
@@ -30,6 +30,6 @@ class SpanKind(object):
     INTERNAL = "internal"
 
 
-class SpanLinkKind(object):
+class SpanLinkKind:
     EXECUTED = "executed_by"
     RESUMING = "resuming"

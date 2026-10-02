@@ -6,7 +6,7 @@ to allow the backend to wait for OTel span conversion (~3 minutes) before
 discarding unmatched evaluations.
 """
 
-import mock
+from unittest import mock
 
 
 def test_submit_evaluation_adds_source_otel_when_otel_enabled(llmobs, mock_llmobs_eval_metric_writer):

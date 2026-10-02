@@ -3,8 +3,8 @@ import contextlib
 import copy
 import pathlib
 import types
+from unittest import mock
 
-import mock
 import pytest
 from wrapt import FunctionWrapper
 
@@ -761,7 +761,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
         with mock.patch.object(cmp, "get_rasp_capability", return_value=True):
             pool_manager = urllib3.PoolManager(num_pools=1)
             try:
-                response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
+                response = pool_manager.request("GET", f"http://127.0.0.1:{port}/source", timeout=10)
                 assert response.status == 200
             finally:
                 pool_manager.clear()
@@ -775,7 +775,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
 
     assert inspected, "no downstream request was inspected"
     # The redirected hop must be inspected as an absolute URL carrying the target host.
-    assert inspected[-1] == "http://127.0.0.1:{}/target".format(port), inspected
+    assert inspected[-1] == f"http://127.0.0.1:{port}/target", inspected
 
 
 def test_the_getresponse_context_releases_storage_when_rasp_is_off():
@@ -1176,14 +1176,14 @@ def test_a_redirect_publishes_the_redirected_url():
             mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
         ):
             with contextlib.suppress(Exception):
-                urllib.request.urlopen("http://127.0.0.1:{}/source".format(port), timeout=5)
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/source", timeout=5)
     finally:
         unpatch_common_modules()
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
 
-    assert "http://127.0.0.1:{}/source".format(port) in published, published
+    assert f"http://127.0.0.1:{port}/source" in published, published
     assert any(url and url.endswith("/target") for url in published), published
 
 

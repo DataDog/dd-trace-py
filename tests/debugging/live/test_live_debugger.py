@@ -22,7 +22,7 @@ class MockSpanCodeOriginProcessor(SpanCodeOriginProcessorEntry):
 
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
-        super(SpanProbeTestCase, self).setUp()
+        super().setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
 
@@ -30,7 +30,7 @@ class SpanProbeTestCase(TracerTestCase):
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
-        super(SpanProbeTestCase, self).tearDown()
+        super().tearDown()
 
         MockSpanCodeOriginProcessor.disable()
         core.reset_listeners(event_id="service_entrypoint.patch")

@@ -1,5 +1,3 @@
-from typing import Text
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -19,7 +17,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
@@ -142,7 +140,7 @@ def _iast_coi(wrapped, instance, args, kwargs):
     return res
 
 
-def _iast_report_code_injection(code_string: Text):
+def _iast_report_code_injection(code_string: str):
     reported = False
     try:
         if is_iast_request_enabled():

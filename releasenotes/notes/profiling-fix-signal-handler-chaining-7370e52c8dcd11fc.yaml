@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Profiling: A crash that could occur in applications that use signal handlers to recover from
+    crashes has been fixed.

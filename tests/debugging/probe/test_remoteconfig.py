@@ -1,7 +1,7 @@
 import random
+from unittest import mock
 from uuid import uuid4
 
-import mock
 import pytest
 
 from ddtrace.debugging._config import di_config
@@ -22,7 +22,7 @@ from tests.debugging.utils import create_snapshot_line_probe
 from tests.utils import override_global_config
 
 
-class MockConfig(object):
+class MockConfig:
     def __init__(self, *args, **kwargs):
         self.probes = {}
 
@@ -101,7 +101,7 @@ class SyncProbeRCAdapter(ProbeRCAdapter):
 
     def __init__(self, *args, **kwargs):
         status_logger = kwargs.pop("status_logger", ProbeStatusLogger("test"))
-        super(SyncProbeRCAdapter, self).__init__(*args, **kwargs, status_logger=status_logger)
+        super().__init__(*args, **kwargs, status_logger=status_logger)
 
 
 def config_metadata(config_id=None):

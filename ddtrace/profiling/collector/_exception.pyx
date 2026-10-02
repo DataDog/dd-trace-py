@@ -3,6 +3,7 @@ import sysconfig as _sysconfig
 import sys
 import threading
 import time
+from typing import Optional
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
@@ -22,7 +23,7 @@ MAX_EXCEPTION_MESSAGE_LEN = 128
 #   0 = DEBUGGER_ID
 #   1 = COVERAGE_ID (used by dd-trace-py coverage)
 #   2 = PROFILER_ID (used by the native stack profiler)
-#   3 = used by error tracking (handled exceptions)
+#   3 = used by error tracking (handled exceptions) and the 3.15+ multiplexer
 #   4 = **used here**
 #   5 = OPTIMIZER_ID
 _MONITORING_TOOL_ID = 4
@@ -43,7 +44,7 @@ cdef class _SamplerState:
     cdef int next_sample
     cdef object sampler  # PoissonSampler
 
-    def __init__(self, int sampling_interval, bint collect_message):
+    def __init__(self, int sampling_interval, bint collect_message) -> None:
         self.sampling_interval = sampling_interval
         self.collect_message = collect_message
         self.counter = 0
@@ -147,10 +148,11 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     finally:
         _collecting = False
 
+
 class ExceptionCollector(collector.Collector):
     """Collects exception samples using sys.monitoring (Python 3.12+)."""
 
-    def __init__(self, sampling_interval: int = None, collect_message: bool = None):
+    def __init__(self, sampling_interval: Optional[int] = None, collect_message: Optional[bool] = None) -> None:
         super().__init__()
         raw_interval = sampling_interval if sampling_interval is not None else config.exception.sampling_interval
         assert raw_interval >= 1, "sampling_interval must be >= 1"
@@ -158,6 +160,7 @@ class ExceptionCollector(collector.Collector):
 
         self._collect_message = collect_message if collect_message is not None else config.exception.collect_message
         self._monitoring_registered = False
+        self._owns_tool_id = False
 
     def _start_service(self) -> None:
         global _state
@@ -168,9 +171,11 @@ class ExceptionCollector(collector.Collector):
 
         if HAS_MONITORING:
             try:
-                # Claim the tool ID *before* writing _state so that a ValueError
-                # (tool ID already in use) leaves the existing _state untouched.
+                # Claim the tool ID before writing _state so that a ValueError
+                # leaves the existing _state untouched. use_tool_id is the
+                # atomic claim.
                 sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
+                self._owns_tool_id = True
                 sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
                 sys.monitoring.register_callback(
                     _MONITORING_TOOL_ID,
@@ -179,6 +184,12 @@ class ExceptionCollector(collector.Collector):
                 )
             except ValueError:
                 LOG.exception("Failed to set up exception monitoring")
+                if self._owns_tool_id:
+                    try:
+                        sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
+                    except Exception:
+                        LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
+                self._owns_tool_id = False
                 return
 
             _state = _SamplerState(self._sampling_interval, self._collect_message)
@@ -196,11 +207,7 @@ class ExceptionCollector(collector.Collector):
             _state = None
             return
 
-        # Each cleanup step is independent: always attempt all three so that
-        # free_tool_id() is called even if an earlier step fails.  Failing to
-        # free the tool_id permanently consumes sys.monitoring slot
-        # _MONITORING_TOOL_ID and prevents any future profiler restart from
-        # registering the callback again.
+        # Each cleanup step is independent.
         try:
             sys.monitoring.register_callback(
                 _MONITORING_TOOL_ID,
@@ -215,10 +222,12 @@ class ExceptionCollector(collector.Collector):
         except Exception:
             LOG.debug("Failed to disable exception monitoring events", exc_info=True)
 
-        try:
-            sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
-        except Exception:
-            LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
+        if self._owns_tool_id:
+            try:
+                sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
+            except Exception:
+                LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
 
+        self._owns_tool_id = False
         self._monitoring_registered = False
         _state = None

@@ -74,7 +74,7 @@ class TracedProducerMixin:
     def __init__(self, config=None, *args, **kwargs):
         if not config:
             config = kwargs
-        super(TracedProducerMixin, self).__init__(config, *args, **kwargs)
+        super().__init__(config, *args, **kwargs)
         self._dd_bootstrap_servers = (
             config.get("bootstrap.servers")
             if config.get("bootstrap.servers") is not None
@@ -93,7 +93,7 @@ class TracedConsumerMixin:
     def __init__(self, config=None, *args, **kwargs):
         if not config:
             config = kwargs
-        super(TracedConsumerMixin, self).__init__(config, *args, **kwargs)
+        super().__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
         self._dd_bootstrap_servers = (
