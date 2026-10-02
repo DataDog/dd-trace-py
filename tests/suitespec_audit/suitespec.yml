@@ -1,0 +1,13 @@
+---
+suites:
+  audit:
+    paths:
+      - scripts/audit_suite_dependencies.py
+      - tests/suitespec_audit/*
+    snapshot: false
+    matrix:
+      command: pytest {cmdargs} tests/suitespec_audit/
+      python: ['3.10', '3.14']
+      variants:
+        - name: suitespec-audit
+          dependencies: [ruamel.yaml]
