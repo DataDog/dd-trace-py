@@ -104,6 +104,68 @@ Declare these in `paths` explicitly, because imports cannot reveal them:
 
 Discovery only adds patterns: the declared ones always apply.
 
+### Auditing dependencies with runtime coverage
+
+`scripts/audit_suite_dependencies.py` complements import discovery with files
+observed during test execution. It reads coverage.py JSON reports and emits a
+YAML fragment containing only additions to a suite's resolved triggers. It does
+not modify suitespecs or change CI selection. This uses the existing pytest-cov
+dependency; pytest-testmon is not required.
+
+Capture one complete suite environment at a time. List the environments, choose
+a hash, and give each run a separate report path:
+
+```bash
+scripts/run-tests --list tests/debugging/
+scripts/run-tests --venv <environment-hash> -- \
+  -o addopts= --no-ddtrace --cov=ddtrace --cov=tests/ \
+  --cov-report=json:.cache/debugger-py310.json
+```
+
+The empty `addopts` override disables the repository's `--cov-append`, preventing
+other suite runs from contaminating the report. `--no-ddtrace` disables Datadog
+Test Optimization, including test skipping. Do not use test filters or consume
+reports from failed runs. For suites whose commands disable coverage, remove
+that option in a local capture configuration first. For environments with
+multiple commands, capture each command separately; do not overwrite a report.
+
+Union reports from the same suite across Python versions, dependency versions,
+platforms, and relevant configurations:
+
+```bash
+scripts/audit_suite_dependencies.py --suite debugging::debugger \
+  --coverage .cache/debugger-py310.json \
+  --coverage .cache/debugger-py314.json \
+  --source-root /home/bits/project > .cache/debugger-additions.yml
+```
+
+Repo-relative paths and absolute paths under the current checkout are recognized
+automatically. Repeat `--source-root` for other captured checkout paths or
+site-packages directories containing ddtrace. Other external paths are ignored.
+An executed ddtrace path without a mapping, or a report with no executed ddtrace
+files, is rejected to catch incomplete path mappings and empty captures.
+
+The output uses fully qualified suite names, such as `debugging::debugger`.
+Append its `paths` entries to the corresponding suite in its original suitespec;
+do not replace the suite's existing paths with this fragment. Missing files are
+listed on stderr. Add `--check` to exit with status 1 if dependencies are missing;
+invalid input exits with status 2. Without `--check`, valid input exits with
+status 0 even when it produces additions.
+
+Files already covered by explicit patterns, include-always components, or import
+discovery need no additions. Missing files map to their most specific component
+owners, retaining all tied owners; files without an owner use exact paths.
+Output is sorted and deduplicated for review. Component references intentionally
+cover future files matching the same patterns.
+
+Runtime coverage is evidence for additions, not removals. Unexecuted paths,
+native code, subprocesses without coverage collection, and sources excluded by
+the coverage configuration remain blind spots. In particular, the default
+configuration excludes `ddtrace/vendor/*`, and the test harness currently warns
+that subprocess coverage is broken. Startup and shared fixture execution may
+also produce broad dependencies. Retain explicit dependencies and review each
+suggestion; an empty report of additions does not establish completeness.
+
 For standard test suites, `venvs_per_job` is the target number of dependency
 environments per generated job. The job count is the environment count divided by
 this value and rounded up, with a limit of 25 jobs per suite. Lower values increase
