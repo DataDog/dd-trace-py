@@ -9,7 +9,7 @@ import pytest
     ),
     err=None,
 )
-def test_lock_acquire_events():
+def test_lock_acquire_events() -> None:
     import os
     import threading
 
@@ -24,12 +24,12 @@ def test_lock_acquire_events():
 
     # Tests that lock acquire/release events from asyncio threads are captured
     # correctly. See test_asyncio.py for asyncio.Lock tests.
-    async def _lock():
+    async def _lock() -> None:
         lock = threading.Lock()  # !CREATE! test_lock_acquire_events_1
         lock.acquire()  # !ACQUIRE! test_lock_acquire_events_1
         lock.release()  # !RELEASE! test_lock_acquire_events_1
 
-    def asyncio_run_func():
+    def asyncio_run_func() -> None:
         lock = threading.Lock()  # !CREATE! test_lock_acquire_events_2
         lock.acquire()  # !ACQUIRE! test_lock_acquire_events_2
         async_run(_lock())

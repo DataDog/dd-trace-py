@@ -235,19 +235,20 @@ suites:
       - '@tracing'
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
+      - tests/cassettes/stripe/*
     retry: 2
-    no_proxy: true
+    snapshot: true
     matrix:
       command: 'pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ '
       variants:
         - name: appsec_integrations_stripe
-          dependencies: [stripe, vcrpy]
+          dependencies: [stripe]
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=11.0', vcrpy]
+          dependencies: ['stripe~=11.0']
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=12.0', vcrpy]
+          dependencies: ['stripe~=12.0']
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=13.0', vcrpy]
+          dependencies: ['stripe~=13.0']
   appsec_integrations_langchain:
     venvs_per_job: 11
     paths:
