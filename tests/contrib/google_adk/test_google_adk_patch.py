@@ -1,5 +1,6 @@
 from operator import attrgetter
 
+import google.adk as adk
 import pytest
 
 from ddtrace.contrib.internal.google_adk.patch import GOOGLE_ADK_VERSION
@@ -29,7 +30,7 @@ class TestGoogleADKPatch(PatchTestCase.Base):
         self.assert_wrapped(module.runners.Runner.run_async)
         self.assert_wrapped(module.runners.Runner.run_live)
         self.assert_wrapped(_tool_dispatcher(module))
-        if GOOGLE_ADK_VERSION < (2, 7, 0):
+        if hasattr(module.flows.llm_flows.functions, "__call_tool_live"):
             self.assert_wrapped(getattr(module.flows.llm_flows.functions, "__call_tool_live"))
         self.assert_wrapped(module.code_executors.BuiltInCodeExecutor.execute_code)
         self.assert_wrapped(module.code_executors.VertexAiCodeExecutor.execute_code)
@@ -39,7 +40,7 @@ class TestGoogleADKPatch(PatchTestCase.Base):
         self.assert_not_wrapped(module.runners.Runner.run_async)
         self.assert_not_wrapped(module.runners.Runner.run_live)
         self.assert_not_wrapped(_tool_dispatcher(module))
-        if GOOGLE_ADK_VERSION < (2, 7, 0):
+        if hasattr(module.flows.llm_flows.functions, "__call_tool_live"):
             self.assert_not_wrapped(getattr(module.flows.llm_flows.functions, "__call_tool_live"))
         self.assert_not_wrapped(module.code_executors.BuiltInCodeExecutor.execute_code)
         self.assert_not_wrapped(module.code_executors.VertexAiCodeExecutor.execute_code)
@@ -49,11 +50,25 @@ class TestGoogleADKPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(module.runners.Runner.run_async)
         self.assert_not_double_wrapped(module.runners.Runner.run_live)
         self.assert_not_double_wrapped(_tool_dispatcher(module))
-        if GOOGLE_ADK_VERSION < (2, 7, 0):
+        if hasattr(module.flows.llm_flows.functions, "__call_tool_live"):
             self.assert_not_double_wrapped(getattr(module.flows.llm_flows.functions, "__call_tool_live"))
         self.assert_not_double_wrapped(module.code_executors.BuiltInCodeExecutor.execute_code)
         self.assert_not_double_wrapped(module.code_executors.VertexAiCodeExecutor.execute_code)
         self.assert_not_double_wrapped(module.code_executors.UnsafeLocalCodeExecutor.execute_code)
+
+
+def test_patch_without_call_tool_live(monkeypatch):
+    # Not every google-adk release below 2.7.0 has __call_tool_live, e.g. 1.39.1 does not.
+    functions = adk.flows.llm_flows.functions
+
+    unpatch()
+    monkeypatch.delattr(functions, "__call_tool_live", raising=False)
+    patch()
+    try:
+        assert hasattr(_tool_dispatcher(adk), "__wrapped__")
+    finally:
+        unpatch()
+    assert not hasattr(_tool_dispatcher(adk), "__wrapped__")
 
 
 @pytest.mark.parametrize(
