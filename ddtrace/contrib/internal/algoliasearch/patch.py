@@ -23,7 +23,9 @@ APP_NAME = "algoliasearch"
 V0 = parse_version("0.0")
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
-V4 = parse_version("4.0")
+# 4.0 prereleases sort below 4.0 and already ship the rewritten client, so the
+# cutoff has to sit below them rather than at 4.0 itself.
+V4 = parse_version("4.0.dev0")
 
 try:
     import algoliasearch
