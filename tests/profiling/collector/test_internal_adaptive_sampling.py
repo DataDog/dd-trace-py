@@ -11,7 +11,7 @@ import pytest
     ),
     err=None,
 )
-def test_internal_adaptive_sampling():
+def test_internal_adaptive_sampling() -> None:
     import asyncio
     import json
     import os
@@ -33,7 +33,7 @@ def test_internal_adaptive_sampling():
 
         await asyncio.get_running_loop().run_in_executor(executor=None, func=lambda: time.sleep(1))
 
-    async def hello():
+    async def hello() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
         t1 = asyncio.create_task(stuff(), name="sleep 1")
         t2 = asyncio.create_task(stuff(), name="sleep 2")
         await stuff()

@@ -372,6 +372,19 @@ check_ci_dependencies:
   script:
     - scripts/check-ci-dependencies
 
+# Fails when the docs' offline Python intersphinx inventory falls behind docs.python.org.
+# An unreachable docs.python.org passes; the next nightly run checks again.
+check_intersphinx_inventory:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  allow_failure: true
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - when: manual
+  script:
+    - python3 scripts/update-intersphinx-inventory.py --check
+
 codeowners:
   stage: tests
   needs: []
