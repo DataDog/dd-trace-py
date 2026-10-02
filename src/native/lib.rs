@@ -1,3 +1,14 @@
+#[cfg(all(
+    feature = "waf",
+    any(
+        target_os = "windows",
+        all(
+            target_pointer_width = "64",
+            any(target_os = "linux", target_os = "macos")
+        )
+    )
+))]
+mod appsec;
 #[cfg(feature = "crashtracker")]
 mod crashtracker;
 #[cfg(feature = "profiling")]
@@ -79,6 +90,25 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_wrapped(wrap_pyfunction!(
             otel_thread_ctx::detach_otel_thread_context
         ))?;
+    }
+    #[cfg(all(
+        feature = "waf",
+        any(
+            target_os = "windows",
+            all(
+                target_pointer_width = "64",
+                any(target_os = "linux", target_os = "macos")
+            )
+        )
+    ))]
+    {
+        let ddwaf = PyModule::new(m.py(), "ddtrace.internal.native._native.ddwaf")?;
+        appsec::waf::register(&ddwaf)?;
+        m.add_submodule(&ddwaf)?;
+        m.py()
+            .import("sys")?
+            .getattr("modules")?
+            .set_item(ddwaf.name()?, &ddwaf)?;
     }
     shared_runtime::register_shared_runtime(m)?;
     remote_config::register_remote_config(m)?;

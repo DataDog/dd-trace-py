@@ -12,9 +12,8 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._contrib.filesystem import patch as filesystem_patch
 from ddtrace.appsec._contrib.filesystem.patch import wrapped_builtin_open
 from ddtrace.appsec._contrib.filesystem.patch import wrapped_path_open
-from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.appsec._utils import _observator
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.native._native.ddwaf import Result
 
 
 class _OriginalOpen:
@@ -116,16 +115,7 @@ def test_unexpected_exception_in_lfi_check_is_swallowed() -> None:
 
 
 def test_handle_lfi_blocks_lfi() -> None:
-    result = DDWaf_result(
-        1,
-        [],
-        {WAF_ACTIONS.BLOCK_ACTION: {}},
-        0.0,
-        0.0,
-        False,
-        _observator(),
-        {},
-    )
+    result = Result(matched=True, actions={WAF_ACTIONS.BLOCK_ACTION: {}})
     block_config = {"status_code": 403}
 
     with (

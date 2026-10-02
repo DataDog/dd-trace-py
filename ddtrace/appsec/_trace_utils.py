@@ -12,7 +12,6 @@ from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils_base import set_user
@@ -23,6 +22,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.native._native.ddwaf import Result
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -38,7 +38,7 @@ _BLOCKING_ACTIONS = frozenset({WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_AC
 _T = TypeVar("_T")
 
 
-def _is_blocking(res: Optional[DDWaf_result]) -> bool:
+def _is_blocking(res: Optional[Result]) -> bool:
     return res is not None and not _BLOCKING_ACTIONS.isdisjoint(res.actions)
 
 

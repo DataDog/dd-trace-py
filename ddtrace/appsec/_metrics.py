@@ -6,12 +6,12 @@ from typing import Optional
 
 from ddtrace.appsec import _constants
 from ddtrace.appsec._deduplications import deduplication
-from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import Telemetry_result
-from ddtrace.appsec._utils import _observator
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import Constant_Class
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.native._native.ddwaf import RulesetInfo
+from ddtrace.internal.native._native.ddwaf import Stats
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -83,7 +83,7 @@ def report_error(msg: str, version: str, action: str, error_level: bool = True) 
 
 
 @_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":waf:updates")
-def set_waf_updates_metric(info: DDWaf_info, success: bool) -> None:
+def set_waf_updates_metric(info: RulesetInfo, success: bool) -> None:
     tags: tuple[tuple[str, str], ...] = (
         ("event_rules_version", info.version or UNKNOWN_VERSION),
         ("waf_version", asm_config._ddwaf_version),
@@ -95,7 +95,7 @@ def set_waf_updates_metric(info: DDWaf_info, success: bool) -> None:
 
 
 @_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":waf:init")
-def set_waf_init_metric(info: DDWaf_info, success: bool) -> None:
+def set_waf_init_metric(info: RulesetInfo, success: bool) -> None:
     tags: tuple[tuple[str, str], ...] = (
         ("event_rules_version", info.version or UNKNOWN_VERSION),
         ("waf_version", asm_config._ddwaf_version),
@@ -126,22 +126,22 @@ TAGS_CONTAINER_DEPTH: tuple[tuple[str, str], ...] = (("truncation_reason", "4"),
 
 
 @_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":waf:truncations")
-def report_waf_truncation(observator: _observator) -> None:
+def report_waf_truncation(stats: Stats) -> None:
     bitfield = 0
-    if observator.string_length is not None:
+    if stats.string_length is not None:
         bitfield |= 1
         telemetry.telemetry_writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", observator.string_length, TAGS_STRING_LENGTH
+            TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", stats.string_length, TAGS_STRING_LENGTH
         )
-    if observator.container_size is not None:
+    if stats.container_size is not None:
         bitfield |= 2
         telemetry.telemetry_writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", observator.container_size, TAGS_CONTAINER_SIZE
+            TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", stats.container_size, TAGS_CONTAINER_SIZE
         )
-    if observator.container_depth is not None:
+    if stats.container_depth is not None:
         bitfield |= 4
         telemetry.telemetry_writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", observator.container_depth, TAGS_CONTAINER_DEPTH
+            TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", stats.container_depth, TAGS_CONTAINER_DEPTH
         )
     if bitfield:
         telemetry.telemetry_writer.add_count_metric(
