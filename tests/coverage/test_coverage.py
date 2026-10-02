@@ -12,6 +12,54 @@ import sys
 import pytest
 
 
+def test_coverage_stacks_are_isolated_across_copied_contexts():
+    from contextvars import copy_context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import ctx_covered
+    from ddtrace.internal.coverage.code import ctx_covered_files
+
+    with ModuleCodeCollector.CollectInContext():
+        parent_lines_stack = ctx_covered.get()
+        parent_files_stack = ctx_covered_files.get()
+        parent_depth = len(parent_lines_stack)
+        child_context = copy_context()
+
+        def collect_in_child_context():
+            with ModuleCodeCollector.CollectInContext():
+                assert len(ctx_covered.get()) == len(ctx_covered_files.get()) == parent_depth + 1
+                assert ctx_covered.get()[-1] is not parent_lines_stack[-1]
+                assert ctx_covered_files.get()[-1] is not parent_files_stack[-1]
+
+        child_context.run(collect_in_child_context)
+        assert ctx_covered.get() is parent_lines_stack
+        assert ctx_covered_files.get() is parent_files_stack
+        assert len(parent_lines_stack) == len(parent_files_stack) == parent_depth
+
+
+def test_exiting_collector_in_another_context_preserves_active_coverage():
+    from contextvars import copy_context
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import ctx_covered
+    from ddtrace.internal.coverage.code import ctx_covered_files
+
+    with ModuleCodeCollector.CollectInContext():
+        parent_depth = len(ctx_covered.get())
+        parent_lines = ctx_covered.get()[-1]
+        parent_files = ctx_covered_files.get()[-1]
+        child_context = copy_context()
+        child = ModuleCodeCollector.CollectInContext()
+        child_context.run(child.__enter__)
+
+        child.__exit__()
+        assert ctx_covered.get()[-1] is parent_lines
+        assert ctx_covered_files.get()[-1] is parent_files
+
+        child_context.run(child.__exit__)
+        assert len(ctx_covered.get()) == len(ctx_covered_files.get()) == parent_depth
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess()
 def test_coverage_defaults_to_file_level_when_env_unset():
