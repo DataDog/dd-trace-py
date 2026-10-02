@@ -368,16 +368,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     seed_fast_copy_profiler_stats();
 
-    // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them.
-    //
-    // safe_memcpy recovers only when our handler owns BOTH signals (see danger.cc).
-    // We can chain on top of handlers we coordinate with (faulthandler, crashtracker:
-    // pause + uninstall/reinstall in stack.cpp / crashtracking.py). Libraries such as
-    // abseil (vLLM/gRPC) or PyTorch/CUDA install their own handlers independently—often
-    // lazily on other threads—so overwriting them breaks their crash path and faults
-    // during sampling may still reach their handler instead of our siglongjmp (PROF-15342).
-    // If a foreign owner is already authoritative, leave it in place and fall back to
-    // the syscall copy rather than reclaiming on top.
+    // (Re)install once only if we still own both handlers. Coordinated chains
+    // (faulthandler/crashtracker) are fine; foreign owners (abseil/vLLM, PyTorch/CUDA)
+    // must not be overwritten -- leave them and use the syscall copy (PROF-14568).
     static std::once_flag segv_handler_once;
     if (fast_copy_handler_ops_enabled()) {
         std::call_once(segv_handler_once, []() {
@@ -391,27 +384,20 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
-    // safe_memcpy recovery needs us to own both handlers (PROF-15342): warm up on the
-    // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    //
-    // The intent comes from fast_copy_handler_ops_enabled() rather than fast_copy_active,
-    // which the warmup itself clears. That matters after fork(): a child forked mid-warmup
-    // inherits fast_copy_active == false, so deriving intent from it left the child on the
-    // syscall copy permanently. It also keeps a parent that already ceded the handler from
-    // re-running warmup in the child and taking the handler back.
+    // Warm up on syscall copy; upgrade only if we still own both handlers (PROF-14568).
+    // Gate on handler_ops (desired), not fast_copy_active - warmup clears the latter;
+    // fork mid-warmup must re-decide, and foreign-takeover parents must not reclaim in the child.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
     const bool syscall_copy_available = true; // mach_vm_read_overwrite is always available
 #endif
-    // Warm up only when fast copy is wanted and a safe fallback path exists to run on.
     const bool fast_copy_warmup = fast_copy_handler_ops_enabled() && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
-        // Drop to the safe syscall copy for the startup window.
         set_fast_copy_enabled(false);
     }
 
@@ -439,20 +425,15 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Foreign handler handling (see notes before the loop); faulthandler's
-        // transient swaps are safe since the sampler is paused around them.
+        // Foreign-handler checks; faulthandler swaps are paused around (see notes above).
         if (fast_copy_handler_ops_enabled()) {
             if (!fast_copy_upgraded) {
-                // Warmup window: still on the safe syscall copy. Once it elapses,
-                // upgrade to safe_memcpy only if we still own the handlers.
                 if (sample_time_now >= fast_copy_warmup_deadline) {
                     fast_copy_upgraded = true; // decide once
                     if (segv_handler_installed()) {
                         set_fast_copy_enabled(true);
                     } else {
-                        // Another component already owns a handler; stay on the safe
-                        // syscall copy (already active from warmup) for the life of
-                        // the process, and of any child forked from it.
+                        // Foreign owner: stay on syscall copy for this process and forks.
                         handler_fallback_done = true;
                         mark_fast_copy_foreign_takeover();
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
@@ -461,20 +442,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     }
                 }
             } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
-                // A handler was taken over after upgrading; fall back permanently
-                // (no debounce). This is not free: it pins the process to the slower
-                // syscall copy for its remaining lifetime, which can meaningfully
-                // degrade sample quality (e.g. on asyncio workloads). We still prefer
-                // it over the alternative, which is crashing under a foreign handler.
+                // Post-upgrade foreign takeover: permanent syscall fallback beats crashing.
                 handler_fallback_done = true;
                 mark_fast_copy_foreign_takeover();
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing."
                           << std::endl;
                 if (!set_fast_copy_enabled(false)) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
+                    // No syscall fallback left; stop rather than read under a foreign handler.
                     std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
                                  "stopping stack sampling to avoid crashing."
                               << std::endl;
