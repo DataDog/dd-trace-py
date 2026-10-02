@@ -189,13 +189,10 @@ def test_fast_copy_faulthandler_enable_during_warmup() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
-    # Land inside the warmup window: fast copy is inactive here, but our SIGSEGV/SIGBUS
-    # handlers are still installed, since warmup only swaps the copy function.
+    # Inside warmup: inactive but handlers still installed.
     assert wait_for_fast_copy_state(_stack, False), "sampler never dropped to the syscall copy"
 
-    # ddtrace wraps faulthandler.enable to pause sampling, step out of the handler chain
-    # and reclaim on top. Those hooks used to be gated on the transient fast-copy flag, so
-    # during warmup both were no-ops and faulthandler kept ownership for good.
+    # Hooks must reclaim during warmup (were gated on fast_copy_active).
     faulthandler.enable()
     assert _stack.segv_handler_installed(), "handler not reclaimed after faulthandler.enable()"
 
@@ -228,14 +225,12 @@ def test_fast_copy_fork_during_warmup() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
-    # Fork while the sampler is still warming up on the syscall copy. This is the common
-    # shape for gunicorn and celery prefork, which fork their workers moments after start.
+    # Fork mid-warmup (gunicorn/celery shape).
     assert wait_for_fast_copy_state(_stack, False), "sampler never dropped to the syscall copy"
 
     pid: int = os.fork()
     if pid == 0:
-        # The atfork hook restarts the sampler here. Deriving the fast-copy intent from
-        # the transient flag left the child on the syscall copy for its whole life.
+        # atfork restarts sampler; must not inherit fast_copy_active==false forever.
         try:
             child_upgraded: bool = wait_for_fast_copy_state(_stack, True, timeout=20.0)
         except BaseException:
@@ -279,14 +274,13 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
-    # Land inside the warmup window, then let another component take SIGSEGV before the
-    # upgrade decision runs. The sampler must stay on the syscall copy and record why.
+    # Takeover during warmup before upgrade.
     assert wait_for_fast_copy_state(_stack, False), "sampler never dropped to the syscall copy"
 
     signal.signal(signal.SIGSEGV, signal.SIG_DFL)
     assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
 
-    # Wait past warmup and an upload interval so metadata is flushed.
+    # Past warmup + upload interval for metadata flush.
     time.sleep(4)
     p.stop()
 
@@ -310,8 +304,7 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     assert metadata["fast_copy_memory_syscall_fallback"] is True, metadata
     assert metadata["fast_copy_memory_enabled"] is False, metadata
 
-    # Sticky disable must survive stop → set_fast_copy(True) → start; the gate in
-    # set_fast_copy refuses re-enable while fast_copy_foreign_takeover is set.
+    # Sticky: survives stop -> set_fast_copy(True) -> start.
     _stack.set_fast_copy(True)
     p.start()
     assert _stack.fast_copy_memory_active() is False, "foreign takeover must block fast-copy re-enable after restart"
