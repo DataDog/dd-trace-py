@@ -106,9 +106,7 @@ def traced_llm_generate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.llm.generate.before", (prompts,), allow_raise=True)
         completions = func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.llm.generate.after", (prompts, completions), allow_raise=True)
+        core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
@@ -141,9 +139,7 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.llm.agenerate.before", (prompts,), allow_raise=True)
         completions = await func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.llm.agenerate.after", (prompts, completions), allow_raise=True)
+        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
@@ -175,9 +171,7 @@ def traced_chat_model_generate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.chatmodel.generate.before", (chat_messages,), allow_raise=True)
         chat_completions = func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions), allow_raise=True)
+        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
@@ -209,9 +203,7 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
     try:
         core.dispatch("langchain.chatmodel.agenerate.before", (chat_messages,), allow_raise=True)
         chat_completions = await func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions), allow_raise=True)
+        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
