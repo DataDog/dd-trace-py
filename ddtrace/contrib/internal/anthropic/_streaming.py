@@ -9,8 +9,6 @@ from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 
 
 log = get_logger(__name__)
