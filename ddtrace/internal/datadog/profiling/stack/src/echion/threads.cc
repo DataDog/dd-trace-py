@@ -220,6 +220,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
         // Copy all Task object pointers into previous_task_objects
         previous_task_objects.clear();
+        previous_task_objects.reserve(all_tasks.size());
         for (const auto& task : all_tasks) {
             previous_task_objects.insert(task->origin);
         }
