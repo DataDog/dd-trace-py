@@ -166,6 +166,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                    std::inserter(all_task_origins, all_task_origins.begin()),
                    [](const TaskInfo::Ptr& task) { return task->origin; });
 
+    // Snapshots of the link maps used for parent-chain resolution after the lock
+    // is released. Avoids re-acquiring the lock per leaf task during the walk.
+    std::unordered_map<PyObject*, PyObject*> task_link_snapshot;
+    std::unordered_map<PyObject*, PyObject*> weak_task_link_snapshot;
+
     {
         auto& previous_task_objects = echion.previous_task_objects();
         std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
@@ -217,6 +222,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                 parent_tasks.insert(parent);
             }
         }
+
+        // Snapshot the link maps for parent-chain resolution below. This lets
+        // us walk the chain without re-acquiring task_link_map_lock_ per leaf task
+        task_link_snapshot = task_link_map;
+        weak_task_link_snapshot = weak_task_link_map;
 
         // Copy all Task object pointers into previous_task_objects
         previous_task_objects.clear();
@@ -382,23 +392,23 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                 continue;
             }
 
-            {
-                // Check for, e.g., gather links
-                std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
-                auto& task_link_map = echion.task_link_map();
-                auto& weak_task_link_map = echion.weak_task_link_map();
-
-                if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
-                    if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
-                        current_task = maybe_origin->second;
-                        continue;
-                    }
+            // Check for gather (strong) links using the snapshot taken earlier.
+            // No lock needed bc the snapshot is a local copy.
+            if (auto maybe_parent = task_link_snapshot.find(task_origin);
+                maybe_parent != task_link_snapshot.end()) {
+                if (auto maybe_origin = origin_map.find(maybe_parent->second);
+                    maybe_origin != origin_map.end()) {
+                    current_task = maybe_origin->second;
+                    continue;
                 }
+            }
 
-                // Check for weak links
-                if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
+            // Check for weak links
+            if (auto maybe_weak = weak_task_link_snapshot.find(task_origin);
+                maybe_weak != weak_task_link_snapshot.end()) {
+                if (auto maybe_origin = origin_map.find(maybe_weak->second);
+                    maybe_origin != origin_map.end()) {
+                    current_task = maybe_origin->second;
                     continue;
                 }
             }
