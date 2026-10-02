@@ -2012,6 +2012,7 @@ def listen():
         # web frameworks
         "cherrypy.request",
         "pyramid.request",
+        "sanic.request",
         "tornado.request",
         "flask.call",
         "flask.jsonify",
