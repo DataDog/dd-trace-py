@@ -1,3 +1,7 @@
+import os
+import sys
+from tempfile import NamedTemporaryFile
+from textwrap import dedent
 from unittest import mock
 
 import pytest
@@ -8,12 +12,14 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.internal.urllib3.patch import patch
-from ddtrace.contrib.internal.urllib3.patch import unpatch
+from ddtrace.contrib.internal.urllib3 import patch as urllib3_patch
+from ddtrace.contrib.internal.urllib3.patch import supported_versions
 from ddtrace.ext import http
+from ddtrace.internal.integrations import registry as _integration_registry
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import HTTPBIN_CONFIG
 from tests.utils import TracerTestCase
+from tests.utils import call_program
 from tests.utils import snapshot
 
 
@@ -31,12 +37,12 @@ class BaseUrllib3TestCase(TracerTestCase):
     def setUp(self):
         super().setUp()
 
-        patch()
+        _integration_registry.enable_plugin(urllib3_patch)
         self.http = urllib3.PoolManager()
 
     def tearDown(self):
         super().tearDown()
-        unpatch()
+        _integration_registry.disable_plugin(urllib3_patch)
 
 
 class TestUrllib3(BaseUrllib3TestCase):
@@ -128,24 +134,28 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.get_tag("out.host") == HOST
 
     def test_untraced_request(self):
-        """Disabling tracing with unpatch should submit no spans"""
+        """Disabling tracing with disable_plugin() should submit no spans"""
         # Assumes patching is done in the setUp of the test
-        unpatch()
+        _integration_registry.disable_plugin(urllib3_patch)
 
         out = self.http.request("GET", URL_200)
         assert out.status == 200
         spans = self.pop_spans()
         assert len(spans) == 0
 
-    def test_double_patch(self):
-        """Ensure that double patch doesn't duplicate instrumentation"""
-        patch()
+    def test_double_enable(self):
+        """Ensure that a second enable_plugin() doesn't duplicate instrumentation"""
+        _integration_registry.enable_plugin(urllib3_patch)  # setUp already enabled it -- this must be a no-op
         connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
 
         out = connpool.urlopen("GET", URL_200)
         assert out.status == 200
         spans = self.pop_spans()
         assert len(spans) == 1
+
+    def test_supported_versions(self):
+        assert "urllib3" in supported_versions
+        assert supported_versions["urllib3"] != ""
 
     def test_200(self):
         """Test 200 span tags"""
@@ -418,7 +428,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Tests distributed tracing headers are passed by default"""
         # Check that distributed tracing headers are passed down; raise an error rather than make the
         # request since we don't care about the response at all
-        config.urllib3["distributed_tracing"] = True
+        config.urllib3.distributed_tracing = True
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:
@@ -464,7 +474,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
     def test_distributed_tracing_disabled(self):
         """Test with distributed tracing disabled does not propagate the headers"""
-        config.urllib3["distributed_tracing"] = False
+        config.urllib3.distributed_tracing = False
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:
@@ -498,21 +508,60 @@ class TestUrllib3(BaseUrllib3TestCase):
 
 
 @pytest.fixture()
-def patch_urllib3():
-    patch()
+def enable_urllib3():
+    _integration_registry.enable_plugin(urllib3_patch)
     try:
         yield
     finally:
-        unpatch()
+        _integration_registry.disable_plugin(urllib3_patch)
 
 
 @snapshot(ignores=["meta.out.host", "meta.http.url", "meta.server.address"])
-def test_urllib3_poolmanager_snapshot(patch_urllib3):
+def test_urllib3_poolmanager_snapshot(enable_urllib3):
     pool = urllib3.PoolManager()
     pool.request("GET", URL_200)
 
 
 @snapshot(ignores=["meta.out.host", "meta.http.url", "meta.server.address"])
-def test_urllib3_connectionpool_snapshot(patch_urllib3):
+def test_urllib3_connectionpool_snapshot(enable_urllib3):
     pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
     pool.request("GET", "/status/200")
+
+
+def test_ddtrace_run_enable_on_import():
+    """End-to-end smoke test for this integration's real wiring: the "urllib3" entry in
+    pyproject.toml's `ddtrace.integrations` group, IntegrationRegistry discovering it, and
+    DD_TRACE_URLLIB3_ENABLED activating it through ddtrace-run. Also verifies urllib3 isn't
+    force-imported by any of that -- it must not appear in sys.modules until the script itself
+    imports it. The generic ModuleWatchdog import-ordering/idempotency behavior this exercises
+    incidentally is covered once, for any plugin, in tests/internal/test_integrations.py; this test
+    only needs to confirm that behavior is correctly wired up for urllib3 specifically.
+    """
+    with NamedTemporaryFile(mode="w", suffix=".py") as f:
+        f.write(
+            dedent(
+                """
+                import sys
+
+                assert "urllib3" not in sys.modules, "urllib3 must not be force-imported"
+                sys.stdout.write("O")
+
+                import urllib3 as mod
+
+                from ddtrace.internal.compat import is_wrapted
+                from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
+
+                urlopen = mod.connectionpool.HTTPConnectionPool.urlopen
+                if is_wrapted(urlopen) or _dd_is_wrapped(urlopen):
+                    sys.stdout.write("K")
+                """
+            )
+        )
+        f.flush()
+
+        env = os.environ.copy()
+        env["DD_TRACE_URLLIB3_ENABLED"] = "1"
+
+        out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+
+        assert out == b"OK", "stderr:\n%s" % err.decode()

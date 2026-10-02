@@ -90,6 +90,17 @@ sanitization, LLMObs assertions, and VCR cassette setup.
 
 See [Implementation Guide](references/implementation-guide.md) for detailed step-by-step.
 
+### Migrating an existing integration onto the plugin interface
+
+A small number of integrations (currently `urllib3`) have moved off
+`PATCH_MODULES`/`_MODULES_FOR_CONTRIB`/`when_imported` onto the newer
+`IntegrationPlugin` interface (`ddtrace/internal/integrations.py`), discovered
+via the `ddtrace.integrations` entry-point group instead of a central dict.
+Use [Plugin Migration](references/plugin-migration.md) when migrating another
+integration onto it — this is a different workflow from creating a brand-new
+integration (the steps above), since the goal is zero behavior change to code
+that already works.
+
 ## Debugging
 
 - `DD_TRACE_DEBUG=true` to see patching activity and span creation
@@ -107,6 +118,7 @@ This clears the Rust target directory and pip's download/build caches. Run this 
 ## Reference Files
 
 - [Implementation Guide](references/implementation-guide.md) -- Step-by-step new integration (all types)
+- [Plugin Migration](references/plugin-migration.md) -- Moving an existing integration onto the `IntegrationPlugin` interface
 - [Reference Integrations](references/reference-integrations.md) -- All 13 categories with canonical examples
 - [Design Decisions](references/design-decisions.md) -- Why integrations are structured this way
 - [Anti-Patterns](references/anti-patterns.md) -- Silent failures and common gotchas

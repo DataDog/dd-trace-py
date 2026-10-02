@@ -48,6 +48,8 @@ from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
+from .integration import IntegrationEnvConfig
+from .integration import _pending_plugin_configs
 
 
 log = get_logger(__name__)
@@ -219,10 +221,12 @@ INTEGRATION_CONFIGS = frozenset(
 )
 
 
-def _integration_default_service_names_from_config(int_config: IntegrationConfig) -> set[str]:
+def _integration_default_service_names_from_config(
+    int_config: Union[IntegrationConfig, IntegrationEnvConfig],
+) -> set[str]:
     names: set[str] = set()
     for attribute in DEFAULT_SERVICE_KEYS:
-        if value := int_config.get(attribute):
+        if value := getattr(int_config, attribute, None):
             names.add(value)
     return names
 
@@ -468,8 +472,9 @@ class Config:
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
 
-        # Use a dict as underlying storing mechanism for integration configs
-        self._integration_configs: dict[str, IntegrationConfig] = {}
+        # Use a dict as underlying storing mechanism for integration configs. Migrated integrations
+        # (see ddtrace/internal/integrations.py) register an IntegrationEnvConfig here instead.
+        self._integration_configs: dict[str, Union[IntegrationConfig, IntegrationEnvConfig]] = {}
         # Union of `_default_service*` string values from integrations registered via `_add`.
         self._integration_default_services: frozenset[str] = frozenset()
 
@@ -834,6 +839,22 @@ class Config:
         if name in self._config:
             return self._config[name].value()
         elif name in self._integration_configs:
+            return self._integration_configs[name]
+        elif name in _pending_plugin_configs:
+            # A migrated integration's config (IntegrationEnvConfig, see
+            # ddtrace/internal/settings/integration.py) self-registers here the moment its class is
+            # instantiated -- e.g. `config = _Urllib3Config()` in urllib3's own patch.py -- so it's
+            # visible here regardless of what imported that plugin's patch.py (IntegrationRegistry,
+            # the legacy _monkey.py path, or a test importing it directly).
+            self._integration_configs[name] = _pending_plugin_configs[name]
+            self._recompute_integration_default_services()
+            if self is config:
+                # Once the process-wide singleton has pulled it in, every real consumer resolves
+                # `config.<name>` from `self._integration_configs` from here on -- nothing needs a
+                # second pull from `_pending_plugin_configs` -- so drop the pending entry rather than
+                # holding onto it for the rest of the process. A throwaway `Config()` (tests) still
+                # sees it as long as it hasn't been claimed by the singleton yet.
+                _pending_plugin_configs.pop(name, None)
             return self._integration_configs[name]
         elif name in INTEGRATION_CONFIGS:
             # Allows for accessing integration configs before an integration is patched

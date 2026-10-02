@@ -3,6 +3,7 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.http import normalize_header_name
 
@@ -18,7 +19,7 @@ class HttpConfig:
 
     def __init__(self, header_tags: Optional[Mapping[str, str]] = None) -> None:
         self._header_tags = {normalize_header_name(k): v for k, v in header_tags.items()} if header_tags else {}
-        self.trace_query_string = None
+        self.trace_query_string: Optional[bool] = None
 
     def _reset(self):
         self._header_tags = {}
@@ -77,3 +78,55 @@ class HttpConfig:
             f"traced_headers={self._header_tags.keys()} "
             f"trace_query_string={self.trace_query_string}>"
         )
+
+
+# Utility functions consuming a (integration-level, tracer-wide) pair of HttpConfig objects to
+# answer the questions IntegrationConfig/HttpIntegrationConfigMixin expose as properties. Plain
+# functions, not methods, so the logic is reusable/testable independently of what config class holds
+# the HttpConfig objects. Deliberately parameter-based rather than reaching for the tracer-wide
+# Config singleton themselves: this module is a leaf ddtrace.internal.settings._config already
+# imports (for HttpConfig), so it must never import _config.py back. HttpIntegrationConfigMixin,
+# which needs the actual Config singleton to supply that second argument, lives in
+# ddtrace/internal/integrations.py instead -- see that module for why.
+
+
+def trace_query_string(http_config: HttpConfig, global_http_config: Optional[HttpConfig]) -> Optional[bool]:
+    """Whether to tag query strings for a request, given its integration-level HttpConfig and (if
+    available) the tracer-wide one to fall back to when the integration hasn't configured it.
+    """
+    if http_config.trace_query_string is not None:
+        return http_config.trace_query_string
+    return global_http_config.trace_query_string if global_http_config is not None else None
+
+
+def is_header_tracing_configured(http_config: HttpConfig, global_http_config: Optional[HttpConfig]) -> bool:
+    """Whether header tracing is enabled, either for this integration specifically or tracer-wide."""
+    if global_http_config is not None:
+        return http_config.is_header_tracing_configured or global_http_config.is_header_tracing_configured
+    return http_config.is_header_tracing_configured
+
+
+def header_tag_name(
+    http_config: HttpConfig, global_http_config: Optional[HttpConfig], header_name: str
+) -> Optional[str]:
+    # _header_tag_name is a @cachedmethod, whose descriptor type doesn't preserve HttpConfig's own
+    # Optional[str] return annotation for mypy.
+    tag_name: Optional[str] = http_config._header_tag_name(header_name)
+    if tag_name is None and global_http_config is not None:
+        return global_http_config._header_tag_name(header_name)  # type: ignore[no-any-return]
+    return tag_name
+
+
+def header_is_traced(http_config: HttpConfig, global_http_config: Optional[HttpConfig], header_name: str) -> bool:
+    return header_tag_name(http_config, global_http_config, header_name) is not None
+
+
+def get_http_tag_query_string(global_http_tag_query_string: bool, value: Optional[str]) -> bool:
+    """Whether query strings should be tagged by default for an integration whose own static default
+    is `value`, given the tracer-wide default (`Config._http_tag_query_string`).
+    """
+    if global_http_tag_query_string:
+        dd_http_server_tag_query_string = value if value else env.get("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
+        # If invalid value, will default to True
+        return dd_http_server_tag_query_string.lower() not in ("false", "0")
+    return False
