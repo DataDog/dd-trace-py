@@ -29,7 +29,8 @@ Version resolution:
 Errors:
 - CI only uses 'latest' AND latest is outside declared range (testing wrong version)
 - CI has explicit bounds but doesn't cover all required majors
-- A 'latest' lookup failed, timed out, or returned no version (not reported as missing majors)
+- A 'latest' lookup failed, timed out, or returned no version AND explicit
+  bounds do not cover all required majors (not reported as missing majors)
 
 Warnings:
 - CI only uses 'latest' but latest is within declared range (works but fragile)
