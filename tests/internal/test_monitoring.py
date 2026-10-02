@@ -122,6 +122,11 @@ class HandledExceptionHandler(monitoring.MonitoringEventHandler):
         self.handled.append((code, exception))
 
 
+class RaisingHandledExceptionHandler(monitoring.MonitoringEventHandler):
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        raise RuntimeError("handled-exception handler exploded")
+
+
 @pytest.fixture
 def registered() -> Iterator[
     Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler]
@@ -994,6 +999,18 @@ def test_global_registration_preserves_disabled_local_events(
     monitoring.unregister_global(exception_handler)
     fn()
     assert len(line_handler.lines) == refreshed_count
+
+
+def test_exception_handled_handler_failure_does_not_affect_user_code(
+    registered_global: Callable[[monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A failing global handler is isolated from user code."""
+
+    def fn() -> None:
+        pass
+
+    registered_global(RaisingHandledExceptionHandler())
+    monitoring._on_exception_handled(fn.__code__, 0, ValueError("handled"))
 
 
 def test_register_global_rejects_different_exception_handler(

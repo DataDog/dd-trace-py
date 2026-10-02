@@ -168,12 +168,13 @@ class MonitoringEventHandler(ABC):
         being iterated, which produces undefined behavior.
 
     .. warning::
-        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` and
-        ``on_exception_handled`` are not caught -- they propagate into the
-        monitored frame, exactly as sys.monitoring itself would deliver a
-        callback failure. Catch your own exceptions if a handler must not
-        affect the monitored function's behavior. ``on_py_line`` exceptions
-        are caught and logged instead so one sub-system cannot disrupt another.
+        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` are
+        not caught -- they propagate into the monitored frame and skip any
+        later handler for the same event, exactly as sys.monitoring itself
+        would deliver a callback failure. Catch your own exceptions if a
+        handler must not affect the monitored function's behavior.
+        ``on_py_line`` and ``on_exception_handled`` are caught and logged
+        instead so one sub-system cannot disrupt another.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -395,7 +396,10 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 def _on_exception_handled(code: CodeType, instruction_offset: int, exception: BaseException) -> None:
     h = _global_exception_handler
     if h is not None:
-        h.on_exception_handled(code, instruction_offset, exception)
+        try:
+            h.on_exception_handled(code, instruction_offset, exception)
+        except Exception:
+            log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

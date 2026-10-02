@@ -436,7 +436,7 @@ interested in those event bits again.
 
 ### Error Isolation
 
-LINE handler failures are logged and isolated so one subsystem cannot disrupt
-another. Global, PY_START, PY_RETURN, and PY_UNWIND handler failures propagate
-to the monitored frame; those handlers must contain their own failures when
-isolation is required.
+LINE and global handler failures are logged and isolated so one subsystem
+cannot disrupt another. PY_START, PY_RETURN, and PY_UNWIND handler failures
+propagate to the monitored frame; handlers for those lifecycle events must
+handle their own failures when isolation is required.
