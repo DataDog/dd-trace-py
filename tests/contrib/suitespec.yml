@@ -233,9 +233,7 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@botocore'
       - tests/contrib/aiobotocore/*
     services:
@@ -262,9 +260,7 @@ suites:
     pattern: ^aiohttp$
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@aiohttp'
       - tests/contrib/aiohttp/*
       - tests/snapshots/tests.{suite}.*
@@ -294,9 +290,7 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@aiohttp'
       - '@aiohttp_jinja2'
       - tests/contrib/aiohttp/*
@@ -336,10 +330,7 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@dbapi'
       - '@mysql'
       - tests/contrib/aiomysql/*
       - tests/snapshots/tests.{suite}.*
@@ -369,8 +360,6 @@ suites:
       TEST_KAFKA_PORT: '29092'
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@aiokafka'
       - '@datastreams'
@@ -394,11 +383,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@dbapi'
-      - '@pg'
       - '@aiopg'
       - tests/contrib/aiopg/*
       - tests/contrib/shared_tests_async.py
@@ -419,9 +404,7 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@algoliasearch'
       - tests/contrib/algoliasearch/*
     snapshot: true
@@ -433,11 +416,8 @@ suites:
   anyio:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@anyio'
-      - '@context_watcher'
       - '@trio'
       - tests/contrib/anyio/*
       - tests/tracer/test_otel_thread_context.py
@@ -458,9 +438,7 @@ suites:
   aredis:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@redis'
       - tests/contrib/aredis/*
       - tests/snapshots/tests.{suite}.*
@@ -478,11 +456,8 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@asyncio'
-      - '@appsec'
       - '@asgi'
       - tests/contrib/asgi/*
       - tests/snapshots/tests.{suite}.*
@@ -502,9 +477,7 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@pg'
       - tests/contrib/asyncpg/*
       - tests/snapshots/tests.{suite}.*
@@ -529,9 +502,7 @@ suites:
   asynctest:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - tests/contrib/asynctest/*
     pattern: asynctest$
     matrix:
@@ -545,9 +516,7 @@ suites:
   avro:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@avro'
       - tests/contrib/avro/*
     snapshot: true
@@ -559,9 +528,7 @@ suites:
   aws_lambda:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@aws_lambda'
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
@@ -584,9 +551,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@aws_durable_execution_sdk_python'
       - tests/contrib/aws_durable_execution_sdk_python/*
       - tests/snapshots/tests.{suite}.*
@@ -606,9 +571,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_cosmos'
       - tests/contrib/azure_cosmos/*
       - tests/snapshots/tests.contrib.azure_cosmos.*
@@ -629,9 +592,7 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_eventhubs'
       - tests/contrib/azure_eventhubs/*
       - tests/snapshots/tests.contrib.azure_eventhubs.*
@@ -666,9 +627,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_durable_functions'
       - tests/contrib/azure_durable_functions/*
     snapshot: true
@@ -692,9 +651,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_functions'
       - tests/contrib/azure_functions/*
       - tests/snapshots/tests.contrib.azure_functions.*
@@ -717,9 +674,7 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_functions'
       - '@azure_cosmos'
       - tests/contrib/azure_functions_cosmos/*
@@ -750,11 +705,8 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_functions'
-      - '@azure_eventhubs'
       - tests/contrib/azure_functions_eventhubs/*
       - tests/snapshots/tests.contrib.azure_functions_eventhubs.*
     pattern: azure_functions:eventhubs
@@ -777,11 +729,8 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_functions'
-      - '@azure_servicebus'
       - tests/contrib/azure_functions_servicebus/*
       - tests/snapshots/tests.contrib.azure_functions_servicebus.*
     pattern: azure_functions:servicebus
@@ -805,9 +754,7 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@azure_servicebus'
       - tests/contrib/azure_servicebus/*
       - tests/snapshots/tests.contrib.azure_servicebus.*
@@ -834,10 +781,7 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@llmobs'
       - '@botocore'
       - '@datastreams'
       - tests/contrib/botocore/*
@@ -858,9 +802,7 @@ suites:
   bottle:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@bottle'
       - tests/contrib/bottle/*
     snapshot: true
@@ -888,9 +830,7 @@ suites:
       PORT: 9126
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@celery'
       - tests/contrib/celery/*
     services:
@@ -915,9 +855,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@cherrypy'
       - tests/contrib/cherrypy/*
       - tests/snapshots/tests.{suite}.*
@@ -939,9 +877,7 @@ suites:
     venvs_per_job: 8
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@consul'
       - tests/contrib/consul/*
     snapshot: true
@@ -971,7 +907,6 @@ suites:
   ddtrace_api:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@tracing'
       - '@ddtrace_api'
       - tests/contrib/ddtrace_api/*
@@ -989,16 +924,10 @@ suites:
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
-      - '@appsec'
       - '@appsec_iast'
-      - '@asgi'
       - '@wsgi'
       - '@django'
-      - '@dbapi'
-      - '@pg'
       - tests/appsec/*
       - tests/contrib/django/*
       - tests/contrib/django_celery/*
@@ -1083,10 +1012,7 @@ suites:
   django_hosts:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@appsec'
       - '@django'
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/django_hosts/*
@@ -1112,10 +1038,7 @@ suites:
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@appsec'
       - '@django'
       - tests/contrib/djangorestframework/*
       - tests/contrib/djangorestframework/app/*
@@ -1146,9 +1069,7 @@ suites:
     venvs_per_job: 8
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@dogpile_cache'
       - tests/contrib/dogpile_cache/*
     snapshot: true
@@ -1172,9 +1093,7 @@ suites:
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@dramatiq'
       - tests/contrib/dramatiq/*
       - tests/snapshots/tests.contrib.dramatiq.*
@@ -1198,8 +1117,6 @@ suites:
       TEST_ELASTICSEARCH_HOST: elasticsearch
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@elasticsearch'
       - tests/contrib/elasticsearch/__init__.py
@@ -1240,8 +1157,6 @@ suites:
       TEST_ELASTICSEARCH_HOST: elasticsearch
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@elasticsearch'
       - tests/contrib/elasticsearch/__init__.py
@@ -1261,8 +1176,6 @@ suites:
       TEST_ELASTICSEARCH_HOST: elasticsearch
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@elasticsearch'
       - tests/contrib/elasticsearch/__init__.py
@@ -1287,8 +1200,6 @@ suites:
       TEST_OPENSEARCH_HOST: opensearch
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@elasticsearch'
       - tests/contrib/elasticsearch/__init__.py
@@ -1311,9 +1222,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@falcon'
       - tests/contrib/falcon/*
     snapshot: true
@@ -1335,15 +1244,10 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@anyio'
-      - '@starlette'
       - '@fastapi'
-      - '@asgi'
       - '@asyncio'
-      - '@context_watcher'
       - tests/contrib/fastapi/*
       - tests/snapshots/tests.contrib.starlette.*
       - tests/snapshots/tests.{suite}.*
@@ -1377,14 +1281,9 @@ suites:
       TEST_REDIS_HOST: redis
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@flask'
-      - '@appsec'
       - '@appsec_iast'
-      - '@wsgi'
-      - '@redis'
       - tests/appsec/*
       - tests/contrib/flask/*
       - tests/contrib/flask_autopatch/*
@@ -1466,11 +1365,8 @@ suites:
   gevent:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@gevent'
-      - '@context_watcher'
       - tests/contrib/gevent/*
     snapshot: false
     matrix:
@@ -1498,8 +1394,6 @@ suites:
       TEST_PUBSUB_PORT: '8085'
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@google_cloud_pubsub'
       - tests/contrib/google_cloud_pubsub/*
@@ -1523,9 +1417,7 @@ suites:
   graphql:graphene:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@graphql'
       - tests/contrib/graphene/*
       - tests/snapshots/tests.contrib.graphene*
@@ -1546,9 +1438,7 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@graphql'
       - tests/contrib/graphql/*
       - tests/snapshots/tests.contrib.graphql.*
@@ -1565,9 +1455,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@grpc'
       - tests/contrib/grpc/*
       - tests/contrib/grpc_aio/*
@@ -1625,9 +1513,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@gunicorn'
       - tests/contrib/gunicorn/*
       - tests/snapshots/tests.contrib.gunicorn.*
@@ -1645,9 +1531,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@httplib'
       - tests/contrib/httplib/*
     services:
@@ -1663,8 +1547,6 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@httpx'
       - tests/contrib/httpx/*
@@ -1698,8 +1580,6 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@httpx2'
       - ddtrace/contrib/internal/httpx/common.py
@@ -1719,9 +1599,7 @@ suites:
   integration_registry:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@integration_registry'
       - tests/contrib/integration_registry/*
     snapshot: false
@@ -1735,9 +1613,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@jinja2'
       - tests/contrib/jinja2/*
     snapshot: true
@@ -1759,8 +1635,6 @@ suites:
       TEST_KAFKA_PORT: '29092'
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@kafka'
       - '@datastreams'
@@ -1786,9 +1660,7 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@kombu'
       - '@datastreams'
       - tests/contrib/kombu/*
@@ -1812,9 +1684,7 @@ suites:
   logbook:
     venvs_per_job: 8
     paths:
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@logbook'
       - tests/contrib/logbook/*
     snapshot: true
@@ -1830,9 +1700,7 @@ suites:
   loguru:
     venvs_per_job: 4
     paths:
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@loguru'
       - tests/contrib/loguru/*
     snapshot: true
@@ -1849,9 +1717,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@mako'
       - tests/contrib/mako/*
     snapshot: true
@@ -1866,10 +1732,7 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@dbapi'
       - '@mariadb'
       - tests/contrib/mariadb/*
       - tests/snapshots/tests.contrib.mariadb.*
@@ -1894,9 +1757,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@mlflow'
       - tests/contrib/mlflow/*
       - tests/snapshots/tests.contrib.mlflow.*
@@ -1915,9 +1776,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@molten'
       - tests/contrib/molten/*
       - tests/snapshots/tests.{suite}.*
@@ -1934,10 +1793,7 @@ suites:
   mysql:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
-      - '@dbapi'
       - '@mysql'
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
@@ -1971,10 +1827,7 @@ suites:
   mysqlpython:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
-      - '@dbapi'
       - '@mysql'
       - tests/contrib/mysqldb/*
       - tests/contrib/mysql/*
@@ -2052,9 +1905,7 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@protobuf'
       - tests/contrib/protobuf/*
     snapshot: true
@@ -2067,10 +1918,7 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
-      - '@dbapi'
       - '@pg'
       - tests/contrib/psycopg/*
       - tests/contrib/psycopg2/*
@@ -2105,9 +1953,7 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@pylibmc'
       - tests/contrib/pylibmc/*
     services:
@@ -2125,9 +1971,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@pymemcache'
       - tests/contrib/pymemcache/*
     services:
@@ -2151,8 +1995,6 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@mongo'
       - tests/contrib/pymongo/*
@@ -2181,10 +2023,7 @@ suites:
   pymysql:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@dbapi'
       - '@mysql'
       - tests/contrib/pymysql/*
       - tests/contrib/mysql/*
@@ -2207,9 +2046,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@pynamodb'
       - tests/contrib/pynamodb/*
     snapshot: true
@@ -2232,9 +2069,7 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@pytorch'
       - tests/contrib/pytorch/*
     snapshot: true
@@ -2286,11 +2121,8 @@ suites:
   pyodbc:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@pyodbc'
-      - '@dbapi'
       - tests/contrib/pyodbc/*
     snapshot: true
     matrix:
@@ -2304,9 +2136,7 @@ suites:
   pyramid:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@pyramid'
       - tests/contrib/pyramid/*
       - tests/snapshots/tests.contrib.pyramid.*
@@ -2329,10 +2159,7 @@ suites:
   ray:
     venvs_per_job: 3
     paths:
-      - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@ray'
       - '@ray_serve'
       - tests/contrib/ray/*
@@ -2355,10 +2182,7 @@ suites:
   ray_serve:
     venvs_per_job: 5
     paths:
-      - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@ray'
       - '@ray_serve'
       - tests/contrib/ray_serve/*
@@ -2383,9 +2207,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@redis'
       - tests/contrib/redis/*
       - tests/snapshots/tests.contrib.redis.*
@@ -2415,9 +2237,7 @@ suites:
   rediscluster:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@redis'
       - tests/contrib/rediscluster/*
       - tests/snapshots/tests.contrib.rediscluster.*
@@ -2438,9 +2258,7 @@ suites:
     venvs_per_job: 8
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@requests'
       - tests/contrib/requests/*
     services:
@@ -2465,9 +2283,7 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@rq'
       - tests/contrib/rq/*
       - tests/snapshots/tests.contrib.rq.*
@@ -2499,9 +2315,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@sanic'
       - '@asyncio'
       - tests/contrib/sanic/*
@@ -2544,10 +2358,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
-      - '@dbapi'
       - '@snowflake'
       - tests/contrib/snowflake/*
       - tests/snapshots/tests.contrib.snowflake.*
@@ -2570,7 +2381,6 @@ suites:
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
       - '@sourcecode'
       - tests/sourcecode/*
@@ -2585,11 +2395,8 @@ suites:
   sqlalchemy:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@sqlalchemy'
-      - '@dbapi'
       - tests/contrib/sqlalchemy/*
       - tests/snapshots/tests.{suite}.*
     services:
@@ -2615,13 +2422,9 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@asyncio'
       - '@starlette'
-      - '@asgi'
-      - '@context_watcher'
       - tests/contrib/starlette/*
     snapshot: true
     matrix:
@@ -2658,15 +2461,11 @@ suites:
     venvs_per_job: 9
     retry: 2
     paths:
-      - '@tracing'
       - '@bootstrap'
-      - '@core'
       - '@logging'
       - '@asyncio'
-      - '@context_watcher'
       - '@futures'
       - '@sqlite3'
-      - '@dbapi'
       - '@contrib'
       - tests/contrib/logging/*
       - tests/contrib/sqlite3/*
@@ -2721,9 +2520,7 @@ suites:
   structlog:
     venvs_per_job: 8
     paths:
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@structlog'
       - tests/contrib/structlog/*
     snapshot: true
@@ -2737,11 +2534,8 @@ suites:
   subprocess:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@contrib'
       - '@subprocess'
-      - '@appsec'
       - tests/contrib/subprocess/*
     matrix:
       command: pytest -vvvv {cmdargs} --no-cov tests/contrib/subprocess
@@ -2751,9 +2545,7 @@ suites:
   logging:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@logging'
       - tests/contrib/logging/*
     snapshot: true
@@ -2766,9 +2558,7 @@ suites:
     venvs_per_job: 6
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@tornado'
       - '@futures'
       - tests/contrib/tornado/*
@@ -2794,11 +2584,8 @@ suites:
   trio:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@trio'
-      - '@context_watcher'
       - tests/contrib/trio/*
       - tests/tracer/test_otel_thread_context.py
     services:
@@ -2820,9 +2607,7 @@ suites:
       TEST_HTTPBIN_PORT: '8001'
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@urllib3'
       - tests/contrib/urllib3/*
       - tests/snapshots/tests.contrib.urllib3.*
@@ -2849,9 +2634,7 @@ suites:
   vertica:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@vertica'
       - tests/contrib/vertica/*
     skip: true # Vertica tests are flaky
@@ -2867,9 +2650,7 @@ suites:
   wsgi:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@wsgi'
       - tests/contrib/wsgi/*
       - tests/contrib/django/test_django_wsgi.py
@@ -2887,10 +2668,8 @@ suites:
           dependencies: [WebTest, pytest-randomly, legacy-cgi]
   yaaredis:
     paths:
-      - '@core'
       - '@bootstrap'
       - '@contrib'
-      - '@tracing'
       - '@redis'
       - tests/contrib/yaaredis/*
       - tests/snapshots/tests.contrib.yaaredis.*
@@ -2911,9 +2690,7 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
       - '@contrib'
-      - '@tracing'
       - '@valkey'
       - tests/contrib/valkey/*
       - tests/snapshots/tests.contrib.valkey.*

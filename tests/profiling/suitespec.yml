@@ -12,7 +12,6 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
@@ -54,7 +53,6 @@ suites:
       DD_TRACE_AGENT_URL: ''
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
@@ -82,7 +80,6 @@ suites:
       DD_TRACE_AGENT_URL: ''
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
