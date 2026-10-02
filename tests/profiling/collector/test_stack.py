@@ -640,10 +640,13 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
 
     class SomeClass:
         @classmethod
-        def sleep_class(foobar, cls) -> None:  # pyright: ignore[reportSelfClsParameterName]
+        def sleep_class(foobar: type["SomeClass"], cls: int) -> None:  # pyright: ignore[reportSelfClsParameterName]
             return foobar().sleep_instance(cls)
 
-        def sleep_instance(foobar, self) -> None:  # pyright: ignore[reportUnusedParameter, reportSelfClsParameterName]
+        def sleep_instance(
+            foobar: "SomeClass",  # pyright: ignore[reportSelfClsParameterName]
+            self: int,  # pyright: ignore[reportUnusedParameter]
+        ) -> None:
             for _ in range(10):
                 time.sleep(0.1)
 
@@ -675,7 +678,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 pprof_utils.StackLocation(
                     function_name="sleep_instance",
                     filename="test_stack.py",
-                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
+                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 5,
                 ),
                 pprof_utils.StackLocation(
                     function_name="sleep_class",
@@ -685,7 +688,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class_not_right_type",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 26,
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 29,
                 ),
             ],
         ),
