@@ -1,0 +1,13 @@
+baseline: &baseline
+  tracer_enabled: false
+  profiler_enabled: false
+  debugger_enabled: false
+  appsec_enabled: false
+  iast_enabled: false
+  post_request: false
+  telemetry_metrics_enabled: false
+  resource_renaming_enabled: false
+  chunks: 1000
+tracer:
+  <<: *baseline
+  tracer_enabled: true

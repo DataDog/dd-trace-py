@@ -1,13 +1,20 @@
+from collections.abc import Iterator
 import os
 
 import pytest
+from pytest_mock import MockerFixture
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace._trace.trace_handlers import _TracedIterable
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
+from ddtrace.trace import Span
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -338,28 +345,81 @@ def test_distributed_tracing_nested():
     assert resp.status_int == 200
 
 
-# FIXME: this test breaks other tests in this file in an unpredictable pattern
-"""
-def test_wsgi_traced_iterable(tracer, test_spans):
-    # Regression test to ensure wsgi iterable does not define an __len__ attribute
-    middleware = DDWSGIMiddleware(application)
-    environ = {
-        "PATH_INFO": "/chunked",
-        "wsgi.url_scheme": "http",
-        "SERVER_NAME": "localhost",
-        "SERVER_PORT": "80",
-        "REQUEST_METHOD": "GET",
-    }
+class _ClosableIterable:
+    def __init__(self, values: list[bytes]) -> None:
+        self.values = values
+        self.closed = False
+        self.custom_attribute = "forwarded"
 
-    def start_response(status, headers, exc_info=None):
-        pass
+    def __iter__(self) -> Iterator[bytes]:
+        return iter(self.values)
 
-    resp = middleware(environ, start_response)
-    assert hasattr(resp, "__iter__")
-    assert hasattr(resp, "close")
-    assert hasattr(resp, "next") or hasattr(resp, "__next__")
-    assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
-"""
+    def __len__(self) -> int:
+        return len(self.values)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes(mocker: MockerFixture) -> None:
+    wrapped = _ClosableIterable([b"one", b"two"])
+    parent_span = Span("wsgi.request")
+    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
+    finish = mocker.spy(Span, "finish")
+    iterable = _TracedIterable(wrapped, span, parent_span, wrapped_is_iterator=True)
+
+    assert not span.finished
+    assert not parent_span.finished
+
+    assert iterable.__wrapped__ is wrapped
+    assert iterable.__class__ is _ClosableIterable
+    assert isinstance(iterable, _ClosableIterable)
+    assert iterable.custom_attribute == "forwarded"
+    iterable.custom_attribute = "updated"
+    assert wrapped.custom_attribute == "updated"
+    del iterable.custom_attribute
+    assert not hasattr(wrapped, "custom_attribute")
+    assert not hasattr(iterable, "__len__"), "WSGI iterables should not expose __len__"
+    assert list(iterable) == [b"one", b"two"]
+    assert span.finished
+    assert parent_span.finished
+    assert span.error == 0
+    assert parent_span.error == 0
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+
+    iterable.close()
+    assert wrapped.closed
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+
+
+def test_wsgi_traced_iterable_finishes_spans_on_error(mocker: MockerFixture) -> None:
+    error = RuntimeError("test error")
+
+    def raising_iterable() -> Iterator[bytes]:
+        yield b"one"
+        raise error
+
+    parent_span = Span("wsgi.request")
+    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
+    finish = mocker.spy(Span, "finish")
+    iterable = _TracedIterable(raising_iterable(), span, parent_span)
+
+    assert next(iterable) == b"one"
+    assert not span.finished
+    assert not parent_span.finished
+    with pytest.raises(RuntimeError, match="test error") as exc_info:
+        next(iterable)
+
+    assert exc_info.value is error
+    assert span.error == 1
+    assert span.get_tag(ERROR_TYPE) == "builtins.RuntimeError"
+    assert span.get_tag(ERROR_MSG) == "test error"
+    assert "raising_iterable" in span.get_tag(ERROR_STACK)
+    assert "RuntimeError: test error" in span.get_tag(ERROR_STACK)
+    assert parent_span.error == 0
+    assert span.finished
+    assert parent_span.finished
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
 
 
 @pytest.mark.parametrize(
