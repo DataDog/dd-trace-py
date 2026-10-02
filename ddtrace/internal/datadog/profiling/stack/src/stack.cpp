@@ -870,16 +870,8 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 static PyObject*
 stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Temporarily remove our SIGSEGV/SIGBUS handlers, restoring the saved
-    // previous handlers. Call this before letting another component (e.g.,
-    // faulthandler) install its own handler so it doesn't record ours as its
-    // previous handler (which would create a signal-handler cycle).
-    // Follow with stack_reinstall_segv_handler to reinstall on top.
-    //
-    // Keyed off the persistent intent rather than fast_copy_active: during the startup
-    // warmup window fast_copy_active is false while our handler is still installed, so
-    // gating on it let a faulthandler swap record our handler as its previous and keep
-    // ownership for the life of the process.
+    // Step out before a coordinated install (e.g. faulthandler) so it doesn't chain to us.
+    // Gate on desired (not fast_copy_active): during warmup handlers are still installed.
     if (fast_copy_handler_ops_enabled()) {
         uninstall_segv_handler();
     }
@@ -889,12 +881,7 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reclaim the SIGSEGV/SIGBUS handlers after a component we coordinate with (e.g.
-    // Python's faulthandler module) overwrote them. Our handler chains to the previous
-    // one for non-recovery faults, so both systems coexist correctly.
-    //
-    // Skipped once a foreign owner is authoritative: reclaiming on top of a handler we
-    // already ceded would break its crash path (see the notes in Sampler::sampling_thread).
+    // Reclaim after coordinated swap; skipped on foreign takeover (see Sampler::sampling_thread).
     if (fast_copy_handler_ops_enabled()) {
         init_segv_catcher();
     }
