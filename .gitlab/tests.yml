@@ -62,11 +62,13 @@ extract_test_artifacts:
     - !reference [.testrunner, before_script]
     - |
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
-      # Other test jobs remove the checkout package so Python imports use the wheel.
-      if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
+      # TIA experiments retain sources for dependency tracking. Other test jobs
+      # remove the checkout package so Python imports use the wheel.
+      if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" &&
+            "${TEST_SUITE:-}" != "llmobs::llmobs" ]]; then
         rm -r "$CI_PROJECT_DIR/ddtrace"
       fi
-    # Keep repository test helpers importable; ddtrace itself resolves from the installed wheel.
+    # Keep repository test helpers (and TIA experiment sources) importable.
     - export PYTHONPATH="$CI_PROJECT_DIR"
     - unset DD_SERVICE
     - unset DD_ENV
@@ -226,5 +228,27 @@ extract_test_artifacts:
   extends:
     - .ddtest_run_snapshot
     - .ddtest_base_gpu_snapshot
+
+# Databases are isolated by branch, job shard, dependency environment, and command.
+# Artifacts retain evidence; the cache supplies the next pipeline's starting database.
+.llmobs_tia:
+  variables:
+    DD_TRACE_PY_ENABLE_ITR_FOR_JOB: "false"
+    DD_CIVISIBILITY_ITR_ENABLED: "0"
+  resource_group: tia-$CI_COMMIT_REF_SLUG-$CI_JOB_NAME_SLUG
+  cache:
+    key: tia-v1-$CI_COMMIT_REF_SLUG-$CI_JOB_NAME_SLUG
+    paths:
+      - .tia/databases/
+    policy: pull-push
+    when: on_success
+  artifacts:
+    when: always
+    paths:
+      - core.*
+      - .tia/
+    reports:
+      junit: test-results/junit*.xml
+    expire_in: 1 week
 
 # Required jobs will appear here
