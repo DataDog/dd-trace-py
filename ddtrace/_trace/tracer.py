@@ -16,6 +16,8 @@ from typing import Union
 from typing import cast
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.context import _get_runtime_identity_generation
+from ddtrace._trace.context import _set_runtime_identity_generation
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
@@ -24,6 +26,7 @@ from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterPr
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import _RUNTIME_IDENTITY_GENERATION_KEY
 from ddtrace._trace.span import Span
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
@@ -52,6 +55,7 @@ from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import get_runtime_identity_refresh_lock
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -447,6 +451,27 @@ class Tracer:
             self._post_fork_writer_pending = False
             return True
 
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        with self._post_fork_lock:
+            stale_generation = self._span_aggregator._runtime_identity_generation
+            self._recreate(reset_buffer=True, drop_buffered_traces=True)
+            self._post_fork_writer_pending = False
+            self._detach_stale_context(stale_generation)
+        self._store_metadata()
+
+    def _detach_stale_context(self, stale_generation: Optional[int] = None) -> None:
+        # The /run hook fires before request-header extraction, so an active context
+        # belongs to the snapshot rather than the request that triggered the refresh.
+        active = self.context_provider.active()
+        current_generation = self._span_aggregator._runtime_identity_generation
+        if isinstance(active, Span):
+            if active._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY) != current_generation:
+                self.context_provider.activate(None)
+        elif isinstance(active, Context):
+            if stale_generation is not None:
+                _set_runtime_identity_generation(active, stale_generation)
+            self.context_provider.activate(None)
+
     def _recreate(
         self,
         trace_processors: Optional[list[TraceProcessor]] = None,
@@ -456,6 +481,7 @@ class Tracer:
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
         flush_writer: Optional[bool] = None,
+        drop_buffered_traces: bool = False,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
@@ -468,6 +494,7 @@ class Tracer:
             llmobs_enabled=llmobs_enabled,
             reset_buffer=reset_buffer,
             flush_writer=flush_writer,
+            drop_buffered_traces=drop_buffered_traces,
         )
         self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
@@ -616,6 +643,45 @@ class Tracer:
             if config._report_hostname:
                 span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
 
+        identity_refresh_enabled = self._span_aggregator._identity_refresh_enabled
+        if identity_refresh_enabled:
+            with get_runtime_identity_refresh_lock():
+                return self._start_span_after_identity_refresh_check_no_lock(
+                    span, child_of, parent, service, service_source, activate, identity_refresh_enabled=True
+                )
+        return self._start_span_after_identity_refresh_check_no_lock(
+            span, child_of, parent, service, service_source, activate, identity_refresh_enabled=False
+        )
+
+    def _start_span_after_identity_refresh_check_no_lock(
+        self,
+        span: Span,
+        child_of: Optional[Union[Span, Context]],
+        parent: Optional[Span],
+        service: Optional[str],
+        service_source: str,
+        activate: bool,
+        identity_refresh_enabled: bool,
+    ) -> Span:
+        identity_generation = None
+        if identity_refresh_enabled:
+            identity_generation = self._span_aggregator._capture_identity_generation()
+            if parent is not None:
+                parent_generation = parent._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY)
+                if parent_generation is not None:
+                    identity_generation = parent_generation
+            elif isinstance(child_of, Context):
+                # A retained context may be used after a MicroVM refresh. Keep its old
+                # generation so the span is rejected instead of joining the new runtime trace.
+                parent_generation = _get_runtime_identity_generation(child_of)
+                if parent_generation is not None:
+                    identity_generation = parent_generation
+                else:
+                    _set_runtime_identity_generation(child_of, cast(int, identity_generation))
+            span._set_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY, identity_generation)
+            if not self._span_aggregator._identity_generation_is_current(cast(int, identity_generation)):
+                return span
+
         if not span._parent:
             span._set_attribute("runtime-id", get_runtime_id())
             span._set_attribute(PID, self._pid)
@@ -675,12 +741,27 @@ class Tracer:
         # PERF: active() pops finished spans off the active context (via _update_active), so it must
         # run unconditionally. Skip current_span()'s extra isinstance check when debug logging is off.
         active = self.context_provider.active()
+        identity_refresh_enabled = self._span_aggregator._identity_refresh_enabled
+        if identity_refresh_enabled:
+            with get_runtime_identity_refresh_lock():
+                return self._on_span_finish_no_lock(span, active, identity_refresh_enabled=True)
+        return self._on_span_finish_no_lock(span, active, identity_refresh_enabled=False)
+
+    def _on_span_finish_no_lock(
+        self, span: Span, active: Optional[Union[Span, Context]], identity_refresh_enabled: bool
+    ) -> None:
+        # A MicroVM identity refresh invalidates the old logical runtime before its
+        # spans finish. Do not let those spans reach side-effecting finish hooks.
+        if identity_refresh_enabled and not self._span_aggregator._is_span_identity_current(span):
+            return
         if log.isEnabledFor(logging.DEBUG):
             # Debug check: if the finishing span has a parent and its parent
             # is not the next active span then this is an error in synchronous tracing.
             if span._parent is not None and active is not span._parent:
                 log.debug(
-                    "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+                    "span %r closing after its parent %r, this is an error when not using async",
+                    span,
+                    span._parent,
                 )
 
         # run handlers before flushing that don't need the span in its final state
