@@ -30,6 +30,13 @@ class RuntimeMetricCollector(ValueCollector[MetricValue]):
     value: Optional[list[tuple[str, MetricValue]]] = []
     periodic = True
 
+    def reset(self) -> None:
+        """Discard interval/aggregate state so the next collect_fn() reports only new activity.
+
+        Used for a MicroVM runtime identity refresh, which is a logical process replacement
+        without a fork. Base is a no-op; subclasses holding pre-refresh interval state override it.
+        """
+
 
 def _read_gc_collections(gc_mod: ModuleType) -> list[int]:
     """Return per-generation collections counts from gc.get_stats()."""
@@ -89,6 +96,22 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
             self._monitor = None
             monitor.release()
             forksafe.unregister(self._reset_state)
+
+    def reset(self) -> None:
+        # Mirrors the fork reset (_reset_state + the monitor's own forksafe hook): drop the
+        # GC pause window and reseed the collections baseline so a MicroVM identity refresh
+        # does not mix pre-refresh pauses/collections into the next interval.
+        if not self.enabled:
+            # A collector disabled by a failed module load/smoke test has no monitor and may
+            # not have working state to reseed from; matches collect()'s disabled short-circuit.
+            return
+        # Reseed collections before clearing the pause window, as _on_modules_load() does: a
+        # collection between the two then shows up as a collections delta without a pause,
+        # never as a pause without a collections delta.
+        self._reset_state()
+        monitor: Optional[GCPauseMonitor] = self._monitor
+        if monitor is not None:
+            monitor.reset()
 
     def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, MetricValue]]:
         # Snapshot first so flush allocations are not attributed to this window,
@@ -161,6 +184,16 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
         if self._forksafe_registered:
             self._forksafe_registered = False
             forksafe.unregister(self._reset_state)
+
+    def reset(self) -> None:
+        # Same reseed as fork/enable: discard the pre-refresh CPU time, context-switch, and
+        # wall-clock baselines so the next collect_fn() call reports only post-refresh activity.
+        if not self.enabled:
+            # A collector disabled by the _on_modules_load() smoke test may have a broken
+            # native.process_metrics(); calling it again here would raise on every future
+            # identity refresh instead of matching collect()'s disabled short-circuit.
+            return
+        self._reset_state()
 
     def _reset_state(self) -> None:
         # Seed the baselines from a fresh reading instead of zero, both here and on fork:
