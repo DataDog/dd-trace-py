@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Managed chat prompts can now include named message placeholders that
+    ``ManagedPrompt.format()`` replaces with caller-provided text or tool message lists in their authored position.
