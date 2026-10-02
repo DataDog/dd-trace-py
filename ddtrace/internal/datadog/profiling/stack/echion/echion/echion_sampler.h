@@ -77,7 +77,7 @@ class EchionSampler
     // Only accessed from the sampling thread, so no lock/atomic is needed.
     size_t asyncio_task_count_ = 0;
 
-    // Maximum number of frames to collect for plain thread stacks.
+    // Maximum number of frames to collect for thread and task stacks.
     size_t stack_max_frames_ = g_default_max_nframes;
 
     // Maximum number of leaf tasks / greenlets to unwind and emit per cycle.

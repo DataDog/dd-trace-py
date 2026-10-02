@@ -47,8 +47,14 @@ class FrameStack : public std::vector<Frame>
   public:
     using Key = Frame::Key;
 
-    void render(EchionSampler& echion, TruncationStatus truncation);
+    // truncation_index is the index into this FrameStack before which to render the truncation marker.
+    // An index of size() puts the marker after all frames; SIZE_MAX disables it.
+    // truncated_frames is the number of truncated thread frames represented by the marker; zero emits nothing.
+    void render(EchionSampler& echion, TruncationStatus truncation, size_t truncation_index, size_t truncated_frames);
 };
+
+[[nodiscard]] size_t
+rendered_location_count(const Frame& frame);
 
 // Forward declaration
 class EchionSampler;
@@ -95,6 +101,8 @@ class StackInfo
     uint64_t task_id;
     bool on_cpu;
     FrameStack stack;
+    size_t truncation_index = SIZE_MAX;
+    size_t truncated_frames = 0;
 
     // Per-task override wall-time to use in reservoir sampling.
     // nullopt means "use the thread-level wall time"
