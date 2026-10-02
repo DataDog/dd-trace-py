@@ -41,6 +41,7 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
+from ddtrace.internal.bytecode_injection import HOOK_FRAME_DEPTH
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
@@ -346,7 +347,7 @@ class Debugger(Service):
             try:
                 signal = Signal.from_probe(
                     probe,
-                    frame=sys._getframe(1),
+                    frame=sys._getframe(HOOK_FRAME_DEPTH),
                     thread=threading.current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,
