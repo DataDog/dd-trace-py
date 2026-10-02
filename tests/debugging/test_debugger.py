@@ -171,6 +171,46 @@ def test_debugger_probe_new_delete(probe, stuff):
         assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe_id
 
 
+@pytest.mark.parametrize(
+    "probe",
+    [
+        (
+            create_snapshot_function_probe(
+                probe_id="probe-instance-method",
+                module="tests.submod.stuff",
+                func_qname="Stuff.instancestuff",
+                rate=1000,
+            )
+        ),
+        (
+            create_snapshot_line_probe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=1000,
+            )
+        ),
+    ],
+)
+def test_debugger_probe_survives_reload(probe, stuff):
+    from importlib import reload
+
+    with debugger() as d:
+        d.add_probes(probe)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+        reload(stuff)
+
+        stuff.Stuff().instancestuff(42)
+
+        (snapshot,) = d.uploader.wait_for_payloads()
+        assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe.probe_id
+
+
 def test_debugger_function_probe_on_instance_method(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_function_probe(

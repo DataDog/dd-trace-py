@@ -132,6 +132,31 @@ def test_property_non_function_getter(stuff_discovery):
 
 
 @pytest.mark.subprocess
+def test_function_discovery_after_reload():
+    from importlib import reload
+
+    from ddtrace.debugging._debugger import DebuggerModuleWatchdog
+    from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("di")
+    DebuggerModuleWatchdog.install()
+
+    import tests.submod.stuff as stuff
+
+    old_modulestuff = stuff.modulestuff
+    fd = FunctionDiscovery.from_module(stuff)
+    assert fd.by_name("modulestuff") is old_modulestuff
+
+    reload(stuff)
+
+    new_fd = FunctionDiscovery.from_module(stuff)
+    assert new_fd is not fd
+    assert new_fd.by_name("modulestuff") is stuff.modulestuff
+    assert new_fd.by_name("modulestuff") is not old_modulestuff
+
+
+@pytest.mark.subprocess
 def test_custom_decorated_stuff():
     from ddtrace.debugging._function.discovery import FunctionDiscovery
     from ddtrace.internal.utils.inspection import ModuleCodeCollector

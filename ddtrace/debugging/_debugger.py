@@ -373,10 +373,18 @@ class Debugger(Service):
         # This hook is invoked by the ModuleWatchdog or the post run module hook
         # to inject probes.
 
+        location = str(origin(module))
+
+        # If the module is being recompiled (e.g. importlib.reload()), any
+        # probe already installed on it was attached to a now-orphaned
+        # function/code object. Move it back to pending so it gets
+        # reinstalled against the fresh module below.
+        self._probe_registry.reset_pending(location)
+
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
         probes_for_function: dict[FullyNamedContextWrappedFunction, list[Probe]] = defaultdict(list)
-        for probe in self._probe_registry.get_pending(str(origin(module))):
+        for probe in self._probe_registry.get_pending(location):
             if not isinstance(probe, LineLocationMixin):
                 continue
             line = probe.line
@@ -500,6 +508,12 @@ class Debugger(Service):
                     log.error("Cannot unregister injection hook on %r", resolved_source, exc_info=True)
 
     def _probe_wrapping_hook(self, module: ModuleType) -> None:
+        # If the module is being recompiled (e.g. importlib.reload()), any
+        # probe already installed on it was wrapped around a now-orphaned
+        # function object. Move it back to pending so it gets rewrapped
+        # around the fresh function below.
+        self._probe_registry.reset_pending(module.__name__)
+
         probes = self._probe_registry.get_pending(module.__name__)
         collector = self.__uploader__.get_collector()
         for probe in probes:
