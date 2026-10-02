@@ -1,5 +1,5 @@
 """
-This file contains shared utilities for tracing streams in LLMobs integrations. Integrations should
+This file contains shared utilities for tracing streams in LLM integrations. Integrations should
 implement a StreamHandler and / or AsyncStreamHandler subclass to be passed into the make_traced_stream
 factory function along with the stream to wrap.
 """
