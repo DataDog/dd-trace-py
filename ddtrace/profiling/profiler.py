@@ -177,6 +177,9 @@ class Profiler:
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
     def __getattr__(self, key: str) -> Any:
+        # Without this, any lookup on an instance that skipped __init__ (e.g. copy.copy, pickle) recurses forever.
+        if key == "_profiler":
+            raise AttributeError(key)
         return getattr(self._profiler, key)
 
 

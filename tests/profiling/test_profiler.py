@@ -112,6 +112,14 @@ def test_copy() -> None:
     assert p.tags == c.tags
 
 
+def test_shallow_copy_of_profiler() -> None:
+    import copy
+
+    p = profiler.Profiler()
+    c = copy.copy(p)
+    assert c._profiler is p._profiler
+
+
 def test_profiler_does_not_mutate_custom_tags() -> None:
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self) -> None:
