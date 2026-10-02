@@ -20,6 +20,9 @@ from ddtrace.appsec._asm_request_context import set_block_request_callable
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
+from ddtrace.contrib.internal.trace_utils_base import http_block_metadata
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
 from ddtrace.internal import core
 from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -121,18 +124,24 @@ def _on_request_span_modifier(
 
 def _on_flask_blocked_request(span: SpanProtocol) -> None:
     request = core.find_item("flask_request")
+    flask_config = core.find_item("flask_config")
+    # Preserve the status if later request extraction fails.
+    metadata = http_block_metadata(None, 403)
     try:
-        trace_utils.set_http_meta(
-            cast(Any, span),
-            core.find_item("flask_config"),
-            method=getattr(request, "method", None),
-            url=getattr(request, "base_url", None),
-            query=getattr(request, "query_string", None),
-            status_code=403,
-            request_headers=getattr(request, "headers", None),
+        base_url = getattr(request, "base_url", None)
+        query_string = getattr(request, "query_string", None)
+        metadata = http_block_metadata(
+            request.method,
+            403,
+            query=query_string if query_string and flask_config.trace_query_string else None,
+            user_agent=_get_request_header_user_agent(request.headers),
         )
+        if base_url and query_string:
+            set_url_tags_server(flask_config, cast(Any, span), base_url, query_string)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
+    for key, value in metadata.items():
+        span._set_attribute(key, value)
 
 
 def _on_start_response_blocked(
@@ -235,24 +244,25 @@ def _wsgi_make_block_content(
         content = http_utils._get_blocked_template(ctype, block_config.block_id).encode("UTF-8")
         resp_headers = [("content-type", ctype)]
     status = block_config.status_code
+    # Preserve the status if later request extraction fails.
+    metadata = http_block_metadata(None, status)
     try:
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
             req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
-        trace_utils.set_http_meta(
-            req_span,
-            middleware._config,
-            method=environ.get("REQUEST_METHOD"),
-            url=url,
-            query=query_string,
-            status_code=status,
-            request_headers=headers,
-            headers_are_case_sensitive=True,
+        set_url_tags_server(middleware._config, req_span, url, query_string)
+        metadata = http_block_metadata(
+            environ.get("REQUEST_METHOD") or None,
+            status,
+            query=query_string if query_string and middleware._config.trace_query_string else None,
+            user_agent=_get_request_header_user_agent(headers, headers_are_case_sensitive=True),
         )
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
+    for key, value in metadata.items():
+        req_span._set_attribute(key, value)
     resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
