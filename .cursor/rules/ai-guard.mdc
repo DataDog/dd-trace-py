@@ -135,7 +135,7 @@ Events currently consumed:
 | OpenAI Responses | `openai.responses.create.before` / `.after` |
 | OpenAI (stream wrappers) | `openai.patch` / `.unpatch` |
 | Anthropic | `anthropic.messages.create.before` / `.after`, `anthropic.patch` / `.unpatch` |
-| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate,stream}.before`, `langchain.{chatmodel,llm}.{generate,agenerate}.after`, `langchain.patch` / `.unpatch` |
+| LangChain | `langchain.{chatmodel,llm}.{generate,agenerate}.before`, `langchain.{chatmodel,llm}.{generate,agenerate}.after`, `langchain.patch` / `.unpatch` |
 | HTTP (client IP) | `set_http_meta_for_asm` |
 
 ### 3. Provider converters → canonical `Message` shape
@@ -179,7 +179,7 @@ provider check skips only the phase it guards:
 | Integration | Claims |
 |-------------|--------|
 | LangChain `generate` / `agenerate` | `REQUEST` + `RESPONSE` for the whole call |
-| LangChain model `_stream` / `_astream` | `REQUEST` + `RESPONSE` while the model stream is read (buffered and evaluated there, see below); with stream analysis off, only for the first read |
+| LangChain model `_stream` / `_astream` | `REQUEST` + `RESPONSE` while the model stream is read (request and response evaluated by the buffer, see below); with stream analysis off, only for the first read |
 | Strands | `REQUEST` + `RESPONSE` |
 
 | Provider check | Phase |
@@ -218,6 +218,11 @@ inner model) gets its own buffer. The layer matters:
 - **Above the provider.** LangChain wraps every provider read inside `_astream`
   in its own read timeout, so a provider buffer that drains the whole stream on
   the first read turns a long generation into a timeout.
+- **Request first.** The buffer evaluates the request before it claims and
+  reads the model, unless that model's own `generate` is running
+  (`_GENERATING_MODEL`), whose `.before` listener already did. A direct
+  `_stream` read has no other request check, and the claim makes the provider
+  skip its own. AI Guard does not listen to `.stream.before`.
 - **Once per call.** When generate streams internally, the buffer records the
   payload it evaluated and the `.generate.after` listener skips that exact
   payload. The record is scoped to the generate call, so a cached response is

@@ -1630,6 +1630,44 @@ def test_stream_read_directly_blocks_request_before_the_model_is_read(mock_execu
     assert reads == []
 
 
+class _GenerateOnlyChatModel(BaseChatModel):
+    """Chat model without _stream: LangChain serves its stream() through invoke()."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "fake-generate-only"
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content="answer"))])
+
+
+def _disable_streaming_model():
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    if "disable_streaming" not in getattr(BaseChatModel, "model_fields", BaseChatModel.__fields__):
+        pytest.skip("disable_streaming needs a newer langchain-core")
+    return FakeListChatModel(responses=["answer"], disable_streaming=True)
+
+
+@pytest.mark.parametrize(
+    "make_model", [_GenerateOnlyChatModel, _disable_streaming_model], ids=["no-_stream", "disable_streaming"]
+)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_stream_falling_back_to_invoke_evaluates_the_request_once(mock_execute_request, langchain, make_model):
+    model = make_model()
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    chunks = list(model.stream(input="hi"))
+
+    assert _chunk_text(chunks) == "answer"
+    requests = [
+        index
+        for index in range(mock_execute_request.call_count)
+        if _evaluated_messages(mock_execute_request, index)[-1]["role"] == "user"
+    ]
+    assert len(requests) == 1
+
+
 class _HangingProviderStream:
     """Class-based async iterator, like an SDK stream: cancelling its read does not close it."""
 
