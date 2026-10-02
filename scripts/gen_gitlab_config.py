@@ -27,6 +27,8 @@ import typing as t
 
 MAX_BENCHMARKS_PER_GROUP = 2
 MAX_TOTAL_TEST_JOBS = 600
+# Testmon 2.2.0 crashes on an extensionless coverage path in this environment.
+_STORAGE_SWEEP_UNSUPPORTED_HASHES = {"1cdebe0"}
 # Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
 NO_PROXY_ADDITIONS = (
     "icanhazdadjoke.com",
@@ -109,6 +111,9 @@ class JobSpec:
         lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
         lines.append(f"  extends: {base}")
 
+        if self.suite == "llmobs::llmobs":
+            lines[-1] = f"  extends: [{base}, .llmobs_tia]"
+
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
@@ -162,6 +167,11 @@ class JobSpec:
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
         env["TEST_SUITE"] = self.suite or self.name
+        if self.suite == "llmobs::llmobs":
+            diagnostics = os.environ.get("DD_LLMOBS_TIA_DIAGNOSTICS", "off")
+            if diagnostics not in ("off", "selection", "full"):
+                raise ValueError("DD_LLMOBS_TIA_DIAGNOSTICS must be off, selection, or full")
+            env.setdefault("DD_LLMOBS_TIA_DIAGNOSTICS", f'"{diagnostics}"')
         if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
             env["UV_PRERELEASE"] = "allow"
 
@@ -209,11 +219,30 @@ def _shell_environment(environment: dict[str, str]) -> str:
     return shlex.join(f"{name}={value}" for name, value in environment.items())
 
 
-def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
+def _storage_sweep_eligible(environment: t.Any) -> bool:
+    if (
+        environment.python != "3.13"
+        or environment.hash in _STORAGE_SWEEP_UNSUPPORTED_HASHES
+        or not environment.runs
+        or not all(
+            "{cmdargs}" in run.command and re.search(r"(?<![A-Za-z0-9_])pytest(?![A-Za-z0-9_])", run.command)
+            for run in environment.runs
+        )
+    ):
+        return False
+    # Testmon 2.2.0 registers a pytest hook that pytest 6 does not support.
+    pytest_pin = re.search(r"^pytest==(\d+)\.", (ROOT / environment.lockfile).read_text(), re.MULTILINE)
+    return pytest_pin is not None and int(pytest_pin.group(1)) >= 7
+
+
+def collect_all_suite_venv_info(
+    suite_configs: dict[str, dict], *, storage_sweep: bool = False
+) -> dict[str, SuiteVenvInfo]:
     """Collect environment count and Python versions for multiple suites in a single pass.
 
     Args:
         suite_configs: mapping of suite name -> suite configuration
+        storage_sweep: restrict to Python 3.13 environments with pytest argument placeholders
 
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
@@ -225,6 +254,10 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     result: dict[str, SuiteVenvInfo] = {}
     for suite in suite_configs:
         environments = all_environments.get(suite, ())
+        if storage_sweep:
+            environments = tuple(environment for environment in environments if _storage_sweep_eligible(environment))
+            if not environments:
+                continue
         if environments:
             ddtest_metadata = {}
             if suite_configs[suite].get("ddtest"):
@@ -315,6 +348,11 @@ def gen_required_suites() -> None:
     ci_visibility_suites = {"ci_visibility", "pytest"}
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
+
+    if _get_bool_env("DD_TIA_STORAGE_SWEEP") == "true":
+        required_suites = sorted(
+            name for name, config in suites.items() if config.get("type", "test") == "test" and not config.get("skip")
+        )
 
     _gen_tests(suites, required_suites)
     _gen_benchmarks(suites, required_suites)
@@ -426,6 +464,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
         )
 
     required_suites = [a for a in required_suites if a in list(suites.keys())]
+    storage_sweep = _get_bool_env("DD_TIA_STORAGE_SWEEP") == "true"
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
@@ -458,7 +497,14 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     # === PASS 1: Collect venv info for all non-skipped required suites ===
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
     suite_configs = {s: suites[s] for s in non_skipped}
-    suite_venv_info = collect_all_suite_venv_info(suite_configs)
+    suite_venv_info = (
+        collect_all_suite_venv_info(suite_configs, storage_sweep=True)
+        if storage_sweep
+        else collect_all_suite_venv_info(suite_configs)
+    )
+    if storage_sweep:
+        required_suites = [suite for suite in required_suites if suite in suite_venv_info]
+        non_skipped = required_suites
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
@@ -478,7 +524,11 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
         else:
             final_jobs[suite] = 1
 
-    total_test_jobs = 0
+    cold_start_pair = _get_bool_env("DD_LLMOBS_TIA_COLD_START_PAIR") == "true" and "llmobs::llmobs" in required_suites
+    if cold_start_pair and "llmobs::llmobs" not in non_skipped:
+        raise ValueError("llmobs cold-start pair requires the llmobs suite to be enabled")
+
+    total_test_jobs = 2 if cold_start_pair else 0
     for suite in non_skipped:
         config = suites[suite]
         if config.get("ddtest"):
@@ -533,6 +583,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
+            if storage_sweep:
+                jobspec.env = {**(jobspec.env or {}), "DD_TIA_STORAGE_SWEEP": '"true"'}
 
             # Apply final parallelism (may be higher than baseline if scaling was applied)
             final_parallelism = final_jobs.get(suite)
@@ -544,6 +596,34 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 pass  # leave as None (GitLab default: single job)
 
             print(str(jobspec), file=f)
+            if storage_sweep:
+                # Log after failures too, but never cache or upload the recorded databases.
+                print("  cache: []", file=f)
+                print("  artifacts:\n    paths:\n      - core.*", file=f)
+                print("  after_script:\n    - python3 scripts/tia_storage_report.py", file=f)
+                print("    - !reference [.testrunner, after_script]", file=f)
+
+        # Opt-in comparison uses the exact environments of the existing 5/5 shard.
+        if cold_start_pair:
+            info = suite_venv_info["llmobs::llmobs"]
+            if final_jobs["llmobs::llmobs"] != 5:
+                raise ValueError("llmobs cold-start pair requires five llmobs shards")
+            hashes = info.environment_hashes[4::5]
+            if len(hashes) != 2 or any(python != "3.13" for hash_, python in info.environments if hash_ in hashes):
+                raise ValueError("llmobs 5/5 environments changed; recheck cold-start pair")
+            for name, mode in (("file-itr-cold-start", "file"), ("testmon-cold-start", "testmon_cold")):
+                pair = JobSpec(
+                    name=name,
+                    stage="llmobs",
+                    suite="llmobs::llmobs",
+                    snapshot=True,
+                    no_proxy=True,
+                    environment_hashes=hashes,
+                    env={"DD_LLMOBS_TIA_CI_MODE": mode, "DD_LLMOBS_TIA_DIAGNOSTICS": '"off"'},
+                )
+                print(str(pair), file=f)
+                # Neither experiment restores nor writes the regular branch/shard TIA cache.
+                print("  cache: []", file=f)
 
 
 def gen_build_docs() -> None:

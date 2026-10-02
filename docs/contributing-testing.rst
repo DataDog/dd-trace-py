@@ -247,6 +247,53 @@ The library includes automated SLO checks that monitor performance thresholds fo
         - execution_time < 23.60 ms  # was 23.50 ms
         - max_rss_usage < 48.00 MB   # was 47.50 MB
 
+How do I compare LLMObs file-level ITR with cold testmon in CI?
+---------------------------------------------------------------
+
+Set ``DD_LLMOBS_TIA_COLD_START_PAIR=true`` on the parent pipeline. If the
+``llmobs::llmobs`` suite is selected, the generated child pipeline adds
+``llmobs/file-itr-cold-start`` and ``llmobs/testmon-cold-start``. Both run the
+same two Python 3.13 environments as the existing ``llmobs/llmobs`` shard 5/5
+and use the same suitespec commands. Neither experiment job restores or writes
+the regular TIA cache. The file job sets ``DD_LLMOBS_TIA_CI_MODE=file`` and
+requests file-level ITR with skipping enabled; the testmon job sets
+``DD_LLMOBS_TIA_CI_MODE=testmon_cold``, disables file-level ITR, and fails if
+an environment/command database or sidecar exists before either run. Both force
+``DD_LLMOBS_TIA_DIAGNOSTICS=off`` so diagnostic probes do not inflate whole-job
+durations.
+
+Before comparing durations, check the Datadog Test Optimization session for
+the file job: skipping must be enabled and its skipped-test count must be
+nonzero. If the backend does not select tests to skip, the run is not a valid
+file-level skipping baseline. Compare job durations in the same pipeline and
+commit; test-process seconds in ``[TIA]`` logs exclude environment creation.
+The normal LLMObs jobs are unchanged by this switch.
+
+How do I measure testmon storage in Python 3.13 CI jobs?
+--------------------------------------------------------
+
+The temporary ``gnufede/tia-storage-py313-20260929`` branch sets
+``DD_TIA_STORAGE_SWEEP=true``. Its generated child pipeline selects only
+Python 3.13 environments whose commands accept pytest arguments. These jobs
+record with testmon instead of file-level ITR, start without a TIA cache, and
+do not upload ``.tia/`` as an artifact. Non-pytest commands and pytest 6
+are excluded: testmon 2.2.0 registers a hook unsupported by pytest 6. The
+``internal`` environment ``1cdebe0`` is also excluded because testmon 2.2.0
+crashes while fingerprinting an extensionless coverage path. Treat these as
+missing measurements, not zero-byte databases.
+
+Each job emits one ``[TIA-STORAGE]`` JSON line during ``after_script``, even
+when a test command fails. ``raw_bytes`` sums the live ``.tia/`` files, including
+any SQLite WAL and SHM files. ``snapshot_bytes`` and ``gzip_bytes`` sum
+consistent copies of the databases; these are better proxies for stored blobs.
+If a snapshot fails, both snapshot totals are null and ``snapshot_errors``
+explains why. A failed job can leave a valid but incomplete SQLite database
+before pytest collects any tests. Deduplicate by ``job_id`` and include only
+jobs with ``job_status=success`` and no snapshot errors in a full-run storage
+estimate; report failed and missing jobs separately. Check that the expected
+environments actually ran before extrapolating from this subset. This sweep
+measures size, not the job-time effect of switching TIA approaches.
+
 How do I add a new test suite?
 ------------------------------
 
