@@ -199,7 +199,7 @@ class _ProfilerInstance(service.Service):
         _exception_profiling_enabled: bool = profiling_config.exception.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
         endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
-    ):
+    ) -> None:
         super().__init__()
         # User-supplied values
         self.service: Optional[str] = service if service is not None else config.service
