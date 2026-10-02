@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: distributed LLMObs context is now also propagated in the W3C ``baggage``
+    header under the ``llmobs.*`` namespace, in addition to the existing ``_dd.p.llmobs_*`` tags.
+    Since baggage propagates independently of APM trace identity, LLMObs traces are no longer
+    fragmented by a hop that drops the APM headers. Both carriers are read, so this is
+    backwards compatible with older tracer versions.
