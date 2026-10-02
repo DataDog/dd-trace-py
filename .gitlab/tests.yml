@@ -83,7 +83,7 @@ extract_test_artifacts:
       for environment_hash in "${environment_hashes[@]}"
       do
         echo "Running test environment: ${environment_hash}"
-        scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
+        scripts/run-tests --venv "${environment_hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected in test dependency locks. Run scripts/test-requirements lock and commit the result."
