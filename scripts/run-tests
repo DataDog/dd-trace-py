@@ -31,6 +31,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Iterator
 from typing import TypeVar
 
@@ -77,6 +78,8 @@ TEST_CONTAINER_PATH = (
 DDTRACE_TEST_WHEEL_ROOT = Path(".cache/ddtrace-test-wheels")
 TEST_ENVIRONMENT_ROOT = Path(".cache/test-environments")
 TEST_ENVIRONMENT_COMPLETE = ".complete"
+TESTMON_REQUIREMENT = "pytest-testmon==2.2.0"
+_TESTMON_MIN_PYTHON_VERSION = Version("3.10")
 _ITR_MIN_PYTHON_VERSION = Version("3.12")
 Selection = TypeVar("Selection")
 
@@ -139,6 +142,10 @@ def _short_hash(contents: bytes) -> str:
     return hashlib.sha256(contents).hexdigest()[:12]
 
 
+def _tia_log(event: str, **fields) -> None:
+    print("[TIA] " + json.dumps({"event": event, **fields}, sort_keys=True), flush=True)
+
+
 def _atomic_write(path: Path, contents: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
@@ -157,6 +164,15 @@ class TestRunner:
         self.environments_by_hash = {
             environment.hash: environment for environments in self.environments.values() for environment in environments
         }
+
+    def _uses_testmon(self, environment: TestEnvironment) -> bool:
+        python_version = _python_hint_to_version(environment.python)
+        return (
+            self.in_ci
+            and environment.suite == "llmobs::llmobs"
+            and python_version is not None
+            and python_version >= _TESTMON_MIN_PYTHON_VERSION
+        )
 
     def _compose_command(self, *args: str) -> list[str]:
         """Return the Compose command for the selected container backend."""
@@ -422,6 +438,8 @@ class TestRunner:
             contents = "".join(f"{dependency}\n" for dependency in environment.direct_dependencies)
         else:
             contents = lockfile.read_text()
+        if self._uses_testmon(environment):
+            contents += f"\n{TESTMON_REQUIREMENT}\n"
         if project_artifact is None:
             project_file = self.root / "pyproject.toml"
             if not project_file.is_file():
@@ -575,17 +593,61 @@ class TestRunner:
         run: TestRun,
         pytest_args: list[str],
         forwarded_env: dict[str, str],
+        *,
+        use_testmon: bool = True,
+        tia_env: dict[str, str] | None = None,
     ) -> list[str]:
+        run_env = dict(forwarded_env)
+        run_env.update(run.environment)
+        if self._uses_testmon(environment):
+            run_env.update(
+                DD_CIVISIBILITY_ITR_ENABLED="0",
+                _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE="false",
+                DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED="0",
+                DD_LLMOBS_TIA_ENVIRONMENT=environment.hash,
+                _DD_CIVISIBILITY_ITR_V2_ENABLED="true",
+            )
+            pytest_args = [*pytest_args, "--no-cov"]
+            if use_testmon:
+                pytest_args.append("--testmon")
+        run_env.update(tia_env or {})
+
         command = run.command.replace("{cmdargs}", shlex.join(pytest_args))
         if not command.strip():
             raise ValueError(f"empty test command for {environment.hash}")
 
-        run_env = dict(forwarded_env)
-        run_env.update(run.environment)
         run_env["TEST_SUITE"] = environment.integration_name
         if self.in_ci:
             _configure_ci_itr_environment(run_env, environment.python, environment.hash)
         return self._container_command(["bash", "-c", command], self._command_environment(prepared, run_env))
+
+    def _run_tia(self, environment, prepared, run, pytest_args, forwarded_env) -> int:
+        fields = {"environment": environment.hash, "python": environment.python}
+        _tia_log(
+            "run_start",
+            **fields,
+            commit=os.environ.get("CI_COMMIT_SHA"),
+            job_id=os.environ.get("CI_JOB_ID"),
+            testmon=TESTMON_REQUIREMENT,
+            lock_hash=_short_hash((self.root / environment.lockfile).read_bytes()),
+            command=run.command.replace("{cmdargs}", shlex.join(pytest_args)),
+        )
+        command = self._test_command(
+            environment,
+            prepared,
+            run,
+            pytest_args,
+            forwarded_env,
+        )
+        started = time.monotonic()
+        result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
+        _tia_log(
+            "run_finish",
+            **fields,
+            test_process_seconds=time.monotonic() - started,
+            exit_code=result.returncode,
+        )
+        return result.returncode
 
     def _run_environments(
         self,
@@ -624,6 +686,7 @@ class TestRunner:
                 return False
 
             print(f"\n🔨 Preparing test environment {environment.hash} (Python {environment.python})")
+            build_started = time.monotonic()
             try:
                 rebuilt = self._build_environment(
                     environment,
@@ -634,6 +697,16 @@ class TestRunner:
             except TestEnvironmentError as error:
                 print(f"❌ {error}")
                 return False
+            if environment.suite == "llmobs::llmobs" and self.in_ci:
+                _tia_log(
+                    "environment_prepared",
+                    environment=environment.hash,
+                    python=environment.python,
+                    seconds=time.monotonic() - build_started,
+                    rebuilt=rebuilt,
+                    testmon_enabled=self._uses_testmon(environment),
+                    reason="eligible" if self._uses_testmon(environment) else "testmon requires Python >=3.10",
+                )
             if rebuilt:
                 print("   ✅ Test environment synchronized successfully")
             elif skip_ddtrace_install:
@@ -642,6 +715,15 @@ class TestRunner:
                 print("   ✅ Reusing current test environment")
 
             for run in environment.runs:
+                if self._uses_testmon(environment):
+                    try:
+                        code = self._run_tia(environment, prepared, run, pytest_args, forwarded_env)
+                    except (ValueError, OSError) as error:
+                        _tia_log("error", environment=environment.hash, error=str(error))
+                        return False
+                    if code != 0:
+                        return False
+                    continue
                 try:
                     command = self._test_command(environment, prepared, run, pytest_args, forwarded_env)
                 except ValueError as error:
@@ -649,7 +731,17 @@ class TestRunner:
                     return False
 
                 print(f"\n▶️  Executing {environment.hash}: {' '.join(command)}")
+                started = time.monotonic()
                 result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
+                if environment.suite == "llmobs::llmobs" and self.in_ci:
+                    _tia_log(
+                        "run_finish",
+                        environment=environment.hash,
+                        python=environment.python,
+                        testmon_enabled=False,
+                        test_process_seconds=time.monotonic() - started,
+                        exit_code=result.returncode,
+                    )
                 if result.returncode != 0:
                     print(f"❌ {environment.hash} failed with exit code {result.returncode}")
                     return False
@@ -821,6 +913,14 @@ Examples:
 
   # Pass additional arguments to pytest
   scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
+
+LLMObs CI logging:
+  [TIA] logs report process/setup time, pytest phases, outcomes, configuration,
+  and uncompressed DB bytes. Database presence does not prove testmon reused it.
+  The testmon database is persisted via the TIA v2 artifact endpoints
+  (PUT /api/unstable/ci/tia/artifacts and POST /api/unstable/ci/tia/artifacts/lookup),
+  gated by _DD_CIVISIBILITY_ITR_V2_ENABLED. The ddtrace pytest plugin handles
+  lookup (before tests) and upload (after tests) transparently.
         """,
     )
 

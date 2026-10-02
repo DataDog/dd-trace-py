@@ -108,6 +108,9 @@ class XdistTestOptPlugin:
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
             self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
+        if tests_deselected_by_testmon := node.workeroutput.get("tests_deselected_by_testmon"):
+            self.main_plugin.session.tests_deselected_by_testmon += tests_deselected_by_testmon
+
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logstart(self, nodeid: str, location: t.Any) -> None:
         """Record when an attempt starts so dynamic ATR can classify its duration."""
