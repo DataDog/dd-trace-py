@@ -99,6 +99,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._context import LLMObsContextProvider
+from ddtrace.llmobs._contrib import listen_integrations
 from ddtrace.llmobs._eval_metric import _build_evaluation_metric_event
 from ddtrace.llmobs._eval_metric import _build_feedback_metric_event
 from ddtrace.llmobs._eval_metric import _SubmissionTelemetryContext
@@ -137,7 +138,6 @@ from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._processor import LLMObsProcessor
-from ddtrace.llmobs._product import listen_integrations
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split

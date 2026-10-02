@@ -17,7 +17,7 @@ This separation keeps APM patching decoupled from LLMObs data extraction.
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:
 - **Step 1 (patch module)**: Use `LlmRequestEvent` with `core.context_with_event()` for standard request/response LLM integrations
-- **Step 1b (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers and register them from `listen_integrations()` in `ddtrace/llmobs/_product.py`
+- **Step 1b (LLMObs subscribers)**: Add `ddtrace/llmobs/_contrib/{name}/` subscribers and register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
 - **Step 3 (LLMObs integration)**: Create the `BaseLLMIntegration` subclass that handles provider-specific message, tool, and token extraction (this guide)
 - **Step 4 (test environment)**: Use `tests/llmobs/suitespec.yml`; add `vcrpy` only when the suite uses vcrpy cassettes and follow nearby version pins
 - **Step 5 (tests)**: Add `test_{name}_llmobs.py` in addition to the APM `test_{name}.py`, using the right transport pattern for the integration and `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
@@ -111,7 +111,7 @@ Read `ddtrace/llmobs/_contrib/anthropic/` for the pattern. `LlmTracingSubscriber
 - `LlmEvents.SPAN_STARTED` runs after the span is created. Use it for `_set_base_span_tags()`, `_annotate_integration_tag()`, and `_stamp_llmobs_span_kind_at_start()`.
 - `LlmEvents.SPAN_FINISHING` runs before the span is finished. Call `integration.llmobs_set_tags()` here.
 
-Subscribers set `auto_register = False`. Register them from `listen_integrations()` in `ddtrace/llmobs/_product.py` on the `{name}.patch` core event, and unregister them on `{name}.unpatch`. `listen_integrations()` runs from both the product's `post_preload` and `LLMObs.enable()`. Test fixtures that call `patch()` directly should call `listen_integrations()` first.
+Subscribers set `auto_register = False`. Register them from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py` on the `{name}.patch` core event, and unregister them on `{name}.unpatch`. `listen_integrations()` runs from both the product's `post_preload` and `LLMObs.enable()`. Test fixtures that call `patch()` directly should call `listen_integrations()` first.
 - The async variant is identical but uses `async def` / `await`
 
 Some older or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly. Use that pattern when modifying an existing integration that already does so, when the closest current reference uses it (for example Google GenAI), or when the behavior requires direct child spans (for example OpenAI MCP tool spans or agent/tool child spans).
@@ -226,7 +226,7 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `ddtrace/llmobs/_integrations/{name}.py` — `BaseLLMIntegration` subclass
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans, with no `ddtrace.llmobs` imports (see anthropic for pattern)
-- [ ] `ddtrace/llmobs/_contrib/{name}/` — `LlmEvents` subscribers, registered from `listen_integrations()` in `ddtrace/llmobs/_product.py`
+- [ ] `ddtrace/llmobs/_contrib/{name}/` — `LlmEvents` subscribers, registered from `listen_integrations()` in `ddtrace/llmobs/_contrib/__init__.py`
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index

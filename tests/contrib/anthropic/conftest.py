@@ -6,7 +6,7 @@ import pytest
 from ddtrace.contrib.internal.anthropic.patch import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._product import listen_integrations
+from ddtrace.llmobs._contrib import listen_integrations
 from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import override_env
 from tests.utils import override_global_config
