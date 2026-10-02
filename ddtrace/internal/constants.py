@@ -130,6 +130,7 @@ MESSAGING_OPERATION = "messaging.operation"
 MESSAGING_SYSTEM = "messaging.system"
 
 USER_AGENT_HEADER = "user-agent"
+OTLP_EXPORTER_HEADER_IDENTIFIER = "otel-otlp-exporter-python"
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
