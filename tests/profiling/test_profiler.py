@@ -112,6 +112,20 @@ def test_copy() -> None:
     assert p.tags == c.tags
 
 
+def test_copy_keeps_collector_selection() -> None:
+    p = profiler._ProfilerInstance(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    c = p.copy()
+    for key in profiler._ProfilerInstance._COPY_PRIVATE_ATTRIBUTES:
+        assert getattr(c, key) is False, key
+    assert c._collectors == []
+
+
 def test_profiler_does_not_mutate_custom_tags() -> None:
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self) -> None:
