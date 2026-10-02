@@ -23,6 +23,26 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
+## DBAPI Cursor Subclasses
+
+Render queries for DbQueryEvent subscribers with the driver-specific
+_render_dbapi_query() hook. Call it only when a subscriber is present. Suppress
+ordinary exceptions while rendering and dispatching the event so instrumentation
+failures do not interrupt the database call. BlockingException inherits from
+BaseException and still stops execution. The rendered value is event data only:
+tracing and the driver must continue to receive the original query and parameters.
+
+For psycopg and aiopg composables, call the driver's as_string() with its native
+cursor. This includes Literal nodes. Rendering may happen again during execution,
+so stateful values inside literals may be adapted twice. For psycopg 3.3 templates,
+use its server-query processor for default cursors and sql.as_string() for client
+cursors, matching how each cursor sends SQL. Client rendering may also adapt bound
+values twice. Decode byte queries for inspection with the cursor's connection
+encoding; pass the original bytes to the driver. Django's wrapper cursor
+exposes the native cursor through its cursor attribute. Legacy psycopg tracing
+still renders SQL/Composed resources in _trace_method(); keep event rendering
+independent of that APM behavior.
+
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable

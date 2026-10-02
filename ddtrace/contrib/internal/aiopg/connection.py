@@ -1,5 +1,11 @@
+from contextlib import suppress
+from typing import Optional
+from typing import Union
+
 from aiopg import __version__
 from aiopg.utils import _ContextManager
+from psycopg2 import extensions
+from psycopg2 import sql
 import wrapt
 
 from ddtrace import config
@@ -32,6 +38,17 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
+    def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
+        if isinstance(query, str):
+            return query
+        if isinstance(query, bytes):
+            connection = self.__wrapped__._impl.connection
+            return query.decode(extensions.encodings[connection.encoding])
+        if isinstance(query, sql.Composable):
+            rendered_query = query.as_string(self.__wrapped__._impl)
+            return rendered_query if isinstance(rendered_query, str) else None
+        return None
+
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
@@ -63,16 +80,22 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if core.has_listeners(DbQueryEvent.event_name):
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+                if rendered_query is not None:
+                    core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        if core.has_listeners(DbQueryEvent.event_name):
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+                if rendered_query is not None:
+                    core.dispatch_event(DbQueryEvent(query=rendered_query, span_name_prefix="postgres"))
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 
