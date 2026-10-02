@@ -1203,6 +1203,70 @@ def test_tracer_microvm_send_stuck_in_retries_does_not_block_spans_or_refresh():
         tracer.shutdown()
 
 
+@pytest.mark.subprocess(
+    env={
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true",
+    },
+    err=None,
+)
+def test_tracer_microvm_refresh_with_telemetry_does_not_wait_for_stuck_send():
+    """The telemetry refresh notifies the trace writer of its rebuilt worker on the /run thread.
+
+    Re-pointing the exporter takes the exporter lock, which a send holds across its retries, so it
+    must not make the refresh wait for that send.
+    """
+    import threading
+    import time
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    import ddtrace.internal._runtime_id as runtime_impl
+    from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import Span
+
+    old_writer = NativeWriter("http://dne:1234", processing_interval=0.01)
+    assert old_writer._telemetry_worker_subscribed
+    old_writer._clients[0].encoder.put([Span("in-flight")])
+    send_started = threading.Event()
+    release_send = threading.Event()
+
+    def stuck_send(payload):
+        send_started.set()
+        assert release_send.wait(timeout=10)
+        return "{}"
+
+    with (
+        mock.patch("ddtrace._trace.processor.create_trace_writer", return_value=old_writer),
+        mock.patch("ddtrace._trace.tracer.store_metadata"),
+    ):
+        tracer = Tracer()
+    runtime_impl.on_runtime_identity_refresh(tracer._refresh_runtime_identity)
+
+    real_exporter = old_writer._exporter
+    stuck_exporter = old_writer._exporter = mock.Mock(send=mock.Mock(side_effect=stuck_send))
+    try:
+        old_writer.start()
+        assert send_started.wait(timeout=5)
+
+        started = time.monotonic()
+        runtime_impl.refresh_identity()
+        assert time.monotonic() - started < 1
+        assert tracer._span_aggregator.writer is not old_writer
+        assert old_writer._accepting_writes is False
+
+        release_send.set()
+        old_writer.join(timeout=5)
+
+        assert old_writer._exporter_dropped is True
+        stuck_exporter.drop.assert_called_once_with()
+        assert stuck_exporter.send.call_count == 1
+    finally:
+        release_send.set()
+        real_exporter.drop()
+        tracer.shutdown()
+
+
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
 def test_tracer_microvm_identity_refresh_keeps_pending_after_recreate_failure():
     from unittest import mock

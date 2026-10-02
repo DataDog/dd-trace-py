@@ -130,6 +130,10 @@ class DependencyEntry:
         for m in self.metadata:
             m._mark_sent()
 
+    def reset_for_refresh(self) -> None:
+        """Mark this dependency for reporting to a new worker."""
+        self._initial_report_sent = False
+
     def add_metadata(self, cve_id: str, path: str = "", symbol: str = "", line: int = 0) -> bool:
         """Add or update reachability metadata for a CVE.
 
