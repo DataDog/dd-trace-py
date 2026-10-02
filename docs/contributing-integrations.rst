@@ -125,6 +125,19 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 
 Once the run finishes, the snapshot file will have been regenerated.
 
+Snapshots with OpenTelemetry semantics enabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true`` the tracer exports with OTLP, which the test agent's snapshot
+endpoint does not compare. Pass ``otel_semantics=True`` to the snapshot marker or ``snapshot_context`` and write the
+test as usual, for example ``@pytest.mark.snapshot(otel_semantics=True, ignores=[...])``. Applications started
+as child processes during the test inherit an environment that enables OpenTelemetry semantics and exports OTLP to the
+test agent under a per-test session token. When the test ends, the traces are fetched from the agent's OTLP port (4318),
+ids, timestamps and other unstable values are replaced, and the result is compared with
+``tests/snapshots/<token>.json`` (see ``tests/otel_semantics_snapshot.py``). Unlike the snapshots above, the file keeps
+the OTLP shape, so it shows the exported resource, scope, attribute keys and typed values. ``ignores`` takes
+attribute keys, and the file is generated and regenerated the same way as the snapshots above.
+
 How should I write integration tests for my integration?
 --------------------------------------------------------
 
