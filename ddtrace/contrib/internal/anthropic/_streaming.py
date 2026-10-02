@@ -1,4 +1,5 @@
 from functools import partial
+import json
 from typing import Any
 
 import anthropic
@@ -13,6 +14,20 @@ from ddtrace.llmobs._utils import safe_load_json
 
 
 log = get_logger(__name__)
+
+
+def _get_attr(o: object, attr: str, default: object):
+    # Streamed chunks may be SDK objects or plain dicts.
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
+
+
+def safe_load_json(value: str):
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {"value": str(value)}
 
 
 def _text_stream_generator(traced_stream):
@@ -37,7 +52,7 @@ async def _consume_async_stream(traced_stream: Any) -> None:
         pass
 
 
-def handle_streamed_response(integration, resp, args, kwargs, ctx):
+def handle_streamed_response(resp, args, kwargs, ctx):
     """
     Creates a traced stream with callbacks that route SDK-owned stream consumers
     through the tracing proxy.
@@ -57,14 +72,14 @@ def handle_streamed_response(integration, resp, args, kwargs, ctx):
     if _is_stream(resp) or _is_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx),
+            AnthropicStreamHandler(None, span_from_context(ctx), args, kwargs, ctx=ctx),
             on_stream_created=add_text_stream,
         )
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicAsyncStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx),
+            AnthropicAsyncStreamHandler(None, span_from_context(ctx), args, kwargs, ctx=ctx),
             on_stream_created=add_async_text_stream,
         )
         return traced_stream

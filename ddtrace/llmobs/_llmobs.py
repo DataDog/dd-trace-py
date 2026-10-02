@@ -137,6 +137,7 @@ from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._processor import LLMObsProcessor
+from ddtrace.llmobs._product import listen_integrations
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -1097,6 +1098,10 @@ class LLMObs(Service):
                 sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
+
+            # Covers setups that patch LLM integrations without ddtrace-run, where the
+            # product's post_preload never runs.
+            listen_integrations()
 
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)

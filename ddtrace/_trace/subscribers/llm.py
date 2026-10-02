@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.llm import LlmEvents
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -23,10 +24,16 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
 
     Handles span creation, base tag setting, proxy detection,
     and LLMObs tag extraction. Provider-specific logic is delegated
-    to the integration object carried by the event.
+    to the integration object carried by the event, or, for events that
+    carry none, to subscribers of the LlmEvents span lifecycle events.
     """
 
     event_names = (LlmRequestEvent.event_name,)
+
+    @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
+        core.dispatch(LlmEvents.SPAN_STARTING.value, (ctx,))
+        super()._on_context_started(ctx)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
@@ -39,6 +46,10 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         # TODO: keep these tags once snapshots are updated
         span._remove_attribute(COMPONENT)
         span._remove_attribute(SPAN_KIND)
+
+        if event.llmobs_integration is None:
+            core.dispatch(LlmEvents.SPAN_STARTED.value, (ctx,))
+            return
 
         event.llmobs_integration._set_base_span_tags(
             span,
@@ -67,6 +78,9 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         dispatch_ended_event().
         """
         event: LlmRequestEvent = ctx.event
+        if event.llmobs_integration is None:
+            core.dispatch(LlmEvents.SPAN_FINISHING.value, (ctx,))
+            return
         event.llmobs_integration.llmobs_set_tags(
             span_from_context(ctx),
             args=[],
