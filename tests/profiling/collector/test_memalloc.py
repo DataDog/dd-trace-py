@@ -11,6 +11,7 @@ import threading
 from tracemalloc import Statistic
 from types import CodeType
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import Union
 from typing import cast
@@ -957,7 +958,7 @@ def test_memory_collector_allocation_during_shutdown() -> None:
     shutdown_event = threading.Event()
     allocation_thread = None
 
-    def allocate_continuously():
+    def allocate_continuously() -> None:
         while not shutdown_event.is_set():
             data = [0] * 100
             del data
@@ -1077,7 +1078,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
     with mc:
         threads: list[threading.Thread] = []
 
-        def worker():
+        def worker() -> None:
             for i in range(10):
                 # On Python 3.14+, increase the allocation size to more reliably
                 # trigger sampling. The CPython internal could have optimized
@@ -1172,7 +1173,7 @@ def test_heap_stress() -> None:
 
 
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
-def test_memalloc_speed(benchmark, heap_sample_size) -> None:
+def test_memalloc_speed(benchmark: Any, heap_sample_size: int) -> None:
     if heap_sample_size:
         with memalloc.MemoryCollector(heap_sample_size=heap_sample_size):
             benchmark(_allocate_1k)
@@ -1246,7 +1247,7 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
     )
 
     # Create a very deep call stack to trigger frame dropping
-    def make_deep_stack(depth: int):
+    def make_deep_stack(depth: int) -> list[object]:
         """Recursively creates a call stack of given depth."""
         if depth == 0:
             # Allocate at the leaf to create a sample
