@@ -31,15 +31,15 @@ def _watchdog(deadline, what):
 def test_race_stop_concurrent_with_awake():
     """Hammer the window where stop() races in-flight awake().
 
-    awake() releases the GIL after the early _stopping check, then competes
-    with stop() for _awake_mutex. The middle-ground design must:
+    awake() competes with stop() for _awake_mutex:
 
     1. If stop() wins the mutex first: awake() observes _stopping under the
-       mutex and silently bails (does NOT touch _served).
-    2. If awake() wins: it publishes AWAKE; either the worker serves it
-       (then exits on STOP) or the worker's cleanup _served->set() wakes us.
+       mutex and does nothing.
+    2. If awake() wins: it publishes AWAKE and returns; the worker either
+       serves it or exits on STOP.
 
-    Either branch must complete without hanging.
+    awake() never waits for the worker, so either branch must complete
+    without hanging.
     """
     rng = random.Random(0xBADBEEF)
 
