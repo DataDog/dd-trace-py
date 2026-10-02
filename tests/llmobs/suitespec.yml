@@ -55,7 +55,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, vcrpy, 'anthropic~=0.28.0', 'httpx~=0.27.0']
         - name: anthropic
-          dependencies: [pytest-asyncio, vcrpy, anthropic, 'httpx<0.28.0']
+          dependencies: [pytest-asyncio, vcrpy, 'anthropic<1', 'httpx<0.28.0']
   claude_agent_sdk:
     venvs_per_job: 7
     paths:
@@ -276,7 +276,7 @@ suites:
           dependencies: [pytest-asyncio, 'mcp~=1.10.0']
         - name: mcp
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [pytest-asyncio, mcp]
+          dependencies: [pytest-asyncio, 'mcp<2']
   mistralai:
     paths:
       - '@bootstrap'
