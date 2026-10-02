@@ -2,30 +2,26 @@
 components:
   appsec:
     - ddtrace/appsec/*
-    - '!ddtrace/appsec/ai_guard/*'
-    - '!ddtrace/appsec/iast/*'
-    - '!ddtrace/appsec/_iast/*'
-    - '!ddtrace/appsec/sca/*'
+    - ddtrace/internal/appsec/*
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/_iast/*
     - ddtrace/appsec/_iast_context.py
+    - ddtrace/internal/iast/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
   sca:
     - ddtrace/appsec/sca/*
+    - ddtrace/internal/sca/*
 suites:
   appsec:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@remoteconfig'
       - tests/appsec/*
     pattern: appsec$
     retry: 2
@@ -41,8 +37,6 @@ suites:
     venvs_per_job: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
@@ -72,8 +66,6 @@ suites:
       CI_DEBUG_TRACE: 'true'
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
@@ -96,8 +88,6 @@ suites:
     venvs_per_job: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
@@ -151,8 +141,6 @@ suites:
   iast_tdd_propagation:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
@@ -174,11 +162,7 @@ suites:
   appsec_integrations_pygoat:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
@@ -206,11 +190,7 @@ suites:
       TEST_MYSQL_HOST: mysql
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/iast/*
       - tests/appsec/integrations/packages_tests/*
     retry: 2
@@ -231,8 +211,6 @@ suites:
     venvs_per_job: 15
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
       - tests/cassettes/stripe/*
@@ -253,11 +231,7 @@ suites:
     venvs_per_job: 11
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/iast/*
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
@@ -283,10 +257,7 @@ suites:
     pattern: appsec_integrations_flask$
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - tests/appsec/integrations/flask_tests/test_iast_flask.py
       - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       - tests/appsec/app.py
@@ -318,11 +289,7 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
       - tests/appsec/integrations/conftest.py
       - tests/appsec/integrations/utils_testagent.py
@@ -354,11 +321,7 @@ suites:
     venvs_per_job: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
       - tests/appsec/integrations/conftest.py
       - tests/appsec/integrations/utils_testagent.py
@@ -404,11 +367,7 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
       - tests/appsec/integrations/conftest.py
       - tests/appsec/integrations/utils_testagent.py
@@ -443,13 +402,9 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
-      - '@django'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -502,14 +457,9 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
-      - '@django'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -564,13 +514,9 @@ suites:
   appsec_threats_django_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
-      - '@django'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -592,14 +538,11 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@fastapi'
       - '@starlette'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -639,15 +582,11 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
       - '@fastapi'
       - '@starlette'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -688,14 +627,11 @@ suites:
   appsec_threats_fastapi_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@fastapi'
       - '@starlette'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -718,13 +654,10 @@ suites:
     venvs_per_job: 4
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -765,14 +698,10 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -815,13 +744,10 @@ suites:
   appsec_threats_flask_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -844,13 +770,10 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@flask'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -886,14 +809,10 @@ suites:
     venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
       - '@tornado'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -931,13 +850,10 @@ suites:
   appsec_threats_tornado_rc:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@appsec'
       - '@asgi'
       - '@wsgi'
       - '@tornado'
-      - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
@@ -959,7 +875,6 @@ suites:
   sca:
     paths:
       - '@bootstrap'
-      - '@core'
       - '@tracing'
       - '@sca'
       - tests/appsec/sca/*

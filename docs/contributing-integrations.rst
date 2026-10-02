@@ -205,7 +205,8 @@ are not yet any expected spans stored for it, so we need to create some.
 
 15. Add a `suite` for your integration in `tests/contrib/suitespec.yml`. This defines test configuration
     including which docker services to run and file paths to monitor. Set `snapshot: true` for snapshot tests
-    to enable the test agent.
+    to enable the test agent. The components that your integration's sources import directly are discovered
+    automatically, so there is no need to list them (see ``tests/README.md``).
 
     Example:
 
@@ -215,9 +216,7 @@ are not yet any expected spans stored for it, so we need to create some.
       venvs_per_job: 5
       paths:
         - '@bootstrap'
-        - '@core'
         - '@contrib'
-        - '@tracing'
         - '@pg'
         - tests/contrib/asyncpg/*
         - tests/snapshots/tests.{suite}.*

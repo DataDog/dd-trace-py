@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
+import fnmatch
 from functools import cache
 import hashlib
 from pathlib import Path
@@ -10,8 +12,10 @@ from typing import Any
 from ruamel.yaml import YAML  # noqa
 
 
-TESTS = Path(__file__).parents[1] / "tests"
-BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
+REPO = Path(__file__).parents[1]
+TESTS = REPO / "tests"
+BENCHMARKS = REPO / "benchmarks"
+DDTRACE = REPO / "ddtrace"
 SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 LOCK_ROOT = Path(".riot/requirements")
 LOCK_PLATFORM = "linux"
@@ -49,8 +53,23 @@ class MatrixError(ValueError):
     """Raised when a test matrix declaration is invalid."""
 
 
+def _inline_local_components(paths: list[str], components: dict[str, list[str]]) -> list[str]:
+    """Replace references to components declared in the same suitespec with their patterns.
+
+    >>> _inline_local_components(["@a", "@b", "x"], {"a": ["@c", "y"], "c": ["z"]})
+    ['z', 'y', '@b', 'x']
+    """
+    inlined = []
+    for path in paths:
+        if path.startswith("@") and path[1:] in components:
+            inlined.extend(_inline_local_components(components[path[1:]], components))
+        else:
+            inlined.append(path)
+    return inlined
+
+
 def _collect_suitespecs() -> dict:
-    suitespec = {"components": {}, "suites": {}}
+    suitespec: dict[str, dict] = {"components": {}, "suites": {}}
 
     specfiles = []
     for root, ns_prefix in SEARCH_ROOTS:
@@ -62,12 +81,13 @@ def _collect_suitespecs() -> dict:
         namespace = "::".join(path_parts) if path_parts else ns_prefix or None
         with YAML(typ="safe") as yaml:
             data = yaml.load(s)
-        suitespec["components"].update(data.get("components", {}))
+        components = data.get("components", {})
+        suitespec["components"].update(components)
 
         source = s.relative_to(TESTS.parent).as_posix()
         for name, value in data["suites"].items():
             spec = value.copy()
-            spec["paths"] = [*spec["paths"], source]
+            spec["paths"] = [*_inline_local_components(spec["paths"], components), source]
             full_name = f"{namespace}::{name}" if namespace is not None else name
             if namespace is not None and "pattern" not in spec:
                 spec["pattern"] = name
@@ -78,12 +98,227 @@ def _collect_suitespecs() -> dict:
 
 SUITESPEC = _collect_suitespecs()
 
+# Files that can back an importable ddtrace module. Stubs are leaves of the
+# import graph because their imports never run.
+_MODULE_SUFFIXES = (".py", ".pyi", ".pyx", ".pxd")
+_PARSED_SUFFIXES = (".py", ".pyx", ".pxd")
+
+# Cython is not Python syntax, so its import statements are matched line by line.
+# Continuation lines of parenthesized imports are missed, so only their first
+# names count.
+_CYTHON_IMPORT = re.compile(r"^\s*(?:from\s+(\.*)([\w.]*)\s+c?import\s+(.+)|c?import\s+(.+))$", re.MULTILINE)
+
+
+def _is_type_checking(test: ast.expr) -> bool:
+    return (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+        isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+    )
+
+
+class _ImportCollector(ast.NodeVisitor):
+    """Collect the absolute names a module imports.
+
+    Function-level imports count because they run whenever the function does.
+    Imports under TYPE_CHECKING are skipped because they never run.
+    """
+
+    def __init__(self, module: tuple[str, ...], is_package: bool) -> None:
+        self.package = module if is_package else module[:-1]
+        self.names: set[tuple[str, ...]] = set()
+
+    def visit_If(self, node: ast.If) -> None:
+        if _is_type_checking(node.test):
+            for child in node.orelse:
+                self.visit(child)
+        else:
+            self.generic_visit(node)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        self.names.update(tuple(alias.name.split(".")) for alias in node.names)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        module = tuple(node.module.split(".")) if node.module else ()
+        if node.level:
+            module = self.package[: len(self.package) - node.level + 1] + module
+        self.names.add(module)
+        # The imported names may be submodules; _module_files tells them apart from attributes.
+        self.names.update(module + (alias.name,) for alias in node.names if alias.name != "*")
+
+
+def _cython_imports(source: str, package: tuple[str, ...]) -> set[tuple[str, ...]]:
+    r"""Absolute names imported or cimported by Cython source.
+
+    >>> sorted(_cython_imports("from .a cimport b\nimport x.y, z as w\nfrom p import (q,\n    r)\n", ("pkg",)))
+    [('p',), ('p', 'q'), ('pkg', 'a'), ('pkg', 'a', 'b'), ('x', 'y'), ('z',)]
+    """
+    names: set[tuple[str, ...]] = set()
+    for dots, module_name, imported, plain in _CYTHON_IMPORT.findall(source):
+        aliases = [a.strip(" ()\\").split(" as ")[0].strip() for a in (imported or plain).split("#")[0].split(",")]
+        aliases = [a for a in aliases if a]
+        if plain:
+            names.update(tuple(a.split(".")) for a in aliases)
+            continue
+        module = tuple(module_name.split(".")) if module_name else ()
+        if dots:
+            module = package[: len(package) - len(dots) + 1] + module
+        names.add(module)
+        names.update(module + (a,) for a in aliases if a != "*")
+    return names
+
+
+@cache
+def _module_files(module: tuple[str, ...]) -> tuple[str, ...]:
+    """Repo-relative files backing a module, or nothing if the name is not a module."""
+    base = REPO.joinpath(*module)
+    candidates = [base / "__init__.py", *(base.with_suffix(suffix) for suffix in _MODULE_SUFFIXES)]
+    return tuple(c.relative_to(REPO).as_posix() for c in candidates if c.is_file())
+
+
+@cache
+def _lazy_exports(package: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
+    """Names a package resolves lazily in its module-level __getattr__, mapped to the modules that define them.
+
+    The idiom is a dict of name -> module name, which __getattr__ imports on
+    first access, so `from package import Name` really imports that module.
+
+    >>> _lazy_exports(("ddtrace", "llmobs", "_integrations"))["BedrockIntegration"]
+    ('ddtrace', 'llmobs', '_integrations', 'bedrock')
+    """
+    init = REPO.joinpath(*package) / "__init__.py"
+    if not init.is_file():
+        return {}
+    tree = ast.parse(init.read_bytes())
+    if not any(isinstance(n, ast.FunctionDef) and n.name == "__getattr__" for n in tree.body):
+        return {}
+    exports = {}
+    for node in tree.body:
+        value = node.value if isinstance(node, (ast.Assign, ast.AnnAssign)) else None
+        if not isinstance(value, ast.Dict):
+            continue
+        for key, target in zip(value.keys, value.values):
+            if not (isinstance(key, ast.Constant) and isinstance(target, ast.Constant)):
+                continue
+            if not (isinstance(key.value, str) and isinstance(target.value, str)):
+                continue
+            relative = target.value.lstrip(".")
+            level = len(target.value) - len(relative)
+            base = package[: len(package) - level + 1] if level else ()
+            resolved = base + tuple(relative.split("."))
+            if _module_files(resolved):
+                exports[key.value] = resolved
+    return exports
+
+
+@cache
+def _direct_imports(path: str) -> frozenset[str]:
+    """Files of the ddtrace modules that a ddtrace source file imports itself.
+
+    Only the imported modules count, not their parent packages, so that a
+    component depends on what its code names rather than on everything that
+    package initialization drags in.
+
+    >>> "ddtrace/internal/datadog/profiling/code_provenance.py" in _direct_imports(
+    ...     "ddtrace/internal/datadog/profiling/ddup/_ddup.pyx"
+    ... )
+    True
+    >>> "ddtrace/llmobs/_integrations/bedrock.py" in _direct_imports("ddtrace/contrib/internal/botocore/patch.py")
+    True
+    """
+    parts = Path(path).with_suffix("").parts
+    is_package = parts[-1] == "__init__"
+    module = parts[:-1] if is_package else parts
+    source = (REPO / path).read_bytes()
+    if path.endswith(".py"):
+        collector = _ImportCollector(module, is_package)
+        try:
+            collector.visit(ast.parse(source, filename=path))
+        except SyntaxError:
+            # Dependencies are unknown, so be conservative: any ddtrace change is relevant.
+            return frozenset({"ddtrace/*"})
+        names = collector.names
+    else:
+        names = _cython_imports(source.decode(), module[:-1])
+
+    imports = set()
+    for name in names:
+        if name[:1] != ("ddtrace",):
+            continue
+        files = _module_files(name)
+        if not files:
+            lazy = _lazy_exports(name[:-1]).get(name[-1])
+            files = _module_files(lazy) if lazy is not None else ()
+        imports.update(files)
+    imports.discard(path)
+    return frozenset(imports)
+
+
+@cache
+def _ddtrace_sources() -> tuple[str, ...]:
+    return tuple(sorted(p.relative_to(REPO).as_posix() for p in DDTRACE.rglob("*") if p.suffix in _PARSED_SUFFIXES))
+
+
+def _literal_prefix(pattern: str) -> str:
+    return re.split(r"[*?\[]", pattern, maxsplit=1)[0]
+
+
+@cache
+def _component_matchers() -> tuple[tuple[str, int, re.Pattern[str]], ...]:
+    """(component, specificity, regex) for every pattern of every ordinary component."""
+    matchers = []
+    for component, patterns in SUITESPEC["components"].items():
+        if component.startswith("$"):
+            continue
+        for pattern in patterns:
+            if pattern.startswith(("!", "@")):
+                continue
+            prefix = _literal_prefix(pattern)
+            # An exact path is more specific than any glob.
+            specificity = len(prefix) + (1 << 16 if prefix == pattern else 0)
+            matchers.append((component, specificity, re.compile(fnmatch.translate(pattern))))
+    return tuple(matchers)
+
+
+@cache
+def _owners(path: str) -> frozenset[str]:
+    """The components owning a file: those whose most specific pattern matches it."""
+    hits = [(specificity, component) for component, specificity, rx in _component_matchers() if rx.match(path)]
+    if not hits:
+        return frozenset()
+    best = max(specificity for specificity, _ in hits)
+    return frozenset(component for specificity, component in hits if specificity == best)
+
+
+@cache
+def _imported_components(patterns: frozenset[str]) -> frozenset[str]:
+    """Components owning the files that the ddtrace sources matching the patterns import directly.
+
+    >>> deps = _imported_components(frozenset({"ddtrace/debugging/*"}))
+    >>> {"core", "remoteconfig", "tracing"} <= deps
+    True
+    >>> "bootstrap" in deps
+    False
+    """
+    matcher = re.compile("|".join(fnmatch.translate(p) for p in patterns))
+    components: set[str] = set()
+    for source in _ddtrace_sources():
+        if matcher.match(source):
+            for imported in _direct_imports(source):
+                components |= _owners(imported)
+    return frozenset(components)
+
 
 @cache
 def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
+    The explicit patterns that point into ddtrace (including those of components
+    declared in the suite's own suitespec, which are inlined on load) also pull
+    in the components that the matching sources import directly. References to
+    components declared elsewhere are dependencies and are taken as they are.
+
     >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest")
+    True
+    >>> "ddtrace/internal/remoteconfig/*" in get_patterns("debugging::debugger")  # discovered from @debugging
     True
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
     >>> SUITESPEC["suites"] = {"debugger": {"paths": ["@core", "@debugging", "tests/d/*"]}}
@@ -97,6 +332,9 @@ def get_patterns(suite: str) -> set[str]:
         return set()
 
     suite_patterns = set(SUITESPEC["suites"][suite]["paths"])
+    sources = frozenset(p for p in suite_patterns if p.startswith("ddtrace/"))
+    if sources:
+        suite_patterns |= {f"@{c}" for c in _imported_components(sources)}
 
     # Include patterns from include-always components
     for patterns in (patterns for compo, patterns in compos.items() if compo.startswith("$")):
