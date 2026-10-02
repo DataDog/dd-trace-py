@@ -41,6 +41,8 @@ task = loop.create_task(wait_forever())
         thread = std::make_unique<ThreadInfo>(1, 1, "test-thread", mach_thread_self());
 #endif
         thread->asyncio_loop = reinterpret_cast<uintptr_t>(loop);
+        echion.set_asyncio_offsets(AsyncioOffsets{ offsetof(PyInterpreterState, asyncio_tasks_head),
+                                                   offsetof(_PyThreadStateImpl, asyncio_tasks_head) });
     }
 
     void TearDown() override
@@ -70,12 +72,15 @@ loop.close()
     }
 
     // Keep the production visitor private while allowing deterministic linked-list topologies in this test.
-    static Result<void> visit_thread_tasks(ThreadInfo& thread, std::vector<TaskObj*>& task_addresses)
+    static Result<void> visit_thread_tasks(ThreadInfo& thread,
+                                           size_t tasks_head_offset,
+                                           std::vector<TaskObj*>& task_addresses)
     {
-        return thread.for_each_task_address_from_thread_list([&task_addresses](TaskObj* task_address) -> Result<void> {
-            task_addresses.push_back(task_address);
-            return Result<void>::ok();
-        });
+        return thread.for_each_task_address_from_thread_list(tasks_head_offset,
+                                                             [&task_addresses](TaskObj* task_address) -> Result<void> {
+                                                                 task_addresses.push_back(task_address);
+                                                                 return Result<void>::ok();
+                                                             });
     }
 
     static Result<void> fail_task_visit(ThreadInfo& thread,
@@ -120,8 +125,12 @@ TEST_F(ThreadInfoTaskTraversalTest, SkipsTaskMovedToAnotherListWithoutPublishing
     // Traversal reads V before T.prev != V reveals the malformed edge. It must not publish V.
     const llist_node original_valid_task_node = valid_task->task_node;
     const llist_node original_task_node = task->task_node;
-    _PyThreadStateImpl remote_tstate{};
-    llist_node& expected_head = remote_tstate.asyncio_tasks_head;
+    struct RemoteThreadState
+    {
+        uintptr_t padding[17];
+        llist_node tasks_head;
+    } remote_tstate{};
+    llist_node& expected_head = remote_tstate.tasks_head;
     llist_node moved_head{};
     expected_head.next = &valid_task->task_node;
     expected_head.prev = &task->task_node;
@@ -131,7 +140,7 @@ TEST_F(ThreadInfoTaskTraversalTest, SkipsTaskMovedToAnotherListWithoutPublishing
     task->task_node.next = task->task_node.prev = &moved_head;
     thread->tstate_addr = reinterpret_cast<uintptr_t>(&remote_tstate);
 
-    auto traversal = visit_thread_tasks(*thread, task_addresses);
+    auto traversal = visit_thread_tasks(*thread, offsetof(RemoteThreadState, tasks_head), task_addresses);
 
     // Restore CPython's real links before assertions or object destruction can inspect them.
     valid_task->task_node = original_valid_task_node;

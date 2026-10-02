@@ -134,8 +134,10 @@ class ThreadInfo
                                                      PyThreadState* tstate,
                                                      const TaskAddressCallback& callback);
 #if PY_VERSION_HEX >= 0x030e0000
-    [[nodiscard]] Result<void> for_each_task_address_from_thread_list(const TaskAddressCallback& callback);
+    [[nodiscard]] Result<void> for_each_task_address_from_thread_list(size_t tasks_head_offset,
+                                                                      const TaskAddressCallback& callback);
     [[nodiscard]] Result<void> for_each_task_address_from_interpreter_list(PyThreadState* tstate,
+                                                                           size_t tasks_head_offset,
                                                                            const TaskAddressCallback& callback);
     [[nodiscard]] Result<std::vector<TaskObj*>> get_task_addresses_from_linked_list(uintptr_t head_addr);
 #endif
