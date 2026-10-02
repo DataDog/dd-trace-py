@@ -22,6 +22,8 @@ Before you start working, please check that everything you will possibly need is
 - Check that the `rapid` CLI is available. If not, propose to install it using
   `brew install rapid` on macOS and `update-tool rapid` in workspaces.
 
+Any failure in those checks means you should alert the user and not continue!
+
 # General instructions
 
 During the workflow, if _anything_ goes unexpected (i.e. a command fails, etc.) do NOT try
@@ -88,6 +90,8 @@ the next step.
 
 # How to deploy the changes to `dogweb`
 
+## Updating requirements
+
 Go to the `dogweb` worktree I gave you.
 
 Update the `ddtrace` version in `requirements.in` to match the one you found in the job, example:
@@ -125,7 +129,15 @@ git push
 Once that is done, use `gh` to create a PR from the branch.
 This PR should be a draft, not really open.
 
-At this point, give me a heads-up!
+## Sending changes to `staging`
+
+If the user wants to test in staging, add a comment on the PR containing exactly...
+
+```
+/to-staging
+```
+
+This will trigger a workflow that will integrate the dependency update.
 
 # How to deploy the changes in `dd-source`
 
@@ -157,7 +169,8 @@ index 06eaeaa3d819..411db3898331 100644
 ```
 
 Then, run `bzl run //:requirements.update` to update the requirements files.
-This may take a while, but should not fail.
+Note that this may sometimes ask for Google authentication which will block the process.
+You need to keep track of what the process is printing to detect _and tell me_ when it happens.
 
 Once this is finished, stage the changes to all requirements files and commit them on a new
 branch.
@@ -210,9 +223,17 @@ If the user wants to send the changes to staging (shared integration branch), us
 
 ```sh
 # Before running this, always ensure a PR already exists for the branch
-ddr devflow integrate -s <service_name>
+ddr devflow --no-interactive integrate -s <service_name>
 # If the command asks whether you want to push the local changes, it's a bug
 # don't push anything!
+```
+
+Note that if a previous dogfooding branch has already been merged to the integration
+branch, this will result in conflicts and the `integrate` workflow will fail.  
+If that happens, remove the previous branch from integration 
+
+```sh
+ddr devflow --no-interactive code remove-from-staging --pr <pull_request_number>
 ```
 
 When using `ddr devflow integrate`, if conflicts appear, try to discover what the
