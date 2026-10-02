@@ -1,5 +1,5 @@
 import ddtrace.profiling.auto  # noqa:F401
 
 
-def application():
+def application() -> None:
     pass
