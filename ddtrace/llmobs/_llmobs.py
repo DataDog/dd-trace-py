@@ -78,6 +78,7 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
@@ -641,6 +642,10 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
+        # Integrations already set this in _apply_shadow_metrics; manually created spans never reach
+        # that path, so without this the APM span doesn't show that LLMObs processed it.
+        if not span._has_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY):
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1)
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
@@ -2649,6 +2654,9 @@ class LLMObs(Service):
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
 
         if not self.enabled:
+            # Mirrors the 0 integrations report while LLMObs is off. This sticks even if LLMObs is enabled
+            # before the span finishes: it was never activated, so LLMObs can't emit it.
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 0)
             return span
 
         _annotate_llmobs_span_data(

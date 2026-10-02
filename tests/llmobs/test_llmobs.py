@@ -10,6 +10,7 @@ import pytest
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
+from ddtrace.llmobs import decorators
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import GEN_AI_OPERATION_NAME_TAG_KEY
 from ddtrace.llmobs._constants import GEN_AI_PROVIDER_NAME_TAG_KEY
@@ -1273,6 +1274,83 @@ class TestAPMShadowTags:
         assert span.get_metric(GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY) == 20
         assert span.get_metric(GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY) == 30
         assert span.get_tag(LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY) == "true"
+
+
+_SDK_SPAN_KINDS = ["llm", "embedding", "workflow", "task", "agent", "tool", "retrieval"]
+
+
+class TestAPMShadowEnabledOnSDKSpans:
+    """Spans created through the SDK never reach _apply_shadow_metrics, so LLMObs sets
+    _dd.llmobs.enabled on them itself: 1 at finish when enabled, 0 at start when disabled.
+    """
+
+    @pytest.mark.parametrize("span_kind", _SDK_SPAN_KINDS)
+    def test_enabled_set_on_sdk_spans(self, llmobs, span_kind):
+        with getattr(llmobs, span_kind)() as span:
+            pass
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    @pytest.mark.parametrize("span_kind", _SDK_SPAN_KINDS)
+    def test_enabled_set_on_decorated_functions(self, llmobs, test_spans, span_kind):
+        @getattr(decorators, span_kind)
+        def f():
+            pass
+
+        f()
+        (span,) = test_spans.pop()
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    @pytest.mark.parametrize("span_kind", _SDK_SPAN_KINDS)
+    def test_disabled_sdk_spans_report_zero(self, llmobs, span_kind):
+        llmobs.disable()
+        with getattr(llmobs, span_kind)() as span:
+            pass
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 0
+
+    @pytest.mark.parametrize("span_kind", _SDK_SPAN_KINDS)
+    def test_disabled_decorators_create_no_span(self, llmobs, test_spans, span_kind):
+        # Decorators call the function untraced when LLMObs is off, so there is no span to carry a 0.
+        @getattr(decorators, span_kind)
+        def f():
+            pass
+
+        llmobs.disable()
+        f()
+        assert test_spans.pop() == []
+
+    def test_zero_kept_when_enabled_after_span_start(self, llmobs, llmobs_events):
+        # The span was never activated for LLMObs, so enabling it before finish still emits nothing
+        # and 0 remains accurate.
+        with mock.patch.object(llmobs, "enabled", False):
+            span = llmobs.llm()
+        span.finish()
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 0
+        assert llmobs_events == []
+
+    def test_enabled_set_on_llm_type_span_without_llmobs_kind(self, llmobs, tracer):
+        # No LLMObs event is built for this span, but LLMObs still processed it.
+        with tracer.trace("responses_call", span_type=SpanTypes.LLM) as span:
+            pass
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    def test_enabled_set_when_span_dropped_by_user_processor(self, llmobs):
+        llmobs.register_processor(lambda _: None)
+        try:
+            with llmobs.llm() as span:
+                pass
+        finally:
+            llmobs.register_processor(None)
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    def test_existing_value_not_overwritten(self, llmobs):
+        with llmobs.llm() as span:
+            span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 0)
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 0
+
+    def test_not_set_on_non_llm_spans(self, llmobs, tracer):
+        with tracer.trace("regular_span") as span:
+            pass
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) is None
 
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
