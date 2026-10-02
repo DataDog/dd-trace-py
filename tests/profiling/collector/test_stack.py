@@ -479,6 +479,63 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
         unregister_thread.assert_called_with(thread_id)
 
 
+@pytest.mark.subprocess
+def test_restarts_do_not_stack_thread_hooks() -> None:
+    import threading
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restarts_do_not_stack_thread_hooks", version="my_version")
+    ddup.start()
+
+    for _ in range(3):
+        with stack.StackCollector():
+            pass
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_restart_reinstalls_replaced_thread_hooks() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restart_reinstalls_replaced_thread_hooks", version="my_version")
+    ddup.start()
+
+    original_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+    with stack.StackCollector():
+        pass
+
+    # Same as the coverage threading patch: the replacement delegates to the method it captured before the profiler
+    # hook was installed.
+    def replaced_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        original_bootstrap_inner(self, *args, **kwargs)
+
+    threading.Thread._bootstrap_inner = replaced_bootstrap_inner  # type: ignore[attr-defined]
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
 def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
     tracer._endpoint_call_counter_span_processor.enable()
 
