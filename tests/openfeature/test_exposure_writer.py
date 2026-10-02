@@ -329,7 +329,9 @@ class TestExposureWriter:
         )
         writer.enqueue(sample_exposure_event)
 
-        with mock.patch("ddtrace.internal.utils.retry.sleep") as sleep:
+        sleep = mock.Mock()
+        local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep)
+        with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
             writer.periodic()
 
         assert connection_factory.call_count == expected_attempts
