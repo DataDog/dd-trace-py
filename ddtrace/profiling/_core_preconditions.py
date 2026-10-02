@@ -1,4 +1,6 @@
-"""Linux core-dump preconditions reported once at profiler startup."""
+"""Fleet telemetry for Linux core-dump preconditions (profiler start, once)."""
+
+from __future__ import annotations
 
 import ctypes
 import resource
@@ -8,7 +10,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
-# linux/prctl.h. /proc/self/status has CoreDumping (dump in progress), not Dumpable.
+# linux/prctl.h — Dumpable is not in /proc/self/status (that has CoreDumping).
 _PR_GET_DUMPABLE: int = 3
 
 
@@ -74,7 +76,7 @@ def _emit_linux_core_preconditions_telemetry() -> None:
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_CORE)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.DEBUG,
-        "Profiler startup core dump preconditions",
+        "Linux core-dump preconditions at profiler start",
         tags={
             "rlimit_core_soft": _categorize_rlimit(soft_limit),
             "rlimit_core_hard": _categorize_rlimit(hard_limit),
@@ -85,6 +87,6 @@ def _emit_linux_core_preconditions_telemetry() -> None:
 
 
 def emit_core_preconditions_telemetry() -> None:
-    """Report low-cardinality core-dump preconditions for fleet aggregation."""
+    """Emit low-cardinality RLIMIT_CORE / core_pattern / dumpable tags (Linux only)."""
     if sys.platform == "linux":
         _emit_linux_core_preconditions_telemetry()

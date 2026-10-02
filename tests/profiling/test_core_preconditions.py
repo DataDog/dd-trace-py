@@ -83,7 +83,7 @@ def test_emit_core_preconditions_telemetry_linux() -> None:
     mock_add_log.assert_called_once()
     call_args: Any = mock_add_log.call_args
     assert call_args[0][0] == TELEMETRY_LOG_LEVEL.DEBUG
-    assert call_args[0][1] == "Profiler startup core dump preconditions"
+    assert call_args[0][1] == "Linux core-dump preconditions at profiler start"
     assert call_args[1]["tags"] == {
         "rlimit_core_soft": "zero",
         "rlimit_core_hard": "limited",
