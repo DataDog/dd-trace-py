@@ -9,10 +9,10 @@ from typing import Union
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.llmobs._integrations import LlamaIndexIntegration
 from ddtrace.internal.utils.stream_handler import AsyncStreamHandler
 from ddtrace.internal.utils.stream_handler import StreamHandler
 from ddtrace.internal.utils.stream_handler import make_traced_stream
+from ddtrace.llmobs._integrations import LlamaIndexIntegration
 
 
 if TYPE_CHECKING:

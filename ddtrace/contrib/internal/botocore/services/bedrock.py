@@ -10,14 +10,14 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.stream_handler import StreamHandler
+from ddtrace.internal.utils.stream_handler import make_traced_stream
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import begin_resolve
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_resolve_failure
-from ddtrace.internal.utils.stream_handler import StreamHandler
-from ddtrace.internal.utils.stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
 from ddtrace.llmobs._integrations.bedrock_utils import _AMAZON
 from ddtrace.llmobs._integrations.bedrock_utils import _ANTHROPIC

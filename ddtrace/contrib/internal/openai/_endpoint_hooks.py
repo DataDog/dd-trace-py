@@ -6,9 +6,9 @@ from ddtrace.contrib.internal.openai.utils import _is_async_generator
 from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
+from ddtrace.internal.utils.stream_handler import make_traced_stream
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
-from ddtrace.internal.utils.stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_load_json
 
