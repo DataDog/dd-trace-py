@@ -70,8 +70,9 @@ def _derive_stats_url(config: "AgentConfig") -> str:
 
 
 def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
-    # OTLP traces export is active when OTEL_TRACES_EXPORTER=otlp and the user has not
-    # overridden the agent protocol version (which disables OTLP export).
+    # OTel semantics force OTLP export ahead of the agent-protocol override.
+    if config._trace_otel_semantics_enabled:
+        return True
     return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp" and not config._trace_agent_protocol_version
 
 
@@ -162,7 +163,16 @@ class AgentConfig(DDConfig):
         "trace_agent_protocol_version",
         default=None,
         help_type="String",
-        help="Stores the agent protocol version override; when set, OTLP export is disabled",
+        help="Stores the agent protocol version override; when set, OTLP export is disabled "
+        "unless OTel semantics are enabled",
+    )
+
+    _trace_otel_semantics_enabled = DDConfig.v(
+        bool,
+        "trace_otel_semantics_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Stores whether OTel HTTP semantic conventions are enabled",
     )
 
     _trace_native_span_events = DDConfig.v(
