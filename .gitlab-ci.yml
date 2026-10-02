@@ -52,6 +52,7 @@ default:
 .is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
 .is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
 .is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+.run_all_tests: '$FULL_TEST_SUITE == "true" || $NIGHTLY_BUILD == "true" || $CI_PIPELINE_SOURCE == "schedule" || $CI_COMMIT_REF_NAME == "main" || $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/ || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/ || $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/ || $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/'
 
 # trigger new commit cancel
 workflow:
@@ -156,6 +157,7 @@ run-tests-trigger:
    strategy: depend
 
 serverless lambda tests:
+  extends: .serverless_rules
   stage: tests
   trigger:
     project: DataDog/datadog-lambda-python
@@ -709,6 +711,8 @@ prof-correctness:
     - job: "upload all"
   timeout: 60m
   rules:
+    - if: !reference [.is_gh_merge_queue]
+    - if: !reference [.is_devflow_merge_queue]
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     # Bare rules:changes is true for web/API/tag pipelines; require a push.
@@ -771,6 +775,13 @@ lib_injection_tests:
   stage: tests
   tags: [ "arch:amd64" ]
   image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
+  rules:
+    - if: !reference [.run_all_tests]
+    - changes:
+        - .gitlab-ci.yml
+        - lib-injection/**/*
+        - tests/lib_injection/**/*
+    - when: never
   script: |
     echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
     pyenv --version
@@ -820,8 +831,7 @@ profiling_native:
     - .profiling_native_base
     - .retry_on_all_failure
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: !reference [.run_all_tests]
     - changes:
         - .gitlab-ci.yml
         # Native source files by extension (C, C++, Cython, CMake modules)
@@ -891,12 +901,159 @@ package-oci:
       # 3.15 cell is when: never until the python image is mirrored
       optional: true
 
+.system_test_config_changes: &system_test_config_changes
+  - .gitlab-ci.yml
+  - .gitlab/system-tests.yml
+
+.onboarding_system_test_changes: &onboarding_system_test_changes
+  - ddtrace/_monkey.py
+  - ddtrace/auto.py
+  - ddtrace/bootstrap/**/*
+  - ddtrace/commands/ddtrace_run.py
+  - ddtrace/internal/telemetry/**/*
+  - lib-injection/**/*
+  - tests/lib_injection/**/*
+  - tests/telemetry/**/*
+
+.profiling_system_test_changes: &profiling_system_test_changes
+  - ddtrace/internal/datadog/profiling/**/*
+  - ddtrace/internal/settings/profiling.py
+  - ddtrace/internal/settings/profiling.pyi
+  - ddtrace/profiling/**/*
+  - tests/profiling/**/*
+
+.appsec_system_test_changes: &appsec_system_test_changes
+  - ddtrace/appsec/**/*
+  - ddtrace/internal/_libddwaf_platform.py
+  - ddtrace/internal/appsec/**/*
+  - ddtrace/internal/iast/**/*
+  - ddtrace/internal/settings/appsec_telemetry.py
+  - ddtrace/internal/settings/asm.py
+  - tests/appsec/**/*
+
+.injection_system_test_changes: &injection_system_test_changes
+  - lib-injection/**/*
+  - tests/lib_injection/**/*
+
+.system_tests_onboarding_rules:
+  rules:
+    - if: '$SKIP_SHARED_PIPELINE == "true" || $DANGEROUSLY_SKIP_SHARED_PIPELINE_TESTS == "true"'
+      when: never
+    - if: !reference [.run_all_tests]
+    - changes: *system_test_config_changes
+    - changes: *onboarding_system_test_changes
+    - when: never
+
+.system_tests_profiling_rules:
+  rules:
+    - if: '$SKIP_SHARED_PIPELINE == "true" || $DANGEROUSLY_SKIP_SHARED_PIPELINE_TESTS == "true"'
+      when: never
+    - if: !reference [.run_all_tests]
+    - changes: *system_test_config_changes
+    - changes: *profiling_system_test_changes
+    - when: never
+
+.system_tests_appsec_rules:
+  rules:
+    - if: '$SKIP_SHARED_PIPELINE == "true" || $DANGEROUSLY_SKIP_SHARED_PIPELINE_TESTS == "true"'
+      when: never
+    - if: !reference [.run_all_tests]
+    - changes: *system_test_config_changes
+    - changes: *appsec_system_test_changes
+    - when: never
+
+.system_tests_injection_rules:
+  rules:
+    - if: '$SKIP_SHARED_PIPELINE == "true" || $DANGEROUSLY_SKIP_SHARED_PIPELINE_TESTS == "true"'
+      when: never
+    - if: !reference [.run_all_tests]
+    - changes: *system_test_config_changes
+    - changes: *injection_system_test_changes
+    - when: never
+
 configure_system_tests:
-  variables:
-    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+  rules:
+    - when: never
 
 system_tests:
-  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
+  rules:
+    - when: never
+
+configure_system_tests_onboarding:
+  extends:
+    - configure_system_tests
+    - .system_tests_onboarding_rules
+  needs: []
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding"
+
+system_tests_onboarding:
+  extends:
+    - system_tests
+    - .system_tests_onboarding_rules
+  needs: ["configure_system_tests_onboarding", "oci-internal-test-publish"]
+  trigger:
+    include:
+      - artifact: system_tests_pipeline.yml
+        job: configure_system_tests_onboarding
+    strategy: depend
+
+configure_system_tests_profiling:
+  extends:
+    - configure_system_tests
+    - .system_tests_profiling_rules
+  needs: []
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding_profiling"
+
+system_tests_profiling:
+  extends:
+    - system_tests
+    - .system_tests_profiling_rules
+  needs: ["configure_system_tests_profiling", "oci-internal-test-publish"]
+  trigger:
+    include:
+      - artifact: system_tests_pipeline.yml
+        job: configure_system_tests_profiling
+    strategy: depend
+
+configure_system_tests_appsec:
+  extends:
+    - configure_system_tests
+    - .system_tests_appsec_rules
+  needs: []
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding_appsec"
+
+system_tests_appsec:
+  extends:
+    - system_tests
+    - .system_tests_appsec_rules
+  needs: ["configure_system_tests_appsec", "oci-internal-test-publish"]
+  trigger:
+    include:
+      - artifact: system_tests_pipeline.yml
+        job: configure_system_tests_appsec
+    strategy: depend
+
+configure_system_tests_injection:
+  extends:
+    - configure_system_tests
+    - .system_tests_injection_rules
+  needs: []
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "docker-ssi,lib-injection"
+
+system_tests_injection:
+  extends:
+    - system_tests
+    - .system_tests_injection_rules
+  needs: ["configure_system_tests_injection", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
+  trigger:
+    include:
+      - artifact: system_tests_pipeline.yml
+        job: configure_system_tests_injection
+    strategy: depend
 
 # The reliability environment installs commit-scoped wheels from the CI index.
 deploy_to_reliability_env:

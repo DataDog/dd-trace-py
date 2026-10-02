@@ -1,12 +1,52 @@
 include:
   - local: ".gitlab/testrunner.yml"
 
+.rust_changes: &rust_changes
+  - .gitlab-ci.yml
+  - .gitlab/native.yml
+  - setup.py
+  - pyproject.toml
+  - src/native/**/*
+  - src/native_heap_gotter/**/*
+
+.profiling_native_changes: &profiling_native_changes
+  - .gitlab-ci.yml
+  - .gitlab/native.yml
+  - setup.py
+  - pyproject.toml
+  - ddtrace/internal/datadog/profiling/**/*.cc
+  - ddtrace/internal/datadog/profiling/**/*.cmake
+  - ddtrace/internal/datadog/profiling/**/*.cpp
+  - ddtrace/internal/datadog/profiling/**/*.h
+  - ddtrace/internal/datadog/profiling/**/*.hpp
+  - ddtrace/internal/datadog/profiling/**/*.pyx
+  - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
+  - ddtrace/internal/datadog/profiling/**/*.sh
+  - ddtrace/internal/datadog/profiling/**/*.supp
+  - ddtrace/profiling/**/*.cpp
+  - ddtrace/profiling/**/*.h
+  - ddtrace/profiling/**/*.hpp
+  - ddtrace/profiling/**/*.pxd
+  - ddtrace/profiling/**/*.pyx
+  - ddtrace/profiling/**/CMakeLists.txt
+  - src/native/**/*.rs
+  - src/native/**/*.toml
+  - src/native/**/*.txt
+  - src/native/**/Cargo.lock
+  - src/native_heap_gotter/**/*.rs
+  - src/native_heap_gotter/**/*.toml
+  - src/native_heap_gotter/**/Cargo.lock
+
 "rust ci":
   stage: tests
   image: !reference [.testrunner, image]
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
+  rules:
+    - if: !reference [.run_all_tests]
+    - changes: *rust_changes
+    - when: never
   before_script: cd src/native
   script:
     - |
@@ -43,6 +83,10 @@ include:
   tags: ["arch:amd64"]
   timeout: 20m
   needs: []
+  rules:
+    - if: !reference [.run_all_tests]
+    - changes: *profiling_native_changes
+    - when: never
   before_script:
     - pyenv global 3.12
   script:

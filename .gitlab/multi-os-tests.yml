@@ -1,9 +1,38 @@
-# Multi-OS Test Suite
-# Tests the application across Ubuntu, macOS, and Windows with multiple Python versions
+.multi_os_changes: &multi_os_changes
+  - .gitlab-ci.yml
+  - .gitlab/multi-os-tests.yml
+  - .gitlab/package.yml
+  - .gitlab/requirements/multi-os-tests.txt
+  - .gitlab/scripts/build-wheel.sh
+  - .gitlab/scripts/build-wheel-windows.sh
+  - .gitlab/scripts/multi-os-tests.ps1
+  - .gitlab/scripts/multi-os-tests.sh
+  - setup.py
+  - pyproject.toml
+  - ddtrace/**/*.c
+  - ddtrace/**/*.cc
+  - ddtrace/**/*.cpp
+  - ddtrace/**/*.h
+  - ddtrace/**/*.hpp
+  - ddtrace/**/*.pxd
+  - ddtrace/**/*.pyx
+  - ddtrace/appsec/**/*
+  - ddtrace/internal/_libddwaf_platform.py
+  - ddtrace/internal/appsec/**/*
+  - ddtrace/internal/iast/**/*
+  - ddtrace/internal/settings/appsec_telemetry.py
+  - ddtrace/internal/settings/asm.py
+  - src/native/**/*
+  - src/native_heap_gotter/**/*
+  - tests/appsec/**/*
 
 .multi_os_test_base:
   stage: tests
   extends: .retry_on_all_failure
+  rules:
+    - if: !reference [.run_all_tests]
+    - changes: *multi_os_changes
+    - when: never
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"

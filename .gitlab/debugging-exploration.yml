@@ -50,6 +50,16 @@
     DD_DEBUGGER_EXPL_STATUS_MESSAGES: 1
     PYTEST_PLUGINS: "exploration"
     PYTHONPATH: "${CI_PROJECT_DIR}/tests/debugging/exploration/pytest"
+  rules:
+    - if: '$RELEASE_ALLOW_TEST_FAILURES == "true" && ($CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/ || $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/)'
+      allow_failure: true
+    - if: !reference [.is_gh_merge_queue]
+    - if: !reference [.is_devflow_merge_queue]
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      changes: *exploration_changes
+      allow_failure: true
+    - changes: *exploration_changes
+    - when: never
   before_script:
     - !reference [.testrunner, before_script]
     # Install only the wheel matching the running Python version. All 6 per-version
@@ -66,12 +76,6 @@
   extends:
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
-  rules:
-    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-      changes: *exploration_changes
-      allow_failure: true
-    - changes: *exploration_changes
-    - when: never
   variables:
     BOTO3_TAG: "1.38.44"
     DD_DEBUGGER_EXPL_INCLUDE: "boto3"
@@ -88,12 +92,6 @@
   extends:
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
-  rules:
-    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-      changes: *exploration_changes
-      allow_failure: true
-    - changes: *exploration_changes
-    - when: never
   variables:
     BOTO3_TAG: "1.38.44"
     DD_DEBUGGER_EXPL_INCLUDE: "botocore"
