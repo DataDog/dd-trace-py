@@ -1,8 +1,14 @@
+from unittest import mock
+
+import pytest
+
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -132,6 +138,15 @@ class FalconTestCase(FalconTestMixin):
 
     def test_route_reporting_200(self):
         return self.make_route_reporting_test("/200", 200, "/200")
+
+    def test_otel_semantics_refines_resource_from_route(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            self.make_test_call("/200", expected_status_code=200)
+
+        span = self.pop_traces()[0][0]
+        assert span.get_tag(httpx.OTEL_REQUEST_METHOD) == "GET"
+        assert span.get_tag(httpx.ROUTE) == "/200"
+        assert span.resource == "GET /200"
 
     def test_route_reporting_dynamic_match(self):
         return self.make_route_reporting_test("/hello/foo", 200, "/hello/{name}")
@@ -328,3 +343,124 @@ class FalconTestCase(FalconTestMixin):
                         else:
                             web_span = traces[0][0]
                             assert web_span._parent is None
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_span_attributes():
+    from functools import partial
+    import warnings
+
+    import falcon
+    from falcon import testing
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    assert_span = partial(assert_otel_server_span, client_attributes=False)
+
+    class Hello:
+        def on_get(self, req, resp, name):
+            resp.text = "hello %s" % name
+
+    class Teapot:
+        def on_get(self, req, resp):
+            resp.status = falcon.HTTP_418
+            resp.text = "short and stout"
+
+    class Broken:
+        def on_get(self, req, resp):
+            resp.status = falcon.HTTP_500
+            resp.text = "oops"
+
+    app = falcon.App() if hasattr(falcon, "App") else falcon.API()
+    app.add_route("/hello/{name}", Hello())
+    app.add_route("/teapot", Teapot())
+    app.add_route("/broken", Broken())
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = testing.TestClient(app)
+
+        def request_span(method, path, **kwargs):
+            spans.reset()
+            with warnings.catch_warnings():
+                # wsgiref's validator flags non-standard methods such as PROPFIND.
+                warnings.simplefilter("ignore")
+                response = client.simulate_request(method=method, path=path, headers=TEST_HEADERS, **kwargs)
+            return response, spans.get_root_span()
+
+        response, span = request_span("GET", "/hello/world", query_string="q=1")
+        assert response.status_code == 200
+        assert_span(
+            span,
+            method="GET",
+            status=200,
+            path="/hello/world",
+            query="q=1",
+            route="/hello/{name}",
+            resource="GET /hello/{name}",
+        )
+
+        response, span = request_span("PROPFIND", "/hello/world")
+        assert response.status_code == 405
+        assert_span(
+            span,
+            method="_OTHER",
+            original_method="PROPFIND",
+            status=405,
+            path="/hello/world",
+            route="/hello/{name}",
+            resource="HTTP /hello/{name}",
+        )
+
+        # An unmatched route must not leak the URL path into the resource.
+        response, span = request_span("GET", "/no/such/path/123")
+        assert response.status_code == 404
+        assert_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+        response, span = request_span("GET", "/teapot")
+        assert response.status_code == 418
+        assert_span(span, method="GET", status=418, path="/teapot", route="/teapot", resource="GET /teapot")
+
+        response, span = request_span("GET", "/broken")
+        assert response.status_code == 500
+        assert_span(span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken")
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True)
+def test_otel_semantics_server_error_statuses_override():
+    import falcon
+    from falcon import testing
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    class Broken:
+        def on_get(self, req, resp):
+            resp.status = falcon.HTTP_500
+            resp.text = "oops"
+
+    app = falcon.App() if hasattr(falcon, "App") else falcon.API()
+    app.add_route("/broken", Broken())
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = testing.TestClient(app)
+
+        assert client.simulate_get("/missing", headers=TEST_HEADERS).status_code == 404
+        span = spans.get_root_span()
+        assert span.error == 1
+        assert span.get_tag("error.type") == "404"
+        assert span.resource == "GET"
+        assert span.get_metric("http.response.status_code") == 404
+
+        spans.reset()
+        assert client.simulate_get("/broken", headers=TEST_HEADERS).status_code == 500
+        span = spans.get_root_span()
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+        assert span.resource == "GET /broken"
+        assert span.get_metric("http.response.status_code") == 500

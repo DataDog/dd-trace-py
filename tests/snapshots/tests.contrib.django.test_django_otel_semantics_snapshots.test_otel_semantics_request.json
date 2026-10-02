@@ -1,0 +1,174 @@
+{
+  "resource_spans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "string_value": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "string_value": "datadog"
+            }
+          }
+        ]
+      },
+      "scope_spans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "string_value": ""
+                  }
+                },
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "int_value": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "string_value": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "string_value": "django"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "int_value": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "int_value": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "string_value": "django"
+                  }
+                },
+                {
+                  "key": "django.request.class",
+                  "value": {
+                    "string_value": "django.core.handlers.asgi.ASGIRequest"
+                  }
+                },
+                {
+                  "key": "django.view",
+                  "value": {
+                    "string_value": "fn-view"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "string_value": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "int_value": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "string_value": "^fn-view/$"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "string_value": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "int_value": "8000"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "string_value": "/fn-view/"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "string_value": "http"
+                  }
+                }
+              ],
+              "end_time_unix_nano": "<end_time_unix_nano>",
+              "flags": 1,
+              "kind": "SPAN_KIND_SERVER",
+              "name": "GET ^fn-view/$",
+              "span_id": "span_1",
+              "start_time_unix_nano": "<start_time_unix_nano>",
+              "status": {},
+              "trace_id": "trace_1"
+            },
+            {
+              "attributes": [
+                {
+                  "key": "_dd.base_service",
+                  "value": {
+                    "string_value": ""
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "string_value": "django"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "int_value": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "string_value": "django"
+                  }
+                }
+              ],
+              "end_time_unix_nano": "<end_time_unix_nano>",
+              "flags": 1,
+              "kind": "SPAN_KIND_INTERNAL",
+              "name": "tests.contrib.django.views.function_view",
+              "parent_span_id": "span_1",
+              "span_id": "span_2",
+              "start_time_unix_nano": "<start_time_unix_nano>",
+              "status": {},
+              "trace_id": "trace_1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
