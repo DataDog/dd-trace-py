@@ -260,7 +260,7 @@ def test_fast_copy_fork_during_warmup() -> None:
     err=None,
 )
 def test_fast_copy_foreign_handler_takeover_metadata() -> None:
-    """A foreign SIGSEGV handler records foreign_takeover in internal metadata (PROF-15342)."""
+    """Foreign SIGSEGV takeover sticks across stop/set_fast_copy/restart (PROF-15342)."""
     import json
     import os
     import signal
@@ -309,3 +309,30 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     assert metadata["fast_copy_memory_foreign_takeover"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is True, metadata
     assert metadata["fast_copy_memory_enabled"] is False, metadata
+
+    # Sticky disable must survive stop → set_fast_copy(True) → start; the gate in
+    # set_fast_copy refuses re-enable while fast_copy_foreign_takeover is set.
+    _stack.set_fast_copy(True)
+    p.start()
+    assert _stack.fast_copy_memory_active() is False, "foreign takeover must block fast-copy re-enable after restart"
+
+    time.sleep(2)
+    p.stop()
+
+    restart_files: list[str] = pprof_utils.get_internal_metadata_files(output_filename)
+    assert restart_files, "Expected at least one internal_metadata.json file after restart"
+
+    restart_metadata: Optional[dict[str, Any]] = None
+    for f in reversed(restart_files):
+        with open(f) as fp:
+            restart_candidate: dict[str, Any] = json.load(fp)
+
+        if restart_candidate.get("sampling_event_count", 0) > 0:
+            restart_metadata = restart_candidate
+            break
+
+    assert restart_metadata is not None, (
+        f"Expected an upload window with at least one sampling cycle after restart: {restart_files}"
+    )
+    assert restart_metadata["fast_copy_memory_foreign_takeover"] is True, restart_metadata
+    assert restart_metadata["fast_copy_memory_enabled"] is False, restart_metadata
