@@ -124,6 +124,22 @@ class AlgoliasearchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_tag("query.text") == "test search"
 
+    def test_algoliasearch_with_empty_query_text(self):
+        self.patch_algoliasearch()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            # An empty query is a valid search that returns every record, so it has to
+            # stay distinguishable from a call that supplied no query at all.
+            self.perform_search("")
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].get_tag("query.text") == ""
+
     def test_algoliasearch_with_query_args_nontext(self):
         self.patch_algoliasearch()
         original = config.algoliasearch.collect_query_text
