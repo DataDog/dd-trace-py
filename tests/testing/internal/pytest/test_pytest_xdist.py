@@ -657,22 +657,39 @@ class TestXdistEventDelivery:
             f"{sorted(e['content']['meta']['test.name'] for e in test_events)}"
         )
 
+    @pytest.mark.parametrize(
+        "selection,expected_exit_code,expected_test_count,expected_status",
+        [
+            pytest.param("test_ok", 0, 1, "pass", id="worker-runs-test"),
+            pytest.param("missing", 5, 0, "skip", id="no-tests-selected"),
+        ],
+    )
     def test_session_event_only_from_main_process(
-        self, mock_server: MockCIVisibilityServer, test_project: Path
+        self,
+        mock_server: MockCIVisibilityServer,
+        test_project: Path,
+        selection: str,
+        expected_exit_code: int,
+        expected_test_count: int,
+        expected_status: str,
     ) -> None:
-        """Exactly one session event should be sent (from the main process, not workers)."""
+        """The controller reports one session with the outcome of the workers' collection and execution."""
         (test_project / "test_simple.py").write_text("def test_ok():\n    assert True\n")
         _git_commit(test_project)
 
         env = _make_env(mock_server.url)
-        result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
+        result = _run_pytest_subprocess(test_project, "-n", "2", "-k", selection, env=env)
 
-        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        assert result.returncode == expected_exit_code, (
+            f"Unexpected pytest exit code:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+        assert len(mock_server.get_test_events()) == expected_test_count
 
         session_events = mock_server.get_session_events()
         assert len(session_events) == 1, (
             f"Expected exactly 1 session event (from main process), got {len(session_events)}"
         )
+        assert session_events[0]["content"]["meta"]["test.status"] == expected_status
 
     def test_session_id_consistent_across_events(self, mock_server: MockCIVisibilityServer, test_project: Path) -> None:
         """All events should reference the same test_session_id."""

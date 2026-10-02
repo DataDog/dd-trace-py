@@ -461,19 +461,21 @@ class TestOptPlugin(TestOptPluginProtocol):
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        original_exitstatus = session.exitstatus
         # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
         # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
-        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+        if original_exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
             session.exitstatus = pytest.ExitCode.OK
 
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
-        # based on the exit status reported by pytest.
-        self.session.set_status(
-            TestStatus.FAIL
-            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
-            else TestStatus.PASS
-        )
+        # based on the exit status reported by pytest, before the ITR override above.
+        if original_exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
+            self.session.set_status(TestStatus.SKIP)
+        elif original_exitstatus == pytest.ExitCode.OK:
+            self.session.set_status(TestStatus.PASS)
+        else:
+            self.session.set_status(TestStatus.FAIL)
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
