@@ -258,7 +258,7 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     err=None,
 )
 def test_stack_profiler_foreign_segv_handler_detection() -> None:
-    # Regression test for PROF-14568: safe_memcpy's fault recovery needs us to own
+    # Regression test for PROF-15342: safe_memcpy's fault recovery needs us to own
     # BOTH SIGSEGV and SIGBUS. segv_handler_installed() drives the sampler's
     # detect-and-fallback decision; assert it flips when either signal is taken over.
     import signal
