@@ -110,7 +110,10 @@ def test_data_streams_processor():
 
 
 @pytest.mark.subprocess(err=_ignore_dsm_flush_err)
-def test_new_pathway_uses_container_tags_hash():
+def test_new_pathway_ignores_container_tags_hash():
+    # guards DSM2-335: the agent-reported container-tags hash must not affect the pathway hash,
+    # since it is volatile per-pod metadata that inflates the cardinality DSM's stats are
+    # quota-limited on. It still feeds process_tags.base_hash, which DBM uses.
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
     from ddtrace.internal.process_tags import compute_base_hash
 
@@ -126,11 +129,12 @@ def test_new_pathway_uses_container_tags_hash():
     ctx_with_base.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"])
     hash_with_base = ctx_with_base.hash
 
-    assert hash_without_base != hash_with_base
+    assert hash_without_base == hash_with_base
 
 
 @pytest.mark.subprocess(err=_ignore_dsm_flush_err)
-def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
+def test_new_pathway_ignores_process_tags_hash():
+    # guards DSM2-335: same as above, for the process tags half of the base hash.
     from ddtrace.internal import process_tags
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
@@ -138,17 +142,19 @@ def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
     mocked_time = 1642544540
     tags = ["direction:out", "topic:topicA", "type:kafka"]
 
-    # Trigger lazy process tags initialization, which should compute a base hash even
+    ctx_before = processor.new_pathway(now_sec=mocked_time)
+    ctx_before.set_checkpoint(tags)
+    hash_before = ctx_before.hash
+
+    # Trigger lazy process tags initialization, which computes a base hash even
     # before we receive any container hash from the agent.
     _ = process_tags.process_tags
     assert process_tags.base_hash is not None
-    assert process_tags.base_hash_bytes
 
-    ctx_with_base = processor.new_pathway(now_sec=mocked_time)
-    ctx_with_base.set_checkpoint(tags)
-    hash_with_base = ctx_with_base.hash
+    ctx_after = processor.new_pathway(now_sec=mocked_time)
+    ctx_after.set_checkpoint(tags)
 
-    assert hash_with_base is not None
+    assert ctx_after.hash == hash_before
 
 
 def test_data_streams_loop_protection():
