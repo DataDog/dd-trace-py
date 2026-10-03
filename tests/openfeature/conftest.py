@@ -2,7 +2,24 @@
 Shared fixtures for openfeature tests.
 """
 
+from typing import Any
+
 import pytest
+
+
+def set_openfeature_provider(*args: Any, **kwargs: Any) -> None:
+    """Register a provider and wait until initialize() finishes when the SDK allows it.
+
+    OpenFeature Python 0.10 made ``set_provider()`` non-blocking. Tests that
+    evaluate flags immediately after registration must wait, or they see defaults.
+    """
+    from openfeature import api
+
+    wait: Any = getattr(api, "set_provider_and_wait", None)
+    if wait is not None:
+        wait(*args, **kwargs)
+        return
+    api.set_provider(*args, **kwargs)
 
 
 @pytest.fixture(autouse=True)

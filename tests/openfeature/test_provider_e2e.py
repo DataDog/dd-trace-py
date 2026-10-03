@@ -15,6 +15,7 @@ from tests.openfeature.config_helpers import create_float_flag
 from tests.openfeature.config_helpers import create_integer_flag
 from tests.openfeature.config_helpers import create_json_flag
 from tests.openfeature.config_helpers import create_string_flag
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -31,7 +32,7 @@ def setup_openfeature():
     """Set up OpenFeature API with DataDogProvider."""
     with override_global_config({"experimental_flagging_provider_enabled": True}):
         # Set the provider
-        api.set_provider(DataDogProvider())
+        set_openfeature_provider(DataDogProvider())
 
         # Get a client
         client = api.get_client()
@@ -239,9 +240,8 @@ class TestOpenFeatureE2EProviderLifecycle:
     def test_provider_initialization_and_shutdown(self):
         """Test provider initialization and shutdown lifecycle."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
-            # Set provider
-            provider = DataDogProvider()
-        api.set_provider(provider)
+            provider: DataDogProvider = DataDogProvider()
+            set_openfeature_provider(provider)
 
         # Get client and use it
         client = api.get_client()
@@ -258,7 +258,7 @@ class TestOpenFeatureE2EProviderLifecycle:
     def test_multiple_clients_same_provider(self):
         """Test multiple clients using the same provider."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
-            api.set_provider(DataDogProvider())
+            set_openfeature_provider(DataDogProvider())
 
         config = create_config(create_string_flag("shared-flag", "shared-value", enabled=True))
         process_ffe_configuration(config)
