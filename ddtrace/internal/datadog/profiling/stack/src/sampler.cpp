@@ -436,7 +436,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Gate on handler_ops (desired), not fast_copy_active - warmup clears the latter;
     // fork mid-warmup must re-decide (PROF-16020), and foreign-takeover parents must not reclaim in the child.
 #if defined PL_LINUX
-    const bool syscall_copy_available = process_vm_readv_available;
+    const bool syscall_copy_available = process_vm_readv_available.load(std::memory_order_relaxed);
 #else
     const bool syscall_copy_available = true; // mach_vm_read_overwrite is always available
 #endif
