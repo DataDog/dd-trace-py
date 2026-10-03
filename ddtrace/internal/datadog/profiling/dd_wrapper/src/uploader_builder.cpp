@@ -1,6 +1,7 @@
 #include "uploader_builder.hpp"
 
 #include "libdatadog_helpers.hpp"
+#include "sample.hpp"
 
 #include <mutex>
 #include <numeric>
@@ -186,14 +187,28 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
+    // Serialize the profile before the Uploader is created. Serialization also resets the profile.
+    // Hold the profile lock only for this operation, and not while the Uploader sends the request: threads
+    // that add samples wait for this lock, and some of them hold the GIL while they wait.
+    ddog_prof_Profile_SerializeResult encoded =
+      ddog_prof_Profile_serialize(&Datadog::Sample::profile_borrow(), nullptr, nullptr);
+    Datadog::Sample::profile_release();
+    if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto& err = encoded.err;                                // NOLINT (cppcoreguidelines-pro-type-union-access)
+        std::string errmsg = Datadog::err_to_msg(&err, "Error serializing pprof");
+        ddog_Error_drop(&err); // errmsg contains a copy of err.message
+        ddog_prof_Exporter_drop(ddog_exporter);
+        return errmsg;
+    }
+
     // We create a std::variant here instead of creating a temporary Uploader object.
-    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter }
+    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter, encoded.ok }
     // because above code creates a temporary Uploader object, moves it into the
     // variant, and then the destructor of the temporary Uploader object is called
     // when the temporary Uploader object goes out of scope.
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         output_filename,
-                                                         *ddog_exporter };
+    return std::variant<Datadog::Uploader, std::string>{
+        std::in_place_type<Datadog::Uploader>, output_filename, *ddog_exporter, encoded.ok
+    }; // NOLINT (cppcoreguidelines-pro-type-union-access)
 }
