@@ -329,3 +329,61 @@ def test_fast_copy_foreign_handler_takeover_metadata() -> None:
     )
     assert restart_metadata["fast_copy_memory_foreign_takeover"] is True, restart_metadata
     assert restart_metadata["fast_copy_memory_enabled"] is False, restart_metadata
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="process_vm_readv fallback is Linux-only")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_fork_takeover_no_syscall",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_fork_after_takeover_without_syscall() -> None:
+    """Child must not sample leftover safe_memcpy after a no-syscall foreign takeover."""
+    import os
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    _stack._set_fast_copy_warmup_seconds(1.0)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never upgraded to safe_memcpy"
+
+    _stack._set_process_vm_readv_available(False)
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
+
+    # Parent sampling thread should stop (no syscall fallback). Give it a cycle.
+    deadline: float = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if _stack.is_safe_copy_failed():
+            break
+        time.sleep(0.05)
+    assert _stack.is_safe_copy_failed(), "expected failed_safe_copy after takeover with no process_vm_readv"
+
+    pid: int = os.fork()
+    if pid == 0:
+        # atfork must not restart memcpy sampling under the foreign handler.
+        try:
+            restarted: bool = _stack.is_origin_task_linking_enabled()
+            memcpy_on: bool = _stack.fast_copy_memory_active()
+            time.sleep(0.5)
+        except BaseException:
+            os._exit(2)
+        os._exit(1 if memcpy_on and restarted else 0)
+
+    status: int
+    _, status = os.waitpid(pid, 0)
+    p.stop()
+
+    assert os.WIFEXITED(status), f"child did not exit normally: {status}"
+    assert os.WEXITSTATUS(status) == 0, "child sampled leftover safe_memcpy after no-syscall takeover"
