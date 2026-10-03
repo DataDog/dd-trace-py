@@ -20,6 +20,7 @@ class SpanTypes:
     VALKEY = "valkey"
     WEBSOCKET = "websocket"
     RAY = "ray"
+    PROXY = "proxy"
 
 
 class SpanKind:

@@ -4,6 +4,7 @@ from functools import partial
 import logging
 import os
 import random
+import time
 from typing import Any
 from typing import Callable
 from typing import TypedDict
@@ -829,6 +830,39 @@ async def test_inferred_spans_api_gateway_default(scope, test_spans, app_type, i
                     distributed_parent_id=2,
                     distributed_sampling_priority=USER_KEEP,
                 )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("request_queuing_enabled", [False, True])
+async def test_request_queuing(scope, test_spans, request_queuing_enabled):
+    app = TraceMiddleware(basic_app)
+
+    start_time = time.time() - 3
+    scope["headers"] = [(b"x-request-start", str(int(start_time * 1000)).encode())]
+
+    with override_global_config(dict(_request_queuing_enabled=request_queuing_enabled)):
+        instance = ApplicationCommunicator(app, scope)
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+
+    asgi_span = test_spans.find_span(name="asgi.request")
+    assert asgi_span._parent is None
+    queue_spans = [s for s in test_spans.spans if s.name == "http.server.queue"]
+
+    if not request_queuing_enabled:
+        assert queue_spans == []
+        return
+
+    assert len(queue_spans) == 1
+    queue_span = queue_spans[0]
+    assert queue_span.trace_id == asgi_span.trace_id
+    assert not queue_span.parent_id
+    assert queue_span.service == asgi_span.service
+    assert queue_span.start_ns + queue_span.duration_ns == asgi_span.start_ns
+    assert queue_span.duration_ns >= 2_000_000_000  # ~3s queue wait, allow slack
+    assert queue_span.get_tag("span.kind") == "server"
+    assert queue_span.span_type == "proxy"
 
 
 class _HTTPScope(TypedDict):

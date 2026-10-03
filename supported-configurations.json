@@ -4983,6 +4983,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_REQUEST_QUEUING_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT": [
       {
         "implementation": "A",

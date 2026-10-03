@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    tracing: Adds support for HTTP request queuing time. When ``DD_TRACE_REQUEST_QUEUING_ENABLED``
+    is set to ``true`` and an upstream proxy or load balancer (nginx, Heroku's router, Apache, HAProxy, etc.)
+    sets an ``X-Request-Start`` or ``X-Queue-Start`` header, the tracer adds an ``http.server.queue`` span
+    to the request's trace. The span starts at the time in the header and ends when the application
+    starts handling the request, so its duration is the time the request spent queued before reaching
+    application code. The application's request span is unchanged and continues to drive sampling and
+    trace metrics.
