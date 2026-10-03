@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security (IAST): wrap PyMySQL 1.2 ``Connection._escape_string`` so SQL sanitizer tainting still applies after the public ``escape_string`` alias was removed.
