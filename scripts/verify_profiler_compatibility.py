@@ -523,13 +523,12 @@ def _compare_with_baseline(results: dict[str, Any], baseline: dict[str, Any]) ->
         if ref_passed and not cur_passed:
             failures.append(f"{suite}: was PASS in baseline, now FAIL — {cur.get('error', '?')}")
 
-        # Check sample count regression
-        if "wall_time_samples" in ref and "wall_time_samples" in cur:
-            if cur["wall_time_samples"] < ref.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES):
-                failures.append(
-                    f"{suite}: wall_time_samples dropped: {cur['wall_time_samples']} "
-                    f"< baseline minimum {ref.get('min_wall_time_samples', _MIN_WALL_TIME_SAMPLES)}"
-                )
+        # Baselines persist min_wall_time_samples, not the last run's wall_time_samples.
+        if suite == "profiler_samples" and "wall_time_samples" in cur:
+            min_wall: int = int(ref.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES))
+            cur_wall: int = int(cur["wall_time_samples"])
+            if cur_wall < min_wall:
+                failures.append(f"{suite}: wall_time_samples dropped: {cur_wall} < baseline minimum {min_wall}")
 
         # Check task names
         if "asyncio_task_names_seen" in ref:

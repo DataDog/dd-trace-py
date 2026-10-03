@@ -6,6 +6,7 @@ from importlib.machinery import ModuleSpec
 import importlib.util
 import json
 import pathlib
+import sys
 from typing import Any
 
 import pytest
@@ -123,3 +124,33 @@ def test_version_registry_default_python_present() -> None:
     assert default_python == "3.15"
     assert "3.15" in data["versions"]
     assert data["versions"]["3.15"]["hex"] == "0x030f0000"
+
+
+def test_quick_cannot_combine_with_baseline(
+    verify_mod: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["verify_profiler_compatibility.py", "--quick", "--baseline"])
+    with pytest.raises(SystemExit, match="--quick cannot be combined with --baseline"):
+        verify_mod.main()
+
+
+def test_compare_enforces_min_wall_when_baseline_omits_sample_count(verify_mod: Any) -> None:
+    results: dict[str, Any] = {
+        "asyncio_guards": {"passed": True},
+        "profiler_samples": {
+            "passed": True,
+            "wall_time_samples": 1,
+            "asyncio_task_names_seen": ["compat-task-0"],
+        },
+    }
+    baseline: dict[str, Any] = {
+        "asyncio_guards": {"passed": True},
+        "profiler_samples": {
+            "passed": True,
+            "min_wall_time_samples": 2,
+            "asyncio_task_names_seen": ["compat-task-0"],
+        },
+    }
+    failures: list[str] = verify_mod._compare_with_baseline(results, baseline)
+    assert any("wall_time_samples dropped" in f for f in failures)
