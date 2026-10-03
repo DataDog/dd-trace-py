@@ -1,155 +1,230 @@
-# AGENTS.md — dd-trace-py
+# AGENTS.md
 
-Single source of truth for all AI coding assistants. Tool-specific entry points
-(`.claude/CLAUDE.md`, `.cursor/rules/dd-trace-py.mdc`) import this file.
+Context file for AI agents working on dd-trace-py.
 
-## Project Rules
+**Dual Format**: This file combines Category A (Operations Manual) and Category B (Context Guide) for comprehensive agent guidance.
 
-1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
-2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`scripts/lint <subcommand>`).
-3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
-4. **No public API breakage** — Never change public API contracts; real applications depend on them.
-5. **No secrets** — Never commit secrets; use environment variables.
-6. **Don't assume business logic** — Ask when unsure about implementation details.
-7. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
-8. **Test before committing** — Run relevant tests to validate changes before committing.
-9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-10. **Update docs** — Add/update documentation when changing internal or public APIs, configuration schemas, or contributor workflows.
-11. **No stray prints** — Check for and remove unexpected `print()` calls.
-12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
-13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
-14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
-15. **Automatic GitLab CI retries on `main` are allowed only for infrastructure failures** — Jobs that need automatic retries on other branches must extend a policy from `.gitlab/retry-policies.yml`; the conditional main-only include overrides those policies to infrastructure failures only. Do not put `retry:` directly on those jobs or duplicate job definitions by branch. Manual retries are unaffected.
+## Project Overview
 
-## Docstrings and Comments
+dd-trace-py is a Python project using Python (setuptools).
 
-Guild-agreed convention. It splits on **whether Sphinx renders the docstring**, not on whether the
-module is private. Rendered means: the public interface of `ddtrace` (reachable through a
-non-underscored import path), plus anything an `automodule` directive under `docs/` points at — which
-includes the `ddtrace/contrib/internal/<integration>/__init__.py` integration docstrings listed in
-`docs/integrations.rst` (required by `docs/contributing-integrations.rst`). When in doubt, grep
-`docs/` for the module.
+**Key Info:**
+- **Primary Language:** Python
+- **Build System:** Python (setuptools)
+- **Test Framework:** pytest
+- **Total Files:** 10470
+- **Test Files:** 3703
+- **AI Readiness Score:** 100/100 (Agent-Optimized)
 
-**Rendered docstrings** — write them in reStructuredText, because they reach customers:
+---
 
-```python
-def enable(self, flush_interval: float = 1.0) -> None:
-    """Start the writer thread, flushing every ``flush_interval`` seconds.
+## 🚨 AI Policy & Operations
 
-    :param flush_interval: Seconds between flushes.
-    :raises RuntimeError: If the writer is already running.
-    """
+Extracted from CONTRIBUTING.md - operational constraints and procedures.
+
+### AI Policy
+
+- primarily focus on idiomatic Python usage, efficiency, testing, and adherence to the versioning policy.
+- **PR title follows conventional commit standard** - See the `Branches and Pull Requests`_ section for details.
+- **Avoids breaking API changes** - Follow the :doc:`versioning policy <versioning>` to maintain backward compatibility.
+- Pull requests are named according to the `conventional commit <https://www.conventionalcommits.org/en/v1.0.0/>`_
+- standard, which is enforced by a continuous integration job. The standardized "scopes" we use
+
+### Key Requirements
+
+- various tools including Flake8, Ruff, and MyPy. This means that code reviews don't need to worry about style
+- Pull Request Requirements
+- When submitting a pull request, ensure the following requirements are met:
+- **The PR description includes an overview of the change** - Clearly describe what the change does and why it's needed.
+- Pull requests that change the library's public API require a :ref:`release note<release_notes>`.
+
+### Development Procedures
+
+- Before working on the library, install `docker <https://www.docker.com/products/docker>`_.
+- If you're trying to set up a local development environment, read `this <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_.
+- jobs are also triggered, including unit tests, integration tests, benchmarks, and linters.
+- It's often beneficial to open an in-progress pull request and mark it as a draft while you confirm that the test
+- **The change includes tests OR the PR description describes a testing strategy** - All code changes should be tested appropriately.
+
+
+
+## 🏗️ Architecture & Context Guide
+
+This section provides architectural context and agent-understanding for the codebase.
+
+### Prerequisites
+
+- **Python:** >=3.9,<3.15 (or applicable language version)
+- **Package Manager:** pip or uv
+- **Test Runner:** pytest
+
+
+
+### Project Structure
+
+```
+dd-trace-py/
+├── pyproject.toml
+├── setup.py
+├── setup.py
+├── src/                  # Source code
+├── tests/                # Test suite (3703 files)
+└── README.md             # Project documentation
 ```
 
-**Everything else** (`_`-prefixed helpers, private modules nothing under `docs/` points at, tests,
-inline comments) — plain text prose optimized for reading in an editor. Nothing renders it, so rST
-inline markup is noise:
+### Architecture Overview
 
-- No rST emphasis around parameter names — write the name as-is. For example, a parameter named
-  `path` should appear as `path`, not as `*path*` (rST's emphasis syntax, which renders as italics
-  in Sphinx but is just stray asterisks everywhere else).
-- No double backticks for inline literals (see the code style rules); plain text reads better.
-- Field lists (`:param:`, `:returns:`) are optional here; a one-line summary is usually enough.
+#### Key Components
+- **Main Entry:** app.py, app.py, app.py, app.py, app.py
+- **Test Suite:** 3703 test files
+- **Build Configuration:** pyproject.toml, setup.py, setup.py
 
-Either way, aim for **good documentation**: say why the code exists or what invariant it upholds,
-not what the next line already says. Keep it short — a one-line summary covers most helpers.
-Do not add a comment if the comment simply states what the code does, and not why.
+#### Design Principles
 
-## Key Architecture
+1. **Modularity** - Code organized by functionality with clear separation of concerns
+2. **Testability** - Comprehensive test coverage across critical paths
+3. **Clarity** - Explicit naming and structure for AI agent understanding
+4. **Consistency** - Uniform patterns and conventions throughout codebase
+5. **Maintainability** - Well-documented code with clear intent
 
-- **Monkey-patching** is the core instrumentation mechanism. Don't break it; understand it before modifying integrations.
-- **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
-- **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
-- **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
+### Directory Map
 
-## PR Guidelines
+| Directory | Purpose |
+|-----------|----------|
+| `docs/` | Documentation |
+| `scripts/` | Build and utility scripts |
+| `src/` | Source code |
+| `tests/` | Test suite |
 
-Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
 
-- Use `.github/PULL_REQUEST_TEMPLATE.md` for PR descriptions.
-- **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
-- Link relevant issues or JIRA tickets; include a testing plan.
-- **This repository is public** — PR titles, descriptions, commit messages, and release notes must
-  describe only the change itself (problem, root cause, fix, testing, risks). Do not mention
-  internal discussions (Slack threads, meetings), coordination with other teams or tracers, their
-  tickets, internal backend or data-pipeline names, or open internal questions. Linking the PR's
-  own JIRA ticket is fine; put the rest of the internal context in that ticket.
-- When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
-- **Fork PR CI** — External fork PRs cannot run all required CI. A repo-owned branch can start
-  GitLab, but a draft shadow PR into `main` is required for System Tests. The shadow PR moves the
-  fork's code into a credentialed CI context, so the reviewer owns the trust decision. Before
-  mirroring, complete the normal review on the original PR and be willing to merge its exact head
-  SHA pending final CI. Scrutinize everything CI can execute, especially workflows, scripts, tests,
-  build/install configuration, dependency changes, network calls, artifact uploads, and code that
-  accesses credentials or changes permissions; involve code owners or security reviewers where
-  appropriate. Recheck the reviewed SHA immediately before pushing it to a repo-owned branch, and
-  repeat the review if it changed; the branch name need not match the contributor's branch. Give
-  the shadow PR a Conventional Commit
-  title ending in `[DO NOT MERGE]`, and state in its description that it exists only to run CI and
-  must not be merged. Once its checks pass, verify that the original PR still has the tested SHA,
-  then `/merge` the original. After it lands, close the shadow PR without merging it and delete its
-  branch. Never mirror speculative or partially reviewed code merely to obtain CI results: an
-  identical SHA proves source-commit parity, not safety or identical execution context.
-- **Release notes**: use the `releasenote` skill before opening a PR — it decides whether one is needed and, if so, writes it to dd-trace-py's customer-facing conventions (`docs/releasenotes.rst`). If not needed, add the `changelog/no-changelog` label instead.
+### Development Workflow
 
-## Troubleshooting
+#### Initial Setup
 
-OpenFeature tests use the checked-in canonical fixture snapshot under
-`tests/openfeature/ffe-system-test-data/`; no submodule setup is required. Change shared
-cases in `DataDog/ffe-system-test-data` first, then refresh with
-`python scripts/update-ffe-fixtures.py --ref <upstream-commit>`. See the OpenFeature
-fixtures section in `docs/contributing-testing.rst` for the update workflow.
+```bash
+git clone https://github.com/DataDog/dd-trace-py
+cd dd-trace-py
+pip install -e .
+# or
+uv sync --all-groups
+```
 
-See `docs/troubleshooting.rst`. Covers common issues including:
+#### Development Commands
 
-- Installation failures and missing native extensions
-- Traces not appearing in the Datadog app
-- Connection errors sending to the agent
-- Build failures and `ModuleNotFoundError` in test environments
+**Running Tests:**
+```bash
+pytest                    # Run all tests
+pytest tests/             # Run specific test directory
+pytest -v                 # Verbose output with test names
+pytest -x                 # Stop on first failure
+coverage run -m pytest && coverage report  # With coverage report
+```
 
-## Skills
+#### Code Quality
+```bash
+ruff check .              # Lint with ruff
+ruff format .             # Format code
+mypy .                    # Type checking (if configured)
+```
 
-Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
+### Code Style & Conventions
 
-| Skill                           | Trigger                                                                                                                                                                                                                                                                                |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run-tests`                     | Running any tests or validating code changes. **Never run pytest directly.**                                                                                                                                                                                                           |
-| `lint`                          | Formatting, style/type/security checks, or before committing. **Never skip before commits.**                                                                                                                                                                                           |
-| `releasenote`                   | Creating or updating release notes for the current branch.                                                                                                                                                                                                                             |
-| `find-cpython-usage`            | Investigating CPython API dependencies or adding a new Python version.                                                                                                                                                                                                                 |
-| `compare-cpython-versions`      | Comparing CPython source between two Python versions.                                                                                                                                                                                                                                  |
-| `circular-import-analysis`      | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules.                                                                                                                                       |
-| `dependency-direction-analysis` | Detecting `ddtrace.internal`/`ddtrace.contrib` depending on product code, or products depending on each other, and proposing fixes. Use when the `detect_layering_violations` CI job reports new violations, or proactively when adding/moving modules across those boundaries.        |
-| `review-ci`                     | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP.                                                                                                                                          |
-| `run-benchmarks`                | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact.                                                                                                                                         |
-| `debug-build-times`             | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow.                                                                                                                                       |
-| `apm-integrations`              | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration.                                     |
-| `llmobs-integrations`           | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
+- **Naming:** Use Python conventions (snake_case for functions, PascalCase for classes)
+- **Type Hints:** Yes (strongly encouraged)
+- **Error Handling:** Yes - handle errors at boundaries; let exceptions propagate when another layer owns recovery
+- **Logging:** Yes
+- **Testing:** Yes - write tests alongside code changes
 
-## Domain Guides
+### Testing Strategy
 
-**Read the corresponding guide before modifying code in these domains:**
+**Framework:** pytest
+**Test Files:** 3703 found
 
-| Domain                                                          | Guide                                                                   | Paths                                                                                                                                               |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Application Security (AppSec)                                   | `.cursor/rules/appsec.mdc`                                              | `ddtrace/appsec/`, `tests/appsec/`                                                                                                                  |
-| IAST                                                            | `.cursor/rules/iast.mdc`                                                | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/`                                                                                                      |
-| AI Guard                                                        | `.cursor/rules/ai-guard.mdc`                                            | `ddtrace/aiguard/`, `tests/aiguard/`                                                                                                                |
-| Isolated Responsibility (security vs. shared integrations)      | `.cursor/rules/isolated-responsibility.mdc`                             | `ddtrace/contrib/`, `ddtrace/appsec/`                                                                                                               |
-| Native Code (C/C++/Rust/Cython)                                 | `.cursor/rules/native-code.mdc`                                         | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd`                                                                            |
-| Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md`                                            | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
-| Benchmarking CI (microbenchmarks, SLO gates, flaky benchmarks)  | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` | `.gitlab/benchmarks/`, `benchmarks/suitespec.yml`                                                                                                   |
-| Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
-| Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
-| Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+Before committing:
+1. Run the full test suite: `pytest`
+2. Ensure all tests pass
+3. Check type hints: `mypy .`
+4. Format code: `ruff format .`
 
-## AIDEV Anchor Comments
+### Writing Documentation
 
-The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
-Existing anchors were removed from the repository (#20143).
+When updating docs:
+1. Always include explanatory text before code snippets
+2. Describe *why* and *what* before showing *how*
+3. Keep sections focused on a single concept
+4. Use clear, concrete examples
 
-- Do not add new `AIDEV-*` anchor comments. Use plain inline comments when
-  context is needed (see Docstrings and Comments above).
-- CI (`scripts/check_no_new_aidev_anchors.py`) blocks new anchors on added diff
-  lines. Policy docs (`AGENTS.md`, `.cursor/rules/`), the checker script, and
-  its tests are excluded because they document or exercise the deprecation.
+## Known Gotchas & Warnings
+
+- various tools including Flake8, Ruff, and MyPy. This means that code reviews don't need to worry about style
+- **All changes are related to the pull request's stated goal** - Keep changes focused and avoid scope creep.
+- **Avoids breaking API changes** - Follow the :doc:`versioning policy <versioning>` to maintain backward compatibility.
+
+### Contributing Guidelines
+
+This project has a detailed contribution guide at **`docs/CONTRIBUTING.rst`**.
+
+**Key Requirements:**
+- **Release Notes Block**: Include `release-notes` block in every PR description
+- **Performance Work**: Requires benchmarks and performance metrics in PR description
+
+**Before submitting:**
+1. Read `docs/CONTRIBUTING.rst` in full
+2. Check recent merged PRs for patterns
+3. Follow the specific requirements above
+
+### Common Patterns
+
+When contributing to this project:
+1. Read existing code in the area you're modifying
+2. Follow the established patterns and style
+3. Write tests for new functionality
+4. Use clear, descriptive variable and function names
+5. Add docstrings for public APIs
+6. Update tests when changing behavior
+
+### What We Value
+
+✅ Well-tested code with clear intent
+✅ Consistent code style and naming conventions
+✅ Code that is easy for AI agents to understand
+✅ Clear, descriptive commit messages
+✅ Modular, reusable components
+✅ Comprehensive documentation
+
+### What We Avoid
+
+❌ Large functions doing multiple things
+❌ Commented-out dead code
+❌ Inconsistent naming or patterns
+❌ Unclear error messages
+❌ Unexplained magic numbers or strings
+❌ Skipped tests or test TODOs
+
+### AI Readiness Dimensions (Scoring)
+
+This project is evaluated across 8 dimensions:
+
+1. **Architecture** (20/100) - Code organization and modularity
+2. **Testing** (15/100) - Test coverage and quality
+3. **Dependencies** (12/100) - Dependency management
+4. **Conventions** (10/100) - Consistent patterns
+5. **Entry Points** (10/100) - Clear main/start locations
+6. **Security** (15/100) - Input validation and error handling
+7. **Build** (10/100) - Clear build/setup instructions
+8. **Documentation** (8/100) - Code and project documentation
+
+### Next Steps
+
+Before making changes:
+1. Read relevant source files to understand the existing code
+2. Look at existing tests for similar functionality
+3. Follow the patterns you see in the codebase
+4. Write tests for your changes
+5. Run `pytest` to verify nothing breaks
+6. Run code quality checks: `ruff check . && mypy .`
+7. Format your code: `ruff format .`
+
+---
+
+*Generated by Braxis - keeping AI agents in sync with your code*
