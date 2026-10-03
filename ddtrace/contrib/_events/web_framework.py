@@ -1,6 +1,10 @@
+from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 from typing import Optional
+from typing import Union
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
@@ -36,6 +40,13 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
 
     # Framework-resolved route template/path used for http.route and resource enrichment.
     request_route: Optional[str] = event_field(default=None)
+
+    # Framework-specific request metadata used for HTTP and AppSec enrichment.
+    raw_uri: Optional[str] = event_field(default=None)
+    parsed_query: Optional[Mapping[str, Any]] = event_field(default=None)
+    request_cookies: Optional[dict[str, str]] = event_field(default=None)
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]] = event_field(default=None)
+    peer_ip: Optional[str] = event_field(default=None)
 
     # Optional per-request override for query string tagging.
     # aiohttp supports app-level trace_query_string that can differ from integration_config.
