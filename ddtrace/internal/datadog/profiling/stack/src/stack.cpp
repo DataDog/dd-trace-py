@@ -1000,7 +1000,7 @@ stack_set_process_vm_readv_available(PyObject* Py_UNUSED(self), PyObject* args)
         return nullptr;
     }
 
-    process_vm_readv_available = static_cast<bool>(available);
+    process_vm_readv_available.store(static_cast<bool>(available), std::memory_order_relaxed);
     Py_RETURN_NONE;
 #else
     (void)args;
