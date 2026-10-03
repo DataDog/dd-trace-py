@@ -194,7 +194,6 @@ from ddtrace.llmobs.types import FeedbackSubmitter
 from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
-from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
@@ -1011,9 +1010,9 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
-        if app_key:
+        if api_key or app_key:
             # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
-            # before the app key was configured, so it rebuilds with the new key.
+            # before credentials were configured, so it rebuilds with the new keys.
             with cls._prompt_manager_lock:
                 cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
@@ -2080,6 +2079,8 @@ class LLMObs(Service):
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
+        Agent-delivered or cached prompts need no keys in your application. Fetching other prompts requires credentials.
+
         :param prompt_id: The unique identifier of the prompt in the registry
         :param version: Exact numeric prompt version to retrieve. Overrides label and environment resolution.
         :param label: Deprecated; set ``DD_ENV`` instead. Must be ``production`` or ``development``.
@@ -2372,8 +2373,6 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-        if not api_key:
-            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
