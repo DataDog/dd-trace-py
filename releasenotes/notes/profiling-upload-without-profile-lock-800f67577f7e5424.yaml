@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where a slow or unresponsive Datadog Agent could stop every Python thread
+    of the application while a profile was uploaded. The stop could last up to the profile upload timeout
+    (``DD_PROFILING_API_TIMEOUT_MS``, 10 seconds by default). The profiler now releases its internal profile lock
+    before it sends the upload request.

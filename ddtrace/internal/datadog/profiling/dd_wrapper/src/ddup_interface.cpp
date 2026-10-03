@@ -338,6 +338,8 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
+    // Build the Uploader. The builder also serializes the profile, which clears it.
+    // The builder holds the profile lock only during serialization, and releases it on success and on failure.
     auto uploader_or_err = Datadog::UploaderBuilder::build();
 
     if (std::holds_alternative<std::string>(uploader_or_err)) {
@@ -350,13 +352,9 @@ ddup_upload() // cppcheck-suppress unusedFunction
 
     // Get the reference to the uploader
     auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
-    // There are a few things going on here.
-    // * profile_borrow() takes a reference in a way that locks the areas where the profile might
-    //  be modified.  It gets released and cleared after uploading.
-    // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
-    //   we have for now.
-    uploader.upload(Datadog::Sample::profile_borrow());
-    Datadog::Sample::profile_release();
+    // Upload without the profile lock: a slow or unresponsive endpoint must not stop the threads that add samples.
+    // Uploading cancels inflight uploads. There are better ways to do this, but this is what we have for now.
+    uploader.upload();
     return true;
 }
 
