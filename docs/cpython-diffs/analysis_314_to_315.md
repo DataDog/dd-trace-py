@@ -200,35 +200,5 @@ These add fields **after** `asyncio_running_loop` / `asyncio_tasks_head`, so if
 echion accesses those by name (not by offset), no change needed. If accessing by
 raw offset, regenerate offsets.
 
----
-
-## Work checklist for echion 3.15 port
-
-- [x] Add `#if PY_VERSION_HEX >= 0x030f0000` guard with new `PyFrameState` values
-      (renumbered) and new `FRAME_SUSPENDED_YIELD_FROM_LOCKED` state.
-      → `tasks.h`: new `PyGen_yf` branch for 3.15; `FRAME_SUSPENDED_YIELD_FROM_LOCKED`
-        is only reachable in free-threaded builds so it is guarded with
-        `#ifdef Py_GIL_DISABLED`. GIL builds behave identically to 3.14.
-- [x] Update `FRAME_STATE_SUSPENDED` / `FRAME_STATE_FINISHED` usage to use macros.
-      → Not applicable: echion uses enum constants by name (not hardcoded values),
-        so the renumbering has no effect. `FRAME_STATE_SUSPENDED`/`FRAME_STATE_FINISHED`
-        macros are not used in echion code.
-- [x] Remove any reference to `FRAME_COMPLETED` under 3.15 path.
-      → Not applicable: `FRAME_COMPLETED` is not referenced in echion's codebase.
-- [x] Remove `FRAME_OWNED_BY_CSTACK` reference under 3.15 guard.
-      → `frame.cc`: split `>= 0x030e0000` into `>= 0x030f0000` (no CSTACK) and
-        `>= 0x030e0000` (CSTACK + INTERPRETER). Also fixed `is_entry` assignment.
-- [x] Rename `PyStackRef_FromPyObjectImmortal` → `PyStackRef_FromPyObjectBorrow`
-      (if used) under 3.15 guard.
-      → Not applicable: `PyStackRef_FromPyObjectImmortal` is not used in echion's codebase.
-- [ ] Consider adopting `_PyFrame_SafeGetCode()` for safer frame reading.
-- [ ] Consider using `base_frame` sentinel for frame-chain termination.
-- [x] Update asyncio debug symbol lookup: `_AsyncioDebug` → `_Py_AsyncioDebug`.
-      → Not applicable: echion does not look up the asyncio debug symbol by name.
-- [ ] Official 3.15 packaging / supported-versions CI.
-      → Not done. `pyproject.toml` is still `requires-python = ">=3.9,<3.15"`.
-        `.github/workflows/generate-supported-versions.yml` still stops at 3.14.
-        Those land on a later official-support PR, not this stack.
-- [ ] CI/build matrix: `cp315-*` wheels and Python 3.15 test variants.
-      → In review on this stack (#19270 riot/gitlab). Not official support.
-- [ ] Run echion test suite against a CPython 3.15 build and confirm green.
+ABI fixes that landed from this analysis are in #19269 / #19272. Packaging /
+official-support follow-ups are not this file.
