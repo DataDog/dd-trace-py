@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 """Scan profiling sources for CPython symbols ddtrace depends on.
 
-Writes ``scripts/cpython_delta/inventory.json`` (local cache). Scan-only:
-no CPython checkout. ``diff.py`` reuses that file when it exists.
-``--refresh-inventory`` rebuilds it. ``--inventory PATH`` selects a cache
-file and does not rescan if that file exists.
+Writes scripts/cpython_delta/inventory.json (local cache). Scan-only: no
+CPython checkout. Always rescans. diff.py reuses that file when it exists
+unless --refresh-inventory.
 
-Usage::
+Usage:
 
     python scripts/cpython_delta/inventory.py
     python scripts/cpython_delta/inventory.py --out /tmp/inventory.json
