@@ -44,7 +44,8 @@ def set_fast_copy(enabled: bool) -> None: ...
 def is_safe_copy_failed() -> bool: ...
 def fast_copy_memory_active() -> bool: ...  # test introspection: is safe_memcpy active?
 
-# _set_fast_copy_warmup_seconds is test-only; accessed via _stack (import * skips it).
+# _set_fast_copy_warmup_seconds / _set_process_vm_readv_available are test-only;
+# accessed via _stack (import * skips underscore names).
 
 def uninstall_segv_handler() -> None: ...
 def reinstall_segv_handler() -> None:

@@ -947,6 +947,25 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_set_process_vm_readv_available(PyObject* Py_UNUSED(self), PyObject* args)
+{
+#if defined PL_LINUX
+    int available = 1;
+
+    if (!PyArg_ParseTuple(args, "p", &available)) {
+        return nullptr;
+    }
+
+    process_vm_readv_available = static_cast<bool>(available);
+    Py_RETURN_NONE;
+#else
+    (void)args;
+    PyErr_SetString(PyExc_NotImplementedError, "_set_process_vm_readv_available is Linux-only");
+    return nullptr;
+#endif
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
@@ -1017,6 +1036,10 @@ static PyMethodDef stack_methods[] = {
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,
       "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+    { "_set_process_vm_readv_available",
+      stack_set_process_vm_readv_available,
+      METH_VARARGS,
+      "Test-only: override process_vm_readv_available (Linux)" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,
