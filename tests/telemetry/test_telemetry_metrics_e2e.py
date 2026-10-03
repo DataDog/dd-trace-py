@@ -1,9 +1,12 @@
 from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 
 import pytest
 
@@ -145,3 +148,83 @@ for _ in range(9):
     assert metrics_sf[0]["metric"] == "spans_finished"
     assert metrics_sf[0]["tags"] == ["integration_name:otel"]
     assert metrics_sf[0]["points"][0][1] == 9
+
+
+@contextmanager
+def agent_that_never_answers_telemetry():
+    """Serve a stand-in agent that answers every request at once, except telemetry requests.
+
+    A telemetry request gets no response until the context exits. This is how an overloaded
+    agent behaves: it accepts the connection and then answers late or never.
+    """
+    release = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        def _serve(self):
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            if "telemetry" in self.path:
+                release.wait()
+            body = b"{}"
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError:
+                # The client gave up on a request that got no response in time.
+                pass
+
+        do_GET = do_POST = do_PUT = _serve
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield "http://127.0.0.1:%d" % server.server_address[1]
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+
+
+def test_metric_points_do_not_wait_for_a_slow_agent(ddtrace_run_python_code_in_subprocess):
+    """Recording a telemetry metric must never wait for the telemetry worker.
+
+    The worker does not read its metric buffer while it waits for the response to a telemetry
+    request, and a slow agent keeps it there for the whole request timeout. A recording thread
+    that waited for free space in a full buffer would stop with the GIL held, and every other
+    thread of the application would stop with it.
+    """
+    code = """
+import time
+
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+longest = 0.0
+deadline = time.monotonic() + 5
+while time.monotonic() < deadline:
+    start = time.monotonic()
+    # More points than the metric buffer of the worker holds.
+    for _ in range(5000):
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "test_metric", 1)
+    longest = max(longest, time.monotonic() - start)
+    time.sleep(0.05)
+print(longest)
+"""
+    env = os.environ.copy()
+    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
+    env.pop("DD_API_KEY", None)
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "1"
+    with agent_that_never_answers_telemetry() as agent_url:
+        env["DD_TRACE_AGENT_URL"] = agent_url
+        stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+    longest = float(stdout.decode().strip().splitlines()[-1])
+    assert longest < 1.0, "recording 5000 telemetry metric points took %.1f seconds" % longest
