@@ -85,7 +85,7 @@ def extract_request_data(req_state: RequestState, engine_core_output: EngineCore
         prompt=prompt_text,
         input_tokens=req_state.prompt_len or 0,
         lora_name=req_state.lora_name,
-        num_cached_tokens=engine_core_output.num_cached_tokens,
+        num_cached_tokens=getattr(engine_core_output, "num_cached_tokens", None),
         temperature=req_state.temperature,
         top_p=req_state.top_p,
         n=req_state.n,
