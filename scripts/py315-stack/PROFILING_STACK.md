@@ -1,13 +1,13 @@
 # Python 3.15 profiling stack — status map
 
-**Vintage:** Wed 2026-09-30 (EDT). Live PR states via `gh pr view` on that date.
+**Vintage:** Sat 2026-10-03 (EDT). Live PR states via `gh pr view` on that date.
 **Do not treat tip SHAs in older revisions of this file as current.**
 
 This file tracks profiling bring-up for CPython 3.15 and the tooling that
 makes the next minor cheaper. Runtime code lives on `main` via the merged
 parents below; #19273 is docs/tooling only.
 
-## Current status (2026-09-30)
+## Current status (2026-10-03)
 
 | PR | State | Role |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ parents below; #19273 is docs/tooling only.
 | [#19861](https://github.com/DataDog/dd-trace-py/pull/19861) | **merged** | Cython&lt;3.3 pin; cp315 wheels started optional |
 | [#20450](https://github.com/DataDog/dd-trace-py/pull/20450) | **merged** | require cp315 wheels; schedule lib_injection on 3.15 |
 | [#20474](https://github.com/DataDog/dd-trace-py/pull/20474) | **open** | hermetic pip / PEP 440 local versions |
-| [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | **open (draft)** | profiling readiness ADR |
+| [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | **closed** | profiling readiness ADR |
 | [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | **open (draft)** | runbook + version registry + migration skill (this PR) |
 
 Version registry: `scripts/profiles/profiling_versions.json`
@@ -36,7 +36,7 @@ Runbook: `docs/contributing-profiling-new-cpython.rst`
 | Test gating | prof-correctness on profiling PRs | #19207 |
 | Wheels / packaging | optional → required cp315; Cython pin | #19861 → #20450 |
 | Docs / bring-up | Runbook, verify script, version registry, this file | #19273 |
-| ADR | Readiness write-up | #20478 (open) |
+| ADR | Readiness write-up | #20478 (closed) |
 
 #19272 is **not** the wrap lift (#19910 is on `main`). Do not attach DoE/AB to #19273.
 
