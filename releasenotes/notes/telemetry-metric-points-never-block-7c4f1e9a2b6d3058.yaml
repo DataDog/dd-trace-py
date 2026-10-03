@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    telemetry: This fix resolves an issue where a slow or unresponsive Datadog Agent could stop every thread of the application for up to the duration of a telemetry request. Recording an instrumentation telemetry metric, which happens when a span starts, waited for the telemetry worker when its metric buffer was full. The metric point is now dropped instead.
