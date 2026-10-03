@@ -2573,7 +2573,7 @@ class LLMObs(Service):
             resolved_name = span.resource
 
         initial_tags = {
-            **config.tags,
+            **self.tracer._tags,
             "version": config.version or "",
             "env": config.env or "",
             "service": span.service or "",
