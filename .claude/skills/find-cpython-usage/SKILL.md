@@ -162,16 +162,10 @@ After running this skill, you should have:
 
 This information can then be used with the `compare-cpython-versions` skill to identify what changed.
 
-## Profiling file list (start here for profiler bring-up)
+## Profiling bring-up
 
-Same surfaces tracked in `scripts/py315-stack/PROFILING_STACK.md`:
-
-- `ddtrace/internal/datadog/profiling/**` (stack/Echion, sample, memalloc, ddup)
-- `ddtrace/profiling/**` (Python collectors, `_asyncio.py`)
-- `profiling_helpers/version_compat.h` (when present)
-- `setup.py` profiling extension / version gates
-
-After the inventory, use `compare-cpython-versions`, then the orchestrator.
+If this inventory is for Continuous Profiler, use `compare-cpython-versions`,
+then hand off to `migrate-profiling-new-cpython`.
 
 ## Related
 

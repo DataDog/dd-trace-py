@@ -166,16 +166,10 @@ After running this skill, you should have:
 3. Impact assessment for each change
 4. Files in our codebase that need updates
 
-## Profiling hotspots
+## Profiling bring-up
 
-When the change is for Continuous Profiler bring-up, also inspect these paths
-(same set `scripts/py315-stack/PROFILING_STACK.md` cares about):
-
-- `ddtrace/internal/datadog/profiling/stack/echion/cpython/tasks.h` (frame state / TaskObj)
-- `ddtrace/internal/datadog/profiling/` frame / sample / memalloc C++ that reads `_PyInterpreterFrame`
-- `ddtrace/profiling/_asyncio.py` (wrap vs `sys.monitoring` on new minors)
-
-Then hand off to the orchestrator skill rather than inventing a parallel plan.
+If this diff is for Continuous Profiler, hand off to
+`migrate-profiling-new-cpython` rather than inventing a parallel plan.
 
 ## Related
 

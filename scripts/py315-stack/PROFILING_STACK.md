@@ -3,9 +3,9 @@
 **Vintage:** Sat 2026-10-03 (EDT). Live PR states via `gh pr view` on that date.
 **Do not treat tip SHAs in older revisions of this file as current.**
 
-This file tracks profiling bring-up for CPython 3.15 and the tooling that
-makes the next minor cheaper. Runtime code lives on `main` via the merged
-parents below; #19273 is docs/tooling only.
+#19273 is docs/tooling only. Do not attach DoE/AB to it. Runtime is already on
+`main` via the merged PRs below. #19272 is **not** the wrap lift (#19910 is on
+`main`).
 
 ## Current status (2026-10-03)
 
@@ -20,12 +20,6 @@ parents below; #19273 is docs/tooling only.
 | [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | **closed** | profiling readiness ADR |
 | [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | **open (draft)** | runbook + version registry + migration skill (this PR) |
 
-Version registry: `scripts/profiles/profiling_versions.json`
-(scaffold: `python scripts/verify_profiler_compatibility.py --scaffold 3.16`).
-
-Orchestrator skill: `.claude/skills/migrate-profiling-new-cpython/SKILL.md`
-Runbook: `docs/contributing-profiling-new-cpython.rst`
-
 ## Layer table
 
 | Layer | Meaning | Which PR |
@@ -38,15 +32,5 @@ Runbook: `docs/contributing-profiling-new-cpython.rst`
 | Docs / bring-up | Runbook, verify script, version registry, this file | #19273 |
 | ADR | Readiness write-up | #20478 (closed) |
 
-#19272 is **not** the wrap lift (#19910 is on `main`). Do not attach DoE/AB to #19273.
-
-## Validation legs (314 vs 315)
-
-Version is the knob; wheel SHA stays fixed. Both 3.14 and 3.15 DoE use the **same #19272 tip**.
-
-- **Wrap-free DoE** (alloc isolated / full-stack / bytearray): **#19272** tip only.
-- **Wrap-sensitive TD** (`ai_gateway`): needs #19910 **in the wheel** (on `main`).
-- Attach results to **#19269 / #19270 / #19272**. Never #19273.
-- prof-correctness 3.15 is **S3-wheel only** (`install.sh`). Residual packaging traps are tracked in the runbook / #20474.
-
-Sign-off: prof-correctness → DoE alloc isolated → full-stack → `rapid_python_http_smoke_test` TD → `ai_gateway` TD (after wrap is in the wheel) → `ds-metrics-workers` temporal soak.
+Validation gates, DoE/TD attach rules, and the sign-off chain live in
+`docs/contributing-profiling-new-cpython.rst`.

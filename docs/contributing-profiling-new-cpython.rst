@@ -112,58 +112,9 @@ __ https://github.com/DataDog/dd-trace-py/pull/20478
 Unexpected changes and gotchas
 ------------------------------
 
-What bit us on 3.15. Every item: symptom → fix → automate. Full PR rows live in
-``docs/cpython-diffs/py315_pr_catalog.md`` ("Top unexpected gotchas").
-
-* **``wrap()`` bytecode patching broke for asyncio ``create_task``.** Move
-  asyncio to ``sys.monitoring`` on the new minor while keeping ``wrap`` below
-  it (`PR #19272`__). Multiplexer (`PR #19247`__) is a prerequisite. A wrong
-  fail-closed gate had to be fixed — verify the gate matches the hook path.
-  Automate: skill checklist + wrap probe (not ``cpython_delta`` alone).
-
-* **Prerelease ABI mismatch (a2 vs rc2).** CrashLoop / ``_native`` import
-  errors that look like profiler bugs. Pin the hermetic interpreter and
-  prof-correctness images to the **exact** prerelease tag. Automate: version
-  registry / image pin checklist; never reuse an older alpha when building for
-  an RC.
-
-* **Cython ≥ 3.3 on the new version.** Pin Cython below 3.3; start cp3XX
-  wheels **optional** (`PR #19861`__), then promote to required
-  (`PR #20450`__). Dead end: widening ``requires-python`` alone
-  (`PR #19865`__). Automate: Cython upper-bound + optional→required template.
-
-* **Base-image / engraver flow for wheels.** Engraver
-  ``python/3.X.YrcN{,-fips}`` → dd-source engraver digests → language-tools
-  seed → manylinux mirror + IMAGE_TAG bump (`PR #17959`__, images#11732) →
-  Rapid ``whl_installer`` host-pip / ``locate_file`` fix (dd-source#98654).
-  Automate: ``track-cpython-release-schedule`` within days of each RC.
-
-* **Staging A/B failures are auth/signing/wheels, not the profiler.**
-  Preflight ``BUILD_WEDGED``, AppGate/vault expiry, SSH ``unknown_key``, and
-  passphrase prompts that hang in detached tmux. Automate: staging preflight
-  checklist before blaming profiling code.
-
-* **Memory:** RSS is about **+15%** with the profiler on (~53% runtime /
-  ~47% profiler). memalloc is not the lever. **Do not** gate the functional
-  claim on memory parity (ADR `PR #20478`__).
-
-* **SSI/OCI stays ``when: never`` until final.** Do not publish SSI from the
-  wheel PR (`PR #17977`__ dead end). Automate: hard stop in the migration
-  skill.
-
-* **Hermetic pip / PEP 440 local versions.** Package verify rejects local
-  versions during prerelease wheels (`PR #20474`__). Automate: accept
-  PEP 440-equivalent local versions in verify-package-version.
-
-__ https://github.com/DataDog/dd-trace-py/pull/19272
-__ https://github.com/DataDog/dd-trace-py/pull/19247
-__ https://github.com/DataDog/dd-trace-py/pull/19861
-__ https://github.com/DataDog/dd-trace-py/pull/20450
-__ https://github.com/DataDog/dd-trace-py/pull/19865
-__ https://github.com/DataDog/dd-trace-py/pull/17959
-__ https://github.com/DataDog/dd-trace-py/pull/20478
-__ https://github.com/DataDog/dd-trace-py/pull/17977
-__ https://github.com/DataDog/dd-trace-py/pull/20474
+Symptom → fix for 3.15 lives in ``docs/cpython-diffs/py315_pr_catalog.md``
+(``Top unexpected gotchas`` and ``Dead-end lessons``). Do not copy that list
+here.
 
 Preparation: what tends to break
 ---------------------------------
@@ -597,26 +548,6 @@ Release notes
 * Add a **release note** with the **releasenote** skill (``AGENTS.md``).
 * Smoke / telemetry / serverless: grep for version conditionals if profiling availability
   changed (see files touched in PR #15546).
-
-Suggested order of work
-------------------------
-
-Follow `Expected changes (in order)`_ for the PR sequence. Day-to-day steps:
-
-#. Detect the current PEP phase (alpha / beta / RC / final) and open only the
-   checklist rows that apply (`Automation checklist for 3.16`_).
-#. CPython header/asyncio/``.c``/``Lib`` diff + in-repo grep for the previous
-   release's ``PY_VERSION_HEX`` (``compare-cpython-versions`` /
-   ``find-cpython-usage``; later ``cpython_delta`` worklist).
-#. Echion (vendor copy): compile on target Python; fix ``#if`` ladders and
-   struct/layout drift; add layout contract tests.
-#. Asyncio hook path: probe ``wrap()`` on ``create_task``; if it fails, land
-   ``sys.monitoring`` on the new minor only (keep ``wrap`` below).
-#. ``setup.py`` / settings gating, Riot, Cython pin, optional then required
-   wheels (RC cadence via ``track-cpython-release-schedule``).
-#. **Validation gates** above (local smoke → local A/B → riot →
-   prof-correctness → staging A/B).
-#. Release note + ADR; SSI/OCI only at **final**.
 
 Automation checklist for 3.16
 -----------------------------
