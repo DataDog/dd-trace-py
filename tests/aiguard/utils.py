@@ -24,7 +24,7 @@ def find_ai_guard_span(test_spans: TracerSpanContainer) -> Span:
     assert len(spans) == 1
     span = spans[0]
     assert span.name == AI_GUARD.RESOURCE_TYPE
-    return span
+    return span  # type: ignore[no-any-return]
 
 
 def assert_ai_guard_span(
