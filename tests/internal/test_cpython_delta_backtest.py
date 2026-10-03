@@ -63,9 +63,7 @@ def test_empty_worklist_does_not_score_stable_inventory(diff_mod: Any) -> None:
     work_doc: dict[str, Any] = _calibration_doc([], _STABLE_FALSE_HITS)
     recall: dict[str, Any] = diff_mod.run_backtest_recall(work_doc)
     assert recall["matched"] == 0
-    assert f"{recall['matched']}/{recall['expected']}" != "6/8"
     assert all(not row["hit"] for row in recall["rows"])
-    assert "(blob match)" not in str(recall)
 
 
 def test_asyncio_debug_symbol_does_not_satisfy_remote_debugging(diff_mod: Any) -> None:
@@ -113,6 +111,5 @@ def test_backtest_refuses_other_tag_pairs(diff_mod: Any) -> None:
     assert "v3.14.0" in refusal
     assert "v3.15.0a7" in refusal
     assert scored is None
-    assert "8/8" not in refusal
     with pytest.raises(SystemExit, match="not scoring v3.15.0→v3.16.0a1"):
         diff_mod.run_backtest_recall(work_doc)

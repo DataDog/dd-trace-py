@@ -27,7 +27,6 @@ from typing import Iterator
 from typing import TextIO
 
 
-# Allow ``python scripts/cpython_delta/inventory.py`` without installing a package.
 _PKG_DIR: Path = Path(__file__).resolve().parent
 if str(_PKG_DIR) not in sys.path:
     sys.path.insert(0, str(_PKG_DIR))
