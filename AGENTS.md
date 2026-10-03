@@ -69,6 +69,11 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - Use `.github/PULL_REQUEST_TEMPLATE.md` for PR descriptions.
 - **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
 - Link relevant issues or JIRA tickets; include a testing plan.
+- **This repository is public** — PR titles, descriptions, commit messages, and release notes must
+  describe only the change itself (problem, root cause, fix, testing, risks). Do not mention
+  internal discussions (Slack threads, meetings), coordination with other teams or tracers, their
+  tickets, internal backend or data-pipeline names, or open internal questions. Linking the PR's
+  own JIRA ticket is fine; put the rest of the internal context in that ticket.
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
 - **Fork PR CI** — External fork PRs cannot run all required CI. A repo-owned branch can start
   GitLab, but a draft shadow PR into `main` is required for System Tests. The shadow PR moves the

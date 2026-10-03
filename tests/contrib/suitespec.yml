@@ -1931,6 +1931,43 @@ suites:
           dependencies: ['cattrs<23.1.1', 'molten>=1.0,<1.1', pytest-randomly, pytest-xdist]
         - name: molten
           dependencies: ['cattrs<23.1.1', molten, pytest-randomly, pytest-xdist]
+  mysql:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@dbapi'
+      - '@mysql'
+      - tests/contrib/mysql/*
+      - tests/contrib/shared_tests.py
+    services:
+      - mysql
+    snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/contrib/mysql
+      variants:
+        - name: mysql
+          python: ['3.9']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.28']
+        - name: mysql
+          python: ['3.9']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.10']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.28']
+        - name: mysql
+          python: ['3.10']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.11']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.31']
+        - name: mysql
+          python: ['3.11']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [pytest-randomly, mysql-connector-python]
   mysqlpython:
     paths:
       - '@bootstrap'
