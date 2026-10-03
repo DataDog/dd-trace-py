@@ -29,6 +29,7 @@ from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -40,11 +41,8 @@ def clear_config():
     _set_ffe_config(None)
 
 
-def _set_provider(provider):
-    if hasattr(api, "set_provider_and_wait"):
-        api.set_provider_and_wait(provider)
-    else:
-        api.set_provider(provider)
+def _set_provider(provider: DataDogProvider) -> None:
+    set_openfeature_provider(provider)
 
 
 class TestProviderStatus:
