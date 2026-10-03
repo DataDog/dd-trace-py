@@ -103,48 +103,118 @@ def test_middleware(tracer, test_spans):
     assert spans[0].error == 1
 
 
+def _queue_start_header(seconds_ago=3):
+    return {"X-Request-Start": "t=%d" % int((time.time() - seconds_ago) * 1_000_000)}
+
+
 def test_request_queuing_disabled_by_default(tracer, test_spans):
     app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
-    start_time = time.time() - 3
-    resp = app.get("/", headers={"X-Request-Start": str(int(start_time * 1000))})
+    resp = app.get("/", headers=_queue_start_header())
     assert resp.status_int == 200
 
     spans = test_spans.pop()
-    names = [s.name for s in spans]
-    assert "http.proxy.request" not in names
-    assert "http.proxy.queue" not in names
-
+    assert "http.server.queue" not in [s.name for s in spans]
     wsgi_span = next(s for s in spans if s.name == "wsgi.request")
     assert wsgi_span.parent_id is None
 
 
 def test_request_queuing_enabled(tracer, test_spans):
     app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
-    start_time = time.time() - 3
-    headers = {"X-Request-Start": str(int(start_time * 1000))}
 
     with override_global_config(dict(_request_queuing_enabled=True)):
-        resp = app.get("/", headers=headers)
+        resp = app.get("/", headers=_queue_start_header())
     assert resp.status_int == 200
 
     spans = test_spans.pop()
-    proxy_request_span = next(s for s in spans if s.name == "http.proxy.request")
-    proxy_queue_span = next(s for s in spans if s.name == "http.proxy.queue")
+    assert [s.name for s in spans].count("http.server.queue") == 1
+    queue_span = next(s for s in spans if s.name == "http.server.queue")
     wsgi_span = next(s for s in spans if s.name == "wsgi.request")
 
-    assert proxy_request_span.parent_id is None
-    assert proxy_queue_span.parent_id == proxy_request_span.span_id
-    assert wsgi_span.parent_id == proxy_request_span.span_id
+    # The request span is unchanged: still the root, the top-level span and the sampling decision holder.
+    assert wsgi_span.parent_id is None
+    assert wsgi_span.resource == "GET /"
+    assert wsgi_span.get_metric("_dd.top_level") == 1
+    assert wsgi_span.get_metric("_sampling_priority_v1") is not None
 
-    assert proxy_queue_span.duration_ns >= 2_000_000_000  # ~3s queue wait, allow slack
-    assert proxy_queue_span.get_tag("span.kind") == "proxy"
-    assert proxy_queue_span.get_tag("component") == "http_proxy"
-    assert proxy_queue_span.get_metric("_dd.measured") == 1
+    # The queue span is a sibling in the same trace, with its own semantics and no request hits.
+    assert queue_span.trace_id == wsgi_span.trace_id
+    assert not queue_span.parent_id
+    assert queue_span.get_metric("_dd.top_level") is None
+    assert queue_span.get_metric("_sampling_priority_v1") is None
+    assert queue_span.get_metric("_dd.measured") is None
+    assert queue_span.span_type == "proxy"
+    assert queue_span.get_tag("span.kind") == "server"
+    assert queue_span.get_tag("component") == "http_proxy"
+    assert queue_span.service == wsgi_span.service
+    assert queue_span.start_ns + queue_span.duration_ns == wsgi_span.start_ns
+    assert queue_span.duration_ns >= 2_000_000_000  # ~3s queue wait, allow slack
 
-    assert proxy_request_span.get_tag("span.kind") == "proxy"
-    # the wrapper span covers the proxy timestamp through wsgi request completion,
-    # so it should be at least as long as the pure queue wait.
-    assert proxy_request_span.duration_ns >= proxy_queue_span.duration_ns
+
+def test_request_queuing_uses_integration_service_name(tracer, test_spans):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+
+    with override_global_config(dict(_request_queuing_enabled=True)), override_config("wsgi", dict(service="my-wsgi")):
+        app.get("/", headers=_queue_start_header())
+
+    spans = test_spans.pop()
+    queue_span = next(s for s in spans if s.name == "http.server.queue")
+    wsgi_span = next(s for s in spans if s.name == "wsgi.request")
+    assert wsgi_span.service == "my-wsgi"
+    assert queue_span.service == "my-wsgi"
+
+
+def test_request_queuing_error_stays_on_request_span(tracer, test_spans):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+
+    with override_global_config(dict(_request_queuing_enabled=True)):
+        with pytest.raises(Exception, match="Oops!"):
+            app.get("/error", headers=_queue_start_header())
+
+    spans = test_spans.pop()
+    queue_span = next(s for s in spans if s.name == "http.server.queue")
+    wsgi_span = next(s for s in spans if s.name == "wsgi.request")
+    assert wsgi_span.error == 1
+    assert queue_span.error == 0
+    assert queue_span.duration_ns >= 2_000_000_000
+
+
+def test_request_queuing_distributed_tracing(tracer, test_spans):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    headers = {"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321", **_queue_start_header()}
+
+    with override_global_config(dict(_request_queuing_enabled=True)):
+        app.get("/", headers=headers)
+
+    spans = test_spans.pop()
+    queue_span = next(s for s in spans if s.name == "http.server.queue")
+    wsgi_span = next(s for s in spans if s.name == "wsgi.request")
+    assert wsgi_span.trace_id == queue_span.trace_id == 4321
+    assert wsgi_span.parent_id == queue_span.parent_id == 1234
+
+
+def test_request_queuing_with_inferred_proxy_span(tracer, test_spans):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    headers = {
+        "x-dd-proxy": "aws-apigateway",
+        "x-dd-proxy-request-time-ms": str(int((time.time() - 5) * 1000)),
+        "x-dd-proxy-path": "/",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "local",
+        "x-dd-proxy-stage": "stage",
+        **_queue_start_header(),
+    }
+
+    with override_global_config(dict(_request_queuing_enabled=True, _inferred_proxy_services_enabled=True)):
+        app.get("/", headers=headers)
+
+    spans = test_spans.pop()
+    inferred_span = next(s for s in spans if s.name == "aws.apigateway")
+    queue_span = next(s for s in spans if s.name == "http.server.queue")
+    wsgi_span = next(s for s in spans if s.name == "wsgi.request")
+    assert inferred_span.parent_id is None
+    assert wsgi_span.parent_id == inferred_span.span_id
+    assert queue_span.parent_id == inferred_span.span_id
+    assert queue_span.trace_id == inferred_span.trace_id
 
 
 def test_distributed_tracing(tracer, test_spans):

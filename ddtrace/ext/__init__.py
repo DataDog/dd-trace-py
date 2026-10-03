@@ -29,7 +29,6 @@ class SpanKind:
     PRODUCER = "producer"
     CONSUMER = "consumer"
     INTERNAL = "internal"
-    PROXY = "proxy"
 
 
 class SpanLinkKind:

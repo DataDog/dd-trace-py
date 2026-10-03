@@ -847,20 +847,22 @@ async def test_request_queuing(scope, test_spans, request_queuing_enabled):
         await instance.receive_output(1)
 
     asgi_span = test_spans.find_span(name="asgi.request")
+    assert asgi_span._parent is None
+    queue_spans = [s for s in test_spans.spans if s.name == "http.server.queue"]
 
     if not request_queuing_enabled:
-        assert asgi_span._parent is None
+        assert queue_spans == []
         return
 
-    proxy_request_span = test_spans.find_span(name="http.proxy.request")
-    proxy_queue_span = test_spans.find_span(name="http.proxy.queue")
-
-    assert proxy_request_span._parent is None
-    assert proxy_queue_span.parent_id == proxy_request_span.span_id
-    assert asgi_span.parent_id == proxy_request_span.span_id
-    assert proxy_queue_span.duration_ns >= 2_000_000_000  # ~3s queue wait, allow slack
-    assert proxy_queue_span.get_tag("span.kind") == "proxy"
-    assert proxy_queue_span.get_tag("component") == "http_proxy"
+    assert len(queue_spans) == 1
+    queue_span = queue_spans[0]
+    assert queue_span.trace_id == asgi_span.trace_id
+    assert not queue_span.parent_id
+    assert queue_span.service == asgi_span.service
+    assert queue_span.start_ns + queue_span.duration_ns == asgi_span.start_ns
+    assert queue_span.duration_ns >= 2_000_000_000  # ~3s queue wait, allow slack
+    assert queue_span.get_tag("span.kind") == "server"
+    assert queue_span.span_type == "proxy"
 
 
 class _HTTPScope(TypedDict):
