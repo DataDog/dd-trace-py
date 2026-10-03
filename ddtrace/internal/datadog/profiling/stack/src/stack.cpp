@@ -1012,7 +1012,16 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     if (!want) {
         fast_copy_user_disabled = true;
     }
-    set_fast_copy_enabled(want);
+    fast_copy_desired = want && safe_memcpy_initialized;
+    // Sticky foreign takeover: never reselect safe_memcpy across stop/set_fast_copy/restart
+    // while the flag is set, or the next sampling thread skips warmup with memcpy active
+    // under a foreign SIGSEGV/SIGBUS handler (PROF-15342).
+    const bool enable_fast_copy = want && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
+    if (want && !enable_fast_copy) {
+        mark_fast_copy_syscall_fallback();
+    }
+    set_fast_copy_enabled(enable_fast_copy);
+    seed_fast_copy_profiler_stats();
 
     Py_RETURN_NONE;
 }
@@ -1020,12 +1029,9 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 static PyObject*
 stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Temporarily remove our SIGSEGV/SIGBUS handlers, restoring the saved
-    // previous handlers. Call this before letting another component (e.g.,
-    // faulthandler) install its own handler so it doesn't record ours as its
-    // previous handler (which would create a signal-handler cycle).
-    // Follow with stack_reinstall_segv_handler to reinstall on top.
-    if (fast_copy_active) {
+    // Step out before a coordinated install (e.g. faulthandler) so it doesn't chain to us.
+    // Gate on desired (not fast_copy_active): during warmup handlers are still installed.
+    if (fast_copy_handler_ops_enabled()) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -1034,11 +1040,8 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
-    // This is used to reclaim the handler after another component (e.g., Python's
-    // faulthandler module) overwrites it. Our handler chains to the previous one
-    // for non-recovery faults, so both systems coexist correctly.
-    if (fast_copy_active) {
+    // Reclaim after coordinated swap; skipped on foreign takeover (see Sampler::sampling_thread).
+    if (fast_copy_handler_ops_enabled()) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;
@@ -1098,6 +1101,25 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
     Sampler::get().set_fast_copy_warmup_seconds(seconds_value);
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_process_vm_readv_available(PyObject* Py_UNUSED(self), PyObject* args)
+{
+#if defined PL_LINUX
+    int available = 1;
+
+    if (!PyArg_ParseTuple(args, "p", &available)) {
+        return nullptr;
+    }
+
+    process_vm_readv_available.store(static_cast<bool>(available), std::memory_order_relaxed);
+    Py_RETURN_NONE;
+#else
+    (void)args;
+    PyErr_SetString(PyExc_NotImplementedError, "_set_process_vm_readv_available is Linux-only");
+    return nullptr;
+#endif
 }
 
 static PyObject*
@@ -1205,6 +1227,10 @@ static PyMethodDef stack_methods[] = {
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,
       "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+    { "_set_process_vm_readv_available",
+      stack_set_process_vm_readv_available,
+      METH_VARARGS,
+      "Test-only: override process_vm_readv_available (Linux)" },
     { "take_sampling_thread_error",
       stack_take_sampling_thread_error,
       METH_NOARGS,

@@ -86,7 +86,7 @@ __attribute__((constructor)) void
 init_safe_copy()
 {
     // Always probe process_vm_readv so we know whether it is a valid fallback.
-    process_vm_readv_available = probe_process_vm_readv();
+    process_vm_readv_available.store(probe_process_vm_readv(), std::memory_order_relaxed);
 
     // Honor the fast-copy opt-out: when disabled via env var or when Python is
     // embedded, skip installing the SIGSEGV/SIGBUS handlers entirely.
@@ -94,7 +94,7 @@ init_safe_copy()
     // owns the signal handlers.
     if (fast_copy_env_disabled() || is_python_embedded()) {
         fast_copy_user_disabled = true;
-        if (process_vm_readv_available) {
+        if (process_vm_readv_available.load(std::memory_order_relaxed)) {
             safe_copy = process_vm_readv;
         } else {
             fprintf(stderr, "Failed to initialize safe copy interface\n");
@@ -107,11 +107,12 @@ init_safe_copy()
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
     } else {
         // std::cerr might not have been fully initialized at this point.
         fprintf(stderr, "Failed to initialize segv catcher. Trying process_vm_readv.\n");
-        if (process_vm_readv_available) {
+        if (process_vm_readv_available.load(std::memory_order_relaxed)) {
             safe_copy = process_vm_readv;
             mark_fast_copy_syscall_fallback();
         } else {
@@ -134,6 +135,7 @@ init_safe_copy()
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
         return;
     }
@@ -163,7 +165,7 @@ set_fast_copy_enabled(bool enabled)
 
     // Fast copy disabled (or safe_memcpy unavailable): try process_vm_readv only.
 #if defined PL_LINUX
-    if (process_vm_readv_available) {
+    if (process_vm_readv_available.load(std::memory_order_relaxed)) {
         safe_copy = process_vm_readv;
         fast_copy_active = false;
         return true;
