@@ -28,6 +28,47 @@ from tests.utils import override_global_config
 LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"}
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("primary_fails", [False, True])
+async def test_completion_fallback_usage(litellm, litellm_llmobs, test_spans, is_async, primary_fails):
+    response = {
+        "model": "gpt-4o-mini",
+        "choices": [{"message": {"role": "assistant", "content": "hello"}}],
+        "usage": {
+            "prompt_tokens": 7,
+            "completion_tokens": 3,
+            "total_tokens": 10,
+            "prompt_tokens_details": {"cached_tokens": 2},
+            "cache_creation_input_tokens": 4,
+        },
+    }
+    kwargs = {
+        "model": "openai/gpt-4o-mini",
+        "messages": [{"role": "user", "content": "hello"}],
+        "mock_response": RuntimeError("primary unavailable") if primary_fails else response,
+        "fallbacks": [{"model": "openai/gpt-4o", "mock_response": response}],
+    }
+    if is_async:
+        await litellm.acompletion(**kwargs)
+    else:
+        litellm.completion(**kwargs)
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == (3 if primary_fails else 2)
+    workflows = [span for span in spans if get_llmobs_span_kind(span) == "workflow"]
+    attempts = [span for span in spans if get_llmobs_span_kind(span) == "llm"]
+    assert len(workflows) == 1
+    assert get_llmobs_metrics(workflows[0]) == {}
+    assert workflows[0].get_metric("_dd.llmobs.input_tokens") is None
+    assert len(attempts) == (2 if primary_fails else 1)
+    assert sum((get_llmobs_metrics(span) or {}).get("input_tokens", 0) for span in attempts) == 7
+    assert sum((get_llmobs_metrics(span) or {}).get("output_tokens", 0) for span in attempts) == 3
+    assert sum((get_llmobs_metrics(span) or {}).get("cache_read_input_tokens", 0) for span in attempts) == 2
+    assert sum((get_llmobs_metrics(span) or {}).get("cache_write_input_tokens", 0) for span in attempts) == 4
+    assert sum(span.error for span in attempts) == int(primary_fails)
+
+
 @pytest.mark.parametrize(
     "stream,n",
     [
@@ -814,7 +855,8 @@ LLMObs.disable()
     assert ("LLMObs.enable() called after litellm was imported but before it was patched") not in err.decode()
 
 
-def test_shadow_tags_completion_when_llmobs_disabled(tracer):
+@pytest.mark.parametrize("fallbacks", [None, [], ["gpt-4o"]])
+def test_shadow_tags_completion_when_llmobs_disabled(tracer, fallbacks):
     """Verify shadow tags are set on LiteLLM spans when LLMObs is disabled."""
     from unittest.mock import MagicMock
 
@@ -828,14 +870,16 @@ def test_shadow_tags_completion_when_llmobs_disabled(tracer):
     response.usage.total_tokens = 10
 
     with tracer.trace("litellm.request") as span:
-        integration._set_apm_shadow_tags(span, ["gpt-3.5-turbo"], {}, response=response, operation="chat")
+        integration._set_apm_shadow_tags(
+            span, ["gpt-3.5-turbo"], {"fallbacks": fallbacks}, response=response, operation="chat"
+        )
 
-    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.span_kind") == ("workflow" if fallbacks else "llm")
     assert span.get_tag("_dd.llmobs.model_name") == "gpt-3.5-turbo"
     assert span.get_metric("_dd.llmobs.enabled") == 0
-    assert span.get_metric("_dd.llmobs.input_tokens") == 7
-    assert span.get_metric("_dd.llmobs.output_tokens") == 3
-    assert span.get_metric("_dd.llmobs.total_tokens") == 10
+    assert span.get_metric("_dd.llmobs.input_tokens") == (None if fallbacks else 7)
+    assert span.get_metric("_dd.llmobs.output_tokens") == (None if fallbacks else 3)
+    assert span.get_metric("_dd.llmobs.total_tokens") == (None if fallbacks else 10)
 
 
 def test_azure_shadow_tags_use_response_model(tracer):
