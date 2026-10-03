@@ -4,6 +4,7 @@ import sys
 import time
 from typing import Any
 from typing import Callable
+from typing import Generator
 from typing import Optional
 from typing import cast
 from unittest import mock
@@ -14,6 +15,7 @@ import ddtrace
 from ddtrace.internal import service
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -28,13 +30,13 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 
 
 @pytest.fixture(autouse=True)
-def _reset_profiler_active_instance():
+def _reset_profiler_active_instance() -> Generator[None, None, None]:
     yield
     profiler.Profiler._active_instance = None
     profiler.Profiler._exit_signal_handler = None
 
 
-def test_status():
+def test_status() -> None:
     p = profiler.Profiler()
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
     p.start()
@@ -43,7 +45,7 @@ def test_status():
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
 
 
-def test_restart():
+def test_restart() -> None:
     p = profiler.Profiler()
     p.start()
     p.stop(flush=False)
@@ -51,7 +53,7 @@ def test_restart():
     p.stop(flush=False)
 
 
-def test_multiple_stop():
+def test_multiple_stop() -> None:
     """Check that the profiler can be stopped twice."""
     p = profiler.Profiler()
     p.start()
@@ -59,7 +61,7 @@ def test_multiple_stop():
     p.stop(flush=False)
 
 
-def test_tracer_api(monkeypatch):
+def test_tracer_api(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler(tracer=ddtrace.tracer)
     assert prof.tracer == ddtrace.tracer
@@ -84,7 +86,7 @@ def test_default_memory() -> None:
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="true"))
-def test_enable_memory():
+def test_enable_memory() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
 
@@ -92,14 +94,14 @@ def test_enable_memory():
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="false"))
-def test_disable_memory():
+def test_disable_memory() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
 
     assert all(not isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
-def test_copy():
+def test_copy() -> None:
     p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
     c = p.copy()
     assert c == p
@@ -110,9 +112,9 @@ def test_copy():
     assert p.tags == c.tags
 
 
-def test_profiler_does_not_mutate_custom_tags():
+def test_profiler_does_not_mutate_custom_tags() -> None:
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self):
+        def _build_default_exporters(self) -> None:
             self.tags["generated"] = "value"
 
     tags = {"team": "profiling"}
@@ -129,26 +131,26 @@ def test_profiler_does_not_mutate_custom_tags():
     assert p.tags == {"team": "profiling", "generated": "value"}
 
 
-def test_failed_start_collector(caplog, monkeypatch):
+def test_failed_start_collector(caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
     class ErrCollect(collector.Collector):
-        def _start_service(self):
+        def _start_service(self) -> None:
             raise RuntimeError("could not import required module")
 
-        def _stop_service(self):
+        def _stop_service(self) -> None:
             pass
 
         @staticmethod
-        def collect():
+        def collect() -> None:
             pass
 
         @staticmethod
-        def snapshot():
+        def snapshot() -> None:
             raise Exception("error!")
 
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kargs):
+        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
             return None
 
     p = TestProfiler()
@@ -156,7 +158,7 @@ def test_failed_start_collector(caplog, monkeypatch):
     p._collectors = [err_collector]
     p.start()
 
-    def profiling_tuples(tuples):
+    def profiling_tuples(tuples: list[tuple[str, int, str]]) -> list[tuple[str, int, str]]:
         return [t for t in tuples if t[0].startswith("ddtrace.profiling")]
 
     assert profiling_tuples(caplog.record_tuples) == [
@@ -170,8 +172,9 @@ def test_failed_start_collector(caplog, monkeypatch):
     ]
 
 
-def test_default_collectors():
+def test_default_collectors() -> None:
     p = profiler.Profiler()
+    p.start()
     assert any(isinstance(c, stack.StackCollector) for c in p._profiler._collectors)
     assert any(isinstance(c, threading.ThreadingLockCollector) for c in p._profiler._collectors)
     try:
@@ -186,21 +189,21 @@ def test_default_collectors():
     p.stop(flush=False)
 
 
-def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch):
+def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     registered_hooks = []
     unregistered_hooks = []
 
     class WatchdogMock:
         @staticmethod
-        def register_module_hook(module, hook):
+        def register_module_hook(module: str, hook: Callable[[Any], None]) -> None:
             registered_hooks.append((module, hook))
 
         @staticmethod
-        def unregister_module_hook(module, hook):
+        def unregister_module_hook(module: str, hook: Callable[[Any], None]) -> None:
             unregistered_hooks.append((module, hook))
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kargs):
+        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -220,21 +223,21 @@ def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch)
     assert unregistered_hooks == registered_hooks
 
 
-def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monkeypatch):
+def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monkeypatch: pytest.MonkeyPatch) -> None:
     registered_hooks = []
     unregistered_hooks = []
 
     class WatchdogMock:
         @staticmethod
-        def register_module_hook(module, hook):
+        def register_module_hook(module: str, hook: Callable[[Any], None]) -> None:
             registered_hooks.append((module, hook))
 
         @staticmethod
-        def unregister_module_hook(module, hook):
+        def unregister_module_hook(module: str, hook: Callable[[Any], None]) -> None:
             unregistered_hooks.append((module, hook))
 
     class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kargs):
+        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
@@ -261,7 +264,7 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
 def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     # Use a mock ModuleWatchdog to simulate the delayed import of threading/asyncio.
     # This is needed because in practice, when running the test suite, both threading and asyncio
-    # have already been imported by the time the profiler is constructed.
+    # have already been imported by the time the profiler starts.
     registered_hooks: list[tuple[str, Callable[[Any], None]]] = []
 
     class WatchdogMock:
@@ -276,16 +279,117 @@ def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: p
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
 
     p = profiler.Profiler(_pytorch_collector_enabled=pytorch_enabled)
+    # Hooks are armed on start, not at construction.
+    p.start()
+    try:
+        for module, hook in registered_hooks:
+            if module in ("threading", "asyncio"):
+                hook(None)
 
-    # Run the lock hooks after construction to simulate a delayed import of threading/asyncio.
-    for module, hook in registered_hooks:
-        if module in ("threading", "asyncio"):
-            hook(None)
+        locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
+        assert locks, "expected lock collectors"
+        missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
+        assert not missing, "lock collectors built without a tracer: %s" % missing
+    finally:
+        p.stop(flush=False)
 
-    locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
-    assert locks, "expected lock collectors"
-    missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
-    assert not missing, "lock collectors built without a tracer: %s" % missing
+
+def test_start_does_not_half_start_when_a_collector_cannot_be_built() -> None:
+    with mock.patch.object(threading.ThreadingLockCollector, "__init__", side_effect=RuntimeError("boom")):
+        p1 = profiler.Profiler()
+        p1.start()
+        try:
+            assert profiler.Profiler._active_instance is p1, (
+                "a started profiler must be recorded even if a collector could not be built"
+            )
+        finally:
+            p1.stop(flush=False)
+
+    assert profiler.Profiler._active_instance is None
+
+
+def test_restart_rearms_collector_import_hooks() -> None:
+    p = profiler.Profiler()
+    inst = p._profiler
+    hooks = list(inst._collectors_on_import or [])
+    assert hooks, "expected lock collector import hooks to be configured"
+
+    def watched() -> set[str]:
+        hook_map = cast(ModuleWatchdog, ModuleWatchdog._instance)._hook_map
+        return {module for module, hook in hooks if any(h is hook for h in hook_map.get(module, []))}
+
+    p.start()
+    assert watched() == {"threading", "asyncio"}
+
+    p.stop(flush=False)
+    assert watched() == set(), "hooks must be disarmed while the profiler is stopped"
+
+    p.start()
+    assert watched() == {"threading", "asyncio"}, "restart must re-arm the import hooks"
+
+    p.stop(flush=False)
+    assert watched() == set()
+
+
+def test_unstarted_profiler_registers_no_import_hooks() -> None:
+    p = profiler.Profiler()
+    hooks = list(p._profiler._collectors_on_import or [])
+    assert hooks, "expected lock collector import hooks to be configured"
+
+    def registered() -> set[str]:
+        # Count this profiler's own hooks by identity. A total over _hook_map would also
+        # pick up the one-time process-wide hooks that the first lock collector and the
+        # stack collector register (gevent.monkey, faulthandler), which never come back
+        # off and would make this depend on what ran earlier in the process.
+        hook_map = cast(ModuleWatchdog, ModuleWatchdog._instance)._hook_map
+        return {module for module, hook in hooks if any(h is hook for h in hook_map.get(module, []))}
+
+    assert registered() == set(), "building a profiler must not register its import hooks"
+
+    p.start()
+    assert registered() == {module for module, _ in hooks}
+    p.stop(flush=False)
+    assert registered() == set()
+
+
+@pytest.mark.subprocess(err=None)
+def test_late_imported_module_gets_its_collector_after_restart() -> None:
+    import sys
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import asyncio as asyncio_collector
+
+    ASYNCIO_COLLECTORS = (
+        asyncio_collector.AsyncioLockCollector,
+        asyncio_collector.AsyncioSemaphoreCollector,
+        asyncio_collector.AsyncioBoundedSemaphoreCollector,
+        asyncio_collector.AsyncioConditionCollector,
+    )
+
+    def run(restart: bool) -> int:
+        # Drop asyncio so its hooks have something to fire on later, the way torch shows
+        # up only once the application imports it.
+        for name in [m for m in sys.modules if m == "asyncio" or m.startswith("asyncio.")]:
+            del sys.modules[name]
+
+        p = profiler.Profiler()
+        inst = p._profiler
+        assert not [c for c in inst._collectors if isinstance(c, ASYNCIO_COLLECTORS)]
+
+        p.start()
+        if restart:
+            p.stop(flush=False)
+            p.start()
+
+        import asyncio  # noqa: F401
+
+        found = len([c for c in inst._collectors if isinstance(c, ASYNCIO_COLLECTORS)])
+        p.stop(flush=False)
+        profiler.Profiler._active_instance = None
+        return found
+
+    assert run(restart=False) == 4
+    assert run(restart=True) == 4, "a restarted profiler must still pick up a late import"
 
 
 def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
@@ -355,7 +459,7 @@ def test_stop_skips_scheduler_join_when_scheduler_fails_to_stop(caplog: pytest.L
         sched.join()
 
 
-def test_profiler_serverless(monkeypatch):
+def test_profiler_serverless(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
@@ -364,7 +468,7 @@ def test_profiler_serverless(monkeypatch):
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
-def test_profiler_ddtrace_deprecation():
+def test_profiler_ddtrace_deprecation() -> None:
     """
     ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
     them when this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
@@ -386,7 +490,7 @@ def test_profiler_ddtrace_deprecation():
     env=dict(DD_PROFILING_ENABLED="true"),
     err="Failed to load ddup module (mock failure message), disabling profiling\n",
 )
-def test_libdd_failure_telemetry_logging():
+def test_libdd_failure_telemetry_logging() -> None:
     """Test that libdd initialization failures log to telemetry. This mimics
     one of the two scenarios where profiling can be configured.
     1) using ddtrace-run with DD_PROFILING_ENABLED=true
@@ -419,7 +523,7 @@ def test_libdd_failure_telemetry_logging():
     # upload code path on macOS
     err=None
 )
-def test_libdd_failure_telemetry_logging_with_auto():
+def test_libdd_failure_telemetry_logging_with_auto() -> None:
     from unittest import mock
 
     with (
@@ -445,7 +549,7 @@ def test_libdd_failure_telemetry_logging_with_auto():
     env=dict(DD_PROFILING_ENABLED="true"),
     err="Failed to load stack module (mock failure message), disabling stack profiling\n",
 )
-def test_stack_failure_telemetry_logging():
+def test_stack_failure_telemetry_logging() -> None:
     # Test that stack initialization failures log to telemetry. This is
     # mimicking the behavior of ddtrace-run, where the config is imported to
     # determine if profiling/stack is enabled
@@ -476,7 +580,7 @@ def test_stack_failure_telemetry_logging():
     # upload code path on macOS.
     err=None,
 )
-def test_stack_failure_telemetry_logging_with_auto():
+def test_stack_failure_telemetry_logging_with_auto() -> None:
     from unittest import mock
 
     with (
@@ -499,7 +603,7 @@ def test_stack_failure_telemetry_logging_with_auto():
 
 
 @pytest.mark.subprocess(err=None)
-def test_profiling_auto_degrades_when_unavailable():
+def test_profiling_auto_degrades_when_unavailable() -> None:
     """import ddtrace.profiling.auto must not crash when native extensions are missing."""
     import sys
 
@@ -516,7 +620,7 @@ def test_profiling_auto_degrades_when_unavailable():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
 # For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
-def test_user_threads_have_native_id():
+def test_user_threads_have_native_id() -> None:
     from os import getpid
     from threading import Thread
     from threading import _MainThread  # pyright: ignore[reportAttributeAccessIssue]
@@ -560,8 +664,9 @@ def test_user_threads_have_native_id():
         DD_PROFILING_ENABLED="false",
     )
 )
-def test_gevent_not_patched_when_profiling_disabled():
+def test_gevent_not_patched_when_profiling_disabled() -> None:
     import gevent
+    import gevent.hub
 
     # Import these modules to ensure that they don't have a side effect enabling
     # gevent support when profiling is disabled.
@@ -585,8 +690,9 @@ def test_gevent_not_patched_when_profiling_disabled():
     ddtrace_run=True,
     err=None,
 )
-def test_gevent_patched_when_ddtrace_run_is_used():
+def test_gevent_patched_when_ddtrace_run_is_used() -> None:
     import gevent
+    import gevent.hub
 
     # NOTE: In this test (and the test_gevent_patched* tests below), we do not
     # assert on `gevent.Greenlet.__module__`. That check is brittle across gevent
@@ -604,8 +710,9 @@ def test_gevent_patched_when_ddtrace_run_is_used():
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
 @pytest.mark.subprocess(err=None)
-def test_gevent_patched_when_profiling_auto():
+def test_gevent_patched_when_profiling_auto() -> None:
     import gevent
+    import gevent.hub
 
     assert gevent.spawn.__module__ != "ddtrace.profiling._gevent"
     assert gevent.spawn_later.__module__ != "ddtrace.profiling._gevent"
@@ -631,8 +738,9 @@ def test_gevent_patched_when_profiling_auto():
     ),
     err=None,
 )
-def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled():
+def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled() -> None:
     import gevent
+    import gevent.hub
 
     from ddtrace.profiling import profiler
 
@@ -730,6 +838,7 @@ def test_no_samples_pushed_after_stop() -> None:
     import os
     import threading
     import time
+    from typing import Any
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling import profiler
@@ -740,7 +849,7 @@ def test_no_samples_pushed_after_stop() -> None:
     # post-stop phase needs the same budget for the absence of samples to mean anything.
     _STOP_TEST_WORK_DURATION = 2.0
 
-    def _burn_cpu_and_lock(lock) -> None:
+    def _burn_cpu_and_lock(lock: Any) -> None:
         deadline = time.monotonic() + _STOP_TEST_WORK_DURATION
         while time.monotonic() < deadline:
             with lock:
@@ -748,10 +857,10 @@ def test_no_samples_pushed_after_stop() -> None:
 
     # The two phases of test_no_samples_pushed_after_stop call the same work through differently
     # named wrappers, so a sample can be attributed to a phase by the frame it carries.
-    def while_profiler_is_running(lock) -> None:
+    def while_profiler_is_running(lock: Any) -> None:
         _burn_cpu_and_lock(lock)
 
-    def after_profiler_is_stopped(lock) -> None:
+    def after_profiler_is_stopped(lock: Any) -> None:
         _burn_cpu_and_lock(lock)
 
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
@@ -1074,7 +1183,7 @@ def test_profiler_keeps_default_int_handler_and_flushes_on_keyboard_interrupt() 
     ddtrace_run=True,
     err=None,
 )
-def test_auto_profiler_blocks_manual_start():
+def test_auto_profiler_blocks_manual_start() -> None:
     """When DD_PROFILING_ENABLED=1 auto-starts a profiler, manually starting another one should log an error."""
     import logging
     import logging.handlers
@@ -1102,7 +1211,7 @@ def test_auto_profiler_blocks_manual_start():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
 @pytest.mark.subprocess(err=None)
-def test_profiler_singleton_after_fork():
+def test_profiler_singleton_after_fork() -> None:
     """After fork, the child process should be able to start a new profiler."""
     import os
 
@@ -1138,7 +1247,7 @@ def test_profiler_singleton_after_fork():
     env=dict(DD_PROFILING_ENABLED="true"),
     err=lambda stderr: "AssertionError" not in stderr,
 )
-def test_profiler_atexit_no_assertion_error_with_gevent():
+def test_profiler_atexit_no_assertion_error_with_gevent() -> None:
     """Regression test: atexit callbacks must not raise AssertionError when
     gevent >= 26.4.0 is monkey-patched and the gevent hub is torn down before
     atexit runs (gevent/thread.py _set_greenlet assert glet is not None).
