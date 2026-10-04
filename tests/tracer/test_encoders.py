@@ -806,6 +806,33 @@ def test_encoder_propagates_dd_origin(tracer, Encoder, item):
     assert all(_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0])
 
 
+@pytest.mark.parametrize(
+    "Encoder,item",
+    [
+        (MsgpackEncoderV04, b"meta"),
+        (MsgpackEncoderV05, 9),
+    ],
+)
+def test_encoder_escapes_lone_surrogates(Encoder: type, item: object) -> None:
+    # e.g. aiohttp decodes headers with surrogateescape, so a raw 0xFF byte becomes U+DCFF
+    surrogate: str = b"Mozilla/5.0 \xff".decode("utf-8", "surrogateescape")
+    encoder = Encoder(1 << 20, 1 << 20)
+    span = Span("aiohttp.request", context=Context())
+    # The Context constructor filters non-ASCII origins, but the setter does not
+    span.context.dd_origin = surrogate
+    span._set_attribute("http.useragent", surrogate)
+    span.finish()
+
+    encoder.put([span])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected non-empty traces"
+    [[decoded_span]] = decode(encoded_traces[0][0])
+
+    expected: bytes = b"Mozilla/5.0 \\udcff"
+    assert decoded_span[item][b"http.useragent"] == expected
+    assert decoded_span[item][_ORIGIN_KEY] == expected
+
+
 @allencodings
 @given(
     trace_id=integers(min_value=1, max_value=2**128 - 1),

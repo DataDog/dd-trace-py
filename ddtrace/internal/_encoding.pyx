@@ -79,6 +79,14 @@ class BufferItemTooLarge(Exception):
     pass
 
 
+cdef inline str utf8_safe_str(str s):
+    # Lone surrogates make PyUnicode_AsUTF8 fail; escape them so the string can be packed.
+    if PyUnicode_AsUTF8(s) == NULL:
+        PyErr_Clear()
+        return s.encode("utf-8", "backslashreplace").decode("utf-8")
+    return s
+
+
 cdef inline const char * string_to_buff(str s):
     IF PY_MAJOR_VERSION >= 3:
         return PyUnicode_AsUTF8(s)
@@ -498,6 +506,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         cdef int ret
         cdef Py_ssize_t L
         cdef void * dd_origin = NULL
+        cdef str origin
         cdef unsigned long long trace_id_64bits = 0
 
         L = len(trace)
@@ -513,7 +522,9 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             return 0
 
         if trace[0].context is not None and trace[0].context.dd_origin is not None:
-            dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
+            # origin must outlive dd_origin: the v0.4 encoder borrows its UTF-8 buffer
+            origin = utf8_safe_str(trace[0].context.dd_origin)
+            dd_origin = self.get_dd_origin_ref(origin)
 
         # PERF: _trace_id_64bits is a computed property, cache/convert once for all spans
         try:
