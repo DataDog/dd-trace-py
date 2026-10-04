@@ -91,6 +91,11 @@ def finish_request_span(request, response):
     if not ctx or not span_from_context(ctx):
         return
 
+    # The span can be finished by both on_prepare and the task done callback; the context
+    # releases its event once the end event is dispatched, so the second call is a no-op.
+    if ctx._end_event_dispatched:
+        return
+
     # default resource name
     resource = str(response.status)
 

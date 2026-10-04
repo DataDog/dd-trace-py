@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import pytest
@@ -48,6 +49,35 @@ async def test_handler(app, test_spans, aiohttp_client):
     assert_span_http_status_code(span, 200)
     assert 0 == span.error
     assert span.get_tag("span.kind") == "server"
+
+
+async def test_request_span_finished_once(app, test_spans, aiohttp_client):
+    """The request span is finished by on_prepare and by the task done callback.
+
+    The second call must be a no-op instead of raising from the done callback
+    (the event is released once the end event is dispatched).
+    """
+    errors = []
+    loop = asyncio.get_running_loop()
+    previous_handler = loop.get_exception_handler()
+    loop.set_exception_handler(lambda _loop, context: errors.append(context))
+    try:
+        client = await aiohttp_client(app)
+        resp = await client.request("GET", "/")
+        assert 200 == resp.status
+        await resp.text()
+        # request.task is the connection handler task: it only completes (running its done
+        # callbacks) once the connection is closed
+        await client.close()
+        await asyncio.sleep(0.1)
+    finally:
+        loop.set_exception_handler(previous_handler)
+
+    assert errors == []
+    traces = test_spans.pop_traces()
+    assert 1 == len(traces)
+    assert 1 == len(traces[0])
+    assert "GET /" == traces[0][0].resource
 
 
 @pytest.mark.skipif(PYTEST_ASYNCIO_VERSION >= (1, 0), reason="'loop' fixture removed")

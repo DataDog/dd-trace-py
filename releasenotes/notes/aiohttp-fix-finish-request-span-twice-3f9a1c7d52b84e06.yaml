@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aiohttp: Fixes an ``AttributeError: ExecutionContext has no event`` raised from the request task done callback of the aiohttp middleware, which was logged for every request handled by an instrumented application.
