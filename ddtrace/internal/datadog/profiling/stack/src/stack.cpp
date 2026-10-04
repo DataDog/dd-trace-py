@@ -123,16 +123,26 @@ stack_thread_register(PyObject* self, PyObject* args)
 
     uintptr_t id;
     uint64_t native_id;
-    const char* name;
+    PyObject* name_obj;
 
-    if (!PyArg_ParseTuple(args, "KKs", &id, &native_id, &name)) {
+    if (!PyArg_ParseTuple(args, "KKU", &id, &native_id, &name_obj)) {
         return nullptr;
     }
+
+    // Thread names may hold lone surrogates, which strict UTF-8 encoding rejects. Raising here would
+    // propagate out of Thread._set_native_id and hang Thread.start forever.
+    PyObject* name_bytes = PyUnicode_AsEncodedString(name_obj, "utf-8", "replace");
+    if (name_bytes == nullptr) {
+        return nullptr;
+    }
+    // An embedded NUL truncates the name, which is acceptable.
+    const char* name = PyBytes_AS_STRING(name_bytes);
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().register_thread(id, native_id, name);
     Py_END_ALLOW_THREADS;
 
+    Py_DECREF(name_bytes);
     Py_RETURN_NONE;
 }
 
