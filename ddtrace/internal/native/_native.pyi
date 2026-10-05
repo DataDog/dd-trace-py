@@ -1326,6 +1326,25 @@ def total_memory_bytes() -> int:
     """Return total physical RAM plus swap, in bytes."""
     ...
 
+def scan_distributions(
+    entry: str,
+    module_suffixes: list[str],
+    threads: int = 1,
+) -> tuple[list[tuple[str, Optional[str], list[str], list[str]]], list[tuple[str, str]]]:
+    """Scan one sys.path entry, a directory or a zip archive, for installed distributions.
+
+    :param module_suffixes: ``importlib.machinery.all_suffixes()``, longest first.
+    :param threads: Worker threads for the scan. Values above 1 spawn threads for the
+        duration of the call, so they must only be used where nothing can fork concurrently.
+    :return: ``(dists, errors)``, where each dist is ``(name, version, keys, top_level)``:
+        ``version`` is ``None`` when missing, ``keys`` are the import roots it ships and
+        ``top_level`` the names ``packages_distributions`` maps to it. Each error is
+        ``(metadata_path, message)`` for a file that could not be decoded. Entries that
+        cannot be listed have no distributions.
+    :raises RuntimeError: If the scan fails unexpectedly; never ``PanicException``.
+    """
+    ...
+
 class config:
     """Native config module for tracer configuration managed in Rust."""
 

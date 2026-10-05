@@ -1,15 +1,21 @@
 import collections
 from functools import lru_cache as cached
 from functools import singledispatch
+from importlib.machinery import PathFinder
+from importlib.machinery import all_suffixes
 import inspect
 import logging
+import os
 from pathlib import Path
 import sys
 import sysconfig
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.module import origin
+from ddtrace.internal.native import scan_distributions
+from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.utils.cache import callonce
 
@@ -36,13 +42,16 @@ def _bad_dist_key(dist) -> str:
     practice for path-based installs (the dist-info directory). For other
     backends we fall back to ``repr(dist)``.
     """
+    if isinstance(dist, str):
+        # A path from the native scan.
+        return dist
     path = getattr(dist, "_path", None)
     if path is not None:
         return str(path)
     return repr(dist)
 
 
-def _warn_bad_dist(dist, exc: BaseException) -> None:
+def _warn_bad_dist(dist, exc: t.Union[BaseException, str]) -> None:
     """Log a one-time warning per malformed dist; subsequent calls are silent.
 
     The first warning includes ``exc_info=True`` so an operator can identify
@@ -53,41 +62,29 @@ def _warn_bad_dist(dist, exc: BaseException) -> None:
     if key in _BAD_DISTS_WARNED:
         return
     _BAD_DISTS_WARNED.add(key)
-    LOG.debug("Skipping distribution with unreadable metadata at %s: %s", key, exc, exc_info=True)
+    LOG.debug(
+        "Skipping distribution with unreadable metadata at %s: %s",
+        key,
+        exc,
+        exc_info=exc if isinstance(exc, BaseException) else False,
+    )
 
 
 @callonce
 def get_distributions() -> t.Mapping[str, str]:
     """returns the mapping from distribution name to version for all distributions in a python path"""
-    import importlib.metadata as importlib_metadata
-
-    pkgs = {}
-    for dist in importlib_metadata.distributions():
-        try:
-            # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed.
-            # Optimization: we should avoid accessing dist.metadata more than once.
-            metadata = dist.metadata
-            name = metadata["name"]
-            version = metadata["version"]
-            if name and version:
-                pkgs[name.lower()] = version
-        except Exception as exc:
-            _warn_bad_dist(dist, exc)
-
-    return pkgs
+    return {name.lower(): version for name, version, _, _ in _installed_distributions() if version is not None}
 
 
 def get_package_distributions() -> t.Mapping[str, list[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        import importlib.metadata as importlib_metadata
-
-        # Prefer the official API if available, otherwise fallback to the vendored version
-        if hasattr(importlib_metadata, "packages_distributions"):
-            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
-        else:
-            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+        pkg_to_dist = collections.defaultdict(list)
+        for name, _, _, top_level in _installed_distributions():
+            for pkg in top_level:
+                pkg_to_dist[pkg].append(name)
+        _PACKAGE_DISTRIBUTIONS = dict(pkg_to_dist)
     return _PACKAGE_DISTRIBUTIONS
 
 
@@ -308,10 +305,17 @@ def _relative_to_known_root(path: Path) -> t.Optional[Path]:
     return None
 
 
-@callonce
-def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
-    import importlib.metadata as importlib_metadata
+# (name, version or None, import root keys, top-level names)
+_DistributionRecord = tuple[str, t.Optional[str], list[str], list[str]]
 
+
+_WarnBadDist = t.Callable[[t.Any, t.Union[BaseException, str]], None]
+
+
+def _python_dist_records(
+    dists: t.Iterable[t.Any], warn: _WarnBadDist = _warn_bad_dist
+) -> t.Iterator[_DistributionRecord]:
+    """Records via importlib, for custom meta path finders; also the reference for the native scan."""
     # Cache per directory prefix whether it is a *regular* package (a directory
     # that ships an ``__init__.py``). PEP 420 namespace packages have no
     # ``__init__.py`` at their shared levels, so several distributions can
@@ -320,28 +324,30 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     # importable root, not a fixed 2-level prefix, otherwise every sibling
     # collapses onto whichever dist was scanned first and the longest-prefix
     # lookup in filename_to_package has nothing specific to match.
-    regular_pkg: dict[str, bool] = {}
+    regular_pkg: dict[Path, bool] = {}
 
-    def root_key(f: importlib_metadata.PackagePath) -> str:
+    def root_key(f) -> str:
         parts = f.parts
         n = len(parts)
         if n < 2:
             # Top-level module file (e.g. ``six.py``); keep the file name.
             return parts[0]
 
-        located: t.Optional[Path] = None
+        # zipfile.Path has no .parents. ancestors[k] is k levels up.
+        ancestors: list[t.Any] = []
         for depth in range(1, n):
-            prefix = "/".join(parts[:depth])
-            is_regular = regular_pkg.get(prefix)
+            if not ancestors:
+                ancestors.append(f.locate())
+                for _ in range(n - 1):
+                    ancestors.append(ancestors[-1].parent)
+            pkg_dir = ancestors[n - depth]
+            is_regular = regular_pkg.get(pkg_dir)
             if is_regular is None:
-                if located is None:
-                    located = t.cast(Path, f.locate())
-                pkg_dir = located.parents[n - 1 - depth]
                 is_regular = pkg_dir.is_dir() and (pkg_dir / "__init__.py").exists()
-                regular_pkg[prefix] = is_regular
+                regular_pkg[pkg_dir] = is_regular
             if is_regular:
                 # First regular package on the path: this is the import root.
-                return prefix
+                return "/".join(parts[:depth])
 
         # Every directory level is a namespace (no __init__.py anywhere on the
         # path). Two distributions can then contribute module files directly
@@ -352,8 +358,181 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         # module gets a distinct key the longest-prefix lookup can match.
         return "/".join(parts)
 
+    # per-dist try/except — one bad dist used to collapse the whole
+    # mapping to None (silently breaking is_third_party for the rest of the process).
+    for dist in dists:
+        try:
+            metadata = dist.metadata
+            name = metadata["name"]
+            version = metadata["version"] or None
+        except Exception as exc:
+            warn(dist, exc)
+            continue
+        if not name:
+            continue
+
+        # A broken file list must not cost the name, version or declared top-level names.
+        try:
+            declared = _top_level_declared(dist)
+        except Exception as exc:
+            warn(dist, exc)
+            declared = []
+        files: list[t.Any] = []
+        keys: list[str] = []
+        top_level: list[str] = declared
+        try:
+            files = list(dist.files or [])
+            if version is not None:
+                for f in files:
+                    root = f.parts[0]
+                    if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
+                        continue
+                    keys.append(root_key(f))
+            if not declared:
+                top_level = [n for n in {_get_toplevel_name(f) for f in files} if "." not in n]
+        except Exception as exc:
+            warn(dist, exc)
+        yield name, version, keys, top_level
+
+
+# (sys.path entries, records), as one tuple so lock-free readers never mix them up.
+_INSTALLED_DISTRIBUTIONS: t.Optional[tuple[tuple[str, ...], list[_DistributionRecord]]] = None
+# Records per sys.path entry, so a sys.path change only scans the new entries.
+_ENTRY_RECORDS: dict[str, list[_DistributionRecord]] = {}
+# Fork-safe because lazy scans run on application threads, which may fork
+# mid-scan. Reentrant so an unexpected re-entry repeats work instead of deadlocking.
+_INSTALLED_DISTRIBUTIONS_LOCK = forksafe.RLock()
+
+# The scan is I/O-bound; more threads than this barely help.
+_PREFETCH_MAX_THREADS = 4
+
+
+def _reset_installed_distributions() -> None:
+    """Forget all scanned records."""
+    global _INSTALLED_DISTRIBUTIONS
+    with _INSTALLED_DISTRIBUTIONS_LOCK:
+        _INSTALLED_DISTRIBUTIONS = None
+        _ENTRY_RECORDS.clear()
+
+
+def _sys_path_entries() -> tuple[str, ...]:
+    # A repeated entry would list its distributions twice.
+    return tuple(dict.fromkeys(e for e in sys.path if isinstance(e, str)))
+
+
+def _installed_distributions(threads: int = 1) -> list[_DistributionRecord]:
+    """Records for every installed distribution, in importlib discovery order.
+
+    The sys.path scan is native, as importlib is far too slow at it. Records
+    follow the current sys.path, so entries added after the boot-time prefetch
+    are still seen. Only prefetch_distributions may ask for threads.
+    """
+    global _INSTALLED_DISTRIBUTIONS
+    entries = _sys_path_entries()
+    if (installed := _INSTALLED_DISTRIBUTIONS) is not None and installed[0] == entries:
+        return installed[1]
+
+    problems: list[tuple[t.Any, t.Union[BaseException, str]]] = []
+
+    def warn(dist: t.Any, exc: t.Union[BaseException, str]) -> None:
+        problems.append((dist, exc))
+
+    # Custom finders run arbitrary Python, whose import hooks could re-enter
+    # mid-scan; keep them out of the lock.
+    segments = _meta_path_segments(warn)
+    with _INSTALLED_DISTRIBUTIONS_LOCK:
+        if (installed := _INSTALLED_DISTRIBUTIONS) is None or installed[0] != entries:
+            records = list(_distribution_records(entries, segments, threads, warn))
+            installed = _INSTALLED_DISTRIBUTIONS = (entries, records)
+    # Log outside the lock: handlers may do I/O and yield under gevent.
+    for dist, exc in problems:
+        _warn_bad_dist(dist, exc)
+    return installed[1]
+
+
+def prefetch_distributions() -> None:
+    """Scan the installed distributions on boot.
+
+    Uses threads unless bootstrapped by ddtrace.auto, which can run with the
+    application's threads alive: no ddtrace thread may be alive across a fork.
+    """
+    threads = 1
+    if "ddtrace.auto" not in sys.modules:
+        # Only some platforms have sched_getaffinity, which honours CPU affinity.
+        sched_getaffinity = getattr(os, "sched_getaffinity", None)
+        cpus = len(sched_getaffinity(0)) if sched_getaffinity is not None else (os.cpu_count() or 1)
+        threads = min(_PREFETCH_MAX_THREADS, cpus)
     try:
-        dists = list(importlib_metadata.distributions())
+        _installed_distributions(threads=threads)
+    except Exception:
+        # The lazy path retries on first use.
+        LOG.debug("Failed to prefetch installed distributions", exc_info=True)
+    except BaseException as exc:
+        # A PanicException at startup would abort the process.
+        if not is_panic_exception(exc):
+            raise
+        LOG.debug("Failed to prefetch installed distributions", exc_info=True)
+
+
+def _entry_records(
+    entry: str, module_suffixes: list[str], threads: int, warn: _WarnBadDist
+) -> list[_DistributionRecord]:
+    """Records for the distributions under one sys.path entry."""
+    try:
+        dists, errors = scan_distributions(entry, module_suffixes, threads)
+    except Exception as exc:
+        # One bad entry must not cost all the others.
+        warn(entry, exc)
+        return []
+    for path, error in errors:
+        warn(path, error)
+    return dists
+
+
+def _meta_path_segments(warn: _WarnBadDist) -> list[t.Optional[list[_DistributionRecord]]]:
+    """Distribution sources on sys.meta_path, in order: None for PathFinder (scanned natively), records for others."""
+    import importlib.metadata as importlib_metadata
+
+    segments: list[t.Optional[list[_DistributionRecord]]] = []
+    for finder in sys.meta_path:
+        if finder is PathFinder:
+            segments.append(None)
+        elif type(finder).__name__ == "MetadataPathFinder":
+            # The importlib_metadata backport's duplicate of PathFinder.
+            continue
+        elif (find_distributions := getattr(finder, "find_distributions", None)) is not None:
+            try:
+                dists = find_distributions(importlib_metadata.DistributionFinder.Context())
+                segments.append(list(_python_dist_records(dists, warn)))
+            except Exception as exc:
+                warn(finder, exc)
+    return segments
+
+
+def _distribution_records(
+    entries: tuple[str, ...],
+    segments: list[t.Optional[list[_DistributionRecord]]],
+    threads: int = 1,
+    warn: _WarnBadDist = _warn_bad_dist,
+) -> t.Iterator[_DistributionRecord]:
+    """Records in discovery order; call with the scan lock held."""
+    # Longest first, as inspect.getmodulename tries them.
+    module_suffixes = sorted(all_suffixes(), key=len, reverse=True)
+
+    for segment in segments:
+        if segment is not None:
+            yield from segment
+            continue
+        for entry in entries:
+            if (records := _ENTRY_RECORDS.get(entry)) is None:
+                records = _ENTRY_RECORDS[entry] = _entry_records(entry, module_suffixes, threads, warn)
+            yield from records
+
+
+@callonce
+def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
+    try:
+        records = _installed_distributions()
     except Exception:
         LOG.warning(
             "Unable to enumerate installed distributions, "
@@ -362,29 +541,14 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         )
         return None
 
-    # per-dist try/except — one bad dist used to collapse the whole
-    # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
-    for dist in dists:
-        try:
-            if not (files := dist.files):
-                continue
-            metadata = dist.metadata
-            name = metadata["name"]
-            version = metadata["version"]
-            if not (name and version):
-                continue
-            d = Distribution(name=name, version=version)
-            for f in files:
-                root = f.parts[0]
-                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
-                    continue
-                key = root_key(f)
-                if key not in mapping:
-                    mapping[key] = d
-        except Exception as exc:
-            _warn_bad_dist(dist, exc)
-
+    for name, version, keys, _ in records:
+        if version is None:
+            continue
+        d = Distribution(name=name, version=version)
+        for key in keys:
+            if key not in mapping:
+                mapping[key] = d
     return mapping
 
 
@@ -516,30 +680,6 @@ def is_distribution_available(name: str) -> bool:
 # ----
 
 
-def _packages_distributions() -> t.Mapping[str, list[str]]:
-    """
-    Return a mapping of top-level packages to their
-    distributions.
-    >>> import collections.abc
-    >>> pkgs = packages_distributions()
-    >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
-    True
-    """
-    import importlib.metadata as importlib_metadata
-
-    pkg_to_dist = collections.defaultdict(list)
-    for dist in importlib_metadata.distributions():
-        try:
-            name = dist.metadata["Name"]
-            if not name:
-                continue
-            for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
-                pkg_to_dist[pkg].append(name)
-        except Exception as exc:
-            _warn_bad_dist(dist, exc)
-    return dict(pkg_to_dist)
-
-
 def _top_level_declared(dist):
     return (dist.read_text("top_level.txt") or "").split()
 
@@ -573,55 +713,3 @@ def _get_toplevel_name(name) -> str:
         # python/typeshed#10328
         inspect.getmodulename(name) or str(name)
     )
-
-
-def _top_level_inferred(dist):
-    opt_names = set(map(_get_toplevel_name, _always_iterable(dist.files)))
-
-    def importable_name(name):
-        return "." not in name
-
-    return filter(importable_name, opt_names)
-
-
-# copied from more_itertools 8.8
-def _always_iterable(obj, base_type=(str, bytes)):
-    """If *obj* is iterable, return an iterator over its items::
-        >>> obj = (1, 2, 3)
-        >>> list(always_iterable(obj))
-        [1, 2, 3]
-    If *obj* is not iterable, return a one-item iterable containing *obj*::
-        >>> obj = 1
-        >>> list(always_iterable(obj))
-        [1]
-    If *obj* is ``None``, return an empty iterable:
-        >>> obj = None
-        >>> list(always_iterable(None))
-        []
-    By default, binary and text strings are not considered iterable::
-        >>> obj = 'foo'
-        >>> list(always_iterable(obj))
-        ['foo']
-    If *base_type* is set, objects for which ``isinstance(obj, base_type)``
-    returns ``True`` won't be considered iterable.
-        >>> obj = {'a': 1}
-        >>> list(always_iterable(obj))  # Iterate over the dict's keys
-        ['a']
-        >>> list(always_iterable(obj, base_type=dict))  # Treat dicts as a unit
-        [{'a': 1}]
-    Set *base_type* to ``None`` to avoid any special handling and treat objects
-    Python considers iterable as iterable:
-        >>> obj = 'foo'
-        >>> list(always_iterable(obj, base_type=None))
-        ['f', 'o', 'o']
-    """
-    if obj is None:
-        return iter(())
-
-    if (base_type is not None) and isinstance(obj, base_type):
-        return iter((obj,))
-
-    try:
-        return iter(obj)
-    except TypeError:
-        return iter((obj,))
