@@ -351,14 +351,15 @@ def test_fast_copy_fork_after_takeover_without_syscall() -> None:
     from ddtrace.trace import tracer
     from tests.profiling.collector.test_utils import wait_for_fast_copy_state
 
-    _stack._set_fast_copy_warmup_seconds(1.0)
+    # No process_vm_readv before start: skips warmup, stays on safe_memcpy, and
+    # leaves no syscall fallback when a foreign handler takes SIGSEGV later.
+    _stack._set_process_vm_readv_available(False)
 
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
-    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never upgraded to safe_memcpy"
+    assert wait_for_fast_copy_state(_stack, True, timeout=20.0), "sampler never reached safe_memcpy"
 
-    _stack._set_process_vm_readv_available(False)
     signal.signal(signal.SIGSEGV, signal.SIG_DFL)
     assert _stack.segv_handler_installed() is False, "expected foreign takeover of SIGSEGV"
 

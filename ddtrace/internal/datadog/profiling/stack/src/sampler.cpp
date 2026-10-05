@@ -438,7 +438,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Fork mid-warmup must re-decide (PROF-16020); foreign-takeover parents must
     // not reclaim in the child.
 #if defined PL_LINUX
-    const bool syscall_copy_available = process_vm_readv_available.load(std::memory_order_relaxed);
+    const bool syscall_copy_available = process_vm_readv_available;
 #else
     const bool syscall_copy_available = true; // mach_vm_read_overwrite is always available
 #endif

@@ -1112,7 +1112,13 @@ stack_set_process_vm_readv_available(PyObject* Py_UNUSED(self), PyObject* args)
         return nullptr;
     }
 
-    process_vm_readv_available.store(static_cast<bool>(available), std::memory_order_relaxed);
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_set_process_vm_readv_available must be called before the sampler is started");
+        return nullptr;
+    }
+
+    process_vm_readv_available = static_cast<bool>(available);
     Py_RETURN_NONE;
 #else
     (void)args;
@@ -1229,7 +1235,7 @@ static PyMethodDef stack_methods[] = {
     { "_set_process_vm_readv_available",
       stack_set_process_vm_readv_available,
       METH_VARARGS,
-      "Test-only: override process_vm_readv_available (Linux)" },
+      "Test-only: override process_vm_readv_available before sampler start (Linux)" },
     { "take_sampling_thread_error",
       stack_take_sampling_thread_error,
       METH_NOARGS,
