@@ -421,7 +421,7 @@ class SonicState:
             target.metrics[key] += delta
             target.metrics["total_tokens"] += delta
 
-            # AIDEV-NOTE: Each modality has an independent cumulative baseline.
+            # Each modality has an independent cumulative baseline.
             # Missing text must not discard valid speech, and recovered counters
             # establish a baseline without charging a previous turn's gap.
             usage = breakdown.get(direction) if isinstance(breakdown, dict) else None
