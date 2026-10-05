@@ -1030,7 +1030,8 @@ static PyObject*
 stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     // Step out before a coordinated install (e.g. faulthandler) so it doesn't chain to us.
-    // Gate on desired (not fast_copy_active): during warmup handlers are still installed.
+    // Via fast_copy_handler_ops_enabled() (desired && !foreign_takeover), not
+    // fast_copy_active: during warmup handlers are still installed.
     if (fast_copy_handler_ops_enabled()) {
         uninstall_segv_handler();
     }

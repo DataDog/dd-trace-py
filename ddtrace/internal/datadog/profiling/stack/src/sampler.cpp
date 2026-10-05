@@ -48,6 +48,8 @@ mark_fast_copy_foreign_takeover()
 
 // Sticky takeover plus leftover memcpy (set_fast_copy_enabled(false) failed, or a
 // child inherited that state): drop to the syscall copy, or refuse to sample.
+// Returns true if the caller may continue sampling; false if there is no safe
+// fallback left and the caller must stop the sampler.
 static bool
 drop_fast_copy_after_foreign_takeover()
 {
@@ -433,8 +435,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto interval_adjust_time_prev = sample_time_prev;
 
     // Warm up on syscall copy; upgrade only if we still own both handlers (PROF-15342).
-    // Gate on handler_ops (desired), not fast_copy_active - warmup clears the latter;
-    // fork mid-warmup must re-decide (PROF-16020), and foreign-takeover parents must not reclaim in the child.
+    // Key off fast_copy_handler_ops_enabled() (desired && !foreign_takeover), not
+    // fast_copy_active: warmup clears active while handlers stay installed.
+    // Fork mid-warmup must re-decide (PROF-16020); foreign-takeover parents must
+    // not reclaim in the child.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available.load(std::memory_order_relaxed);
 #else
