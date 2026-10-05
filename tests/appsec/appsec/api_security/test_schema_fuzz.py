@@ -1,4 +1,5 @@
 import builtins
+from collections.abc import Mapping
 
 from hypothesis import given
 from hypothesis import strategies as st
@@ -65,21 +66,24 @@ def equal_value(t1, t2):
         (1.0, [16]),
         ([1, 2], [[[4]], {"len": 2}]),
         ({"test": "truc"}, [{"test": [8]}]),
+        pytest.param(
+            getattr(builtins, "frozendict", dict)(
+                {
+                    "user": getattr(builtins, "frozendict", dict)({"name": "alice"}),
+                    "items": [getattr(builtins, "frozendict", dict)({"quantity": 2})],
+                }
+            ),
+            [{"user": [{"name": [8]}], "items": [[[{"quantity": [4]}]], {"len": 1}]}],
+            id="nested-frozendict",
+            marks=pytest.mark.skipif(not hasattr(builtins, "frozendict"), reason="frozendict requires Python 3.15"),
+        ),
         (None, [1]),
     ],
 )
 def test_small_schemas(obj, res):
+    if isinstance(obj, Mapping):
+        assert ddwaf_object(obj).struct == obj
     assert equal_with_meta(build_schema(obj), res)
-
-
-@pytest.mark.skipif(not hasattr(builtins, "frozendict"), reason="frozendict requires Python 3.15")
-def test_frozendict_body_preserves_waf_values_and_schema():
-    frozen = getattr(builtins, "frozendict")
-    body = frozen({"user": frozen({"name": "alice"}), "items": [frozen({"quantity": 2})]})
-    expected = {"user": {"name": "alice"}, "items": [{"quantity": 2}]}
-
-    assert ddwaf_object(body).struct == expected
-    assert equal_with_meta(build_schema(body), build_schema(expected))
 
 
 def deep_build(n, mini=0):

@@ -2,7 +2,6 @@ import builtins
 import contextlib
 import copy
 import pathlib
-import sys
 import types
 from unittest import mock
 
@@ -27,6 +26,7 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -277,8 +277,13 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
         unpatch_common_modules()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 11), reason="Injected exception handlers require Python 3.11")
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="Pre-3.11 wrapping uses different failed-entry cleanup semantics")
 def test_failed_reentrant_enter_exits_previous_contexts_and_restores_storage():
+    """Python 3.15 must unwind contexts when a PY_START callback blocks a recursive call.
+
+    PY_UNWIND must exit contexts already entered by that call and restore the outer call's
+    storage. Python 3.11-3.14 exercise the same contract through injected bytecode handlers.
+    """
     exited = []
 
     class _Entered(WrappingContext):
@@ -323,49 +328,48 @@ def test_failed_reentrant_enter_exits_previous_contexts_and_restores_storage():
         entered.unwrap()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 15), reason="lazy imports require Python 3.15")
-@pytest.mark.parametrize("patch_before_import", [True, False])
-def test_lazily_imported_urlopen_blocks_before_connecting(run_python_code_in_subprocess, patch_before_import):
-    # A fresh interpreter ensures the target module has not already been imported by other tests.
-    code = f"""
-import sys
-from unittest import mock
+@pytest.mark.skipif(not is_at_least_py(3, 15), reason="lazy imports require Python 3.15")
+@pytest.mark.subprocess(parametrize={"PATCH_BEFORE_IMPORT": ["true", "false"]}, timeout=20)
+def test_lazily_imported_urlopen_blocks_before_connecting():
+    import os
+    import sys
+    from unittest import mock
 
-import ddtrace.appsec._common_module_patches as cmp
-from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._utils import DDWaf_result, _observator
-from ddtrace.internal._exceptions import BlockingException
+    import pytest
 
-assert "urllib.request" not in sys.modules
-if {patch_before_import!r}:
-    cmp.patch_common_modules()
+    import ddtrace.appsec._common_module_patches as cmp
+    from ddtrace.appsec._constants import WAF_ACTIONS
+    from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+    from ddtrace.internal._exceptions import BlockingException
 
-lazy import urllib.request as client
-assert "urllib.request" not in sys.modules
-if not {patch_before_import!r}:
-    cmp.patch_common_modules()
-assert "urllib.request" not in sys.modules
+    patch_before_import = os.environ["PATCH_BEFORE_IMPORT"] == "true"
+    client = None
+    assert "urllib.request" not in sys.modules
+    if patch_before_import:
+        cmp.patch_common_modules()
 
-result = DDWaf_result(1, [], {{WAF_ACTIONS.BLOCK_ACTION: {{}}}}, 0.0, 0.0, False, _observator(), {{}})
-with (
-    mock.patch.object(cmp, "get_rasp_capability", return_value=True),
-    mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
-    mock.patch.object(cmp, "call_waf_callback", return_value=result) as call_waf,
-    mock.patch.object(cmp, "get_blocked", return_value={{"status_code": 403}}),
-    mock.patch("socket.create_connection", side_effect=AssertionError("connection attempted")) as connect,
-):
-    try:
-        client.urlopen("http://127.0.0.1:1/", timeout=1)
-    except BlockingException as exc:
-        assert exc.args[3] == "http://127.0.0.1:1/"
-    else:
-        raise AssertionError("RASP did not block the request")
-    call_waf.assert_called_once()
-    connect.assert_not_called()
-cmp.unpatch_common_modules()
-"""
-    _, err, status, _ = run_python_code_in_subprocess(code, timeout=20)
-    assert status == 0, err.decode()
+    # Keep the new syntax parseable by the older Python versions in the matrix.
+    exec("lazy import urllib.request as client", globals())
+    assert "urllib.request" not in sys.modules
+    if not patch_before_import:
+        cmp.patch_common_modules()
+    assert "urllib.request" not in sys.modules
+
+    result = DDWaf_result(1, [], {WAF_ACTIONS.BLOCK_ACTION: {}}, 0.0, 0.0, False, _observator(), {})
+    with (
+        mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+        mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+        mock.patch.object(cmp, "call_waf_callback", return_value=result) as call_waf,
+        mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
+        mock.patch("socket.create_connection", side_effect=AssertionError("connection attempted")) as connect,
+    ):
+        with pytest.raises(BlockingException) as exc:
+            client.urlopen("http://127.0.0.1:1/", timeout=1)
+        assert exc.value.args[3] == "http://127.0.0.1:1/"
+        call_waf.assert_called_once()
+        connect.assert_not_called()
+    cmp.unpatch_common_modules()
 
 
 def test_a_concurrent_request_does_not_consume_the_pending_block():
