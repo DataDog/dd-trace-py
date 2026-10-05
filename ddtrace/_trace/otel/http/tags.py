@@ -356,4 +356,5 @@ def set_client_address_tags(span: Span, client_address: str, network_peer_addres
             span._set_attribute(net.NETWORK_PEER_ADDRESS, network_peer_address)
     else:
         span._set_attribute(http.CLIENT_IP, client_address)
-        span._set_attribute("network.client.ip", network_peer_address or client_address)
+        if network_peer_address:
+            span._set_attribute("network.client.ip", network_peer_address)
