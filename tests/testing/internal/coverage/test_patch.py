@@ -3,6 +3,7 @@
 from inspect import signature
 from io import StringIO
 from pathlib import Path
+import re
 import runpy
 import tempfile
 from unittest.mock import Mock
@@ -404,14 +405,14 @@ class TestLcovReportMemory:
         assert percentage == expected_percentage
         assert cov.config is expected_config
 
-    def test_lcov_releases_completed_file_analyses(self, tmp_path: Path, monkeypatch) -> None:
+    @pytest.mark.parametrize("legacy_shape", [None, "reporters", "pairs"])
+    def test_lcov_releases_completed_file_analyses(self, tmp_path: Path, monkeypatch, legacy_shape) -> None:
         import gc
         import weakref
 
         from coverage.lcovreport import LcovReporter
+        from coverage.plugin import FileReporter
 
-        if not hasattr(LcovReporter, "lcov_file") or "file_reporter" not in signature(Coverage._analyze).parameters:
-            pytest.skip("This coverage.py API cannot release analyzed file reporters")
         cov = Coverage(config_file=False, data_file=None, source=[str(tmp_path)])
         for i in range(12):
             path = tmp_path / f"module_{i:02}.py"
@@ -420,23 +421,96 @@ class TestLcovReportMemory:
         for path in sorted(tmp_path.glob("*.py")):
             runpy.run_path(str(path))
         cov.stop()
-        original_analyze = cov._analyze
+        if legacy_shape:
+            original_analyze = Coverage._analyze
+            original_get_reporters = Coverage._get_file_reporters
+            has_reporter_argument = "file_reporter" in signature(original_analyze).parameters
+
+            def legacy_analyze(self, morf):
+                if has_reporter_argument and isinstance(morf, FileReporter):
+                    return original_analyze(self, morf.filename, file_reporter=morf)
+                return original_analyze(self, morf)
+
+            def legacy_get_reporters(self, morfs):
+                entries = original_get_reporters(self, morfs)
+                pairs = [entry if isinstance(entry, tuple) else (entry, entry.filename) for entry in entries]
+                if legacy_shape == "reporters":
+                    return [fr for fr, _ in pairs]
+                return pairs
+
+            monkeypatch.setattr(Coverage, "_analyze", legacy_analyze)
+            monkeypatch.setattr(Coverage, "_get_file_reporters", legacy_get_reporters)
+        renderer_name = "lcov_file" if hasattr(LcovReporter, "lcov_file") else "get_lcov"
+        original_render = getattr(LcovReporter, renderer_name)
         reporters = []
         live_counts = []
 
-        def observe_analysis(*args, **kwargs):
+        def observe_render(self, *args):
             gc.collect()
-            reporters.append(weakref.ref(kwargs["file_reporter"]))
+            file_reporter = args[1] if renderer_name == "lcov_file" else args[0]
+            reporters.append(weakref.ref(file_reporter))
             live_counts.append(sum(ref() is not None for ref in reporters))
-            return original_analyze(*args, **kwargs)
+            return original_render(self, *args)
 
-        monkeypatch.setattr(cov, "_analyze", observe_analysis)
+        monkeypatch.setattr(LcovReporter, renderer_name, observe_render)
 
         percentage = coverage_patch.generate_lcov_report(cov=cov, outfile=str(tmp_path / "report.lcov"))
 
         assert percentage == 100.0
         assert len(reporters) == 12
         assert max(live_counts) == 1
+
+    @pytest.mark.parametrize("ignore_errors", [False, True])
+    @pytest.mark.parametrize("invalid_source", ["syntax", "missing", "non_python"])
+    def test_lcov_preserves_analysis_errors(self, tmp_path: Path, monkeypatch, ignore_errors, invalid_source) -> None:
+        from ddtrace.contrib.internal.coverage import lcov
+
+        source = tmp_path / "valid.py"
+        source.write_text("value = 1\n")
+        invalid = tmp_path / ("invalid.txt" if invalid_source == "non_python" else "invalid.py")
+        if invalid_source != "missing":
+            invalid.write_text("this is invalid Python!\n")
+        cov = Coverage(config_file=False, data_file=None)
+        cov.get_data().add_lines({str(source): {1}, str(invalid): {1}})
+        warnings = []
+        monkeypatch.setattr(cov, "_warn", lambda message, **kwargs: warnings.append((message, kwargs)))
+        native_path = tmp_path / "native.lcov"
+        generated_path = tmp_path / "generated.lcov"
+
+        try:
+            expected = cov.lcov_report(outfile=str(native_path), ignore_errors=ignore_errors)
+        except Exception as exc:
+            expected_warnings = warnings.copy()
+            warnings.clear()
+            with pytest.raises(type(exc), match=re.escape(str(exc))):
+                lcov.report_lcov(cov, outfile=str(generated_path), ignore_errors=ignore_errors)
+            assert not generated_path.exists()
+        else:
+            expected_warnings = warnings.copy()
+            warnings.clear()
+            actual = lcov.report_lcov(cov, outfile=str(generated_path), ignore_errors=ignore_errors)
+            assert actual == expected
+            assert generated_path.read_bytes() == native_path.read_bytes()
+
+        assert warnings == expected_warnings
+
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_lcov_preserves_no_data_error(self, tmp_path: Path, filtered) -> None:
+        from ddtrace.contrib.internal.coverage import lcov
+
+        cov = Coverage(config_file=False, data_file=None)
+        options = {}
+        if filtered:
+            source = tmp_path / "module.py"
+            source.write_text("value = 1\n")
+            cov.get_data().add_lines({str(source): {1}})
+            options["omit"] = [str(source)]
+        report = tmp_path / "report.lcov"
+
+        with pytest.raises(NoDataError, match="No data to report"):
+            lcov.report_lcov(cov, outfile=str(report), **options)
+
+        assert not report.exists()
 
     def test_lcov_copies_large_unicode_records(self, tmp_path: Path) -> None:
         path = tmp_path / "large_é_module.py"
@@ -458,8 +532,6 @@ class TestLcovReportMemory:
 
         from ddtrace.contrib.internal.coverage import lcov
 
-        if not hasattr(LcovReporter, "lcov_file") or "file_reporter" not in signature(Coverage._analyze).parameters:
-            pytest.skip("This coverage.py API uses the native LCOV renderer")
         path = tmp_path / "module.py"
         path.write_text("value = 1\n")
         cov = Coverage(config_file=False, data_file=None)
@@ -476,7 +548,8 @@ class TestLcovReportMemory:
             raise RuntimeError("render failed")
 
         monkeypatch.setattr(lcov.tempfile, "TemporaryFile", track_spool)
-        monkeypatch.setattr(LcovReporter, "lcov_file", fail_render)
+        renderer_name = "lcov_file" if hasattr(LcovReporter, "lcov_file") else "get_lcov"
+        monkeypatch.setattr(LcovReporter, renderer_name, fail_render)
 
         with pytest.raises(RuntimeError, match="render failed"):
             lcov.report_lcov(cov, outfile=str(tmp_path / "report.lcov"))
@@ -485,10 +558,6 @@ class TestLcovReportMemory:
         assert spools[0].closed
 
     def test_lcov_applies_and_clears_context_filters(self, tmp_path: Path) -> None:
-        from coverage.lcovreport import LcovReporter
-
-        if not hasattr(LcovReporter, "lcov_file") or "file_reporter" not in signature(Coverage._analyze).parameters:
-            pytest.skip("Older coverage.py versions use the native LCOV renderer")
         path = tmp_path / "contexts.py"
         path.write_text("first = 1\nsecond = 2\n")
         cov = Coverage(config_file=False, data_file=None)
@@ -517,15 +586,14 @@ class TestLcovReportMemory:
         assert "DA:1,1" in report.read_text()
         assert "DA:2,1" in report.read_text()
 
-    def test_lcov_uses_native_reporter_without_disposable_analysis_api(self, tmp_path: Path, monkeypatch) -> None:
+    def test_lcov_uses_native_reporter_without_file_renderer(self, tmp_path: Path, monkeypatch) -> None:
+        from coverage.lcovreport import LcovReporter
+
         from ddtrace.contrib.internal.coverage import lcov
 
         cov = Coverage(config_file=False, data_file=None)
-
-        def legacy_analyze(self, morf):
-            raise AssertionError("The streaming reporter must not use the legacy analysis iterator")
-
-        monkeypatch.setattr(Coverage, "_analyze", legacy_analyze)
+        monkeypatch.delattr(LcovReporter, "lcov_file", raising=False)
+        monkeypatch.delattr(LcovReporter, "get_lcov", raising=False)
         options = {"outfile": str(tmp_path / "report.lcov"), "contexts": ["selected"], "ignore_errors": True}
         with (
             patch.object(cov, "lcov_report", return_value=50.0) as native_report,
