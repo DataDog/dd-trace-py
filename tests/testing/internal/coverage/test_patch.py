@@ -482,3 +482,36 @@ class TestLcovReportMemory:
 
         assert len(spools) == 1
         assert spools[0].closed
+
+    def test_lcov_applies_and_clears_context_filters(self, tmp_path: Path) -> None:
+        from coverage.lcovreport import LcovReporter
+
+        if not hasattr(LcovReporter, "lcov_file"):
+            pytest.skip("Older coverage.py versions use the native LCOV renderer")
+        path = tmp_path / "contexts.py"
+        path.write_text("first = 1\nsecond = 2\n")
+        cov = Coverage(config_file=False, data_file=None)
+        data = cov.get_data()
+        data.set_context("selected")
+        data.add_lines({str(path): {1}})
+        data.set_context("other")
+        data.add_lines({str(path): {2}})
+        report = tmp_path / "contexts.lcov"
+
+        cov.set_option("report:contexts", ["selected"])
+        percentage = coverage_patch.generate_lcov_report(cov=cov, outfile=str(report))
+        assert percentage == 50.0
+        assert "DA:1,1" in report.read_text()
+        assert "DA:2,0" in report.read_text()
+
+        percentage = coverage_patch.generate_lcov_report(cov=cov, outfile=str(report), contexts=["other"])
+        assert percentage == 50.0
+        assert "DA:1,0" in report.read_text()
+        assert "DA:2,1" in report.read_text()
+        assert cov.get_option("report:contexts") == ["selected"]
+
+        cov.set_option("report:contexts", None)
+        percentage = coverage_patch.generate_lcov_report(cov=cov, outfile=str(report))
+        assert percentage == 100.0
+        assert "DA:1,1" in report.read_text()
+        assert "DA:2,1" in report.read_text()

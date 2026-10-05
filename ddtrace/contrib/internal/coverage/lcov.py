@@ -21,7 +21,7 @@ else:
 
     class _StreamingLcovReporter(LcovReporter):
         def report(self, morfs: Any, outfile: IO[str]) -> float:
-            self.coverage.get_data()
+            self.coverage.get_data().set_query_contexts(self.coverage.config.report_contexts)
             # coverage.py sorts all file analyses, retaining their ASTs until the report
             # is written. Spool rendered records instead so only one parsed file and
             # record are needed at a time; sort lightweight offsets into the spool.
