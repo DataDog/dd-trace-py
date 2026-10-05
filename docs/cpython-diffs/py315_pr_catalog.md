@@ -201,7 +201,7 @@
 **Automate for 3.16:**
 - Preflight auth (AppGate/vault), SSH keys, signing, wheel availability before blaming profiler
 - smoke A/B then ai_gateway A/B; BUILD_WEDGED ≠ profiler bug
-- Memory: expect ~+15% RSS; do not gate functional claim on parity
+- Memory: local smoke AB on #19272 saw ~+15% RSS (local-only; no staging claim); do not gate functional claim on parity
 
 ## 7. Tooling, runbook, ADR, delta pipeline
 
@@ -209,7 +209,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | [#17792](https://github.com/DataDog/dd-trace-py/pull/17792) | closed | docs | repo-wide tracker doc | dead_end | none | Volunteer tracker doc; parent issue #17809 is source of truth. |
 | [#19253](https://github.com/DataDog/dd-trace-py/pull/19253) | closed/draft | build/CI matrix | gated riot suites for 3.15 | dead_end | script_template | Gated suites draft; closed. |
-| [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | open/draft | docs | need durable runbook/registry/skill for next minor | status | skill_checklist | STATUS: this PR — runbook, registry, skill, fail-closed scripts. Catalog feeds it. |
+| [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | open/draft | docs | need durable runbook/registry/skill for next minor | status | skill_checklist | STATUS: Q4 verify/registry/suitespec follow-up. Docs/catalog closeout is #20814. |
 | [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | open/draft | docs | ADR: functional readiness; memory parity NOT claimed | status | skill_checklist | STATUS: ADR. Local AB ~+15% RSS (53% runtime / 47% profiler); don't gate on memory parity. |
 | [#20565](https://github.com/DataDog/dd-trace-py/pull/20565) | open/draft | docs | automate CPython delta→worklist for 3.16 | status | cpython_delta | STATUS: cpython_delta inventory/diff pipeline (stacked on #19273). |
 | [#20631](https://github.com/DataDog/dd-trace-py/pull/20631) | open/draft | docs | list CI suites still off 3.15 | status | script_template | STATUS: DO NOT MERGE inventory of suites still off 3.15. |
@@ -249,7 +249,7 @@
 4. **Rapid bake `whl_installer` PYTHONPATH** → vendored pip 24.0 lacks `locate_file` on 3.15 (`dd-source#98654`). Engraver `images#11732` digests required for true `@python_3_15_*` bases.
 5. **Import-time crash via wrapping** before natives/wheels ready (`#19724`); **wrap trampoline still gated** after `#17849` until `#19910` bumped `NEXT_PY`.
 6. **Staging failures are auth/signing/wheels** (`BUILD_WEDGED`, AppGate/vault, SSH `unknown_key`, passphrase in detached tmux) — not the profiler.
-7. **Memory:** ~+15% RSS with profiler on (~53% runtime / ~47% profiler). memalloc is not the lever; do not gate the functional claim on memory parity.
+7. **Memory:** local smoke AB (#19272) ~+15% RSS with profiler on (~53% runtime / ~47% profiler); no staging claim. memalloc is not the lever; do not gate the functional claim on memory parity.
 8. **SSI/OCI early** (`#17977`) and **stock-manylinux-only unblock** (`#19865`) are dead ends.
 9. **Hermetic pip / PEP 440 local versions** (`#20474`) break package verify during prerelease wheels.
 10. **prof-correctness margins** needed theory-based retune (`pc#189/#190/#214`) and long S3 poll (`#20444`).

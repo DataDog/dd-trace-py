@@ -61,17 +61,20 @@ Changed macros:
 ```
 
 **Echion impact:**
-- Any code reading `_PyInterpreterFrame.f_frame_state` and comparing against old
-  constants will silently misclassify frames (e.g., `FRAME_EXECUTING = 0` in 3.14
-  now means `FRAME_CREATED` in 3.15).
+- Echion reads `PyGenObject.gi_frame_state` (not `_PyInterpreterFrame.f_frame_state`,
+  which does not exist) in `stack/src/echion/tasks.cc` and
+  `stack/echion/echion/cpython/tasks.h`. Comparing against old constants silently
+  misclassifies frames (e.g., `FRAME_EXECUTING = 0` in 3.14 now means
+  `FRAME_CREATED` in 3.15).
 - `FRAME_COMPLETED` is gone — code checking `>= FRAME_COMPLETED` will break.
 - New `FRAME_SUSPENDED_YIELD_FROM_LOCKED` needs to be included in suspended checks.
 - **Use the `FRAME_STATE_SUSPENDED` / `FRAME_STATE_FINISHED` macros** instead of
   hardcoding values, so the `#if PY_VERSION_HEX` guard only needs to cover the
   macro definitions, not every use site.
 
-**Files to update:** `echion/frame.h`, `echion/state.h`, any caller that checks
-`frame_state` directly.
+**Files to update:** `stack/src/echion/tasks.cc`,
+`stack/echion/echion/cpython/tasks.h` (and any other `gi_frame_state` readers).
+`frame.h` / `state.h` do not check frame state.
 
 **Guard:** `#if PY_VERSION_HEX >= 0x030f0000`
 
