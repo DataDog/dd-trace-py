@@ -137,6 +137,19 @@ def test_normalize_sorts_attributes_and_drops_ignored_ones():
     assert [a["key"] for a in span["attributes"]] == ["a", "b"]
 
 
+def test_normalize_ignores_drop_attributes_but_not_fields_with_the_same_name():
+    requests = [
+        _request([_span("s", "dA==", "cw==", 1, 2, attributes=[_attribute("name", "x"), _attribute("a", "1")])])
+    ]
+
+    normalized = normalize_otlp_requests(requests, ignores=["name", "kind"])
+
+    span = normalized["resource_spans"][0]["scope_spans"][0]["spans"][0]
+    assert span["name"] == "s"
+    assert span["kind"] == "SPAN_KIND_SERVER"
+    assert [a["key"] for a in span["attributes"]] == ["a"]
+
+
 def test_normalize_drops_random_fields_by_default():
     normalized = normalize_otlp_requests(_payload("dHJhY2U=", "cm9vdA==", "Y2hpbGQ=", 100, "1.0.0"))
 
