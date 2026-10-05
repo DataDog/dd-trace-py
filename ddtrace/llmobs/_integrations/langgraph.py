@@ -11,13 +11,13 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
+from ddtrace.llmobs._integrations.agent_manifest import as_str
 from ddtrace.llmobs._integrations.agent_manifest import build_agent_manifest
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
 from ddtrace.llmobs._integrations.agent_manifest import filter_model_settings
 from ddtrace.llmobs._integrations.agent_manifest import instruction_fields
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import normalize_tool
-from ddtrace.llmobs._integrations.agent_manifest import as_str
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io

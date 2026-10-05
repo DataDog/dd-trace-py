@@ -10,10 +10,10 @@ from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.agent_manifest import as_str
 from ddtrace.llmobs._integrations.agent_manifest import build_agent_manifest
 from ddtrace.llmobs._integrations.agent_manifest import callable_name
 from ddtrace.llmobs._integrations.agent_manifest import config_value
-from ddtrace.llmobs._integrations.agent_manifest import as_str
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
