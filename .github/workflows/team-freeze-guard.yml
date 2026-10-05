@@ -42,4 +42,3 @@ jobs:
             CI
             ci-reliability
           frozen-teams: |
-            @DataDog/debugger-python
