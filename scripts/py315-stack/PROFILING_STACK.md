@@ -3,11 +3,11 @@
 **Vintage:** Mon 2026-10-05 (EDT). Live PR states via `gh pr view` on that date.
 **Do not treat tip SHAs in older revisions of this file as current.**
 
-Runtime is already on `main` via the merged PRs below. Docs/suitespec closeout
-is the thin Q3 PR (catalog + stack map + pointers + suitespec 3.15 honesty).
-Verify tooling (`verify_profiler_compatibility.py`, `run-profiling-tests`,
-baselines, full registry checklist) lives on #19273 (Q4). #19272 is **not**
-the wrap lift (#19910 is on `main`).
+Runtime is already on `main` via the merged PRs below. Docs closeout is the
+thin Q3 PR (catalog + stack map + pointers + thin registry). Suitespec 3.15
+opt-in + verify tooling (`verify_profiler_compatibility.py`,
+`run-profiling-tests`, baselines, full registry checklist) live on #19273
+(Q4). #19272 is **not** the wrap lift (#19910 is on `main`).
 
 ## Current status (2026-10-05)
 
@@ -20,8 +20,8 @@ the wrap lift (#19910 is on `main`).
 | [#20450](https://github.com/DataDog/dd-trace-py/pull/20450) | **merged** | require cp315 wheels; schedule lib_injection on 3.15 |
 | [#20474](https://github.com/DataDog/dd-trace-py/pull/20474) | **open** | hermetic pip / PEP 440 local versions |
 | [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | **closed** | profiling readiness ADR |
-| [#20814](https://github.com/DataDog/dd-trace-py/pull/20814) | **open (draft)** | Q3 catalog, stack map, thin bring-up pointers, suitespec |
-| [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | **open (draft)** | Q4 verify tooling + fuller runbook vehicle |
+| [#20814](https://github.com/DataDog/dd-trace-py/pull/20814) | **open (draft)** | Q3 catalog, stack map, thin bring-up pointers |
+| [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | **open (draft)** | Q4 verify tooling + suitespec 3.15 matrix |
 
 ## Layer table
 
@@ -32,8 +32,8 @@ the wrap lift (#19910 is on `main`).
 | Observable in product/Python | sys.monitoring asyncio path; `wrap()` stays below 3.15 | #19272 |
 | Test gating | prof-correctness on profiling PRs | #19207 |
 | Wheels / packaging | optional → required cp315; Cython pin | #19861 → #20450 |
-| Docs / suitespec (Q3) | Catalog, stack map, thin pointers + registry, suitespec 3.15 | #20814 |
-| Verify / tooling (Q4) | `verify_*` / `run-profiling-tests` / full registry + baselines | #19273 |
+| Docs (Q3) | Catalog, stack map, thin pointers + registry | #20814 |
+| Verify / suitespec (Q4) | `verify_*` / suitespec 3.15 + locks / full registry + baselines | #19273 |
 | ADR | Readiness write-up | #20478 (closed) |
 
 Short bring-up pointers: `docs/contributing-profiling-new-cpython.rst`.

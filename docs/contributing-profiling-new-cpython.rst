@@ -50,12 +50,13 @@ Thin version registry
 ---------------------
 
 ``scripts/profiles/profiling_versions.json`` documents ``default_python``
-(**3.15** today) and per-minor meta aligned with
-``tests/profiling/suitespec.yml`` (profile / profile-memalloc). It is not a
-verify runner.
+(**3.14** today — the suitespec DEFAULT) and per-minor meta for completed
+bring-up entries (including 3.15). It is not a verify runner and does not
+claim a suitespec-backed 3.15 matrix default.
 
-Local verify / ``run-profiling-tests`` / checklist scaffolding ship on the Q4
-tooling vehicle (`#19273`__), not this closeout.
+Suitespec 3.15 opt-in (profile / profile-memalloc), local verify,
+``run-profiling-tests``, and checklist scaffolding ship on the Q4 tooling
+vehicle (`#19273`__), not this closeout.
 
 __ https://github.com/DataDog/dd-trace-py/pull/19273
 

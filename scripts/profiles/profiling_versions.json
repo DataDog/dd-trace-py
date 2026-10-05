@@ -1,6 +1,6 @@
 {
-  "_comment": "Thin profiling CPython version registry for docs/suitespec honesty. default_python must match a minor that tests/profiling/suitespec.yml actually runs. Full checklist_template, compatibility baselines, and verify_profiler_compatibility.py / run-profiling-tests live on #19273 (Q4 tooling).",
-  "default_python": "3.15",
+  "_comment": "Thin profiling CPython version registry for docs honesty. default_python is the suitespec DEFAULT (3.14) until #19273 lands profile/profile-memalloc 3.15 opt-in. 3.15 remains a completed bring-up entry. Full checklist_template, compatibility baselines, and verify_profiler_compatibility.py / run-profiling-tests live on #19273 (Q4 tooling).",
+  "default_python": "3.14",
   "versions": {
     "3.14": {
       "hex": "0x030e0000",
