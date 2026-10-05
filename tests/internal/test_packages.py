@@ -110,6 +110,11 @@ def test_lookup_does_not_block_while_the_scan_runs(packages) -> None:
         packages.schedule_package_mapping()
         assert started.wait(2)
         assert packages.filename_to_package(packages.__file__) is None
+        thread = packages._mapping_build_thread
+        assert isinstance(thread, packages._forksafe_threads.Thread)
+        from ddtrace.internal._threads import periodic_threads
+
+        assert any(registered is thread for registered in periodic_threads.values())
     finally:
         release.set()
         if packages._mapping_build_thread is not None:
@@ -147,6 +152,16 @@ def test_scan_discards_a_map_when_sys_path_changes_during_the_scan(packages) -> 
         if packages._mapping_build_thread is not None:
             packages._mapping_build_thread.join(2)
         packages._package_for_root_module_mapping = real
+        packages.reset_package_root_mapping_cache()
+
+
+def test_schedule_does_not_start_a_worker_during_fork(packages, monkeypatch) -> None:
+    monkeypatch.setattr(packages._forksafe_threads, "_forking", True)
+    packages.reset_package_root_mapping_cache()
+    try:
+        packages.schedule_package_mapping()
+        assert packages._mapping_build_thread is None
+    finally:
         packages.reset_package_root_mapping_cache()
 
 
