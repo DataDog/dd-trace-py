@@ -2,17 +2,13 @@
 
 from types import ModuleType
 
-import httpx as httpx1
-
-
-try:
-    import httpx2 as httpx2_mod
-except ImportError:
-    httpx2_mod = None
-
 
 def _http_client_module() -> ModuleType:
-    """OpenAI 3.x depends on ``httpx2``; 1.x still uses ``httpx``."""
+    """OpenAI 3.x depends on ``httpx2``; 1.x still uses ``httpx``.
+
+    Import the chosen client lazily so collection succeeds when the other
+    package is absent (OpenAI 3 environments ship ``httpx2`` only).
+    """
     openai_major: int = 0
     try:
         import openai as openai_mod
@@ -21,7 +17,11 @@ def _http_client_module() -> ModuleType:
     except Exception:
         pass
     if openai_major >= 3:
-        if httpx2_mod is None:
-            raise ImportError("httpx2 is required for openai>=3")
+        try:
+            import httpx2 as httpx2_mod
+        except ImportError as err:
+            raise ImportError("httpx2 is required for openai>=3") from err
         return httpx2_mod  # type: ignore[no-any-return]
+    import httpx as httpx1
+
     return httpx1  # type: ignore[no-any-return]
