@@ -13,9 +13,9 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal import forksafe
+from ddtrace.internal import threads as _forksafe_threads
 from ddtrace.internal.module import origin
 from ddtrace.internal.settings.third_party import config as tp_config
-from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.cache import callonce
 
 
@@ -24,8 +24,8 @@ LOG = logging.getLogger(__name__)
 # The distribution scan is shared. It must not run on the thread of whichever
 # product asks first, and a result built for one sys.path must not be treated
 # as current after that path changes.
-_mapping_build_lock = Lock()
-_mapping_build_thread: threading.Thread | None = None
+_mapping_build_lock = _forksafe_threads.Lock()
+_mapping_build_thread: threading.Thread | _forksafe_threads.Thread | None = None
 _mapping_built_for_path: tuple[str, ...] | None = None
 # Bumped when lookup caches are cleared. A cached call that overlaps that clear
 # must not keep the value it stored afterwards.
@@ -546,7 +546,14 @@ def _mapping_ready_for_current_path() -> bool:
 
 def _mapping_build_in_progress() -> bool:
     thread = _mapping_build_thread
-    return thread is not None and thread.is_alive()
+    if thread is None:
+        return False
+    # forksafe.Thread has no is_alive. It stays referenced until its target
+    # returns, and before a fork that target is joined to completion.
+    is_alive = getattr(thread, "is_alive", None)
+    if is_alive is None:
+        return True
+    return bool(is_alive())
 
 
 def _clear_package_lookup_caches() -> None:
@@ -622,19 +629,28 @@ def schedule_package_mapping() -> None:
     before products enable, and again from post_preload after the user
     sitecustomize. A scan whose sys.path changed underneath it is discarded.
     A later sys.path change drops the cached map and scans again in the background.
+
+    The worker is a one-shot forksafe thread. Before fork it is joined through
+    the current importlib call, so the child does not inherit locks held by a
+    dead scanner. A fork that lands before the scan finishes starts it again
+    afterwards, in both the parent and the child.
     """
     global _mapping_build_thread
+    # A scan that finishes while fork hooks are stopping threads must not start
+    # another worker. That start would be queued across the fork, or would run
+    # while import locks are being drained. The after-fork hooks schedule it.
+    if _forksafe_threads._forking:
+        return
     if _mapping_ready_for_current_path():
         return
     with _mapping_build_lock:
-        if _mapping_ready_for_current_path() or _mapping_build_in_progress():
+        if _forksafe_threads._forking or _mapping_ready_for_current_path() or _mapping_build_in_progress():
             return
         if _mapping_built_for_path is not None:
             _drop_stale_mapping_result()
-        _mapping_build_thread = threading.Thread(
+        _mapping_build_thread = _forksafe_threads.Thread(
             target=_run_mapping_build,
             name="ddtrace-package-mapping",
-            daemon=True,
         )
         _mapping_build_thread.start()
 
@@ -675,9 +691,10 @@ is_third_party.cache_clear = _is_third_party_cached.cache_clear  # type: ignore[
 
 
 def _after_fork_reschedule_package_mapping() -> None:
-    # The scanner thread does not survive fork. Drop the inherited Thread
-    # object. If the scan had not finished, start it again in this process
-    # instead of scanning on the next caller's thread.
+    # The worker is joined before fork, so this does not run while it is
+    # inside importlib. If that join stopped it before the scan finished,
+    # start again here. The parent needs the same restart: a one-shot
+    # forksafe thread is not restarted on its own.
     global _mapping_build_thread
     with _mapping_build_lock:
         _mapping_build_thread = None
@@ -688,6 +705,7 @@ def _after_fork_reschedule_package_mapping() -> None:
 
 
 forksafe.register(_after_fork_reschedule_package_mapping)
+forksafe.register_after_parent(_after_fork_reschedule_package_mapping)
 
 
 @cached(maxsize=256)
