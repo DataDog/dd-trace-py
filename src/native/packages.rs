@@ -567,6 +567,24 @@ fn scan(entry: &Path, suffixes: &[String], threads: usize) -> (Vec<DistRecord>, 
     (dists, errors)
 }
 
+/// Whether the interpreter is finalizing. Reads an atomic flag, so it is safe
+/// to call without the GIL.
+#[cfg(Py_3_13)]
+fn is_finalizing() -> bool {
+    // SAFETY: no arguments, no GIL needed.
+    unsafe { pyo3::ffi::Py_IsFinalizing() != 0 }
+}
+
+#[cfg(not(Py_3_13))]
+fn is_finalizing() -> bool {
+    extern "C" {
+        // Exported by CPython up to 3.12; Py_IsFinalizing replaced it in 3.13.
+        fn _Py_IsFinalizing() -> std::os::raw::c_int;
+    }
+    // SAFETY: no arguments, no GIL needed.
+    unsafe { _Py_IsFinalizing() != 0 }
+}
+
 /// Scan one sys.path entry for installed distributions.
 ///
 /// Returns `(dists, errors)`. Each dist is `(name, version, keys, top_level)`:
@@ -592,7 +610,19 @@ fn scan_distributions(
     threads: usize,
 ) -> PyResult<(Vec<DistRecord>, Vec<DistError>)> {
     py.detach(move || {
-        panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes, threads)))
+        let result =
+            panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes, threads)));
+        if is_finalizing() {
+            // Re-acquiring the GIL now would kill the thread (CPython up to
+            // 3.13.7, by unwinding through these frames) or hang it. Only
+            // daemon threads can get here, as non-daemon ones are joined
+            // before finalization starts, and the process is exiting: stay
+            // off the GIL for good.
+            loop {
+                std::thread::park();
+            }
+        }
+        result
     })
     .map_err(|payload| {
         let reason = payload

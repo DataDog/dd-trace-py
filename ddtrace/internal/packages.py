@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import sys
 import sysconfig
+import threading
 from types import ModuleType
 import typing as t
 
@@ -396,12 +397,19 @@ def _python_dist_records(
 
 
 # (sys.path entries, records), as one tuple so lock-free readers never mix them up.
-_INSTALLED_DISTRIBUTIONS: t.Optional[tuple[tuple[str, ...], list[_DistributionRecord]]] = None
-# Records per sys.path entry, so a sys.path change only scans the new entries.
-_ENTRY_RECORDS: dict[str, list[_DistributionRecord]] = {}
+# What the records were built from: each sys.path entry with its mtime, and the
+# custom distribution finders.
+_CacheKey = tuple[tuple[tuple[str, t.Optional[int]], ...], tuple[t.Any, ...]]
+
+# (key, records), as one tuple so lock-free readers never mix them up.
+_INSTALLED_DISTRIBUTIONS: t.Optional[tuple[_CacheKey, list[_DistributionRecord]]] = None
+# (mtime, records) per sys.path entry, so only new or changed entries are rescanned.
+_ENTRY_RECORDS: dict[str, tuple[t.Optional[int], list[_DistributionRecord]]] = {}
 # Fork-safe because lazy scans run on application threads, which may fork
 # mid-scan. Reentrant so an unexpected re-entry repeats work instead of deadlocking.
 _INSTALLED_DISTRIBUTIONS_LOCK = forksafe.RLock()
+# Set while this thread asks custom finders for their distributions.
+_FINDER_QUERY = threading.local()
 
 # The scan is I/O-bound; more threads than this barely help.
 _PREFETCH_MAX_THREADS = 4
@@ -415,21 +423,66 @@ def _reset_installed_distributions() -> None:
         _ENTRY_RECORDS.clear()
 
 
-def _sys_path_entries() -> tuple[str, ...]:
+def _available_cpus() -> int:
+    # sched_getaffinity honours CPU affinity, but not every platform has it, and
+    # seccomp profiles can deny it.
+    sched_getaffinity = getattr(os, "sched_getaffinity", None)
+    if sched_getaffinity is not None:
+        try:
+            return len(sched_getaffinity(0))
+        except OSError:
+            pass
+    return os.cpu_count() or 1
+
+
+def _resolve_entry(entry: str) -> str:
+    # Relative entries follow the working directory, which can change after the
+    # boot-time scan; key them by where they point now.
+    if os.path.isabs(entry):
+        return entry
+    try:
+        return os.path.abspath(entry)
+    except OSError:
+        # The working directory is gone: nothing to list, as for importlib.
+        return entry
+
+
+def _mtime(entry: str) -> t.Optional[int]:
+    # Like importlib, notice installs into an entry by its mtime.
+    try:
+        return os.stat(entry).st_mtime_ns
+    except OSError:
+        return None
+
+
+def _custom_finders() -> tuple[t.Any, ...]:
+    return tuple(
+        finder
+        for finder in sys.meta_path
+        # The importlib_metadata backport's MetadataPathFinder duplicates PathFinder.
+        if finder is not PathFinder
+        and type(finder).__name__ != "MetadataPathFinder"
+        and getattr(finder, "find_distributions", None) is not None
+    )
+
+
+def _cache_key() -> _CacheKey:
     # A repeated entry would list its distributions twice.
-    return tuple(dict.fromkeys(e for e in sys.path if isinstance(e, str)))
+    entries = dict.fromkeys(_resolve_entry(e) for e in sys.path if isinstance(e, str))
+    return tuple((entry, _mtime(entry)) for entry in entries), _custom_finders()
 
 
 def _installed_distributions(threads: int = 1) -> list[_DistributionRecord]:
     """Records for every installed distribution, in importlib discovery order.
 
     The sys.path scan is native, as importlib is far too slow at it. Records
-    follow the current sys.path, so entries added after the boot-time prefetch
-    are still seen. Only prefetch_distributions may ask for threads.
+    follow sys.path, its entries' mtimes and the custom finders, so changes after
+    the boot-time prefetch are still seen. Only prefetch_distributions may ask
+    for threads.
     """
     global _INSTALLED_DISTRIBUTIONS
-    entries = _sys_path_entries()
-    if (installed := _INSTALLED_DISTRIBUTIONS) is not None and installed[0] == entries:
+    key = _cache_key()
+    if (installed := _INSTALLED_DISTRIBUTIONS) is not None and installed[0] == key:
         return installed[1]
 
     problems: list[tuple[t.Any, t.Union[BaseException, str]]] = []
@@ -437,17 +490,28 @@ def _installed_distributions(threads: int = 1) -> list[_DistributionRecord]:
     def warn(dist: t.Any, exc: t.Union[BaseException, str]) -> None:
         problems.append((dist, exc))
 
-    # Custom finders run arbitrary Python, whose import hooks could re-enter
-    # mid-scan; keep them out of the lock.
-    segments = _meta_path_segments(warn)
-    with _INSTALLED_DISTRIBUTIONS_LOCK:
-        if (installed := _INSTALLED_DISTRIBUTIONS) is None or installed[0] != entries:
-            records = list(_distribution_records(entries, segments, threads, warn))
-            installed = _INSTALLED_DISTRIBUTIONS = (entries, records)
+    if getattr(_FINDER_QUERY, "active", False):
+        # A custom finder is reading the maps: asking it again would recurse.
+        # Return the native records, without publishing them as complete.
+        segments: list[t.Optional[list[_DistributionRecord]]] = [None]
+        with _INSTALLED_DISTRIBUTIONS_LOCK:
+            records = list(_distribution_records(key, segments, threads, warn))
+    else:
+        # Custom finders run arbitrary Python, whose import hooks could re-enter
+        # mid-scan; keep them out of the lock.
+        _FINDER_QUERY.active = True
+        try:
+            segments = _meta_path_segments(warn)
+        finally:
+            _FINDER_QUERY.active = False
+        with _INSTALLED_DISTRIBUTIONS_LOCK:
+            if (installed := _INSTALLED_DISTRIBUTIONS) is None or installed[0] != key:
+                installed = _INSTALLED_DISTRIBUTIONS = (key, list(_distribution_records(key, segments, threads, warn)))
+            records = installed[1]
     # Log outside the lock: handlers may do I/O and yield under gevent.
     for dist, exc in problems:
         _warn_bad_dist(dist, exc)
-    return installed[1]
+    return records
 
 
 def prefetch_distributions() -> None:
@@ -456,13 +520,8 @@ def prefetch_distributions() -> None:
     Uses threads unless bootstrapped by ddtrace.auto, which can run with the
     application's threads alive: no ddtrace thread may be alive across a fork.
     """
-    threads = 1
-    if "ddtrace.auto" not in sys.modules:
-        # Only some platforms have sched_getaffinity, which honours CPU affinity.
-        sched_getaffinity = getattr(os, "sched_getaffinity", None)
-        cpus = len(sched_getaffinity(0)) if sched_getaffinity is not None else (os.cpu_count() or 1)
-        threads = min(_PREFETCH_MAX_THREADS, cpus)
     try:
+        threads = 1 if "ddtrace.auto" in sys.modules else min(_PREFETCH_MAX_THREADS, _available_cpus())
         _installed_distributions(threads=threads)
     except Exception:
         # The lazy path retries on first use.
@@ -476,14 +535,13 @@ def prefetch_distributions() -> None:
 
 def _entry_records(
     entry: str, module_suffixes: list[str], threads: int, warn: _WarnBadDist
-) -> list[_DistributionRecord]:
-    """Records for the distributions under one sys.path entry."""
+) -> t.Optional[list[_DistributionRecord]]:
+    """Records for the distributions under one sys.path entry; None if the scan failed."""
     try:
         dists, errors = scan_distributions(entry, module_suffixes, threads)
     except Exception as exc:
-        # One bad entry must not cost all the others.
         warn(entry, exc)
-        return []
+        return None
     for path, error in errors:
         warn(path, error)
     return dists
@@ -491,18 +549,18 @@ def _entry_records(
 
 def _meta_path_segments(warn: _WarnBadDist) -> list[t.Optional[list[_DistributionRecord]]]:
     """Distribution sources on sys.meta_path, in order: None for PathFinder (scanned natively), records for others."""
-    import importlib.metadata as importlib_metadata
-
+    custom = _custom_finders()
     segments: list[t.Optional[list[_DistributionRecord]]] = []
     for finder in sys.meta_path:
         if finder is PathFinder:
             segments.append(None)
-        elif type(finder).__name__ == "MetadataPathFinder":
-            # The importlib_metadata backport's duplicate of PathFinder.
-            continue
-        elif (find_distributions := getattr(finder, "find_distributions", None)) is not None:
+        elif finder in custom:
+            # Only imported for custom finders: IAST drops importlib.metadata
+            # after boot, for gevent, and the prefetch must not bring it back.
+            import importlib.metadata as importlib_metadata
+
             try:
-                dists = find_distributions(importlib_metadata.DistributionFinder.Context())
+                dists = getattr(finder, "find_distributions")(importlib_metadata.DistributionFinder.Context())
                 segments.append(list(_python_dist_records(dists, warn)))
             except Exception as exc:
                 warn(finder, exc)
@@ -510,7 +568,7 @@ def _meta_path_segments(warn: _WarnBadDist) -> list[t.Optional[list[_Distributio
 
 
 def _distribution_records(
-    entries: tuple[str, ...],
+    key: _CacheKey,
     segments: list[t.Optional[list[_DistributionRecord]]],
     threads: int = 1,
     warn: _WarnBadDist = _warn_bad_dist,
@@ -523,9 +581,16 @@ def _distribution_records(
         if segment is not None:
             yield from segment
             continue
-        for entry in entries:
-            if (records := _ENTRY_RECORDS.get(entry)) is None:
-                records = _ENTRY_RECORDS[entry] = _entry_records(entry, module_suffixes, threads, warn)
+        for entry, mtime in key[0]:
+            cached = _ENTRY_RECORDS.get(entry)
+            if cached is not None and cached[0] == mtime:
+                yield from cached[1]
+                continue
+            records = _entry_records(entry, module_suffixes, threads, warn)
+            if records is None:
+                # Not cached, so the next rebuild tries again.
+                continue
+            _ENTRY_RECORDS[entry] = (mtime, records)
             yield from records
 
 

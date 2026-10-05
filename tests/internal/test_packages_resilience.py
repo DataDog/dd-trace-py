@@ -11,6 +11,7 @@ module per heartbeat per worker (gigabytes of stderr per CI job).
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 import sys
 
@@ -974,3 +975,211 @@ def test_unreadable_zip_member_is_reported(
     assert mapping == {"ok": ("ok", "1.0")}
     warnings = [r.getMessage() for r in caplog.records if "Skipping distribution" in r.getMessage()]
     assert len(warnings) == 1 and "bz-1.0.dist-info" in warnings[0]
+
+
+def test_prefetch_survives_denied_sched_getaffinity(reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A seccomp profile can deny sched_getaffinity; the boot-time scan must fall
+    back to the CPU count rather than fail the bootstrap.
+    """
+    import os
+
+    from ddtrace.internal import packages as _p
+
+    def denied(pid):
+        raise PermissionError(1, "Operation not permitted")
+
+    requested = []
+
+    def records(entries, segments, threads=1, warn=None):
+        requested.append(threads)
+        return iter([])
+
+    monkeypatch.setattr(os, "sched_getaffinity", denied, raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: 16)
+    monkeypatch.delitem(sys.modules, "ddtrace.auto", raising=False)
+    monkeypatch.setattr(_p, "_distribution_records", records)
+
+    _p.prefetch_distributions()
+
+    assert requested == [_p._PREFETCH_MAX_THREADS]
+
+
+def test_relative_entries_follow_the_working_directory(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A relative sys.path entry scanned at boot must not keep pointing at the old
+    working directory once the application changes it.
+    """
+    from ddtrace.internal import packages as _p
+
+    for name in ("before", "after"):
+        di = _write_dist_info(tmp_path / name, f"{name}-dist", "1.0")
+        (tmp_path / name / f"{name}.py").write_text("")
+        (di / "RECORD").write_text(f"{name}.py,,\\n")
+    monkeypatch.setattr(sys, "path", [""])
+
+    monkeypatch.chdir(tmp_path / "before")
+    assert [r[0] for r in _p._installed_distributions()] == ["before-dist"]
+
+    monkeypatch.chdir(tmp_path / "after")
+    assert [r[0] for r in _p._installed_distributions()] == ["after-dist"]
+
+
+def test_scan_in_daemon_thread_at_interpreter_exit() -> None:
+    """A daemon thread can be mid-scan, with the GIL released, when the
+    interpreter finalizes; it must not take the process down with it.
+    """
+    import subprocess
+    import sysconfig
+
+    code = """
+import sys, threading, time
+from importlib.machinery import all_suffixes
+from ddtrace.internal.native import scan_distributions
+
+suffixes = sorted(all_suffixes(), key=len, reverse=True)
+scanning = threading.Event()
+
+def scan_forever():
+    while True:
+        scanning.set()
+        scan_distributions(sys.argv[1], suffixes, 1)
+
+threading.Thread(target=scan_forever, daemon=True).start()
+scanning.wait()
+time.sleep(0.05)
+"""
+    for _ in range(5):
+        result = subprocess.run(
+            [sys.executable, "-c", code, sysconfig.get_path("purelib")], capture_output=True, text=True, timeout=60
+        )
+        assert result.returncode == 0, result.stderr
+        assert "fatal" not in result.stderr.lower() and "panic" not in result.stderr.lower(), result.stderr
+
+
+def _site_with_dist(root: Path, name: str, module: str) -> Path:
+    di = _write_dist_info(root, name, "1.0")
+    (root / f"{module}.py").write_text("")
+    (di / "RECORD").write_text(f"{module}.py,,\n")
+    return root
+
+
+def test_scan_does_not_reimport_importlib_metadata(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """IAST drops importlib.metadata after boot for gevent; the prefetch, which runs
+    later, must not import it back when there are no custom finders.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "plain", "plain")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    others = [f for f in sys.meta_path if f is not _p.PathFinder and not hasattr(f, "find_distributions")]
+    monkeypatch.setattr(sys, "meta_path", others + [_p.PathFinder])
+    monkeypatch.delitem(sys.modules, "importlib.metadata")
+
+    _p.prefetch_distributions()
+
+    assert "importlib.metadata" not in sys.modules
+    assert [r[0] for r in _p._installed_distributions()] == ["plain"]
+
+
+def test_failed_entry_scan_is_retried(tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A scan that raised must not be cached as an empty entry."""
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "flaky", "flaky")
+    other = _site_with_dist(tmp_path / "other", "other", "other")
+    monkeypatch.setattr(sys, "path", [str(site)])
+
+    real_scan = _p.scan_distributions
+    failures = [RuntimeError("transient")]
+
+    def flaky_scan(entry, *args):
+        if failures:
+            raise failures.pop()
+        return real_scan(entry, *args)
+
+    monkeypatch.setattr(_p, "scan_distributions", flaky_scan)
+
+    assert _p._installed_distributions() == []
+    sys.path.append(str(other))
+    assert [r[0] for r in _p._installed_distributions()] == ["flaky", "other"]
+
+
+def test_install_into_existing_entry_is_seen(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Like importlib, notice packages installed into an already scanned entry."""
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "early", "early")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    _p.prefetch_distributions()
+    assert [r[0] for r in _p._installed_distributions()] == ["early"]
+
+    before = os.stat(site).st_mtime_ns
+    _site_with_dist(site, "late", "late")
+    if os.stat(site).st_mtime_ns == before:  # coarse file system timestamps
+        os.utime(site, ns=(before + 1_000_000_000, before + 1_000_000_000))
+
+    assert sorted(r[0] for r in _p._installed_distributions()) == ["early", "late"]
+
+
+class _DistFinder:
+    """A custom meta path finder that provides one distribution."""
+
+    def __init__(self, path: Path, on_find=None) -> None:
+        self.path = path
+        self.on_find = on_find
+
+    def find_spec(self, *args, **kwargs):
+        return None
+
+    def find_distributions(self, context):
+        import importlib.metadata as importlib_metadata
+
+        if self.on_find is not None:
+            self.on_find()
+        return [importlib_metadata.PathDistribution(self.path)]
+
+
+def test_custom_finder_added_after_prefetch_is_seen(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [_p.PathFinder])
+    _p.prefetch_distributions()
+
+    sys.meta_path.insert(0, _DistFinder(custom / "from_finder-1.0.dist-info"))
+
+    assert [r[0] for r in _p._installed_distributions()] == ["from-finder", "on-path"]
+
+
+def test_custom_finder_reading_the_maps_does_not_recurse(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A custom finder whose code reads the package maps must not query itself
+    again, and its distributions must still make it into the published records.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    nested = []
+    finder = _DistFinder(
+        custom / "from_finder-1.0.dist-info", on_find=lambda: nested.append(_p._installed_distributions())
+    )
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [finder, _p.PathFinder])
+
+    records = _p._installed_distributions()
+
+    assert [r[0] for r in records] == ["from-finder", "on-path"]
+    # The nested read saw the native records only, and did not publish them.
+    assert [[r[0] for r in n] for n in nested] == [["on-path"]]
+    assert _p._installed_distributions() is records
