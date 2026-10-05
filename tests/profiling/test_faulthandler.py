@@ -634,7 +634,7 @@ def test_faulthandler_real_profiler_instance() -> None:
 
     import faulthandler
 
-    def target():
+    def target() -> None:
         result = 2
         while result < 50_000:
             result += result
