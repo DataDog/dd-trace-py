@@ -1,0 +1,340 @@
+# Ground truth for profiling 3.14→3.15 migration replay.
+# Fact checks (not byte diffs). category: profiling|shared|ci|packaging
+#
+# Base: 2147f61066d98d27ad96a5db717e052be7d0c824 (parent of #17959)
+# First 3.15 packaging commit: 8a9b5083ed7b6fea5f390bc1c3867f50b7807449 (#17959)
+#
+# Open items (#19995, #17815) are rubric-only — never gates.
+
+version: 1
+base_sha: "2147f61066d98d27ad96a5db717e052be7d0c824"
+first_315_sha: "8a9b5083ed7b6fea5f390bc1c3867f50b7807449"
+target_phase: "just-after-3.15.0rc2"
+interpreter_pin: "~/.local/py315rc2"
+
+# PR numbers that void a blind run if they appear in the transcript.
+contamination_pr_numbers:
+  - 17959
+  - 19903
+  - 18429
+  - 17849
+  - 19910
+  - 19724
+  - 19247
+  - 19267
+  - 19843
+  - 19880
+  - 19861
+  - 19269
+  - 19270
+  - 19272
+  - 19207
+  - 20450
+  - 19977
+  - 19907
+  - 19984
+  - 19995
+  - 17815
+  - 17809
+
+contamination_url_substrings:
+  - "dd-trace-py/pull"
+  - "github.com/DataDog/dd-trace-py/pull"
+
+prs:
+  # --- Tier A shared prerequisites (#17809) ---
+  - number: 17959
+    sha: "8a9b5083ed7b6fea5f390bc1c3867f50b7807449"
+    title: "unblock cp315 wheels — bump base images"
+    category: packaging
+  - number: 19903
+    sha: "f136d41e4db99ccf1ca010605ac6c13b0d7be979"
+    title: "PyContextVar_* under limited API"
+    category: shared
+  - number: 18429
+    sha: "0471dea77d726afeff37d812de01d0b6cab8ade7"
+    title: "pyo3 0.28 for crashtracker / tracer_flare"
+    category: shared
+  - number: 17849
+    sha: "c9856f200dc6349d200175f0ed5da89c854fbf90"
+    title: "wrapping context support on 3.15"
+    category: shared
+  - number: 19910
+    sha: "3e4b91aba10f4d65f2e444a24c51aad7b146624a"
+    title: "wrap trampoline on 3.15"
+    category: shared
+  - number: 19724
+    sha: "69baea3266533ffeb883583f69f2aeb8f832ec37"
+    title: "apps must not crash when imports fail under 3.15"
+    category: profiling
+  - number: 19843
+    sha: "4ea64c3e24efdfb09882cdea72cf5bd50ab912d7"
+    title: "SSI exclusive max 3.16; 3.15 injection pre-staged"
+    category: packaging
+  - number: 20450
+    sha: "3c0402ca0347bd10d6e628ec52780d7a943b0d61"
+    title: "cp315 wheels required; lib_injection scheduled"
+    category: packaging
+  - number: 19977
+    sha: "a69a6a13fa670f2055d5b68da9d2c017be9b0a7d"
+    title: "testrunner pip-tools for 3.15"
+    category: ci
+  - number: 19907
+    sha: "4459ab6a7525ff9ead016f5525278d24903a65af"
+    title: "testrunner rebuild 3.15-dev; Cython<3.3 on cache"
+    category: ci
+  - number: 19984
+    sha: "3a2fc8338a27d118359aa7e08a4e082ce19dd3d5"
+    title: "update testrunner image"
+    category: ci
+
+  # --- Profiling-owned 3.15 work ---
+  - number: 19247
+    sha: "e6342413b2a10804d4cdc29dc4c9d18477f12e10"
+    title: "sys.monitoring multiplexer"
+    category: shared
+  - number: 19267
+    sha: "6c2d10971404884620ce61c85de886f14bf711cf"
+    title: "logging version warning"
+    category: profiling
+  - number: 19880
+    sha: "ace0b99ff225a26f2899e6389dd1cccf1f42dd8e"
+    title: "withhold cp315 from PyPI and prerelease index"
+    category: packaging
+  - number: 19861
+    sha: "a78b77449b38114f197c1efcc93d6a952055d885"
+    title: "Cython<3.3; optional cp315 wheels"
+    category: packaging
+  - number: 19269
+    sha: "5ed7f059465fae3d11d55b3a4849d39ffed16b4f"
+    title: "Echion frame/tasks + natives compile on 3.15 (+#19270)"
+    category: profiling
+  - number: 19272
+    sha: "59e4f59754d3803765b21c217914b59957f9247e"
+    title: "_asyncio.py sys.monitoring path; _exception.pyx"
+    category: profiling
+  - number: 19207
+    sha: "b8e392860416c0baf8200a5b59ed472f94640aa7"
+    title: "prof-correctness gate for py-315"
+    category: ci
+
+# Rubric-only (open / no merged PR yet)
+rubric_only:
+  - id: supported_versions_job
+    issue: 19995
+    category: ci
+    keywords:
+      - "supported-versions"
+      - "3.15"
+  - id: pyproject_classifier
+    issue: 17815
+    category: packaging
+    keywords:
+      - "Programming Language :: Python :: 3.15"
+      - "classifier"
+
+# Hard gates (pass/fail). Commands run in the sandbox after the agent finishes.
+gates:
+  - id: natives_build_315
+    category: profiling
+    description: "natives build on 3.15rc2"
+    command: "python setup.py build_ext --inplace"
+    python: "3.15"
+    interpreter_env: "PY315RC2"
+  - id: verify_compat_315
+    category: profiling
+    description: "verify_profiler_compatibility.py --python 3.15"
+    command: "python scripts/verify_profiler_compatibility.py --python 3.15"
+  - id: verify_compare
+    category: profiling
+    description: "verify_profiler_compatibility.py --compare"
+    command: "python scripts/verify_profiler_compatibility.py --python 3.15 --compare"
+  - id: profiling_tests_profile
+    category: profiling
+    description: "run-profiling-tests profile subset on 3.15"
+    command: "scripts/run-profiling-tests --python 3.15"
+  - id: layout_gtests
+    category: profiling
+    description: "Echion layout gtests (test_frame_state_315)"
+    file_glob: "**/test_frame_state_315.cpp"
+    expect_file: true
+  - id: no_314_regression
+    category: profiling
+    description: "3.14 has no regressions (compat quick)"
+    command: "python scripts/verify_profiler_compatibility.py --python 3.14 --quick"
+  - id: prof_correctness_315
+    category: ci
+    description: "prof-correctness python_*_3.15 scenarios (external; may be skipped)"
+    optional: true
+    command: "echo 'prof-correctness exercised outside sandbox; see README'"
+
+# Coverage facts — fraction of hits. file+regex OR keyword in REPLAY_ACTIONS.md.
+coverage:
+  - id: pyo3_028
+    category: shared
+    pr: 18429
+    checks:
+      - file: "src/native/Cargo.toml"
+        regex: 'pyo3\s*=\s*\{\s*version\s*=\s*"0\.28"'
+  - id: sys_monitoring_multiplexer
+    category: shared
+    pr: 19247
+    checks:
+      - file: "ddtrace/internal/monitoring.py"
+        regex: "Multiplexed sys\\.monitoring|multiplexer"
+  - id: import_degrade
+    category: profiling
+    pr: 19724
+    checks:
+      - file: "tests/internal/test_py315_import_degrade.py"
+        regex: "."
+      - file: "ddtrace/profiling/__init__.py"
+        regex: "ImportError|except Exception|degrad"
+  - id: wrapping_context_315
+    category: shared
+    pr: 17849
+    checks:
+      - file: "ddtrace/internal/wrapping/context.py"
+        regex: "3,?\\s*15|sys\\.monitoring|PY_VERSION"
+  - id: wrap_trampoline_315
+    category: shared
+    pr: 19910
+    checks:
+      - file: "ddtrace/internal/compat.py"
+        regex: "3,?\\s*15"
+  - id: setup_py_315_gates
+    category: profiling
+    pr: 19269
+    checks:
+      - file: "setup.py"
+        regex: "3,?\\s*15|0x030f|sys\\.version_info\\s*<\\s*\\(3,\\s*16\\)"
+  - id: echion_frame_state
+    category: profiling
+    pr: 19269
+    checks:
+      - file: "ddtrace/internal/datadog/profiling/stack/test/test_frame_state_315.cpp"
+        regex: "FRAME_|PyFrameState|3\\.15"
+      - file: "ddtrace/internal/datadog/profiling/stack/echion/echion/cpython/tasks.h"
+        regex: "FRAME_SUSPENDED_YIELD_FROM_LOCKED|FRAME_OWNED|gi_frame_state"
+  - id: asyncio_sys_monitoring_ge_315
+    category: profiling
+    pr: 19272
+    checks:
+      - file: "ddtrace/profiling/_asyncio.py"
+        regex: "sys\\.version_info\\s*>=\\s*\\(3,\\s*15\\)|_ASYNCIO_MONITORING_MIN"
+  - id: exception_pyx_315
+    category: profiling
+    pr: 19272
+    checks:
+      - file: "ddtrace/profiling/collector/_exception.pyx"
+        regex: "3,?\\s*15|sys\\.monitoring|PY_VERSION"
+  - id: registry_entry_315
+    category: profiling
+    checks:
+      - file: "scripts/profiles/profiling_versions.json"
+        regex: "\"3\\.15\""
+  - id: cython_pin
+    category: packaging
+    pr: 19861
+    checks:
+      - file: "pyproject.toml"
+        regex: "[Cc]ython\\s*<\\s*3\\.3"
+  - id: wheels_withheld
+    category: packaging
+    pr: 19880
+    checks:
+      - file: ".gitlab/package.yml"
+        regex: "cp315|prerelease|withhold|prune"
+      - file: ".gitlab/scripts/prune-unsupported-wheels.sh"
+        regex: "."
+  - id: wheels_optional_then_required
+    category: packaging
+    pr: 20450
+    checks:
+      - file: ".gitlab/package.yml"
+        regex: "cp315"
+  - id: ssi_exclusive_max_316
+    category: packaging
+    pr: 19843
+    checks:
+      - file: "lib-injection/sources/sitecustomize.py"
+        regex: "3\\.16|3\\.15"
+  - id: logging_version_warning
+    category: profiling
+    pr: 19267
+    checks:
+      - file: "ddtrace/contrib/internal/logging/patch.py"
+        regex: "3,?\\s*15|version"
+  - id: pycontextvar_limited_api
+    category: shared
+    pr: 19903
+    checks:
+      - file: "src/native/contextvar.rs"
+        regex: "PyContextVar"
+  - id: base_images_cp315_unblock
+    category: packaging
+    pr: 17959
+    checks:
+      - file: ".gitlab/package.yml"
+        regex: "cp315"
+  - id: prof_correctness_workflow
+    category: ci
+    pr: 19207
+    checks:
+      - file: ".github/workflows/prof-correctness.yml"
+        regex: "3\\.15|prof-correctness|python_"
+
+# RC / final / manual rubric — scored against REPLAY_ACTIONS.md (+ optional LLM judge later)
+actions_rubric:
+  - id: engraver_rc_tag
+    category: packaging
+    keywords:
+      - "engraver"
+      - "3.15.0rc"
+      - "python/3.15.0rc"
+  - id: images_mirror_lockstep
+    category: packaging
+    keywords:
+      - "mirror.yaml"
+      - "IMAGE_TAG"
+  - id: cython_lt_33
+    category: packaging
+    keywords:
+      - "Cython"
+      - "3.3"
+  - id: wheels_withhold_optional_required
+    category: packaging
+    keywords:
+      - "withhold"
+      - "optional"
+      - "required"
+      - "cp315"
+  - id: ssi_prestage_when_never
+    category: packaging
+    keywords:
+      - "SSI"
+      - "3.16"
+      - "when: never"
+  - id: reno
+    category: profiling
+    keywords:
+      - "reno"
+      - "releasenotes"
+  - id: adr_no_memory_parity
+    category: profiling
+    keywords:
+      - "ADR"
+      - "memory"
+  - id: no_hard_stop_violations
+    category: profiling
+    keywords:
+      - "hard stop"
+      - "when: never"
+
+# Expected PR split order (from runbook "Expected changes (in order)") — advisory
+expected_pr_order_keywords:
+  - "native"
+  - "asyncio"
+  - "wheel"
+  - "SSI"
+  - "reno"

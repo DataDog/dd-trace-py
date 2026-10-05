@@ -1,0 +1,38 @@
+# Guard only (post-#19273 genericize).
+# Blind arm deletes/resets the version layer; these patterns must NOT appear in
+# the generic process docs that remain. prepare_sandbox.sh aborts if any match.
+#
+# Do not use this file to rewrite #19273 docs — that work lives on
+# vlad/315-profiling-dev-tooling.
+
+version: 1
+
+# Paths scanned after the blind-arm version-layer wipe.
+guard_paths:
+  - docs/contributing-profiling-new-cpython.rst
+  - .claude/skills/migrate-profiling-new-cpython/SKILL.md
+  - .cursor/rules/profiling-new-cpython.mdc
+  - AGENTS.md
+
+# Answer-key / 3.15-solution patterns. Any hit voids the blind arm.
+forbidden_patterns:
+  - "#19269"
+  - "#19272"
+  - "#19270"
+  - "#19207"
+  - "#19861"
+  - "#20450"
+  - "#19843"
+  - "#19880"
+  - "PyFrameState"
+  - "FRAME_OWNED_BY_CSTACK"
+  - "FRAME_SUSPENDED_YIELD_FROM_LOCKED"
+  # Solution-shaped guidance (3.14 wrap references via #15546 are OK).
+  - "uses `sys.monitoring` because wrap is unavailable"
+  - "sys.monitoring multiplexer for Python 3.15"
+  - "asyncio_hook.:.sys.monitoring"
+
+# Still allowed in generic docs (previous-migration pointers, process text).
+allowed_examples:
+  - "#15546"
+  - "sys.monitoring"  # generic mention of the API is fine; solution claims are not
