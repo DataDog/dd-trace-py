@@ -37,8 +37,8 @@ After the split from #20814, this PR holds:
 | Observable in product/Python | sys.monitoring asyncio path; `wrap()` stays below 3.15 | #19272 |
 | Test gating | prof-correctness on profiling PRs | #19207 |
 | Wheels / packaging | optional → required cp315; Cython pin | #19861 → #20450 |
-| Docs (Q3) | Catalog, thin pointers + registry | #20814 |
-| Verify / suitespec (Q4) | `verify_*` / suitespec 3.15 + locks / full registry + baselines | #19273 |
+| Docs (Q3) | Catalog, stack map, thin pointers | #20814 |
+| Verify / suitespec (Q4) | `verify_*` / suitespec 3.15 + locks / registry + baselines | #19273 |
 | ADR | Readiness write-up | #20478 (closed) |
 
 Validation gates, DoE/TD attach rules, and the sign-off chain live in
