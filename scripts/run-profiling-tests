@@ -13,9 +13,9 @@
 # Usage:
 #   scripts/run-profiling-tests                  # default from profiling_versions.json
 #   scripts/run-profiling-tests --python 3.14    # another Python version
-#   scripts/run-profiling-tests --quick          # skip rebuild check + full riot suites;
+#   scripts/run-profiling-tests --quick          # skip rebuild check + full suitespec suites;
 #                                                # only run compatibility script
-#   scripts/run-profiling-tests --check-only     # run compatibility script only, no riot
+#   scripts/run-profiling-tests --check-only     # run compatibility script only, no suites
 
 set -euo pipefail
 
@@ -192,29 +192,47 @@ echo ""
 
 if [[ "$QUICK" == true || "$CHECK_ONLY" == true ]]; then
     if [[ "$CHECK_ONLY" == true ]]; then
-        echo "=== --check-only: skipping riot suites ==="
+        echo "=== --check-only: skipping suitespec suites ==="
     else
-        echo "=== --quick: skipping riot suites ==="
+        echo "=== --quick: skipping suitespec suites ==="
     fi
     exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# Step 3: Discover riot venv hashes dynamically for the target Python version
+# Step 3: Discover suitespec environment hashes for the target Python version
 # ---------------------------------------------------------------------------
-# Riot hashes change when riotfile.py changes, so discover them at runtime.
-RIOT_PYTHON="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile\$" 2>/dev/null | tr '\n' ' ')"
-RIOT_MEMALLOC="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile-memalloc\$" 2>/dev/null | tr '\n' ' ')"
+# Hashes come from tests/profiling/suitespec.yml via tests.suitespec (Riot was
+# removed in #19713). Discover at runtime so suite edits do not hard-code hashes.
+discover_suite_hashes() {
+    local suite_leaf="$1"
+    local python_version="$2"
+    (
+        cd "$REPO_ROOT" && python3 -c "
+from tests.suitespec import get_test_environments
+
+suite = 'profiling::' + '''${suite_leaf}'''
+python_version = '''${python_version}'''
+matrix = get_test_environments(nightly=False).get(suite, ())
+hashes = [env.hash for env in matrix if env.python == python_version]
+print(' '.join(hashes))
+"
+    )
+}
+
+PROFILE_HASHES="$(discover_suite_hashes profile "$PYTHON_VERSION")"
+MEMALLOC_HASHES="$(discover_suite_hashes profile-memalloc "$PYTHON_VERSION")"
 
 missing_venvs=0
-if [[ -z "$RIOT_PYTHON" ]]; then
-    echo "ERROR: No 'profile' riot venvs found for Python $PYTHON_VERSION." >&2
+if [[ -z "$PROFILE_HASHES" ]]; then
+    echo "ERROR: No 'profile' test environments found for Python $PYTHON_VERSION." >&2
+    echo "Add 3.15 (or the requested minor) to tests/profiling/suitespec.yml and regenerate locks." >&2
     missing_venvs=1
 else
-    echo "--- Running profile suites: $RIOT_PYTHON---"
+    echo "--- Running profile suites: $PROFILE_HASHES---"
     # shellcheck disable=SC2086
     VENV_ARGS=""
-    for hash in $RIOT_PYTHON; do
+    for hash in $PROFILE_HASHES; do
         VENV_ARGS="$VENV_ARGS --venv $hash"
     done
     # shellcheck disable=SC2086
@@ -222,13 +240,14 @@ else
     echo ""
 fi
 
-if [[ -z "$RIOT_MEMALLOC" ]]; then
-    echo "ERROR: No 'profile-memalloc' riot venvs found for Python $PYTHON_VERSION." >&2
+if [[ -z "$MEMALLOC_HASHES" ]]; then
+    echo "ERROR: No 'profile-memalloc' test environments found for Python $PYTHON_VERSION." >&2
+    echo "Add 3.15 (or the requested minor) to tests/profiling/suitespec.yml and regenerate locks." >&2
     missing_venvs=1
 else
-    echo "--- Running profile-memalloc suites: $RIOT_MEMALLOC---"
+    echo "--- Running profile-memalloc suites: $MEMALLOC_HASHES---"
     VENV_ARGS=""
-    for hash in $RIOT_MEMALLOC; do
+    for hash in $MEMALLOC_HASHES; do
         VENV_ARGS="$VENV_ARGS --venv $hash"
     done
     # shellcheck disable=SC2086
@@ -237,7 +256,7 @@ else
 fi
 
 if [[ "$missing_venvs" -ne 0 ]]; then
-    echo "ERROR: required riot venvs/tests missing." >&2
+    echo "ERROR: required test environments/suites missing." >&2
     exit 1
 fi
 
@@ -251,14 +270,14 @@ entry = data.get('versions', {}).get(version, {})
 print('true' if entry.get('uwsgi_supported') else 'false')
 " "$REGISTRY_FILE" "$PYTHON_VERSION")"
 if [[ "$UWSGI_SUPPORTED" == "true" ]]; then
-    RIOT_UWSGI="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile-uwsgi\$" 2>/dev/null | tr '\n' ' ')"
-    if [[ -z "$RIOT_UWSGI" ]]; then
-        echo "ERROR: No 'profile-uwsgi' riot venvs found for Python $PYTHON_VERSION." >&2
+    UWSGI_HASHES="$(discover_suite_hashes profile-uwsgi "$PYTHON_VERSION")"
+    if [[ -z "$UWSGI_HASHES" ]]; then
+        echo "ERROR: No 'profile-uwsgi' test environments found for Python $PYTHON_VERSION." >&2
         exit 1
     fi
-    echo "--- Running profile-uwsgi suites: $RIOT_UWSGI---"
+    echo "--- Running profile-uwsgi suites: $UWSGI_HASHES---"
     VENV_ARGS=""
-    for hash in $RIOT_UWSGI; do
+    for hash in $UWSGI_HASHES; do
         VENV_ARGS="$VENV_ARGS --venv $hash"
     done
     # shellcheck disable=SC2086

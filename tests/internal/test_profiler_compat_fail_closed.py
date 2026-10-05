@@ -54,10 +54,11 @@ def test_unparsed_pprof_fails_when_files_exist_but_unparsed(verify_mod: Any) -> 
 
 def test_run_profiling_tests_fails_closed_on_missing_venvs() -> None:
     text: str = _RUN_PROFILING_TESTS.read_text()
-    assert "ERROR: No 'profile' riot venvs found" in text
-    assert "ERROR: No 'profile-memalloc' riot venvs found" in text
-    assert "ERROR: required riot venvs/tests missing." in text
-    assert "WARNING: No 'profile' riot venvs found" not in text
+    assert "ERROR: No 'profile' test environments found" in text
+    assert "ERROR: No 'profile-memalloc' test environments found" in text
+    assert "ERROR: required test environments/suites missing." in text
+    assert "WARNING: No 'profile' test environments found" not in text
+    assert "get_test_environments" in text
     assert "missing_venvs=1" in text
     assert "profiling_versions.json" in text
     assert "REGISTRY_FILE" in text
@@ -238,10 +239,25 @@ def test_skipped_profiler_samples_fails_full_run(
 
 def test_run_profiling_tests_wires_uwsgi_when_supported() -> None:
     text: str = _RUN_PROFILING_TESTS.read_text()
-    assert '--hash-only "^profile-uwsgi\\$"' in text
-    assert "ERROR: No 'profile-uwsgi' riot venvs found" in text
+    assert "discover_suite_hashes profile-uwsgi" in text
+    assert "ERROR: No 'profile-uwsgi' test environments found" in text
     assert "not wired in this runner yet" not in text
     assert "pip install exited" in text
+
+
+def test_default_python_has_profile_suitespec_envs() -> None:
+    """Registry default must be declared on profile / profile-memalloc matrices."""
+    data: dict[str, Any] = json.loads(_VERSION_REGISTRY.read_text())
+    default_python: str = data["default_python"]
+    suitespec: str = (_REPO_ROOT / "tests" / "profiling" / "suitespec.yml").read_text()
+    quoted: str = f"'{default_python}'"
+    assert quoted in suitespec
+    # Explicit 3.15 opt-in on the DEFAULT-inheriting variants (not only comments).
+    assert f"python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '{default_python}']" in suitespec
+    assert "profile-memalloc" in suitespec
+    runner: str = _RUN_PROFILING_TESTS.read_text()
+    assert "get_test_environments" in runner
+    assert "python3 -m riot list" not in runner
 
 
 def test_compare_enforces_min_wall_when_baseline_omits_sample_count(verify_mod: Any) -> None:
