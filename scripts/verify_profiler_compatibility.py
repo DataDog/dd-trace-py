@@ -442,16 +442,20 @@ def _scaffold_version(version: str) -> None:
     if key not in baselines:
         version_meta: dict[str, Any] = versions[key]
         min_samples: int = int(version_meta.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES))
+        # Scaffold stubs are untrusted: --compare rejects them until --baseline
+        # records a real known-good run.
         baselines[key] = {
-            "asyncio_guards": {"passed": True},
+            "scaffolded": True,
+            "asyncio_guards": {"passed": False},
             "profiler_samples": {
-                "passed": True,
+                "passed": False,
                 "min_wall_time_samples": min_samples,
                 "asyncio_task_names_seen": list(_DEFAULT_ASYNCIO_TASK_NAMES),
             },
         }
         _save_baselines(baselines)
         print(f"Stubbed compatibility baseline for Python {key} → {_BASELINE_FILE}")
+        print("  (scaffolded — run --baseline on a known-good interpreter before --compare)")
     else:
         print(f"Compatibility baseline already has Python {key}; leaving entry unchanged.")
 
@@ -523,13 +527,12 @@ def _compare_with_baseline(results: dict[str, Any], baseline: dict[str, Any]) ->
         if ref_passed and not cur_passed:
             failures.append(f"{suite}: was PASS in baseline, now FAIL — {cur.get('error', '?')}")
 
-        # Check sample count regression
-        if "wall_time_samples" in ref and "wall_time_samples" in cur:
-            if cur["wall_time_samples"] < ref.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES):
-                failures.append(
-                    f"{suite}: wall_time_samples dropped: {cur['wall_time_samples']} "
-                    f"< baseline minimum {ref.get('min_wall_time_samples', _MIN_WALL_TIME_SAMPLES)}"
-                )
+        # Baselines persist min_wall_time_samples, not the last run's wall_time_samples.
+        if suite == "profiler_samples" and "wall_time_samples" in cur:
+            min_wall: int = int(ref.get("min_wall_time_samples", _MIN_WALL_TIME_SAMPLES))
+            cur_wall: int = int(cur["wall_time_samples"])
+            if cur_wall < min_wall:
+                failures.append(f"{suite}: wall_time_samples dropped: {cur_wall} < baseline minimum {min_wall}")
 
         # Check task names
         if "asyncio_task_names_seen" in ref:
@@ -582,6 +585,8 @@ def main() -> None:
 
     if args.quick and args.baseline:
         raise SystemExit("--quick cannot be combined with --baseline (quick omits profiler_samples)")
+    if args.baseline and args.compare:
+        raise SystemExit("--baseline and --compare are mutually exclusive")
 
     # --- Subprocess mode ---
     if args.subprocess:
@@ -639,9 +644,14 @@ def main() -> None:
     for suite_name in ("asyncio_guards", "profiler_samples"):
         if suite_name not in results:
             continue
-        line: str = _format_result(suite_name, results[suite_name])
+        suite_result: dict[str, Any] = results[suite_name]
+        line: str = _format_result(suite_name, suite_result)
         print(line)
-        if not results[suite_name].get("passed") and not results[suite_name].get("skipped"):
+        # Full runs include profiler_samples; a skip (missing native ext) is a
+        # failure. Quick mode omits the suite entirely, so it never appears here.
+        if suite_name == "profiler_samples" and suite_result.get("skipped"):
+            all_passed = False
+        elif not suite_result.get("passed") and not suite_result.get("skipped"):
             all_passed = False
 
     print()
@@ -673,6 +683,12 @@ def main() -> None:
         baselines = _load_baselines()
         if baseline_key not in baselines:
             print(f"No baseline for Python {baseline_key}. Run with --baseline on a known-good version first.")
+            all_passed = False
+        elif baselines[baseline_key].get("scaffolded"):
+            print(
+                f"Baseline for Python {baseline_key} is a scaffold stub. "
+                "Run with --baseline on a known-good version first."
+            )
             all_passed = False
         else:
             failures: list[str] = _compare_with_baseline(results, baselines[baseline_key])

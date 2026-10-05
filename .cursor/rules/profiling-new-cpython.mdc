@@ -29,4 +29,7 @@ When editing profiling natives, collectors, or `setup.py` version gates:
 3. **Hard stops** — never enable SSI/OCI before final; never claim memory parity
    without an A/B; never skip staging auth preflight; never mix prerelease ABIs.
 
-4. **Status map** — `scripts/py315-stack/PROFILING_STACK.md` for live PR states.
+4. **Version layer** — ABI/hook answers and live PR states live in
+   `docs/cpython-diffs/py3XX_pr_catalog.md` and
+   `scripts/py3XX-stack/PROFILING_STACK.md` for the relevant minor; do not
+   hard-code them into this rule or the runbook.
