@@ -17,8 +17,10 @@ allowed-tools:
 
 Agent-facing orchestrator. **Detail lives in the runbook — do not copy it here.**
 
-- Runbook: `docs/contributing-profiling-new-cpython.rst`
-- Live PR states: `scripts/py315-stack/PROFILING_STACK.md`
+- Runbook (process): `docs/contributing-profiling-new-cpython.rst`
+- Latest catalog (version answers): `docs/cpython-diffs/py3XX_pr_catalog.md`
+  for the most recent completed minor
+- Live PR states: `scripts/py3XX-stack/PROFILING_STACK.md` for the in-flight minor
 - Version registry: `scripts/profiles/profiling_versions.json`
 - Sample baselines: `scripts/profiles/compatibility_baselines.json`
 

@@ -9,23 +9,18 @@ Echion), **asyncio** integration for stack and tasks, **lock** profilers (thread
 **memory** and **heap** (memalloc), **exception** profiling, **PyTorch** hook, **ddup** export, build
 gates, Riot/CI, and **validation tests** for each area.
 
-Reference implementations:
+Prior art and version-specific answers:
 
-* `PR #15546`__ (feat(profiling): support Python 3.14) — Echion frame/task/asyncio changes,
-  ``setup.py`` un-gating, profiling defaults, Riot venv splits, tests, and a release note.
-* `PR #19269`__ (native ABI) + `PR #19270`__ (collectors/CI) + `PR #19272`__
-  (asyncio) — Echion ``PyFrameState`` / ``FRAME_OWNED_BY_CSTACK``; ``setup.py``
-  native-build un-gating; ``_asyncio.py`` uses ``sys.monitoring`` on 3.15 because
-  wrapping is unavailable (the API itself exists since 3.12).
+* Prior migration example: `PR #15546`__ (Python 3.14) — frame/task/asyncio,
+  ``setup.py`` un-gating, Riot splits, tests, release note. Framed as prior art
+  only; do not treat its deltas as the answer key for a later minor.
+* Latest completed-minor catalog (ABI fixes, hook choices, gotchas, PR map):
+  ``docs/cpython-diffs/py3XX_pr_catalog.md`` (currently ``py315_pr_catalog.md``).
+* Live stack status for the in-flight minor:
+  ``scripts/py3XX-stack/PROFILING_STACK.md`` (currently ``scripts/py315-stack/``).
+  Keep that file current; do not duplicate a status table here.
 
 __ https://github.com/DataDog/dd-trace-py/pull/15546
-__ https://github.com/DataDog/dd-trace-py/pull/19269
-__ https://github.com/DataDog/dd-trace-py/pull/19270
-__ https://github.com/DataDog/dd-trace-py/pull/19272
-
-Live bring-up status (which PRs are merged vs open) lives in
-``scripts/py315-stack/PROFILING_STACK.md`` — keep that file current; do not
-duplicate a "current status" table here.
 
 Version hex quick reference
 ---------------------------
@@ -36,8 +31,8 @@ Version hex quick reference
    Python 3.12  →  0x030c0000
    Python 3.13  →  0x030d0000
    Python 3.14  →  0x030e0000
-   Python 3.15  →  0x030f0000   ← current bring-up
-   Python 3.16  →  0x03100000   ← next target
+   Python 3.15  →  0x030f0000
+   Python 3.16  →  0x03100000
 
 PEP phase timeline
 ------------------
@@ -59,8 +54,8 @@ __ https://peps.python.org/pep-0790/
 |          | needed                           | --scaffold 3.X``; catalog §1             |
 +----------+----------------------------------+------------------------------------------+
 | **Beta** | Collectors + asyncio hook path;  | wrap() probe on ``create_task``;         |
-|          | monitoring multiplexer if wrap   | ``scripts/run-profiling-tests``;         |
-|          | fails; import-degrade path       | catalog §2                               |
+|          | alternate hook if wrap fails;    | ``scripts/run-profiling-tests``;         |
+|          | import-degrade path              | catalog §2                               |
 +----------+----------------------------------+------------------------------------------+
 | **RC**   | Engraver ``python/3.X.YrcN``      | Within days of each RC: engraver →       |
 |          | (+fips) → digests →              | digests → language-tools → IMAGE_TAG;    |
@@ -76,45 +71,34 @@ __ https://peps.python.org/pep-0790/
 Expected changes (in order)
 ---------------------------
 
-These are the **planned** profiling PRs for a new minor. Py-315 artifacts in
-parentheses; each row says how to automate next time.
+Planned profiling work for a new minor. Concrete PR numbers and ABI/hook
+answers for the latest completed minor live in the catalog (Links_).
 
-#. **Native ABI / build path** (`PR #19269`__) — Echion ``PyFrameState`` /
-   ``FRAME_OWNED_BY_CSTACK`` / cmake layout contracts. Automate: run
-   ``cpython_delta`` on ``OLD..NEW``; require ``test_frame_state_XXX.cpp`` /
-   ``test_cpython_layout_contracts.cpp`` entries.
-#. **Asyncio hook path** (`PR #19272`__) — On 3.15+, ``_asyncio.py`` uses
-   ``sys.monitoring`` because ``wrap()`` is unavailable for ``create_task``;
-   keep ``wrap`` below the new minor. Automate: skill checklist + wrap probe
-   (not header-only ABI diff).
-#. **Dev tooling / runbook** (this PR, `PR #19273`__) — baselines JSON,
-   ``verify_profiler_compatibility.py``, ``run-profiling-tests``, this guide,
-   PR catalog. Automate: copy checklist; scaffold version registry entry.
-#. **prof-correctness gating** (`PR #19207`__ + prof-correctness
-   ``python_*_3.X`` jobs) — automatic correctness gate on profiling PRs.
+#. **Native ABI / build path** — Echion frame/task layout contracts and cmake
+   tests. Automate: ``cpython_delta`` on ``OLD..NEW``; require
+   ``test_frame_state_XXX.cpp`` / ``test_cpython_layout_contracts.cpp``.
+#. **Asyncio hook path** — Probe ``wrap()`` on ``create_task``; if it fails,
+   land an alternate hook for the new minor only (keep ``wrap`` below it).
+   Automate: skill checklist + wrap probe (not header-only ABI diff).
+#. **Dev tooling / runbook** — baselines JSON, ``verify_profiler_compatibility.py``,
+   ``run-profiling-tests``, this guide, PR catalog. Automate: copy checklist;
+   scaffold version registry entry.
+#. **prof-correctness gating** — automatic correctness gate on profiling PRs.
    Automate: template ``python_*_3.X`` jobs + compare gate vs previous minor.
-#. **Required wheels + lib_injection schedule** (`PR #20450`__) — after
-   Cython pin and optional platforms (`PR #19861`__). Automate: optional →
-   required platform template; schedule lib_injection once wheels exist.
+#. **Required wheels + lib_injection schedule** — after Cython pin and optional
+   platforms. Automate: optional → required platform template; schedule
+   lib_injection once wheels exist.
 #. **Release note** — customer-facing "profiling supports 3.X". Automate:
    ``releasenote`` skill.
-#. **ADR** (`PR #20478`__) — functional readiness claim; **do not** claim
-   memory parity. Automate: skill checklist; human judgment on GO/NOGO.
-
-__ https://github.com/DataDog/dd-trace-py/pull/19269
-__ https://github.com/DataDog/dd-trace-py/pull/19272
-__ https://github.com/DataDog/dd-trace-py/pull/19273
-__ https://github.com/DataDog/dd-trace-py/pull/19207
-__ https://github.com/DataDog/dd-trace-py/pull/20450
-__ https://github.com/DataDog/dd-trace-py/pull/19861
-__ https://github.com/DataDog/dd-trace-py/pull/20478
+#. **ADR** — functional readiness claim; **do not** claim memory parity.
+   Automate: skill checklist; human judgment on GO/NOGO.
 
 Unexpected changes and gotchas
 ------------------------------
 
-Symptom → fix for 3.15 lives in ``docs/cpython-diffs/py315_pr_catalog.md``
-(``Top unexpected gotchas`` and ``Dead-end lessons``). Do not copy that list
-here.
+Symptom → fix for the latest completed minor lives in
+``docs/cpython-diffs/py3XX_pr_catalog.md`` (``Top unexpected gotchas`` and
+``Dead-end lessons``). Do not copy that list here.
 
 Preparation: what tends to break
 ---------------------------------
@@ -194,9 +178,9 @@ Discover CPython deltas (before writing code)
       # Via the Skill tool:
       find-cpython-usage
 
-4. **Version hex:** Python 3.15 is gated with ``PY_VERSION_HEX >= 0x030f0000``. Keep older
-   release guards (e.g. ``0x030e0000`` for 3.14) and only add a new branch when behavior or
-   layout **diverges** from the prior release.
+4. **Version hex:** Gate the new minor with its ``PY_VERSION_HEX`` (see table above).
+   Keep older release guards and only add a new branch when behavior or layout
+   **diverges** from the prior release.
 
 Quick grep in dd-trace-py (find prior-version guards):
 
@@ -259,8 +243,9 @@ Build and product gating
 
 * ``setup.py`` — Ensure **memalloc**, **ddup**, and **stack** CMake extensions (and Rust
   profiling features, if gated) are **not** skipped on the new Python version. PR #15546
-  **removed** ``sys.version_info < (3, 14)`` style exclusions; do the same for ``(3, 15)``
-  when enabling 3.15. Add a **new** upper bound only if a **future** version is known broken.
+  **removed** ``sys.version_info < (3, 14)`` style exclusions; do the same for the new
+  ``(MAJOR, MINOR)`` when enabling it. Add a **new** upper bound only if a **future**
+  version is known broken.
 
 * ``ddtrace/internal/settings/profiling.py`` — Remove any "force stack profiler off on X.Y"
   guards. Keep **ddup** load failures honest: log and disable profiling when the extension
@@ -269,9 +254,9 @@ Build and product gating
 CI, Riot, and dependencies
 --------------------------
 
-* ``riotfile.py`` — Add or extend ``Venv(pys="3.15", ...)`` where a new Python needs different
-  pins (examples from 3.14 work: **uwsgi**, **protobuf**, **gevent**, memalloc/**lz4** quirks).
-  Follow existing patterns for ``select_pys`` and comments explaining version caps.
+* ``riotfile.py`` — Add or extend ``Venv(pys="3.X", ...)`` where a new Python needs different
+  pins (examples from prior minors: **uwsgi**, **protobuf**, **gevent**, memalloc/**lz4**
+  quirks). Follow existing patterns for ``select_pys`` and comments explaining version caps.
 
 * Regenerate ``.riot/requirements/*.txt`` when adding venvs (same workflow as other Python
   bumps).
@@ -320,7 +305,7 @@ for ``cp3XX``, or — if Docker is unavailable — read the Dockerfile directly:
    # Find the commit that added the cpython version you need
    gh api 'repos/pypa/manylinux/commits?path=docker/Dockerfile&per_page=30' \
      --jq '.[] | "\(.sha[0:8])\t\(.commit.author.date)\t\(.commit.message | split("\n")[0])"' \
-     | grep -i "cpython 3.15"
+     | grep -i "cpython 3\."
 
    # Inspect the current Dockerfile to see exactly which cpython versions it builds
    gh api 'repos/pypa/manylinux/contents/docker/Dockerfile' --jq '.download_url' \
@@ -376,7 +361,7 @@ Validation gates (PASS criteria)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Ordered gates. Do not claim the minor is ready until each applicable gate is green.
-Py-315 source: catalog §§5–6 and the gotchas section above.
+Gate detail and margins: latest catalog §§5–6 and the gotchas section above.
 
 #. **Local compat smoke** — ``scripts/verify_profiler_compatibility.py --python 3.X``
    (and ``--quick`` while iterating). PASS: import/guard checks green; with full mode,
@@ -385,11 +370,10 @@ Py-315 source: catalog §§5–6 and the gotchas section above.
    ``scripts/run-profiling-tests --python 3.X``.
 
 #. **Local 3.(X-1) vs 3.X A/B harness** — smoke, async, ``PROFILING=0``, and
-   ``hook_path`` probe (branch ``vlad/chore-local-ab-314v315`` for 314v315; follow-up
-   is to parameterize on main). PASS: both arms healthy; hook path matches the
-   expected wrap vs ``sys.monitoring`` choice; **do not** require RSS parity
-   (~+15% with profiler on is expected). Automate: still mostly manual — candidate
-   is a version-parameterized script on main.
+   ``hook_path`` probe (parameterize on main; prior art may live on a local branch).
+   PASS: both arms healthy; hook path matches the registry / catalog choice for
+   the target; **do not** require RSS parity (~+15% with profiler on is expected).
+   Automate: still mostly manual — candidate is a version-parameterized script.
 
 #. **Riot / unit profiling suites** — ``scripts/run-profiling-tests`` /
    ``scripts/run-tests`` over ``tests/profiling/`` (``profile$``,
@@ -399,14 +383,12 @@ Py-315 source: catalog §§5–6 and the gotchas section above.
 #. **prof-correctness ``python_*_3.X`` jobs** — compare gate vs previous minor.
    Pin the gate image/wheel to the **exact** prerelease. PASS: gates green within
    theory-based margins (not one-shot empiricism). Automate: template jobs + S3
-   wheel poll timeout (`PR #20444`__).
+   wheel poll timeout.
 
 #. **Staging smoke A/B, then ai_gateway A/B chain** — after wheels exist.
    Preflight auth/signing/wheel availability first. PASS: smoke healthy, then
    ai_gateway chain; ``BUILD_WEDGED`` / SSH / vault failures are **not** profiler
    bugs. Automate: staging_ab campaign env (path in Links_); skill checklist.
-
-__ https://github.com/DataDog/dd-trace-py/pull/20444
 
 Automated tests (what to run)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -417,18 +399,18 @@ compatibility script before running the full suite:
 .. code-block:: bash
 
    # Import/guard checks only — no C extensions required (~2 s)
-   python scripts/verify_profiler_compatibility.py --python 3.15 --quick
+   python scripts/verify_profiler_compatibility.py --python 3.X --quick
 
    # Full check: asyncio guards + real pprof samples with named tasks (~8 s)
-   python scripts/verify_profiler_compatibility.py --python 3.15
+   python scripts/verify_profiler_compatibility.py --python 3.X
 
    # Save results as the baseline for this MAJOR.MINOR
-   python scripts/verify_profiler_compatibility.py --python 3.15 --baseline
+   python scripts/verify_profiler_compatibility.py --python 3.X --baseline
 
    # Compare against a saved baseline (use in CI or after a change)
-   python scripts/verify_profiler_compatibility.py --python 3.15 --compare
+   python scripts/verify_profiler_compatibility.py --python 3.X --compare
 
-Baselines for Python 3.9–3.14 live in ``scripts/profiles/compatibility_baselines.json``.
+Baselines live in ``scripts/profiles/compatibility_baselines.json``.
 
 Use **`scripts/run-tests`** (see :ref:`testing_guidelines` in ``contributing-testing``) —
 **never** raw ``pytest`` for full-suite validation. For profiling, CI maps paths to Riot via
@@ -572,8 +554,8 @@ Check off only after the named script or job is green. Manual items say so.
 
 **Beta**
 
-* [ ] Probe ``wrap()`` on ``asyncio.create_task``. If fail: land
-  ``sys.monitoring`` path for 3.16+ only; ensure multiplexer exists. Verify:
+* [ ] Probe ``wrap()`` on ``asyncio.create_task``. If fail: land an alternate
+  hook for 3.16+ only; ensure any shared multiplexer exists. Verify:
   ``hook_path`` probe + ``verify_profiler_compatibility.py --python 3.16``.
 * [ ] Import-degrade path: wrapping/ModuleWatchdog must not crash apps before
   natives/wheels ready. Manual code review + import smoke.
@@ -615,17 +597,24 @@ Check off only after the named script or job is green. Manual items say so.
 Links
 -----
 
-* ADR: `PR #20478`__ (functional readiness; memory parity not claimed).
-* PR catalog (py-315 lessons): ``docs/cpython-diffs/py315_pr_catalog.md``.
-* Header analysis (3.14→3.15): ``docs/cpython-diffs/analysis_314_to_315.md``.
-* Stack map / status: ``scripts/py315-stack/PROFILING_STACK.md``.
+Version layer (answers for a specific minor — read, do not paste into this guide):
+
+* Latest catalog: ``docs/cpython-diffs/py3XX_pr_catalog.md`` (currently
+  ``py315_pr_catalog.md``).
+* Header analysis for that minor: ``docs/cpython-diffs/analysis_YYY_to_XXX.md``
+  (currently ``analysis_314_to_315.md``).
+* Stack map / status: ``scripts/py3XX-stack/PROFILING_STACK.md`` (currently
+  ``scripts/py315-stack/``).
+* Version registry entry: ``scripts/profiles/profiling_versions.json``.
+
+Process / shared:
+
 * Compat baselines: ``scripts/profiles/compatibility_baselines.json``.
 * Staging A/B playbook: ``DataDog/experimental`` ``staging_ab/`` (path only;
-  lives outside this repo; see experimental PRs #11316–#11529).
+  lives outside this repo).
 * Release-schedule flow: ``track-cpython-release-schedule`` skill.
 * Parent issue / volunteer tracker: `#17809`__ / `#17817`__.
 
-__ https://github.com/DataDog/dd-trace-py/pull/20478
 __ https://github.com/DataDog/dd-trace-py/issues/17809
 __ https://github.com/DataDog/dd-trace-py/issues/17817
 
@@ -634,7 +623,6 @@ Follow-ups (out of this PR)
 
 * Scheduled CI that detects a new CPython prerelease tag and opens a tracking
   issue.
-* Parameterize the local 314v315 A/B harness into a ``3.X-1 vs 3.X`` script on
-  main (today: ``vlad/chore-local-ab-314v315``).
+* Parameterize the local ``3.(X-1) vs 3.X`` A/B harness into a script on main.
 * ``scripts/cpython_delta/`` inventory → diff → worklist pipeline (separate
   stacked PR).
