@@ -854,7 +854,6 @@ Examples:
         test_args = []
 
     args = parser.parse_args(script_args)
-    rebuild = args.rebuild
     if args.skip_ddtrace_install:
         print(
             "⚠️ -s/--skip-ddtrace-install is a no-op; environments are reused by default. "
@@ -876,7 +875,7 @@ Examples:
         success = runner.run_tests(
             environments_with_suite,
             test_args=test_args,
-            rebuild=rebuild,
+            rebuild=args.rebuild,
         )
         return 0 if success else 1
 
@@ -924,7 +923,7 @@ Examples:
     success = runner.run_tests(
         selected_environments,
         test_args=test_args,
-        rebuild=rebuild,
+        rebuild=args.rebuild,
     )
 
     return 0 if success else 1
