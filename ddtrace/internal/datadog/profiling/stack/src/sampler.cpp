@@ -444,7 +444,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
 #endif
     const bool fast_copy_warmup = fast_copy_handler_ops_enabled() && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
-    bool handler_fallback_done = false;
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
@@ -484,16 +483,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         set_fast_copy_enabled(true);
                     } else {
                         // Foreign owner: stay on syscall copy for this process and forks.
-                        handler_fallback_done = true;
                         mark_fast_copy_foreign_takeover();
                         std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
                                      "handler; keeping the syscall-based memory copy to avoid crashing."
                                   << std::endl;
                     }
                 }
-            } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
+            } else if (fast_copy_active && !segv_handler_installed()) {
                 // Post-upgrade foreign takeover: permanent syscall fallback beats crashing.
-                handler_fallback_done = true;
                 mark_fast_copy_foreign_takeover();
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing."
