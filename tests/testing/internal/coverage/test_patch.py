@@ -368,3 +368,117 @@ class TestCoveragePatching:
                 assert data[coverage_patch.PCT_COVERED_KEY] == pct
 
         coverage_patch.erase_coverage()
+
+
+class TestLcovReportMemory:
+    @pytest.mark.parametrize("branch", [False, True])
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_lcov_matches_coverage_report(self, tmp_path: Path, branch: bool, filtered: bool) -> None:
+        cov = Coverage(config_file=False, data_file=None, source=[str(tmp_path)], branch=branch)
+        sources = [tmp_path / name for name in ("z_module.py", "a_é_module.py", "omit_module.py")]
+        for path in sources:
+            path.write_text(
+                "def choose(value):\n    if value:\n        return 'yes'\n    return 'no'\nchoose(True)\n",
+                encoding="utf-8",
+            )
+        cov.start()
+        cov.switch_context("selected")
+        for path in sources:
+            runpy.run_path(str(path))
+        cov.switch_context("other")
+        runpy.run_path(str(sources[0]))
+        cov.stop()
+        cov.set_option("report:skip_empty", True)
+        options = {"contexts": ["selected"], "ignore_errors": True}
+        if filtered:
+            options.update({"include": [str(tmp_path / "*_module.py")], "omit": [str(sources[-1])]})
+        original = tmp_path / "original.lcov"
+        generated = tmp_path / "generated.lcov"
+        expected_percentage = cov.lcov_report(outfile=str(original), **options)
+        expected_config = cov.config
+
+        percentage = coverage_patch.generate_lcov_report(cov=cov, outfile=str(generated), **options)
+
+        assert generated.read_bytes() == original.read_bytes()
+        assert percentage == expected_percentage
+        assert cov.config is expected_config
+
+    def test_lcov_releases_completed_file_analyses(self, tmp_path: Path, monkeypatch) -> None:
+        import gc
+        import weakref
+
+        from coverage.lcovreport import LcovReporter
+
+        if not hasattr(LcovReporter, "lcov_file"):
+            pytest.skip("Older coverage.py LCOV renderers do not use the accumulating report list")
+        cov = Coverage(config_file=False, data_file=None, source=[str(tmp_path)])
+        for i in range(12):
+            path = tmp_path / f"module_{i:02}.py"
+            path.write_text("value = 1\n")
+        cov.start()
+        for path in sorted(tmp_path.glob("*.py")):
+            runpy.run_path(str(path))
+        cov.stop()
+        original_analyze = cov._analyze
+        reporters = []
+        live_counts = []
+
+        def observe_analysis(*args, **kwargs):
+            gc.collect()
+            reporters.append(weakref.ref(kwargs["file_reporter"]))
+            live_counts.append(sum(ref() is not None for ref in reporters))
+            return original_analyze(*args, **kwargs)
+
+        monkeypatch.setattr(cov, "_analyze", observe_analysis)
+
+        percentage = coverage_patch.generate_lcov_report(cov=cov, outfile=str(tmp_path / "report.lcov"))
+
+        assert percentage == 100.0
+        assert len(reporters) == 12
+        assert max(live_counts) == 1
+
+    def test_lcov_copies_large_unicode_records(self, tmp_path: Path) -> None:
+        path = tmp_path / "large_é_module.py"
+        path.write_text("value = 'é'\n" * 9000, encoding="utf-8")
+        cov = Coverage(config_file=False, data_file=None)
+        cov.get_data().add_lines({str(path): set(range(1, 9001, 2))})
+        original = tmp_path / "original.lcov"
+        generated = tmp_path / "generated.lcov"
+        expected_percentage = cov.lcov_report(outfile=str(original))
+
+        percentage = coverage_patch.generate_lcov_report(cov=cov, outfile=str(generated))
+
+        assert original.stat().st_size > 65536
+        assert generated.read_bytes() == original.read_bytes()
+        assert percentage == expected_percentage
+
+    def test_lcov_closes_spool_when_rendering_fails(self, tmp_path: Path, monkeypatch) -> None:
+        from coverage.lcovreport import LcovReporter
+
+        from ddtrace.contrib.internal.coverage import lcov
+
+        if not hasattr(LcovReporter, "lcov_file"):
+            pytest.skip("Older coverage.py LCOV renderers do not require a spool")
+        path = tmp_path / "module.py"
+        path.write_text("value = 1\n")
+        cov = Coverage(config_file=False, data_file=None)
+        cov.get_data().add_lines({str(path): {1}})
+        temporary_file = tempfile.TemporaryFile
+        spools = []
+
+        def track_spool(*args, **kwargs):
+            spool = temporary_file(*args, **kwargs)
+            spools.append(spool)
+            return spool
+
+        def fail_render(*args, **kwargs):
+            raise RuntimeError("render failed")
+
+        monkeypatch.setattr(lcov.tempfile, "TemporaryFile", track_spool)
+        monkeypatch.setattr(LcovReporter, "lcov_file", fail_render)
+
+        with pytest.raises(RuntimeError, match="render failed"):
+            lcov.report_lcov(cov, outfile=str(tmp_path / "report.lcov"))
+
+        assert len(spools) == 1
+        assert spools[0].closed
