@@ -336,6 +336,16 @@ def test_otel_span_attributes_sets_method(integration_config, method, normalized
     assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == original
 
 
+def test_otel_span_attributes_set_method_clears_stale_original_method(integration_config):
+    span = Span("request")
+
+    OTelHTTPSpanAttributes(span, integration_config).set_method("get")
+    OTelHTTPSpanAttributes(span, integration_config).set_method("GET")
+
+    assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
+    assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) is None
+
+
 def test_otel_span_attributes_dispatches_client_and_server_urls(integration_config):
     client_span = Span("request", span_type=SpanTypes.HTTP)
     server_span = Span("request", span_type=SpanTypes.WEB)
