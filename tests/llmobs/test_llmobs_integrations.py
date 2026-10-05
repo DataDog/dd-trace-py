@@ -2,7 +2,9 @@ from unittest import mock
 
 import pytest
 
+from ddtrace._trace.subscribers.llm import _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 
 
@@ -46,6 +48,27 @@ def test_integration_trace(mock_integration_config, test_spans):
     mock_set_base_span_tags.assert_called_once()
 
 
+@pytest.mark.parametrize("llmobs_enabled", [True, False])
+def test_integration_trace_sets_apm_shadow_enabled_metric(llmobs_enabled, mock_integration_config, test_spans):
+    with mock.patch("ddtrace.llmobs._integrations.base.is_enabled", return_value=llmobs_enabled):
+        integration = BaseLLMIntegration(mock_integration_config)
+        integration._set_base_span_tags = mock.Mock()
+        with integration.trace("dummy_operation_id", submit_to_llmobs=True):
+            pass
+    span = test_spans.pop()[0]
+    assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == (1 if llmobs_enabled else 0)
+
+
+def test_integration_trace_no_apm_shadow_enabled_metric_without_submit_to_llmobs(mock_integration_config, test_spans):
+    with mock.patch("ddtrace.llmobs._integrations.base.is_enabled", return_value=True):
+        integration = BaseLLMIntegration(mock_integration_config)
+        integration._set_base_span_tags = mock.Mock()
+        with integration.trace("dummy_operation_id"):
+            pass
+    span = test_spans.pop()[0]
+    assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) is None
+
+
 @mock.patch("ddtrace.llmobs._integrations.base.log")
 @mock.patch("ddtrace.llmobs._integrations.base.is_enabled", return_value=True)
 def test_llmobs_set_tags(mock_is_enabled, mock_log, tracer, mock_integration_config):
@@ -65,3 +88,8 @@ def test_llmobs_set_tags(mock_is_enabled, mock_log, tracer, mock_integration_con
     mock_log.error.assert_called_once_with(
         "Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True
     )
+
+
+def test_llm_subscriber_apm_shadow_enabled_key_matches_constant():
+    # The subscriber duplicates the key to avoid importing ddtrace.llmobs at module level.
+    assert _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY == LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
