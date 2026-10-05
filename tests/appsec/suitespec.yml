@@ -235,18 +235,20 @@ suites:
       - '@tracing'
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
+      - tests/cassettes/stripe/*
     retry: 2
+    snapshot: true
     matrix:
       command: 'pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ '
       variants:
         - name: appsec_integrations_stripe
-          dependencies: [stripe, vcrpy]
+          dependencies: [stripe]
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=11.0', vcrpy]
+          dependencies: ['stripe~=11.0']
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=12.0', vcrpy]
+          dependencies: ['stripe~=12.0']
         - name: appsec_integrations_stripe
-          dependencies: ['stripe~=13.0', vcrpy]
+          dependencies: ['stripe~=13.0']
   appsec_integrations_langchain:
     venvs_per_job: 11
     paths:
@@ -322,6 +324,8 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
+      - tests/appsec/integrations/conftest.py
+      - tests/appsec/integrations/utils_testagent.py
       - tests/appsec/app.py
       - tests/appsec/appsec_utils.py
       - tests/appsec/ports.py
@@ -356,6 +360,8 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
+      - tests/appsec/integrations/conftest.py
+      - tests/appsec/integrations/utils_testagent.py
       - tests/appsec/appsec_utils.py
       - tests/appsec/ports.py
     retry: 2
@@ -404,6 +410,8 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
+      - tests/appsec/integrations/conftest.py
+      - tests/appsec/integrations/utils_testagent.py
       - tests/appsec/appsec_utils.py
       - tests/appsec/ports.py
     retry: 2

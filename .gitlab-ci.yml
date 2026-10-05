@@ -21,7 +21,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "7826911341b566032de160372974ada85830df22"
+  SYSTEM_TESTS_REF: "8e69c91f546c10d3e468bef2a2f85ad81ead656b"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -30,9 +30,17 @@ variables:
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
   CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v130207166-153cbe2-ci-utils@sha256:816d1defebb9f049f3bc2e9987ce90d47f7a6c0316b7fc720c30f56376be63ed"
 
+  # Only trunk pipelines publish to the compiled-extension cache. Feature branches read it
+  # but never write, so a branch that touches native code cannot evict trunk's entries.
+  EXT_CACHE_POLICY: "pull"
+
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+
+  # Globally configure all Python installs to go through Depot, an in-network PyPI mirror.
+  PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
+  UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 
 default:
   interruptible: true
@@ -51,11 +59,14 @@ workflow:
     on_new_commit: interruptible
   rules:
     - if: !reference [.is_main]
+      variables:
+        EXT_CACHE_POLICY: "pull-push"
       auto_cancel:
         on_new_commit: none
     - if: !reference [.is_release_branch]
       variables:
         DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
+        EXT_CACHE_POLICY: "pull-push"
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -170,7 +181,6 @@ serverless lambda tests:
   stage: tests
   needs: []
   script:
-  script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
       scripts/lint sg-test
@@ -188,7 +198,7 @@ microbenchmarks:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
+            PYTHON_TAG: "cp312-cp312"
             IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
@@ -263,18 +273,19 @@ apm-sdks-benchmarks:
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      when: on_success
       allow_failure: true
     # Always run on tagged releases and release branches
     - if: !reference [.is_release_branch]
-      when: always
+      when: on_success
     - if: !reference [.is_release]
-      when: always
+      when: on_success
     - if: !reference [.is_main]
-      when: always
+      when: on_success
     # Flaky benchmark monitoring runs this branch unattended from a parent pipeline,
     # and pushes to it need the same automatic run while that setup is developed.
     - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring"
-      when: always
+      when: on_success
     # No $NIGHTLY_BUILD rule here: apm-sdks-benchmarks already runs its own nightly
     # schedule in that project's own CI, independent of dd-trace-py's pipeline.
     # Otherwise, run manually
@@ -360,6 +371,19 @@ check_ci_dependencies:
   extends: .testrunner
   script:
     - scripts/check-ci-dependencies
+
+# Fails when the docs' offline Python intersphinx inventory falls behind docs.python.org.
+# An unreachable docs.python.org passes; the next nightly run checks again.
+check_intersphinx_inventory:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  allow_failure: true
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - when: manual
+  script:
+    - python3 scripts/update-intersphinx-inventory.py --check
 
 codeowners:
   stage: tests
@@ -884,3 +908,5 @@ deploy_to_reliability_env:
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
   needs: null
+  # The gate only echoes; without this, stage ordering downloads every prior job's artifacts.
+  dependencies: []

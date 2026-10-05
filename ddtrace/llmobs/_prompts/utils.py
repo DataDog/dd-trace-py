@@ -1,14 +1,21 @@
 from collections.abc import Mapping
+from copy import deepcopy
 import json
 import re
 from typing import Any
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
 from ddtrace.llmobs.types import Message
 
 
-_VARIABLE_PATTERN = re.compile(r"\{\{?\s*(\w+)\s*\}\}?")
+# Match double braces first so {{name}} is consumed as one placeholder.
+# Keep surrounding braces intact, e.g. the object-closing brace in {"age": {age}}.
+_VARIABLE_PATTERN = re.compile(
+    r"\{\{\s*(\w+)\s*\}\}"  # Group 1: {{name}}
+    r"|\{\s*(\w+)\s*\}"  # Group 2: {name}
+)
 
 
 def extract_template(data: Mapping[str, Any], default: Union[str, list[Message]] = "") -> Union[str, list[Message]]:
@@ -16,15 +23,15 @@ def extract_template(data: Mapping[str, Any], default: Union[str, list[Message]]
     return data.get("template") or data.get("chat_template") or default
 
 
-def safe_substitute(template: str, variables: dict[str, str]) -> str:
+def safe_substitute(template: str, variables: Mapping[str, Any]) -> str:
     """
     Substitute {variable} or {{variable}} placeholders with values from variables dict.
 
-    Missing variables are left as-is (safe substitution).
+    Missing variables and braces surrounding a placeholder are left as-is.
     """
 
     def replace_var(match: re.Match) -> str:
-        var_name = match.group(1)
+        var_name = match.group(1) or match.group(2)
         return str(variables.get(var_name, match.group(0)))
 
     return _VARIABLE_PATTERN.sub(replace_var, template)
@@ -41,11 +48,67 @@ def cache_key(prompt_id: str, label: Optional[str]) -> str:
     return f"{prompt_id}:{label or ''}"
 
 
-def render_chat(messages: list[Message], variables: dict[str, str]) -> list[Message]:
-    """Render each message's content with safe substitution."""
+def _is_tool_item(value: object, field: str) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if field != "tool_calls":
+        return True
+    if value.get("id") is not None and not isinstance(value["id"], str):
+        return False
+    function = value.get("function")
+    if function is None:
+        return True
+    return isinstance(function, dict) and all(isinstance(function.get(key), str) for key in ("name", "arguments"))
+
+
+def _is_message(value: object) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("role"), str):
+        return False
+    if value.get("type") == "placeholder":
+        return False
+    if value.get("tool_call_id") is not None and not isinstance(value["tool_call_id"], str):
+        return False
+    has_tools = False
+    for field in ("tool_calls", "tool_results"):
+        items = value.get(field)
+        if items is None:
+            continue
+        if not isinstance(items, list) or not all(_is_tool_item(item, field) for item in items):
+            return False
+        has_tools = has_tools or bool(items)
+    content = value.get("content")
+    if content is not None:
+        return isinstance(content, str)
+    return has_tools
+
+
+def render_chat(messages: Sequence[Mapping[str, object]], variables: dict[str, Any]) -> list[Message]:
+    """Render authored messages and expand named runtime message lists."""
     rendered: list[Message] = []
     for msg in messages:
-        role = msg.get("role") or ""
-        content = msg.get("content") or ""
+        if msg.get("type") == "placeholder":
+            name = msg.get("name")
+            if not isinstance(name, str) or not name:
+                raise ValueError("Message placeholder must have a non-empty string name")
+            if name not in variables:
+                raise ValueError(f"Missing value for message placeholder '{name}'")
+            value = variables[name]
+            if not isinstance(value, list):
+                raise ValueError(f"Message placeholder '{name}' must be a list of messages")
+            for message in value:
+                if not _is_message(message):
+                    raise ValueError(
+                        f"Message placeholder '{name}' must contain messages with "
+                        "a string role and text or tool content"
+                    )
+                # Preserve provider payloads (including null content) without widening the public return annotation.
+                rendered.append(deepcopy(message))
+            continue
+        role = msg.get("role")
+        content = msg.get("content")
+        if not isinstance(role, str):
+            role = ""
+        if not isinstance(content, str):
+            content = ""
         rendered.append({"role": role, "content": safe_substitute(content, variables)})
     return rendered
