@@ -33,10 +33,10 @@ __ https://peps.python.org/pep-0790/
 | Phase    | What to land                     | Where answers live                       |
 +==========+==================================+==========================================+
 | **Alpha**| Native ABI / layout contracts;   | Catalog §1; layout contract tests;       |
-|          | gated CI compile                 | version registry entry                   |
+|          | gated CI compile                 | thin version registry entry              |
 +----------+----------------------------------+------------------------------------------+
-| **Beta** | Collectors + asyncio hook path;  | Catalog §2; wrap / alternate hook probe; |
-|          | import-degrade path              | ``scripts/run-profiling-tests``          |
+| **Beta** | Collectors + asyncio hook path;  | Catalog §2; wrap / alternate hook probe  |
+|          | import-degrade path              |                                          |
 +----------+----------------------------------+------------------------------------------+
 | **RC**   | Images → digests → language-     | Catalog §3; hermetic pin to **exact**    |
 |          | tools → optional then required   | prerelease tag                           |
@@ -46,23 +46,26 @@ __ https://peps.python.org/pep-0790/
 |          | reno; ADR                        | parity claim                             |
 +----------+----------------------------------+------------------------------------------+
 
-Optional local smoke
---------------------
+Thin version registry
+---------------------
 
-``scripts/verify_profiler_compatibility.py`` and
-``scripts/run-profiling-tests`` use
-``scripts/profiles/profiling_versions.json``. Keep ``default_python`` aligned
-with a minor that ``tests/profiling/suitespec.yml`` actually runs (today
-**3.15** for profile / profile-memalloc). Pass ``--python`` to target another
-installed interpreter.
+``scripts/profiles/profiling_versions.json`` documents ``default_python``
+(**3.15** today) and per-minor meta aligned with
+``tests/profiling/suitespec.yml`` (profile / profile-memalloc). It is not a
+verify runner.
+
+Local verify / ``run-profiling-tests`` / checklist scaffolding ship on the Q4
+tooling vehicle (`#19273`__), not this closeout.
+
+__ https://github.com/DataDog/dd-trace-py/pull/19273
 
 Follow-ups (not this page)
 --------------------------
 
 Full process depth, agentic / orchestrated migration, engraver/Quay/staging
-A/B playbooks, and ``cpython_delta`` inventory tooling are **out of scope**
-here. Track those as separate follow-ups (e.g. #19273 for fuller tooling,
-#20565 for ``cpython_delta``).
+A/B playbooks, verify tooling, and ``cpython_delta`` inventory are **out of
+scope** here. Track those as separate follow-ups (e.g. #19273 for verify +
+fuller tooling, #20565 for ``cpython_delta``).
 
 Links
 -----
@@ -70,9 +73,10 @@ Links
 * Catalog: ``docs/cpython-diffs/py315_pr_catalog.md``
 * Header analysis: ``docs/cpython-diffs/analysis_314_to_315.md``
 * Stack map: ``scripts/py315-stack/PROFILING_STACK.md``
-* Version registry: ``scripts/profiles/profiling_versions.json``
-* Compat baselines: ``scripts/profiles/compatibility_baselines.json``
+* Thin version registry: ``scripts/profiles/profiling_versions.json``
+* Verify tooling (Q4): `#19273`__
 * Parent tracker: `#17809`__ / `#17817`__
 
+__ https://github.com/DataDog/dd-trace-py/pull/19273
 __ https://github.com/DataDog/dd-trace-py/issues/17809
 __ https://github.com/DataDog/dd-trace-py/issues/17817

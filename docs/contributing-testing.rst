@@ -53,8 +53,8 @@ The ``scripts/run-tests`` script handles this automatically:
     $ scripts/run-tests tests/contrib/django/
     $ scripts/run-tests tests/contrib/flask/test_flask.py
 
-**Profiling on a new Python version** — ``scripts/run-profiling-tests`` and the
-bring-up pointers: :doc:`contributing-profiling-new-cpython`.
+**Profiling on a new Python version** — bring-up pointers:
+:doc:`contributing-profiling-new-cpython`.
 
 **Manual approach with ddtest**
 

@@ -4,26 +4,18 @@ globs:
   - ddtrace/internal/datadog/profiling/**
   - ddtrace/profiling/**
   - setup.py
-  - scripts/verify_profiler_compatibility.py
-  - scripts/run-profiling-tests
   - scripts/profiles/profiling_versions.json
-  - scripts/profiles/compatibility_baselines.json
 ---
 
 # Profiling — new CPython minor
 
 When editing profiling natives, collectors, or `setup.py` version gates:
 
-1. **Version registry** — any new `PY_VERSION_HEX` / MAJOR.MINOR guard should update
-   `scripts/profiles/profiling_versions.json` (and usually
-   `scripts/profiles/compatibility_baselines.json`). Optional scaffold:
-
-   ```bash
-   python scripts/verify_profiler_compatibility.py --scaffold X.Y
-   ```
-
-   Keep `default_python` aligned with a minor that
-   `tests/profiling/suitespec.yml` actually runs.
+1. **Thin version registry** — any new `PY_VERSION_HEX` / MAJOR.MINOR guard should
+   update `scripts/profiles/profiling_versions.json`. Keep `default_python`
+   aligned with a minor that `tests/profiling/suitespec.yml` actually runs.
+   Local verify / `run-profiling-tests` / checklist scaffolding are **not** in
+   this closeout — see #19273 (Q4 tooling).
 
 2. **Pointers** — start from
    `.claude/skills/migrate-profiling-new-cpython/SKILL.md` and

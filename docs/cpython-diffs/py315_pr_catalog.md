@@ -56,7 +56,7 @@
 
 **Automate for 3.16:**
 - Run `cpython_delta` inventory+diff on OLD..NEW; require layout contracts in test_frame_state_XXX.cpp
-- Scaffold version registry (`verify_profiler_compatibility.py --scaffold 3.X`)
+- Scaffold version registry via Q4 verify tooling (#19273; not this closeout)
 - Add allow_failure → required CI job template for new cp3XX
 - Bump pyo3 in libdatadog when limited-API / abi3 requires it
 
