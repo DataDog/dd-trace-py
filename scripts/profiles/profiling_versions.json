@@ -1,5 +1,5 @@
 {
-  "_comment": "Profiling CPython version registry (full). Consumed by scripts/verify_profiler_compatibility.py and scripts/run-profiling-tests. Scaffold a new minor with: python scripts/verify_profiler_compatibility.py --scaffold 3.16. Sample baselines live in compatibility_baselines.json. Q3 closeout #20814 keeps only a thin registry without checklist_template.",
+  "_comment": "Profiling CPython version registry (full). Consumed by scripts/verify_profiler_compatibility.py and scripts/run-profiling-tests. default_python 3.15 matches tests/profiling/suitespec.yml profile / profile-memalloc opt-in on this PR. Scaffold a new minor with: python scripts/verify_profiler_compatibility.py --scaffold 3.16. Sample baselines live in compatibility_baselines.json. Q3 closeout #20814 keeps only a thin registry (default_python 3.14) without checklist_template.",
   "default_python": "3.15",
   "versions": {
     "3.14": {
