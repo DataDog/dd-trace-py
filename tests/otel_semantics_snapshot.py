@@ -19,6 +19,7 @@ from pathlib import Path
 import time
 from typing import Any
 from typing import Iterable
+from typing import Optional
 from urllib import parse
 from urllib import request as urlrequest
 
@@ -88,11 +89,26 @@ def _span_count(requests: Iterable[dict[str, Any]]) -> int:
     )
 
 
-def fetch_otlp_requests(token: str, timeout: float = 30.0, settle: float = 1.0) -> list[dict[str, Any]]:
+def _trace_count(requests: Iterable[dict[str, Any]]) -> int:
+    return len(
+        {
+            span["trace_id"]
+            for request in requests
+            for resource_spans in request.get("resource_spans", [])
+            for scope_spans in resource_spans.get("scope_spans", [])
+            for span in scope_spans.get("spans", [])
+        }
+    )
+
+
+def fetch_otlp_requests(
+    token: str, timeout: float = 30.0, settle: float = 1.0, min_traces: Optional[int] = None
+) -> list[dict[str, Any]]:
     """Poll the agent until OTLP spans arrive and the span count stops changing.
 
     The application exports on flush or shutdown, so data can show up shortly after the request
-    that produced it returns.
+    that produced it returns. With min_traces, polling stops once that many traces have arrived,
+    matching wait_for_num_traces on the Datadog-protocol snapshot path.
     """
     query = parse.urlencode({"test_session_token": token})
     url = f"{otlp_base_url()}/test/session/traces?{query}"
@@ -103,6 +119,11 @@ def fetch_otlp_requests(token: str, timeout: float = 30.0, settle: float = 1.0) 
     while time.monotonic() < deadline:
         with urlrequest.urlopen(url, timeout=10) as response:
             requests = json.loads(response.read())
+        if min_traces is not None:
+            if _trace_count(requests) >= min_traces:
+                break
+            time.sleep(0.25)
+            continue
         count = _span_count(requests)
         now = time.monotonic()
         if count != last_count:
@@ -184,6 +205,12 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
         span["span_id"] = span_ids[span["span_id"]]
         if span.get("parent_span_id"):
             span["parent_span_id"] = span_ids[span["parent_span_id"]]
+        for event in span.get("events", []):
+            event["time_unix_nano"] = "<time_unix_nano>"
+        # Links can point at spans outside the payload, so unknown ids get placeholders as well.
+        for link in span.get("links", []):
+            link["trace_id"] = trace_ids.setdefault(link["trace_id"], f"trace_{len(trace_ids) + 1}")
+            link["span_id"] = span_ids.setdefault(link["span_id"], f"span_{len(span_ids) + 1}")
 
     for scope in scopes:
         scope["spans"].sort(key=lambda span: int(span["span_id"].split("_")[1]))
@@ -219,10 +246,15 @@ def assert_matches_snapshot(normalized: dict[str, Any], snapshot_file: Path) -> 
 
 
 def assert_otel_semantics_snapshot(
-    token: str, ignores: Iterable[str] = (), timeout: float = 30.0, snapshot_dir: Path = SNAPSHOT_DIR
+    token: str,
+    ignores: Iterable[str] = (),
+    timeout: float = 30.0,
+    snapshot_dir: Path = SNAPSHOT_DIR,
+    wait_for_num_traces: Optional[int] = None,
 ) -> None:
     """Fetch the OTLP traces exported under ``token`` and compare them with their snapshot file."""
-    requests = fetch_otlp_requests(token, timeout=timeout)
-    if _span_count(requests) <= 0:
+    requests = fetch_otlp_requests(token, timeout=timeout, min_traces=wait_for_num_traces)
+    # wait_for_num_traces=0 asserts that nothing was exported, as on the Datadog-protocol path.
+    if wait_for_num_traces != 0 and _span_count(requests) <= 0:
         raise AssertionError(f"no OTLP spans received by the test agent for session '{token}'")
     assert_matches_snapshot(normalize_otlp_requests(requests, ignores), snapshot_dir / f"{token}.json")

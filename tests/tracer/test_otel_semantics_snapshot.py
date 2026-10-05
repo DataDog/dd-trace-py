@@ -158,6 +158,33 @@ def test_normalize_drops_random_fields_by_default():
     assert all("trace_state" not in span for span in scope_spans["spans"])
 
 
+def test_normalize_replaces_event_timestamps():
+    span = _span("s", "dA==", "cw==", 1, 2)
+    span["events"] = [{"name": "exception", "time_unix_nano": "12345", "attributes": []}]
+
+    normalized = normalize_otlp_requests([_request([span])])
+
+    event = normalized["resource_spans"][0]["scope_spans"][0]["spans"][0]["events"][0]
+    assert event["time_unix_nano"] == "<time_unix_nano>"
+
+
+def test_normalize_rewrites_link_ids_with_the_span_mappings():
+    root = _span("root", "dA==", "cm9vdA==", 1, 3)
+    child = _span("child", "dA==", "Y2hpbGQ=", 2, 3, parent_span_id="cm9vdA==")
+    child["links"] = [
+        {"trace_id": "dA==", "span_id": "cm9vdA=="},
+        {"trace_id": "b3RoZXI=", "span_id": "ZXh0"},
+    ]
+
+    normalized = normalize_otlp_requests([_request([root, child])])
+
+    spans = normalized["resource_spans"][0]["scope_spans"][0]["spans"]
+    assert spans[1]["links"] == [
+        {"trace_id": "trace_1", "span_id": "span_1"},
+        {"trace_id": "trace_2", "span_id": "span_3"},
+    ]
+
+
 def test_normalize_rejects_invalid_time_range():
     requests = [_request([_span("bad", "dA==", "cw==", 10, 5)])]
 
@@ -197,7 +224,9 @@ def test_missing_snapshot_fails_in_ci(tmp_path, monkeypatch):
 def test_assert_otel_semantics_snapshot_writes_the_token_named_file(tmp_path, monkeypatch):
     monkeypatch.delenv("CI", raising=False)
     requests = _payload("dHJhY2U=", "cm9vdA==", "Y2hpbGQ=", 100, "1.0.0")
-    monkeypatch.setattr(otel_semantics_snapshot, "fetch_otlp_requests", lambda token, timeout: requests)
+    monkeypatch.setattr(
+        otel_semantics_snapshot, "fetch_otlp_requests", lambda token, timeout, min_traces=None: requests
+    )
 
     assert_otel_semantics_snapshot("my.token", snapshot_dir=tmp_path)
 
@@ -205,10 +234,34 @@ def test_assert_otel_semantics_snapshot_writes_the_token_named_file(tmp_path, mo
 
 
 def test_assert_otel_semantics_snapshot_fails_when_no_spans_were_received(tmp_path, monkeypatch):
-    monkeypatch.setattr(otel_semantics_snapshot, "fetch_otlp_requests", lambda token, timeout: [])
+    monkeypatch.setattr(otel_semantics_snapshot, "fetch_otlp_requests", lambda token, timeout, min_traces=None: [])
 
     with pytest.raises(AssertionError, match="no OTLP spans received"):
         assert_otel_semantics_snapshot("my.token", snapshot_dir=tmp_path)
+
+
+def test_assert_otel_semantics_snapshot_waits_for_the_requested_traces(tmp_path, monkeypatch):
+    monkeypatch.delenv("CI", raising=False)
+    calls = []
+
+    def fetch(token, timeout, min_traces=None):
+        calls.append(min_traces)
+        return _payload("dHJhY2U=", "cm9vdA==", "Y2hpbGQ=", 100, "1.0.0")
+
+    monkeypatch.setattr(otel_semantics_snapshot, "fetch_otlp_requests", fetch)
+
+    assert_otel_semantics_snapshot("my.token", snapshot_dir=tmp_path, wait_for_num_traces=2)
+
+    assert calls == [2]
+
+
+def test_assert_otel_semantics_snapshot_accepts_no_spans_when_zero_traces_are_expected(tmp_path, monkeypatch):
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(otel_semantics_snapshot, "fetch_otlp_requests", lambda token, timeout, min_traces=None: [])
+
+    assert_otel_semantics_snapshot("my.token", snapshot_dir=tmp_path, wait_for_num_traces=0)
+
+    assert (tmp_path / "my.token.json").exists()
 
 
 def test_otlp_base_url_resolution(monkeypatch):
