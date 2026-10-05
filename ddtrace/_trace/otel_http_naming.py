@@ -33,8 +33,9 @@ def set_otel_http_resource(
         return
 
     generated_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
-    if span.resource and span.resource != span.name and span.resource != generated_resource:
-        # A resource matching neither the span name nor our marker belongs to user code.
+    expected_resource = generated_resource if generated_resource is not None else span.name
+    if span.resource != expected_resource:
+        # Any replacement of the instrumentation resource belongs to user code.
         span._set_ctx_item(RESOURCE_SET_BY_USER, True)
         return
 
