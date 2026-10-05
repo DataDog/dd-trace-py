@@ -353,13 +353,22 @@ def test_otel_span_attributes_dispatches_client_and_server_urls(integration_conf
     assert server_span.get_tag(http.OTEL_URL_FULL) is None
 
 
-def test_otel_span_attributes_sets_query_without_url(integration_config):
+def test_otel_span_attributes_sets_query_without_url():
     span = Span("request", span_type=SpanTypes.WEB)
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
 
     with mock.patch.object(http_semantics, "_obfuscated_query", return_value="q=public"):
         OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
 
     assert span.get_tag(http.OTEL_URL_QUERY) == "q=public"
+
+
+def test_otel_span_attributes_query_without_url_respects_query_string_tagging(integration_config):
+    span = Span("request", span_type=SpanTypes.WEB)
+
+    OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
+
+    assert span.get_tag(http.OTEL_URL_QUERY) is None
 
 
 def test_otel_span_attributes_server_address_precedence(integration_config):
