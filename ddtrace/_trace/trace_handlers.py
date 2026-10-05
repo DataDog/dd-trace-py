@@ -634,7 +634,9 @@ def _on_request_span_modifier(
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `
     # RequestContext` and possibly a url rule
-    set_instrumentation_resource(span, " ".join((request.method, request.path)))
+    # OTel span names never use the raw path; set_http_meta names the span from the method instead.
+    if not config._otel_trace_semantics_enabled:
+        set_instrumentation_resource(span, " ".join((request.method, request.path)))
 
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
