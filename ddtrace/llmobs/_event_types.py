@@ -29,7 +29,7 @@ class LLMObsSpanData(TypedDict, total=False):
     trace_id: str
     ml_app: str
     session_id: str
-    tags: dict[str, str]
+    tags: dict[str, Union[str, list[str]]]
     metrics: dict[str, Any]
     span_links: list["_SpanLink"]
     config: "ExperimentConfigType"

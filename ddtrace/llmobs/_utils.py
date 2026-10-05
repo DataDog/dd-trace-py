@@ -652,8 +652,32 @@ def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
     return value
 
 
-def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
+TagValue = Union[str, list[str]]
+
+
+def get_llmobs_tags(span: Span) -> Optional[dict[str, TagValue]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
+
+
+# These keys identify the application, session, or deployment of a span, so the backend reads a
+# single value for each of them. A list given for one of them keeps only its last element.
+_SINGLE_VALUED_TAG_KEYS = frozenset({"ml_app", "agent_service", "session_id", "service", "env", "version"})
+
+
+def _normalize_tag_value(key: str, value: Any) -> TagValue:
+    """Coerce a user-supplied tag value to the stored form: a string, or a list of distinct strings."""
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return str(value)
+    values = list(dict.fromkeys(str(v) for v in value))
+    if key in _SINGLE_VALUED_TAG_KEYS:
+        if len(values) > 1:
+            log.warning("Tag %r accepts a single value; keeping only the last of %d values.", key, len(values))
+        return values[-1] if values else ""
+    return values
+
+
+def _tag_values(value: TagValue) -> list[str]:
+    return value if isinstance(value, list) else [value]
 
 
 def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
@@ -855,8 +879,9 @@ def _annotate_llmobs_span_data(
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
-            # Tag keys and values are both serialized as strings, so coerce non-string ones here.
-            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({str(k): str(v) for k, v in tags.items()})
+            llmobs_span_data[LLMOBS_STRUCT.TAGS].update(
+                {str(k): _normalize_tag_value(str(k), v) for k, v in tags.items()}
+            )
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = str(session_id)
