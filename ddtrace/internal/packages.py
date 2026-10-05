@@ -12,6 +12,7 @@ import threading
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.module import origin
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.utils.cache import callonce
@@ -20,11 +21,15 @@ from ddtrace.internal.utils.cache import callonce
 LOG = logging.getLogger(__name__)
 
 # The distribution scan is shared. It must not run on the thread of whichever
-# product asks first, and a result built before the user sitecustomize must not
-# stay cached after sys.path changes.
+# product asks first, and a result built for one sys.path must not be treated
+# as current after that path changes.
 _mapping_build_lock = threading.Lock()
 _mapping_build_thread: threading.Thread | None = None
 _mapping_built_for_path: tuple[str, ...] | None = None
+# Bumped when lookup caches are cleared. A cached call that overlaps that clear
+# must not keep the value it stored afterwards.
+_mapping_generation = 0
+_LOOKUP_NOT_READY = object()
 
 
 class Distribution(t.NamedTuple):
@@ -485,7 +490,7 @@ def is_stdlib(path: Path) -> bool:
 
 
 @cached(maxsize=256)
-def is_third_party(path: Path) -> bool:
+def _is_third_party_cached(path: Path) -> bool:
     package = filename_to_package(path)
     if package is None:
         return False
@@ -504,11 +509,21 @@ def _(path: Path) -> bool:
 
 
 # DEV: Creating Path objects on Python < 3.11 is expensive
-@is_user_code.register(str)
 @cached(maxsize=1024)
-def _(path: str) -> bool:
+def _is_user_code_str_cached(path: str) -> bool:
     _path = Path(path)
     return not (is_stdlib(_path) or is_third_party(_path))
+
+
+@is_user_code.register(str)
+def _(path: str) -> bool:
+    _path = Path(path)
+    if not _mapping_ready_for_current_path():
+        return not (is_stdlib(_path) or is_third_party(_path))
+    result = _cached_lookup(_is_user_code_str_cached, path)
+    if result is _LOOKUP_NOT_READY:
+        return not (is_stdlib(_path) or is_third_party(_path))
+    return bool(result)
 
 
 def _mapping_callonce_result() -> tuple[t.Any, BaseException | None] | None:
@@ -534,12 +549,38 @@ def _mapping_build_in_progress() -> bool:
 
 
 def _clear_package_lookup_caches() -> None:
+    global _mapping_generation
+    # Bump first so a lookup that stored a result after this clear can see
+    # that its answer overlapped the scan and drop it.
+    _mapping_generation += 1
     _filename_to_package_cached.cache_clear()
-    is_third_party.cache_clear()
-    registered = is_user_code.dispatch(str)
-    cache_clear = getattr(registered, "cache_clear", None)
-    if cache_clear is not None:
-        cache_clear()
+    _is_third_party_cached.cache_clear()
+    _is_user_code_str_cached.cache_clear()
+
+
+def _cached_lookup(cached_fn, arg):
+    generation = _mapping_generation
+    result = cached_fn(arg)
+    if generation != _mapping_generation:
+        cached_fn.cache_clear()
+        if not _mapping_ready_for_current_path():
+            return _LOOKUP_NOT_READY
+        return cached_fn(arg)
+    return result
+
+
+def is_third_party(path: Path) -> bool:
+    if not _mapping_ready_for_current_path():
+        # filename_to_package schedules a replacement scan when sys.path has
+        # moved on, and returns immediately if one is already running. A scan
+        # that has never been started runs here and the map may be ready after.
+        filename_to_package(path)
+        if not _mapping_ready_for_current_path():
+            return False
+    result = _cached_lookup(_is_third_party_cached, path)
+    if result is _LOOKUP_NOT_READY:
+        return False
+    return bool(result)
 
 
 def _drop_stale_mapping_result() -> None:
@@ -553,13 +594,23 @@ def _drop_stale_mapping_result() -> None:
 
 def _run_mapping_build() -> None:
     global _mapping_built_for_path, _mapping_build_thread
+    # distributions() sees the path at enumeration time. Record that path, not
+    # whatever sys.path is when the scan returns.
+    path_key = tuple(sys.path)
+    reschedule = False
     try:
         _package_for_root_module_mapping()
     finally:
         with _mapping_build_lock:
-            _mapping_built_for_path = tuple(sys.path)
             _mapping_build_thread = None
+            if tuple(sys.path) != path_key:
+                _drop_stale_mapping_result()
+                reschedule = True
+            else:
+                _mapping_built_for_path = path_key
         _clear_package_lookup_caches()
+    if reschedule:
+        schedule_package_mapping()
 
 
 def schedule_package_mapping() -> None:
@@ -567,7 +618,8 @@ def schedule_package_mapping() -> None:
 
     Every product that asks which distribution owns a file shares this scan.
     Doing it on the caller's thread stalls that product. ddtrace-run starts it
-    from post_preload, after the user sitecustomize can still change sys.path.
+    before products enable, and again from post_preload after the user
+    sitecustomize. A scan whose sys.path changed underneath it is discarded.
     A later sys.path change drops the cached map and scans again in the background.
     """
     global _mapping_build_thread
@@ -611,10 +663,30 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
         _run_mapping_build()
     if not _mapping_ready_for_current_path():
         return None
-    return _filename_to_package_cached(filename)
+    result = _cached_lookup(_filename_to_package_cached, filename)
+    if result is _LOOKUP_NOT_READY:
+        return None
+    return result
 
 
 filename_to_package.cache_clear = _filename_to_package_cached.cache_clear  # type: ignore[attr-defined]
+is_third_party.cache_clear = _is_third_party_cached.cache_clear  # type: ignore[attr-defined]
+
+
+def _after_fork_reschedule_package_mapping() -> None:
+    # The scanner thread does not survive fork. Drop the inherited Thread
+    # object. If the scan had not finished, start it again in this process
+    # instead of scanning on the next caller's thread.
+    global _mapping_build_thread
+    with _mapping_build_lock:
+        _mapping_build_thread = None
+        if _mapping_ready_for_current_path():
+            return
+        _drop_stale_mapping_result()
+    schedule_package_mapping()
+
+
+forksafe.register(_after_fork_reschedule_package_mapping)
 
 
 @cached(maxsize=256)

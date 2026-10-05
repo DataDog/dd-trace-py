@@ -1646,6 +1646,7 @@ def override_third_party_packages(packages: list[str]):
     _packages._mapping_built_for_path = None
     _filename_to_package_cached.cache_clear()
     is_third_party.cache_clear()
+    _packages._is_user_code_str_cached.cache_clear()
 
     try:
         yield
@@ -1663,6 +1664,7 @@ def override_third_party_packages(packages: list[str]):
         _packages._mapping_built_for_path = original_built_for_path
         _filename_to_package_cached.cache_clear()
         is_third_party.cache_clear()
+        _packages._is_user_code_str_cached.cache_clear()
 
 
 def process_tag_reload():
