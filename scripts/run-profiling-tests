@@ -75,7 +75,9 @@ find_python() {
     # Try pyenv first (resolves 3.15 → 3.15.0a7 etc.)
     if command -v pyenv &>/dev/null; then
         local pyenv_version
-        pyenv_version=$(pyenv versions --bare 2>/dev/null | grep "^${version}" | sort -V | tail -1)
+        # `|| true`: unmatched grep is status 1 under `set -euo pipefail`; keep
+        # falling through to direct binary candidates when pyenv lacks the version.
+        pyenv_version=$(pyenv versions --bare 2>/dev/null | grep "^${version}" | sort -V | tail -1 || true)
         if [[ -n "$pyenv_version" ]]; then
             echo "$HOME/.pyenv/versions/$pyenv_version/bin/python"
             return
