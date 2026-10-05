@@ -642,6 +642,7 @@ suites:
     env:
       # This job's services are heavier than average; pin resources and disable
       # the VPA to make sure it consistently gets enough CPU/memory to start.
+      DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES: '4'
       DD_DISABLE_VPA: 'true'
       KUBERNETES_CPU_REQUEST: '2'
       KUBERNETES_CPU_LIMIT: '2'
