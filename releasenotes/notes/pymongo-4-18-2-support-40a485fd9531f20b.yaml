@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    pymongo: Adds tracing support for PyMongo 4.18.2.
