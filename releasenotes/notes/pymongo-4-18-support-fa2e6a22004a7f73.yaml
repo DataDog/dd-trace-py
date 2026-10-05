@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    pymongo: Fixes an issue where the integration failed to patch PyMongo 4.18.0 and above, so no
+    MongoDB spans were generated.

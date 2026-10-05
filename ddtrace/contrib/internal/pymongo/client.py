@@ -40,7 +40,13 @@ from .utils import setup_checkout_span_tags
 VERSION = pymongo.version_tuple
 
 
-if VERSION >= (4, 9):
+if VERSION >= (4, 18):
+    from pymongo.synchronous.bulk import _Bulk
+    from pymongo.synchronous.client_bulk import _ClientBulk
+    from pymongo.synchronous.cursor_base import _CursorBase
+    from pymongo.synchronous.pool import Connection
+    from pymongo.synchronous.pool import Pool
+elif VERSION >= (4, 9):
     from pymongo.synchronous.pool import Connection
     from pymongo.synchronous.server import Server
 elif VERSION >= (4, 5):
@@ -63,6 +69,16 @@ class TracedMongoClient(ObjectProxy):
 
 def patch_pymongo_sync_modules():
     """Patch synchronous pymongo modules."""
+    _w(Connection.command, _trace_socket_command)
+    # pymongo 4.18 moved cursor operations, connection checkout and acknowledged batch writes
+    # off Server/Connection; wrap the methods that now own them.
+    if VERSION >= (4, 18):
+        _w(_CursorBase._run_with_conn, _trace_server_run_operation_and_with_response)
+        _w(Pool.checkout, _traced_pool_checkout)
+        _w(_Bulk.write_command, _trace_bulk_write_command)
+        _w(_ClientBulk.write_command, _trace_bulk_write_command)
+        return
+
     if VERSION >= (3, 12):
         _w(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
@@ -74,12 +90,19 @@ def patch_pymongo_sync_modules():
         _w(Server.checkout, traced_get_socket)
     else:
         _w(Server.get_socket, traced_get_socket)
-    _w(Connection.command, _trace_socket_command)
     _w(Connection.write_command, _trace_socket_write_command)
 
 
 def unpatch_pymongo_sync_modules():
     """Unpatch synchronous pymongo modules."""
+    _u(Connection.command, _trace_socket_command)
+    if VERSION >= (4, 18):
+        _u(_CursorBase._run_with_conn, _trace_server_run_operation_and_with_response)
+        _u(Pool.checkout, _traced_pool_checkout)
+        _u(_Bulk.write_command, _trace_bulk_write_command)
+        _u(_ClientBulk.write_command, _trace_bulk_write_command)
+        return
+
     if VERSION >= (3, 12):
         _u(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
@@ -91,7 +114,6 @@ def unpatch_pymongo_sync_modules():
         _u(Server.checkout, traced_get_socket)
     else:
         _u(Server.get_socket, traced_get_socket)
-    _u(Connection.command, _trace_socket_command)
     _u(Connection.write_command, _trace_socket_write_command)
 
 
@@ -202,6 +224,20 @@ def parse_socket_write_command_msg(args, kwargs):
     """
     socket_instance = get_argument_value(args, kwargs, 0, "self")
     msg = get_argument_value(args, kwargs, 2, "msg")
+    return _parse_write_command_msg(socket_instance, msg)
+
+
+def parse_bulk_write_command_msg(args, kwargs):
+    """Parse the message of a pymongo >= 4.18 _Bulk/_ClientBulk.write_command call.
+
+    Returns (connection, cmd), or None if tracing should be skipped.
+    """
+    bwc = get_argument_value(args, kwargs, 1, "bwc")
+    msg = get_argument_value(args, kwargs, 4, "msg")
+    return _parse_write_command_msg(bwc.conn, msg)
+
+
+def _parse_write_command_msg(socket_instance, msg):
     cmd = None
     try:
         cmd = parse_msg(msg)
@@ -216,7 +252,14 @@ def parse_socket_write_command_msg(args, kwargs):
 
 
 def _trace_socket_write_command(func, args, kwargs):
-    parsed = parse_socket_write_command_msg(args, kwargs)
+    return _trace_write_command(parse_socket_write_command_msg(args, kwargs), func, args, kwargs)
+
+
+def _trace_bulk_write_command(func, args, kwargs):
+    return _trace_write_command(parse_bulk_write_command_msg(args, kwargs), func, args, kwargs)
+
+
+def _trace_write_command(parsed, func, args, kwargs):
     if parsed is None:
         return func(*args, **kwargs)
 
@@ -265,3 +308,11 @@ def traced_get_socket(func, args, kwargs):
         with func(*args, **kwargs) as sock_info:
             setup_checkout_span_tags(span, sock_info, instance)
             yield sock_info
+
+
+def _traced_pool_checkout(func, args, kwargs):
+    # SDAM monitors check out connections without a handler; only client operations were traced
+    # before pymongo 4.18 (through Server.checkout), so leave monitor checkouts untraced.
+    if get_argument_value(args, kwargs, 1, "handler", optional=True) is None:
+        return func(*args, **kwargs)
+    return traced_get_socket(func, args, kwargs)
