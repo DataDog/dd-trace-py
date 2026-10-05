@@ -117,7 +117,7 @@ Key changes:
 ### 4. `_PyFrame_SafeGetCode()` and `_PyFrame_SafeGetLasti()` — `pycore_interpframe.h`
 
 Not new in 3.15. Both helpers exist on CPython 3.14 (`Include/internal/pycore_interpframe.h`;
-[gh-140815](https://github.com/python/cpython/issues/140815) / [GH-140921](https://github.com/python/cpython/issues/140981)
+[gh-140815](https://github.com/python/cpython/issues/140815) / [GH-140921](https://github.com/python/cpython/pull/140921)
 3.14 backport). CPython documents them as heuristic helpers for `dump_frame()` in
 `Python/traceback.c` (faulthandler): return NULL / `-1` if the frame looks invalid or
 freed; **not 100% reliable**.

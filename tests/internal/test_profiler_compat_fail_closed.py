@@ -263,3 +263,40 @@ def test_compare_enforces_min_wall_when_baseline_omits_sample_count(verify_mod: 
     }
     failures: list[str] = verify_mod._compare_with_baseline(results, baseline)
     assert any("wall_time_samples dropped" in f for f in failures)
+
+
+def test_min_wall_samples_for_key_reads_registry(
+    verify_mod: Any,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry_path: pathlib.Path = tmp_path / "profiling_versions.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "default_python": "3.15",
+                "versions": {
+                    "3.14": {"min_wall_time_samples": 5},
+                    "3.15": {"min_wall_time_samples": 2},
+                },
+            }
+        )
+        + "\n"
+    )
+    monkeypatch.setattr(verify_mod, "_VERSION_REGISTRY_FILE", registry_path)
+    assert verify_mod._min_wall_samples_for_key("3.14") == 5
+    assert verify_mod._min_wall_samples_for_key("3.15") == 2
+    assert verify_mod._min_wall_samples_for_key("3.16") == verify_mod._MIN_WALL_TIME_SAMPLES
+
+
+def test_suite_profiler_samples_resolves_registry_min_wall() -> None:
+    """Subprocess suite must resolve per-version min_wall_time_samples (not only global 2)."""
+    text: str = _VERIFY_SCRIPT.read_text()
+    assert "min_wall_time_samples: int = _min_wall_samples_for_key(running_key)" in text
+    assert 'if result["wall_time_samples"] < min_wall_time_samples:' in text
+    assert 'if result["wall_time_samples"] < _MIN_WALL_TIME_SAMPLES:' not in text
+
+
+def test_find_python_pyenv_miss_is_nonfatal() -> None:
+    text: str = _RUN_PROFILING_TESTS.read_text()
+    assert 'grep "^${version}" | sort -V | tail -1 || true' in text

@@ -117,7 +117,8 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
 
     Checks:
       - ddup and stack C++ extensions are available
-      - The profiler collects at least _MIN_WALL_TIME_SAMPLES wall-time samples
+      - The profiler collects at least the version registry's min_wall_time_samples
+        (falling back to _MIN_WALL_TIME_SAMPLES)
       - asyncio task names appear in the profiler output
     """
     # Ensure the asyncio watchdog is registered before asyncio is imported /
@@ -134,6 +135,9 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
         return {"passed": False, "skipped": True, "reason": f"ddup unavailable: {ddup.failure_msg}"}
     if not _stack_ext.is_available:
         return {"passed": False, "skipped": True, "reason": f"stack unavailable: {_stack_ext.failure_msg}"}
+
+    running_key: str = f"{sys.version_info.major}.{sys.version_info.minor}"
+    min_wall_time_samples: int = _min_wall_samples_for_key(running_key)
 
     pprof_prefix: str = os.path.join(tmpdir, "compat")
     output_filename: str = pprof_prefix + "." + str(os.getpid())
@@ -195,9 +199,9 @@ def _suite_profiler_samples(tmpdir: str) -> dict[str, Any]:
         result["asyncio_task_names_seen"] = sorted(names_seen)
 
         expected: set[str] = set(_ASYNCIO_TASK_NAMES)
-        if result["wall_time_samples"] < _MIN_WALL_TIME_SAMPLES:
+        if result["wall_time_samples"] < min_wall_time_samples:
             result["error"] = (
-                f"Too few wall-time samples: {result['wall_time_samples']} < {_MIN_WALL_TIME_SAMPLES}. "
+                f"Too few wall-time samples: {result['wall_time_samples']} < {min_wall_time_samples}. "
                 "The profiler may not have started correctly."
             )
         elif result["asyncio_task_samples"] == 0:
