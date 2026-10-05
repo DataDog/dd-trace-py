@@ -32,8 +32,8 @@ __ https://peps.python.org/pep-0790/
 +----------+----------------------------------+------------------------------------------+
 | Phase    | What to land                     | Where answers live                       |
 +==========+==================================+==========================================+
-| **Alpha**| Native ABI / layout contracts;   | Catalog §1; layout contract tests;       |
-|          | gated CI compile                 | thin version registry entry              |
+| **Alpha**| Native ABI / layout contracts;   | Catalog §1; layout contract tests        |
+|          | gated CI compile                 |                                          |
 +----------+----------------------------------+------------------------------------------+
 | **Beta** | Collectors + asyncio hook path;  | Catalog §2; wrap / alternate hook probe  |
 |          | import-degrade path              |                                          |
@@ -46,27 +46,19 @@ __ https://peps.python.org/pep-0790/
 |          | reno; ADR                        | parity claim                             |
 +----------+----------------------------------+------------------------------------------+
 
-Thin version registry
----------------------
+Out of scope here
+-----------------
 
-``scripts/profiles/profiling_versions.json`` documents ``default_python``
-(**3.14** today — the suitespec DEFAULT) and per-minor meta for completed
-bring-up entries (including 3.15). It is not a verify runner and does not
-claim a suitespec-backed 3.15 matrix default.
-
-Suitespec 3.15 opt-in (profile / profile-memalloc), local verify,
+Version registry (``scripts/profiles/profiling_versions.json``), suitespec
+3.15 opt-in (profile / profile-memalloc), local verify,
 ``run-profiling-tests``, and checklist scaffolding ship on the Q4 tooling
 vehicle (`#19273`__), not this closeout.
 
-__ https://github.com/DataDog/dd-trace-py/pull/19273
-
-Follow-ups (not this page)
---------------------------
-
 Full process depth, agentic / orchestrated migration, engraver/Quay/staging
-A/B playbooks, verify tooling, and ``cpython_delta`` inventory are **out of
-scope** here. Track those as separate follow-ups (e.g. #19273 for verify +
-fuller tooling, #20565 for ``cpython_delta``).
+A/B playbooks, and ``cpython_delta`` inventory are also follow-ups (e.g.
+#19273 for verify + suitespec, #20565 for ``cpython_delta``).
+
+__ https://github.com/DataDog/dd-trace-py/pull/19273
 
 Links
 -----
@@ -74,8 +66,7 @@ Links
 * Catalog: ``docs/cpython-diffs/py315_pr_catalog.md``
 * Header analysis: ``docs/cpython-diffs/analysis_314_to_315.md``
 * Stack map: ``scripts/py315-stack/PROFILING_STACK.md``
-* Thin version registry: ``scripts/profiles/profiling_versions.json``
-* Verify tooling (Q4): `#19273`__
+* Verify + registry + suitespec (Q4): `#19273`__
 * Parent tracker: `#17809`__ / `#17817`__
 
 __ https://github.com/DataDog/dd-trace-py/pull/19273

@@ -1,27 +1,24 @@
 ---
-description: Profiling new-CPython bring-up guardrails (registry, catalog, hard stops)
+description: Profiling new-CPython bring-up guardrails (catalog, hard stops)
 globs:
   - ddtrace/internal/datadog/profiling/**
   - ddtrace/profiling/**
   - setup.py
-  - scripts/profiles/profiling_versions.json
 ---
 
 # Profiling — new CPython minor
 
 When editing profiling natives, collectors, or `setup.py` version gates:
 
-1. **Thin version registry** — any new `PY_VERSION_HEX` / MAJOR.MINOR guard should
-   update `scripts/profiles/profiling_versions.json`. Keep `default_python` on
-   the suitespec DEFAULT until #19273 opts the profiling matrix into the new
-   minor. Local verify / `run-profiling-tests` / suitespec 3.15 opt-in /
-   checklist scaffolding are **not** in this closeout — see #19273 (Q4 tooling).
-
-2. **Pointers** — start from
+1. **Pointers** — start from
    `.claude/skills/migrate-profiling-new-cpython/SKILL.md` and
    `docs/contributing-profiling-new-cpython.rst`. Do not invent a parallel
    checklist. ABI/hook answers live in `docs/cpython-diffs/py3XX_pr_catalog.md`
    and live PR states in `scripts/py3XX-stack/PROFILING_STACK.md`.
+
+2. **Registry / verify / suitespec** — `scripts/profiles/profiling_versions.json`,
+   local verify, `run-profiling-tests`, and suitespec matrix opt-in live on
+   #19273 (Q4 tooling), not this docs closeout.
 
 3. **Hard stops** — never enable SSI/OCI before final; never claim memory parity
    without an A/B; never skip staging auth preflight; never mix prerelease ABIs.

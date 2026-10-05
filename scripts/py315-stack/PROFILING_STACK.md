@@ -4,10 +4,10 @@
 **Do not treat tip SHAs in older revisions of this file as current.**
 
 Runtime is already on `main` via the merged PRs below. Docs closeout is the
-thin Q3 PR (catalog + stack map + pointers + thin registry). Suitespec 3.15
-opt-in + verify tooling (`verify_profiler_compatibility.py`,
-`run-profiling-tests`, baselines, full registry checklist) live on #19273
-(Q4). #19272 is **not** the wrap lift (#19910 is on `main`).
+thin Q3 PR (catalog + stack map + pointers). Suitespec 3.15 opt-in, version
+registry, and verify tooling (`verify_profiler_compatibility.py`,
+`run-profiling-tests`, baselines) live on #19273 (Q4). #19272 is **not** the
+wrap lift (#19910 is on `main`).
 
 ## Current status (2026-10-05)
 
@@ -32,8 +32,8 @@ opt-in + verify tooling (`verify_profiler_compatibility.py`,
 | Observable in product/Python | sys.monitoring asyncio path; `wrap()` stays below 3.15 | #19272 |
 | Test gating | prof-correctness on profiling PRs | #19207 |
 | Wheels / packaging | optional → required cp315; Cython pin | #19861 → #20450 |
-| Docs (Q3) | Catalog, stack map, thin pointers + registry | #20814 |
-| Verify / suitespec (Q4) | `verify_*` / suitespec 3.15 + locks / full registry + baselines | #19273 |
+| Docs (Q3) | Catalog, stack map, thin pointers | #20814 |
+| Verify / suitespec (Q4) | `verify_*` / suitespec 3.15 + locks / registry + baselines | #19273 |
 | ADR | Readiness write-up | #20478 (closed) |
 
 Short bring-up pointers: `docs/contributing-profiling-new-cpython.rst`.
