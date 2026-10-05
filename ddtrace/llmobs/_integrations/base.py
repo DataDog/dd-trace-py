@@ -33,6 +33,7 @@ from ddtrace.llmobs._integration_api import annotate
 from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import get_tracked_prompt
 from ddtrace.llmobs._utils import set_gen_ai_apm_tags
 from ddtrace.trace import Span
@@ -98,6 +99,16 @@ class BaseLLMIntegration:
         if span_type == SpanTypes.LLM:
             self._stamp_llmobs_span_kind_at_start(span, operation_id, **kwargs)
         return span
+
+    def _set_llmobs_parent(self, span: Span, parent: Any) -> None:
+        """Inherit explicit LLMObs identity without changing the APM parent."""
+        # APM request spans are not exported as LLMObs parents.
+        while isinstance(parent, Span):
+            trace_id = get_llmobs_trace_id(parent)
+            if trace_id:
+                _annotate_llmobs_span_data(span, parent_id=str(parent.span_id), trace_id=trace_id)
+                return
+            parent = parent._parent
 
     def _stamp_llmobs_span_kind_at_start(self, span: Span, operation_id: str = "", **kwargs: Any) -> None:
         """Stamp span kind (and agent name when available) into the span's LLMObs meta_struct at creation.
