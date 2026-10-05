@@ -15,6 +15,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.settings._config import config
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -152,6 +153,27 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(captured["resource"], "HTTP /items/<int:item_id>")
         self.assertEqual(self.get_spans()[0].resource, "HTTP /items/<int:item_id>")
+
+    def test_otel_semantics_does_not_expose_raw_path_resource_during_request(self):
+        @self.app.route("/users/<int:user_id>")
+        def user(user_id):
+            return str(user_id)
+
+        captured = []
+
+        def record_resource(ctx, *args):
+            captured.append(ctx.get_item("req_span").resource)
+
+        # Registered after the integration's listener, so it sees the resource that listener left.
+        core.on("flask.request_call_modifier", record_resource)
+        try:
+            with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+                response = self.client.get("/users/42")
+        finally:
+            core.reset_listeners("flask.request_call_modifier", record_resource)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured, ["flask.request"])
 
     def test_route_params_request(self):
         """
