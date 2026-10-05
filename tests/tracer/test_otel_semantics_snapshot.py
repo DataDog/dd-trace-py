@@ -202,6 +202,18 @@ def test_normalize_ignores_start_order_of_concurrent_traces_and_siblings():
     assert normalize_otlp_requests(payload(2, 3)) == normalize_otlp_requests(payload(3, 2))
 
 
+def test_normalize_orders_identical_traces_by_resource_regardless_of_delivery_order():
+    def request(service, trace_id, span_id):
+        return _request(
+            [_span("s", trace_id, span_id, 1, 2)], resource_attributes=[_attribute("service.name", service)]
+        )
+
+    first = [request("svc-a", "dEE=", "YQ=="), request("svc-b", "dEI=", "Yg==")]
+    second = [request("svc-b", "dEI=", "Yg=="), request("svc-a", "dEE=", "YQ==")]
+
+    assert normalize_otlp_requests(first) == normalize_otlp_requests(second)
+
+
 def test_normalize_rejects_invalid_time_range():
     requests = [_request([_span("bad", "dA==", "cw==", 10, 5)])]
 
@@ -267,9 +279,22 @@ def test_assert_otel_semantics_snapshot_waits_for_the_requested_traces(tmp_path,
 
     monkeypatch.setattr(otel_semantics_snapshot, "fetch_otlp_requests", fetch)
 
-    assert_otel_semantics_snapshot("my.token", snapshot_dir=tmp_path, wait_for_num_traces=2)
+    assert_otel_semantics_snapshot("my.token", snapshot_dir=tmp_path, wait_for_num_traces=1)
 
-    assert calls == [2]
+    assert calls == [1]
+
+
+def test_assert_otel_semantics_snapshot_fails_when_fewer_traces_arrive_than_requested(tmp_path, monkeypatch):
+    monkeypatch.delenv("CI", raising=False)
+    requests = _payload("dHJhY2U=", "cm9vdA==", "Y2hpbGQ=", 100, "1.0.0")
+    monkeypatch.setattr(
+        otel_semantics_snapshot, "fetch_otlp_requests", lambda token, timeout, min_traces=None: requests
+    )
+
+    with pytest.raises(AssertionError, match="expected 2 OTLP trace"):
+        assert_otel_semantics_snapshot("my.token", snapshot_dir=tmp_path, wait_for_num_traces=2)
+
+    assert not (tmp_path / "my.token.json").exists()
 
 
 def test_assert_otel_semantics_snapshot_accepts_no_spans_when_zero_traces_are_expected(tmp_path, monkeypatch):

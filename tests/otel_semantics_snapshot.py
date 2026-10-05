@@ -194,10 +194,23 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
     resource_spans = json.loads(json.dumps([rs for request in requests for rs in request.get("resource_spans", [])]))
     scopes = [ss for rs in resource_spans for ss in rs.get("scope_spans", [])]
     spans = [span for scope in scopes for span in scope.get("spans", [])]
+    # Identical span trees can come from different resources or scopes; their content breaks the tie.
+    owners: dict[int, str] = {}
+    for rs in resource_spans:
+        resource = _clean(rs.get("resource", {}), ignored_attributes, ignored_fields)
+        for scope in rs.get("scope_spans", []):
+            owner = json.dumps(
+                [resource, _clean(scope.get("scope", {}), ignored_attributes, ignored_fields)], sort_keys=True
+            )
+            for span in scope.get("spans", []):
+                owners[id(span)] = owner
 
     # Placeholders follow span content and parent links, never start times, so spans that run
     # concurrently get the same placeholders on every run.
-    content_keys = {id(span): _content_key(span, ignored_attributes, ignored_fields) for span in spans}
+    content_keys = {
+        id(span): json.dumps([owners[id(span)], _content_key(span, ignored_attributes, ignored_fields)])
+        for span in spans
+    }
     by_span_id = {span["span_id"]: span for span in spans}
     children: dict[str, list[dict[str, Any]]] = {}
     roots_by_trace: dict[str, list[dict[str, Any]]] = {}
@@ -298,6 +311,12 @@ def assert_otel_semantics_snapshot(
 ) -> None:
     """Fetch the OTLP traces exported under ``token`` and compare them with their snapshot file."""
     requests = fetch_otlp_requests(token, timeout=timeout, min_traces=wait_for_num_traces)
+    # Fewer traces than requested fails, as on the Datadog-protocol path, instead of snapshotting a
+    # partial export.
+    if wait_for_num_traces and _trace_count(requests) < wait_for_num_traces:
+        raise AssertionError(
+            f"expected {wait_for_num_traces} OTLP trace(s) for session '{token}', got {_trace_count(requests)}"
+        )
     # wait_for_num_traces=0 asserts that nothing was exported, as on the Datadog-protocol path.
     if wait_for_num_traces != 0 and _span_count(requests) <= 0:
         raise AssertionError(f"no OTLP spans received by the test agent for session '{token}'")
