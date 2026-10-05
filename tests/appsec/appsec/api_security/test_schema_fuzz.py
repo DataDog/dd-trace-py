@@ -1,9 +1,12 @@
+import builtins
+
 from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
 import ddtrace.appsec._constants as constants
 from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 
 
 def build_schema(obj):
@@ -67,6 +70,16 @@ def equal_value(t1, t2):
 )
 def test_small_schemas(obj, res):
     assert equal_with_meta(build_schema(obj), res)
+
+
+@pytest.mark.skipif(not hasattr(builtins, "frozendict"), reason="frozendict requires Python 3.15")
+def test_frozendict_body_preserves_waf_values_and_schema():
+    frozen = getattr(builtins, "frozendict")
+    body = frozen({"user": frozen({"name": "alice"}), "items": [frozen({"quantity": 2})]})
+    expected = {"user": {"name": "alice"}, "items": [{"quantity": 2}]}
+
+    assert ddwaf_object(body).struct == expected
+    assert equal_with_meta(build_schema(body), build_schema(expected))
 
 
 def deep_build(n, mini=0):

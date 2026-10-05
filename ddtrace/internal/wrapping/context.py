@@ -123,9 +123,8 @@ StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
 _STORAGE_OWNER = "__dd_wrapping_context_owner__"
-# Set in per-call storage when a raise originates from context machinery itself
-# (__return__, or on 3.15+ on_py_start) rather than from the wrapped function
-# body, so the resulting exception does not also trigger __exit__. Consumed by
+# Set in per-call storage when __return__ raises rather than the wrapped
+# function body, so the resulting exception does not also trigger __exit__. Consumed by
 # _UniversalWrappingContext._exit (bytecode path, >=3.11) and on_py_unwind
 # (sys.monitoring path, >=3.15).
 _SKIP_EXIT_KEY = "__dd_wrapping_context_skip_exit__"
@@ -876,19 +875,13 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         # ddtrace registers for these events on a given code object.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
-        # PY_RETURN; _SKIP_EXIT_KEY suppresses the resulting __exit__ call so
-        # it only fires for a real exception from the wrapped function body.
+        # PY_RETURN. A failing __return__ suppresses the resulting __exit__;
+        # a failing __enter__ still exits any contexts that entered before it.
         # It lives in per-call storage (a ContextVar), not a plain attribute,
         # because this same instance is shared across concurrent calls.
 
         def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
-            try:
-                self.__enter__()
-            except BaseException:
-                storage = self._storage.get()
-                if storage is not None:
-                    storage[_SKIP_EXIT_KEY] = True
-                raise
+            self.__enter__()
 
         def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
             self.__return__(retval)

@@ -2,6 +2,7 @@ import builtins
 import contextlib
 import copy
 import pathlib
+import sys
 import types
 from unittest import mock
 
@@ -29,6 +30,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
 from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
@@ -40,7 +42,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) == types.BuiltinFunctionType
+    assert type(open) is types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -53,7 +55,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == FunctionWrapper
+        assert type(open) is FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -248,7 +250,6 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     import http.client
 
     from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
-    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 
     httplib_unpatch()
     try:
@@ -274,6 +275,97 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     finally:
         httplib_unpatch()
         unpatch_common_modules()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Injected exception handlers require Python 3.11")
+def test_failed_reentrant_enter_exits_previous_contexts_and_restores_storage():
+    exited = []
+
+    class _Entered(WrappingContext):
+        __priority__ = -1
+
+        def __exit__(self, *exc):
+            exited.append(self.get("value"))
+            super().__exit__(*exc)
+
+        def __enter__(self):
+            super().__enter__()
+            self.set("value", self.get_local("value"))
+            return self
+
+    class _Raiser(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            if self.get_local("value") == "inner":
+                raise BlockingException("blocked")
+            return self
+
+    def target(value):
+        outer_storage = [context._storage.get() for context in (entered, raiser, universal)]
+        with pytest.raises(BlockingException):
+            target("inner")
+        for context, storage in zip((entered, raiser, universal), outer_storage):
+            assert context._storage.get() is storage
+        assert entered.get("value") == "outer"
+        return value
+
+    entered = _Entered(target)
+    raiser = _Raiser(target)
+    entered.wrap()
+    raiser.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        assert target("outer") == "outer"
+        assert exited == ["inner"]
+        assert all(context._storage.get() is None for context in (entered, raiser, universal))
+    finally:
+        raiser.unwrap()
+        entered.unwrap()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="lazy imports require Python 3.15")
+@pytest.mark.parametrize("patch_before_import", [True, False])
+def test_lazily_imported_urlopen_blocks_before_connecting(run_python_code_in_subprocess, patch_before_import):
+    # A fresh interpreter ensures the target module has not already been imported by other tests.
+    code = f"""
+import sys
+from unittest import mock
+
+import ddtrace.appsec._common_module_patches as cmp
+from ddtrace.appsec._constants import WAF_ACTIONS
+from ddtrace.appsec._utils import DDWaf_result, _observator
+from ddtrace.internal._exceptions import BlockingException
+
+assert "urllib.request" not in sys.modules
+if {patch_before_import!r}:
+    cmp.patch_common_modules()
+
+lazy import urllib.request as client
+assert "urllib.request" not in sys.modules
+if not {patch_before_import!r}:
+    cmp.patch_common_modules()
+assert "urllib.request" not in sys.modules
+
+result = DDWaf_result(1, [], {{WAF_ACTIONS.BLOCK_ACTION: {{}}}}, 0.0, 0.0, False, _observator(), {{}})
+with (
+    mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+    mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+    mock.patch.object(cmp, "call_waf_callback", return_value=result) as call_waf,
+    mock.patch.object(cmp, "get_blocked", return_value={{"status_code": 403}}),
+    mock.patch("socket.create_connection", side_effect=AssertionError("connection attempted")) as connect,
+):
+    try:
+        client.urlopen("http://127.0.0.1:1/", timeout=1)
+    except BlockingException as exc:
+        assert exc.args[3] == "http://127.0.0.1:1/"
+    else:
+        raise AssertionError("RASP did not block the request")
+    call_waf.assert_called_once()
+    connect.assert_not_called()
+cmp.unpatch_common_modules()
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code, timeout=20)
+    assert status == 0, err.decode()
 
 
 def test_a_concurrent_request_does_not_consume_the_pending_block():
@@ -704,7 +796,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == FunctionWrapper
+        assert type(original_func) is FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")
