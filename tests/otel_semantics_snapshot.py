@@ -163,11 +163,27 @@ def _clean(node: Any, ignored_attributes: frozenset[str], ignored_fields: frozen
     return cleaned
 
 
+_ID_AND_TIME_FIELDS = frozenset({"trace_id", "span_id", "parent_span_id", "start_time_unix_nano", "end_time_unix_nano"})
+
+
+def _content_key(span: dict[str, Any], ignored_attributes: frozenset[str], ignored_fields: frozenset[str]) -> str:
+    content = {key: value for key, value in span.items() if key not in _ID_AND_TIME_FIELDS}
+    content["events"] = [
+        {key: value for key, value in event.items() if key != "time_unix_nano"} for event in span.get("events", [])
+    ]
+    content["links"] = [
+        {key: value for key, value in link.items() if key not in ("trace_id", "span_id")}
+        for link in span.get("links", [])
+    ]
+    return json.dumps(_clean(content, ignored_attributes, ignored_fields), sort_keys=True)
+
+
 def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterable[str] = ()) -> dict[str, Any]:
     """Make OTLP payloads from different runs comparable.
 
-    Ids become ordinal placeholders (parent/child links are preserved), timestamps are validated and
-    replaced, attribute lists are sorted, and ignored attributes and fields are dropped.
+    Ids become ordinal placeholders assigned from span content and parent/child links (not start
+    times), timestamps are validated and replaced, attribute lists are sorted, and ignored attributes
+    and fields are dropped.
     """
     ignored_attributes = DEFAULT_IGNORED_ATTRIBUTES | _ignored_names(ignores)
     # Test ignores name attributes only, so an ignore that shares a name with an OTLP field
@@ -177,20 +193,48 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
     # Work on a copy so the caller's payload is left untouched.
     resource_spans = json.loads(json.dumps([rs for request in requests for rs in request.get("resource_spans", [])]))
     scopes = [ss for rs in resource_spans for ss in rs.get("scope_spans", [])]
-    spans = sorted(
-        (span for scope in scopes for span in scope.get("spans", [])),
-        key=lambda span: (int(span["start_time_unix_nano"]), span["name"]),
-    )
+    spans = [span for scope in scopes for span in scope.get("spans", [])]
+
+    # Placeholders follow span content and parent links, never start times, so spans that run
+    # concurrently get the same placeholders on every run.
+    content_keys = {id(span): _content_key(span, ignored_attributes, ignored_fields) for span in spans}
+    by_span_id = {span["span_id"]: span for span in spans}
+    children: dict[str, list[dict[str, Any]]] = {}
+    roots_by_trace: dict[str, list[dict[str, Any]]] = {}
+    for span in spans:
+        parent = span.get("parent_span_id")
+        if parent and parent in by_span_id:
+            children.setdefault(parent, []).append(span)
+        else:
+            roots_by_trace.setdefault(span["trace_id"], []).append(span)
+
+    subtree_keys: dict[int, str] = {}
+
+    def subtree_key(span: dict[str, Any]) -> str:
+        key = subtree_keys.get(id(span))
+        if key is None:
+            child_keys = sorted(subtree_key(child) for child in children.get(span["span_id"], []))
+            key = subtree_keys[id(span)] = json.dumps([content_keys[id(span)], child_keys])
+        return key
 
     trace_ids: dict[str, str] = {}
     span_ids: dict[str, str] = {}
-    for span in spans:
+
+    def assign(span: dict[str, Any]) -> None:
         trace_ids.setdefault(span["trace_id"], f"trace_{len(trace_ids) + 1}")
         span_ids.setdefault(span["span_id"], f"span_{len(span_ids) + 1}")
-    for span in spans:
+        for child in sorted(children.get(span["span_id"], []), key=subtree_key):
+            assign(child)
+
+    for _, roots in sorted(roots_by_trace.items(), key=lambda item: sorted(subtree_key(root) for root in item[1])):
+        for root in sorted(roots, key=subtree_key):
+            assign(root)
+    ordered_spans = sorted(spans, key=lambda span: int(span_ids[span["span_id"]].split("_")[1]))
+    for span in ordered_spans:
         parent = span.get("parent_span_id")
         if parent:
             span_ids.setdefault(parent, f"span_{len(span_ids) + 1}")
+    spans = ordered_spans
 
     for span in spans:
         start = int(span["start_time_unix_nano"])
