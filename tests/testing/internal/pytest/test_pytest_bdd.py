@@ -125,7 +125,7 @@ class TestPytestBdd:
         monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "true")
         py_file = pytester.makepyfile("def test_simple(): pass")
 
-        result, capture = _run_bdd_subprocess(pytester, py_file.name)
+        result, capture = _run_bdd_subprocess(pytester, os.path.basename(str(py_file)))
 
         result.assert_outcomes(passed=1)
         assert [event["status"] for event in capture["events"] if event["type"] == "test"] == ["pass"]
