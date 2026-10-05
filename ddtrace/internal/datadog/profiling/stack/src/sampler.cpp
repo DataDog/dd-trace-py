@@ -435,8 +435,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto interval_adjust_time_prev = sample_time_prev;
 
     // Warm up on syscall copy; upgrade only if we still own both handlers (PROF-15342).
-    // Key off fast_copy_handler_ops_enabled() (desired && !foreign_takeover), not
-    // fast_copy_active: warmup clears active while handlers stay installed.
     // Fork mid-warmup must re-decide (PROF-16020); foreign-takeover parents must
     // not reclaim in the child.
 #if defined PL_LINUX
