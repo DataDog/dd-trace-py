@@ -41,7 +41,6 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._remove_attribute(COMPONENT)
         span._remove_attribute(SPAN_KIND)
 
-        # Mirrors BaseLLMIntegration.trace(): report whether LLMObs processes this span.
         if event.submit_to_llmobs:
             span._set_attribute(
                 _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if event.llmobs_integration.llmobs_enabled else 0

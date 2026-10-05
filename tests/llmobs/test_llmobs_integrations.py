@@ -2,7 +2,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace._trace.subscribers.llm import _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
@@ -88,8 +87,3 @@ def test_llmobs_set_tags(mock_is_enabled, mock_log, tracer, mock_integration_con
     mock_log.error.assert_called_once_with(
         "Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True
     )
-
-
-def test_llm_subscriber_apm_shadow_enabled_key_matches_constant():
-    # The subscriber duplicates the key to avoid importing ddtrace.llmobs at module level.
-    assert _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY == LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY

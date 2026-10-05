@@ -2651,8 +2651,6 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
-        # Integrations set these in BaseLLMIntegration._apply_shadow_metrics; manual spans need them
-        # too, or the APM UI cannot tell whether an llm-typed span has LLMObs data behind it.
         try:
             self._set_apm_shadow_tags(span, operation_kind, model_name, model_provider)
         except Exception:
