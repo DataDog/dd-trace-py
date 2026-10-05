@@ -161,7 +161,11 @@ For OpenAI Realtime, read the singular `input_token_details` and
 `output_audio_tokens`, `cached_tokens` as `cache_read_input_tokens`, and
 `cached_tokens_details.audio_tokens` as `cache_audio_read_tokens`. These are subsets
 of the inclusive totals. Preserve explicit zero counts and omit missing breakdowns;
-never infer zero cached audio from a missing cached-token detail object.
+never infer zero cached audio from a missing cached-token detail object. Preserve
+`text_tokens` as `input_text_tokens` / `output_text_tokens`, input `image_tokens`
+as `input_image_tokens`, and cached text/image counts as `cache_text_read_tokens` /
+`cache_image_read_tokens`. Only emit nonnegative integer counts (not booleans);
+never infer text counts by subtracting audio from totals.
 
 ## Agent Integrations: Stamp Kind and Name at Span Start
 
