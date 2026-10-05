@@ -1,8 +1,28 @@
 # CPython 3.14 → 3.15 Change Analysis (for echion)
 
-**Generated from:** `git diff v3.14.0 v3.15.0a7` on `python/cpython` (header paths listed in `docs/contributing-profiling-new-cpython.rst`)
-**Latest 3.15 tag used:** `v3.15.0a7` (pre-release; verify against final tag when available)
-**Raw diff (local research artifact, not committed):** regenerate with the `git diff` above into e.g. `/tmp/cpython_314_to_315_headers.diff` (~1,479 lines at generation time); the 3.13→3.14 committed reference lives in `DataDog/echion` at `docs/cpython-diffs/cpython_313_to_314_headers.diff`.
+**Generated from:** `git diff v3.14.0 v3.15.0rc3` on `python/cpython` over the compared paths below (first drafted against `v3.15.0a7`; re-checked through `v3.15.0rc3`).
+**Latest 3.15 tag used:** `v3.15.0rc3` (pre-release; verify against final tag when available)
+**Compared paths** (reproduce the header/ABI slice with these exact args):
+
+```bash
+git diff v3.14.0 v3.15.0rc3 -- \
+  Include/cpython/genobject.h \
+  Include/internal/pycore_frame.h \
+  Include/internal/pycore_interpframe.h \
+  Include/internal/pycore_interpframe_structs.h \
+  Include/internal/pycore_llist.h \
+  Include/internal/pycore_runtime.h \
+  Include/internal/pycore_stackref.h \
+  Include/internal/pycore_tstate.h \
+  Modules/_asynciomodule.c
+```
+
+The a8 await-stack layout change (§4) also depends on `Python/bytecodes.c` /
+`Objects/genobject.c`, which are outside that header-only set.
+**Raw diff (local research artifact, not committed):** regenerate with the `git diff`
+above into e.g. `/tmp/cpython_314_to_315_headers.diff`; the 3.13→3.14 committed
+reference lives in `DataDog/echion` at
+`docs/cpython-diffs/cpython_313_to_314_headers.diff`.
 
 Files with **no changes** relevant to echion (stable between 3.14 and 3.15):
 
@@ -98,12 +118,13 @@ Key changes:
   `PyStackRef_IsValid()`.
 - New `PyStackRef_Wrap()` / `PyStackRef_Unwrap()` for raw pointer wrapping.
 - `INITIAL_STACKREF_INDEX` changed from `8` to `(5 << Py_TAGGED_SHIFT)` = `20`.
-- Tagged int shift changed: `(i << 2)` instead of `(i << 2)` — same for non-debug,
-  but `Py_TAGGED_SHIFT = 2` is now the canonical name.
+- Tagged-int shift **value is unchanged** (`<< 2`); only the name is new —
+  `Py_TAGGED_SHIFT` (= `2`) is now the canonical spelling for that shift.
 
 **Echion impact:**
 - The `PyStackRef_AsPyObjectBorrow(f->f_executable)` call to recover a `PyObject*`
-  from a frame's executable field **still works** — no change to the public API.
+  from a frame's executable field **still works** — no change to that internal
+  helper in `Include/internal/pycore_stackref.h` (not a public compatibility API).
 - If echion directly manipulates `.bits` (e.g., checking `(bits & 1)`), update to
   use the new named constants.
 - If echion uses `PyStackRef_FromPyObjectImmortal()`, rename to
@@ -112,9 +133,37 @@ Key changes:
 
 ---
 
+### 4. Awaited-object stack slot moved (3.15.0a8+) — `pycore_interpframe.h` / genobject
+
+**Priority: HIGH** (asyncio / `PyGen_yf` await-chain walks)
+
+Landed in **3.15.0a8**, after the original a7 header pass. `_SEND_GEN_FRAME` gained
+a `null` operand (`Python/bytecodes.c`), so a frame suspended in `YIELD_FROM` holds
+`PyStackRef_NULL` at `stackpointer[-1]` and the awaited object at `stackpointer[-2]`.
+`_PyFrame_StackPeek` grew a `depth` argument; CPython reads the awaited object as
+`_PyFrame_StackPeek(&gen->gi_iframe, 2)` in `gen_getyieldfrom` (`Objects/genobject.c`).
+
+```c
+// 3.15.0a7 and earlier
+static inline _PyStackRef _PyFrame_StackPeek(_PyInterpreterFrame *f);
+
+// 3.15.0a8+
+static inline _PyStackRef _PyFrame_StackPeek(_PyInterpreterFrame *f, int depth);
+```
+
+**Echion impact:**
+- Remote `PyGen_yf` must read `stackpointer[-2]` (and require `stacktop >= 2`), not
+  `[-1]`. Reading `[-1]` masks to `nullptr` and truncates the await chain.
+- Implemented in `echion/cpython/tasks.h` (`PY_VERSION_HEX >= 0x030f0000`); covered by
+  `stack/test/test_frame_state_315.cpp`.
+
+**Guard:** `#if PY_VERSION_HEX >= 0x030f0000`
+
+---
+
 ## Additive / Beneficial Changes (no breakage, consider adopting)
 
-### 4. `_PyFrame_SafeGetCode()` and `_PyFrame_SafeGetLasti()` — `pycore_interpframe.h`
+### 5. `_PyFrame_SafeGetCode()` and `_PyFrame_SafeGetLasti()` — `pycore_interpframe.h`
 
 Not new in 3.15. Both helpers exist on CPython 3.14 (`Include/internal/pycore_interpframe.h`;
 [gh-140815](https://github.com/python/cpython/issues/140815) / [GH-140921](https://github.com/python/cpython/pull/140921)
@@ -142,7 +191,7 @@ for freed memory (globals/builtins NULL, `_PyMem_IsPtrFreed`, `_PyObject_IsFreed
 
 ---
 
-### 5. `base_frame` sentinel in `_PyThreadStateImpl` — `pycore_tstate.h`
+### 6. `base_frame` sentinel in `_PyThreadStateImpl` — `pycore_tstate.h`
 
 New field, **specifically called out as for profiling/sampling**:
 
@@ -166,7 +215,7 @@ Guard: `#if PY_VERSION_HEX >= 0x030f0000`
 
 ---
 
-### 6. `_Py_AsyncioDebug` symbol rename — `_asynciomodule.c`
+### 7. `_Py_AsyncioDebug` symbol rename — `_asynciomodule.c`
 
 ```c
 // 3.14
@@ -186,7 +235,7 @@ the `cpython/tasks.h` mirror in echion does not need layout changes.
 
 ---
 
-### 7. Other `_PyThreadStateImpl` additions — `pycore_tstate.h`
+### 8. Other `_PyThreadStateImpl` additions — `pycore_tstate.h`
 
 New fields (low echion impact):
 
