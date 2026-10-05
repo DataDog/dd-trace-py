@@ -1378,7 +1378,7 @@ def snapshot_context(
                     os.environ[key] = previous
 
         if otel_semantics:
-            assert_otel_semantics_snapshot(token, ignores=ignores)
+            assert_otel_semantics_snapshot(token, ignores=ignores, wait_for_num_traces=wait_for_num_traces)
             return
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
