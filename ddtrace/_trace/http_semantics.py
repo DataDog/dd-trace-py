@@ -213,7 +213,9 @@ class OTelHTTPSpanAttributes:
             except ValueError:
                 # A malformed optional URL must not suppress metadata supplied separately.
                 log.debug("failed to parse http url %r", url)
-        elif query is not None:
+        elif query is not None and (
+            self._integration_config.http_tag_query_string or self._integration_config.trace_query_string
+        ):
             _set_otel_query(self._span, query)
 
         if self._span.get_tag(net.SERVER_ADDRESS) is not None:
