@@ -11,6 +11,7 @@ from tests.contrib.asyncio.utils import mark_asyncio
 from tests.utils import assert_is_measured
 
 from ..config import MONGO_CONFIG
+from .test import CommandCapture
 
 
 pytestmark = pytest.mark.skipif(
@@ -34,6 +35,78 @@ class TestAsyncPymongo(AsyncioTestCase):
     def tearDown(self):
         super().tearDown()
         unpatch()
+
+    @mark_asyncio
+    async def test_async_unacknowledged_bulk_write(self):
+        if pymongo.version_tuple < (4, 18):
+            self.skipTest("Regression coverage for PyMongo 4.18 bulk executors")
+        client = AsyncMongoClient(port=MONGO_CONFIG["port"])
+        try:
+            collection = client.testdb.async_unacknowledged_bulk
+            await collection.drop()
+            collection = collection.with_options(write_concern=pymongo.WriteConcern(w=0))
+            self.pop_spans()
+            result = await collection.insert_many([{"_id": 1}, {"_id": 2}], ordered=False)
+            assert not result.acknowledged
+            result = await collection.bulk_write(
+                [pymongo.UpdateOne({"_id": 1}, {"$set": {"updated": True}}), pymongo.DeleteOne({"_id": 2})],
+                ordered=False,
+            )
+            assert not result.acknowledged
+            cmd_spans = [
+                s
+                for s in self.pop_spans()
+                if s.name == "pymongo.cmd" and s.get_tag("mongodb.collection") == "async_unacknowledged_bulk"
+            ]
+            assert {s.resource.split()[0] for s in cmd_spans} == {"insert", "update", "delete"}
+            assert all(s.error == 0 and s.get_metric("db.row_count") is None for s in cmd_spans)
+            documents = [doc async for doc in client.testdb.async_unacknowledged_bulk.find()]
+            assert documents == [{"_id": 1, "updated": True}]
+        finally:
+            await client.close()
+
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @mark_asyncio
+    async def test_async_client_bulk_write_dbm(self):
+        if pymongo.version_tuple < (4, 18):
+            self.skipTest("Client bulk executor tracing requires PyMongo 4.18+")
+        capture = CommandCapture()
+        client = AsyncMongoClient(port=MONGO_CONFIG["port"], event_listeners=[capture])
+        try:
+            if (await client.server_info())["versionArray"][0] < 8:
+                self.skipTest("Client bulk writes require MongoDB 8.0+")
+            for acknowledged in (True, False):
+                await client.testdb.async_client_bulk.drop()
+                await client.testdb.async_client_bulk_other.drop()
+                capture.clear()
+                self.pop_spans()
+                result = await client.bulk_write(
+                    [
+                        pymongo.InsertOne({"_id": 1}, namespace="testdb.async_client_bulk"),
+                        pymongo.InsertOne({"_id": 2}, namespace="testdb.async_client_bulk_other"),
+                    ],
+                    ordered=False,
+                    write_concern=pymongo.WriteConcern(w=int(acknowledged)),
+                )
+                assert result.acknowledged == acknowledged
+                spans = [s for s in self.pop_spans() if s.name == "pymongo.cmd"]
+                assert len(spans) == 1
+                span = spans[0]
+                assert span.resource == "bulkWrite 1"
+                assert span.get_tag("mongodb.db") == "admin"
+                assert span.error == 0
+                assert span.get_tag("_dd.dbm_trace_injected") == "true"
+                commands = [cmd for _, name, cmd in capture.started_commands if name == "bulkWrite"]
+                assert len(commands) == 1
+                assert f"traceparent='{span.context._traceparent}'" in commands[0]["comment"]
+                if acknowledged:
+                    assert result.inserted_count == 2
+                else:
+                    assert span.get_metric("db.row_count") is None
+                assert await client.testdb.async_client_bulk.find_one() == {"_id": 1}
+                assert await client.testdb.async_client_bulk_other.find_one() == {"_id": 2}
+        finally:
+            await client.close()
 
     @mark_asyncio
     async def test_async_insert_find(self):

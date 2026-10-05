@@ -43,6 +43,7 @@ VERSION = pymongo.version_tuple
 
 if VERSION >= (4, 18):
     from pymongo.synchronous.bulk import _Bulk
+    from pymongo.synchronous.client_bulk import _ClientBulk
     from pymongo.synchronous.mongo_client import MongoClient
 
 if VERSION >= (4, 9):
@@ -95,8 +96,9 @@ def _set_pymongo_sync_wrappers(wrap):
         wrap(Server.get_socket, traced_get_socket)
     wrap(Connection.command, _trace_socket_command)
     if VERSION >= (4, 18):
-        wrap(_Bulk._execute_batch, _trace_socket_write_command)
-        wrap(_Bulk._execute_batch_unack, _trace_socket_write_command)
+        for bulk in (_Bulk, _ClientBulk):
+            wrap(bulk._execute_batch, _trace_socket_write_command)
+            wrap(bulk._execute_batch_unack, _trace_socket_write_command)
     else:
         wrap(Connection.write_command, _trace_socket_write_command)
 

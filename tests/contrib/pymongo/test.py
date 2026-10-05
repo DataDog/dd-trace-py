@@ -136,6 +136,30 @@ class PymongoCore:
 
         assert expected_resources == {s.resource for s in spans}
 
+    def test_unacknowledged_bulk_write(self):
+        if pymongo.version_tuple < (4, 18):
+            self.skipTest("Regression coverage for PyMongo 4.18 bulk executors")
+        _, client = self.get_tracer_and_client()
+        try:
+            collection = client.testdb.unacknowledged_bulk
+            collection.drop()
+            collection = collection.with_options(write_concern=pymongo.WriteConcern(w=0))
+            self.pop_spans()
+            result = collection.insert_many([{"_id": 1}, {"_id": 2}], ordered=False)
+            assert not result.acknowledged
+            result = collection.bulk_write(
+                [pymongo.UpdateOne({"_id": 1}, {"$set": {"updated": True}}), pymongo.DeleteOne({"_id": 2})],
+                ordered=False,
+            )
+            assert not result.acknowledged
+            cmd_spans = [s for s in self.get_user_spans() if s.name == "pymongo.cmd"]
+            assert {s.resource.split()[0] for s in cmd_spans} == {"insert", "update", "delete"}
+            assert all(s.error == 0 and s.get_metric("db.row_count") is None for s in cmd_spans)
+            documents = list(client.testdb.unacknowledged_bulk.find())
+            assert documents == [{"_id": 1, "updated": True}]
+        finally:
+            client.close()
+
     def test_delete(self):
         # ensure we trace deletes
         tracer, client = self.get_tracer_and_client()
@@ -939,6 +963,44 @@ class TestPymongoDBMInjection(TracerTestCase):
         unpatch()
         self.client.close()
         super().tearDown()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_client_bulk_write_dbm(self):
+        if pymongo.version_tuple < (4, 18):
+            self.skipTest("Client bulk executor tracing requires PyMongo 4.18+")
+        if self.client.server_info()["versionArray"][0] < 8:
+            self.skipTest("Client bulk writes require MongoDB 8.0+")
+
+        for acknowledged in (True, False):
+            self.client.testdb.client_bulk.drop()
+            self.client.testdb.client_bulk_other.drop()
+            self.command_capture.clear()
+            self.pop_spans()
+            result = self.client.bulk_write(
+                [
+                    pymongo.InsertOne({"_id": 1}, namespace="testdb.client_bulk"),
+                    pymongo.InsertOne({"_id": 2}, namespace="testdb.client_bulk_other"),
+                ],
+                ordered=False,
+                write_concern=pymongo.WriteConcern(w=int(acknowledged)),
+            )
+            assert result.acknowledged == acknowledged
+            spans = [s for s in self.pop_spans() if s.name == "pymongo.cmd"]
+            assert len(spans) == 1
+            span = spans[0]
+            assert span.resource == "bulkWrite 1"
+            assert span.get_tag("mongodb.db") == "admin"
+            assert span.error == 0
+            assert span.get_tag("_dd.dbm_trace_injected") == "true"
+            commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "bulkWrite"]
+            assert len(commands) == 1
+            assert f"traceparent='{span.context._traceparent}'" in commands[0]["comment"]
+            if acknowledged:
+                assert result.inserted_count == 2
+            else:
+                assert span.get_metric("db.row_count") is None
+            assert self.client.testdb.client_bulk.find_one() == {"_id": 1}
+            assert self.client.testdb.client_bulk_other.find_one() == {"_id": 2}
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(

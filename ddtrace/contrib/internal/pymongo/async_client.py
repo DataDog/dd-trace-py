@@ -11,6 +11,7 @@ from pymongo.asynchronous.server import Server as AsyncServer
 
 if pymongo.version_tuple >= (4, 18):
     from pymongo.asynchronous.bulk import _AsyncBulk
+    from pymongo.asynchronous.client_bulk import _AsyncClientBulk
 
 # project
 from ddtrace.internal.logger import get_logger
@@ -150,7 +151,8 @@ def _set_pymongo_async_wrappers(wrap):
         wrap(AsyncServer.checkout, trace_async_server_checkout)
     wrap(AsyncConnection.command, trace_async_socket_command)
     if VERSION >= (4, 18):
-        wrap(_AsyncBulk._execute_batch, trace_async_socket_write_command)
-        wrap(_AsyncBulk._execute_batch_unack, trace_async_socket_write_command)
+        for bulk in (_AsyncBulk, _AsyncClientBulk):
+            wrap(bulk._execute_batch, trace_async_socket_write_command)
+            wrap(bulk._execute_batch_unack, trace_async_socket_write_command)
     else:
         wrap(AsyncConnection.write_command, trace_async_socket_write_command)

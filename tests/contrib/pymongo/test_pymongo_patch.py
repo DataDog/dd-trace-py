@@ -23,6 +23,7 @@ else:
 
 if _VERSION >= (4, 18):
     from pymongo.synchronous.bulk import _Bulk
+    from pymongo.synchronous.client_bulk import _ClientBulk
     from pymongo.synchronous.mongo_client import MongoClient
 
 # Import async classes if available (pymongo >= 4.12)
@@ -32,6 +33,7 @@ if _VERSION >= (4, 12):
 
     if _VERSION >= (4, 18):
         from pymongo.asynchronous.bulk import _AsyncBulk
+        from pymongo.asynchronous.client_bulk import _AsyncClientBulk
     from pymongo.asynchronous.server import Server as AsyncServer
 
 
@@ -63,8 +65,9 @@ class TestPymongoPatch(PatchTestCase.Base):
 
         assert_method(Connection.command)
         if _VERSION >= (4, 18):
-            assert_method(_Bulk._execute_batch)
-            assert_method(_Bulk._execute_batch_unack)
+            for bulk in (_Bulk, _ClientBulk):
+                assert_method(bulk._execute_batch)
+                assert_method(bulk._execute_batch_unack)
         else:
             assert_method(Connection.write_command)
 
@@ -80,8 +83,9 @@ class TestPymongoPatch(PatchTestCase.Base):
                 assert_method(AsyncServer.checkout)
             assert_method(AsyncConnection.command)
             if _VERSION >= (4, 18):
-                assert_method(_AsyncBulk._execute_batch)
-                assert_method(_AsyncBulk._execute_batch_unack)
+                for bulk in (_AsyncBulk, _AsyncClientBulk):
+                    assert_method(bulk._execute_batch)
+                    assert_method(bulk._execute_batch_unack)
             else:
                 assert_method(AsyncConnection.write_command)
 
@@ -96,8 +100,9 @@ class TestPymongoPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, pymongo):
         self.assert_not_double_wrapped(Connection.command)
         if _VERSION >= (4, 18):
-            self.assert_not_double_wrapped(_Bulk._execute_batch)
-            self.assert_not_double_wrapped(_Bulk._execute_batch_unack)
+            for bulk in (_Bulk, _ClientBulk):
+                self.assert_not_double_wrapped(bulk._execute_batch)
+                self.assert_not_double_wrapped(bulk._execute_batch_unack)
         else:
             self.assert_not_double_wrapped(Connection.write_command)
 
