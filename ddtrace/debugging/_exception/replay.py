@@ -390,14 +390,6 @@ class SpanExceptionHandler:
 
         log.debug("Enabling SpanExceptionHandler")
 
-        # is_user_code() scans every installed distribution the first time it
-        # runs. That scan is synchronous, so doing it on the exception path
-        # stalls the caller. Warm the cache here, before the handler is
-        # listening, so the first captured exception does not pay for it.
-        from ddtrace.internal.packages import _package_for_root_module_mapping
-
-        _package_for_root_module_mapping()
-
         instance = cls()
 
         instance.__uploader__.register(UploaderProduct.EXCEPTION_REPLAY)

@@ -34,9 +34,9 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.packages import Distribution
+from ddtrace.internal.packages import _filename_to_package_cached
 from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.packages import _third_party_packages
-from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
@@ -1633,12 +1633,18 @@ def override_third_party_packages(packages: list[str]):
     except AttributeError:
         original_mapping = None
 
+    from ddtrace.internal import packages as _packages
+
+    original_built_for_path = _packages._mapping_built_for_path
+
     _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)  # type: ignore[attr-defined]
     _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (  # type: ignore[attr-defined]
         {p: Distribution(p, "0.0.0") for p in packages},
         None,
     )
-    filename_to_package.cache_clear()
+    # An injected result is not tied to a scanned sys.path.
+    _packages._mapping_built_for_path = None
+    _filename_to_package_cached.cache_clear()
     is_third_party.cache_clear()
 
     try:
@@ -1654,7 +1660,8 @@ def override_third_party_packages(packages: list[str]):
         else:
             del _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
-        filename_to_package.cache_clear()
+        _packages._mapping_built_for_path = original_built_for_path
+        _filename_to_package_cached.cache_clear()
         is_third_party.cache_clear()
 
 

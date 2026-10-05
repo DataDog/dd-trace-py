@@ -37,10 +37,11 @@ def reset_packages_caches():
     from ddtrace.internal import packages as _p
 
     def _clear() -> None:
-        for fn in (_p.get_distributions, _p._package_for_root_module_mapping):
+        for fn in (_p.get_distributions,):
             inner = getattr(fn, "__wrapped__", None) or (fn.__closure__[0].cell_contents if fn.__closure__ else None)
             if inner is not None and hasattr(inner, "__callonce_result__"):
                 del inner.__callonce_result__
+        _p.reset_package_root_mapping_cache()
         _p._BAD_DISTS_WARNED.clear()
 
     _clear()

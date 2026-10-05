@@ -582,36 +582,6 @@ def test_on_span_exception_skips_empty_chain():
     mock_span._set_attribute.assert_not_called()
 
 
-def test_enable_warms_package_mapping_before_listening():
-    """The installed-package scan must finish before exception handling is live."""
-    if replay.SpanExceptionHandler._instance is not None:
-        replay.SpanExceptionHandler.disable()
-
-    order = []
-
-    def record_mapping():
-        order.append("mapping")
-
-    def record_listen(*_args, **_kwargs):
-        order.append("listen")
-
-    with (
-        mock.patch.object(replay.SignalUploader, "register"),
-        mock.patch("ddtrace.internal.core.on", side_effect=record_listen),
-        mock.patch("ddtrace.internal.packages._package_for_root_module_mapping", side_effect=record_mapping),
-    ):
-        try:
-            replay.SpanExceptionHandler.enable()
-        finally:
-            with (
-                mock.patch("ddtrace.internal.core.reset_listeners"),
-                mock.patch.object(replay.SignalUploader, "unregister"),
-            ):
-                replay.SpanExceptionHandler.disable()
-
-    assert order == ["mapping", "listen"]
-
-
 def test_span_exception_handler_enable_idempotent():
     """SpanExceptionHandler.enable is a no-op when already enabled (lines 388-389)."""
     with mock.patch.object(replay.SignalUploader, "register"), mock.patch("ddtrace.internal.core.on"):
