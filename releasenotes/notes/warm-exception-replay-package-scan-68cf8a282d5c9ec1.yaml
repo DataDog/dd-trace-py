@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    exception replay: Fixes an issue where the first captured exception stalls
+    while installed packages are scanned.
