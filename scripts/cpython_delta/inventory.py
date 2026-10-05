@@ -83,6 +83,9 @@ _LAYOUT_FIELDS: frozenset[str] = frozenset(
     {
         "f_executable",
         "f_frame_state",
+        "f_code",
+        "f_back",
+        "f_lasti",
         "gi_frame_state",
         "gi_iframe",
         "localsplus",
@@ -103,6 +106,13 @@ _LAYOUT_FIELDS: frozenset[str] = frozenset(
         "task_fut_waiter",
         "co_nlocalsplus",
         "co_code_adaptive",
+        "co_filename",
+        "co_linetable",
+        "co_firstlineno",
+        "co_name",
+        "co_qualname",
+        "instr_ptr",
+        "prev_instr",
         "cframe",
         "current_frame",
     }

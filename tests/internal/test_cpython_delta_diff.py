@@ -53,6 +53,44 @@ def test_fixed_watch_paths_include_public_code_and_pystate_headers(common_mod: A
     assert "Include/cpython/pystate.h" in watch
 
 
+def test_inventory_scan_roots_include_setup_py(common_mod: Any) -> None:
+    """Profiling build/version gates in setup.py must be inventoried."""
+    roots: tuple[str, ...] = common_mod.INVENTORY_SCAN_ROOTS
+    assert "setup.py" in roots
+
+
+def test_git_diff_paths_disables_rename_detection(diff_mod: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rename-only moves must become delete/add hunks (``--no-renames``)."""
+    captured: list[list[str]] = []
+
+    class _FakeProc:
+        def __init__(self, stdout: str = "", returncode: int = 0) -> None:
+            self.stdout: str = stdout
+            self.returncode: int = returncode
+            self.stderr: str = ""
+
+    def _fake_run_git(_cpython: Any, args: list[str]) -> _FakeProc:
+        captured.append(list(args))
+        if args[:2] == ["ls-tree", "-r"]:
+            return _FakeProc(stdout="Include/internal/pycore_frame.h\n")
+        if args and args[0] == "diff":
+            return _FakeProc(stdout="")
+        return _FakeProc()
+
+    monkeypatch.setattr(diff_mod, "_run_git", _fake_run_git)
+    _diff_text: str
+    _used: list[str]
+    _diff_text, _used = diff_mod.git_diff_paths(
+        pathlib.Path("/tmp/fake-cpython"),
+        "v3.14.0",
+        "v3.15.0a7",
+        ["Include/internal/pycore_frame.h"],
+    )
+    diff_calls: list[list[str]] = [args for args in captured if args and args[0] == "diff"]
+    assert diff_calls, "expected a git diff invocation"
+    assert "--no-renames" in diff_calls[0]
+
+
 def test_join_links_inventory_tokens_absent_from_symbol_regex(diff_mod: Any) -> None:
     """Inventoried fields/types outside ``_SYMBOL_TOKEN_RE`` still become work items."""
     inventory: dict[str, Any] = {

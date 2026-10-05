@@ -228,9 +228,11 @@ def git_diff_paths(cpython: Path, old: str, new: str, paths: Iterable[str]) -> t
             existing.append(p)
     if not existing:
         return "", []
+    # --no-renames: a watched-header move with no textual change is otherwise
+    # only rename metadata (no @@ hunks), so parse_unified_diff would miss it.
     result: subprocess.CompletedProcess[str] = _run_git(
         cpython,
-        ["diff", "--no-ext-diff", f"{old}..{new}", "--", *existing],
+        ["diff", "--no-ext-diff", "--no-renames", f"{old}..{new}", "--", *existing],
     )
     if result.returncode not in (0, 1):
         raise SystemExit(f"git diff failed: {result.stderr}")

@@ -11,6 +11,8 @@ DEFAULT_CPYTHON_ROOT: Path = Path.home() / "dd" / "cpython"
 INVENTORY_SCAN_ROOTS: tuple[str, ...] = (
     "ddtrace/internal/datadog/profiling",
     "ddtrace/profiling",
+    # Profiling build/version gates (Rust feature, libdd_wrapper, memalloc/ddup/stack).
+    "setup.py",
 )
 
 FIXED_WATCH_PATHS: tuple[str, ...] = (
