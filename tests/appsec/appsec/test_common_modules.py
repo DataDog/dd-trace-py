@@ -328,6 +328,58 @@ def test_failed_reentrant_enter_exits_previous_contexts_and_restores_storage():
         entered.unwrap()
 
 
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="Pre-3.11 wrapping uses different failed-entry cleanup semantics")
+def test_exit_failure_replaces_blocking_exception_during_entry_unwind():
+    """Python 3.15 unwind callbacks preserve the exception precedence of the bytecode path.
+
+    A previously entered context can raise during cleanup and replace a BlockingException,
+    while the context that failed entry never exits and the wrapped operation never runs.
+    """
+    block = BlockingException("blocked")
+    cleanup_error = RuntimeError("cleanup failed")
+    exited = []
+    body_ran = False
+
+    class _Entered(WrappingContext):
+        __priority__ = -1
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            exited.append((exc_type, exc_value))
+            super().__exit__(exc_type, exc_value, traceback)
+            raise cleanup_error
+
+    class _Blocker(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise block
+
+        def __exit__(self, *exc):
+            raise AssertionError("A context that failed entry must not exit")
+
+    def target():
+        nonlocal body_ran
+        body_ran = True
+
+    entered = _Entered(target)
+    blocker = _Blocker(target)
+    entered.wrap()
+    blocker.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        with pytest.raises(RuntimeError) as exc:
+            target()
+        assert exc.value is cleanup_error
+        assert exited == [(BlockingException, block)]
+        assert not body_ran
+    finally:
+        # A failing exit callback bypasses universal storage cleanup, so release this test's storage.
+        for context in (blocker, entered, universal):
+            if context._storage.get() is not None:
+                context._pop_storage()
+        blocker.unwrap()
+        entered.unwrap()
+
+
 @pytest.mark.skipif(not is_at_least_py(3, 15), reason="lazy imports require Python 3.15")
 @pytest.mark.subprocess(parametrize={"PATCH_BEFORE_IMPORT": ["true", "false"]}, timeout=20)
 def test_lazily_imported_urlopen_blocks_before_connecting():
