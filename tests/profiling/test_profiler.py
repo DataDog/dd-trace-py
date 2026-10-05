@@ -24,6 +24,8 @@ from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from tests.profiling._profiler_helpers import TestProfiler
+from tests.profiling._profiler_helpers import install_recording_watchdog
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
@@ -149,10 +151,6 @@ def test_failed_start_collector(caplog: pytest.LogCaptureFixture, monkeypatch: p
 
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
-    class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
-            return None
-
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect())
     p._collectors = [err_collector]
@@ -190,23 +188,9 @@ def test_default_collectors() -> None:
 
 
 def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    registered_hooks = []
-    unregistered_hooks = []
-
-    class WatchdogMock:
-        @staticmethod
-        def register_module_hook(module: str, hook: Callable[[Any], None]) -> None:
-            registered_hooks.append((module, hook))
-
-        @staticmethod
-        def unregister_module_hook(module: str, hook: Callable[[Any], None]) -> None:
-            unregistered_hooks.append((module, hook))
-
-    class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
-            return None
-
-    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+    registered_hooks: list[tuple[str, Callable[[Any], None]]]
+    unregistered_hooks: list[tuple[str, Callable[[Any], None]]]
+    registered_hooks, unregistered_hooks = install_recording_watchdog(monkeypatch)
 
     p = TestProfiler(
         _memory_collector_enabled=False,
@@ -224,23 +208,9 @@ def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch:
 
 
 def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monkeypatch: pytest.MonkeyPatch) -> None:
-    registered_hooks = []
-    unregistered_hooks = []
-
-    class WatchdogMock:
-        @staticmethod
-        def register_module_hook(module: str, hook: Callable[[Any], None]) -> None:
-            registered_hooks.append((module, hook))
-
-        @staticmethod
-        def unregister_module_hook(module: str, hook: Callable[[Any], None]) -> None:
-            unregistered_hooks.append((module, hook))
-
-    class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args: Any, **kargs: Any) -> None:
-            return None
-
-    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+    registered_hooks: list[tuple[str, Callable[[Any], None]]]
+    unregistered_hooks: list[tuple[str, Callable[[Any], None]]]
+    registered_hooks, unregistered_hooks = install_recording_watchdog(monkeypatch)
 
     p = TestProfiler(
         _memory_collector_enabled=False,
@@ -265,18 +235,7 @@ def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: p
     # Use a mock ModuleWatchdog to simulate the delayed import of threading/asyncio.
     # This is needed because in practice, when running the test suite, both threading and asyncio
     # have already been imported by the time the profiler starts.
-    registered_hooks: list[tuple[str, Callable[[Any], None]]] = []
-
-    class WatchdogMock:
-        @staticmethod
-        def register_module_hook(module: str, hook: Callable[[Any], None]) -> None:
-            registered_hooks.append((module, hook))
-
-        @staticmethod
-        def unregister_module_hook(module: str, hook: Callable[[Any], None]) -> None:
-            pass
-
-    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+    registered_hooks: list[tuple[str, Callable[[Any], None]]] = install_recording_watchdog(monkeypatch)[0]
 
     p = profiler.Profiler(_pytorch_collector_enabled=pytorch_enabled)
     # Hooks are armed on start, not at construction.
@@ -430,7 +389,7 @@ def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCapture
     p2 = profiler.Profiler()
     p2.start()
     assert profiler.Profiler._active_instance is p2
-    p2.stop(flush=False)
+    p2.stop(flush=False)  # type: ignore[unreachable]
 
 
 def test_stop_skips_scheduler_join_when_scheduler_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
@@ -623,7 +582,7 @@ def test_profiling_auto_degrades_when_unavailable() -> None:
 def test_user_threads_have_native_id() -> None:
     from os import getpid
     from threading import Thread
-    from threading import _MainThread  # pyright: ignore[reportAttributeAccessIssue]
+    from threading import _MainThread  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     from threading import current_thread
     from time import sleep
 
@@ -643,7 +602,7 @@ def test_user_threads_have_native_id() -> None:
     for _ in range(10):
         try:
             # The TID should be higher than the PID, but not too high
-            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # pyright: ignore[reportOptionalOperand]
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # type: ignore[operator]  # pyright: ignore[reportOptionalOperand]
         except AttributeError:
             # The native_id attribute is set by the thread so we might have to
             # wait a bit for it to be set.
@@ -670,7 +629,7 @@ def test_gevent_not_patched_when_profiling_disabled() -> None:
 
     # Import these modules to ensure that they don't have a side effect enabling
     # gevent support when profiling is disabled.
-    from ddtrace.profiling import Profiler  # noqa: F401
+    from ddtrace.profiling import Profiler  # type: ignore[attr-defined]  # noqa: F401
     from ddtrace.profiling import _gevent  # noqa: F401
     from ddtrace.profiling.collector import _task  # noqa: F401
 
@@ -818,7 +777,7 @@ def test_stop_completes_teardown_when_final_upload_fails() -> None:
     p2 = profiler.Profiler()
     p2.start()
     assert profiler.Profiler._active_instance is p2
-    p2.stop(flush=False)
+    p2.stop(flush=False)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess(
