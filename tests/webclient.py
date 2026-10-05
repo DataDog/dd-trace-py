@@ -8,20 +8,21 @@ from ddtrace.trace import Context
 from ddtrace.trace import TraceFilter
 
 
-class Client(object):
+PING_TRACE_ID = 1
+
+
+class Client:
     """HTTP Client for making requests to a local http server."""
 
-    def __init__(self, base_url):
-        # type: (str) -> None
+    def __init__(self, base_url: str) -> None:
         self._base_url = base_url
         self._session = requests.Session()
         # Propagate traces with trace_id = 1 for the ping trace so we can filter them out.
-        c, d = Context(trace_id=1, span_id=1), {}
+        c, d = Context(trace_id=PING_TRACE_ID, span_id=1), {}
         HTTPPropagator.inject(c, d)
         self._ignore_headers = d
 
-    def _url(self, path):
-        # type: (str) -> str
+    def _url(self, path: str) -> str:
         return urllib.parse.urljoin(self._base_url, path)
 
     def get(self, path, **kwargs):
@@ -43,8 +44,7 @@ class Client(object):
     def request(self, method, path, *args, **kwargs):
         return self._session.request(method, self._url(path), *args, **kwargs)
 
-    def wait(self, path="/", max_tries=100, delay=0.1, initial_wait=0):
-        # type: (str, int, float) -> None
+    def wait(self, path: str = "/", max_tries: int = 100, delay: float = 0.1, initial_wait: float = 0) -> None:
         """Wait for the server to start by repeatedly http `get`ting `path` until a 200 is received."""
 
         @retry(after=[delay] * (max_tries - 1), initial_wait=initial_wait)
@@ -60,4 +60,4 @@ class PingFilter(TraceFilter):
         # Filter out all traces with trace_id = 1
         # This is done to prevent certain traces from being included in snapshots and
         # accomplished by propagating an http trace id of 1 with the request to the webserver.
-        return None if trace and trace[0].trace_id == 1 else trace
+        return None if trace and trace[0].trace_id == PING_TRACE_ID else trace

@@ -1,6 +1,6 @@
+from collections.abc import Generator
+from collections.abc import Iterator
 from typing import Any
-from typing import Generator
-from typing import Iterator
 
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
@@ -162,7 +162,7 @@ LOG_ATTR_VALUE_ZERO = "0"
 LOG_ATTR_VALUE_EMPTY = ""
 
 
-class SamplingMechanism(object):
+class SamplingMechanism:
     DEFAULT = 0
     AGENT_RATE_BY_SERVICE = 1
     REMOTE_RATE = 2  # not used, this mechanism is deprecated
@@ -190,7 +190,7 @@ PROBABILISTIC_SAMPLING_MECHANISMS = frozenset(
 )
 
 
-class TraceSource(object):
+class TraceSource:
     """Bit values for the _dd.p.ts (trace source) propagation tag.
 
     Each enabled product ORs its bit into the mask to signal it originated or retained

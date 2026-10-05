@@ -3,14 +3,15 @@ from __future__ import annotations
 from copy import deepcopy
 import re
 import sys
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Literal  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Literal
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -417,17 +418,22 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_SAMPLE_RATE"],
             modifier=float,
         ),
+        "_llmobs_sampling_rules": _ConfigItem(
+            default=lambda: "",
+            envs=["DD_LLMOBS_SAMPLING_RULES"],
+            modifier=str,
+        ),
     }
 
 
-class Config(object):
+class Config:
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
 
-    class _HTTPServerConfig(object):
+    class _HTTPServerConfig:
         _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
@@ -519,7 +525,7 @@ class Config(object):
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
 
-        self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
+        self._span_traceback_max_size: int = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
@@ -527,11 +533,13 @@ class Config(object):
         self._propagation_http_baggage_enabled = _get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
-        self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
+        self.service: Optional[str] = _get_config(
+            "DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME"
+        )
 
         self._inferred_base_service = detect_service(sys.argv)
 
-        # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
+        # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
@@ -668,11 +676,8 @@ class Config(object):
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
-
         trace_compute_stats_default = (
-            in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14) or agentless.enabled
+            in_gcp_function() or in_azure_function() or is_at_least_py(3, 14) or agentless.enabled
         )
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
@@ -683,10 +688,25 @@ class Config(object):
             [],
             lambda value: [tag.strip() for tag in value.split(",") if tag.strip()],
         )
+        # Cardinality limits for stats aggregation keys
+        self._trace_stats_cardinality_limits: dict[str, int] = {}
+        for env_name, field, limit_default in (
+            ("DD_TRACE_STATS_CARDINALITY_LIMIT", "whole_key_limit", 7000),
+            ("DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT", "resource_limit", 1024),
+            ("DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT", "http_endpoint_limit", 512),
+            ("DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT", "peer_tags_limit", 512),
+            ("DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT", "additional_tags_limit", 100),
+        ):
+            limit = _get_config(env_name, limit_default, int)
+            if limit <= 0:
+                log.warning("Invalid value %r provided for %s, only positive values allowed", limit, env_name)
+                limit = limit_default
+            self._trace_stats_cardinality_limits[field] = limit
+
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
-        self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
+        self._data_streams_enabled: bool = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
@@ -731,7 +751,7 @@ class Config(object):
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
-        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+        self._model_lab_enabled: bool = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
 
         self._llmobs_payload_size_limit = _get_config(
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
@@ -948,3 +968,5 @@ def _get_global_config() -> Config:
 
 
 config = Config()
+# Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
+config._raise = _get_config("DD_TESTING_RAISE", False, asbool)

@@ -8,7 +8,6 @@ import pytest
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
@@ -27,6 +26,7 @@ from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as un
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.internal import core
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection

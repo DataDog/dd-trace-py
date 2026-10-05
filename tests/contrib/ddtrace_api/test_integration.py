@@ -12,12 +12,12 @@ from tests.utils import TracerTestCase
 
 class DDTraceAPITestCase(TracerTestCase):
     def setUp(self):
-        super(DDTraceAPITestCase, self).setUp()
+        super().setUp()
         patch(tracer=self.tracer)
 
     def tearDown(self):
         self.pop_spans()
-        super(DDTraceAPITestCase, self).tearDown()
+        super().tearDown()
         unpatch()
 
     def _assert_span_stub(self, stub: Any):

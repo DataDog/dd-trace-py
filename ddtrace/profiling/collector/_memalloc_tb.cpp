@@ -1,7 +1,9 @@
-#include <string_view>
-
+// _memalloc_frame.h must set Py_BUILD_CORE before our own header includes Python.h.
 #include "_memalloc_frame.h"
+
 #include "_memalloc_tb.h"
+
+#include <string_view>
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
  * CPython API calls that could allocate, free, or touch error state.

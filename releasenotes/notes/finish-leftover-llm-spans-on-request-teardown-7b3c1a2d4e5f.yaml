@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where abandoned or disconnected streamed
+    LLM requests can leave spans unfinished, causing memory to grow in
+    long-running web workers.

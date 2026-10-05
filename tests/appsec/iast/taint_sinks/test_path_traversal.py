@@ -131,8 +131,8 @@ def test_path_traversal(module, function, iast_context_defaults, ensure_test_fil
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
     )
 
-    path = "path_{}_{}".format(module, function)
-    getattr(mod, "path_{}_{}".format(module, function))(tainted_string)
+    path = f"path_{module}_{function}"
+    getattr(mod, f"path_{module}_{function}")(tainted_string)
     line, hash_value = get_line_and_hash(path, VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH)
 
     data = _get_iast_data()

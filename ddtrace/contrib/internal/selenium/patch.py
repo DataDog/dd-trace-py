@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 import typing as t
 
@@ -58,14 +60,14 @@ class SeleniumWrappingContextBase(WrappingContext):
     def _handle_return(self) -> None:
         pass
 
-    def _get_webdriver_instance(self) -> "selenium.webdriver.remote.webdriver.WebDriver":
+    def _get_webdriver_instance(self) -> selenium.webdriver.remote.webdriver.WebDriver:
         try:
             return self.get_local("self")
         except KeyError:
             log.debug("Could not get Selenium WebDriver instance")
             return None
 
-    def __enter__(self) -> "SeleniumWrappingContextBase":
+    def __enter__(self) -> SeleniumWrappingContextBase:
         super().__enter__()
 
         try:

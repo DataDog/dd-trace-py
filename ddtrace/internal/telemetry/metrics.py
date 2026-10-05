@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from enum import Enum
 from typing import TYPE_CHECKING
 from typing import Any
@@ -226,8 +225,8 @@ class MetricRecorder:
         self._name = name
         self._metric_type = metric_type
         self._tags = tags
-        self._worker: Union["TelemetryWorker", _NoopWorker, _PendingWorker] = _NOOP_WORKER
-        self._context: Optional["MetricContext"] = None
+        self._worker: Union[TelemetryWorker, _NoopWorker, _PendingWorker] = _NOOP_WORKER
+        self._context: Optional[MetricContext] = None
 
     def add(self, value: float = 1) -> None:
         """Record value against this recorder's metric."""

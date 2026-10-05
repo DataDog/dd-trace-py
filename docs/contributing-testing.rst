@@ -94,6 +94,41 @@ after updating from main.
 An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
 remains supported for existing workflows.
 
+OpenFeature fixtures
+--------------------
+
+The OpenFeature suite loads the checked-in snapshot in
+``tests/openfeature/ffe-system-test-data/``. A fresh clone includes the fixtures;
+running the tests requires no submodule initialization or fixture download.
+
+Add or change shared evaluation cases in
+`DataDog/ffe-system-test-data <https://github.com/DataDog/ffe-system-test-data>`_
+first. To refresh the snapshot from a reviewed upstream commit, run:
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --ref <upstream-commit>
+    $ scripts/run-tests --list tests/openfeature/
+    $ scripts/run-tests --venv <environment-hash>
+
+``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
+locally. Only ``ufc-config.json`` and ``evaluation-cases/*.json`` are copied;
+unexpected entries inside ``evaluation-cases/`` are rejected.
+
+The ``Check FFE fixtures`` PR check fetches the exact commit recorded in
+``SOURCE.md`` and compares the copied filenames and contents. It does not update
+the snapshot. To run the same check locally (requires network access):
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --check
+
+The weekly or manually dispatched ``Update FFE fixtures`` workflow opens a signed
+draft PR when the copied contents change. If an update PR is already open, it
+leaves that branch untouched so evaluator fixes added there are preserved. New
+cases may expose evaluator bugs; fix those before merging the update, and change
+fixture expectations upstream only when the shared expectation is incorrect.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 
@@ -160,7 +195,23 @@ the locks and commit both changes:
 
 .. code-block:: bash
 
-  $ scripts/ddtest scripts/compile-and-prune-test-requirements
+  $ scripts/test-requirements lock <environment-name>
+
+Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+On Apple Silicon, select that image architecture explicitly:
+
+.. code-block:: bash
+
+  $ DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/ddtest scripts/test-requirements lock <environment-name>
+
+Use ``scripts/test-requirements`` to inspect and maintain locks:
+
+* ``check`` reports missing or obsolete lock files across all environments.
+* ``lock [environment-name ...]`` generates missing locks for exact environment names.
+* ``lock --upgrade [environment-name ...]`` upgrades existing locks for exact environment names.
+
+Without an environment name, ``lock`` operates on all environments.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -199,53 +250,14 @@ The library includes automated SLO checks that monitor performance thresholds fo
 How do I add a new test suite?
 ------------------------------
 
-Test environments are defined in ``riotfile.py``. Add a ``Venv`` alongside a similar suite with its command,
-supported Python versions, and oldest/latest dependency constraints. Add the corresponding CI suite to the nearest
-``suitespec.yml`` file; see ``tests/README.md`` for that schema. Then regenerate the dependency locks and use
-``scripts/run-tests`` for local validation.
-
-.. code-block:: python
-
-    Venv(
-        name="your_integration",
-        command="pytest {cmdargs} tests/contrib/your_integration",
-        venvs=[
-            Venv(
-                pys=select_pys(min_version="3.9"),
-                pkgs={"your-dependency": ["~=1.0", latest]},
-            ),
-        ],
-    )
-
-Next, add the CI suite to ``tests/contrib/suitespec.yml``. The suite's ``pattern`` selects the matching test
-environment, while ``paths`` determines which changes schedule the CI job:
-
-.. code-block:: yaml
-
-    components:
-      your_integration:
-        - ddtrace/contrib/internal/your_integration/*
-
-    suites:
-      your_integration:
-        pattern: ^your_integration$
-        paths:
-          - '@bootstrap'
-          - '@core'
-          - '@contrib'
-          - '@tracing'
-          - '@your_integration'
-          - tests/contrib/your_integration/*
-
-Add fields such as ``services``, ``env``, ``snapshot``, and ``parallelism`` when the suite needs them. See
-``tests/README.md`` for the complete schema and nearby suites for working examples.
+Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
+locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
 
 How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------
 
-Update the dependency constraint in the suite's ``Venv`` in ``riotfile.py``, run
-``scripts/ddtest scripts/compile-and-prune-test-requirements``, and commit both ``riotfile.py`` and the resulting
-``.riot/requirements`` lock changes.
+Update the dependency constraint in the suite's ``suitespec.yml`` matrix, run
+``scripts/test-requirements lock --upgrade <environment-name>``, and commit the definition and resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------

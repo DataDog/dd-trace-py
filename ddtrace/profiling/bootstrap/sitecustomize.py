@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Bootstrapping code that is run when using `ddtrace.profiling.auto`."""
 
 import platform

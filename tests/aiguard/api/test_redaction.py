@@ -55,6 +55,15 @@ def _metrics(add_count_metric: Mock, metric: str) -> list[tuple[Any, Any]]:
     ]
 
 
+def _redaction_errors(add_count_metric: Mock) -> int:
+    """How many redaction errors the evaluation reported on the ai_guard.error metric."""
+    return sum(
+        value
+        for value, tags in _metrics(add_count_metric, AI_GUARD.ERROR_METRIC)
+        if dict(tags).get("type") == AI_GUARD.ERROR_REDACTION
+    )
+
+
 def _meta_struct(test_spans: TracerSpanContainer) -> dict[str, Any]:
     struct = find_ai_guard_span(test_spans)._get_struct_tag(AI_GUARD.TAG)
     assert struct is not None
@@ -67,9 +76,10 @@ def test_redact_messages_corpus(case: dict[str, Any]) -> None:
     messages = deepcopy(case["messages"])
     untouched = deepcopy(messages)
 
-    result = redact_messages(messages, case["redaction_replacements"])
+    result, errors = redact_messages(messages, case["redaction_replacements"])
 
     assert messages == untouched, "the caller's messages must never be mutated"
+    assert errors == case["expected_errors"]
     if case["expected_messages"] == "SAME":
         assert result is messages, "nothing applied: the original list object must come back"
     else:
@@ -78,9 +88,11 @@ def test_redact_messages_corpus(case: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize("case", _corpus_params())
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_applies_corpus(
     mock_execute_request: Mock,
+    add_count_metric: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
     case: dict[str, Any],
@@ -100,6 +112,7 @@ def test_evaluate_applies_corpus(
     if case["expected_messages"] == "SAME":
         assert result["messages"] is messages
     assert _meta_struct(test_spans)["messages"] == expected
+    assert _redaction_errors(add_count_metric) == case["expected_errors"]
     # The service must always receive the originals: it needs the raw text to compute the replacements.
     payload = mock_execute_request.call_args[0][1]
     assert payload["data"]["attributes"]["messages"] == sent
@@ -207,18 +220,37 @@ def test_redacted_is_reported_per_turn(
     assert redacted_tags == ["true", "false"]
 
 
-def test_redaction_never_raises() -> None:
+class Undeepcopyable:
+    """Blows up the copy-on-write step, so the whole redaction pass fails."""
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> Any:
+        raise RuntimeError("boom")
+
+
+@pytest.mark.parametrize(
+    "replacements,expected_errors",
+    [
+        pytest.param([{"path": "messages[0].content", "replacement": "redacted"}], 1, id="one unapplied path"),
+        # Nothing is delivered, so the two unusable entries and the path we never got to all count.
+        pytest.param(
+            [
+                {"path": "messages[0].content", "replacement": "redacted"},
+                {"path": "messages[0].content"},
+                {"replacement": "orphan"},
+            ],
+            3,
+            id="entries already counted are not lost",
+        ),
+    ],
+)
+def test_redaction_never_raises(replacements: list[dict[str, Any]], expected_errors: int) -> None:
     """An unexpected failure degrades to the original messages instead of breaking the caller."""
-
-    class Undeepcopyable:
-        def __deepcopy__(self, memo: dict[int, Any]) -> Any:
-            raise RuntimeError("boom")
-
     messages: list[Any] = [{"role": "user", "content": "My SSN is 123-45-6789", "extra": Undeepcopyable()}]
 
-    result = redact_messages(messages, [{"path": "messages[0].content", "replacement": "redacted"}])
+    result, errors = redact_messages(messages, replacements)
 
     assert result is messages
+    assert errors == expected_errors, "a failed pass is at least one redaction error, not a silent no-op"
 
 
 @pytest.mark.parametrize(
@@ -450,3 +482,82 @@ def test_kill_switch_keeps_findings_and_evaluation(
     assert result["messages"] is messages
     assert _meta_struct(test_spans)["messages"] == SIMPLE
     assert _meta_struct(test_spans)["sds"] == findings
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_redaction_errors_are_reported_once_with_the_call_path(
+    mock_execute_request: Mock,
+    add_count_metric: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
+    """Every unusable replacement is counted, and the whole turn reports them in a single metric."""
+    messages = deepcopy(SIMPLE)
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ALLOW",
+        redaction_replacements=[
+            {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"},
+            {"path": "messages[9].content", "replacement": "out of range"},
+            {"path": "messages[0].role", "replacement": "not a redactable target"},
+            {"replacement": "no path at all"},
+        ],
+    )
+
+    result = ai_guard_client.evaluate(messages, source=AI_GUARD.SOURCE_AUTO, integration=AI_GUARD.INTEGRATION_OPENAI)
+
+    assert result["messages"] == REDACTED, "the valid replacement is still applied"
+    assert _metrics(add_count_metric, AI_GUARD.ERROR_METRIC) == [
+        (
+            3,
+            (
+                ("type", AI_GUARD.ERROR_REDACTION),
+                ("source", AI_GUARD.SOURCE_AUTO),
+                ("integration", AI_GUARD.INTEGRATION_OPENAI),
+            ),
+        )
+    ]
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_redaction_errors_do_not_fail_the_evaluation(
+    mock_execute_request: Mock,
+    add_count_metric: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
+    """A turn whose replacements all fail is still a successful, non-redacting evaluation."""
+    messages = deepcopy(SIMPLE)
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ALLOW", redaction_replacements=[{"path": "messages[0].role", "replacement": "system"}]
+    )
+
+    result = ai_guard_client.evaluate(messages)
+
+    assert result["action"] == "ALLOW"
+    assert result["messages"] is messages
+    assert find_ai_guard_span(test_spans).get_tag(AI_GUARD.REDACTED_TAG) == "false"
+    [(_, request_tags)] = _metrics(add_count_metric, AI_GUARD.REQUESTS_METRIC)
+    assert dict(request_tags)["error"] == "false"
+    assert _redaction_errors(add_count_metric) == 1
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_no_redaction_error_when_the_kill_switch_is_off(
+    mock_execute_request: Mock,
+    add_count_metric: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
+    """No redaction work is attempted with the kill switch off, so a broken payload is not reported."""
+    messages = deepcopy(SIMPLE)
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ALLOW", redaction_replacements=[{"path": "messages[0].role", "replacement": "system"}]
+    )
+
+    with override_ai_guard_config(dict(_ai_guard_redaction_enabled=False)):
+        ai_guard_client.evaluate(messages)
+
+    assert _metrics(add_count_metric, AI_GUARD.ERROR_METRIC) == []

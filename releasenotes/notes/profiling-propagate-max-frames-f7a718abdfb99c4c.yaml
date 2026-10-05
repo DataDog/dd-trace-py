@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Stack collection now honors configured frame limits, reducing profiler CPU and memory overhead for deep Python call stacks.

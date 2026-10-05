@@ -11,7 +11,7 @@ log = get_logger(__name__)
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
     def __init__(self, user: object, credentials: Optional[dict[str, Any]] = None) -> None:
-        super(_DjangoUserInfoRetriever, self).__init__(user)
+        super().__init__(user)
 
         self.credentials = credentials if credentials else {}
         if self.credentials and not user:
@@ -63,7 +63,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
             username = getattr(self.user, username_field, None)
             return str(username) if username is not None else None
 
-        return super(_DjangoUserInfoRetriever, self).get_username()
+        return super().get_username()
 
     def get_name(self) -> Optional[str]:
         if not asm_config._user_model_name_field:
@@ -81,7 +81,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
             if first_name is not None and last_name is not None:
                 return "%s %s" % (first_name, last_name)
 
-        return super(_DjangoUserInfoRetriever, self).get_name()
+        return super().get_name()
 
     def get_user_email(self) -> Optional[str]:
         email_field = getattr(type(self.user), "EMAIL_FIELD", None)
@@ -89,4 +89,4 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
             email = getattr(self.user, email_field, None)
             return str(email) if email is not None else None
 
-        return super(_DjangoUserInfoRetriever, self).get_user_email()
+        return super().get_user_email()

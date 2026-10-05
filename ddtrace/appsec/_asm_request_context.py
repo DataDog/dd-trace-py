@@ -15,6 +15,7 @@ from urllib import parse
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._iast_context import iast_suppress_context
 from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
@@ -116,13 +117,13 @@ class ASM_Environment:
         else:
             self.framework = self.span.name
         self.framework = self.framework.lower().replace(" ", "_")
-        self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
+        self.waf_info: Optional[Callable[[], DDWaf_info]] = None
         self.waf_addresses: dict[str, Any] = {}
         self.waf_callable: Optional[WafCallable] = waf_callable
         self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
-        self.waf_triggers: "list[WafEvent]" = []
+        self.waf_triggers: list[WafEvent] = []
         self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
@@ -789,7 +790,5 @@ def asm_listen() -> None:
 
 def iast_disabled_taint_sources() -> "contextlib.AbstractContextManager[None]":
     if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._iast_request_context_base import iast_suppress_context
-
         return iast_suppress_context()
     return contextlib.nullcontext()

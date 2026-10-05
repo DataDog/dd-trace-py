@@ -1,4 +1,6 @@
 import sys
+from typing import Any
+from typing import Optional
 from typing import cast
 
 import pytest
@@ -10,7 +12,7 @@ from ddtrace.trace import Span
 class MockSpan:
     """Mock span object for testing"""
 
-    def __init__(self, span_id=None, local_root=None):
+    def __init__(self, span_id: Optional[int] = None, local_root: Any = None) -> None:
         if span_id is not None:
             self.span_id = span_id
         if local_root is not None:
@@ -20,7 +22,7 @@ class MockSpan:
 class MockLocalRoot:
     """Mock local root span object for testing"""
 
-    def __init__(self, span_id=None, span_type=None):
+    def __init__(self, span_id: Optional[int] = None, span_type: Optional[str] = None) -> None:
         if span_id is not None:
             self.span_id = span_id
         if span_type is not None:
@@ -28,7 +30,7 @@ class MockLocalRoot:
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_libdd_available():
+def test_libdd_available() -> None:
     """
     Tests that the libdd module can be loaded
     """
@@ -37,7 +39,7 @@ def test_libdd_available():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_ddup_start():
+def test_ddup_start() -> None:
     """
     Tests that the the libdatadog exporter can be enabled
     """
@@ -54,13 +56,65 @@ def test_ddup_start():
         pytest.fail(str(e))
 
 
+@pytest.mark.subprocess()
+def test_code_provenance_uploaded() -> None:
+    from http.server import BaseHTTPRequestHandler
+    from http.server import HTTPServer
+    import queue
+    import threading
+    from typing import cast
+
+    from ddtrace._trace.tracer import Tracer as DDTracer
+    from ddtrace.internal.datadog.profiling import ddup
+
+    requests: queue.Queue[tuple[str, bytes]] = queue.Queue()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            requests.put((self.path, self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, _format: str, *args: object) -> None:
+            pass
+
+    class EndpointProcessor:
+        def reset(self) -> tuple[dict[str, int], dict[str, list[int]]]:
+            return {}, {}
+
+    class Tracer:
+        _endpoint_call_counter_span_processor: EndpointProcessor = EndpointProcessor()
+
+        def __init__(self, agent_trace_url: str) -> None:
+            self.agent_trace_url: str = agent_trace_url
+
+    with HTTPServer(("127.0.0.1", 0), Handler) as server:
+        server_thread: threading.Thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        url: str = f"http://127.0.0.1:{server.server_address[1]}"
+
+        ddup.config(env="my_env", service="my_service", version="my_version", tags={})
+        ddup.start()
+        sample = ddup.SampleHandle()
+        sample.push_walltime(1, 1)
+        sample.flush_sample()
+        ddup.upload(tracer=cast(DDTracer, Tracer(url)), enable_code_provenance=True)
+
+        path, body = requests.get(timeout=5)
+        server.shutdown()
+        server_thread.join()
+
+    assert path == "/profiling/v1/input"
+    assert b'filename="code-provenance.json"' in body
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_TAGS="hello:world",
         DD_PROFILING_TAGS="foo:bar,hello:python",
     )
 )
-def test_tags_propagated():
+def test_tags_propagated() -> None:
     import sys
     from unittest.mock import Mock
 
@@ -87,7 +141,7 @@ def test_tags_propagated():
 
 
 @pytest.mark.subprocess()
-def test_process_tags_propagated():
+def test_process_tags_propagated() -> None:
     import sys
     from unittest.mock import Mock
 
@@ -105,7 +159,7 @@ def test_process_tags_propagated():
 
 
 @pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
-def test_push_span_without_span_id():
+def test_push_span_without_span_id() -> None:
     """
     Test that push_span handles span objects without span_id attribute gracefully.
     This can happen when profiling collector encounters mock span objects in tests.

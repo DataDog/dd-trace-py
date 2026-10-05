@@ -28,7 +28,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin):
-        super(AIOTracedCursor, self).__init__(cursor)
+        super().__init__(cursor)
         pin.onto(self)
         self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
 
@@ -88,7 +88,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
-        super(AIOTracedConnection, self).__init__(conn)
+        super().__init__(conn)
         vendor = dbapi._get_vendor(conn)
         name = schematize_service_name(vendor)
         db_pin = pin or Pin(service=name)
