@@ -15,7 +15,7 @@ _ModuleHook: TypeAlias = tuple[str, Callable[[Any], None]]
 
 
 class TestProfiler(profiler._ProfilerInstance):
-    """``_ProfilerInstance`` that skips default exporter construction.
+    """_ProfilerInstance that skips default exporter construction.
 
     Collector start/stop and import-hook tests do not need a live exporter.
     """
@@ -29,7 +29,7 @@ class TestProfiler(profiler._ProfilerInstance):
 def install_recording_watchdog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[list[_ModuleHook], list[_ModuleHook]]:
-    """Replace ``profiler.ModuleWatchdog`` with a class that records hook calls."""
+    """Replace profiler.ModuleWatchdog with a class that records hook calls."""
     registered_hooks: list[_ModuleHook] = []
     unregistered_hooks: list[_ModuleHook] = []
 
