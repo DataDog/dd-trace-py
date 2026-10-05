@@ -59,8 +59,19 @@ def create_checkout_span():
 
 def setup_checkout_span_tags(span, sock_info, instance):
     """Set up tags and metrics for checkout span. Shared between sync and async."""
+    if isinstance(sock_info, tuple):
+        # PyMongo 4.18 read checkout returns (connection, read_preference).
+        sock_info = sock_info[0]
     set_address_tags(span, sock_info.address)
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
+
+
+def process_write_command_result(span, result):
+    """Tag acknowledged writes while preserving each version's return value."""
+    response = result[0] if isinstance(result, tuple) else result
+    if isinstance(response, dict) and response:
+        span._set_attribute(db.ROWCOUNT, response.get("n", -1))
+    return result
 
 
 def process_server_operation_result(span, operation, result):

@@ -32,6 +32,7 @@ from .utils import dbm_dispatch
 from .utils import is_query
 from .utils import process_server_message_result
 from .utils import process_server_operation_result
+from .utils import process_write_command_result
 from .utils import set_address_tags
 from .utils import set_query_metadata
 from .utils import setup_checkout_span_tags
@@ -67,54 +68,37 @@ class TracedMongoClient(ObjectProxy):
 
 def patch_pymongo_sync_modules():
     """Patch synchronous pymongo modules."""
-    if VERSION >= (4, 18):
-        _w(MongoClient._run_operation, _trace_mongo_client_run_operation)
-        _w(MongoClient._conn_from_server, traced_get_connection)
-    elif VERSION >= (3, 12):
-        _w(Server.run_operation, _trace_server_run_operation_and_with_response)
-    elif VERSION >= (3, 9):
-        _w(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
-    else:
-        _w(Server.send_message_with_response, _trace_server_send_message_with_response)
-
-    if VERSION >= (4, 18):
-        _w(MongoClient._checkout, traced_get_socket)
-    elif VERSION >= (4, 5):
-        _w(Server.checkout, traced_get_socket)
-    else:
-        _w(Server.get_socket, traced_get_socket)
-    _w(Connection.command, _trace_socket_command)
-    if VERSION >= (4, 18):
-        _w(_Bulk._execute_batch, _trace_bulk_execute_batch)
-        _w(_Bulk._execute_batch_unack, _trace_bulk_execute_batch)
-    else:
-        _w(Connection.write_command, _trace_socket_write_command)
+    _set_pymongo_sync_wrappers(_w)
 
 
 def unpatch_pymongo_sync_modules():
     """Unpatch synchronous pymongo modules."""
+    _set_pymongo_sync_wrappers(_u)
+
+
+def _set_pymongo_sync_wrappers(wrap):
     if VERSION >= (4, 18):
-        _u(MongoClient._run_operation, _trace_mongo_client_run_operation)
-        _u(MongoClient._conn_from_server, traced_get_connection)
+        wrap(MongoClient._run_operation, _trace_server_run_operation_and_with_response)
+        wrap(MongoClient._conn_from_server, traced_get_socket)
     elif VERSION >= (3, 12):
-        _u(Server.run_operation, _trace_server_run_operation_and_with_response)
+        wrap(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
-        _u(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
+        wrap(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
-        _u(Server.send_message_with_response, _trace_server_send_message_with_response)
+        wrap(Server.send_message_with_response, _trace_server_send_message_with_response)
 
     if VERSION >= (4, 18):
-        _u(MongoClient._checkout, traced_get_socket)
+        wrap(MongoClient._checkout, traced_get_socket)
     elif VERSION >= (4, 5):
-        _u(Server.checkout, traced_get_socket)
+        wrap(Server.checkout, traced_get_socket)
     else:
-        _u(Server.get_socket, traced_get_socket)
-    _u(Connection.command, _trace_socket_command)
+        wrap(Server.get_socket, traced_get_socket)
+    wrap(Connection.command, _trace_socket_command)
     if VERSION >= (4, 18):
-        _u(_Bulk._execute_batch, _trace_bulk_execute_batch)
-        _u(_Bulk._execute_batch_unack, _trace_bulk_execute_batch)
+        wrap(_Bulk._execute_batch, _trace_socket_write_command)
+        wrap(_Bulk._execute_batch_unack, _trace_socket_write_command)
     else:
-        _u(Connection.write_command, _trace_socket_write_command)
+        wrap(Connection.write_command, _trace_socket_write_command)
 
 
 def datadog_trace_operation(operation):
@@ -154,31 +138,21 @@ def datadog_trace_operation(operation):
 
 
 def _trace_server_run_operation_and_with_response(func, args, kwargs):
-    operation = get_argument_value(args, kwargs, 2, "operation")
+    operation = get_argument_value(args, kwargs, 1 if VERSION >= (4, 18) else 2, "operation")
 
     span = datadog_trace_operation(operation)
     if span is None:
         return func(*args, **kwargs)
     with span:
-        span, args, kwargs = dbm_dispatch(span, args, kwargs)
+        span, args, kwargs = dbm_dispatch_operation(span, args, kwargs)
         result = func(*args, **kwargs)
         return process_server_operation_result(span, operation, result)
 
 
-def _trace_mongo_client_run_operation(func, args, kwargs):
-    operation = get_argument_value(args, kwargs, 1, "operation")
-
-    span = datadog_trace_operation(operation)
-    if span is None:
-        return func(*args, **kwargs)
-    with span:
-        span, args, kwargs = dbm_dispatch_mongo_client_run_operation(span, args, kwargs)
-        result = func(*args, **kwargs)
-        return process_server_operation_result(span, operation, result)
-
-
-def dbm_dispatch_mongo_client_run_operation(span, args, kwargs):
+def dbm_dispatch_operation(span, args, kwargs):
     """Inject DBM metadata into the PyMongo 4.18 client operation argument."""
+    if VERSION < (4, 18):
+        return dbm_dispatch(span, args, kwargs)
     operation = get_argument_value(args, kwargs, 1, "operation")
     span, dbm_args, _ = dbm_dispatch(span, (None, None, operation), {})
     operation = dbm_args[2]
@@ -260,16 +234,18 @@ def parse_socket_write_command_msg(args, kwargs):
 
 
 def _trace_socket_write_command(func, args, kwargs):
-    parsed = parse_socket_write_command_msg(args, kwargs)
+    parsed = (
+        parse_bulk_write_command(args, kwargs) if VERSION >= (4, 18) else parse_socket_write_command_msg(args, kwargs)
+    )
     if parsed is None:
         return func(*args, **kwargs)
 
     socket_instance, cmd = parsed
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        if VERSION >= (4, 18):
+            s, args, kwargs = dbm_dispatch(s, args, kwargs)
         result = func(*args, **kwargs)
-        if result:
-            s._set_attribute(db.ROWCOUNT, result.get("n", -1))
-        return result
+        return process_write_command_result(s, result)
 
 
 def parse_bulk_write_command(args, kwargs):
@@ -285,24 +261,7 @@ def parse_bulk_write_command(args, kwargs):
     if not cmd or not tracer.enabled:
         return None
 
-    return bulk_write_context, cmd
-
-
-def _trace_bulk_execute_batch(func, args, kwargs):
-    parsed = parse_bulk_write_command(args, kwargs)
-    if parsed is None:
-        return func(*args, **kwargs)
-
-    bulk_write_context, cmd = parsed
-    socket_instance = bulk_write_context.conn
-    with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
-        s, args, kwargs = dbm_dispatch(s, args, kwargs)
-        result = func(*args, **kwargs)
-        if isinstance(result, tuple) and result[0]:
-            s._set_attribute(db.ROWCOUNT, result[0].get("n", -1))
-        elif result:
-            s._set_attribute(db.ROWCOUNT, result.get("n", -1))
-        return result
+    return bulk_write_context.conn, cmd
 
 
 def trace_cmd(cmd, socket_instance, address):
@@ -342,16 +301,3 @@ def traced_get_socket(func, args, kwargs):
         with func(*args, **kwargs) as sock_info:
             setup_checkout_span_tags(span, sock_info, instance)
             yield sock_info
-
-
-@contextlib.contextmanager
-def traced_get_connection(func, args, kwargs):
-    if not tracer.enabled:
-        with func(*args, **kwargs) as result:
-            yield result
-            return
-
-    with create_checkout_span() as span:
-        with func(*args, **kwargs) as (sock_info, read_preference):
-            setup_checkout_span_tags(span, sock_info, None)
-            yield sock_info, read_preference
