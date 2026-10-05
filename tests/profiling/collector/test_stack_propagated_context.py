@@ -12,7 +12,7 @@ import pytest
     },
     err=None,
 )
-def test_stack_preserves_propagated_local_root_in_gevent_greenlet():
+def test_stack_preserves_propagated_local_root_in_gevent_greenlet() -> None:
     from gevent import monkey
 
     monkey.patch_all()
@@ -36,7 +36,7 @@ def test_stack_preserves_propagated_local_root_in_gevent_greenlet():
     propagated = Context(trace_id=0x303, span_id=propagated_span_id)
     context_meta.attach_profiler_link(propagated, propagated_local_root_span_id, "web")
 
-    def greenlet_child_work():
+    def greenlet_child_work() -> None:
         cpu_deadline = time.thread_time_ns() + 300_000_000
         while time.thread_time_ns() < cpu_deadline:
             pass
@@ -44,7 +44,7 @@ def test_stack_preserves_propagated_local_root_in_gevent_greenlet():
         while time.monotonic() < wall_deadline:
             gevent.sleep(0.01)
 
-    def greenlet_main():
+    def greenlet_main() -> int:
         with tracer.trace("greenlet.child") as child_span:
             greenlet_child_work()
         return child_span.span_id

@@ -6,6 +6,7 @@ import json
 from typing import Any
 from typing import Literal
 from typing import Optional
+from typing import Sequence
 from typing import Union
 from urllib.parse import quote
 from urllib.parse import urlencode
@@ -27,7 +28,7 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
-from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import PromptAPIError
 from ddtrace.llmobs.types import PromptAuthError
@@ -603,7 +604,7 @@ class PromptManager:
     def create_prompt(
         self,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         title: str = "",
         description: str = "",
@@ -612,7 +613,7 @@ class PromptManager:
         env_ids: Optional[list[str]] = None,
         config: object = _UNSET,
     ) -> PromptResponse:
-        body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
+        body: dict[str, Any] = {"prompt_id": prompt_id, "template": list(template)}
         if title:
             body["title"] = title
         if description:
@@ -634,7 +635,7 @@ class PromptManager:
     def create_prompt_version(
         self,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         description: str = "",
         user_version: str = "",
@@ -643,7 +644,7 @@ class PromptManager:
         config: object = _UNSET,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
-        body: dict[str, Any] = {"template": template}
+        body: dict[str, Any] = {"template": list(template)}
         if description:
             body["description"] = description
         if user_version:
