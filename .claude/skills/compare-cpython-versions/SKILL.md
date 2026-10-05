@@ -169,9 +169,10 @@ After running this skill, you should have:
 ## Profiling bring-up
 
 If this diff is for Continuous Profiler, hand off to
-`migrate-profiling-new-cpython` rather than inventing a parallel plan.
+`migrate-profiling-new-cpython` (catalog + short runbook pointers) rather than
+inventing a parallel plan.
 
 ## Related
 
 - **find-cpython-usage skill**: Use to identify what to compare
-- **migrate-profiling-new-cpython skill**: Orchestrates profiling bring-up by phase (alpha/beta/RC/final)
+- **migrate-profiling-new-cpython skill**: Pointers for profiling bring-up (catalog + short runbook)

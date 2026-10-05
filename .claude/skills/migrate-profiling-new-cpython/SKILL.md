@@ -1,52 +1,51 @@
 ---
 name: migrate-profiling-new-cpython
 description: >
-  Orchestrate Continuous Profiler support for a new CPython minor (e.g. 3.16).
-  Detects PEP phase, scaffolds the version registry, and drives the runbook
-  checklist. Use when adding profiling support for a new Python version.
+  Pointers for Continuous Profiler support on a new CPython minor. Read the
+  catalog and short runbook; do not invent a parallel checklist. Use when
+  adding profiling support for a new Python version.
 allowed-tools:
   - Bash
   - Read
   - Grep
   - Glob
   - WebSearch
-  - TodoWrite
 ---
 
 # Migrate profiling to a new CPython minor
 
-Agent-facing orchestrator. **Detail lives in the runbook — do not copy it here.**
+**Pointer skill** — read these, then act. This is not an orchestrator for 3.16
+automation or agentic migration readiness.
 
-- Runbook (process): `docs/contributing-profiling-new-cpython.rst`
-- Latest catalog (version answers): `docs/cpython-diffs/py3XX_pr_catalog.md`
-  for the most recent completed minor
-- Live PR states: `scripts/py3XX-stack/PROFILING_STACK.md` for the in-flight minor
-- Version registry: `scripts/profiles/profiling_versions.json`
-- Sample baselines: `scripts/profiles/compatibility_baselines.json`
+| Artifact | Path |
+| --- | --- |
+| Short runbook (phase table + pointers) | `docs/contributing-profiling-new-cpython.rst` |
+| Latest catalog (version answers) | `docs/cpython-diffs/py315_pr_catalog.md` |
+| Header-diff notes | `docs/cpython-diffs/analysis_314_to_315.md` |
+| Live stack / PR map | `scripts/py315-stack/PROFILING_STACK.md` |
+| Version registry | `scripts/profiles/profiling_versions.json` |
+| Sample baselines | `scripts/profiles/compatibility_baselines.json` |
+| Light guardrails | `.cursor/rules/profiling-new-cpython.mdc` |
 
-## Inputs
+## Short runbook
 
-- Target minor: e.g. `3.16` (MAJOR.MINOR only).
-- Optional: previous minor (default: target − 1 minor).
-
-## Step 0 — Detect phase and scaffold
-
-1. Read the PEP release schedule for the target minor. Compare against the local clock (verify TZ via system date).
-2. Classify phase using the runbook table: alpha / beta / RC / final.
-3. If `scripts/profiles/profiling_versions.json` has no entry for the target:
+1. Read the catalog for the previous completed minor (gotchas, hook path, PR map).
+2. Classify phase from the runbook PEP table (alpha / beta / RC / final).
+3. If scaffolding a new registry entry is useful:
 
    ```bash
-   python scripts/verify_profiler_compatibility.py --scaffold 3.16
+   python scripts/verify_profiler_compatibility.py --scaffold X.Y
    ```
 
-   That writes registry + baseline stubs and prints open checklist rows. Do not
-   commit the stubs unless the bring-up PR intends to land them.
-
-4. Follow the runbook for that phase: playbooks, automation checklist, hard stops.
+   Commit stubs only when the bring-up PR intends to land them.
+   Keep `default_python` aligned with a suitespec-backed profiling minor.
+4. For header inventory / diffs: `find-cpython-usage`, then `compare-cpython-versions`.
+5. Full process depth, staging A/B playbooks, and `cpython_delta` are follow-ups —
+   do not invent them here.
 
 ## Related skills
 
 - `find-cpython-usage` — inventory profiling CPython dependencies
 - `compare-cpython-versions` — diff CPython OLD→NEW
-- `run-tests` — riot / suite execution
+- `run-tests` — suitespec / suite execution
 - `releasenote` — customer-facing reno at final

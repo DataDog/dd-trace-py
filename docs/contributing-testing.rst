@@ -54,7 +54,7 @@ The ``scripts/run-tests`` script handles this automatically:
     $ scripts/run-tests tests/contrib/flask/test_flask.py
 
 **Profiling on a new Python version** — ``scripts/run-profiling-tests`` and the
-migration checklist: :doc:`contributing-profiling-new-cpython`.
+bring-up pointers: :doc:`contributing-profiling-new-cpython`.
 
 **Manual approach with ddtest**
 

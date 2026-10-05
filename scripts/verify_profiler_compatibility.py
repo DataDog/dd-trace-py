@@ -67,7 +67,7 @@ _MIN_WALL_TIME_SAMPLES: int = 2
 
 # =============================================================================
 # SUBPROCESS MODE
-# Spawned by the orchestrator under the target Python. Outputs JSON to stdout.
+# Spawned by the parent process under the target Python. Outputs JSON to stdout.
 # All diagnostic output goes to stderr.
 # =============================================================================
 
