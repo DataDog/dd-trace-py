@@ -39,9 +39,9 @@ PEP phase timeline
 
 Anchor every profiling CPython bump to the **active release-schedule PEP**
 (for 3.15 that was `PEP 790`__; for 3.16 find the successor PEP). Confirm the
-tag actually shipped before treating a schedule date as done. Use the
-``track-cpython-release-schedule`` skill/flow so engraver / images /
-language-tools pins land **within days** of each RC or final — not weeks.
+tag actually shipped before treating a schedule date as done. Check local
+vintage with ``date`` and ``date +'%Z %z'``, then land engraver → digests →
+language-tools pins **within days** of each RC or final — not weeks.
 
 __ https://peps.python.org/pep-0790/
 
@@ -539,8 +539,8 @@ Check off only after the named script or job is green. Manual items say so.
 
 **Alpha**
 
-* [ ] Confirm PEP schedule + clock (``track-cpython-release-schedule`` /
-  ``verify-local-clock``). Manual.
+* [ ] Confirm PEP schedule + local clock (``date``; ``date +'%Z %z'``).
+  Manual.
 * [ ] Run CPython delta inventory+diff ``v3.15.0..v3.16.0aN`` (or
   ``compare-cpython-versions`` until ``cpython_delta`` lands). Verify:
   worklist reviewed.
@@ -568,7 +568,7 @@ Check off only after the named script or job is green. Manual items say so.
 
 * [ ] Within days of each RC tag: engraver ``python/3.16.YrcN{,-fips}`` →
   digests → language-tools → manylinux mirror → IMAGE_TAG. Verify:
-  ``track-cpython-release-schedule`` checklist.
+  ``python/3.16.YrcN`` on images ``master`` (not draft-only).
 * [ ] Pin hermetic + prof-correctness images to **exact** rcN (never older
   alpha). Verify: no ``_native`` / CrashLoop on import.
 * [ ] Cython upper-bound pin; cp316 wheels **optional**, then **required**;
@@ -612,7 +612,8 @@ Process / shared:
 * Compat baselines: ``scripts/profiles/compatibility_baselines.json``.
 * Staging A/B playbook: ``DataDog/experimental`` ``staging_ab/`` (path only;
   lives outside this repo).
-* Release-schedule flow: ``track-cpython-release-schedule`` skill.
+* Release cadence: engraver → digests → language-tools within days of each
+  RC/final (see PEP phase table above).
 * Parent issue / volunteer tracker: `#17809`__ / `#17817`__.
 
 __ https://github.com/DataDog/dd-trace-py/issues/17809

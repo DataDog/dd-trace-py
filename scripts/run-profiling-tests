@@ -8,7 +8,7 @@
 #   - verify_profiler_compatibility.py (async guards + real profiler samples)
 #   - profile      (main profiling suite: asyncio, stack, threading, lock, etc.)
 #   - profile-memalloc  (memory allocator variants: malloc, pymalloc, debug)
-#   - profile-uwsgi is SKIPPED when the registry marks uwsgi_supported=false
+#   - profile-uwsgi when the registry marks uwsgi_supported=true; otherwise SKIPPED
 #
 # Usage:
 #   scripts/run-profiling-tests                  # default from profiling_versions.json
@@ -152,7 +152,18 @@ if missing:
 
         echo "  Rebuilding stack extension..."
         cd "$REPO_ROOT"
-        "$PYTHON" -m pip install -e . --no-build-isolation -q 2>&1 | grep -E "Building|CMake|error|warning|_stack" | head -30 || true
+        # Capture status before filtering: `grep|head` can SIGPIPE a healthy pip
+        # and `|| true` would hide a real install failure.
+        set +e
+        rebuild_log="$("$PYTHON" -m pip install -e . --no-build-isolation -q 2>&1)"
+        rebuild_status=$?
+        set -e
+        echo "$rebuild_log" | grep -E "Building|CMake|error|warning|_stack" | head -30 || true
+        if [[ "$rebuild_status" -ne 0 ]]; then
+            echo "ERROR: Rebuild failed — pip install exited $rebuild_status." >&2
+            echo "$rebuild_log" >&2
+            exit 1
+        fi
 
         if [[ ! -f "$STACK_SO" ]]; then
             echo "ERROR: Rebuild failed — $STACK_SO not found after pip install." >&2
@@ -238,7 +249,19 @@ entry = data.get('versions', {}).get(version, {})
 print('true' if entry.get('uwsgi_supported') else 'false')
 " "$REGISTRY_FILE" "$PYTHON_VERSION")"
 if [[ "$UWSGI_SUPPORTED" == "true" ]]; then
-    echo "profile-uwsgi: not wired in this runner yet (registry uwsgi_supported=true)"
+    RIOT_UWSGI="$(cd "$REPO_ROOT" && python3 -m riot list -p "$PYTHON_VERSION" --hash-only "^profile-uwsgi\$" 2>/dev/null | tr '\n' ' ')"
+    if [[ -z "$RIOT_UWSGI" ]]; then
+        echo "ERROR: No 'profile-uwsgi' riot venvs found for Python $PYTHON_VERSION." >&2
+        exit 1
+    fi
+    echo "--- Running profile-uwsgi suites: $RIOT_UWSGI---"
+    VENV_ARGS=""
+    for hash in $RIOT_UWSGI; do
+        VENV_ARGS="$VENV_ARGS --venv $hash"
+    done
+    # shellcheck disable=SC2086
+    "$SCRIPTS_DIR/run-tests" $VENV_ARGS
+    echo ""
 else
     echo "profile-uwsgi: SKIPPED (registry uwsgi_supported=false for Python $PYTHON_VERSION)"
 fi
