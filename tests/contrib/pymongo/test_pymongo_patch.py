@@ -21,9 +21,17 @@ else:
     from pymongo.pool import SocketInfo as Connection
     from pymongo.server import Server
 
+if _VERSION >= (4, 18):
+    from pymongo.synchronous.bulk import _Bulk
+    from pymongo.synchronous.mongo_client import MongoClient
+
 # Import async classes if available (pymongo >= 4.12)
 if _VERSION >= (4, 12):
+    from pymongo.asynchronous.mongo_client import AsyncMongoClient
     from pymongo.asynchronous.pool import AsyncConnection
+
+    if _VERSION >= (4, 18):
+        from pymongo.asynchronous.bulk import _AsyncBulk
     from pymongo.asynchronous.server import Server as AsyncServer
 
 
@@ -36,28 +44,46 @@ class TestPymongoPatch(PatchTestCase.Base):
 
     def _assert_sync_wrapped(self, assert_method, pymongo):
         """Assert sync methods are wrapped/unwrapped."""
-        if _VERSION >= (3, 12):
+        if _VERSION >= (4, 18):
+            assert_method(MongoClient._run_operation)
+            assert_method(MongoClient._conn_from_server)
+        elif _VERSION >= (3, 12):
             assert_method(Server.run_operation)
         elif _VERSION >= (3, 9):
             assert_method(Server.run_operation_with_response)
         else:
             assert_method(Server.send_message_with_response)
 
-        if _VERSION >= (4, 5):
+        if _VERSION >= (4, 18):
+            assert_method(MongoClient._checkout)
+        elif _VERSION >= (4, 5):
             assert_method(Server.checkout)
         else:
             assert_method(Server.get_socket)
 
         assert_method(Connection.command)
-        assert_method(Connection.write_command)
+        if _VERSION >= (4, 18):
+            assert_method(_Bulk._execute_batch)
+            assert_method(_Bulk._execute_batch_unack)
+        else:
+            assert_method(Connection.write_command)
 
     def _assert_async_wrapped(self, assert_method):
         """Assert async methods are wrapped/unwrapped (pymongo >= 4.12 only)."""
         if _VERSION >= (4, 12):
-            assert_method(AsyncServer.run_operation)  # type: ignore[name-defined]
-            assert_method(AsyncServer.checkout)  # type: ignore[name-defined]
-            assert_method(AsyncConnection.command)  # type: ignore[name-defined]
-            assert_method(AsyncConnection.write_command)  # type: ignore[name-defined]
+            if _VERSION >= (4, 18):
+                assert_method(AsyncMongoClient._run_operation)
+                assert_method(AsyncMongoClient._conn_from_server)
+                assert_method(AsyncMongoClient._checkout)
+            else:
+                assert_method(AsyncServer.run_operation)
+                assert_method(AsyncServer.checkout)
+            assert_method(AsyncConnection.command)
+            if _VERSION >= (4, 18):
+                assert_method(_AsyncBulk._execute_batch)
+                assert_method(_AsyncBulk._execute_batch_unack)
+            else:
+                assert_method(AsyncConnection.write_command)
 
     def assert_module_patched(self, pymongo):
         self._assert_sync_wrapped(self.assert_wrapped, pymongo)
@@ -69,16 +95,25 @@ class TestPymongoPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, pymongo):
         self.assert_not_double_wrapped(Connection.command)
-        self.assert_not_double_wrapped(Connection.write_command)
+        if _VERSION >= (4, 18):
+            self.assert_not_double_wrapped(_Bulk._execute_batch)
+            self.assert_not_double_wrapped(_Bulk._execute_batch_unack)
+        else:
+            self.assert_not_double_wrapped(Connection.write_command)
 
-        if _VERSION >= (3, 12):
+        if _VERSION >= (4, 18):
+            self.assert_not_double_wrapped(MongoClient._run_operation)
+            self.assert_not_double_wrapped(MongoClient._conn_from_server)
+        elif _VERSION >= (3, 12):
             self.assert_not_double_wrapped(Server.run_operation)
         elif _VERSION >= (3, 9):
             self.assert_not_double_wrapped(Server.run_operation_with_response)
         else:
             self.assert_not_double_wrapped(Server.send_message_with_response)
 
-        if _VERSION >= (4, 5):
+        if _VERSION >= (4, 18):
+            self.assert_not_double_wrapped(MongoClient._checkout)
+        elif _VERSION >= (4, 5):
             self.assert_not_double_wrapped(Server.checkout)
         else:
             self.assert_not_double_wrapped(Server.get_socket)

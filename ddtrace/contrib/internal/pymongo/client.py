@@ -40,6 +40,10 @@ from .utils import setup_checkout_span_tags
 VERSION = pymongo.version_tuple
 
 
+if VERSION >= (4, 18):
+    from pymongo.synchronous.bulk import _Bulk
+    from pymongo.synchronous.mongo_client import MongoClient
+
 if VERSION >= (4, 9):
     from pymongo.synchronous.pool import Connection
     from pymongo.synchronous.server import Server
@@ -63,39 +67,57 @@ class TracedMongoClient(ObjectProxy):
 
 def patch_pymongo_sync_modules():
     """Patch synchronous pymongo modules."""
-    if VERSION >= (3, 12):
+    if VERSION >= (4, 18):
+        _w(MongoClient._run_operation, _trace_mongo_client_run_operation)
+        _w(MongoClient._conn_from_server, traced_get_connection)
+    elif VERSION >= (3, 12):
         _w(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
         _w(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
         _w(Server.send_message_with_response, _trace_server_send_message_with_response)
 
-    if VERSION >= (4, 5):
+    if VERSION >= (4, 18):
+        _w(MongoClient._checkout, traced_get_socket)
+    elif VERSION >= (4, 5):
         _w(Server.checkout, traced_get_socket)
     else:
         _w(Server.get_socket, traced_get_socket)
     _w(Connection.command, _trace_socket_command)
-    _w(Connection.write_command, _trace_socket_write_command)
+    if VERSION >= (4, 18):
+        _w(_Bulk._execute_batch, _trace_bulk_execute_batch)
+        _w(_Bulk._execute_batch_unack, _trace_bulk_execute_batch)
+    else:
+        _w(Connection.write_command, _trace_socket_write_command)
 
 
 def unpatch_pymongo_sync_modules():
     """Unpatch synchronous pymongo modules."""
-    if VERSION >= (3, 12):
+    if VERSION >= (4, 18):
+        _u(MongoClient._run_operation, _trace_mongo_client_run_operation)
+        _u(MongoClient._conn_from_server, traced_get_connection)
+    elif VERSION >= (3, 12):
         _u(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
         _u(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
         _u(Server.send_message_with_response, _trace_server_send_message_with_response)
 
-    if VERSION >= (4, 5):
+    if VERSION >= (4, 18):
+        _u(MongoClient._checkout, traced_get_socket)
+    elif VERSION >= (4, 5):
         _u(Server.checkout, traced_get_socket)
     else:
         _u(Server.get_socket, traced_get_socket)
     _u(Connection.command, _trace_socket_command)
-    _u(Connection.write_command, _trace_socket_write_command)
+    if VERSION >= (4, 18):
+        _u(_Bulk._execute_batch, _trace_bulk_execute_batch)
+        _u(_Bulk._execute_batch_unack, _trace_bulk_execute_batch)
+    else:
+        _u(Connection.write_command, _trace_socket_write_command)
 
 
-def datadog_trace_operation(operation, wrapped):
+def datadog_trace_operation(operation):
     cmd = None
     # Only try to parse something we think is a query.
     if is_query(operation):
@@ -132,10 +154,9 @@ def datadog_trace_operation(operation, wrapped):
 
 
 def _trace_server_run_operation_and_with_response(func, args, kwargs):
-    server_instance = get_argument_value(args, kwargs, 0, "self")
     operation = get_argument_value(args, kwargs, 2, "operation")
 
-    span = datadog_trace_operation(operation, server_instance)
+    span = datadog_trace_operation(operation)
     if span is None:
         return func(*args, **kwargs)
     with span:
@@ -144,11 +165,34 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
         return process_server_operation_result(span, operation, result)
 
 
-def _trace_server_send_message_with_response(func, args, kwargs):
-    server_instance = get_argument_value(args, kwargs, 0, "self")
+def _trace_mongo_client_run_operation(func, args, kwargs):
     operation = get_argument_value(args, kwargs, 1, "operation")
 
-    span = datadog_trace_operation(operation, server_instance)
+    span = datadog_trace_operation(operation)
+    if span is None:
+        return func(*args, **kwargs)
+    with span:
+        span, args, kwargs = dbm_dispatch_mongo_client_run_operation(span, args, kwargs)
+        result = func(*args, **kwargs)
+        return process_server_operation_result(span, operation, result)
+
+
+def dbm_dispatch_mongo_client_run_operation(span, args, kwargs):
+    """Inject DBM metadata into the PyMongo 4.18 client operation argument."""
+    operation = get_argument_value(args, kwargs, 1, "operation")
+    span, dbm_args, _ = dbm_dispatch(span, (None, None, operation), {})
+    operation = dbm_args[2]
+    if "operation" in kwargs:
+        kwargs = dict(kwargs, operation=operation)
+    else:
+        args = args[:1] + (operation,) + args[2:]
+    return span, args, kwargs
+
+
+def _trace_server_send_message_with_response(func, args, kwargs):
+    operation = get_argument_value(args, kwargs, 1, "operation")
+
+    span = datadog_trace_operation(operation)
     if span is None:
         return func(*args, **kwargs)
     with span:
@@ -228,6 +272,39 @@ def _trace_socket_write_command(func, args, kwargs):
         return result
 
 
+def parse_bulk_write_command(args, kwargs):
+    """Parse a PyMongo 4.18 bulk write command for tracing."""
+    bulk_write_context = get_argument_value(args, kwargs, 1, "bwc")
+    spec = get_argument_value(args, kwargs, 2, "cmd")
+    cmd = None
+    try:
+        cmd = parse_spec(spec, bulk_write_context.db_name)
+    except Exception:
+        log.exception("error parsing bulk write command")
+
+    if not cmd or not tracer.enabled:
+        return None
+
+    return bulk_write_context, cmd
+
+
+def _trace_bulk_execute_batch(func, args, kwargs):
+    parsed = parse_bulk_write_command(args, kwargs)
+    if parsed is None:
+        return func(*args, **kwargs)
+
+    bulk_write_context, cmd = parsed
+    socket_instance = bulk_write_context.conn
+    with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        s, args, kwargs = dbm_dispatch(s, args, kwargs)
+        result = func(*args, **kwargs)
+        if isinstance(result, tuple) and result[0]:
+            s._set_attribute(db.ROWCOUNT, result[0].get("n", -1))
+        elif result:
+            s._set_attribute(db.ROWCOUNT, result.get("n", -1))
+        return result
+
+
 def trace_cmd(cmd, socket_instance, address):
     s = tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
@@ -265,3 +342,16 @@ def traced_get_socket(func, args, kwargs):
         with func(*args, **kwargs) as sock_info:
             setup_checkout_span_tags(span, sock_info, instance)
             yield sock_info
+
+
+@contextlib.contextmanager
+def traced_get_connection(func, args, kwargs):
+    if not tracer.enabled:
+        with func(*args, **kwargs) as result:
+            yield result
+            return
+
+    with create_checkout_span() as span:
+        with func(*args, **kwargs) as (sock_info, read_preference):
+            setup_checkout_span_tags(span, sock_info, None)
+            yield sock_info, read_preference
