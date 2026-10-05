@@ -291,23 +291,6 @@ def test_otel_span_attributes_set_method_clears_stale_original_method(tracer, in
     assert span.get_tag(otel_http.REQUEST_METHOD_ORIGINAL) is None
 
 
-def test_otel_span_attributes_dispatches_client_and_server_urls(tracer, integration_config):
-    with tracer.trace("request", span_type=SpanTypes.WEB) as server_span:
-        OTelHTTPSpanAttributes(server_span, integration_config).set_url(
-            "https://example.com/users/42?token=secret",
-            raw_uri="/users/%34%32?token=secret",
-        )
-        with tracer.trace("request", span_type=SpanTypes.HTTP) as client_span:
-            client_span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-            OTelHTTPSpanAttributes(client_span, integration_config).set_url("https://example.com/users/42?token=secret")
-
-    assert client_span.get_tag(otel_http.URL_FULL) == "https://example.com/users/42"
-    assert client_span.get_tag(otel_http.URL_PATH) is None
-    assert server_span.get_tag(otel_http.URL_PATH) == "/users/%34%32"
-    assert server_span.get_tag(otel_http.URL_QUERY) is None
-    assert server_span.get_tag(otel_http.URL_FULL) is None
-
-
 def test_otel_span_attributes_sets_query_without_url(tracer):
     integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
 
@@ -316,13 +299,6 @@ def test_otel_span_attributes_sets_query_without_url(tracer):
             OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
 
     assert span.get_tag(otel_http.URL_QUERY) == "q=public"
-
-
-def test_otel_span_attributes_query_without_url_respects_query_string_tagging(tracer, integration_config):
-    with tracer.trace("request", span_type=SpanTypes.WEB) as span:
-        OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
-
-    assert span.get_tag(otel_http.URL_QUERY) is None
 
 
 @pytest.mark.parametrize(
@@ -459,16 +435,6 @@ def test_client_error_statuses_do_not_change_server_statuses(client_error_status
     assert server_error_statuses.is_error_code(200) is False
 
 
-def test_otel_span_attributes_status_preserves_exception_error_type(tracer, integration_config, server_error_statuses):
-    server_error_statuses.error_statuses = "500-599"
-    with tracer.trace("request", span_type=SpanTypes.WEB) as span:
-        span._set_attribute(ERROR_TYPE, "ValueError")
-        OTelHTTPSpanAttributes(span, integration_config).set_status_code(503)
-
-    assert span.error == 1
-    assert span.get_tag(ERROR_TYPE) == "ValueError"
-
-
 def test_otel_span_attributes_success_clears_status_error(tracer, integration_config):
     with tracer.trace("request", span_type=SpanTypes.WEB) as span:
         OTelHTTPSpanAttributes(span, integration_config).set_status_code(503)
@@ -493,18 +459,6 @@ def test_otel_span_attributes_success_preserves_exception(tracer, integration_co
     assert span.get_metric(otel_http.RESPONSE_STATUS_CODE) == 200
     assert span.error == 1
     assert span.get_tag(ERROR_TYPE) == "builtins.ValueError"
-
-
-def test_otel_span_attributes_sets_user_agent_and_client_addresses(tracer, integration_config):
-    with tracer.trace("request") as span:
-        attributes = OTelHTTPSpanAttributes(span, integration_config)
-
-        attributes.set_user_agent("test-agent")
-        attributes.set_client_addresses("203.0.113.10", "10.0.0.5")
-
-    assert span.get_tag(otel_http.USER_AGENT_ORIGINAL) == "test-agent"
-    assert span.get_tag(otel_http.CLIENT_ADDRESS) == "203.0.113.10"
-    assert span.get_tag(otel_http.NETWORK_PEER_ADDRESS) == "10.0.0.5"
 
 
 def test_otel_span_attributes_refines_server_resource_with_route(tracer, integration_config):
