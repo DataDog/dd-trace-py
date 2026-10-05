@@ -464,6 +464,11 @@ def test_serialized_capture_turn_contract(monkeypatch, llmobs, capture_name, tur
             == final_usage["details"]["total"][direction]["speechTokens"]
         )
         assert all(0 <= p["metrics"][audio_key] <= p["metrics"][direction + "_tokens"] for p in responses)
+    for direction in ("input", "output"):
+        text_key = direction + "_text_tokens"
+        assert (
+            sum(p["metrics"][text_key] for p in responses) == final_usage["details"]["total"][direction]["textTokens"]
+        )
     assert sum(p["metrics"]["total_tokens"] for p in responses) == capture["input_tokens"] + capture["output_tokens"]
     for index, root in enumerate(roots):
         children = {p["name"]: p for p in payloads if p["parent_id"] == root["span_id"]}

@@ -255,3 +255,13 @@ input_audio_tokens/output_audio_tokens as subsets, never add them to total_token
 and preserve explicit zero. A missing or invalid breakdown makes that turn's
 corresponding audio metric unknown; recover the baseline before pricing later
 turns, without attributing earlier unknown usage to them.
+
+### Nova Sonic token breakdowns
+
+Nova Sonic 2 reports cumulative `details.total.input` / `output` counters.
+Difference `textTokens` into `input_text_tokens` / `output_text_tokens` and
+`speechTokens` into `input_audio_tokens` / `output_audio_tokens`, following the
+same turn attribution as aggregate usage. Keep each modality baseline independent.
+A missing or invalid counter makes that turn's split unknown; re-establish its
+baseline without attributing the gap to a later turn. Preserve explicit zeros,
+omit invalid or missing counts, and never add modality counts to inclusive totals.
