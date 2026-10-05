@@ -83,7 +83,8 @@ fast_copy_handler_ops_enabled()
 inline bool safe_memcpy_initialized = false;
 
 #if defined PL_LINUX
-// Constructor probe of process_vm_readv; tests may override after start.
+// Tests can flip this after the sampler has started, so it has to be atomic
+// for the sampling thread's reads. Initially set by the constructor probe.
 inline std::atomic<bool> process_vm_readv_available{ false };
 
 // True when neither safe_memcpy nor process_vm_readv could be initialized.
