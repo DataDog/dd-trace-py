@@ -1,4 +1,4 @@
 fixes:
   - |
-    CI visibility: Fixes missing test results and cassette errors in later tests
-    when background uploads overlap with tests using vcrpy.
+    CI Visibility: Fixes an incompatibility between vcrpy and Test Optimization
+    that prevents test traces from being uploaded to Datadog.
