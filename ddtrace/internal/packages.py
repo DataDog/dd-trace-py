@@ -455,14 +455,18 @@ def _mtime(entry: str) -> t.Optional[int]:
         return None
 
 
+def _scans_sys_path(finder: t.Any) -> bool:
+    # PathFinder, or a MetadataPathFinder (as the importlib_metadata backport
+    # installs), which discovers the same sys.path distributions.
+    name = finder.__name__ if isinstance(finder, type) else type(finder).__name__
+    return finder is PathFinder or name == "MetadataPathFinder"
+
+
 def _custom_finders() -> tuple[t.Any, ...]:
     return tuple(
         finder
         for finder in sys.meta_path
-        # The importlib_metadata backport's MetadataPathFinder duplicates PathFinder.
-        if finder is not PathFinder
-        and type(finder).__name__ != "MetadataPathFinder"
-        and getattr(finder, "find_distributions", None) is not None
+        if not _scans_sys_path(finder) and getattr(finder, "find_distributions", None) is not None
     )
 
 
@@ -548,12 +552,15 @@ def _entry_records(
 
 
 def _meta_path_segments(warn: _WarnBadDist) -> list[t.Optional[list[_DistributionRecord]]]:
-    """Distribution sources on sys.meta_path, in order: None for PathFinder (scanned natively), records for others."""
+    """Distribution sources on sys.meta_path, in order: None for the sys.path scan (native), records for others."""
     custom = _custom_finders()
     segments: list[t.Optional[list[_DistributionRecord]]] = []
     for finder in sys.meta_path:
-        if finder is PathFinder:
-            segments.append(None)
+        if _scans_sys_path(finder):
+            # One native scan stands for all of them; another would list every
+            # distribution again.
+            if None not in segments:
+                segments.append(None)
         elif finder in custom:
             # Only imported for custom finders: IAST drops importlib.metadata
             # after boot, for gevent, and the prefetch must not bring it back.

@@ -1183,3 +1183,30 @@ def test_custom_finder_reading_the_maps_does_not_recurse(
     # The nested read saw the native records only, and did not publish them.
     assert [[r[0] for r in n] for n in nested] == [["on-path"]]
     assert _p._installed_distributions() is records
+
+
+class MetadataPathFinder:
+    """Stands in for the importlib_metadata backport's sys.path distribution finder."""
+
+    def find_spec(self, *args, **kwargs):
+        return None
+
+    def find_distributions(self, context):
+        raise AssertionError("the native scan stands for this finder")
+
+
+@pytest.mark.parametrize("with_path_finder", [False, True])
+def test_metadata_path_finder_means_the_native_scan(
+    with_path_finder: bool, tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A MetadataPathFinder discovers the sys.path distributions: on its own it
+    must not hide them, and next to PathFinder it must not list them twice.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    meta_path = [_p.PathFinder, MetadataPathFinder()] if with_path_finder else [MetadataPathFinder()]
+    monkeypatch.setattr(sys, "meta_path", meta_path)
+
+    assert [r[0] for r in _p._installed_distributions()] == ["on-path"]
