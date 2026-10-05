@@ -157,9 +157,11 @@ class BaseWriter(ABC):
         self.task = threading.Thread(target=self._periodic_task, daemon=True)
         self.task.start()
         self._startup_complete.wait()
-        if self._startup_error is not None:
+        # The worker may have replaced None during the wait; static narrowing cannot track that write.
+        startup_error = t.cast(t.Optional[BaseException], self._startup_error)
+        if startup_error is not None:
             self.task.join()
-            raise self._startup_error
+            raise startup_error
 
     def set_async_flush_events(self, async_flush_events: t.Optional[int]) -> None:
         self.async_flush_events = async_flush_events
