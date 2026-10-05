@@ -113,7 +113,7 @@ scripts/run-tests -r --venv <hash1> --venv <hash2>
 - C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
 - `setup.py`, `pyproject.toml`, or `setup.cfg` were modified
 
-Dependency locks and environment definitions are part of the environment identity and invalidate the cache automatically.
+Selected dependency locks and environment definitions invalidate the cache automatically, but not all source and build inputs are tracked; use `-r` for the cases above.
 
 This will:
 - Start required Docker services (redis, postgres, etc.)
