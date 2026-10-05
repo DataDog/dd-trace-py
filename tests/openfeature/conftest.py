@@ -10,10 +10,10 @@ import pytest
 def set_openfeature_provider(*args: Any, **kwargs: Any) -> None:
     """Register a provider and wait until initialize() finishes when the SDK allows it.
 
-    OpenFeature Python 0.10 made ``set_provider()`` non-blocking. Tests that
+    OpenFeature Python 0.10 made set_provider() non-blocking. Tests that
     evaluate flags immediately after registration must wait, or they see defaults.
 
-    ``set_provider_and_wait()`` also propagates ``ProviderNotReadyError`` when
+    set_provider_and_wait() also propagates ProviderNotReadyError when
     initialize() times out. Most fixtures register before loading FFE config,
     and the autouse fixture sets that timeout to 0, so the error is expected.
     Swallow it: initialization has still finished.
