@@ -103,7 +103,7 @@ class Turn:
         self.interrupted_ns: Optional[int] = None
         self.started_ns: Optional[int] = None
         self.metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-        self.missing_audio_metrics: set[str] = set()
+        self.missing_modality_metrics: set[str] = set()
         self.completion_id: Optional[str] = None
         self.partial = False
         self.emitted = False
@@ -185,7 +185,11 @@ class SonicState:
         self.closed = False
         self.turn_index = 0
         self.totals = {"input_tokens": 0, "output_tokens": 0}
-        self.audio_totals: dict[str, Optional[int]] = {"input": 0, "output": 0}
+        self.modality_totals: dict[str, Optional[int]] = {
+            direction + "_" + modality + "_tokens": 0
+            for direction in ("input", "output")
+            for modality in ("audio", "text")
+        }
         self.completed_ids: deque[str] = deque(maxlen=MAX_BLOCKS)
 
     def observe(self, event: Any, outbound: bool = False) -> None:
@@ -417,33 +421,31 @@ class SonicState:
             target.metrics[key] += delta
             target.metrics["total_tokens"] += delta
 
-            # Speech tokens are a subset of the same aggregate delta and belong
-            # to the same turn. Never add them to total_tokens again.
-            audio_key = direction + "_audio_tokens"
+            # AIDEV-NOTE: Each modality has an independent cumulative baseline.
+            # Missing text must not discard valid speech, and recovered counters
+            # establish a baseline without charging a previous turn's gap.
             usage = breakdown.get(direction) if isinstance(breakdown, dict) else None
-            audio_total = usage.get("speechTokens") if isinstance(usage, dict) else None
-            previous_audio = self.audio_totals[direction]
-            valid_audio = (
-                isinstance(audio_total, int)
-                and not isinstance(audio_total, bool)
-                and 0 <= audio_total <= total
-                and (previous_audio is None or audio_total >= previous_audio)
-            )
-            audio_delta = (
-                audio_total - previous_audio
-                if valid_audio and audio_total is not None and previous_audio is not None
-                else None
-            )
-            self.audio_totals[direction] = audio_total if valid_audio else (None if delta else previous_audio)
-            if audio_delta is None or audio_delta > delta:
-                if delta or (audio_delta is not None and audio_delta > delta):
-                    # A gap makes this turn's audio split unknown. Re-establish
-                    # the cumulative baseline without charging the gap to a later turn.
-                    target.missing_audio_metrics.add(audio_key)
-                    target.metrics.pop(audio_key, None)
-                continue
-            if audio_key not in target.missing_audio_metrics:
-                target.metrics[audio_key] = target.metrics.get(audio_key, 0) + audio_delta
+            for modality, field in (("audio", "speechTokens"), ("text", "textTokens")):
+                modality_key = direction + "_" + modality + "_tokens"
+                modality_total = usage.get(field) if isinstance(usage, dict) else None
+                previous = self.modality_totals[modality_key]
+                valid = (
+                    isinstance(modality_total, int)
+                    and not isinstance(modality_total, bool)
+                    and 0 <= modality_total <= total
+                    and (previous is None or modality_total >= previous)
+                )
+                modality_delta = (
+                    modality_total - previous if valid and modality_total is not None and previous is not None else None
+                )
+                self.modality_totals[modality_key] = modality_total if valid else (None if delta else previous)
+                if modality_delta is None or modality_delta > delta:
+                    if delta or (modality_delta is not None and modality_delta > delta):
+                        target.missing_modality_metrics.add(modality_key)
+                        target.metrics.pop(modality_key, None)
+                    continue
+                if modality_key not in target.missing_modality_metrics:
+                    target.metrics[modality_key] = target.metrics.get(modality_key, 0) + modality_delta
 
     def _messages(self, turn: Turn) -> tuple[list[Any], list[Any]]:
         # Reserve the serialized text/tool size, including JSON escaping of Unicode.
