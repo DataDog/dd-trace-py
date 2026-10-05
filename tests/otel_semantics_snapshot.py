@@ -148,9 +148,10 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
     Ids become ordinal placeholders (parent/child links are preserved), timestamps are validated and
     replaced, attribute lists are sorted, and ignored attributes and fields are dropped.
     """
-    ignored = _ignored_names(ignores)
-    ignored_attributes = DEFAULT_IGNORED_ATTRIBUTES | ignored
-    ignored_fields = DEFAULT_IGNORED_FIELDS | ignored
+    ignored_attributes = DEFAULT_IGNORED_ATTRIBUTES | _ignored_names(ignores)
+    # Test ignores name attributes only, so an ignore that shares a name with an OTLP field
+    # (such as "name" or "kind") cannot drop that field from the snapshot.
+    ignored_fields = DEFAULT_IGNORED_FIELDS
 
     # Work on a copy so the caller's payload is left untouched.
     resource_spans = json.loads(json.dumps([rs for request in requests for rs in request.get("resource_spans", [])]))
