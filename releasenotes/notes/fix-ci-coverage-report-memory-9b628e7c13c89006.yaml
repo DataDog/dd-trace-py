@@ -1,4 +1,5 @@
 fixes:
   - |
     CI Visibility: Fixes excessive memory use when generating Code Coverage
-    reports for large projects, particularly when tests run with multiple workers.
+    reports for large projects when using coverage.py 7.16 or later, particularly
+    when tests run with multiple workers.

@@ -1,5 +1,6 @@
 """Tests for ddtrace.contrib.internal.coverage.patch module."""
 
+from inspect import signature
 from io import StringIO
 from pathlib import Path
 import runpy
@@ -409,8 +410,8 @@ class TestLcovReportMemory:
 
         from coverage.lcovreport import LcovReporter
 
-        if not hasattr(LcovReporter, "lcov_file"):
-            pytest.skip("Older coverage.py LCOV renderers do not use the accumulating report list")
+        if not hasattr(LcovReporter, "lcov_file") or "file_reporter" not in signature(Coverage._analyze).parameters:
+            pytest.skip("This coverage.py API cannot release analyzed file reporters")
         cov = Coverage(config_file=False, data_file=None, source=[str(tmp_path)])
         for i in range(12):
             path = tmp_path / f"module_{i:02}.py"
@@ -457,8 +458,8 @@ class TestLcovReportMemory:
 
         from ddtrace.contrib.internal.coverage import lcov
 
-        if not hasattr(LcovReporter, "lcov_file"):
-            pytest.skip("Older coverage.py LCOV renderers do not require a spool")
+        if not hasattr(LcovReporter, "lcov_file") or "file_reporter" not in signature(Coverage._analyze).parameters:
+            pytest.skip("This coverage.py API uses the native LCOV renderer")
         path = tmp_path / "module.py"
         path.write_text("value = 1\n")
         cov = Coverage(config_file=False, data_file=None)
@@ -486,7 +487,7 @@ class TestLcovReportMemory:
     def test_lcov_applies_and_clears_context_filters(self, tmp_path: Path) -> None:
         from coverage.lcovreport import LcovReporter
 
-        if not hasattr(LcovReporter, "lcov_file"):
+        if not hasattr(LcovReporter, "lcov_file") or "file_reporter" not in signature(Coverage._analyze).parameters:
             pytest.skip("Older coverage.py versions use the native LCOV renderer")
         path = tmp_path / "contexts.py"
         path.write_text("first = 1\nsecond = 2\n")
@@ -515,3 +516,22 @@ class TestLcovReportMemory:
         assert percentage == 100.0
         assert "DA:1,1" in report.read_text()
         assert "DA:2,1" in report.read_text()
+
+    def test_lcov_uses_native_reporter_without_disposable_analysis_api(self, tmp_path: Path, monkeypatch) -> None:
+        from ddtrace.contrib.internal.coverage import lcov
+
+        cov = Coverage(config_file=False, data_file=None)
+
+        def legacy_analyze(self, morf):
+            raise AssertionError("The streaming reporter must not use the legacy analysis iterator")
+
+        monkeypatch.setattr(Coverage, "_analyze", legacy_analyze)
+        options = {"outfile": str(tmp_path / "report.lcov"), "contexts": ["selected"], "ignore_errors": True}
+        with (
+            patch.object(cov, "lcov_report", return_value=50.0) as native_report,
+            patch.object(lcov.tempfile, "TemporaryFile", side_effect=AssertionError("No spool expected")),
+        ):
+            percentage = lcov.report_lcov(cov, **options)
+
+        assert percentage == 50.0
+        native_report.assert_called_once_with(**options)

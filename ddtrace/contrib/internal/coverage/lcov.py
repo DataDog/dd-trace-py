@@ -1,5 +1,6 @@
 """Generate LCOV reports without retaining every file's parsed source and analysis."""
 
+from inspect import signature
 from io import StringIO
 import tempfile
 from typing import IO
@@ -51,10 +52,14 @@ else:
 
 def report_lcov(cov: Any, **kwargs: Any) -> Optional[float]:
     """Use coverage.py's file renderer and report configuration with bounded analysis memory."""
+    # The file_reporter argument was introduced with the analysis iterator
+    # that discards completed reporters. Earlier iterators retain their parsers
+    # even when lcov_file is available, so spooling cannot bound their memory.
     if (
         not _LCOV_AVAILABLE
         or not isinstance(cov, Coverage)
         or not hasattr(LcovReporter, "lcov_file")
+        or "file_reporter" not in signature(Coverage._analyze).parameters
         or kwargs.keys() - {"morfs", "outfile", "ignore_errors", "omit", "include", "contexts"}
     ):
         return cast(Optional[float], cov.lcov_report(**kwargs))
