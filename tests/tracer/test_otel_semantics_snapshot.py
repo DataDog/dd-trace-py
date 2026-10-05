@@ -185,6 +185,23 @@ def test_normalize_rewrites_link_ids_with_the_span_mappings():
     ]
 
 
+def test_normalize_ignores_start_order_of_concurrent_traces_and_siblings():
+    def payload(first, second):
+        return [
+            _request(
+                [
+                    _span("a", "dEE=", "YQ==", first, 10),
+                    _span("b", "dEI=", "Yg==", second, 10),
+                    _span("root", "dEM=", "cm9vdA==", 1, 10),
+                    _span("left", "dEM=", "bA==", first, 10, parent_span_id="cm9vdA=="),
+                    _span("right", "dEM=", "cg==", second, 10, parent_span_id="cm9vdA=="),
+                ]
+            )
+        ]
+
+    assert normalize_otlp_requests(payload(2, 3)) == normalize_otlp_requests(payload(3, 2))
+
+
 def test_normalize_rejects_invalid_time_range():
     requests = [_request([_span("bad", "dA==", "cw==", 10, 5)])]
 
