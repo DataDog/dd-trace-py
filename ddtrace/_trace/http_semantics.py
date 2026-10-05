@@ -29,6 +29,7 @@ _DEFAULT_KNOWN_HTTP_METHODS = frozenset(
     ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "QUERY")
 )
 OTHER_HTTP_METHOD = "_OTHER"
+_HTTP_STATUS_ERROR = "_dd.http_status_error"
 
 
 @cached()
@@ -111,13 +112,13 @@ def set_url_tags_otel_server(
     query: Optional[str],
     raw_uri: Optional[str] = None,
 ) -> None:
-    parsed = parse.urlparse(url)
+    parsed = parse.urlsplit(url)
     if parsed.scheme:
         span._set_attribute(http.OTEL_URL_SCHEME, parsed.scheme)
     raw_path = None
     if raw_uri:
         try:
-            raw_path = parse.urlparse(raw_uri).path
+            raw_path = parse.urlsplit(raw_uri).path
         except ValueError:
             # raw_uri is also forwarded unchanged to ASM. A malformed optional value must
             # not prevent the remaining request metadata from being reported.
@@ -232,14 +233,26 @@ class OTelHTTPSpanAttributes:
             return
 
         self._span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, int_status_code)
+        previous_status_error = self._span._get_ctx_item(_HTTP_STATUS_ERROR)
+        if previous_status_error is not None:
+            previous_error_type, previous_error = previous_status_error
+            # Metadata phases recreate this helper. Keep ownership on the span, and
+            # restore it only while an exception has not replaced our error type.
+            if self._span.get_tag(ERROR_TYPE) == previous_error_type:
+                self._span.remove_tag(ERROR_TYPE)
+                self._span.error = previous_error
+            self._span._set_ctx_item(_HTTP_STATUS_ERROR, None)
         if not self._is_error_status(int_status_code):
             return
 
+        previous_error = self._span.error
         self._span.error = 1
         # An exception carries more information than a status code, so the status code must
         # never overwrite an error.type that came from one.
         if self._span.get_tag(ERROR_TYPE) is None:
-            self._span._set_attribute(ERROR_TYPE, str(int_status_code))
+            error_type = str(int_status_code)
+            self._span._set_attribute(ERROR_TYPE, error_type)
+            self._span._set_ctx_item(_HTTP_STATUS_ERROR, (error_type, previous_error))
 
     def _is_error_status(self, status_code: int) -> bool:
         if self.is_client:

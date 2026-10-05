@@ -81,6 +81,17 @@ def test_set_otel_http_resource_leaves_websocket_handshake_unchanged():
     assert span.resource == "websocket /socket"
 
 
+def test_set_otel_http_resource_preserves_empty_user_resource():
+    span = Span("http.request")
+    set_otel_http_resource(span, "GET")
+
+    span.resource = ""
+    set_otel_http_resource(span, "GET", target="/users/{id}")
+
+    assert span.resource == ""
+    assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
+
+
 def test_resource_ownership_helpers():
     instrumentation_span = Span("http.request", resource="http.request")
     record_initial_instrumentation_resource(instrumentation_span, "http.request")
@@ -144,6 +155,23 @@ def test_set_url_tags_otel_server():
     assert span.get_tag(http.OTEL_URL_QUERY) == "token=redacted"
     assert span.get_tag(net.SERVER_ADDRESS) == "example.com"
     assert span.get_metric(net.SERVER_PORT) == 443
+
+
+@pytest.mark.parametrize(
+    "url, raw_uri",
+    [
+        ("https://example.com/items;version=2?x=1", None),
+        ("https://example.com/items?x=1", "/items;version=2?x=1"),
+    ],
+)
+def test_set_url_tags_otel_server_preserves_path_parameters(url, raw_uri):
+    integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
+    span = Span("web.request")
+
+    set_url_tags_otel_server(integration_config, span, url, None, raw_uri=raw_uri)
+
+    assert span.get_tag(http.OTEL_URL_PATH) == "/items;version=2"
+    assert span.get_tag(http.OTEL_URL_QUERY) is None
 
 
 def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
@@ -454,6 +482,32 @@ def test_otel_span_attributes_status_preserves_exception_error_type(integration_
     assert span.get_tag(ERROR_TYPE) == "ValueError"
 
 
+def test_otel_span_attributes_success_clears_status_error(integration_config):
+    span = Span("request", span_type=SpanTypes.WEB)
+    OTelHTTPSpanAttributes(span, integration_config).set_status_code(503)
+
+    OTelHTTPSpanAttributes(span, integration_config).set_status_code(200)
+
+    assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 200
+    assert span.error == 0
+    assert span.get_tag(ERROR_TYPE) is None
+
+
+def test_otel_span_attributes_success_preserves_exception(integration_config):
+    span = Span("request", span_type=SpanTypes.WEB)
+    OTelHTTPSpanAttributes(span, integration_config).set_status_code(503)
+    try:
+        raise ValueError("request failed")
+    except ValueError as exc:
+        span.set_exc_info(type(exc), exc, exc.__traceback__)
+
+    OTelHTTPSpanAttributes(span, integration_config).set_status_code(200)
+
+    assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 200
+    assert span.error == 1
+    assert span.get_tag(ERROR_TYPE) == "builtins.ValueError"
+
+
 def test_otel_span_attributes_sets_user_agent_and_client_addresses(integration_config):
     span = Span("request")
     attributes = OTelHTTPSpanAttributes(span, integration_config)
@@ -535,16 +589,26 @@ def test_otel_semantics_overrides_conflicting_schema_and_peer_service_settings()
     assert _ps_config.set_defaults_enabled is False
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "OTEL_TRACES_EXPORTER": "none",
+        "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+    },
+    err=None,
+)
 def test_otel_semantics_flag_resolves_identically_when_enabled():
     from ddtrace.internal.settings._agent import config as agent_config
     from ddtrace.internal.settings._config import config
     from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
     from ddtrace.internal.settings._opentelemetry import otel_config
+    from ddtrace.trace import tracer
 
     assert agent_config._trace_otel_semantics_enabled is True
     assert config._otel_trace_semantics_enabled is True
     assert _is_otlp_traces_exporter_enabled(otel_config.exporter) is True
+    assert agent_config.trace_native_span_events is True
+    assert tracer._span_aggregator.writer._otlp_endpoint == otel_config.exporter.TRACES_ENDPOINT
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"}, err=None)
