@@ -1,8 +1,8 @@
 # CPython 3.14 → 3.15 Change Analysis (for echion)
 
-**Generated from:** `git diff v3.14.0 v3.15.0a7` on `python/cpython`
+**Generated from:** `git diff v3.14.0 v3.15.0a7` on `python/cpython` (header paths listed in `docs/contributing-profiling-new-cpython.rst`)
 **Latest 3.15 tag used:** `v3.15.0a7` (pre-release; verify against final tag when available)
-**Raw diff:** `cpython_314_to_315_headers.diff` (1,479 lines)
+**Raw diff (local research artifact, not committed):** regenerate with the `git diff` above into e.g. `/tmp/cpython_314_to_315_headers.diff` (~1,479 lines at generation time); the 3.13→3.14 committed reference lives in `DataDog/echion` at `docs/cpython-diffs/cpython_313_to_314_headers.diff`.
 
 Files with **no changes** relevant to echion (stable between 3.14 and 3.15):
 
