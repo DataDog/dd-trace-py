@@ -19,7 +19,7 @@ thin Q3 PR (catalog + stack map + pointers + suitespec-aligned verify runner).
 | [#20450](https://github.com/DataDog/dd-trace-py/pull/20450) | **merged** | require cp315 wheels; schedule lib_injection on 3.15 |
 | [#20474](https://github.com/DataDog/dd-trace-py/pull/20474) | **open** | hermetic pip / PEP 440 local versions |
 | [#20478](https://github.com/DataDog/dd-trace-py/pull/20478) | **closed** | profiling readiness ADR |
-| Q3 docs closeout | **open (draft)** | catalog, stack map, thin bring-up pointers |
+| [#20814](https://github.com/DataDog/dd-trace-py/pull/20814) | **open (draft)** | Q3 catalog, stack map, thin bring-up pointers |
 | [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | **open (draft)** | Q4 full tooling / deeper runbook vehicle |
 
 ## Layer table
@@ -31,7 +31,7 @@ thin Q3 PR (catalog + stack map + pointers + suitespec-aligned verify runner).
 | Observable in product/Python | sys.monitoring asyncio path; `wrap()` stays below 3.15 | #19272 |
 | Test gating | prof-correctness on profiling PRs | #19207 |
 | Wheels / packaging | optional → required cp315; Cython pin | #19861 → #20450 |
-| Docs / bring-up (Q3) | Catalog, stack map, thin pointers, verify/registry + suitespec | Q3 docs closeout |
+| Docs / bring-up (Q3) | Catalog, stack map, thin pointers, verify/registry + suitespec | #20814 |
 | Docs / tooling (Q4) | Fuller process / automation follow-ups | #19273 |
 | ADR | Readiness write-up | #20478 (closed) |
 
