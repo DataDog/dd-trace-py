@@ -1,4 +1,4 @@
 fixes:
   - |
-    CI visibility: Fixes excessive memory use when generating code coverage
+    CI Visibility: Fixes excessive memory use when generating Code Coverage
     reports for large projects, particularly when tests run with multiple workers.
