@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 from functools import lru_cache as cached
 from functools import singledispatch
@@ -6,6 +8,7 @@ import logging
 from pathlib import Path
 import sys
 import sysconfig
+import threading
 from types import ModuleType
 import typing as t
 
@@ -15,6 +18,13 @@ from ddtrace.internal.utils.cache import callonce
 
 
 LOG = logging.getLogger(__name__)
+
+# The distribution scan is shared. It must not run on the thread of whichever
+# product asks first, and a result built before the user sitecustomize must not
+# stay cached after sys.path changes.
+_mapping_build_lock = threading.Lock()
+_mapping_build_thread: threading.Thread | None = None
+_mapping_built_for_path: tuple[str, ...] | None = None
 
 
 class Distribution(t.NamedTuple):
@@ -388,6 +398,9 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     return mapping
 
 
+_PACKAGE_FOR_ROOT_MODULE_MAPPING = _package_for_root_module_mapping
+
+
 @callonce
 def _third_party_packages() -> set:
     from gzip import decompress
@@ -400,7 +413,7 @@ def _third_party_packages() -> set:
 
 
 @cached(maxsize=16384)
-def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
+def _filename_to_package_cached(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
     mapping = _package_for_root_module_mapping()
     if mapping is None:
         return None
@@ -496,6 +509,112 @@ def _(path: Path) -> bool:
 def _(path: str) -> bool:
     _path = Path(path)
     return not (is_stdlib(_path) or is_third_party(_path))
+
+
+def _mapping_callonce_result() -> tuple[t.Any, BaseException | None] | None:
+    try:
+        return _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
+    except AttributeError:
+        return None
+
+
+def _mapping_ready_for_current_path() -> bool:
+    stored = _mapping_callonce_result()
+    if stored is None or stored[1] is not None:
+        return False
+    # Test overrides install a result without recording a path.
+    if _mapping_built_for_path is None:
+        return True
+    return _mapping_built_for_path == tuple(sys.path)
+
+
+def _mapping_build_in_progress() -> bool:
+    thread = _mapping_build_thread
+    return thread is not None and thread.is_alive()
+
+
+def _clear_package_lookup_caches() -> None:
+    _filename_to_package_cached.cache_clear()
+    is_third_party.cache_clear()
+    registered = is_user_code.dispatch(str)
+    cache_clear = getattr(registered, "cache_clear", None)
+    if cache_clear is not None:
+        cache_clear()
+
+
+def _drop_stale_mapping_result() -> None:
+    global _mapping_built_for_path
+    try:
+        del _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
+    except AttributeError:
+        pass
+    _mapping_built_for_path = None
+
+
+def _run_mapping_build() -> None:
+    global _mapping_built_for_path, _mapping_build_thread
+    try:
+        _package_for_root_module_mapping()
+    finally:
+        with _mapping_build_lock:
+            _mapping_built_for_path = tuple(sys.path)
+            _mapping_build_thread = None
+        _clear_package_lookup_caches()
+
+
+def schedule_package_mapping() -> None:
+    """Scan installed distributions off the caller's thread.
+
+    Every product that asks which distribution owns a file shares this scan.
+    Doing it on the caller's thread stalls that product. ddtrace-run starts it
+    from post_preload, after the user sitecustomize can still change sys.path.
+    A later sys.path change drops the cached map and scans again in the background.
+    """
+    global _mapping_build_thread
+    if _mapping_ready_for_current_path():
+        return
+    with _mapping_build_lock:
+        if _mapping_ready_for_current_path() or _mapping_build_in_progress():
+            return
+        if _mapping_built_for_path is not None:
+            _drop_stale_mapping_result()
+        _mapping_build_thread = threading.Thread(
+            target=_run_mapping_build,
+            name="ddtrace-package-mapping",
+            daemon=True,
+        )
+        _mapping_build_thread.start()
+
+
+def reset_package_root_mapping_cache() -> None:
+    global _mapping_build_thread
+    with _mapping_build_lock:
+        _drop_stale_mapping_result()
+        _mapping_build_thread = None
+    _clear_package_lookup_caches()
+
+
+def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
+    if _mapping_build_in_progress() and not _mapping_ready_for_current_path():
+        # A scan is already running. Do not block this caller, and do not cache
+        # the miss: the answer is only unknown until the scan finishes.
+        return None
+    # Tests replace the builder. Keep that path synchronous and cached.
+    if _package_for_root_module_mapping is not _PACKAGE_FOR_ROOT_MODULE_MAPPING:
+        return _filename_to_package_cached(filename)
+    if not _mapping_ready_for_current_path():
+        if _mapping_built_for_path is not None:
+            schedule_package_mapping()
+            return None
+        # No scan has been scheduled (tests, or a process that did not go
+        # through ddtrace-run). Build here so a direct lookup still resolves.
+        _run_mapping_build()
+    if not _mapping_ready_for_current_path():
+        return None
+    return _filename_to_package_cached(filename)
+
+
+filename_to_package.cache_clear = _filename_to_package_cached.cache_clear  # type: ignore[attr-defined]
 
 
 @cached(maxsize=256)

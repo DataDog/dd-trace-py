@@ -17,11 +17,9 @@ def packages():
     yield _p
 
     # Clear caches
+    from ddtrace.internal.packages import reset_package_root_mapping_cache
 
-    try:
-        del _p._package_for_root_module_mapping.__closure__[0].cell_contents.__callonce_result__
-    except AttributeError:
-        pass
+    reset_package_root_mapping_cache()
 
     for f in _p.__dict__.values():
         try:
@@ -92,6 +90,32 @@ def test_filename_to_package(packages) -> None:
         package = packages.filename_to_package("You may be wondering how I got here even though I am not a file.")
     except Exception:
         pytest.fail("filename_to_package should not raise an exception when given a non-file path")
+
+
+def test_lookup_does_not_block_while_the_scan_runs(packages) -> None:
+    import threading
+
+    started = threading.Event()
+    release = threading.Event()
+    real = packages._package_for_root_module_mapping
+
+    def slow_scan():
+        started.set()
+        assert release.wait(2)
+        return {}
+
+    packages.reset_package_root_mapping_cache()
+    packages._package_for_root_module_mapping = slow_scan
+    try:
+        packages.schedule_package_mapping()
+        assert started.wait(2)
+        assert packages.filename_to_package(packages.__file__) is None
+    finally:
+        release.set()
+        if packages._mapping_build_thread is not None:
+            packages._mapping_build_thread.join(2)
+        packages._package_for_root_module_mapping = real
+        packages.reset_package_root_mapping_cache()
 
 
 def test_third_party_packages():

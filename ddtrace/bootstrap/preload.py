@@ -122,3 +122,14 @@ def _(_):
 @register_post_preload
 def _():
     tracer._generate_diagnostic_logs()
+
+
+@register_post_preload
+def _schedule_package_mapping() -> None:
+    # After the user sitecustomize has run. The scan is shared by every product
+    # that asks which distribution owns a file, so it must not run inside the
+    # product that happens to ask first, and it must not run from preload
+    # before that sitecustomize can add paths.
+    from ddtrace.internal.packages import schedule_package_mapping
+
+    schedule_package_mapping()
