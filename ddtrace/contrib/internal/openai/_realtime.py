@@ -69,6 +69,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -1149,6 +1150,20 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
         total_tokens = input_tokens + output_tokens  # mirror the chat/responses fallback
     if total_tokens is not None:
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+
+    # Audio and cached counts are subsets of the totals, not additional tokens.
+    # Preserve missing fields: an unknown cached-audio split is not zero audio.
+    input_details = _get_attr(usage, "input_token_details", None)
+    output_details = _get_attr(usage, "output_token_details", None)
+    cached_details = _get_attr(input_details, "cached_tokens_details", None)
+    for key, value in (
+        (CACHE_READ_INPUT_TOKENS_METRIC_KEY, _get_attr(input_details, "cached_tokens", None)),
+        ("input_audio_tokens", _get_attr(input_details, "audio_tokens", None)),
+        ("output_audio_tokens", _get_attr(output_details, "audio_tokens", None)),
+        ("cache_audio_read_tokens", _get_attr(cached_details, "audio_tokens", None)),
+    ):
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            metrics[key] = value
     return metrics or None
 
 

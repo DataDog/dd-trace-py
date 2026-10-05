@@ -156,6 +156,13 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
 
+For OpenAI Realtime, read the singular `input_token_details` and
+`output_token_details` fields. Preserve `audio_tokens` as `input_audio_tokens` /
+`output_audio_tokens`, `cached_tokens` as `cache_read_input_tokens`, and
+`cached_tokens_details.audio_tokens` as `cache_audio_read_tokens`. These are subsets
+of the inclusive totals. Preserve explicit zero counts and omit missing breakdowns;
+never infer zero cached audio from a missing cached-token detail object.
+
 ## Agent Integrations: Stamp Kind and Name at Span Start
 
 Agent integrations have a critical ordering constraint. `_resolve_parent_agent()` in `ddtrace/llmobs/_utils.py` resolves agent attribution when a **child** span activates, not when the parent finishes. Under LIFO nesting the parent span is still open when the child starts — so any field written at span *finish* time is invisible to children that have already been attributed.
