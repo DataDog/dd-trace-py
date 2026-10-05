@@ -15,6 +15,7 @@ import typing as t
 from ddtrace.internal import forksafe
 from ddtrace.internal.module import origin
 from ddtrace.internal.settings.third_party import config as tp_config
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.cache import callonce
 
 
@@ -23,7 +24,7 @@ LOG = logging.getLogger(__name__)
 # The distribution scan is shared. It must not run on the thread of whichever
 # product asks first, and a result built for one sys.path must not be treated
 # as current after that path changes.
-_mapping_build_lock = threading.Lock()
+_mapping_build_lock = Lock()
 _mapping_build_thread: threading.Thread | None = None
 _mapping_built_for_path: tuple[str, ...] | None = None
 # Bumped when lookup caches are cleared. A cached call that overlaps that clear
