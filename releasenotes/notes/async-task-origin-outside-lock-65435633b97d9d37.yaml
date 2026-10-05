@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Reduces lock hold time during async task sampling by building the live-task lookup set outside the task link map lock.
