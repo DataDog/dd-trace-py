@@ -1,5 +1,4 @@
 import collections
-from functools import cached_property
 from functools import lru_cache as cached
 from functools import singledispatch
 from importlib.machinery import PathFinder
@@ -87,8 +86,12 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
         return None
 
     names: list[str] = []
-    pkgs = get_package_distributions()
-    dist_map = get_distributions()
+    # The fast path of _installed, inlined: this runs once per imported module.
+    snapshot = _INSTALLED
+    if snapshot is None or not snapshot.checked or snapshot.sys_path != sys.path or snapshot.meta_path != sys.meta_path:
+        snapshot = _installed()
+    pkgs = snapshot.packages
+    dist_map = snapshot.versions
     while names == []:
         # First try to resolve the module name from package distributions
         version = dist_map.get(module_name)
@@ -394,7 +397,10 @@ _CacheKey = tuple[tuple[tuple[str, t.Optional[int]], ...], tuple[t.Any, ...]]
 
 
 class _Installed:
-    """Installed distributions and the maps derived from them, built on first use."""
+    """Installed distributions and the maps derived from them."""
+
+    # Slots and eager maps keep attribute access on the read path specialised.
+    __slots__ = ("key", "records", "sys_path", "meta_path", "checked", "versions", "packages", "mapping")
 
     def __init__(self, key: _CacheKey, records: list[_DistributionRecord]) -> None:
         self.key = key
@@ -405,29 +411,22 @@ class _Installed:
         # Whether a read has done the full check (mtimes, custom finders).
         self.checked = False
 
-    @cached_property
-    def versions(self) -> dict[str, str]:
-        return {name.lower(): version for name, version, _, _ in self.records if version is not None}
-
-    @cached_property
-    def packages(self) -> dict[str, list[str]]:
-        pkg_to_dist = collections.defaultdict(list)
-        for name, _, _, top_level in self.records:
-            for pkg in top_level:
-                pkg_to_dist[pkg].append(name)
-        return dict(pkg_to_dist)
-
-    @cached_property
-    def mapping(self) -> dict[str, Distribution]:
+        versions: dict[str, str] = {}
+        packages = collections.defaultdict(list)
         mapping: dict[str, Distribution] = {}
-        for name, version, keys, _ in self.records:
+        for name, version, keys, top_level in records:
+            for pkg in top_level:
+                packages[pkg].append(name)
             if version is None:
                 continue
+            versions[name.lower()] = version
             d = Distribution(name=name, version=version)
-            for key in keys:
-                if key not in mapping:
-                    mapping[key] = d
-        return mapping
+            for root in keys:
+                if root not in mapping:
+                    mapping[root] = d
+        self.versions = versions
+        self.packages = dict(packages)
+        self.mapping = mapping
 
 
 _INSTALLED: t.Optional[_Installed] = None

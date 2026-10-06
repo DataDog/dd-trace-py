@@ -1224,6 +1224,7 @@ def test_reads_after_first_use_are_cheap(
     assert stats == []
 
     sys.path.append(str(extra))
+    assert _p.get_module_distribution_versions("second") == ("second", "1.0")
     assert set(_p._package_for_root_module_mapping()) == {"first.py", "second.py"}
     assert dict(_p.get_distributions()) == {"first": "1.0", "second": "1.0"}
 
