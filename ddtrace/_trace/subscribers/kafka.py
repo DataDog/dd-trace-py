@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Any
 from typing import Optional
 
+from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers.messaging import MessagingConsumeSubscriber
 from ddtrace._trace.subscribers.messaging import MessagingProduceSubscriber
@@ -12,6 +13,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.propagation.http import HTTPPropagator
 
 
 def set_kafka_meta(
@@ -93,6 +95,43 @@ class KafkaProduceSubscriber(MessagingProduceSubscriber):
 
 class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
     event_names = (KafkaConsumeEvent.event_name,)
+
+    @staticmethod
+    def _extract_context(headers: dict[str, Any]) -> Context:
+        # HTTPPropagator.extract has no return annotation in the legacy propagation API.
+        return HTTPPropagator.extract(  # type: ignore[no-untyped-call, no-any-return]
+            {
+                key: (value.decode("utf-8", errors="ignore") if isinstance(value, (bytes, bytearray)) else str(value))
+                for key, value in headers.items()
+                if value is not None
+            }
+        )
+
+    @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[Any]) -> None:
+        event: KafkaConsumeEvent = ctx.event
+        # Choose the producer parent before span creation.
+        if (
+            event.integration_config.distributed_tracing_enabled
+            and not event.propagation_as_span_links
+            and event.message_headers
+        ):
+            parent = cls._extract_context(event.message_headers[0])
+            if parent.trace_id and parent.span_id:
+                event.distributed_context = parent
+                event.use_active_context = False
+        super()._on_context_started(ctx)
+
+    @classmethod
+    def _on_context_ended(
+        cls,
+        ctx: core.ExecutionContext[Any],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        event: KafkaConsumeEvent = ctx.event
+        if event.integration_config.distributed_tracing_enabled and event.propagation_as_span_links:
+            event.span_links.extend(cls._extract_context(headers) for headers in event.message_headers)
+        super()._on_context_ended(ctx, exc_info)
 
     @classmethod
     def on_ended(

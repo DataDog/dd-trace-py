@@ -20,7 +20,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.propagation.http import HTTPPropagator as Propagator
 
 
 _Producer = confluent_kafka.Producer
@@ -258,36 +257,14 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 def _instrument_message(messages, start_ns, instance, err):
     first_message = messages[0] if len(messages) else None
     topic = str(first_message.topic()) if first_message is not None else None
-    distributed_context = None
-    links = []
-    if config.kafka.distributed_tracing_enabled:
-        if config.kafka.propagation_as_span_links:
-            # Relate the consume span to every message's producer via span links rather
-            # than continuing any single producer's trace. This applies to both poll() (a
-            # single message) and consume() (a batch): no producer is privileged as the
-            # parent, so no producer trace is polluted by the consume span's children.
-            for message in messages:
-                if message is None or not message.headers():
-                    continue
-                link_ctx = Propagator.extract(dict(message.headers()))
-                if link_ctx is not None and link_ctx.trace_id is not None:
-                    links.append(link_ctx)
-        elif first_message is not None and first_message.headers():
-            # First message is used to extract context and enrich datadog spans
-            # This approach aligns with the opentelemetry confluent kafka semantics
-            extracted = Propagator.extract(dict(first_message.headers()))
-            if extracted is not None and extracted.trace_id is not None:
-                distributed_context = extracted
-
     event = KafkaConsumeEvent(
         messaging_operation=kafkax.CONSUME,
         provider="kafka",
         direction=SpanDirection.PROCESSING,
         topic=topic,
         group_id=instance._group_id,
-        distributed_context=distributed_context,
-        use_active_context=distributed_context is None,
-        span_links=links,
+        message_headers=[dict(message.headers() or []) if message is not None else {} for message in messages],
+        propagation_as_span_links=config.kafka.propagation_as_span_links,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
         service=trace_utils.ext_service(None, config.kafka),

@@ -21,7 +21,6 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.propagation.http import HTTPPropagator
 
 
 if parse_version(aiokafka.__version__) < (0, 13, 0):
@@ -160,20 +159,12 @@ async def traced_getone(func, instance, args, kwargs):
     start_ns = time_ns()
     err = None
     message = None
-    parent_ctx = None
 
     group_id = instance._group_id
     bootstrap_servers = instance._client._bootstrap_servers
 
     try:
         message = await func(*args, **kwargs)
-        if config.aiokafka.distributed_tracing_enabled and message.headers:
-            dd_headers = {
-                key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-                for key, val in message.headers
-                if val is not None
-            }
-            parent_ctx = HTTPPropagator.extract(dd_headers)
     except Exception as e:
         err = e
 
@@ -196,7 +187,7 @@ async def traced_getone(func, instance, args, kwargs):
         topic=topic,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
-        distributed_context=parent_ctx,
+        message_headers=[dict(message.headers)] if message is not None and message.headers else [],
         use_active_context=False,
         activate=False,
         component=config.aiokafka.integration_name,
@@ -238,6 +229,7 @@ async def traced_getmany(func, instance, args, kwargs):
         provider="kafka",
         direction=SpanDirection.INBOUND,
         topic=None,
+        propagation_as_span_links=True,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
         use_active_context=False,
@@ -270,19 +262,8 @@ async def traced_getmany(func, instance, args, kwargs):
 
             for records in messages.values():
                 for record in records:
-                    if config.aiokafka.distributed_tracing_enabled and record.headers:
-                        dd_headers = {
-                            key: (
-                                val.decode("utf-8", errors="ignore")
-                                if isinstance(val, (bytes, bytearray))
-                                else str(val)
-                            )
-                            for key, val in record.headers
-                            if val is not None
-                        }
-                        link_ctx = HTTPPropagator.extract(dd_headers)
-                        if link_ctx.trace_id and link_ctx.span_id:
-                            event.span_links.append(link_ctx)
+                    if record.headers:
+                        event.message_headers.append(dict(record.headers))
 
         core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
 

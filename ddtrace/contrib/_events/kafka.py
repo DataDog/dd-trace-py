@@ -34,3 +34,6 @@ class KafkaConsumeEvent(MessagingConsumeEvent, KafkaEvent):
     received_message: Optional[bool] = event_field(default=None)
     topics_partitions: Optional[dict[str, list[int]]] = event_field(default=None)
     error: Optional[BaseException] = event_field(default=None)
+
+    message_headers: list[dict[str, Any]] = event_field(default_factory=list)
+    propagation_as_span_links: bool = event_field(default=False)
