@@ -425,3 +425,22 @@ notify-slo-breaches:
   when: always
   variables:
     CHANNEL: "apm-python-release"
+
+# Spike: ERE chain from this repo's CI — resolves the on-call schedule by name,
+# fetches the on-call engineer's email via pup (printed to the log, never
+# messaged), and posts only to the test channel mentioning the spike owner.
+# Keys are this repo's own SSM params, so this exercises the exact production
+# semantics. Play manually; safe to remove after the notifier rollout.
+notify-slo-spike:
+  stage: notify
+  needs: []
+  when: manual
+  tags: ["arch:amd64"]
+  image: "registry.ddbuild.io/images/benchmarking-platform-tools-notifier:0184e511"
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - export DD_API_KEY="$(aws ssm get-parameter --name "ci.${CI_PROJECT_NAME}.apm_sdk_slo.dd_api_key.prod" --with-decryption --query Parameter.Value --output text)"
+    - export DD_APP_KEY="$(aws ssm get-parameter --name "ci.${CI_PROJECT_NAME}.apm_sdk_slo.dd_app_key.prod" --with-decryption --query Parameter.Value --output text)"
+    - export DD_SITE="datadoghq.com"
+    - notify-slo
