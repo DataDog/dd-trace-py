@@ -350,6 +350,8 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
             link_key = identity(link)
             link["trace_id"] = trace_ids.setdefault(link["trace_id"], f"trace_{len(trace_ids) + 1}")
             link["span_id"] = span_ids.setdefault(link_key, f"span_{len(span_ids) + 1}")
+        if "links" in span:
+            span["links"].sort(key=lambda link: json.dumps(link, sort_keys=True))
 
     for scope in scopes:
         scope["spans"].sort(key=lambda span: int(span["span_id"].split("_")[1]))
