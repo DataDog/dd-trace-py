@@ -40,7 +40,7 @@ def test_periodic_survives_export_failure() -> None:
             s.join()
 
 
-def test_thread_name():
+def test_thread_name() -> None:
     s = scheduler.Scheduler()
     s.start()
     assert s._worker is not None
@@ -48,10 +48,10 @@ def test_thread_name():
     s.stop()
 
 
-def test_before_flush():
-    x = {}
+def test_before_flush() -> None:
+    x: dict[str, bool] = {}
 
-    def call_me():
+    def call_me() -> None:
         x["OK"] = True
 
     s = scheduler.Scheduler(before_flush=call_me)
@@ -59,8 +59,8 @@ def test_before_flush():
     assert x["OK"]
 
 
-def test_before_flush_failure(caplog):
-    def call_me():
+def test_before_flush_failure(caplog: pytest.LogCaptureFixture) -> None:
+    def call_me() -> None:
         raise Exception("LOL")
 
     s = scheduler.Scheduler(before_flush=call_me)
@@ -72,7 +72,7 @@ def test_before_flush_failure(caplog):
 
 @mock.patch("ddtrace.profiling.scheduler.Scheduler.periodic")
 @mock.patch("ddtrace.profiling.scheduler.time.time_ns")
-def test_serverless_periodic(mock_time_ns, mock_periodic):
+def test_serverless_periodic(mock_time_ns: mock.MagicMock, mock_periodic: mock.MagicMock) -> None:
     s = scheduler.ServerlessScheduler()
     # Fake start()
     s._last_export = 0

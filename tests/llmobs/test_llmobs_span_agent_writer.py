@@ -1,8 +1,9 @@
-import time
+import threading
 from unittest import mock
 
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
@@ -105,17 +106,24 @@ def test_send_chat_completion_event(mock_send_payload, mock_writer_logs):
 
 @mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
 def test_send_timed_events(mock_send_payload, mock_writer_logs):
+    payload_sent = threading.Event()
+    mock_send_payload.side_effect = lambda *args: payload_sent.set() or Response(status=200)
     llmobs_span_writer = LLMObsSpanWriter(0.01, 1, is_agentless=False)
     llmobs_span_writer.start()
-    mock_writer_logs.reset_mock()
+    try:
+        mock_writer_logs.reset_mock()
 
-    llmobs_span_writer.enqueue(_completion_event())
-    time.sleep(0.1)
-    mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
-    mock_writer_logs.reset_mock()
-    llmobs_span_writer.enqueue(_chat_completion_event())
-    time.sleep(0.1)
-    mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
+        llmobs_span_writer.enqueue(_completion_event())
+        assert payload_sent.wait(timeout=1)
+        mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
+        mock_writer_logs.reset_mock()
+        payload_sent.clear()
+
+        llmobs_span_writer.enqueue(_chat_completion_event())
+        assert payload_sent.wait(timeout=1)
+        mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
+    finally:
+        llmobs_span_writer.stop()
 
 
 @mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
