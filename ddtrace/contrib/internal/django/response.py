@@ -10,8 +10,8 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import http_block_metadata
-from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.tags import http_block_metadata
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils

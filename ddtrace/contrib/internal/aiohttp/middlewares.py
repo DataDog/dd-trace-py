@@ -2,7 +2,7 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import is_otel_server_error_status
+from ddtrace._trace.otel.http.tags import is_otel_server_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
