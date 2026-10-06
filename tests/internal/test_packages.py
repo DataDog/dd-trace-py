@@ -17,11 +17,9 @@ def packages():
     yield _p
 
     # Clear caches
+    from ddtrace.internal.packages import reset_package_root_mapping_cache
 
-    try:
-        del _p._package_for_root_module_mapping.__closure__[0].cell_contents.__callonce_result__
-    except AttributeError:
-        pass
+    reset_package_root_mapping_cache()
 
     for f in _p.__dict__.values():
         try:
@@ -92,6 +90,169 @@ def test_filename_to_package(packages) -> None:
         package = packages.filename_to_package("You may be wondering how I got here even though I am not a file.")
     except Exception:
         pytest.fail("filename_to_package should not raise an exception when given a non-file path")
+
+
+def test_lookup_does_not_block_while_the_scan_runs(packages) -> None:
+    import threading
+
+    started = threading.Event()
+    release = threading.Event()
+    real = packages._package_for_root_module_mapping
+
+    def slow_scan():
+        started.set()
+        assert release.wait(2)
+        return {}
+
+    packages.reset_package_root_mapping_cache()
+    packages._package_for_root_module_mapping = slow_scan
+    try:
+        packages.schedule_package_mapping()
+        assert started.wait(2)
+        assert packages.filename_to_package(packages.__file__) is None
+        thread = packages._mapping_build_thread
+        assert isinstance(thread, packages._forksafe_threads.Thread)
+        from ddtrace.internal._threads import periodic_threads
+
+        assert any(registered is thread for registered in periodic_threads.values())
+    finally:
+        release.set()
+        if packages._mapping_build_thread is not None:
+            packages._mapping_build_thread.join(2)
+        packages._package_for_root_module_mapping = real
+        packages.reset_package_root_mapping_cache()
+
+
+def test_scan_discards_a_map_when_sys_path_changes_during_the_scan(packages) -> None:
+    import sys
+
+    marker = "/added-during-package-scan"
+    calls = {"n": 0}
+    real = packages._package_for_root_module_mapping
+
+    def grow_path_once():
+        calls["n"] += 1
+        if calls["n"] == 1 and marker not in sys.path:
+            sys.path.append(marker)
+        return {}
+
+    packages.reset_package_root_mapping_cache()
+    packages._package_for_root_module_mapping = grow_path_once
+    try:
+        packages._run_mapping_build()
+        thread = packages._mapping_build_thread
+        if thread is not None:
+            thread.join(2)
+        assert calls["n"] == 2
+        assert packages._mapping_built_for_path == tuple(sys.path)
+        assert marker in packages._mapping_built_for_path
+    finally:
+        if marker in sys.path:
+            sys.path.remove(marker)
+        if packages._mapping_build_thread is not None:
+            packages._mapping_build_thread.join(2)
+        packages._package_for_root_module_mapping = real
+        packages.reset_package_root_mapping_cache()
+
+
+def test_schedule_does_not_start_a_worker_during_fork(packages, monkeypatch) -> None:
+    monkeypatch.setattr(packages._forksafe_threads, "_forking", True)
+    packages.reset_package_root_mapping_cache()
+    try:
+        packages.schedule_package_mapping()
+        assert packages._mapping_build_thread is None
+    finally:
+        packages.reset_package_root_mapping_cache()
+
+
+def test_fork_hook_restarts_an_unfinished_scan(packages) -> None:
+    import threading
+
+    class DeadThread(threading.Thread):
+        def is_alive(self) -> bool:
+            return False
+
+    packages.reset_package_root_mapping_cache()
+    packages._mapping_build_thread = DeadThread(name="ddtrace-package-mapping")
+    try:
+        packages._after_fork_reschedule_package_mapping()
+        thread = packages._mapping_build_thread
+        assert thread is not None
+        thread.join(10)
+        stored = packages._mapping_callonce_result()
+        assert stored is not None and stored[1] is None
+    finally:
+        if packages._mapping_build_thread is not None:
+            packages._mapping_build_thread.join(2)
+        packages.reset_package_root_mapping_cache()
+
+
+def test_fork_hook_keeps_a_finished_map(packages) -> None:
+    import sys
+    import threading
+
+    class DeadThread(threading.Thread):
+        def is_alive(self) -> bool:
+            return True
+
+    packages.reset_package_root_mapping_cache()
+    packages._package_for_root_module_mapping.__wrapped__.__callonce_result__ = ({}, None)
+    packages._mapping_built_for_path = tuple(sys.path)
+    packages._mapping_build_thread = DeadThread(name="ddtrace-package-mapping")
+    try:
+        packages._after_fork_reschedule_package_mapping()
+        assert packages._mapping_build_thread is None
+        assert packages._mapping_callonce_result() == ({}, None)
+    finally:
+        packages.reset_package_root_mapping_cache()
+
+
+def test_in_progress_scan_does_not_cache_user_code_misses(packages) -> None:
+    from pathlib import Path
+    import threading
+
+    class AliveThread(threading.Thread):
+        def is_alive(self) -> bool:
+            return True
+
+    path = str(packages.__file__)
+    packages.reset_package_root_mapping_cache()
+    packages._mapping_build_thread = AliveThread(name="ddtrace-package-mapping")
+    try:
+        third_party_before = packages._is_third_party_cached.cache_info().currsize
+        user_code_before = packages._is_user_code_str_cached.cache_info().currsize
+        assert packages.is_third_party(Path(path)) is False
+        packages.is_user_code(path)
+        assert packages._is_third_party_cached.cache_info().currsize == third_party_before
+        assert packages._is_user_code_str_cached.cache_info().currsize == user_code_before
+    finally:
+        packages._mapping_build_thread = None
+        packages.reset_package_root_mapping_cache()
+
+
+def test_cached_lookup_drops_a_value_stored_as_the_scan_finishes(packages) -> None:
+    from functools import lru_cache
+    import sys
+
+    calls = {"n": 0}
+
+    @lru_cache(maxsize=8)
+    def cached(arg):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            packages._mapping_generation += 1
+            return "stale"
+        return "fresh"
+
+    packages.reset_package_root_mapping_cache()
+    packages._package_for_root_module_mapping.__wrapped__.__callonce_result__ = ({}, None)
+    packages._mapping_built_for_path = tuple(sys.path)
+    try:
+        assert packages._cached_lookup(cached, "x") == "fresh"
+        assert calls["n"] == 2
+        assert cached.cache_info().currsize == 1
+    finally:
+        packages.reset_package_root_mapping_cache()
 
 
 def test_third_party_packages():

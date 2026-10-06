@@ -33,7 +33,20 @@ def register_post_preload(func: t.Callable) -> None:
     post_preload.append(func)
 
 
+def _schedule_package_mapping() -> None:
+    # The scan is shared by every product. Start it before products enable, so
+    # an exception during user sitecustomize does not scan on that thread, and
+    # again after sitecustomize in case it changed sys.path during the scan.
+    from ddtrace.internal.packages import schedule_package_mapping
+
+    schedule_package_mapping()
+
+
 log = get_logger(__name__)
+
+# Before products register listeners. A path change while this scan runs is
+# detected when the scan finishes, and post_preload schedules a replacement.
+_schedule_package_mapping()
 
 # Run the product manager protocol
 manager.run_protocol()
@@ -122,3 +135,6 @@ def _(_):
 @register_post_preload
 def _():
     tracer._generate_diagnostic_logs()
+
+
+register_post_preload(_schedule_package_mapping)
