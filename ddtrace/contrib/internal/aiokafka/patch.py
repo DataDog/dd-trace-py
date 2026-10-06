@@ -117,7 +117,7 @@ async def traced_send(func, instance, args, kwargs):
         service=trace_utils.ext_service(None, config.aiokafka),
         cluster_id=cluster_id,
         tombstone=value is None,
-        message_key=key.decode("utf-8") if key else "None",
+        message_key=key.decode("utf-8", errors="replace") if key else "None",
         partition=partition,
     )
 
