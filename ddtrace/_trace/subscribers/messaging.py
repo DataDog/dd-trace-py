@@ -1,4 +1,5 @@
 from types import TracebackType
+from typing import Any
 from typing import Optional
 from typing import cast
 
@@ -15,8 +16,8 @@ class MessagingProduceSubscriber(TracingSubscriber[MessagingProducerEvent]):
     event_names = (MessagingProducerEvent.event_name,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext[MessagingProducerEvent]) -> None:
-        event = ctx.event
+    def on_started(cls, ctx: core.ExecutionContext[Any]) -> None:
+        event: MessagingProducerEvent = ctx.event
 
         if event.distributed_headers is not None and trace_utils.distributed_tracing_enabled(event.integration_config):
             HTTPPropagator.inject(
@@ -27,11 +28,11 @@ class MessagingProduceSubscriber(TracingSubscriber[MessagingProducerEvent]):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext[MessagingProducerEvent],
+        ctx: core.ExecutionContext[Any],
         _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         span = span_from_context(ctx)
-        for key, value in ctx.event.additional_tags.items():
+        for key, value in ctx.event.tags.items():
             span._set_attribute(key, value)
 
 
@@ -41,12 +42,12 @@ class MessagingConsumeSubscriber(TracingSubscriber[MessagingConsumeEvent]):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext[MessagingConsumeEvent],
+        ctx: core.ExecutionContext[Any],
         _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        event = ctx.event
+        event: MessagingConsumeEvent = ctx.event
         span = span_from_context(ctx)
-        for key, value in event.additional_tags.items():
+        for key, value in event.tags.items():
             span._set_attribute(key, value)
 
         for link_ctx in event.span_links:

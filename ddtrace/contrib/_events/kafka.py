@@ -2,14 +2,14 @@ from dataclasses import dataclass
 from typing import Any
 from typing import Optional
 
+from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
-from ddtrace.contrib._events.messaging import MessagingEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.internal.core.events import event_field
 
 
 @dataclass
-class KafkaEvent(MessagingEvent):
+class KafkaEvent(TracingEvent):
     """Raw Kafka request data. KafkaProduceSubscriber/KafkaConsumeSubscriber derive tags from it."""
 
     topic: Optional[str] = event_field(default=None)
