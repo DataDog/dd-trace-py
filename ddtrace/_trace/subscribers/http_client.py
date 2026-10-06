@@ -4,10 +4,10 @@ from typing import Optional
 from typing import cast
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import normalize_http_method
-from ddtrace._trace.http_semantics import set_method_tag
-from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
-from ddtrace._trace.otel_http_naming import set_otel_http_resource
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_otel_http_resource
+from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
