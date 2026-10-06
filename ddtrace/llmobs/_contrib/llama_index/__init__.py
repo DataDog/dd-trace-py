@@ -13,3 +13,4 @@ def unlisten() -> None:
     LLMObsLlamaIndexSpanStartingSubscriber.unregister()
     LLMObsLlamaIndexSpanStartedSubscriber.unregister()
     LLMObsLlamaIndexSpanFinishingSubscriber.unregister()
+    LLMObsLlamaIndexSpanStartingSubscriber.forget_integration()
