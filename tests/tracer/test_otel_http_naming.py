@@ -553,7 +553,7 @@ def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
 def test_otel_span_attributes_explicit_default_client_status_does_not_expand():
     from unittest import mock
 
-    from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
+    from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
     from ddtrace.constants import SPAN_KIND
     from ddtrace.ext import SpanKind
     from ddtrace.ext import SpanTypes
