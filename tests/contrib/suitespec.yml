@@ -2216,7 +2216,7 @@ suites:
     matrix:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb
       env:
-        DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: '1'
+        DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: '0'
       variants:
         - name: pynamodb
           python: ['3.9']
