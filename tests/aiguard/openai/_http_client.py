@@ -4,10 +4,10 @@ from types import ModuleType
 
 
 def _http_client_module() -> ModuleType:
-    """OpenAI 3.x depends on ``httpx2``; 1.x still uses ``httpx``.
+    """OpenAI 3.x depends on httpx2; 1.x still uses httpx.
 
     Import the chosen client lazily so collection succeeds when the other
-    package is absent (OpenAI 3 environments ship ``httpx2`` only).
+    package is absent (OpenAI 3 environments ship httpx2 only).
     """
     openai_major: int = 0
     try:
