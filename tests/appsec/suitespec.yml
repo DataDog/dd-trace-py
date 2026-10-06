@@ -117,6 +117,7 @@ suites:
       - postgres
       - mysql
   appsec_integrations_stripe:
+    no_proxy: true
     paths:
       - '@bootstrap'
       - '@core'
