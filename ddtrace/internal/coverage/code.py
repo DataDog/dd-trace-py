@@ -48,10 +48,29 @@ def _is_site_packages_path(path: Path) -> bool:
     return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
 
 
+class _ContextLinesEntry(defaultdict[str, CoverageLines]):
+    """Coverage lines container for one collector, tracking whether it completed.
+
+    Execution contexts copied while a collector is active keep a reference to a
+    stack that still contains its entry (eg. a task scheduled by a module that is
+    imported inside a test). Marking the entry ``closed`` when the collector
+    finishes lets the context resolvers skip completed collectors and attribute new
+    coverage to the nearest collector that is still active.
+    """
+
+    closed: bool = False
+
+
+class _ContextFilesEntry(set[str]):
+    """File-level counterpart of ``_ContextLinesEntry``."""
+
+    closed: bool = False
+
+
 # NOTE: A mutable ContextVar default would be shared across threads until set() is called.
 # Keep None so CollectInContext starts a separate coverage stack in each context.
-ctx_covered: ContextVar[t.Optional[list[defaultdict[str, CoverageLines]]]] = ContextVar("ctx_covered", default=None)
-ctx_covered_files: ContextVar[t.Optional[list[set[str]]]] = ContextVar("ctx_covered_files", default=None)
+ctx_covered: ContextVar[t.Optional[list[_ContextLinesEntry]]] = ContextVar("ctx_covered", default=None)
+ctx_covered_files: ContextVar[t.Optional[list[_ContextFilesEntry]]] = ContextVar("ctx_covered_files", default=None)
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
@@ -63,13 +82,20 @@ _tls_coverage = _threading.local()
 def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
     if ctx_coverage_enabled.get():
         if context_stack := ctx_covered.get():
-            return context_stack[-1]
-        log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+            for entry in reversed(context_stack):
+                if not entry.closed:
+                    return entry
+            # Every entry on this stack belongs to a collector that has completed:
+            # this context inherited the stack before they exited. Fall through to
+            # the TLS fallback / an empty container instead of attributing new
+            # coverage to a completed collector.
+        else:
+            log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
 
     # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars
     if _PY_GE_314:
         tls_covered = getattr(_tls_coverage, "covered", None)
-        if tls_covered is not None:
+        if tls_covered is not None and not tls_covered.closed:
             return tls_covered
 
     return defaultdict(CoverageLines)
@@ -78,12 +104,15 @@ def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
 def _get_ctx_covered_files() -> set[str]:
     if ctx_coverage_enabled.get():
         if context_stack := ctx_covered_files.get():
-            return context_stack[-1]
-        log.debug("_get_ctx_covered_files() called but ctx_covered_files stack is empty")
+            for entry in reversed(context_stack):
+                if not entry.closed:
+                    return entry
+        else:
+            log.debug("_get_ctx_covered_files() called but ctx_covered_files stack is empty")
 
     if _PY_GE_314:
         tls_covered_files = getattr(_tls_coverage, "covered_files", None)
-        if tls_covered_files is not None:
+        if tls_covered_files is not None and not tls_covered_files.closed:
             return tls_covered_files
 
     return set()
@@ -399,8 +428,8 @@ class ModuleCodeCollector(ModuleWatchdog):
         def __enter__(self):
             # ContextVar values are copied by reference into new execution contexts.
             # Replace the stacks so a nested collector cannot mutate its parent's stack.
-            self._covered_lines = defaultdict(CoverageLines)
-            self._covered_files = set()
+            self._covered_lines = _ContextLinesEntry(CoverageLines)
+            self._covered_files = _ContextFilesEntry()
             ctx_covered.set(ModuleCodeCollector._ContextStack((ctx_covered.get() or []) + [self._covered_lines]))
             ctx_covered_files.set(
                 ModuleCodeCollector._ContextStack((ctx_covered_files.get() or []) + [self._covered_files])
@@ -436,6 +465,13 @@ class ModuleCodeCollector(ModuleWatchdog):
             return self
 
         def __exit__(self, *args, **kwargs):
+            # The collector is completing. Stacks inherited by other contexts (copied
+            # while this collector was active) still reference its entry: mark it
+            # closed so the resolvers skip it and attribute new coverage to the
+            # nearest active collector instead of this completed one.
+            self._covered_lines.closed = True
+            self._covered_files.closed = True
+
             covered_lines_stack = ctx_covered.get() or []
             covered_files_stack = ctx_covered_files.get() or []
             if (

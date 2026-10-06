@@ -60,6 +60,49 @@ def test_exiting_collector_in_another_context_preserves_active_coverage():
         assert len(ctx_covered.get()) == len(ctx_covered_files.get()) == parent_depth
 
 
+def test_completed_collector_entries_do_not_capture_inherited_context_coverage():
+    """Contexts that inherit a stack still holding a completed entry must not write to it.
+
+    A module imported inside a test may create an asyncio task before finishing its
+    import collector. The task inherits the test's context, whose stack still
+    references the (now completed) import entry. New coverage in the task must be
+    attributed to the enclosing live collector instead of the orphaned entry.
+    """
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    with ModuleCodeCollector.CollectInContext() as test_collector:
+        with ModuleCodeCollector.CollectInContext() as import_collector:
+            task_context = copy_context()
+
+        assert import_collector._covered_lines.closed
+
+        # The task context still sees the completed import entry atop its stack.
+        task_stack = task_context.run(coverage_code.ctx_covered.get)
+        assert task_stack[-1] is import_collector._covered_lines
+
+        # Resolution inside the task context must skip the completed entry and
+        # attribute coverage to the still-active test collector.
+        assert task_context.run(coverage_code._get_ctx_covered_lines) is test_collector._covered_lines
+        assert task_context.run(coverage_code._get_ctx_covered_files) is test_collector._covered_files
+
+        # A live collector entered in the task context takes precedence even though
+        # the completed import entry remains buried beneath it on the stack.
+        nested = ModuleCodeCollector.CollectInContext()
+        task_context.run(nested.__enter__)
+        assert task_context.run(coverage_code._get_ctx_covered_lines) is nested._covered_lines
+        task_context.run(nested.__exit__)
+        assert task_context.run(coverage_code._get_ctx_covered_lines) is test_collector._covered_lines
+
+    # Once every collector the task inherited has completed, new coverage lands in
+    # a fresh container rather than in any of the completed entries.
+    stale = task_context.run(coverage_code._get_ctx_covered_lines)
+    assert stale is not import_collector._covered_lines
+    assert stale is not test_collector._covered_lines
+
+
 def test_mismatched_exit_resyncs_tls_fallback():
     """A mismatched exit must not leave the TLS fallback on the completed collector.
 
