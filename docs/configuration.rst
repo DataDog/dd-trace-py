@@ -580,7 +580,8 @@ Metrics
 
      description: |
         When used with ``ddtrace-run`` this configuration enables support for exporting OTLP metrics generated
-        by the OpenTelemetry Metrics API. The default installation includes gRPC and HTTP/protobuf exporters.
+        by the OpenTelemetry Metrics API. Install ``ddtrace[opentelemetry-metrics]`` to include the lightweight
+        gRPC and HTTP/protobuf exporters.
 
      version_added:
        v3.11.0:

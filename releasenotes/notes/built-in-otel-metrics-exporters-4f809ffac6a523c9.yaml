@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    OpenTelemetry: Setting ``DD_METRICS_OTEL_ENABLED=true`` now enables OTLP metrics aggregation and export without installing the ``opentelemetry`` extra. Both gRPC and HTTP/protobuf export are included, and gRPC export does not require ``grpcio``.
+    OpenTelemetry: The new ``opentelemetry-metrics`` extra provides OTLP metrics export over HTTP/protobuf and lightweight gRPC without requiring ``grpcio``.

@@ -2015,6 +2015,12 @@ suites:
       variants:
         - name: opentelemetry
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', 'opentelemetry-api~=1.0.0']
+        - name: opentelemetry
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', 'opentelemetry-api~=1.15.0']
+        - name: opentelemetry
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', 'opentelemetry-api~=1.26.0']
         - name: opentelemetry
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -2024,17 +2030,22 @@ suites:
           dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, markupsafe, flask, gevent, 'requests==2.28.1', opentelemetry-api]
         - name: opentelemetry
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', 'opentelemetry-exporter-otlp~=1.34.0']
+          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', 'opentelemetry-exporter-otlp~=1.15.0', 'opentelemetry-sdk~=1.34.0', 'grpclib>=0.4.8,<0.5']
           env:
             SDK_EXPORTER_INSTALLED: '1'
         - name: opentelemetry
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', opentelemetry-exporter-otlp]
+          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', 'opentelemetry-exporter-otlp~=1.34.0', 'grpclib>=0.4.8,<0.5']
+          env:
+            SDK_EXPORTER_INSTALLED: '1'
+        - name: opentelemetry
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, 'markupsafe==2.0.1', flask, gevent, 'requests==2.28.1', opentelemetry-exporter-otlp, 'grpclib>=0.4.8,<0.5']
           env:
             SDK_EXPORTER_INSTALLED: '1'
         - name: opentelemetry
           python: ['3.14']
-          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, markupsafe, flask, gevent, 'requests==2.28.1', opentelemetry-exporter-otlp]
+          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1', opentelemetry-instrumentation-flask, markupsafe, flask, gevent, 'requests==2.28.1', opentelemetry-exporter-otlp, 'grpclib>=0.4.8,<0.5']
           env:
             SDK_EXPORTER_INSTALLED: '1'
   protobuf:
