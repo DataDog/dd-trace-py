@@ -99,6 +99,20 @@ def test_grpclib_exporter_preserves_attribute_types_and_headers(monkeypatch):
     assert calls[0][1] == (("authorization", "Bearer token"), ("x-test", "value"))
 
 
+def test_grpclib_exporter_uses_otlp_temporality_preference(monkeypatch):
+    from opentelemetry.sdk.metrics._internal.instrument import Counter
+    from opentelemetry.sdk.metrics.export import AggregationTemporality
+
+    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import OTLPMetricExporter
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
+    exporter = OTLPMetricExporter()
+    try:
+        assert exporter._preferred_temporality[Counter] is AggregationTemporality.DELTA
+    finally:
+        exporter.shutdown()
+
+
 def test_resource_attributes_preserve_types(monkeypatch):
     from ddtrace.internal.opentelemetry import metrics
 

@@ -17,6 +17,7 @@ from grpclib.client import Channel
 from grpclib.client import UnaryUnaryMethod
 from grpclib.const import Status
 from grpclib.exceptions import GRPCError
+from opentelemetry.exporter.otlp.proto.common._internal.metrics_encoder import OTLPMetricExporterMixin
 from opentelemetry.exporter.otlp.proto.common.metrics_encoder import encode_metrics
 from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceResponse
@@ -60,7 +61,7 @@ _RETRYABLE_STATUSES = {
 }
 
 
-class OTLPMetricExporter(MetricExporter):  # type: ignore[misc]
+class OTLPMetricExporter(MetricExporter, OTLPMetricExporterMixin):  # type: ignore[misc]
     """Export OTLP metrics over gRPC without depending on grpcio."""
 
     def __init__(
@@ -74,10 +75,9 @@ class OTLPMetricExporter(MetricExporter):  # type: ignore[misc]
         preferred_aggregation: dict[type, Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(
-            preferred_temporality=preferred_temporality,
-            preferred_aggregation=preferred_aggregation,
-        )
+        self._common_configuration(preferred_temporality)
+        if preferred_aggregation:
+            self._preferred_aggregation.update(preferred_aggregation)
         self._endpoint = endpoint or _environment(
             _OTLP_METRICS_ENDPOINT,
             _OTLP_ENDPOINT,
