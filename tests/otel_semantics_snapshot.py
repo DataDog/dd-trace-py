@@ -2,8 +2,8 @@
 
 DD_TRACE_OTEL_SEMANTICS_ENABLED=true makes the tracer export over OTLP, but the ddapm test agent
 only snapshots Datadog-protocol traces. The test agent does store OTLP payloads on its OTLP HTTP
-port, so ``snapshot_context(otel_semantics=True)`` fetches them from there, normalizes the values
-that change between runs, and compares the result with ``tests/snapshots/<token>.json`` itself.
+port, so snapshot_context(otel_semantics=True) fetches them from there, normalizes the values
+that change between runs, and compares the result with tests/snapshots/<token>.json itself.
 The snapshot keeps the OTLP shape (resource, scope, typed attribute values, kind, status), so it
 shows exactly what was exported.
 
@@ -31,7 +31,7 @@ TRACES_PATH = "/v1/traces"
 SESSION_TOKEN_HEADER = "X-Datadog-Test-Session-Token"
 
 # Attributes that change between runs or machines. They mirror the agent's default snapshot
-# ignores; tests extend them through the ``ignores`` argument.
+# ignores; tests extend them through the ignores argument.
 DEFAULT_IGNORED_ATTRIBUTES = frozenset(
     {
         "_dd.git.commit.sha",
@@ -192,15 +192,45 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
 
     # Work on a copy so the caller's payload is left untouched.
     resource_spans = json.loads(json.dumps([rs for request in requests for rs in request.get("resource_spans", [])]))
+    # Export boundaries are transport details, so combine groups with equivalent cleaned metadata.
+    groups: dict[str, dict[str, Any]] = {}
+    scope_groups: dict[str, dict[str, dict[str, Any]]] = {}
+    for rs in resource_spans:
+        metadata = _clean(
+            {key: value for key, value in rs.items() if key != "scope_spans"}, ignored_attributes, ignored_fields
+        )
+        resource_key = json.dumps(metadata, sort_keys=True)
+        group = groups.setdefault(resource_key, {**metadata, "scope_spans": []})
+        grouped_scopes = scope_groups.setdefault(resource_key, {})
+        for scope in rs.get("scope_spans", []):
+            metadata = _clean(
+                {key: value for key, value in scope.items() if key != "spans"}, ignored_attributes, ignored_fields
+            )
+            scope_key = json.dumps(metadata, sort_keys=True)
+            if scope_key not in grouped_scopes:
+                grouped_scopes[scope_key] = {**metadata, "spans": []}
+                group["scope_spans"].append(grouped_scopes[scope_key])
+            grouped_scopes[scope_key]["spans"].extend(scope.get("spans", []))
+    resource_spans = list(groups.values())
     scopes = [ss for rs in resource_spans for ss in rs.get("scope_spans", [])]
     spans = [span for scope in scopes for span in scope.get("spans", [])]
     # Identical span trees can come from different resources or scopes; their content breaks the tie.
     owners: dict[int, str] = {}
     for rs in resource_spans:
-        resource = _clean(rs.get("resource", {}), ignored_attributes, ignored_fields)
+        resource = _clean(
+            {key: value for key, value in rs.items() if key != "scope_spans"}, ignored_attributes, ignored_fields
+        )
         for scope in rs.get("scope_spans", []):
             owner = json.dumps(
-                [resource, _clean(scope.get("scope", {}), ignored_attributes, ignored_fields)], sort_keys=True
+                [
+                    resource,
+                    _clean(
+                        {key: value for key, value in scope.items() if key != "spans"},
+                        ignored_attributes,
+                        ignored_fields,
+                    ),
+                ],
+                sort_keys=True,
             )
             for span in scope.get("spans", []):
                 owners[id(span)] = owner
@@ -211,12 +241,16 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
         id(span): json.dumps([owners[id(span)], _content_key(span, ignored_attributes, ignored_fields)])
         for span in spans
     }
-    by_span_id = {span["span_id"]: span for span in spans}
-    children: dict[str, list[dict[str, Any]]] = {}
+
+    def identity(span: dict[str, Any]) -> tuple[str, str]:
+        return span["trace_id"], span["span_id"]
+
+    by_span_id = {identity(span): span for span in spans}
+    children: dict[tuple[str, str], list[dict[str, Any]]] = {}
     roots_by_trace: dict[str, list[dict[str, Any]]] = {}
     for span in spans:
-        parent = span.get("parent_span_id")
-        if parent and parent in by_span_id:
+        parent = (span["trace_id"], span.get("parent_span_id", ""))
+        if parent in by_span_id:
             children.setdefault(parent, []).append(span)
         else:
             roots_by_trace.setdefault(span["trace_id"], []).append(span)
@@ -226,27 +260,73 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
     def subtree_key(span: dict[str, Any]) -> str:
         key = subtree_keys.get(id(span))
         if key is None:
-            child_keys = sorted(subtree_key(child) for child in children.get(span["span_id"], []))
+            child_keys = sorted(subtree_key(child) for child in children.get(identity(span), []))
             key = subtree_keys[id(span)] = json.dumps([content_keys[id(span)], child_keys])
         return key
 
+    # Refine content labels with both directions of links. A link to one of two otherwise
+    # identical siblings must distinguish that target without using its random identifier.
+    incoming: dict[tuple[str, str], list[tuple[dict[str, Any], str]]] = {}
+    outgoing: dict[tuple[str, str], list[tuple[dict[str, Any], str]]] = {}
+    for span in spans:
+        for link in span.get("links", []):
+            target = by_span_id.get(identity(link))
+            if target is not None:
+                metadata = json.dumps(
+                    _clean(
+                        {key: value for key, value in link.items() if key not in ("trace_id", "span_id")},
+                        ignored_attributes,
+                        ignored_fields,
+                    ),
+                    sort_keys=True,
+                )
+                outgoing.setdefault(identity(span), []).append((target, metadata))
+                incoming.setdefault(identity(target), []).append((span, metadata))
+
+    def rank(keys: dict[int, str]) -> dict[int, int]:
+        ranks = {key: index for index, key in enumerate(sorted(set(keys.values())))}
+        return {span_id: ranks[key] for span_id, key in keys.items()}
+
+    labels = rank({id(span): subtree_key(span) for span in spans})
+    for _ in range(len(spans)):
+        keys = {}
+        for span in spans:
+            parent = by_span_id.get((span["trace_id"], span.get("parent_span_id", "")))
+            keys[id(span)] = json.dumps(
+                [
+                    labels[id(span)],
+                    labels[id(parent)] if parent is not None else -1,
+                    sorted(labels[id(child)] for child in children.get(identity(span), [])),
+                    sorted((metadata, labels[id(target)]) for target, metadata in outgoing.get(identity(span), [])),
+                    sorted((metadata, labels[id(source)]) for source, metadata in incoming.get(identity(span), [])),
+                ]
+            )
+        refined = rank(keys)
+        stable = len(set(refined.values())) == len(set(labels.values()))
+        labels = refined
+        if stable:
+            break
+
+    def ordering_key(span: dict[str, Any]) -> tuple[str, int]:
+        return subtree_key(span), labels[id(span)]
+
     trace_ids: dict[str, str] = {}
-    span_ids: dict[str, str] = {}
+    span_ids: dict[tuple[str, str], str] = {}
 
     def assign(span: dict[str, Any]) -> None:
         trace_ids.setdefault(span["trace_id"], f"trace_{len(trace_ids) + 1}")
-        span_ids.setdefault(span["span_id"], f"span_{len(span_ids) + 1}")
-        for child in sorted(children.get(span["span_id"], []), key=subtree_key):
+        span_ids.setdefault(identity(span), f"span_{len(span_ids) + 1}")
+        for child in sorted(children.get(identity(span), []), key=ordering_key):
             assign(child)
 
-    for _, roots in sorted(roots_by_trace.items(), key=lambda item: sorted(subtree_key(root) for root in item[1])):
-        for root in sorted(roots, key=subtree_key):
+    for _, roots in sorted(roots_by_trace.items(), key=lambda item: sorted(ordering_key(root) for root in item[1])):
+        for root in sorted(roots, key=ordering_key):
             assign(root)
-    ordered_spans = sorted(spans, key=lambda span: int(span_ids[span["span_id"]].split("_")[1]))
+    ordered_spans = sorted(spans, key=lambda span: int(span_ids[identity(span)].split("_")[1]))
     for span in ordered_spans:
         parent = span.get("parent_span_id")
         if parent:
-            span_ids.setdefault(parent, f"span_{len(span_ids) + 1}")
+            span_ids.setdefault((span["trace_id"], parent), f"span_{len(span_ids) + 1}")
     spans = ordered_spans
 
     for span in spans:
@@ -258,21 +338,25 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
             raise AssertionError(f"span {span['name']!r} has an invalid time range: {start}..{end}")
         span["start_time_unix_nano"] = "<start_time_unix_nano>"
         span["end_time_unix_nano"] = "<end_time_unix_nano>"
-        span["trace_id"] = trace_ids[span["trace_id"]]
-        span["span_id"] = span_ids[span["span_id"]]
+        span_key = identity(span)
+        span["trace_id"] = trace_ids[span_key[0]]
+        span["span_id"] = span_ids[span_key]
         if span.get("parent_span_id"):
-            span["parent_span_id"] = span_ids[span["parent_span_id"]]
+            span["parent_span_id"] = span_ids[(span_key[0], span["parent_span_id"])]
         for event in span.get("events", []):
             event["time_unix_nano"] = "<time_unix_nano>"
         # Links can point at spans outside the payload, so unknown ids get placeholders as well.
         for link in span.get("links", []):
+            link_key = identity(link)
             link["trace_id"] = trace_ids.setdefault(link["trace_id"], f"trace_{len(trace_ids) + 1}")
-            link["span_id"] = span_ids.setdefault(link["span_id"], f"span_{len(span_ids) + 1}")
+            link["span_id"] = span_ids.setdefault(link_key, f"span_{len(span_ids) + 1}")
 
     for scope in scopes:
         scope["spans"].sort(key=lambda span: int(span["span_id"].split("_")[1]))
 
     normalized = _clean(resource_spans, ignored_attributes, ignored_fields)
+    for rs in normalized:
+        rs["scope_spans"].sort(key=lambda scope: json.dumps(scope, sort_keys=True))
     normalized.sort(key=lambda rs: json.dumps(rs, sort_keys=True))
     return {"resource_spans": normalized}
 
@@ -280,7 +364,7 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
 def assert_matches_snapshot(normalized: dict[str, Any], snapshot_file: Path) -> None:
     rendered = json.dumps(normalized, indent=2, sort_keys=True) + "\n"
     if not snapshot_file.exists():
-        if os.environ.get("CI"):
+        if os.environ.get("CI") == "true":
             raise AssertionError(
                 f"OTLP snapshot file '{snapshot_file}' not found. Was it checked into source control? "
                 "It is generated automatically when running outside CI."
@@ -309,7 +393,7 @@ def assert_otel_semantics_snapshot(
     snapshot_dir: Path = SNAPSHOT_DIR,
     wait_for_num_traces: Optional[int] = None,
 ) -> None:
-    """Fetch the OTLP traces exported under ``token`` and compare them with their snapshot file."""
+    """Fetch the OTLP traces exported under token and compare them with their snapshot file."""
     requests = fetch_otlp_requests(token, timeout=timeout, min_traces=wait_for_num_traces)
     # Fewer traces than requested fails, as on the Datadog-protocol path, instead of snapshotting a
     # partial export.
