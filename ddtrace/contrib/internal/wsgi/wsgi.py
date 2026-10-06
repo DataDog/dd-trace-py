@@ -7,7 +7,7 @@ from typing import Callable
 from typing import Iterable
 from typing import Optional
 
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 

@@ -194,7 +194,7 @@ async def test_basic_asgi(scope, test_spans):
 
 
 def test_otel_semantics_does_not_replace_resource_with_404():
-    from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
     from ddtrace.ext import SpanTypes
     from ddtrace.trace import Span
 

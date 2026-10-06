@@ -10,10 +10,10 @@ from starlette.middleware import Middleware
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import normalize_http_method
-from ddtrace._trace.http_semantics import server_url_tag
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
-from ddtrace._trace.otel_http_naming import set_otel_http_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_otel_http_resource
+from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import server_url_tag
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware

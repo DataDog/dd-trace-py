@@ -1,7 +1,7 @@
 import sys
 
 from ddtrace import config
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name

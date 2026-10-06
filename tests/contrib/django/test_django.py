@@ -224,7 +224,7 @@ def test_otel_semantics_keeps_async_request_resource_stable_during_application()
     import asyncio
     from unittest import mock
 
-    from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.django import response as django_response
     from ddtrace.ext import SpanTypes

@@ -20,10 +20,10 @@ from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
-from ddtrace._trace.http_semantics import set_client_address_tags
-from ddtrace._trace.http_semantics import set_url_tags_server
-from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_client_address_tags
+from ddtrace._trace.otel.http.tags import set_url_tags_server
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
