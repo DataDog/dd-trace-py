@@ -1,3 +1,5 @@
+"""OpenTelemetry HTTP resource naming and instrumentation ownership."""
+
 from typing import Optional
 
 from ddtrace._trace.span import Span
