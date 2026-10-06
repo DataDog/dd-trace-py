@@ -553,7 +553,7 @@ def test_otel_span_attributes_malformed_url_is_not_logged(integration_config, sp
         span._set_attribute(SPAN_KIND, span_kind)
     attributes = OTelHTTPSpanAttributes(span, integration_config)
 
-    with mock.patch.object(http_semantics.log, "debug") as debug:
+    with mock.patch.object(tags.log, "debug") as debug:
         attributes.set_url("http://user:hunter2@[::1/path?token=secret")
 
     debug.assert_called_once()

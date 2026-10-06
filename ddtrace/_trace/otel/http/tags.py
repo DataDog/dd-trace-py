@@ -284,3 +284,15 @@ class OTelHTTPSpanAttributes:
             self._original_method,
             None if self.is_client else route,
         )
+
+
+def set_method_tag(span: Span, method: str) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.METHOD, method)
+        return
+    normalized_method, original_method = normalize_http_method(method)
+    span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
+    if original_method is not None:
+        span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
+    else:
+        span.remove_tag(http.OTEL_REQUEST_METHOD_ORIGINAL)
