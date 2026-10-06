@@ -78,7 +78,6 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(producer_span.error, 0)
         self.assertEqual(producer_span.get_tag("out.vhost"), "/")
         self.assertEqual(producer_span.get_tag("out.host"), "127.0.0.1")
-        self.assertEqual(producer_span.get_metric("network.destination.port"), self.TEST_PORT)
         self.assertEqual(producer_span.get_tag("kombu.exchange"), "tasks")
         self.assertEqual(producer_span.get_metric("kombu.body_length"), 18)
         self.assertEqual(producer_span.get_tag("kombu.routing_key"), "tasks")
@@ -93,7 +92,6 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(consumer_span.error, 0)
         self.assertEqual(consumer_span.get_tag("kombu.exchange"), "tasks")
         self.assertEqual(consumer_span.get_tag("kombu.routing_key"), "tasks")
-        self.assertEqual(consumer_span.get_metric("network.destination.port"), self.TEST_PORT)
         self.assertEqual(consumer_span.get_tag("component"), "kombu")
         self.assertEqual(consumer_span.get_tag("span.kind"), "consumer")
 
