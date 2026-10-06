@@ -559,7 +559,9 @@ def _installed(check: bool = True) -> _Installed:
 
     if getattr(_FINDER_QUERY, "active", False):
         # A custom finder is reading the maps: asking it again would recurse.
-        # Its distributions are missing, so the snapshot is not published.
+        # Its distributions are missing, so the snapshot is not published, and
+        # lookups cached from it are dropped once the query is over.
+        _FINDER_QUERY.nested = True
         segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
         with _INSTALLED_DISTRIBUTIONS_LOCK:
             snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
@@ -567,20 +569,43 @@ def _installed(check: bool = True) -> _Installed:
         # Custom finders run arbitrary Python, whose import hooks could re-enter
         # mid-scan; keep them out of the lock.
         _FINDER_QUERY.active = True
+        _FINDER_QUERY.nested = False
         try:
             segments = _meta_path_segments(layout, warn)
         finally:
             _FINDER_QUERY.active = False
+        if _FINDER_QUERY.nested:
+            _clear_lookup_caches()
+        replaced = False
         with _INSTALLED_DISTRIBUTIONS_LOCK:
-            snapshot = _INSTALLED
-            if custom or snapshot is None or snapshot.key != key:
+            previous = _INSTALLED
+            if custom or previous is None or previous.key != key:
                 snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
                 _INSTALLED = snapshot
+                replaced = previous is not None
+            else:
+                snapshot = previous
             snapshot.checked = snapshot.checked or check
+        if replaced:
+            # Lookups cached from the previous snapshot may no longer hold.
+            _clear_lookup_caches()
     # Log outside the lock: handlers may do I/O and yield under gevent.
     for dist, exc in problems:
         _warn_bad_dist(dist, exc)
     return snapshot
+
+
+def _clear_lookup_caches() -> None:
+    # The lookups cached on top of the maps, which go stale when the records
+    # they were computed from are replaced or turn out incomplete.
+    for lookup in (
+        get_module_distribution_versions,
+        filename_to_package,
+        module_to_package,
+        is_third_party,
+        _is_user_code_str,
+    ):
+        lookup.cache_clear()
 
 
 def _installed_distributions() -> list[_DistributionRecord]:
@@ -817,7 +842,7 @@ def _(path: Path) -> bool:
 # DEV: Creating Path objects on Python < 3.11 is expensive
 @is_user_code.register(str)
 @cached(maxsize=1024)
-def _(path: str) -> bool:
+def _is_user_code_str(path: str) -> bool:
     _path = Path(path)
     return not (is_stdlib(_path) or is_third_party(_path))
 

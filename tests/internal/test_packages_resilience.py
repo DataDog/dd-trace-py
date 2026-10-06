@@ -1317,3 +1317,56 @@ def test_queued_prefetch_does_not_strand_a_fork_child(reset_packages_caches) -> 
 
     assert _p._PREFETCH_THREAD is None
     assert _p._PREFETCH_DONE.is_set()
+
+
+def test_lookups_cached_inside_a_finder_query_are_dropped(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A finder that looks up its own module while being queried gets an answer
+    from incomplete records; that answer must not stay cached.
+    """
+    from ddtrace.internal import packages as _p
+
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    seen = []
+
+    def look_up_own_module():
+        if not seen:
+            seen.append(_p.get_module_distribution_versions("from_finder"))
+
+    finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=look_up_own_module)
+    monkeypatch.setattr(sys, "path", [])
+    monkeypatch.setattr(sys, "meta_path", [finder, _p.PathFinder])
+    _p.get_module_distribution_versions.cache_clear()
+
+    _p._installed()
+
+    assert seen == [None]
+    assert _p.get_module_distribution_versions("from_finder") == ("from-finder", "1.0")
+
+
+def test_lookup_caches_follow_snapshot_replacement(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """File attribution cached from one snapshot must not outlive it, but must
+    survive reads that keep the same snapshot.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "first", "first")
+    vendor = _site_with_dist(tmp_path / "vendor", "vendored", "first")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    _prefetch_and_wait(_p)
+    _p.filename_to_package.cache_clear()
+
+    _p.filename_to_package(str(site / "first.py"))
+    assert _p.filename_to_package.cache_info().currsize == 1
+
+    # Same snapshot: the cached answer stays.
+    _p._installed()
+    assert _p.filename_to_package.cache_info().currsize == 1
+
+    # The application vendors its own copy ahead of site-packages.
+    sys.path.insert(0, str(vendor))
+    assert [r[0] for r in _p._installed_distributions()] == ["vendored", "first"]
+    assert _p.filename_to_package.cache_info().currsize == 0
