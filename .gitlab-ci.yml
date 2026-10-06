@@ -957,4 +957,8 @@ notify-write-spike:
       pup --no-agent api -X POST v2/events --input - <<JSON
       {"data":{"type":"event","attributes":{"category":"change","title":"Notifier write spike: change-event test","message":"Validating pup v2 events submission from CI (replaces the .change metric marker).","tags":["repo:${CI_PROJECT_NAME}","reason:write-spike"],"attributes":{"author":{"type":"automation","name":"gitlab-ci"},"changed_resource":{"type":"configuration","name":"spike-test"}}}}}
       JSON
+
+    - |
+      echo "[3/3] Probing GitLab pipeline jobs API with the CI job token..."
+      curl -sS -w "\nHTTP %{http_code}\n" --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?per_page=5" | head -c 2000 || true
     - echo "Done."
