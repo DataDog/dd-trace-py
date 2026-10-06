@@ -10,15 +10,14 @@ class PackagesPackageForRootModuleMapping(bm.Scenario):
     def run(self):
         def _(loops):
             for _ in range(loops):
-                if self.disable_cache and hasattr(packages, "_reset_installed_distributions"):
-                    # Newer versions share one cached distribution scan between
-                    # this mapping and the other package maps.
-                    packages._reset_installed_distributions()
-                f = (
-                    _package_for_root_module_mapping.__closure__[0].cell_contents
-                    if self.disable_cache
-                    else _package_for_root_module_mapping
-                )
+                f = _package_for_root_module_mapping
+                if self.disable_cache:
+                    if hasattr(packages, "_reset_installed_distributions"):
+                        # Newer versions cache a snapshot of the installed
+                        # distributions that this mapping is derived from.
+                        packages._reset_installed_distributions()
+                    else:
+                        f = _package_for_root_module_mapping.__closure__[0].cell_contents
                 result = f()
                 # Ensure the result is used
                 assert result is not None

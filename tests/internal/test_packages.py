@@ -18,11 +18,6 @@ def packages():
 
     # Clear caches
 
-    try:
-        del _p._package_for_root_module_mapping.__wrapped__.__callonce_result__
-    except AttributeError:
-        pass
-    _p._PACKAGE_DISTRIBUTIONS = None
     _p._reset_installed_distributions()
 
     for f in _p.__dict__.values():

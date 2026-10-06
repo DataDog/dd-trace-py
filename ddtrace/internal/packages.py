@@ -1,4 +1,5 @@
 import collections
+from functools import cached_property
 from functools import lru_cache as cached
 from functools import singledispatch
 from importlib.machinery import PathFinder
@@ -28,8 +29,6 @@ class Distribution(t.NamedTuple):
     name: str
     version: str
 
-
-_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
 # dist.metadata access is per-dist defensive — malformed METADATA
 # (rare but real on system-Python / CI images) must not poison the @callonce cache.
@@ -71,22 +70,14 @@ def _warn_bad_dist(dist, exc: t.Union[BaseException, str]) -> None:
     )
 
 
-@callonce
 def get_distributions() -> t.Mapping[str, str]:
     """returns the mapping from distribution name to version for all distributions in a python path"""
-    return {name.lower(): version for name, version, _, _ in _installed_distributions() if version is not None}
+    return _installed().versions
 
 
 def get_package_distributions() -> t.Mapping[str, list[str]]:
     """a mapping of importable package names to their distribution name(s)"""
-    global _PACKAGE_DISTRIBUTIONS
-    if _PACKAGE_DISTRIBUTIONS is None:
-        pkg_to_dist = collections.defaultdict(list)
-        for name, _, _, top_level in _installed_distributions():
-            for pkg in top_level:
-                pkg_to_dist[pkg].append(name)
-        _PACKAGE_DISTRIBUTIONS = dict(pkg_to_dist)
-    return _PACKAGE_DISTRIBUTIONS
+    return _installed().packages
 
 
 @cached(maxsize=1024)
@@ -396,13 +387,58 @@ def _python_dist_records(
         yield name, version, keys, top_level
 
 
-# (sys.path entries, records), as one tuple so lock-free readers never mix them up.
 # What the records were built from: each sys.path entry with its mtime, and the
-# custom distribution finders.
+# meta path layout, i.e. the custom distribution finders in order, with None
+# where the native sys.path scan goes.
 _CacheKey = tuple[tuple[tuple[str, t.Optional[int]], ...], tuple[t.Any, ...]]
 
-# (key, records), as one tuple so lock-free readers never mix them up.
-_INSTALLED_DISTRIBUTIONS: t.Optional[tuple[_CacheKey, list[_DistributionRecord]]] = None
+
+class _Installed:
+    """A snapshot of the installed distributions, and the maps derived from it.
+
+    The maps are built on first use and live as long as the snapshot, so they are
+    always consistent with each other, and a snapshot that is never published
+    takes its maps with it.
+    """
+
+    def __init__(self, key: _CacheKey, records: list[_DistributionRecord]) -> None:
+        self.key = key
+        self.records = records
+        # What the per-read check compares against: list equality checks each
+        # item by identity first, so it costs next to nothing when unchanged.
+        self.sys_path = list(sys.path)
+        self.meta_path = list(sys.meta_path)
+        # Whether the full key (entry mtimes, custom finder results) has been
+        # checked since the snapshot was built, by a read rather than the
+        # boot-time prefetch.
+        self.checked = False
+
+    @cached_property
+    def versions(self) -> dict[str, str]:
+        return {name.lower(): version for name, version, _, _ in self.records if version is not None}
+
+    @cached_property
+    def packages(self) -> dict[str, list[str]]:
+        pkg_to_dist = collections.defaultdict(list)
+        for name, _, _, top_level in self.records:
+            for pkg in top_level:
+                pkg_to_dist[pkg].append(name)
+        return dict(pkg_to_dist)
+
+    @cached_property
+    def mapping(self) -> dict[str, Distribution]:
+        mapping: dict[str, Distribution] = {}
+        for name, version, keys, _ in self.records:
+            if version is None:
+                continue
+            d = Distribution(name=name, version=version)
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = d
+        return mapping
+
+
+_INSTALLED: t.Optional[_Installed] = None
 # (mtime, records) per sys.path entry, so only new or changed entries are rescanned.
 _ENTRY_RECORDS: dict[str, tuple[t.Optional[int], list[_DistributionRecord]]] = {}
 # Fork-safe because lazy scans run on application threads, which may fork
@@ -417,9 +453,9 @@ _PREFETCH_MAX_THREADS = 4
 
 def _reset_installed_distributions() -> None:
     """Forget all scanned records."""
-    global _INSTALLED_DISTRIBUTIONS
+    global _INSTALLED
     with _INSTALLED_DISTRIBUTIONS_LOCK:
-        _INSTALLED_DISTRIBUTIONS = None
+        _INSTALLED = None
         _ENTRY_RECORDS.clear()
 
 
@@ -462,32 +498,56 @@ def _scans_sys_path(finder: t.Any) -> bool:
     return finder is PathFinder or name == "MetadataPathFinder"
 
 
-def _custom_finders() -> tuple[t.Any, ...]:
-    return tuple(
-        finder
-        for finder in sys.meta_path
-        if not _scans_sys_path(finder) and getattr(finder, "find_distributions", None) is not None
-    )
+def _meta_path_layout() -> tuple[t.Any, ...]:
+    layout: list[t.Any] = []
+    for finder in sys.meta_path:
+        if _scans_sys_path(finder):
+            # One native scan stands for all of them; another would list every
+            # distribution again.
+            if None not in layout:
+                layout.append(None)
+        elif getattr(finder, "find_distributions", None) is not None:
+            layout.append(finder)
+    return tuple(layout)
 
 
 def _cache_key() -> _CacheKey:
     # A repeated entry would list its distributions twice.
     entries = dict.fromkeys(_resolve_entry(e) for e in sys.path if isinstance(e, str))
-    return tuple((entry, _mtime(entry)) for entry in entries), _custom_finders()
+    return tuple((entry, _mtime(entry)) for entry in entries), _meta_path_layout()
 
 
-def _installed_distributions(threads: int = 1) -> list[_DistributionRecord]:
-    """Records for every installed distribution, in importlib discovery order.
+def _installed(threads: int = 1, check: bool = True) -> _Installed:
+    """The current snapshot of the installed distributions, in importlib discovery order.
 
-    The sys.path scan is native, as importlib is far too slow at it. Records
-    follow sys.path, its entries' mtimes and the custom finders, so changes after
-    the boot-time prefetch are still seen. Only prefetch_distributions may ask
-    for threads.
+    The sys.path scan is native, as importlib is far too slow at it. Every read
+    checks whether sys.path or the meta path changed, which is cheap. The first read
+    after a build also checks entry mtimes and asks custom finders again, which
+    is not cheap, so that changes between the boot-time prefetch and first use
+    are still seen; later ones are not, as before. Only prefetch_distributions
+    may ask for threads, and it leaves the full check to the first read.
     """
-    global _INSTALLED_DISTRIBUTIONS
+    global _INSTALLED
+    snapshot = _INSTALLED
+    if (
+        snapshot is not None
+        and snapshot.checked
+        and snapshot.sys_path == sys.path
+        and snapshot.meta_path == sys.meta_path
+    ):
+        return snapshot
+
     key = _cache_key()
-    if (installed := _INSTALLED_DISTRIBUTIONS) is not None and installed[0] == key:
-        return installed[1]
+    layout = key[1]
+    custom = any(finder is not None for finder in layout)
+    if snapshot is not None and snapshot.key == key and not custom:
+        # Nothing that matters changed since the build: only the full check was
+        # pending, or sys.path or the meta path changed in ways the records do
+        # not depend on.
+        snapshot.checked = snapshot.checked or check
+        snapshot.sys_path = list(sys.path)
+        snapshot.meta_path = list(sys.meta_path)
+        return snapshot
 
     problems: list[tuple[t.Any, t.Union[BaseException, str]]] = []
 
@@ -496,26 +556,33 @@ def _installed_distributions(threads: int = 1) -> list[_DistributionRecord]:
 
     if getattr(_FINDER_QUERY, "active", False):
         # A custom finder is reading the maps: asking it again would recurse.
-        # Return the native records, without publishing them as complete.
-        segments: list[t.Optional[list[_DistributionRecord]]] = [None]
+        # Its distributions are missing, so the snapshot is not published.
+        segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
         with _INSTALLED_DISTRIBUTIONS_LOCK:
-            records = list(_distribution_records(key, segments, threads, warn))
+            snapshot = _Installed(key, list(_distribution_records(key, segments, threads, warn)))
     else:
         # Custom finders run arbitrary Python, whose import hooks could re-enter
         # mid-scan; keep them out of the lock.
         _FINDER_QUERY.active = True
         try:
-            segments = _meta_path_segments(warn)
+            segments = _meta_path_segments(layout, warn)
         finally:
             _FINDER_QUERY.active = False
         with _INSTALLED_DISTRIBUTIONS_LOCK:
-            if (installed := _INSTALLED_DISTRIBUTIONS) is None or installed[0] != key:
-                installed = _INSTALLED_DISTRIBUTIONS = (key, list(_distribution_records(key, segments, threads, warn)))
-            records = installed[1]
+            snapshot = _INSTALLED
+            if custom or snapshot is None or snapshot.key != key:
+                snapshot = _Installed(key, list(_distribution_records(key, segments, threads, warn)))
+                _INSTALLED = snapshot
+            snapshot.checked = snapshot.checked or check
     # Log outside the lock: handlers may do I/O and yield under gevent.
     for dist, exc in problems:
         _warn_bad_dist(dist, exc)
-    return records
+    return snapshot
+
+
+def _installed_distributions(threads: int = 1) -> list[_DistributionRecord]:
+    """Records for every installed distribution, in importlib discovery order."""
+    return _installed(threads).records
 
 
 def prefetch_distributions() -> None:
@@ -526,7 +593,7 @@ def prefetch_distributions() -> None:
     """
     try:
         threads = 1 if "ddtrace.auto" in sys.modules else min(_PREFETCH_MAX_THREADS, _available_cpus())
-        _installed_distributions(threads=threads)
+        _installed(threads=threads, check=False)
     except Exception:
         # The lazy path retries on first use.
         LOG.debug("Failed to prefetch installed distributions", exc_info=True)
@@ -551,26 +618,22 @@ def _entry_records(
     return dists
 
 
-def _meta_path_segments(warn: _WarnBadDist) -> list[t.Optional[list[_DistributionRecord]]]:
-    """Distribution sources on sys.meta_path, in order: None for the sys.path scan (native), records for others."""
-    custom = _custom_finders()
+def _meta_path_segments(layout: tuple[t.Any, ...], warn: _WarnBadDist) -> list[t.Optional[list[_DistributionRecord]]]:
+    """Distribution sources in meta path order: None for the sys.path scan (native), records for custom finders."""
     segments: list[t.Optional[list[_DistributionRecord]]] = []
-    for finder in sys.meta_path:
-        if _scans_sys_path(finder):
-            # One native scan stands for all of them; another would list every
-            # distribution again.
-            if None not in segments:
-                segments.append(None)
-        elif finder in custom:
-            # Only imported for custom finders: IAST drops importlib.metadata
-            # after boot, for gevent, and the prefetch must not bring it back.
-            import importlib.metadata as importlib_metadata
+    for finder in layout:
+        if finder is None:
+            segments.append(None)
+            continue
+        # Only imported for custom finders: IAST drops importlib.metadata after
+        # boot, for gevent, and the prefetch must not bring it back.
+        import importlib.metadata as importlib_metadata
 
-            try:
-                dists = getattr(finder, "find_distributions")(importlib_metadata.DistributionFinder.Context())
-                segments.append(list(_python_dist_records(dists, warn)))
-            except Exception as exc:
-                warn(finder, exc)
+        try:
+            dists = getattr(finder, "find_distributions")(importlib_metadata.DistributionFinder.Context())
+            segments.append(list(_python_dist_records(dists, warn)))
+        except Exception as exc:
+            warn(finder, exc)
     return segments
 
 
@@ -601,27 +664,22 @@ def _distribution_records(
             yield from records
 
 
-@callonce
-def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
-    try:
-        records = _installed_distributions()
-    except Exception:
-        LOG.warning(
-            "Unable to enumerate installed distributions, "
-            "please report this to https://github.com/DataDog/dd-trace-py/issues",
-            exc_info=True,
-        )
-        return None
+_MAPPING_FAILURE_LOGGED = False
 
-    mapping: dict[str, Distribution] = {}
-    for name, version, keys, _ in records:
-        if version is None:
-            continue
-        d = Distribution(name=name, version=version)
-        for key in keys:
-            if key not in mapping:
-                mapping[key] = d
-    return mapping
+
+def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
+    global _MAPPING_FAILURE_LOGGED
+    try:
+        return _installed().mapping
+    except Exception:
+        if not _MAPPING_FAILURE_LOGGED:
+            _MAPPING_FAILURE_LOGGED = True
+            LOG.warning(
+                "Unable to enumerate installed distributions, "
+                "please report this to https://github.com/DataDog/dd-trace-py/issues",
+                exc_info=True,
+            )
+        return None
 
 
 @callonce

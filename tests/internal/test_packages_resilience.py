@@ -39,13 +39,9 @@ def reset_packages_caches():
     from ddtrace.internal import packages as _p
 
     def _clear() -> None:
-        for fn in (_p.get_distributions, _p._package_for_root_module_mapping):
-            inner = getattr(fn, "__wrapped__", None) or (fn.__closure__[0].cell_contents if fn.__closure__ else None)
-            if inner is not None and hasattr(inner, "__callonce_result__"):
-                del inner.__callonce_result__
-        _p._PACKAGE_DISTRIBUTIONS = None
         _p._reset_installed_distributions()
         _p._BAD_DISTS_WARNED.clear()
+        _p._MAPPING_FAILURE_LOGGED = False
 
     _clear()
     yield
@@ -600,7 +596,7 @@ def test_prefetch_never_raises(reset_packages_caches, monkeypatch: pytest.Monkey
 
     _p.prefetch_distributions()
 
-    assert _p._INSTALLED_DISTRIBUTIONS is None
+    assert _p._INSTALLED is None
 
 
 def test_concurrent_callers_scan_once(reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -703,8 +699,8 @@ def test_ddtrace_auto_prefetches_single_threaded(tmp_path: Path) -> None:
 from ddtrace.internal import packages
 
 requested = []
-real = packages._installed_distributions
-packages._installed_distributions = lambda threads=1: requested.append(threads) or real(threads)
+real = packages._installed
+packages._installed = lambda threads=1, check=True: requested.append(threads) or real(threads, check)
 
 import ddtrace.auto  # noqa: E402,F401
 
@@ -1008,18 +1004,16 @@ def test_relative_entries_follow_the_working_directory(
     tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A relative sys.path entry scanned at boot must not keep pointing at the old
-    working directory once the application changes it.
+    working directory if the application changes it before the maps are used.
     """
     from ddtrace.internal import packages as _p
 
     for name in ("before", "after"):
-        di = _write_dist_info(tmp_path / name, f"{name}-dist", "1.0")
-        (tmp_path / name / f"{name}.py").write_text("")
-        (di / "RECORD").write_text(f"{name}.py,,\\n")
+        _site_with_dist(tmp_path / name, f"{name}-dist", name)
     monkeypatch.setattr(sys, "path", [""])
 
     monkeypatch.chdir(tmp_path / "before")
-    assert [r[0] for r in _p._installed_distributions()] == ["before-dist"]
+    _p.prefetch_distributions()
 
     monkeypatch.chdir(tmp_path / "after")
     assert [r[0] for r in _p._installed_distributions()] == ["after-dist"]
@@ -1110,13 +1104,14 @@ def test_failed_entry_scan_is_retried(tmp_path: Path, reset_packages_caches, mon
 def test_install_into_existing_entry_is_seen(
     tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Like importlib, notice packages installed into an already scanned entry."""
+    """Like importlib, notice packages installed into an entry scanned at boot,
+    before the maps are first used.
+    """
     from ddtrace.internal import packages as _p
 
     site = _site_with_dist(tmp_path / "site", "early", "early")
     monkeypatch.setattr(sys, "path", [str(site)])
     _p.prefetch_distributions()
-    assert [r[0] for r in _p._installed_distributions()] == ["early"]
 
     before = os.stat(site).st_mtime_ns
     _site_with_dist(site, "late", "late")
@@ -1182,7 +1177,7 @@ def test_custom_finder_reading_the_maps_does_not_recurse(
     assert [r[0] for r in records] == ["from-finder", "on-path"]
     # The nested read saw the native records only, and did not publish them.
     assert [[r[0] for r in n] for n in nested] == [["on-path"]]
-    assert _p._installed_distributions() is records
+    assert _p._installed_distributions() == records
 
 
 class MetadataPathFinder:
@@ -1210,3 +1205,114 @@ def test_metadata_path_finder_means_the_native_scan(
     monkeypatch.setattr(sys, "meta_path", meta_path)
 
     assert [r[0] for r in _p._installed_distributions()] == ["on-path"]
+
+
+def test_custom_finder_reordered_after_prefetch_is_seen(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Moving a custom finder across PathFinder changes which distribution wins a
+    shared import root, so the records must follow the new order.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "shared")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "shared")
+    finder = _DistFinder(custom / "from_finder-1.0.dist-info")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [_p.PathFinder, finder])
+    _p.prefetch_distributions()
+    assert [r[0] for r in _p._installed_distributions()] == ["on-path", "from-finder"]
+
+    sys.meta_path[:] = [finder, _p.PathFinder]
+
+    assert _p._package_for_root_module_mapping() == {"shared.py": ("from-finder", "1.0")}
+
+
+def test_custom_finder_results_are_refreshed(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A finder installed at boot can expose more distributions before the maps
+    are first used; nothing signals that, so the first read asks it again.
+    """
+    import importlib.metadata as importlib_metadata
+
+    from ddtrace.internal import packages as _p
+
+    custom = _site_with_dist(tmp_path / "custom", "late-dist", "late")
+    registry: list = []
+
+    class RegistryFinder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            return [importlib_metadata.PathDistribution(p) for p in registry]
+
+    monkeypatch.setattr(sys, "path", [])
+    monkeypatch.setattr(sys, "meta_path", [RegistryFinder(), _p.PathFinder])
+    _p.prefetch_distributions()
+
+    registry.append(custom / "late_dist-1.0.dist-info")
+
+    assert [r[0] for r in _p._installed_distributions()] == ["late-dist"]
+
+
+def test_maps_built_inside_a_finder_query_are_not_kept(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A finder that reads the package maps while being queried sees records
+    without its own distributions; those maps must not be cached.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    seen = []
+
+    def read_maps():
+        if not seen:
+            seen.append((_p.get_distributions(), _p.get_package_distributions(), _p._package_for_root_module_mapping()))
+
+    finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=read_maps)
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [finder, _p.PathFinder])
+
+    mapping = _p._package_for_root_module_mapping()
+
+    # The nested reads saw the native records only ...
+    versions, pkgs, nested_mapping = seen[0]
+    assert dict(versions) == {"on-path": "1.0"}
+    assert pkgs == {"on_path": ["on-path"]}
+    assert nested_mapping == {"on_path.py": ("on-path", "1.0")}
+    # ... and did not stick: the maps built afterwards are complete.
+    assert set(mapping) == {"from_finder.py", "on_path.py"}
+    assert dict(_p.get_distributions()) == {"from-finder": "1.0", "on-path": "1.0"}
+    assert _p.get_package_distributions() == {"from_finder": ["from-finder"], "on_path": ["on-path"]}
+
+
+def test_reads_after_first_use_are_cheap(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Once the first read has done the full check, reads only compare sys.path and
+    the meta path, with no file system access; a sys.path change still updates
+    the maps.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "first", "first")
+    extra = _site_with_dist(tmp_path / "extra", "second", "second")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    _p.prefetch_distributions()
+    assert _p._package_for_root_module_mapping() == {"first.py": ("first", "1.0")}
+
+    stats = []
+    real_mtime = _p._mtime
+    monkeypatch.setattr(_p, "_mtime", lambda entry: stats.append(entry) or real_mtime(entry))
+    for _ in range(3):
+        _p._package_for_root_module_mapping()
+        _p.get_distributions()
+    assert stats == []
+
+    sys.path.append(str(extra))
+    assert set(_p._package_for_root_module_mapping()) == {"first.py", "second.py"}
+    assert dict(_p.get_distributions()) == {"first": "1.0", "second": "1.0"}
