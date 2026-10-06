@@ -11,7 +11,7 @@ import tests.aiguard.openai._http_client as http_client
 
 
 def test_http_client_helper_imports_without_httpx(monkeypatch: pytest.MonkeyPatch) -> None:
-    """OpenAI 3 CI may ship only ``httpx2``; helper import must not require ``httpx``."""
+    """OpenAI 3 CI may ship only httpx2; helper import must not require httpx."""
     monkeypatch.setitem(sys.modules, "httpx", None)
 
     reloaded: ModuleType = importlib.reload(http_client)
