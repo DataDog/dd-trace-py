@@ -141,10 +141,10 @@ def traced_publish(func, instance, args, kwargs):
         service=pin.service,
         resource=exchange_name,
         tags={
+            **(pin.tags or {}),
             kombux.EXCHANGE: exchange_name,
             kombux.ROUTING_KEY: get_routing_key_from_args(args),
             **extract_conn_tags(instance.channel.connection),
-            **(pin.tags or {}),
         },
     )
     with core.context_with_event(event) as ctx:
