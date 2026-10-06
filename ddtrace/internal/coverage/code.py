@@ -370,6 +370,28 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._file_level_covered_paths_cache.popitem(last=False)
         return paths
 
+    class _ContextStack(list):
+        """Per-context stack of coverage data that compares by identity, not value.
+
+        Context-propagation helpers (e.g. asgiref's ``_restore_context``, used by Django's
+        async test support via ``async_to_sync``/``sync_to_async``) restore context
+        variables by comparing the current value with the incoming one using ``!=``.
+        A plain ``list`` compares by value, which both silently masks legitimate stack
+        swaps (when two distinct stacks happen to contain equal entries) and allows one
+        context's stack to be replaced by another context's stack object. Comparing
+        stacks by identity makes such propagation respect stack ownership: restores only
+        propagate a stack reference into a context that does not already hold that exact
+        stack object, keeping the coverage data attributed to the right context.
+        """
+
+        __slots__ = ()
+
+        def __eq__(self, other: object) -> bool:  # noqa: D105
+            return self is other
+
+        def __ne__(self, other: object) -> bool:  # noqa: D105
+            return self is not other
+
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
@@ -379,8 +401,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Replace the stacks so a nested collector cannot mutate its parent's stack.
             self._covered_lines = defaultdict(CoverageLines)
             self._covered_files = set()
-            ctx_covered.set((ctx_covered.get() or []) + [self._covered_lines])
-            ctx_covered_files.set((ctx_covered_files.get() or []) + [self._covered_files])
+            ctx_covered.set(ModuleCodeCollector._ContextStack((ctx_covered.get() or []) + [self._covered_lines]))
+            ctx_covered_files.set(
+                ModuleCodeCollector._ContextStack((ctx_covered_files.get() or []) + [self._covered_files])
+            )
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -420,8 +444,8 @@ class ModuleCodeCollector(ModuleWatchdog):
                 and covered_lines_stack[-1] is self._covered_lines
                 and covered_files_stack[-1] is self._covered_files
             ):
-                covered_lines_stack = covered_lines_stack[:-1]
-                covered_files_stack = covered_files_stack[:-1]
+                covered_lines_stack = ModuleCodeCollector._ContextStack(covered_lines_stack[:-1])
+                covered_files_stack = ModuleCodeCollector._ContextStack(covered_files_stack[:-1])
                 ctx_covered.set(covered_lines_stack)
                 ctx_covered_files.set(covered_files_stack)
             else:
