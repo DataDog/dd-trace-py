@@ -14,6 +14,7 @@ from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 def set_kafka_meta(
@@ -120,6 +121,8 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
             if parent.trace_id and parent.span_id:
                 event.distributed_context = parent
                 event.use_active_context = False
+        if event.activate and event.distributed_context is not None:
+            ctx.set_item("kafka_previous_active_context", tracer.context_provider.active())
         super()._on_context_started(ctx)
 
     @classmethod
@@ -131,7 +134,12 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
         event: KafkaConsumeEvent = ctx.event
         if event.integration_config.distributed_tracing_enabled and event.propagation_as_span_links:
             event.span_links.extend(cls._extract_context(headers) for headers in event.message_headers)
-        super()._on_context_ended(ctx, exc_info)
+        try:
+            super()._on_context_ended(ctx, exc_info)
+        finally:
+            # A remote parent cannot restore the local span displaced by activation.
+            if event.activate and event.distributed_context is not None:
+                tracer.context_provider.activate(ctx.get_item("kafka_previous_active_context"))
 
     @classmethod
     def on_ended(
