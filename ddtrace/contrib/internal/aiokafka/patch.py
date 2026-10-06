@@ -204,7 +204,7 @@ async def traced_getone(func, instance, args, kwargs):
         event.received_message = message is not None
 
         if message is not None:
-            message_key = message.key.decode("utf-8") if message.key else None
+            message_key = message.key.decode("utf-8", errors="replace") if message.key else None
             event.tombstone = message.value is None
             if isinstance(message_key, str):
                 event.message_key = message_key
