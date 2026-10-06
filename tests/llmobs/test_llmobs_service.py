@@ -2584,25 +2584,33 @@ def test_service_enable_starts_evaluator_runner_when_evaluators_exist(tracer):
     pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
-            llmobs_service.enable(_tracer=tracer)
-            llmobs_instance = llmobs_service._instance
-            assert llmobs_instance is not None
-            assert llmobs_service.enabled
-            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-            assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            # Guard against leaked enabled=True from a prior failed test
             llmobs_service.disable()
+            llmobs_service.enable(_tracer=tracer)
+            try:
+                llmobs_instance = llmobs_service._instance
+                assert llmobs_instance is not None
+                assert llmobs_service.enabled
+                assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+                assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            finally:
+                llmobs_service.disable()
 
 
 def test_service_enable_does_not_start_evaluator_runner(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        # Guard against leaked enabled=True from a prior failed test
         llmobs_service.disable()
+        llmobs_service.enable(_tracer=tracer)
+        try:
+            llmobs_instance = llmobs_service._instance
+            assert llmobs_instance is not None
+            assert llmobs_service.enabled
+            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+            assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
+            assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        finally:
+            llmobs_service.disable()
 
 
 def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):
