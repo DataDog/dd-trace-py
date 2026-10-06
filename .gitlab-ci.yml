@@ -929,3 +929,32 @@ notify-slo-spike:
     - export DD_APP_KEY="$(aws ssm get-parameter --name "ci.${CI_PROJECT_NAME}.apm_sdk_slo.dd_app_key.prod" --with-decryption --query Parameter.Value --output text)"
     - export DD_SITE="datadoghq.com"
     - notify-slo
+
+# Spike: validate the write side of pup from this repo's CI — one tagged test
+# metric series (v2/series) and one test change event (v2/events), the two write
+# calls the notifier redesign depends on. Read-only spikes proved the on-call
+# chain; this proves submission. Play manually; safe to remove after rollout.
+notify-write-spike:
+  stage: benchmarks
+  needs: []
+  when: manual
+  tags: ["arch:amd64"]
+  image: "registry.ddbuild.io/images/benchmarking-platform-tools-notifier:0184e511"
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - export DD_API_KEY="$(aws ssm get-parameter --name "ci.${CI_PROJECT_NAME}.apm_sdk_slo.dd_api_key.prod" --with-decryption --query Parameter.Value --output text)"
+    - export DD_APP_KEY="$(aws ssm get-parameter --name "ci.${CI_PROJECT_NAME}.apm_sdk_slo.dd_app_key.prod" --with-decryption --query Parameter.Value --output text)"
+    - export DD_SITE="datadoghq.com"
+    - |
+      echo "[1/2] Submitting a test metric series via pup (v2/series)..."
+      now=$(date +%s)
+      pup --no-agent api -X POST v2/series --input - <<JSON
+      {"series":[{"metric":"notifier.spike.test","type":0,"points":[{"timestamp":${now},"value":1}],"tags":["repo:${CI_PROJECT_NAME}","reason:write-spike"]}]}
+      JSON
+    - |
+      echo "[2/2] Submitting a test change event via pup (v2/events)..."
+      pup --no-agent api -X POST v2/events --input - <<JSON
+      {"data":{"type":"event","attributes":{"category":"change","title":"Notifier write spike: change-event test","message":"Validating pup v2 events submission from CI (replaces the .change metric marker).","tags":["repo:${CI_PROJECT_NAME}","reason:write-spike"],"attributes":{"author":{"type":"automation","name":"gitlab-ci"},"changed_resource":{"type":"configuration","name":"spike-test"}}}}}
+      JSON
+    - echo "Done."
