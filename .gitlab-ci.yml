@@ -962,3 +962,51 @@ notify-write-spike:
       echo "[3/3] Probing GitLab pipeline jobs API with the CI job token..."
       curl -sS -w "\nHTTP %{http_code}\n" --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?per_page=5" | head -c 2000 || true
     - echo "Done."
+
+# Spike: validate DDCI access from a CI job — mint a DDCI token via the
+# runner's conversion path (id_tokens + DDCI_CONVERT_TO_TICINO_TOKENS), then
+# query the DDCI REST API for this request and its tasks. Answers: does the
+# job-minted token authenticate to ddci-api, is DDCI context present in this
+# job, and do pipeline jobs appear as tasks. Play manually; safe to remove.
+ddci-spike:
+  stage: benchmarks
+  needs: []
+  when: manual
+  tags: ["arch:amd64"]
+  image: "registry.ddbuild.io/images/benchmarking-platform-tools-notifier:0184e511"
+  variables:
+    GIT_STRATEGY: none
+    DDCI_CONVERT_TO_TICINO_TOKENS: "DDCI_API_ID_TOKEN"
+  id_tokens:
+    DDCI_API_ID_TOKEN:
+      aud: rapid-devex-ci
+  script:
+    - |
+      echo "[1/3] DDCI context in this job:"
+      echo "DDCI_REQUEST_ID: ${DDCI_REQUEST_ID:-<unset>}"
+      python3 - <<'PY'
+      import base64, json, os
+      tok = os.environ.get("DDCI_API_ID_TOKEN", "")
+      if not tok:
+          print("DDCI_API_ID_TOKEN: <unset — conversion not applied>")
+      else:
+          payload = tok.split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          print("token claims (payload only, never the token):")
+          print(json.dumps({k: claims.get(k) for k in ("iss", "aud", "name", "gitlab", "code", "ddci")}, indent=1))
+      PY
+    - |
+      if [ -z "${DDCI_REQUEST_ID:-}" ]; then
+        echo "[2/3] No DDCI_REQUEST_ID in this job — the DDCI context question answers NEGATIVE for this pipeline type. Not calling the API."
+        echo "[3/3] skipped."
+      else
+        echo "[2/3] GET /requests/<id> with the job-minted token..."
+        curl -sS -m 10 --header "Authorization: Bearer $DDCI_API_ID_TOKEN" \
+          "https://ddci-api.us1.ddbuild.io/internal/api/v2/requests/${DDCI_REQUEST_ID}" \
+          -w "\n--- HTTP %{http_code} ---\n" | head -c 2000 || true
+        echo "[3/3] GET /requests/<id>/tasks with the job-minted token..."
+        curl -sS -m 10 --header "Authorization: Bearer $DDCI_API_ID_TOKEN" \
+          "https://ddci-api.us1.ddbuild.io/internal/api/v2/requests/${DDCI_REQUEST_ID}/tasks" \
+          -w "\n--- HTTP %{http_code} ---\n" | head -c 4000 || true
+      fi
