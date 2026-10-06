@@ -139,7 +139,8 @@ the OTLP shape, so it shows the exported resource, scope, attribute keys and typ
 attribute keys. Equivalent resource and scope groups are merged across export batches, and ids are assigned
 from span content and parent/link relationships, so export timing and delivery order do not change the comparison.
 A missing file is generated locally; ``CI=true`` requires the file to already be checked in. Delete the file
-to regenerate it.
+to regenerate it. Session tokens remain unchanged when sent to the agent; snapshot filenames percent-encode
+unsafe characters such as path separators so parameter IDs cannot create subdirectories.
 
 How should I write integration tests for my integration?
 --------------------------------------------------------

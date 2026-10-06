@@ -248,12 +248,15 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
     by_span_id = {identity(span): span for span in spans}
     children: dict[tuple[str, str], list[dict[str, Any]]] = {}
     roots_by_trace: dict[str, list[dict[str, Any]]] = {}
+    unresolved_children: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for span in spans:
         parent = (span["trace_id"], span.get("parent_span_id", ""))
         if parent in by_span_id:
             children.setdefault(parent, []).append(span)
         else:
             roots_by_trace.setdefault(span["trace_id"], []).append(span)
+            if span.get("parent_span_id"):
+                unresolved_children.setdefault(parent, []).append(span)
 
     subtree_keys: dict[int, str] = {}
 
@@ -291,11 +294,18 @@ def normalize_otlp_requests(requests: Iterable[dict[str, Any]], ignores: Iterabl
     for _ in range(len(spans)):
         keys = {}
         for span in spans:
-            parent = by_span_id.get((span["trace_id"], span.get("parent_span_id", "")))
+            parent_key = (span["trace_id"], span.get("parent_span_id", ""))
+            parent = by_span_id.get(parent_key)
+            if parent is not None:
+                parent_label = ["resolved", labels[id(parent)]]
+            elif span.get("parent_span_id"):
+                parent_label = ["unresolved", sorted(labels[id(child)] for child in unresolved_children[parent_key])]
+            else:
+                parent_label = ["root"]
             keys[id(span)] = json.dumps(
                 [
                     labels[id(span)],
-                    labels[id(parent)] if parent is not None else -1,
+                    parent_label,
                     sorted(labels[id(child)] for child in children.get(identity(span), [])),
                     sorted((metadata, labels[id(target)]) for target, metadata in outgoing.get(identity(span), [])),
                     sorted((metadata, labels[id(source)]) for source, metadata in incoming.get(identity(span), [])),
@@ -406,4 +416,6 @@ def assert_otel_semantics_snapshot(
     # wait_for_num_traces=0 asserts that nothing was exported, as on the Datadog-protocol path.
     if wait_for_num_traces != 0 and _span_count(requests) <= 0:
         raise AssertionError(f"no OTLP spans received by the test agent for session '{token}'")
-    assert_matches_snapshot(normalize_otlp_requests(requests, ignores), snapshot_dir / f"{token}.json")
+    # Keep the session token unchanged for the agent, but encode path separators in the filename.
+    filename = parse.quote(token, safe="[]")
+    assert_matches_snapshot(normalize_otlp_requests(requests, ignores), snapshot_dir / f"{filename}.json")

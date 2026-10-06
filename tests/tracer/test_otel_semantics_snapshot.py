@@ -435,3 +435,65 @@ def test_normalize_orders_links_to_equally_linked_identical_siblings():
     backward = [_request([root, second, first, source])]
 
     assert normalize_otlp_requests(forward) == normalize_otlp_requests(backward)
+
+
+def test_normalize_distinguishes_roots_and_shared_unresolved_parents():
+    def payload(prefix, reverse):
+        spans = [
+            _span("same", "trace", prefix + "root", 1, 2),
+            _span("same", "trace", prefix + "fragment-a", 1, 2, parent_span_id=prefix + "missing-shared"),
+            _span("same", "trace", prefix + "fragment-b", 1, 2, parent_span_id=prefix + "missing-shared"),
+            _span("same", "trace", prefix + "fragment-c", 1, 2, parent_span_id=prefix + "missing-alone"),
+        ]
+        return [_request(list(reversed(spans)) if reverse else spans)]
+
+    normalized = normalize_otlp_requests(payload("first-", False))
+
+    assert normalized == normalize_otlp_requests(payload("second-", True))
+    spans = normalized["resource_spans"][0]["scope_spans"][0]["spans"]
+    assert sum("parent_span_id" not in span for span in spans) == 1
+    parents = [span["parent_span_id"] for span in spans if "parent_span_id" in span]
+    assert sorted(parents.count(parent) for parent in set(parents)) == [1, 2]
+
+
+def test_snapshot_context_rejects_invalid_token_before_mutating_state(monkeypatch):
+    from unittest.mock import Mock
+
+    from tests import utils
+
+    writer = Mock()
+    monkeypatch.setattr(utils.ddtrace, "tracer", Mock(_span_aggregator=Mock(writer=writer)))
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "existing:value")
+    connection = Mock()
+    monkeypatch.setattr(utils.httplib, "HTTPConnection", connection)
+
+    with pytest.raises(ValueError, match="comma"):
+        with utils.snapshot_context("rejected,token", otel_semantics=True):
+            pytest.fail("invalid token entered snapshot context")
+
+    writer.flush_queue.assert_not_called()
+    writer.set_test_session_token.assert_not_called()
+    connection.assert_not_called()
+    assert utils.os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] == "existing:value"
+
+
+@pytest.mark.parametrize("token", ["tests.test_x[a/b]", "../outside", r"..\outside"])
+def test_snapshot_filename_encodes_path_separators_without_changing_session_token(tmp_path, monkeypatch, token):
+    monkeypatch.delenv("CI", raising=False)
+    requests = _payload("trace", "root", "child", 100, "1.0")
+    received_tokens = []
+
+    def fetch(session_token, timeout, min_traces=None):
+        received_tokens.append(session_token)
+        return requests
+
+    monkeypatch.setattr(otel_semantics_snapshot, "fetch_otlp_requests", fetch)
+
+    assert_otel_semantics_snapshot(token, snapshot_dir=tmp_path)
+
+    assert received_tokens == [token]
+    files = list(tmp_path.iterdir())
+    assert len(files) == 1
+    assert files[0].is_file()
+    assert "%2F" in files[0].name or "%5C" in files[0].name
+    assert not (tmp_path.parent / "outside.json").exists()
