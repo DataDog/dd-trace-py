@@ -11,7 +11,6 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
@@ -187,9 +186,8 @@ def traced_produce(func, instance, args, kwargs):
     cluster_id = _get_cluster_id(instance, topic)
 
     event = KafkaProducerEvent(
-        operation_name=schematize_messaging_operation(
-            kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND
-        ),
+        messaging_operation=kafkax.PRODUCE,
+        provider="kafka",
         topic=topic,
         bootstrap_servers=instance._dd_bootstrap_servers,
         distributed_headers=tracing_headers,
@@ -282,9 +280,9 @@ def _instrument_message(messages, start_ns, instance, err):
                 distributed_context = extracted
 
     event = KafkaConsumeEvent(
-        operation_name=schematize_messaging_operation(
-            kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING
-        ),
+        messaging_operation=kafkax.CONSUME,
+        provider="kafka",
+        direction=SpanDirection.PROCESSING,
         topic=topic,
         group_id=instance._group_id,
         distributed_context=distributed_context,

@@ -10,7 +10,6 @@ from ddtrace.contrib._events.messaging import MessagingConsumeEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
@@ -104,9 +103,9 @@ def traced_receive(func, instance, args, kwargs):
     exchange = message.delivery_info["exchange"]
 
     event = MessagingConsumeEvent(
-        operation_name=schematize_messaging_operation(
-            kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING
-        ),
+        messaging_operation=kombux.RECEIVE_NAME,
+        provider="kombu",
+        direction=SpanDirection.PROCESSING,
         request_headers=message.headers,
         activate_distributed_headers=True,
         component=config.kombu.integration_name,
@@ -134,9 +133,8 @@ def traced_publish(func, instance, args, kwargs):
 
     exchange_name = get_exchange_from_args(args)
     event = MessagingProducerEvent(
-        operation_name=schematize_messaging_operation(
-            kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND
-        ),
+        messaging_operation=kombux.PUBLISH_NAME,
+        provider="kombu",
         distributed_headers=args[HEADER_POS],
         component=config.kombu.integration_name,
         integration_config=config.kombu,

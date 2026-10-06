@@ -12,7 +12,6 @@ from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
@@ -109,7 +108,8 @@ async def traced_send(func, instance, args, kwargs):
     tracing_headers = {}
 
     event = KafkaProducerEvent(
-        operation_name=schematize_messaging_operation(PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
+        messaging_operation=PRODUCE,
+        provider="kafka",
         topic=topic,
         bootstrap_servers=bootstrap_servers,
         distributed_headers=tracing_headers,
@@ -190,7 +190,9 @@ async def traced_getone(func, instance, args, kwargs):
     # Parent via extracted context without activating it, so a surrounding local
     # span stays active after getone returns.
     event = KafkaConsumeEvent(
-        operation_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
+        messaging_operation=CONSUME,
+        provider="kafka",
+        direction=SpanDirection.INBOUND,
         topic=topic,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
@@ -232,7 +234,9 @@ async def traced_getmany(func, instance, args, kwargs):
     bootstrap_servers = instance._client._bootstrap_servers
 
     event = KafkaConsumeEvent(
-        operation_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
+        messaging_operation=CONSUME,
+        provider="kafka",
+        direction=SpanDirection.INBOUND,
         topic=None,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
