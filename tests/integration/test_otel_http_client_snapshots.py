@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 _PREAMBLE = """
 from ddtrace import config
-from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
+from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
