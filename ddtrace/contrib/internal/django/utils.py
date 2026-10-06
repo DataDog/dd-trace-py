@@ -11,11 +11,11 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import normalize_http_method
-from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
-from ddtrace._trace.otel_http_naming import RESOURCE_SET_BY_USER
-from ddtrace._trace.otel_http_naming import otel_http_resource
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel.http.resource import RESOURCE_SET_BY_USER
+from ddtrace._trace.otel.http.resource import otel_http_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.tags import normalize_http_method
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver

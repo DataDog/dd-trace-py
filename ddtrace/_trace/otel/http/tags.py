@@ -341,14 +341,6 @@ def http_block_metadata(
     return metadata
 
 
-def user_agent_tag() -> str:
-    return http.OTEL_USER_AGENT_ORIGINAL if config._otel_trace_semantics_enabled else http.USER_AGENT
-
-
-def set_user_agent_tag(span: Span, user_agent: str) -> None:
-    span._set_attribute(user_agent_tag(), user_agent)
-
-
 def set_client_address_tags(span: Span, client_address: str, network_peer_address: Optional[str] = None) -> None:
     if config._otel_trace_semantics_enabled:
         span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
@@ -358,3 +350,32 @@ def set_client_address_tags(span: Span, client_address: str, network_peer_addres
         span._set_attribute(http.CLIENT_IP, client_address)
         if network_peer_address:
             span._set_attribute("network.client.ip", network_peer_address)
+
+
+def set_query_string_tag(span: Span, query: str) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.QUERY_STRING, query)
+        return
+    _set_otel_query(span, query)
+
+
+def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
+    if config._otel_trace_semantics_enabled:
+        set_url_tags_otel_server(integration_config, span, url, query)
+    else:
+        span._set_attribute(
+            http.URL,
+            cast(Any, _obfuscated_full_url(url, query, integration_config.http_tag_query_string)),
+        )
+
+
+def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.STATUS_CODE, str(status_code))
+        return
+    try:
+        int_status_code = int(status_code)
+    except (TypeError, ValueError):
+        log.debug("failed to convert http status code %r to int", status_code)
+        return
+    span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, int_status_code)

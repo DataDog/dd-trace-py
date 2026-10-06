@@ -2,12 +2,12 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import normalize_http_method
-from ddtrace._trace.http_semantics import set_method_tag
-from ddtrace._trace.http_semantics import set_query_string_tag
-from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
-from ddtrace._trace.otel_http_naming import set_otel_http_resource
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_otel_http_resource
+from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_query_string_tag
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags

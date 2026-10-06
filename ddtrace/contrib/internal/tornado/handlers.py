@@ -5,7 +5,7 @@ from tornado.routing import PathMatches
 from tornado.web import HTTPError
 
 from ddtrace import config
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core

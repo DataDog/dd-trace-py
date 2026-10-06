@@ -7,8 +7,8 @@ from typing import Optional
 from urllib import parse
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import set_status_code_tag
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.tags import set_status_code_tag
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
