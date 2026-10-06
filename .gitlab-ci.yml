@@ -1044,3 +1044,19 @@ bti-spike:
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${CI_PIPELINE_ID}/jobs?per_page=100" \
         | jq -r '.[] | "\(.id)\t\(.name)\t\(.status)"' | head -30
       echo "Done."
+
+# Probe: does the GitLab jobs API expose `needs` on a job that declares them?
+# Created with the pipeline; never needs to run. Its created-status detail is
+# queried via the API with a BTI PAT.
+needs-probe:
+  stage: benchmarks
+  needs:
+    - job: bti-spike
+      optional: true
+  when: manual
+  tags: ["arch:amd64"]
+  image: "registry.ddbuild.io/images/benchmarking-platform-tools-notifier:0184e511"
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo needs-probe
