@@ -51,7 +51,11 @@ When output audio is omitted, ``output_audio_omitted_reason`` records
 ``retention_limit``, ``payload_limit``, or ``invalid_audio``. Long pauses keep
 their original timing; they are not shortened to fit an attachment.
 Per-turn usage is attributed when events arrive; cumulative session counters
-are converted to increments so they are not charged repeatedly.
+are converted to increments so they are not charged repeatedly. Reported
+``details.total`` text and speech counters populate ``input_text_tokens``,
+``output_text_tokens``, ``input_audio_tokens``, and ``output_audio_tokens``.
+These counts are subsets of the inclusive totals. Missing or invalid counters
+remain absent, while explicit zero counts are preserved.
 
 Use a new connection for each prompt. Reusing input content containers within
 one prompt preserves the sample offset origin. If a different prompt starts on
