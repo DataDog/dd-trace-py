@@ -127,11 +127,11 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@2f3c04d876db997050952b225d167b001da911bb
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@6c71ca6f1b1b642cb43aab3d4bf9c546e611d455
     secrets: inherit
     with:
       library: python
-      ref: '2f3c04d876db997050952b225d167b001da911bb'
+      ref: '6c71ca6f1b1b642cb43aab3d4bf9c546e611d455'
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
       push_to_test_optimization: true
@@ -139,10 +139,10 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@2f3c04d876db997050952b225d167b001da911bb
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@6c71ca6f1b1b642cb43aab3d4bf9c546e611d455
     with:
       library: python
-      ref: '2f3c04d876db997050952b225d167b001da911bb'
+      ref: '6c71ca6f1b1b642cb43aab3d4bf9c546e611d455'
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
