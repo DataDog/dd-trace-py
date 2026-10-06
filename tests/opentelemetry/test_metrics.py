@@ -1,78 +1,20 @@
-import os
+from types import SimpleNamespace
 
-from opentelemetry import version
 import pytest
 
 
-OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
-
-
-def skipif(
-    exporter_installed: bool = False, exporter_not_installed: bool = False, unsupported_otel_version: bool = False
-):
-    """
-    Returns a pytest skip marker based on OpenTelemetry version and exporter installation.
-    Parameters:
-    - exporter_installed: If True, skip tests that require OpenTelemetry exporters.
-    - exporter_not_installed: If True, skip tests that do not require OpenTelemetry exporters.
-    - unsupported_otel_version: If True, skip tests that require OpenTelemetry version 1.12 or higher.
-      - v1.12.0 is the first version that exposes metrics in the public API
-    """
-    if unsupported_otel_version and OTEL_VERSION < (1, 12):
-        return pytest.mark.skipif(True, reason="OpenTelemetry version 1.12 or higher is required for these tests")
-
-    has_exporter = os.getenv("SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
-    if exporter_installed and has_exporter:
-        return pytest.mark.skipif(True, reason="Tests not compatible with the opentelemetry exporters")
-    elif exporter_not_installed and not has_exporter:
-        return pytest.mark.skipif(True, reason="Tests only compatible with the opentelemetry exporters")
-    return pytest.mark.skipif(False, reason="No skip condition met for OpenTelemetry logs exporter tests")
-
-
-@skipif(exporter_installed=True, unsupported_otel_version=True)
-def test_otel_metrics_sdk_not_installed_by_default():
-    """
-    Test that the OpenTelemetry metrics exporter can be set up correctly.
-    """
-    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
-
-    # This should not raise an ImportError
-    set_otel_meter_provider()
-
-    # If the OpenTelemetry SDK is not installed
-    with pytest.raises(ImportError):
-        from opentelemetry.sdk.resources import Resource  # noqa: F401
-
-
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
 @pytest.mark.subprocess()
 def test_otel_metrics_exporter_installed():
-    """
-    Test that the OpenTelemetry metrics exporter can be set up correctly.
-    """
-    from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter as HTTPExporter
 
-    # This should not raise an ImportError
-    set_otel_meter_provider()
+    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import OTLPMetricExporter as GRPCExporter
 
-    # Check if the GRPC/protobuf exporter is available
-    try:
-        from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-
-        assert OTLPMetricExporter() is not None
-    except ImportError:
-        pytest.fail("OTLPMetricExporter for gRPC protobuf should be available")
-
-    # Check if HTTP/protobuf exporter is available
-    try:
-        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-
-        assert OTLPMetricExporter() is not None
-    except ImportError:
-        pytest.fail("OTLPMetricExporter for HTTP/protobuf should be available")
+    grpc_exporter = GRPCExporter()
+    http_exporter = HTTPExporter()
+    grpc_exporter.shutdown()
+    http_exporter.shutdown()
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_METRICS_OTEL_ENABLED": "true"})
 def test_otel_metrics_enabled():
     """
@@ -84,7 +26,6 @@ def test_otel_metrics_enabled():
     assert meter_provider, "OpenTelemetry metrics exporter should be configured automatically."
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
 @pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_METRICS_OTEL_ENABLED": [None, "false"]})
 def test_otel_metrics_disabled_and_unset():
     """
@@ -96,6 +37,100 @@ def test_otel_metrics_disabled_and_unset():
     assert (meter_provider is None) or (type(meter_provider).__name__ == "_ProxyMeterProvider"), (
         "OpenTelemetry mterics exporter should not be configured automatically."
     )
+
+
+def _metrics_data():
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+    from opentelemetry.sdk.resources import Resource
+
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=(reader,), resource=Resource.create({"service.name": "test"}))
+    provider.get_meter("test").create_counter("requests").add(
+        2,
+        {
+            "route": "/items",
+            "cached": True,
+            "status": 200,
+            "ratio": 0.5,
+            "regions": ("us", "eu"),
+        },
+    )
+    return provider, reader.get_metrics_data()
+
+
+def _attributes(request):
+    point = request.resource_metrics[0].scope_metrics[0].metrics[0].sum.data_points[0]
+    return {attribute.key: attribute.value for attribute in point.attributes}
+
+
+def test_grpclib_exporter_preserves_attribute_types_and_headers(monkeypatch):
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import OTLPMetricExporter
+
+    requests = []
+    calls = []
+
+    async def export(request, *, timeout, metadata):
+        requests.append(request)
+        calls.append((timeout, metadata))
+
+    provider, metrics_data = _metrics_data()
+    exporter = OTLPMetricExporter(
+        endpoint="http://127.0.0.1:4317",
+        headers="authorization=Bearer%20token,x-test=value",
+        timeout=3,
+    )
+    monkeypatch.setattr(exporter, "_method", export)
+    try:
+        assert exporter.export(metrics_data) is MetricExportResult.SUCCESS
+    finally:
+        exporter.shutdown()
+        provider.shutdown()
+
+    attributes = _attributes(requests[0])
+    assert attributes["route"].string_value == "/items"
+    assert attributes["cached"].bool_value is True
+    assert attributes["status"].int_value == 200
+    assert attributes["ratio"].double_value == 0.5
+    assert [value.string_value for value in attributes["regions"].array_value.values] == ["us", "eu"]
+    assert calls[0][0] == pytest.approx(3, abs=0.1)
+    assert calls[0][1] == (("authorization", "Bearer token"), ("x-test", "value"))
+
+
+def test_resource_attributes_preserve_types(monkeypatch):
+    from ddtrace.internal.opentelemetry import metrics
+
+    monkeypatch.setattr(
+        metrics,
+        "config",
+        SimpleNamespace(
+            tags={"enabled": True, "retries": 2, "regions": ("us", "eu")},
+            service="test",
+            version=None,
+            env=None,
+            _report_hostname=False,
+        ),
+    )
+    attributes = metrics._build_resource().attributes
+
+    assert attributes["enabled"] is True
+    assert attributes["retries"] == 2
+    assert attributes["regions"] == ("us", "eu")
+
+
+@pytest.mark.parametrize(
+    ("protocol", "module"),
+    [
+        ("grpc", "ddtrace.internal.opentelemetry.grpclib_metric_exporter"),
+        ("http/protobuf", "opentelemetry.exporter.otlp.proto.http.metric_exporter"),
+    ],
+)
+def test_protocol_selects_exporter(protocol, module):
+    from ddtrace.internal.opentelemetry.metrics import _import_exporter
+
+    assert _import_exporter(protocol).__mro__[1].__module__ == module
 
 
 @pytest.mark.subprocess(
