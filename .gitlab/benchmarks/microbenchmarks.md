@@ -94,7 +94,7 @@ Execution, once per pipeline:
    measurement exactly. A scenario with no entry runs and reports but is not gated.
 
    Each file under `slos/` is owned by a team via `.github/CODEOWNERS` (the file name is the
-   team slug, e.g. `apm-sdk-capabilities-python.yml`), so editing a threshold routes review to
+   team slug, e.g. `apm-sdk-capabilities.yml`), so editing a threshold routes review to
    that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
    matching CODEOWNERS rule, and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py.
 
@@ -155,7 +155,7 @@ path for regressions. Open an issue to either stabilize the scenario or remove i
 ## SLO ownership
 
 SLO thresholds live in one per-team file under `.gitlab/benchmarks/slos/`, named
-`<team-slug>.yml` (e.g. `apm-sdk-capabilities-python.yml`). Each file is owned by its team via
+`<team-slug>.yml` (e.g. `apm-sdk-capabilities.yml`). Each file is owned by its team via
 `.github/CODEOWNERS`, so editing a threshold routes review to that team automatically — GitHub
 CODEOWNERS is file-level, so splitting the SLOs by team into separate files is what lets the gate
 route per team. `scripts/gen_gitlab_config.py` merges all of these into the single generated
