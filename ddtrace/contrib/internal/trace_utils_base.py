@@ -3,8 +3,8 @@ import re
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.http_semantics import http_block_metadata  # noqa: F401
-from ddtrace._trace.http_semantics import set_url_tags_server  # noqa: F401
+from ddtrace._trace.otel.http.tags import http_block_metadata  # noqa: F401
+from ddtrace._trace.otel.http.tags import set_url_tags_server  # noqa: F401
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import user
