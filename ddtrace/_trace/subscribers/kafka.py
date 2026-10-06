@@ -1,8 +1,8 @@
+from types import TracebackType
 from typing import Any
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace._trace.subscribers.messaging import ExcInfo
 from ddtrace._trace.subscribers.messaging import MessagingConsumeSubscriber
 from ddtrace._trace.subscribers.messaging import MessagingProduceSubscriber
 from ddtrace.contrib._events.kafka import KafkaConsumeEvent
@@ -73,7 +73,11 @@ class KafkaProduceSubscriber(MessagingProduceSubscriber):
     event_names = (KafkaProducerEvent.event_name,)
 
     @classmethod
-    def on_ended(cls, ctx: core.ExecutionContext[Any], _exc_info: ExcInfo) -> None:
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext[Any],
+        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
         event: KafkaProducerEvent = ctx.event
         set_kafka_meta(
             span_from_context(ctx),
@@ -91,7 +95,11 @@ class KafkaConsumeSubscriber(MessagingConsumeSubscriber):
     event_names = (KafkaConsumeEvent.event_name,)
 
     @classmethod
-    def on_ended(cls, ctx: core.ExecutionContext[Any], _exc_info: ExcInfo) -> None:
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext[Any],
+        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
         event: KafkaConsumeEvent = ctx.event
         span = span_from_context(ctx)
         set_kafka_meta(

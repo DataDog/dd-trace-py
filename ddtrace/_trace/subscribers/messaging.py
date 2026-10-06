@@ -11,9 +11,6 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
 
-ExcInfo = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
-
-
 class MessagingProduceSubscriber(TracingSubscriber[MessagingProducerEvent]):
     event_names = (MessagingProducerEvent.event_name,)
 
@@ -28,7 +25,11 @@ class MessagingProduceSubscriber(TracingSubscriber[MessagingProducerEvent]):
             )
 
     @classmethod
-    def on_ended(cls, ctx: core.ExecutionContext[MessagingProducerEvent], _exc_info: ExcInfo) -> None:
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext[MessagingProducerEvent],
+        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
         span_from_context(ctx).set_tags(ctx.event.additional_tags)
 
 
@@ -36,7 +37,11 @@ class MessagingConsumeSubscriber(TracingSubscriber[MessagingConsumeEvent]):
     event_names = (MessagingConsumeEvent.event_name,)
 
     @classmethod
-    def on_ended(cls, ctx: core.ExecutionContext[MessagingConsumeEvent], _exc_info: ExcInfo) -> None:
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext[MessagingConsumeEvent],
+        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
         event = ctx.event
         span = span_from_context(ctx)
         span.set_tags(event.additional_tags)
