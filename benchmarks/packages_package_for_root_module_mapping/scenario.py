@@ -13,8 +13,7 @@ class PackagesPackageForRootModuleMapping(bm.Scenario):
                 f = _package_for_root_module_mapping
                 if self.disable_cache:
                     if hasattr(packages, "_reset_installed_distributions"):
-                        # Newer versions cache a snapshot of the installed
-                        # distributions that this mapping is derived from.
+                        # Reset the snapshot the mapping is derived from, where it exists.
                         packages._reset_installed_distributions()
                     else:
                         f = _package_for_root_module_mapping.__closure__[0].cell_contents

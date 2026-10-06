@@ -388,30 +388,21 @@ def _python_dist_records(
         yield name, version, keys, top_level
 
 
-# What the records were built from: each sys.path entry with its mtime, and the
-# meta path layout, i.e. the custom distribution finders in order, with None
-# where the native sys.path scan goes.
+# Each sys.path entry with its mtime, and the meta path layout: custom finders in
+# order, with None for the native sys.path scan.
 _CacheKey = tuple[tuple[tuple[str, t.Optional[int]], ...], tuple[t.Any, ...]]
 
 
 class _Installed:
-    """A snapshot of the installed distributions, and the maps derived from it.
-
-    The maps are built on first use and live as long as the snapshot, so they are
-    always consistent with each other, and a snapshot that is never published
-    takes its maps with it.
-    """
+    """Installed distributions and the maps derived from them, built on first use."""
 
     def __init__(self, key: _CacheKey, records: list[_DistributionRecord]) -> None:
         self.key = key
         self.records = records
-        # What the per-read check compares against: list equality checks each
-        # item by identity first, so it costs next to nothing when unchanged.
+        # For the per-read check: list equality compares items by identity first.
         self.sys_path = list(sys.path)
         self.meta_path = list(sys.meta_path)
-        # Whether the full key (entry mtimes, custom finder results) has been
-        # checked since the snapshot was built, by a read rather than the
-        # boot-time prefetch.
+        # Whether a read has done the full check (mtimes, custom finders).
         self.checked = False
 
     @cached_property
@@ -442,15 +433,13 @@ class _Installed:
 _INSTALLED: t.Optional[_Installed] = None
 # (mtime, records) per sys.path entry, so only new or changed entries are rescanned.
 _ENTRY_RECORDS: dict[str, tuple[t.Optional[int], list[_DistributionRecord]]] = {}
-# Fork-safe because lazy scans run on application threads, which may fork
-# mid-scan. Reentrant so an unexpected re-entry repeats work instead of deadlocking.
+# Fork-safe, as lazy scans run on threads that may fork; reentrant, so a stray
+# re-entry repeats work rather than deadlocks.
 _INSTALLED_DISTRIBUTIONS_LOCK = forksafe.RLock()
 # Set while this thread asks custom finders for their distributions.
 _FINDER_QUERY = threading.local()
 
-# The boot-time scan runs in a ddtrace Thread, which is joined before every fork,
-# so startup does not wait for it. The thread is set while the scan is pending,
-# and the event once it is over, whatever the outcome.
+# The boot-time scan: the thread is set while it is pending, the event when it ends.
 _PREFETCH_THREAD: t.Optional[Thread] = None
 _PREFETCH_DONE = forksafe.Event()
 # Set in the prefetch thread, which must not wait for itself.
@@ -470,8 +459,7 @@ def _reset_installed_distributions() -> None:
 
 
 def _resolve_entry(entry: str) -> str:
-    # Relative entries follow the working directory, which can change after the
-    # boot-time scan; key them by where they point now.
+    # Key relative entries by where they point now: the working directory can change.
     if os.path.isabs(entry):
         return entry
     try:
@@ -490,8 +478,8 @@ def _mtime(entry: str) -> t.Optional[int]:
 
 
 def _scans_sys_path(finder: t.Any) -> bool:
-    # PathFinder, or a MetadataPathFinder (as the importlib_metadata backport
-    # installs), which discovers the same sys.path distributions.
+    # PathFinder, or the importlib_metadata backport's MetadataPathFinder, which
+    # finds the same distributions.
     name = finder.__name__ if isinstance(finder, type) else type(finder).__name__
     return finder is PathFinder or name == "MetadataPathFinder"
 
@@ -500,8 +488,7 @@ def _meta_path_layout() -> tuple[t.Any, ...]:
     layout: list[t.Any] = []
     for finder in sys.meta_path:
         if _scans_sys_path(finder):
-            # One native scan stands for all of them; another would list every
-            # distribution again.
+            # One native scan stands for all of them.
             if None not in layout:
                 layout.append(None)
         elif getattr(finder, "find_distributions", None) is not None:
@@ -518,12 +505,8 @@ def _cache_key() -> _CacheKey:
 def _installed(check: bool = True) -> _Installed:
     """The current snapshot of the installed distributions, in importlib discovery order.
 
-    The sys.path scan is native, as importlib is far too slow at it. Every read
-    checks whether sys.path or the meta path changed, which is cheap. The first read
-    after a build also checks entry mtimes and asks custom finders again, which
-    is not cheap, so that changes between the boot-time prefetch and first use
-    are still seen; later ones are not, as before. The boot-time prefetch leaves
-    the full check to the first read.
+    Every read checks sys.path and the meta path, which is cheap. The first read
+    after a build also checks entry mtimes and asks custom finders again.
     """
     global _INSTALLED
     snapshot = _INSTALLED
@@ -544,9 +527,7 @@ def _installed(check: bool = True) -> _Installed:
     layout = key[1]
     custom = any(finder is not None for finder in layout)
     if snapshot is not None and snapshot.key == key and not custom:
-        # Nothing that matters changed since the build: only the full check was
-        # pending, or sys.path or the meta path changed in ways the records do
-        # not depend on.
+        # Same records: only the full check was pending, or nothing relevant changed.
         snapshot.checked = snapshot.checked or check
         snapshot.sys_path = list(sys.path)
         snapshot.meta_path = list(sys.meta_path)
@@ -558,16 +539,15 @@ def _installed(check: bool = True) -> _Installed:
         problems.append((dist, exc))
 
     if getattr(_FINDER_QUERY, "active", False):
-        # A custom finder is reading the maps: asking it again would recurse.
-        # Its distributions are missing, so the snapshot is not published, and
-        # lookups cached from it are dropped once the query is over.
+        # A custom finder is reading the maps: don't recurse into it. Its
+        # distributions are missing, so neither publish nor keep lookups from this.
         _FINDER_QUERY.nested = True
         segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
         with _INSTALLED_DISTRIBUTIONS_LOCK:
             snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
     else:
-        # Custom finders run arbitrary Python, whose import hooks could re-enter
-        # mid-scan; keep them out of the lock.
+        # Custom finders run arbitrary Python, which could re-enter: ask them
+        # outside the lock.
         _FINDER_QUERY.active = True
         _FINDER_QUERY.nested = False
         try:
@@ -596,8 +576,7 @@ def _installed(check: bool = True) -> _Installed:
 
 
 def _clear_lookup_caches() -> None:
-    # The lookups cached on top of the maps, which go stale when the records
-    # they were computed from are replaced or turn out incomplete.
+    # Lookups cached on the maps go stale when their records are replaced or incomplete.
     for lookup in (
         get_module_distribution_versions,
         filename_to_package,
@@ -637,9 +616,7 @@ def _end_prefetch() -> None:
 def prefetch_distributions() -> None:
     """Scan the installed distributions in the background, on boot.
 
-    Startup does not wait for the scan; readers that arrive before it is over
-    wait for it instead. The scan runs in a ddtrace Thread, so every fork waits
-    for it to finish, and no fork child inherits it half done.
+    Readers that arrive before the scan ends wait for it; forks join it.
     """
     global _PREFETCH_THREAD
     if _INSTALLED is not None or _PREFETCH_THREAD is not None:
@@ -656,9 +633,7 @@ def prefetch_distributions() -> None:
 
 @forksafe.register
 def _reset_prefetch_after_fork() -> None:
-    # Forks join the prefetch thread first, so a child inherits a finished scan.
-    # A start queued during the fork never runs in the child, though, so nothing
-    # may be left waiting for it.
+    # A start queued during a fork never runs in the child: nothing may wait for it.
     _end_prefetch()
 
 
@@ -681,8 +656,7 @@ def _meta_path_segments(layout: tuple[t.Any, ...], warn: _WarnBadDist) -> list[t
         if finder is None:
             segments.append(None)
             continue
-        # Only imported for custom finders: IAST drops importlib.metadata after
-        # boot, for gevent, and the prefetch must not bring it back.
+        # Imported lazily: IAST drops importlib.metadata after boot, for gevent.
         import importlib.metadata as importlib_metadata
 
         try:

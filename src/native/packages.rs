@@ -1,18 +1,8 @@
-//! Native replacement for the `importlib.metadata` walk behind
-//! `ddtrace.internal.packages`: the distribution name/version map, the
-//! importable-package map (`packages_distributions`) and the import root
-//! mapping used to attribute files to distributions.
+//! Scan of installed distributions for `ddtrace.internal.packages`.
 //!
-//! `importlib.metadata` is general purpose: it builds a `PackagePath` per
-//! RECORD line and, since Python 3.12, stats every one of them to drop files
-//! that are missing on disk, and it parses the whole METADATA file with the
-//! email parser just to read two headers. This module reads the same files but
-//! stats a listed file only when it could contribute something new, and stops
-//! parsing METADATA at the end of the header block.
-//!
-//! sys.path entries can be directories or zip archives (zipapps, PEX, zipped
-//! eggs), which zipimport imports from just the same; both are handled here,
-//! so the scan never has to run Python code.
+//! Reads the same files as `importlib.metadata`, but stats a listed file only
+//! when it could contribute something and parses METADATA headers only.
+//! Handles directory and zip `sys.path` entries, so it never runs Python code.
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -31,11 +21,8 @@ type DistRecord = (String, Option<String>, Vec<String>, Vec<String>);
 /// (metadata path, error message) for a distribution that could not be read.
 type DistError = (String, String);
 
-/// Decode a file the way PathDistribution.read_text does: text that is not
-/// valid UTF-8 is an error for the whole distribution, as the
-/// UnicodeDecodeError would be in Python. Line endings are left alone; split
-/// with text_lines instead of translating whole files, as METADATA files with
-/// Windows line endings can carry long descriptions that are never looked at.
+/// Decode like PathDistribution.read_text: invalid UTF-8 fails the
+/// distribution. Line endings are left alone; see text_lines.
 fn decode(bytes: Vec<u8>, what: impl Display) -> Result<Option<String>, String> {
     String::from_utf8(bytes)
         .map(Some)
@@ -62,9 +49,8 @@ enum Root {
 }
 
 impl Root {
-    /// The root for a sys.path entry and its top-level children in listing
-    /// order, as importlib's FastPath.children sees them. None when there is
-    /// nothing to list: a missing entry, or a file that is not a zip archive.
+    /// The root and its top-level children in listing order, like importlib's
+    /// FastPath.children; None if there is nothing to list.
     fn open(entry: &Path) -> Option<(Root, Vec<String>)> {
         let listing_dir = if entry.as_os_str().is_empty() {
             Path::new(".")
@@ -116,10 +102,8 @@ impl Root {
             Root::Zip { archive, .. } => {
                 let name = parts.join("/");
                 let mut archive = archive.borrow_mut();
-                // Only a missing member is absent. Anything else (bzip2 or lzma
-                // compression, which this build cannot read, encryption,
-                // corruption) is an error for the distribution, as importlib
-                // would raise on it rather than skip it quietly.
+                // Only a missing member is absent; anything else (unsupported
+                // compression, encryption, corruption) fails the distribution.
                 let mut file = match archive.by_name(&name) {
                     Ok(file) => file,
                     Err(zip::result::ZipError::FileNotFound) => return Ok(None),
@@ -185,8 +169,7 @@ fn name_and_version(text: &str) -> (Option<String>, Option<String>) {
             break;
         }
         if line.starts_with([' ', '\t']) {
-            // compat32 keeps folded lines verbatim, joined by the (translated)
-            // line ending.
+            // compat32 keeps folded lines verbatim.
             if let Some((_, value)) = current.as_mut() {
                 value.push('\n');
                 value.push_str(line);
@@ -238,10 +221,8 @@ fn csv_first_field(line: &str) -> String {
     field
 }
 
-/// installed-files.txt entries are relative to the .egg-info directory;
-/// importlib rebases them onto the site directory. Entries that land outside
-/// it would start with "..", which the caller discards, so they are dropped
-/// here instead.
+/// An installed-files.txt entry, rebased from the .egg-info directory onto the
+/// site directory; None if it lands outside it.
 fn egg_info_relative(base: Option<&Path>, info_name: &str, entry: &str) -> Option<String> {
     let entry = Path::new(entry);
     let (mut parts, relative) = if entry.is_absolute() {
@@ -297,13 +278,8 @@ fn posix_parts(name: &str) -> Vec<&str> {
     parts
 }
 
-/// The deepest importable root for a file: the first directory level that is
-/// a regular package. See _package_for_root_module_mapping for why namespace
-/// levels cannot be used as keys.
-///
-/// Every distribution under a sys.path entry shares the same base, so the
-/// relative prefix identifies the directory. Hashing that short string is far
-/// cheaper than hashing a PathBuf, which goes component by component.
+/// The deepest importable root for a file: its first regular-package level.
+/// Cached by relative prefix, which is much cheaper to hash than a PathBuf.
 fn root_key(root: &Root, parts: &[&str], regular: &mut FxHashMap<String, bool>) -> String {
     let n = parts.len();
     if n < 2 {
@@ -342,9 +318,8 @@ fn module_name<'a>(file_name: &'a str, suffixes: &[String]) -> Option<&'a str> {
         .find_map(|suffix| file_name.strip_suffix(suffix.as_str()))
 }
 
-/// Read one distribution. Errors that only affect its file list are pushed to
-/// errors and the distribution is still returned, so that its name and version
-/// stay available.
+/// Read one distribution. File-list errors go to errors without losing the
+/// name and version.
 fn scan_distribution(
     root: &Root,
     info: &str,
@@ -423,10 +398,8 @@ fn scan_distribution(
         if key.is_none() && candidate.is_none() {
             continue;
         }
-        // importlib drops listed files that are missing on disk, so only an
-        // existing file may contribute. One hit per key or name is enough.
-        // The file is often the package's __init__.py, whose existence the
-        // regular package check has already established.
+        // Only existing files count, as in importlib; one hit per key or name
+        // is enough, and a regular package's __init__.py is known to exist.
         let known = parts.len() > 1
             && parts.last() == Some(&"__init__.py")
             && regular.get(parts[..parts.len() - 1].join("/").as_str()) == Some(&true);
@@ -470,10 +443,8 @@ fn normalize(name: &str) -> String {
     out
 }
 
-/// The metadata directories among a sys.path entry's children, in the order
-/// importlib.metadata's Lookup yields them: grouped by normalised name, groups
-/// in order of first appearance in the listing, then the EGG-INFO of a legacy
-/// .egg entry.
+/// Metadata directories in importlib's Lookup order: grouped by normalised
+/// name in listing order, then a .egg entry's EGG-INFO.
 fn metadata_dirs(entry: &Path, children: Vec<String>) -> Vec<String> {
     // os.path.basename: an entry with a trailing separator has an empty base,
     // where Path::file_name would skip past the separator.
@@ -501,25 +472,15 @@ fn metadata_dirs(entry: &Path, children: Vec<String>) -> Vec<String> {
     groups.into_iter().flatten().chain(eggs).collect()
 }
 
-// The scan runs on a single thread. It used to fan out over a few scoped
-// worker threads, which made it about 2x faster with a warm file system cache
-// and up to about 3.5x with a cold one, but the boot-time scan now runs in the
-// background, so nothing waits for it unless it is read, or a fork happens,
-// within its first few hundred milliseconds. To reintroduce the workers:
-//
-// - Only ever use them from the boot-time prefetch thread, which ddtrace joins
-//   before every fork; lazy scans run on application threads, which can fork
-//   at any time.
-// - Spawn them with std::thread::Builder::spawn_scoped and carry on with
-//   whatever could be started, the calling thread included: Scope::spawn
-//   panics when the OS refuses a thread (pids limit, RLIMIT_NPROC), and that
-//   would happen at interpreter startup.
-// - Have them pull distributions off a shared atomic index, each with its own
-//   regular-package cache, and sort the results back into discovery order.
-// - Re-raise a worker's panic on join rather than dropping its results; the
-//   catch_unwind in scan_distributions turns it into a RuntimeError.
-// - Put Root::Zip's archive back behind a Mutex: ZipArchive reads need
-//   exclusive access.
+// Possible improvement: scan distributions on a few scoped worker threads,
+// about 2x faster with a warm file system cache and up to 3.5x with a cold one.
+// The workers would need to:
+// - run only in the boot-time prefetch thread, which forks join;
+// - be spawned with Builder::spawn_scoped, tolerating spawn failures;
+// - pull from a shared index, each with its own regular-package cache, and
+//   have their results sorted back into discovery order;
+// - have their panics re-raised on join;
+// and Root::Zip's archive would need to go behind a Mutex.
 fn scan(entry: &Path, suffixes: &[String]) -> (Vec<DistRecord>, Vec<DistError>) {
     let Some((root, children)) = Root::open(entry) else {
         return (Vec::new(), Vec::new());
@@ -557,22 +518,12 @@ fn is_finalizing() -> bool {
     unsafe { _Py_IsFinalizing() != 0 }
 }
 
-/// Scan one sys.path entry for installed distributions.
+/// Scan one sys.path entry, a directory or a zip archive.
 ///
-/// Returns `(dists, errors)`. Each dist is `(name, version, keys, top_level)`:
-/// version is `None` when missing, keys are the import roots the distribution
-/// ships (only computed when it has a version), and top_level are the names
-/// packages_distributions would map to it. Each error is
-/// `(metadata_path, message)` for a file that could not be decoded. Entries
-/// that cannot be listed (missing, or files that are not zip archives) have no
-/// distributions, as for importlib.
-///
-/// module_suffixes are importlib.machinery.all_suffixes(), longest first; they
-/// are what inspect.getmodulename strips to infer top-level module names.
-///
-/// A panic in the scan is raised as RuntimeError rather than PyO3's
-/// PanicException: the scan runs at interpreter startup, where a
-/// BaseException would get past every handler and abort the process.
+/// Returns `(dists, errors)`: dists are `(name, version, keys, top_level)`,
+/// errors `(metadata_path, message)`. module_suffixes are
+/// importlib.machinery.all_suffixes(), longest first. Panics are raised as
+/// RuntimeError: a PanicException at startup would get past every handler.
 #[pyfunction]
 fn scan_distributions(
     py: Python<'_>,
@@ -582,11 +533,8 @@ fn scan_distributions(
     py.detach(move || {
         let result = panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes)));
         if is_finalizing() {
-            // Re-acquiring the GIL now would kill the thread (CPython up to
-            // 3.13.7, by unwinding through these frames) or hang it. Only
-            // daemon threads can get here, as non-daemon ones are joined
-            // before finalization starts, and the process is exiting: stay
-            // off the GIL for good.
+            // Re-acquiring the GIL now would kill (CPython <= 3.13.7) or hang
+            // the thread. Only daemon threads get here: stay off the GIL.
             loop {
                 std::thread::park();
             }
