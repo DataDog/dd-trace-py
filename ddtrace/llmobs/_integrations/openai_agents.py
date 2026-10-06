@@ -58,6 +58,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             submit_to_llmobs=submit_to_llmobs,
             span_name=span_name,
         )
+        span_kind = kwargs.get("kind")
+        if span_kind and self.llmobs_enabled:
+            _annotate_llmobs_span_data(llmobs_span, kind=span_kind)
+
         if oai_trace:
             self.oai_to_llmobs_span[oai_trace.trace_id] = llmobs_span
             self.llmobs_traces[format_trace_id(llmobs_span.trace_id)] = LLMObsTraceInfo(

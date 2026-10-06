@@ -42,7 +42,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         if not getattr(agents, "_datadog_patch", False):
             return
 
-        self._integration.trace(oai_trace=OaiTraceAdapter(trace), submit_to_llmobs=True)
+        self._integration.trace(oai_trace=OaiTraceAdapter(trace), submit_to_llmobs=True, kind="workflow")
 
     def on_trace_end(self, trace: OaiTrace) -> None:
         """Called when a trace is finished.
