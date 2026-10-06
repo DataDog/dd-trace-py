@@ -122,7 +122,7 @@ def _install_thread_hooks() -> None:
 
 # Also patch threading.Thread so echion can track thread lifetimes
 def init_stack() -> None:
-    if config.install and stack.is_available:
+    if (config.install or config.stack.enabled) and stack.is_available:
         from ddtrace.profiling._threading import get_thread_native_id
 
         _install_thread_hooks()
