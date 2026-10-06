@@ -19,6 +19,7 @@ from ddtrace.internal.module import origin
 from ddtrace.internal.native import scan_distributions
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings.third_party import config as tp_config
+from ddtrace.internal.threads import Thread
 from ddtrace.internal.utils.cache import callonce
 
 
@@ -447,28 +448,25 @@ _INSTALLED_DISTRIBUTIONS_LOCK = forksafe.RLock()
 # Set while this thread asks custom finders for their distributions.
 _FINDER_QUERY = threading.local()
 
-# The scan is I/O-bound; more threads than this barely help.
-_PREFETCH_MAX_THREADS = 4
+# The boot-time scan runs in a ddtrace Thread, which is joined before every fork,
+# so startup does not wait for it. The thread is set while the scan is pending,
+# and the event once it is over, whatever the outcome.
+_PREFETCH_THREAD: t.Optional[Thread] = None
+_PREFETCH_DONE = forksafe.Event()
+# Set in the prefetch thread, which must not wait for itself.
+_IN_PREFETCH = threading.local()
 
 
 def _reset_installed_distributions() -> None:
     """Forget all scanned records."""
-    global _INSTALLED
+    global _INSTALLED, _PREFETCH_THREAD
+    if (thread := _PREFETCH_THREAD) is not None:
+        thread.join()
     with _INSTALLED_DISTRIBUTIONS_LOCK:
         _INSTALLED = None
         _ENTRY_RECORDS.clear()
-
-
-def _available_cpus() -> int:
-    # sched_getaffinity honours CPU affinity, but not every platform has it, and
-    # seccomp profiles can deny it.
-    sched_getaffinity = getattr(os, "sched_getaffinity", None)
-    if sched_getaffinity is not None:
-        try:
-            return len(sched_getaffinity(0))
-        except OSError:
-            pass
-    return os.cpu_count() or 1
+    _PREFETCH_THREAD = None
+    _PREFETCH_DONE.clear()
 
 
 def _resolve_entry(entry: str) -> str:
@@ -517,15 +515,15 @@ def _cache_key() -> _CacheKey:
     return tuple((entry, _mtime(entry)) for entry in entries), _meta_path_layout()
 
 
-def _installed(threads: int = 1, check: bool = True) -> _Installed:
+def _installed(check: bool = True) -> _Installed:
     """The current snapshot of the installed distributions, in importlib discovery order.
 
     The sys.path scan is native, as importlib is far too slow at it. Every read
     checks whether sys.path or the meta path changed, which is cheap. The first read
     after a build also checks entry mtimes and asks custom finders again, which
     is not cheap, so that changes between the boot-time prefetch and first use
-    are still seen; later ones are not, as before. Only prefetch_distributions
-    may ask for threads, and it leaves the full check to the first read.
+    are still seen; later ones are not, as before. The boot-time prefetch leaves
+    the full check to the first read.
     """
     global _INSTALLED
     snapshot = _INSTALLED
@@ -536,6 +534,11 @@ def _installed(threads: int = 1, check: bool = True) -> _Installed:
         and snapshot.meta_path == sys.meta_path
     ):
         return snapshot
+
+    if _PREFETCH_THREAD is not None and not getattr(_IN_PREFETCH, "active", False):
+        # The boot-time scan is pending: wait for it rather than race it.
+        _PREFETCH_DONE.wait()
+        snapshot = _INSTALLED
 
     key = _cache_key()
     layout = key[1]
@@ -559,7 +562,7 @@ def _installed(threads: int = 1, check: bool = True) -> _Installed:
         # Its distributions are missing, so the snapshot is not published.
         segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
         with _INSTALLED_DISTRIBUTIONS_LOCK:
-            snapshot = _Installed(key, list(_distribution_records(key, segments, threads, warn)))
+            snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
     else:
         # Custom finders run arbitrary Python, whose import hooks could re-enter
         # mid-scan; keep them out of the lock.
@@ -571,7 +574,7 @@ def _installed(threads: int = 1, check: bool = True) -> _Installed:
         with _INSTALLED_DISTRIBUTIONS_LOCK:
             snapshot = _INSTALLED
             if custom or snapshot is None or snapshot.key != key:
-                snapshot = _Installed(key, list(_distribution_records(key, segments, threads, warn)))
+                snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
                 _INSTALLED = snapshot
             snapshot.checked = snapshot.checked or check
     # Log outside the lock: handlers may do I/O and yield under gevent.
@@ -580,36 +583,64 @@ def _installed(threads: int = 1, check: bool = True) -> _Installed:
     return snapshot
 
 
-def _installed_distributions(threads: int = 1) -> list[_DistributionRecord]:
+def _installed_distributions() -> list[_DistributionRecord]:
     """Records for every installed distribution, in importlib discovery order."""
-    return _installed(threads).records
+    return _installed().records
 
 
-def prefetch_distributions() -> None:
-    """Scan the installed distributions on boot.
-
-    Uses threads unless bootstrapped by ddtrace.auto, which can run with the
-    application's threads alive: no ddtrace thread may be alive across a fork.
-    """
+def _prefetch() -> None:
+    _IN_PREFETCH.active = True
     try:
-        threads = 1 if "ddtrace.auto" in sys.modules else min(_PREFETCH_MAX_THREADS, _available_cpus())
-        _installed(threads=threads, check=False)
+        _installed(check=False)
     except Exception:
         # The lazy path retries on first use.
         LOG.debug("Failed to prefetch installed distributions", exc_info=True)
     except BaseException as exc:
-        # A PanicException at startup would abort the process.
         if not is_panic_exception(exc):
             raise
         LOG.debug("Failed to prefetch installed distributions", exc_info=True)
+    finally:
+        _end_prefetch()
 
 
-def _entry_records(
-    entry: str, module_suffixes: list[str], threads: int, warn: _WarnBadDist
-) -> t.Optional[list[_DistributionRecord]]:
+def _end_prefetch() -> None:
+    global _PREFETCH_THREAD
+    _PREFETCH_THREAD = None
+    _PREFETCH_DONE.set()
+
+
+def prefetch_distributions() -> None:
+    """Scan the installed distributions in the background, on boot.
+
+    Startup does not wait for the scan; readers that arrive before it is over
+    wait for it instead. The scan runs in a ddtrace Thread, so every fork waits
+    for it to finish, and no fork child inherits it half done.
+    """
+    global _PREFETCH_THREAD
+    if _INSTALLED is not None or _PREFETCH_THREAD is not None:
+        return
+    thread = Thread(_prefetch, name=f"{__name__}:prefetch")
+    _PREFETCH_THREAD = thread
+    try:
+        thread.start()
+    except Exception:
+        # No thread to wait for: readers scan on first use instead.
+        LOG.debug("Failed to start the installed distributions prefetch", exc_info=True)
+        _end_prefetch()
+
+
+@forksafe.register
+def _reset_prefetch_after_fork() -> None:
+    # Forks join the prefetch thread first, so a child inherits a finished scan.
+    # A start queued during the fork never runs in the child, though, so nothing
+    # may be left waiting for it.
+    _end_prefetch()
+
+
+def _entry_records(entry: str, module_suffixes: list[str], warn: _WarnBadDist) -> t.Optional[list[_DistributionRecord]]:
     """Records for the distributions under one sys.path entry; None if the scan failed."""
     try:
-        dists, errors = scan_distributions(entry, module_suffixes, threads)
+        dists, errors = scan_distributions(entry, module_suffixes)
     except Exception as exc:
         warn(entry, exc)
         return None
@@ -640,7 +671,6 @@ def _meta_path_segments(layout: tuple[t.Any, ...], warn: _WarnBadDist) -> list[t
 def _distribution_records(
     key: _CacheKey,
     segments: list[t.Optional[list[_DistributionRecord]]],
-    threads: int = 1,
     warn: _WarnBadDist = _warn_bad_dist,
 ) -> t.Iterator[_DistributionRecord]:
     """Records in discovery order; call with the scan lock held."""
@@ -656,7 +686,7 @@ def _distribution_records(
             if cached is not None and cached[0] == mtime:
                 yield from cached[1]
                 continue
-            records = _entry_records(entry, module_suffixes, threads, warn)
+            records = _entry_records(entry, module_suffixes, warn)
             if records is None:
                 # Not cached, so the next rebuild tries again.
                 continue

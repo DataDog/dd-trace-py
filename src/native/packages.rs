@@ -18,13 +18,12 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::cell::RefCell;
 use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::Read;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Mutex;
 use zip::ZipArchive;
 
 /// (name, version, import root keys, top-level names) for one distribution.
@@ -56,8 +55,8 @@ enum Root {
     Dir(PathBuf),
     Zip {
         path: PathBuf,
-        // ZipArchive reads need exclusive access; workers take turns.
-        archive: Mutex<ZipArchive<File>>,
+        // ZipArchive reads need exclusive access.
+        archive: RefCell<ZipArchive<File>>,
         names: FxHashSet<String>,
     },
 }
@@ -91,7 +90,7 @@ impl Root {
         Some((
             Root::Zip {
                 path: entry.to_path_buf(),
-                archive: Mutex::new(archive),
+                archive: RefCell::new(archive),
                 names,
             },
             children,
@@ -116,7 +115,7 @@ impl Root {
             }
             Root::Zip { archive, .. } => {
                 let name = parts.join("/");
-                let mut archive = archive.lock().unwrap_or_else(|e| e.into_inner());
+                let mut archive = archive.borrow_mut();
                 // Only a missing member is absent. Anything else (bzip2 or lzma
                 // compression, which this build cannot read, encryption,
                 // corruption) is an error for the distribution, as importlib
@@ -502,66 +501,39 @@ fn metadata_dirs(entry: &Path, children: Vec<String>) -> Vec<String> {
     groups.into_iter().flatten().chain(eggs).collect()
 }
 
-fn scan(entry: &Path, suffixes: &[String], threads: usize) -> (Vec<DistRecord>, Vec<DistError>) {
+// The scan runs on a single thread. It used to fan out over a few scoped
+// worker threads, which made it about 2x faster with a warm file system cache
+// and up to about 3.5x with a cold one, but the boot-time scan now runs in the
+// background, so nothing waits for it unless it is read, or a fork happens,
+// within its first few hundred milliseconds. To reintroduce the workers:
+//
+// - Only ever use them from the boot-time prefetch thread, which ddtrace joins
+//   before every fork; lazy scans run on application threads, which can fork
+//   at any time.
+// - Spawn them with std::thread::Builder::spawn_scoped and carry on with
+//   whatever could be started, the calling thread included: Scope::spawn
+//   panics when the OS refuses a thread (pids limit, RLIMIT_NPROC), and that
+//   would happen at interpreter startup.
+// - Have them pull distributions off a shared atomic index, each with its own
+//   regular-package cache, and sort the results back into discovery order.
+// - Re-raise a worker's panic on join rather than dropping its results; the
+//   catch_unwind in scan_distributions turns it into a RuntimeError.
+// - Put Root::Zip's archive back behind a Mutex: ZipArchive reads need
+//   exclusive access.
+fn scan(entry: &Path, suffixes: &[String]) -> (Vec<DistRecord>, Vec<DistError>) {
     let Some((root, children)) = Root::open(entry) else {
         return (Vec::new(), Vec::new());
     };
-    let infos = metadata_dirs(entry, children);
-    let next = AtomicUsize::new(0);
-    // Workers pull distributions off a shared index so one large distribution
-    // does not hold up a whole chunk; results are put back in discovery order.
-    let work = || {
-        let mut regular = FxHashMap::default();
-        let mut done = Vec::new();
-        loop {
-            let i = next.fetch_add(1, Ordering::Relaxed);
-            let Some(info) = infos.get(i) else {
-                break;
-            };
-            let mut dist_errors = Vec::new();
-            let record =
-                match scan_distribution(&root, info, suffixes, &mut regular, &mut dist_errors) {
-                    Ok(record) => record,
-                    Err(error) => {
-                        dist_errors.push(error);
-                        None
-                    }
-                };
-            done.push((i, record, dist_errors));
-        }
-        done
-    };
-    let threads = threads.clamp(1, infos.len().max(1));
-    let mut results = if threads == 1 {
-        work()
-    } else {
-        std::thread::scope(|s| {
-            // The OS can refuse new threads (pids limit, RLIMIT_NPROC), and
-            // Scope::spawn panics when it does. Make do with whatever workers
-            // could be started: the calling thread works too, so the scan
-            // always completes.
-            let handles: Vec<_> = (1..threads)
-                .map_while(|_| std::thread::Builder::new().spawn_scoped(s, work).ok())
-                .collect();
-            let mut results = work();
-            for handle in handles {
-                // A worker's results cannot be dropped silently: re-raise its
-                // panic, which the caller reports as an error.
-                match handle.join() {
-                    Ok(done) => results.extend(done),
-                    Err(panic) => std::panic::resume_unwind(panic),
-                }
-            }
-            results
-        })
-    };
-    results.sort_unstable_by_key(|(i, _, _)| *i);
-
+    let mut regular = FxHashMap::default();
     let mut dists = Vec::new();
     let mut errors = Vec::new();
-    for (i, record, dist_errors) in results {
-        dists.extend(record);
-        let path = root.display(&[&infos[i]]);
+    for info in metadata_dirs(entry, children) {
+        let mut dist_errors = Vec::new();
+        match scan_distribution(&root, &info, suffixes, &mut regular, &mut dist_errors) {
+            Ok(record) => dists.extend(record),
+            Err(error) => dist_errors.push(error),
+        }
+        let path = root.display(&[&info]);
         errors.extend(dist_errors.into_iter().map(|e| (path.clone(), e)));
     }
     (dists, errors)
@@ -602,16 +574,13 @@ fn is_finalizing() -> bool {
 /// PanicException: the scan runs at interpreter startup, where a
 /// BaseException would get past every handler and abort the process.
 #[pyfunction]
-#[pyo3(signature = (entry, module_suffixes, threads=1))]
 fn scan_distributions(
     py: Python<'_>,
     entry: PathBuf,
     module_suffixes: Vec<String>,
-    threads: usize,
 ) -> PyResult<(Vec<DistRecord>, Vec<DistError>)> {
     py.detach(move || {
-        let result =
-            panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes, threads)));
+        let result = panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes)));
         if is_finalizing() {
             // Re-acquiring the GIL now would kill the thread (CPython up to
             // 3.13.7, by unwinding through these frames) or hang it. Only
@@ -729,28 +698,6 @@ mod tests {
     }
 
     #[test]
-    fn threaded_scan_matches_single_threaded() {
-        let dir = std::env::temp_dir().join(format!("ddtrace-pkg-scan-{}", std::process::id()));
-        for i in 0..20 {
-            let info = dir.join(format!("pkg{i}-1.0.dist-info"));
-            fs::create_dir_all(&info).unwrap();
-            fs::write(
-                info.join("METADATA"),
-                format!("Name: pkg{i}\nVersion: 1.0\n"),
-            )
-            .unwrap();
-            fs::write(info.join("RECORD"), format!("pkg{i}.py,,\n")).unwrap();
-            fs::write(dir.join(format!("pkg{i}.py")), "").unwrap();
-        }
-        let suffixes = vec![".py".to_string()];
-        let single = scan(&dir, &suffixes, 1);
-        let threaded = scan(&dir, &suffixes, 4);
-        fs::remove_dir_all(&dir).unwrap();
-        assert_eq!(single.0.len(), 20);
-        assert_eq!(single, threaded);
-    }
-
-    #[test]
     fn module_names() {
         let suffixes = vec![
             ".cpython-313-darwin.so".to_string(),
@@ -803,7 +750,7 @@ mod tests {
         }
         zip.finish().unwrap();
 
-        let (dists, errors) = scan(&archive, &[".py".to_string()], 2);
+        let (dists, errors) = scan(&archive, &[".py".to_string()]);
         fs::remove_dir_all(&dir).unwrap();
         assert!(errors.is_empty(), "{errors:?}");
         assert_eq!(
@@ -830,8 +777,8 @@ mod tests {
         let dir = temp_dir("unlistable");
         let not_a_zip = dir.join("notes.txt");
         fs::write(&not_a_zip, "hello").unwrap();
-        assert!(scan(&not_a_zip, &[], 1).0.is_empty());
-        assert!(scan(&dir.join("missing"), &[], 1).0.is_empty());
+        assert!(scan(&not_a_zip, &[]).0.is_empty());
+        assert!(scan(&dir.join("missing"), &[]).0.is_empty());
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -854,7 +801,7 @@ mod tests {
         .unwrap();
         fs::write(egg.join("EGG-INFO/top_level.txt"), "legacy\n").unwrap();
 
-        let (dists, errors) = scan(&egg, &[".py".to_string()], 1);
+        let (dists, errors) = scan(&egg, &[".py".to_string()]);
         fs::remove_dir_all(&dir).unwrap();
         assert!(errors.is_empty(), "{errors:?}");
         assert_eq!(

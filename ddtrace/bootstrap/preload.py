@@ -42,7 +42,7 @@ manager.run_protocol()
 # Post preload operations
 register_post_preload(manager.post_preload_products)
 
-# Scan installed distributions eagerly, at the end of the bootstrap.
+# Scan installed distributions in the background, at the end of the bootstrap.
 register_post_preload(prefetch_distributions)
 
 

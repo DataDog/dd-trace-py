@@ -91,6 +91,13 @@ def strict_metadata_getitem(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_meta_adapters.Message, "__getitem__", strict)
 
 
+def _prefetch_and_wait(packages) -> None:
+    """Start the background prefetch and wait for it, for tests that inspect its effects."""
+    packages.prefetch_distributions()
+    if (thread := packages._PREFETCH_THREAD) is not None:
+        thread.join()
+
+
 def _write_dist_info(root: Path, name: str, version: str, metadata_body: str | None = None) -> Path:
     di = root / f"{name.replace('-', '_')}-{version}.dist-info"
     di.mkdir(parents=True)
@@ -572,17 +579,18 @@ def test_native_scan_matches_importlib(reset_packages_caches) -> None:
     assert set(_p.get_package_distributions()) == set(importlib_metadata.packages_distributions())
 
 
-def test_prefetch_with_threads_matches_lazy_scan(reset_packages_caches) -> None:
-    """The threaded boot-time scan must yield exactly what the lazy scan does,
-    in the same order: the first distribution to claim a key wins.
+def test_prefetch_matches_lazy_scan(reset_packages_caches) -> None:
+    """The background boot-time scan must yield exactly what a lazy scan does, in
+    the same order: the first distribution to claim a key wins.
     """
     from ddtrace.internal import packages as _p
 
     lazy = _p._installed_distributions()
+    _p._reset_installed_distributions()
 
-    for threads in (2, 4, 8):
-        _p._reset_installed_distributions()
-        assert _p._installed_distributions(threads=threads) == lazy
+    _prefetch_and_wait(_p)
+
+    assert _p._installed_distributions() == lazy
 
 
 def test_prefetch_never_raises(reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -594,7 +602,7 @@ def test_prefetch_never_raises(reset_packages_caches, monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(_p, "_distribution_records", boom)
 
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
 
     assert _p._INSTALLED is None
 
@@ -608,8 +616,8 @@ def test_concurrent_callers_scan_once(reset_packages_caches, monkeypatch: pytest
 
     scans = []
 
-    def slow_records(entries, segments, threads=1, warn=None):
-        scans.append(threads)
+    def slow_records(entries, segments, warn=None):
+        scans.append(entries)
         time.sleep(0.2)
         return iter([("pkg", "1.0", ["pkg"], ["pkg"])])
 
@@ -647,7 +655,7 @@ def test_scan_warnings_are_logged_outside_the_lock(reset_packages_caches, monkey
     """Log handlers must not run under the scan lock, which is not gevent-aware."""
     from ddtrace.internal import packages as _p
 
-    def records_with_problem(entries, segments, threads=1, warn=None):
+    def records_with_problem(entries, segments, warn=None):
         warn("/site/bad.dist-info", "not utf-8")
         return iter([])
 
@@ -660,54 +668,6 @@ def test_scan_warnings_are_logged_outside_the_lock(reset_packages_caches, monkey
     _p._installed_distributions()
 
     assert free == [True]
-
-
-@pytest.mark.parametrize("auto", [False, True])
-def test_prefetch_threads(auto: bool, reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Under ddtrace.auto the scan must run on the calling thread alone;
-    otherwise on as many threads as the process may use, up to the cap.
-    """
-    import os
-
-    from ddtrace.internal import packages as _p
-
-    requested = []
-
-    def records(entries, segments, threads=1, warn=None):
-        requested.append(threads)
-        return iter([])
-
-    monkeypatch.setattr(_p, "_distribution_records", records)
-    monkeypatch.setattr(os, "sched_getaffinity", lambda pid: set(range(16)), raising=False)
-    if auto:
-        monkeypatch.setitem(sys.modules, "ddtrace.auto", object())
-    else:
-        monkeypatch.delitem(sys.modules, "ddtrace.auto", raising=False)
-
-    _p.prefetch_distributions()
-
-    assert requested == [1 if auto else _p._PREFETCH_MAX_THREADS]
-
-
-def test_ddtrace_auto_prefetches_single_threaded(tmp_path: Path) -> None:
-    """import ddtrace.auto must run the boot-time scan on the importing thread alone."""
-    import subprocess
-
-    script = tmp_path / "app.py"
-    script.write_text(
-        """
-from ddtrace.internal import packages
-
-requested = []
-real = packages._installed
-packages._installed = lambda threads=1, check=True: requested.append(threads) or real(threads, check)
-
-import ddtrace.auto  # noqa: E402,F401
-
-assert requested and requested[0] == 1, requested
-"""
-    )
-    subprocess.run([sys.executable, str(script)], check=True, timeout=120)
 
 
 def test_records_follow_sys_path_changes(
@@ -739,7 +699,7 @@ def test_records_follow_sys_path_changes(
 
     monkeypatch.setattr(_p, "scan_distributions", counting_scan)
 
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
     assert scanned == [str(boot)]
 
     # The application vendors its own copy ahead of site-packages, and adds a
@@ -839,29 +799,6 @@ def test_fork_while_scan_lock_held_does_not_deadlock_child(reset_packages_caches
         t.join()
 
     assert os.waitstatus_to_exitcode(status[1]) == 0
-
-
-@pytest.mark.skipif(
-    sys.platform != "linux" or __import__("os").geteuid() == 0,
-    reason="RLIMIT_NPROC only stops thread creation on Linux, and never for root",
-)
-def test_scan_survives_thread_spawn_failure() -> None:
-    """When the OS refuses new threads, the threaded scan must still complete
-    instead of panicking at interpreter startup.
-    """
-    import subprocess
-    import sysconfig
-
-    code = """
-import resource, sys
-from importlib.machinery import all_suffixes
-from ddtrace.internal.native import scan_distributions
-suffixes = sorted(all_suffixes(), key=len, reverse=True)
-expected = scan_distributions(sys.argv[1], suffixes, 1)
-resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
-assert scan_distributions(sys.argv[1], suffixes, 4) == expected
-"""
-    subprocess.run([sys.executable, "-c", code, sysconfig.get_path("purelib")], check=True, timeout=120)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="surrogate-escaped paths are a POSIX thing")
@@ -973,33 +910,6 @@ def test_unreadable_zip_member_is_reported(
     assert len(warnings) == 1 and "bz-1.0.dist-info" in warnings[0]
 
 
-def test_prefetch_survives_denied_sched_getaffinity(reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A seccomp profile can deny sched_getaffinity; the boot-time scan must fall
-    back to the CPU count rather than fail the bootstrap.
-    """
-    import os
-
-    from ddtrace.internal import packages as _p
-
-    def denied(pid):
-        raise PermissionError(1, "Operation not permitted")
-
-    requested = []
-
-    def records(entries, segments, threads=1, warn=None):
-        requested.append(threads)
-        return iter([])
-
-    monkeypatch.setattr(os, "sched_getaffinity", denied, raising=False)
-    monkeypatch.setattr(os, "cpu_count", lambda: 16)
-    monkeypatch.delitem(sys.modules, "ddtrace.auto", raising=False)
-    monkeypatch.setattr(_p, "_distribution_records", records)
-
-    _p.prefetch_distributions()
-
-    assert requested == [_p._PREFETCH_MAX_THREADS]
-
-
 def test_relative_entries_follow_the_working_directory(
     tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1013,7 +923,7 @@ def test_relative_entries_follow_the_working_directory(
     monkeypatch.setattr(sys, "path", [""])
 
     monkeypatch.chdir(tmp_path / "before")
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
 
     monkeypatch.chdir(tmp_path / "after")
     assert [r[0] for r in _p._installed_distributions()] == ["after-dist"]
@@ -1037,7 +947,7 @@ scanning = threading.Event()
 def scan_forever():
     while True:
         scanning.set()
-        scan_distributions(sys.argv[1], suffixes, 1)
+        scan_distributions(sys.argv[1], suffixes)
 
 threading.Thread(target=scan_forever, daemon=True).start()
 scanning.wait()
@@ -1072,7 +982,7 @@ def test_scan_does_not_reimport_importlib_metadata(
     monkeypatch.setattr(sys, "meta_path", others + [_p.PathFinder])
     monkeypatch.delitem(sys.modules, "importlib.metadata")
 
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
 
     assert "importlib.metadata" not in sys.modules
     assert [r[0] for r in _p._installed_distributions()] == ["plain"]
@@ -1111,7 +1021,7 @@ def test_install_into_existing_entry_is_seen(
 
     site = _site_with_dist(tmp_path / "site", "early", "early")
     monkeypatch.setattr(sys, "path", [str(site)])
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
 
     before = os.stat(site).st_mtime_ns
     _site_with_dist(site, "late", "late")
@@ -1148,7 +1058,7 @@ def test_custom_finder_added_after_prefetch_is_seen(
     custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
     monkeypatch.setattr(sys, "path", [str(site)])
     monkeypatch.setattr(sys, "meta_path", [_p.PathFinder])
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
 
     sys.meta_path.insert(0, _DistFinder(custom / "from_finder-1.0.dist-info"))
 
@@ -1220,7 +1130,7 @@ def test_custom_finder_reordered_after_prefetch_is_seen(
     finder = _DistFinder(custom / "from_finder-1.0.dist-info")
     monkeypatch.setattr(sys, "path", [str(site)])
     monkeypatch.setattr(sys, "meta_path", [_p.PathFinder, finder])
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
     assert [r[0] for r in _p._installed_distributions()] == ["on-path", "from-finder"]
 
     sys.meta_path[:] = [finder, _p.PathFinder]
@@ -1250,7 +1160,7 @@ def test_custom_finder_results_are_refreshed(
 
     monkeypatch.setattr(sys, "path", [])
     monkeypatch.setattr(sys, "meta_path", [RegistryFinder(), _p.PathFinder])
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
 
     registry.append(custom / "late_dist-1.0.dist-info")
 
@@ -1302,7 +1212,7 @@ def test_reads_after_first_use_are_cheap(
     site = _site_with_dist(tmp_path / "site", "first", "first")
     extra = _site_with_dist(tmp_path / "extra", "second", "second")
     monkeypatch.setattr(sys, "path", [str(site)])
-    _p.prefetch_distributions()
+    _prefetch_and_wait(_p)
     assert _p._package_for_root_module_mapping() == {"first.py": ("first", "1.0")}
 
     stats = []
@@ -1316,3 +1226,94 @@ def test_reads_after_first_use_are_cheap(
     sys.path.append(str(extra))
     assert set(_p._package_for_root_module_mapping()) == {"first.py", "second.py"}
     assert dict(_p.get_distributions()) == {"first": "1.0", "second": "1.0"}
+
+
+def test_readers_wait_for_the_background_prefetch(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reader that arrives while the boot-time scan is pending waits for it, and
+    the scan happens once.
+    """
+    import threading
+    import time
+
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "slow", "slow")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    started = threading.Event()
+    scans = []
+    real_scan = _p.scan_distributions
+
+    def slow_scan(entry, *args):
+        scans.append(entry)
+        started.set()
+        time.sleep(0.3)
+        return real_scan(entry, *args)
+
+    monkeypatch.setattr(_p, "scan_distributions", slow_scan)
+
+    _p.prefetch_distributions()
+    assert started.wait(10)
+
+    assert _p._package_for_root_module_mapping() == {"slow.py": ("slow", "1.0")}
+    assert scans == [str(site)]
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs fork")
+def test_fork_during_background_prefetch(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fork waits for the boot-time scan, so the child inherits it finished and
+    reads the maps without scanning again.
+    """
+    import threading
+    import time
+    import warnings
+
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "forked", "forked")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    started = threading.Event()
+    real_scan = _p.scan_distributions
+
+    def slow_scan(entry, *args):
+        started.set()
+        time.sleep(0.3)
+        return real_scan(entry, *args)
+
+    monkeypatch.setattr(_p, "scan_distributions", slow_scan)
+
+    _p.prefetch_distributions()
+    assert started.wait(10)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        pid = os.fork()
+    if pid == 0:
+        ok = _p._PREFETCH_THREAD is None and _p._INSTALLED is not None
+        _p.scan_distributions = None  # any scan in the child would fail
+        ok = ok and _p._package_for_root_module_mapping() == {"forked.py": ("forked", "1.0")}
+        os._exit(0 if ok else 1)
+    deadline = time.monotonic() + 30
+    while (status := os.waitpid(pid, os.WNOHANG))[0] == 0:
+        if time.monotonic() > deadline:
+            os.kill(pid, 9)
+            pytest.fail("fork child hung")
+        time.sleep(0.05)
+    assert os.waitstatus_to_exitcode(status[1]) == 0
+
+
+def test_queued_prefetch_does_not_strand_a_fork_child(reset_packages_caches) -> None:
+    """A prefetch start queued during a fork never runs in the child; the child must
+    not wait for it.
+    """
+    from ddtrace.internal import packages as _p
+
+    _p._PREFETCH_THREAD = object()  # a start that is still queued
+    _p._PREFETCH_DONE.clear()
+
+    _p._reset_prefetch_after_fork()
+
+    assert _p._PREFETCH_THREAD is None
+    assert _p._PREFETCH_DONE.is_set()
