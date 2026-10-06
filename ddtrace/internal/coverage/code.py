@@ -53,8 +53,8 @@ class _ContextLinesEntry(defaultdict[str, CoverageLines]):
 
     Execution contexts copied while a collector is active keep a reference to a
     stack that still contains its entry (eg. a task scheduled by a module that is
-    imported inside a test). Marking the entry ``closed`` when the collector
-    finishes lets the context resolvers skip completed collectors and attribute new
+    imported inside a test). Marking the entry closed when the collector finishes
+    lets the context resolvers skip completed collectors and attribute new
     coverage to the nearest collector that is still active.
     """
 
@@ -62,7 +62,7 @@ class _ContextLinesEntry(defaultdict[str, CoverageLines]):
 
 
 class _ContextFilesEntry(set[str]):
-    """File-level counterpart of ``_ContextLinesEntry``."""
+    """File-level counterpart of _ContextLinesEntry."""
 
     closed: bool = False
 
@@ -402,15 +402,15 @@ class ModuleCodeCollector(ModuleWatchdog):
     class _ContextStack(list[t.Any]):
         """Per-context stack of coverage data that compares by identity, not value.
 
-        Context-propagation helpers (e.g. asgiref's ``_restore_context``, used by Django's
-        async test support via ``async_to_sync``/``sync_to_async``) restore context
-        variables by comparing the current value with the incoming one using ``!=``.
-        A plain ``list`` compares by value, which both silently masks legitimate stack
-        swaps (when two distinct stacks happen to contain equal entries) and allows one
-        context's stack to be replaced by another context's stack object. Comparing
-        stacks by identity makes such propagation respect stack ownership: restores only
-        propagate a stack reference into a context that does not already hold that exact
-        stack object, keeping the coverage data attributed to the right context.
+        Context-propagation helpers (e.g. asgiref's _restore_context, used by Django's
+        async test support via async_to_sync/sync_to_async) restore context variables
+        by comparing the current value with the incoming one using !=. A plain list
+        compares by value, which both silently masks legitimate stack swaps (when
+        two distinct stacks happen to contain equal entries) and allows one context's
+        stack to be replaced by another context's stack object. Comparing stacks by
+        identity makes such propagation respect stack ownership: restores only
+        propagate a stack reference into a context that does not already hold that
+        exact stack object, keeping the coverage data attributed to the right context.
         """
 
         __slots__ = ()

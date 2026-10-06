@@ -1,18 +1,18 @@
 """Regression tests for per-context coverage stack corruption caused by
 value-based context restoration.
 
-Django's async test support (asgiref ``async_to_sync``/``sync_to_async``)
+Django's async test support (asgiref async_to_sync/sync_to_async)
 runs a new event loop in a worker thread, which ddtrace's threading
 integration wraps in its own coverage context. The framework then restores
 context variable values between the caller, the worker thread and the task
-using value-based comparisons (``cvar.get() != cvalue`` in asgiref's
-``_restore_context``).
+using value-based comparisons (cvar.get() != cvalue in asgiref's
+_restore_context).
 
 Because the per-context coverage stacks used to be plain lists (compared by
-value), such restores could replace one context's stack with another
-context's stack object. That corrupted the push/pop pairing of
-``CollectInContext``, crashing the caller with ``IndexError: pop from empty
-list`` and mis-attributing coverage data between contexts.
+value), such restores could replace one context's stack with another context's
+stack object. That corrupted the push/pop pairing of CollectInContext, crashing
+the caller with IndexError: pop from empty list and mis-attributing coverage
+data between contexts.
 """
 
 import importlib.util
@@ -90,8 +90,8 @@ def test_coverage_context_thread_value_based_context_restore():
 
         context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
     finally:
-        # Regression: this used to raise ``IndexError: pop from empty list``
-        # (or ``list index out of range``) after the value-based restore
+        # Regression: this used to raise IndexError: pop from empty list
+        # (or list index out of range) after the value-based restore
         # replaced this context's stack with the worker thread's (already
         # popped) stack.
         context_collector.__exit__()
@@ -140,7 +140,7 @@ def test_coverage_context_thread_async_to_sync():
         async_to_sync(async_fn)(1, 2)
         context_covered = _get_relpath_dict(cwd, context_collector.get_covered_lines())
     finally:
-        # Regression: this used to raise ``IndexError: pop from empty list``
+        # Regression: this used to raise IndexError: pop from empty list
         # after asgiref restored a value-equal (but different) coverage stack
         # into this context.
         context_collector.__exit__()
