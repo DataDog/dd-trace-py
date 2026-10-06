@@ -1,10 +1,12 @@
+"""OpenTelemetry HTTP attributes shared by client and server instrumentation."""
+
 from typing import Any
 from typing import Optional
 from typing import Union
 from typing import cast
 from urllib import parse
 
-from ddtrace._trace.otel_http_naming import set_otel_http_resource
+from ddtrace._trace.otel.http.resource import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
@@ -34,7 +36,7 @@ _HTTP_STATUS_ERROR = "_dd.http_status_error"
 
 @cached()
 def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
-    """Return the normalized method and its original spelling when they differ."""
+    """Preserve changed spelling for the required http.request.method_original attribute."""
     upper = method.upper()
     if upper in _DEFAULT_KNOWN_HTTP_METHODS:
         return upper, (None if upper == method else method)
@@ -93,16 +95,8 @@ def _obfuscated_query(query: Optional[str]) -> Optional[Union[str, bytes]]:
 
 
 def _set_otel_query(span: Span, query: Optional[str]) -> None:
-    obfuscated = _obfuscated_query(query)
-    if obfuscated:
+    if obfuscated := _obfuscated_query(query):
         span._set_attribute(http.OTEL_URL_QUERY, cast(Any, obfuscated))
-
-
-def set_query_string_tag(span: Span, query: str) -> None:
-    if not config._otel_trace_semantics_enabled:
-        span._set_attribute(http.QUERY_STRING, query)
-        return
-    _set_otel_query(span, query)
 
 
 def set_url_tags_otel_server(
@@ -289,89 +283,3 @@ class OTelHTTPSpanAttributes:
             self._original_method,
             None if self.is_client else route,
         )
-
-
-def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
-    if config._otel_trace_semantics_enabled:
-        set_url_tags_otel_server(integration_config, span, url, query)
-    else:
-        span._set_attribute(
-            http.URL,
-            cast(Any, _obfuscated_full_url(url, query, integration_config.http_tag_query_string)),
-        )
-
-
-def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
-    if not config._otel_trace_semantics_enabled:
-        span._set_attribute(http.STATUS_CODE, str(status_code))
-        return
-    try:
-        int_status_code = int(status_code)
-    except (TypeError, ValueError):
-        log.debug("failed to convert http status code %r to int", status_code)
-        return
-    span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, int_status_code)
-
-
-def set_method_tag(span: Span, method: str) -> None:
-    if not config._otel_trace_semantics_enabled:
-        span._set_attribute(http.METHOD, method)
-        return
-    normalized_method, original_method = normalize_http_method(method)
-    span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
-    if original_method is not None:
-        span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
-    else:
-        span.remove_tag(http.OTEL_REQUEST_METHOD_ORIGINAL)
-
-
-def server_url_tag() -> str:
-    return http.OTEL_URL_PATH if config._otel_trace_semantics_enabled else http.URL
-
-
-def http_block_metadata(
-    method: Optional[str],
-    status_code: Union[int, str],
-    query: Optional[str] = None,
-    user_agent: Optional[str] = None,
-) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
-    if not config._otel_trace_semantics_enabled:
-        metadata[http.STATUS_CODE] = str(status_code)
-        if method is not None:
-            metadata[http.METHOD] = method
-        if query:
-            metadata[http.QUERY_STRING] = query
-        if user_agent:
-            metadata[http.USER_AGENT] = user_agent
-        return metadata
-
-    metadata[http.OTEL_RESPONSE_STATUS_CODE] = int(status_code)
-    if method is not None:
-        normalized_method, original_method = normalize_http_method(method)
-        metadata[http.OTEL_REQUEST_METHOD] = normalized_method
-        if original_method is not None:
-            metadata[http.OTEL_REQUEST_METHOD_ORIGINAL] = original_method
-    if query:
-        obfuscated = _obfuscated_query(query)
-        if obfuscated:
-            metadata[http.OTEL_URL_QUERY] = cast(Any, obfuscated)
-    if user_agent:
-        metadata[http.OTEL_USER_AGENT_ORIGINAL] = user_agent
-    return metadata
-
-
-def user_agent_tag() -> str:
-    return http.OTEL_USER_AGENT_ORIGINAL if config._otel_trace_semantics_enabled else http.USER_AGENT
-
-
-def set_user_agent_tag(span: Span, user_agent: str) -> None:
-    span._set_attribute(user_agent_tag(), user_agent)
-
-
-def set_client_address_tags(span: Span, client_address: str) -> None:
-    if config._otel_trace_semantics_enabled:
-        span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
-    else:
-        span._set_attribute(http.CLIENT_IP, client_address)
-        span._set_attribute("network.client.ip", client_address)

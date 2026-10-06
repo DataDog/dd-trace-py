@@ -2,26 +2,18 @@ from unittest import mock
 
 import pytest
 
-from ddtrace._trace import http_semantics
-from ddtrace._trace.http_semantics import OTHER_HTTP_METHOD
-from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
-from ddtrace._trace.http_semantics import http_block_metadata
-from ddtrace._trace.http_semantics import normalize_http_method
-from ddtrace._trace.http_semantics import set_client_address_tags
-from ddtrace._trace.http_semantics import set_method_tag
-from ddtrace._trace.http_semantics import set_query_string_tag
-from ddtrace._trace.http_semantics import set_status_code_tag
-from ddtrace._trace.http_semantics import set_url_tags_otel_client
-from ddtrace._trace.http_semantics import set_url_tags_otel_server
-from ddtrace._trace.http_semantics import set_url_tags_server
-from ddtrace._trace.http_semantics import set_user_agent_tag
-from ddtrace._trace.http_semantics import user_agent_tag
-from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
-from ddtrace._trace.otel_http_naming import RESOURCE_SET_BY_USER
-from ddtrace._trace.otel_http_naming import otel_http_resource
-from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
-from ddtrace._trace.otel_http_naming import set_instrumentation_resource
-from ddtrace._trace.otel_http_naming import set_otel_http_resource
+from ddtrace._trace.otel.http import tags
+from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel.http.resource import RESOURCE_SET_BY_USER
+from ddtrace._trace.otel.http.resource import otel_http_resource
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_otel_http_resource
+from ddtrace._trace.otel.http.tags import OTHER_HTTP_METHOD
+from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
+from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_url_tags_otel_client
+from ddtrace._trace.otel.http.tags import set_url_tags_otel_server
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -124,24 +116,22 @@ def test_set_instrumentation_resource_reads_semantics_flag_per_call():
     ],
 )
 def test_split_netloc(netloc, expected):
-    assert http_semantics._split_netloc(netloc) == expected
+    assert tags._split_netloc(netloc) == expected
 
 
 def test_credentials_redacted_url():
     assert (
-        http_semantics._credentials_redacted_url("https://user:password@example.com/path")
+        tags._credentials_redacted_url("https://user:password@example.com/path")
         == "https://REDACTED:REDACTED@example.com/path"
     )
-    assert (
-        http_semantics._credentials_redacted_url("https://example.com/path@value") == "https://example.com/path@value"
-    )
+    assert tags._credentials_redacted_url("https://example.com/path@value") == "https://example.com/path@value"
 
 
 def test_set_url_tags_otel_server():
     integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
     span = Span("web.request")
 
-    with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
+    with mock.patch.object(tags, "_obfuscated_query", return_value="token=redacted"):
         set_url_tags_otel_server(
             integration_config,
             span,
@@ -188,100 +178,6 @@ def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
     assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search"
     assert span.get_tag(net.SERVER_ADDRESS) == "example.com"
     assert span.get_metric(net.SERVER_PORT) == 443
-
-
-def test_semantics_dependent_helpers_read_flag_per_call():
-    integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
-    datadog_span = Span("web.request")
-    otel_span = Span("web.request")
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        set_url_tags_server(integration_config, datadog_span, "https://example.com/path?secret=true", "secret=true")
-        set_method_tag(datadog_span, "get")
-        set_status_code_tag(datadog_span, 204)
-        assert user_agent_tag() == http.USER_AGENT
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        set_url_tags_server(integration_config, otel_span, "https://example.com/path?secret=true", "secret=true")
-        set_method_tag(otel_span, "get")
-        set_status_code_tag(otel_span, 204)
-        assert user_agent_tag() == http.OTEL_USER_AGENT_ORIGINAL
-
-    assert datadog_span.get_tag(http.URL) == "https://example.com/path"
-    assert datadog_span.get_tag(http.METHOD) == "get"
-    assert datadog_span.get_tag(http.STATUS_CODE) == "204"
-    assert otel_span.get_tag(http.OTEL_URL_PATH) == "/path"
-    assert otel_span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
-    assert otel_span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "get"
-    assert otel_span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 204
-
-
-def test_set_query_string_tag_uses_active_semantics():
-    datadog_span = Span("web.request")
-    otel_span = Span("web.request")
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        set_query_string_tag(datadog_span, "token=secret")
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
-            set_query_string_tag(otel_span, "token=secret")
-
-    assert datadog_span.get_tag(http.QUERY_STRING) == "token=secret"
-    assert otel_span.get_tag(http.OTEL_URL_QUERY) == "token=redacted"
-
-
-def test_set_method_tag_removes_stale_original_method():
-    span = Span("web.request")
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        set_method_tag(span, "custom")
-        assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "custom"
-
-        set_method_tag(span, "GET")
-
-    assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
-    assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) is None
-
-
-def test_standalone_request_identity_tags_use_active_semantics():
-    datadog_span = Span("web.request")
-    otel_span = Span("web.request")
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        set_user_agent_tag(datadog_span, "datadog-agent")
-        set_client_address_tags(datadog_span, "192.0.2.1")
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        set_user_agent_tag(otel_span, "otel-agent")
-        set_client_address_tags(otel_span, "192.0.2.2")
-
-    assert datadog_span.get_tag(http.USER_AGENT) == "datadog-agent"
-    assert datadog_span.get_tag(http.CLIENT_IP) == "192.0.2.1"
-    assert datadog_span.get_tag("network.client.ip") == "192.0.2.1"
-    assert otel_span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == "otel-agent"
-    assert otel_span.get_tag(http.OTEL_CLIENT_ADDRESS) == "192.0.2.2"
-    assert otel_span.get_tag(net.NETWORK_PEER_ADDRESS) is None
-
-
-def test_http_block_metadata_uses_active_semantics():
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        assert http_block_metadata("get", 403, "token=secret", "agent") == {
-            http.STATUS_CODE: "403",
-            http.METHOD: "get",
-            http.QUERY_STRING: "token=secret",
-            http.USER_AGENT: "agent",
-        }
-
-    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
-        with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
-            assert http_block_metadata("get", 403, "token=secret", "agent") == {
-                http.OTEL_RESPONSE_STATUS_CODE: 403,
-                http.OTEL_REQUEST_METHOD: "GET",
-                http.OTEL_REQUEST_METHOD_ORIGINAL: "get",
-                http.OTEL_URL_QUERY: "token=redacted",
-                http.OTEL_USER_AGENT_ORIGINAL: "agent",
-            }
 
 
 @pytest.fixture
@@ -367,7 +263,7 @@ def test_otel_span_attributes_sets_query_without_url():
     span = Span("request", span_type=SpanTypes.WEB)
     integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
 
-    with mock.patch.object(http_semantics, "_obfuscated_query", return_value="q=public"):
+    with mock.patch.object(tags, "_obfuscated_query", return_value="q=public"):
         OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
 
     assert span.get_tag(http.OTEL_URL_QUERY) == "q=public"
@@ -578,7 +474,7 @@ def test_otel_span_attributes_client_resource_ignores_server_route(integration_c
 def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
     from unittest import mock
 
-    from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
+    from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
     from ddtrace.ext import SpanTypes
     from ddtrace.internal.settings._config import config
     from ddtrace.trace import Span
