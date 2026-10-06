@@ -673,16 +673,28 @@ Sampler::postfork_child()
     }
 
     // Note: the Thread Info Map has been reset in EchionSampler::postfork_child.
-    auto& thread_info_map = echion->thread_info_map();
-
     // Refresh the ThreadInfo for the current (only) Thread.
     // The pthread_t (thread_id) is preserved across fork, but native_id and
     // cpu_clock_id/mach_port must be updated for the child process.
+    register_current_thread_if_missing();
+}
+
+void
+Sampler::register_current_thread_if_missing()
+{
+    const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
+    auto& thread_info_map = echion->thread_info_map();
+
 #if defined PL_LINUX
     auto current_thread_id = static_cast<uintptr_t>(pthread_self());
 #elif defined PL_DARWIN
     auto current_thread_id = reinterpret_cast<uintptr_t>(pthread_self());
 #endif
+
+    // The thread registered from Python (with its real native id) wins.
+    if (thread_info_map.find(current_thread_id) != thread_info_map.end()) {
+        return;
+    }
 
     // After fork, the current thread is the main (and only) thread,
     // so native_id == pid.
@@ -784,7 +796,15 @@ Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
-    stack_postfork_cleanup();
+    // Only do it after a fork: the threads, asyncio loops and greenlets registered before the first start (e.g. when
+    // the hooks are installed at startup with DD_PROFILING_INSTALL) must be kept.
+    if (pid != getpid()) {
+        stack_postfork_cleanup();
+    } else {
+        // When threading is monkey-patched (e.g. by gevent), the threads registered from Python do not have the
+        // real pthread id, so this is the only registration that lets the sampler find the current thread.
+        register_current_thread_if_missing();
+    }
 
     // ProfilerState::start registers
     // dd_wrapper's pthread_atfork handler before Sampler::start is called,
@@ -817,6 +837,11 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
     } else {
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
+            // The living threads are registered again on each profiler start: keep the asyncio loop that was linked
+            // to the thread before, unless the thread id now belongs to another thread.
+            if (it->second->native_id == native_id) {
+                (*maybe_thread_info)->asyncio_loop = it->second->asyncio_loop;
+            }
             it->second = std::move(*maybe_thread_info);
         } else {
             if (!has_errored) {
