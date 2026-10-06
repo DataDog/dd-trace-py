@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import logging
 import sys
+from typing import Union
 
 import pytest
 
@@ -575,3 +576,9 @@ def test_propagate_ranges_with_no_context_with_equal_var(caplog):
         assert result == "abcdef-joiner-abcdef-joiner-abcdef"
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("iast::" in message for message in log_messages), log_messages
+
+
+@pytest.mark.parametrize("joiner", [b",", bytearray(b",")])
+def test_join_bytes_wrong_element_type_raises(joiner: Union[bytes, bytearray]) -> None:
+    with pytest.raises(TypeError):
+        mod.do_join(joiner, ["a"])
