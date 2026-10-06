@@ -22,7 +22,7 @@ from urllib import parse
 
 import wrapt
 
-from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
+from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY

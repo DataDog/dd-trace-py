@@ -6,8 +6,8 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import normalize_http_method
-from ddtrace._trace.otel_http_naming import set_otel_http_resource
+from ddtrace._trace.otel.http.resource import set_otel_http_resource
+from ddtrace._trace.otel.http.tags import normalize_http_method
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
