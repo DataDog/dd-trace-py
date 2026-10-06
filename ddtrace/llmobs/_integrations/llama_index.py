@@ -16,6 +16,9 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 
+# Set on the span by the contrib (ddtrace.contrib.internal.llama_index.patch's
+# MODEL_TAG/PROVIDER_TAG) and read back here. Duplicated rather than imported so this
+# module does not import the contrib, which imports the llama_index library.
 MODEL = "llama_index.request.model"
 PROVIDER = "llama_index.request.provider"
 
@@ -23,17 +26,12 @@ PROVIDER = "llama_index.request.provider"
 class LlamaIndexIntegration(BaseLLMIntegration):
     _integration_name = "llama_index"
 
-    def _set_base_span_tags(
-        self,
-        span: Span,
-        model: Optional[str] = None,
-        provider: Optional[str] = None,
-        **kwargs: dict[str, Any],
-    ) -> None:
-        if model is not None:
-            span._set_attribute(MODEL, model)
-        if provider is not None:
-            span._set_attribute(PROVIDER, provider)
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/provider tags itself.
+
+        LlamaIndex has no per-request base_url to record, so unlike other integrations
+        there is no LLMObs-only span state to set at start.
+        """
 
     def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
         # Event-based: on_started calls this with operation=event.operation (no trace() path).
