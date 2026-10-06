@@ -1010,3 +1010,37 @@ ddci-spike:
           "https://ddci-api.us1.ddbuild.io/internal/api/v2/requests/${DDCI_REQUEST_ID}/tasks" \
           -w "\n--- HTTP %{http_code} ---\n" | head -c 4000 || true
       fi
+
+# Spike: validate the BTI PAT route to the GitLab jobs API from CI — the
+# proven pattern from summarize_failures (same repo, same runners) and
+# logs-backend. Answers: can this job mint a rapid-devex-ci token via
+# authanywhere, exchange it at BTI for a short-lived repo PAT, and list its
+# own pipeline's jobs? This is the mechanism the notifier redesign's check
+# job will use for benchmark-job outcomes. Play manually; safe to remove.
+bti-spike:
+  stage: benchmarks
+  needs: []
+  when: manual
+  tags: ["arch:amd64"]
+  image: "registry.ddbuild.io/images/benchmarking-platform-tools-notifier:0184e511"
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      set -eu
+      echo "[1/3] Downloading authanywhere (same source as summarize_failures)..."
+      curl --fail --silent --show-error --location --retry 3 \
+        -o /usr/local/bin/authanywhere \
+        "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64"
+      chmod +x /usr/local/bin/authanywhere
+      echo "[2/3] Minting rapid-devex-ci token, exchanging at BTI for a short-lived GitLab PAT..."
+      AUTH="$(authanywhere --audience rapid-devex-ci)"
+      GL_PAT="$(curl -sS --fail --retry 3 --retry-delay 5 -H "$AUTH" \
+        "https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=${CI_PROJECT_NAMESPACE}&repository=${CI_PROJECT_NAME}" \
+        | jq -r .token)"
+      echo "PAT obtained (length ${#GL_PAT})"
+      echo "[3/3] Listing this pipeline's jobs with the PAT..."
+      curl -sS -m 10 --header "PRIVATE-TOKEN: ${GL_PAT}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${CI_PIPELINE_ID}/jobs?per_page=100" \
+        | jq -r '.[] | "\(.id)\t\(.name)\t\(.status)"' | head -30
+      echo "Done."
