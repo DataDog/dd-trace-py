@@ -427,9 +427,17 @@ class TestLcovReportMemory:
             has_reporter_argument = "file_reporter" in signature(original_analyze).parameters
 
             def legacy_analyze(self, morf):
-                if has_reporter_argument and isinstance(morf, FileReporter):
-                    return original_analyze(self, morf.filename, file_reporter=morf)
+                if isinstance(morf, FileReporter):
+                    if has_reporter_argument:
+                        return original_analyze(self, morf.filename, file_reporter=morf)
+                    # Intermediate APIs only accept filenames, including as
+                    # hashable cache keys. Translate the simulated old API.
+                    morf = morf.filename
                 return original_analyze(self, morf)
+
+            for name in ("cache_clear", "cache_info"):
+                if hasattr(original_analyze, name):
+                    setattr(legacy_analyze, name, getattr(original_analyze, name))
 
             def legacy_get_reporters(self, morfs):
                 entries = original_get_reporters(self, morfs)
@@ -459,6 +467,9 @@ class TestLcovReportMemory:
         assert percentage == 100.0
         assert len(reporters) == 12
         assert max(live_counts) == 1
+        for method in (cov._analyze, cov._get_file_reporter):
+            if hasattr(method, "cache_info"):
+                assert method.cache_info().currsize == 0
 
     @pytest.mark.parametrize("ignore_errors", [False, True])
     @pytest.mark.parametrize("invalid_source", ["syntax", "missing", "non_python"])
@@ -557,7 +568,25 @@ class TestLcovReportMemory:
         assert len(spools) == 1
         assert spools[0].closed
 
-    def test_lcov_applies_and_clears_context_filters(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("cached_analysis", [False, True])
+    def test_lcov_applies_and_clears_context_filters(self, tmp_path: Path, monkeypatch, cached_analysis) -> None:
+        if cached_analysis:
+            import functools
+
+            original_analyze = getattr(Coverage._analyze, "__wrapped__", Coverage._analyze)
+            original_get_reporters = Coverage._get_file_reporters
+
+            @functools.lru_cache(maxsize=1)
+            def analyze(self, morf):
+                return original_analyze(self, morf)
+
+            def get_reporters(self, morfs):
+                entries = original_get_reporters(self, morfs)
+                return [entry if isinstance(entry, tuple) else (entry, entry.filename) for entry in entries]
+
+            monkeypatch.setattr(Coverage, "_analyze", analyze)
+            monkeypatch.setattr(Coverage, "_get_file_reporters", get_reporters)
+
         path = tmp_path / "contexts.py"
         path.write_text("first = 1\nsecond = 2\n")
         cov = Coverage(config_file=False, data_file=None)

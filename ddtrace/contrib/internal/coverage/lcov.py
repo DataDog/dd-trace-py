@@ -25,10 +25,20 @@ except ImportError:
 else:
     _LCOV_AVAILABLE = True
 
+    def _clear_legacy_caches(cov: Any) -> None:
+        # Intermediate coverage.py versions cache analyses without the query
+        # context and retain a parsed reporter. Neither cache can span files
+        # or reports when generating LCOV with bounded memory.
+        for name in ("_analyze", "_get_file_reporter"):
+            clear = getattr(getattr(cov, name), "cache_clear", None)
+            if clear is not None:
+                clear()
+
     def _get_legacy_analysis_to_report(cov: Any, morfs: Any) -> Iterator[tuple[Any, Any]]:
         # Older coverage.py iterators keep every FileReporter alive, including
         # its parsed source. Match their selection and error handling, but pop
         # completed reporters so memory is bounded on these versions too.
+        _clear_legacy_caches(cov)
         reporters = [entry if isinstance(entry, tuple) else (entry, entry) for entry in cov._get_file_reporters(morfs)]
         config = cov.config
         if config.report_include:
@@ -38,6 +48,7 @@ else:
             matcher = GlobMatcher(prep_patterns(config.report_omit), "report_omit")
             reporters = [(fr, morf) for fr, morf in reporters if not matcher.match(fr.filename)]
         if not reporters:
+            _clear_legacy_caches(cov)
             raise NoDataError("No data to report.")
 
         reporters.sort(reverse=True)
@@ -59,6 +70,8 @@ else:
             else:
                 yield fr, analysis
                 del analysis
+            finally:
+                _clear_legacy_caches(cov)
             del fr, morf
 
     class _StreamingLcovReporter(LcovReporter):
