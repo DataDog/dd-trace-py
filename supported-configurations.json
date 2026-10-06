@@ -1603,6 +1603,16 @@
         ]
       }
     ],
+    "DD_ELEVENLABS_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_ELEVENLABS_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_ENTITY_ID": [
       {
         "implementation": "A",
@@ -4229,6 +4239,13 @@
       }
     ],
     "DD_TRACE_ELASTICSEARCH_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_ELEVENLABS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",

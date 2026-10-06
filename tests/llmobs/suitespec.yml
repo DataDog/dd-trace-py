@@ -1,5 +1,7 @@
 ---
 components:
+  elevenlabs:
+    - ddtrace/contrib/internal/elevenlabs/*
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
   claude_agent_sdk:
@@ -35,6 +37,22 @@ components:
   vllm:
     - ddtrace/contrib/internal/vllm/*
 suites:
+  elevenlabs:
+    venvs_per_job: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@elevenlabs'
+      - '@llmobs'
+      - tests/contrib/elevenlabs/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/elevenlabs
+      variants:
+        - name: elevenlabs
+          python: ['3.10', '3.12']
+          dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
   anthropic:
     venvs_per_job: 6
     paths:

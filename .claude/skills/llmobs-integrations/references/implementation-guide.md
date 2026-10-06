@@ -216,3 +216,21 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
 - [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
+
+## Hosted voice conversations: ElevenLabs Agents
+
+The ElevenLabs integration instruments the synchronous and asynchronous Agents
+WebSocket loops. Its conversation-local socket proxies observe successful sends
+and received messages without changing the audio interface or event subscriptions.
+Provider event IDs identify turns; text equality and optional completion events do
+not. Keep a bounded window of open turns for late interrupted transcripts and flush
+it on worker exit. Audio payloads belong only to LLM messages, with a shared encoded
+budget for input and output. Direct sibling workflow phases retain approximate
+transport-based timing and explicitly annotate metadata.ttfa_eligible = false.
+Do not infer TTFA or token usage from these estimates. Client tool execution uses
+the SDK's actual handler, with explicit parenting and fail-open instrumentation.
+
+Regression fixtures preserve event order and shapes with synthetic audio and text.
+Cover default/custom audio interfaces, both SDK loops, ordinary event subscriptions,
+typed messages, interruption, errors, parent context, concurrent conversations,
+missing completion events, and audio limits.
