@@ -136,7 +136,10 @@ test agent under a per-test session token. When the test ends, the traces are fe
 ids, timestamps and other unstable values are replaced, and the result is compared with
 ``tests/snapshots/<token>.json`` (see ``tests/otel_semantics_snapshot.py``). Unlike the snapshots above, the file keeps
 the OTLP shape, so it shows the exported resource, scope, attribute keys and typed values. ``ignores`` takes
-attribute keys, and the file is generated and regenerated the same way as the snapshots above.
+attribute keys. Equivalent resource and scope groups are merged across export batches, and ids are assigned
+from span content and parent/link relationships, so export timing and delivery order do not change the comparison.
+A missing file is generated locally; ``CI=true`` requires the file to already be checked in. Delete the file
+to regenerate it.
 
 How should I write integration tests for my integration?
 --------------------------------------------------------
