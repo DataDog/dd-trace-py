@@ -521,9 +521,17 @@ def _manifest_labels(agent: Any) -> AgentManifest:
     return {"name": role if isinstance(role, str) and role else "CrewAI Agent"}
 
 
+def _declared_text(agent: Any, attr: str) -> str:
+    """The text before kickoff inputs were interpolated into it, as CrewAI's own BaseAgent.key reads it.
+
+    A copied agent loses the original, so the interpolated value is the fallback.
+    """
+    return as_str(getattr(agent, "_original_" + attr, None)) or as_str(getattr(agent, attr, None))
+
+
 def _manifest_instructions(agent: Any) -> AgentManifest:
     # CrewAI builds the agent's system prompt from its goal and backstory.
-    texts = [as_str(getattr(agent, "goal", None)), as_str(getattr(agent, "backstory", None))]
+    texts = [_declared_text(agent, "goal"), _declared_text(agent, "backstory")]
     templates = [as_str(getattr(agent, attr, None)) for attr in ("system_template", "prompt_template")]
     return {
         "instructions": "\n\n".join(text for text in texts if text),
@@ -559,6 +567,7 @@ def _tool_json_schema(tool: Any) -> Optional[dict[str, Any]]:
     try:
         schema = model_json_schema()
     except Exception:
+        log.debug("failed to read CrewAI tool args schema", exc_info=True)
         return None
     return schema if isinstance(schema, dict) else None
 

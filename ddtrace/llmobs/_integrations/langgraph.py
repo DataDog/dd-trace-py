@@ -135,7 +135,10 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         # Copied so a run's config never leaks into the manifest cached for the next run.
         manifest: dict[str, Any] = dict(declared)
-        recursion_limit = _get_attr(config, "recursion_limit", None)
+        # A limit declared with graph.with_config() wins over the one passed to this run.
+        recursion_limit = _get_attr(_get_attr(agent, "config", None) or {}, "recursion_limit", None)
+        if not is_number(recursion_limit):
+            recursion_limit = _get_attr(config, "recursion_limit", None)
         if is_number(recursion_limit):
             manifest["agent_settings"] = {**manifest.get("agent_settings", {}), "recursion_limit": recursion_limit}
         return manifest
@@ -348,7 +351,9 @@ def _get_model_provider(model) -> Optional[str]:
 def _get_model_settings(model) -> dict[str, Any]:
     """Get the model settings from a langchain llm"""
     settings = {key: _get_attr(model, key, None) for key in ALLOWED_MODEL_SETTINGS_KEYS}
-    settings["stop_sequences"] = _get_attr(model, "stop", None)
+    # ChatAnthropic declares stop_sequences; ChatOpenAI and most others declare stop.
+    if settings["stop_sequences"] is None:
+        settings["stop_sequences"] = _get_attr(model, "stop", None)
     return filter_model_settings(settings)
 
 
@@ -393,14 +398,17 @@ def _get_tool_repr_from_langchain_base_tool(tool) -> Optional[dict[str, Any]]:
 
 
 def _tool_json_schema(tool) -> Optional[dict[str, Any]]:
-    """The tool's JSON Schema, which unlike tool.args also says which parameters are required."""
-    args_schema = _get_attr(tool, "args_schema", None)
-    if isinstance(args_schema, dict):
-        return args_schema
-    model_json_schema = getattr(args_schema, "model_json_schema", None)
-    if callable(model_json_schema):
+    """The schema the model sees, which unlike tool.args also says which parameters are required.
+
+    tool_call_schema comes first because args_schema also lists injected arguments, such as
+    InjectedState and InjectedToolCallId, that the model never fills in.
+    """
+    for attr in ("tool_call_schema", "args_schema"):
         try:
-            schema = model_json_schema()
+            schema = getattr(tool, attr, None)
+            if not isinstance(schema, dict):
+                model_json_schema = getattr(schema, "model_json_schema", None)
+                schema = model_json_schema() if callable(model_json_schema) else None
         except Exception:
             schema = None
         if isinstance(schema, dict):

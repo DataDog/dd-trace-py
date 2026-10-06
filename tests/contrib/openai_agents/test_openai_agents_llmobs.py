@@ -100,7 +100,6 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "tools": [
             {
                 "name": "web_search_preview",
-                "user_location": {"type": "approximate", "city": "New York"},
                 "search_context_size": "medium",
             }
         ],

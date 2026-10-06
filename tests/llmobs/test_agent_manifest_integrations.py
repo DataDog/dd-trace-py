@@ -4,8 +4,10 @@ Each builder reads attributes off a framework object, so a SimpleNamespace stand
 these tests need no framework installed.
 """
 
+import functools
 import json
 from types import SimpleNamespace
+from typing import Optional
 from unittest import mock
 
 import pytest
@@ -28,8 +30,20 @@ from ddtrace.trace import Span
 CANONICAL_KEYS = frozenset(AgentManifest.__annotations__)
 
 
+_INVOCATIONS = []
+
+
 def _never_called(*args, **kwargs):
+    # Recorded rather than only raised, because a raising section is swallowed by the builder.
+    _INVOCATIONS.append(args)
     raise AssertionError("a declared callable must not be invoked while building the manifest")
+
+
+@pytest.fixture(autouse=True)
+def _assert_no_declared_callable_invoked():
+    _INVOCATIONS.clear()
+    yield
+    assert not _INVOCATIONS, "a declared callable was invoked while building the manifest"
 
 
 def _search(query: str, limit: int = 5, tool_context=None) -> list:
@@ -38,6 +52,20 @@ def _search(query: str, limit: int = 5, tool_context=None) -> list:
 
 class _Answer:
     pass
+
+
+class ToolContext:
+    """Named like ADK's, which ADK injects by annotation rather than by parameter name."""
+
+
+class _Billing:
+    def refund(self, order_id: str, reason: Optional[str] = None, ctx: ToolContext = None) -> str:
+        """Refund an order."""
+
+
+class MCPServerSse:
+    def __init__(self, name):
+        self.name = name
 
 
 class _Graph:
@@ -204,6 +232,29 @@ class TestSharedHelpers:
         assert normalize_tool("", "unnamed") is None
         assert normalize_tool("t", object())["description"] == ""
 
+    def test_optional_parameters_keep_their_type(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "limit": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None},
+                "tags": {"type": ["array", "null"]},
+                "item": {"$ref": "#/$defs/Item"},
+                "extra": {"default": None},
+            },
+            "required": ["query"],
+        }
+        manifest = build_agent_manifest(
+            "X", None, (("tools", lambda _: {"tools": [normalize_tool("t", None, schema)]}),), "test"
+        )
+        assert manifest["tools"][0]["parameters"] == {
+            "query": {"type": "string", "required": True},
+            "limit": {"type": "integer"},
+            "tags": {"type": "array"},
+            "item": {"type": "Item"},
+            "extra": {"type": "any"},
+        }
+
     def test_failing_section_costs_only_its_fields(self):
         def broken(_):
             raise RuntimeError("framework changed")
@@ -245,6 +296,23 @@ class TestGoogleAdk:
         manifest = _build("google_adk", _adk_agent(global_instruction="", static_instruction=content))
         assert manifest["system_prompts"] == ["Cached preamble."]
 
+    def test_callable_tools(self):
+        billing = _Billing()
+        tools = [billing.refund, functools.partial(_search, limit=3)]
+        manifest = _build("google_adk", _adk_agent(tools=tools))
+        assert manifest["tools"] == [
+            {
+                "name": "refund",
+                "description": "Refund an order.",
+                "parameters": {"order_id": {"type": "string", "required": True}, "reason": {"type": "string"}},
+            },
+            {
+                "name": "_search",
+                "description": "Search the docs.",
+                "parameters": {"query": {"type": "string", "required": True}, "limit": {"type": "integer"}},
+            },
+        ]
+
 
 class TestOpenAIAgents:
     def test_manifest(self):
@@ -277,6 +345,21 @@ class TestOpenAIAgents:
             {"type": "prompt", "name": "pmpt_123"},
         ]
 
+    def test_mcp_server_default_name_is_not_reported(self):
+        servers = [MCPServerSse("sse: https://mcp.example.com/sse?token=secret"), MCPServerSse("github")]
+        manifest = _build("openai_agents", _openai_agent(mcp_servers=servers))
+        assert manifest["capabilities"] == [
+            {"name": "MCPServerSse", "type": "mcp"},
+            {"name": "github", "type": "mcp"},
+        ]
+
+    def test_web_search_user_location_is_not_reported(self):
+        tool = SimpleNamespace(
+            name="web_search", user_location={"city": "New York"}, search_context_size="low", filters=None
+        )
+        manifest = _build("openai_agents", _openai_agent(tools=[tool]))
+        assert manifest["tools"] == [{"name": "web_search", "search_context_size": "low"}]
+
 
 class TestCrewAI:
     def test_manifest(self):
@@ -297,6 +380,10 @@ class TestCrewAI:
             "allow_code_execution": True,
             "code_execution_mode": "unsafe",
         }
+
+    def test_declared_goal_is_preferred_over_interpolated(self):
+        agent = _crewai_agent(_original_goal="Research {topic}", _original_backstory="An expert in {topic}.")
+        assert _build("crewai", agent)["instructions"] == "Research {topic}\n\nAn expert in {topic}."
 
 
 class TestLangGraph:
@@ -330,6 +417,44 @@ class TestLangGraph:
         assert first["agent_settings"] == {"recursion_limit": 100}
         assert second == {"framework": "LangGraph", "name": "graph"}
 
+    def test_tool_parameters_exclude_injected_args(self):
+        tool = SimpleNamespace(
+            name="transfer",
+            description="Hand off",
+            tool_call_schema={"type": "object", "properties": {"to": {"type": "string"}}, "required": ["to"]},
+            args_schema={
+                "type": "object",
+                "properties": {"to": {"type": "string"}, "state": {"type": "object"}},
+                "required": ["to", "state"],
+            },
+        )
+        integration = LangGraphIntegration(integration_config=mock.MagicMock())
+        agent = _Graph("supervisor")
+        with mock.patch.object(
+            LangGraphIntegration, "llmobs_enabled", new_callable=mock.PropertyMock, return_value=True
+        ):
+            integration.llmobs_handle_agent_manifest(agent, ("gpt-4o", [tool]), {})
+        assert integration._get_agent_manifest(agent, (), {})["tools"] == [
+            {"name": "transfer", "description": "Hand off", "parameters": {"to": {"type": "string", "required": True}}}
+        ]
+
+    def test_stop_sequences_field_is_read(self):
+        model = SimpleNamespace(model_name="claude-sonnet", stop_sequences=["\n\nHuman:"])
+        integration = LangGraphIntegration(integration_config=mock.MagicMock())
+        agent = _Graph("react")
+        with mock.patch.object(
+            LangGraphIntegration, "llmobs_enabled", new_callable=mock.PropertyMock, return_value=True
+        ):
+            integration.llmobs_handle_agent_manifest(agent, (model, []), {})
+        assert integration._get_agent_manifest(agent, (), {})["model_settings"] == {"stop_sequences": ["\n\nHuman:"]}
+
+    def test_declared_recursion_limit_wins_over_run_config(self):
+        integration = LangGraphIntegration(integration_config=mock.MagicMock())
+        graph = _Graph("graph")
+        graph.config = {"recursion_limit": 50}
+        manifest = integration._get_agent_manifest(graph, (), {"recursion_limit": 100})
+        assert manifest["agent_settings"] == {"recursion_limit": 50}
+
 
 class TestClaudeAgentSdk:
     def test_manifest(self):
@@ -355,3 +480,9 @@ class TestClaudeAgentSdk:
         manifest = _build("claude_agent_sdk", "claude-sonnet", options, {})
         assert manifest["instructions"] == "Be terse."
         assert manifest["extra_instructions"] == [{"type": "preset", "name": "claude_code"}]
+
+    def test_empty_options_servers_fall_back_to_init(self):
+        options = _claude_options(mcp_servers={})
+        init = {"tools": ["Read"], "mcp_servers": [{"name": "plugin-fs", "status": "connected"}]}
+        manifest = _build("claude_agent_sdk", "claude-sonnet", options, init)
+        assert manifest["capabilities"] == [{"name": "plugin-fs", "type": "mcp"}]

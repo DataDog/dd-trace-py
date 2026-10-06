@@ -363,10 +363,13 @@ FRAMEWORK_NAME = "OpenAI"
 # a client object, or a credential (HostedMCPTool.tool_config carries headers and authorization).
 _HOSTED_TOOL_FIELDS = {
     "file_search": ("vector_store_ids", "max_num_results", "include_search_results", "ranking_options", "filters"),
-    "web_search": ("user_location", "search_context_size", "filters"),
-    "web_search_preview": ("user_location", "search_context_size", "filters"),
+    # user_location is left out: an agent built per request carries the end user's location there.
+    "web_search": ("search_context_size", "filters"),
+    "web_search_preview": ("search_context_size", "filters"),
 }
 _HOSTED_MCP_CONFIG_KEYS = ("server_label", "allowed_tools", "require_approval")
+# An unnamed MCP server is named after its command or URL, which can carry a token.
+_DEFAULT_MCP_SERVER_NAME_PREFIXES = ("stdio: ", "sse: ", "streamable_http: ")
 
 
 def _manifest_labels(agent: Any) -> AgentManifest:
@@ -431,8 +434,9 @@ def _manifest_capabilities(agent: Any) -> AgentManifest:
     capabilities: list[AgentCapability] = []
     for server in getattr(agent, "mcp_servers", None) or []:
         name = as_str(getattr(server, "name", None))
-        if name:
-            capabilities.append({"name": name, "type": "mcp"})
+        if not name or name.startswith(_DEFAULT_MCP_SERVER_NAME_PREFIXES):
+            name = type(server).__name__
+        capabilities.append({"name": name, "type": "mcp"})
     return {"capabilities": capabilities}
 
 

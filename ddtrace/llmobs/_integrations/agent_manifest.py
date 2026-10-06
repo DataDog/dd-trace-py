@@ -2,6 +2,7 @@
 
 import math
 import types
+from typing import Annotated
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -12,6 +13,7 @@ from typing import get_args
 from typing import get_origin
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._telemetry import record_agent_manifest_section_error
 from ddtrace.llmobs.types import AgentManifest
 
 
@@ -71,6 +73,9 @@ def type_name(candidate: Any) -> str:
     if candidate is type(None):
         return "None"
     origin, args = get_origin(candidate), get_args(candidate)
+    if origin is Annotated:
+        # The metadata can be a pydantic FieldInfo whose repr carries the default value.
+        return type_name(args[0])
     if origin is None or not args:
         return getattr(candidate, "__name__", None) or str(candidate)
     names = [type_name(arg) for arg in args]
@@ -190,10 +195,12 @@ def build_agent_manifest(
             manifest.update(section(agent))
         except Exception:
             log.debug("failed to build %s agent manifest section %s", integration_name, name, exc_info=True)
+            record_agent_manifest_section_error(integration_name, name)
     try:
         wired = wire_value(prune_empty(manifest))
     except Exception:
         log.debug("failed to finalize %s agent manifest", integration_name, exc_info=True)
+        record_agent_manifest_section_error(integration_name, "finalize")
         return {}
     if not wired:
         return {}
@@ -215,6 +222,7 @@ def config_value(value: Any) -> Any:
         try:
             value = value.model_dump(exclude_none=True)
         except Exception:
+            log.debug("failed to dump agent manifest config value %s", type(value).__name__, exc_info=True)
             return None
     return wire_value(value)
 
@@ -353,10 +361,8 @@ def tool_parameters(parameters: Any) -> dict[str, Any]:
     for param, spec in specs.items():
         entry: dict[str, Any] = {}
         if isinstance(spec, dict):
-            # str-only per _manual_labels: wire_value coerces rather than drops, so an int or a
-            # nested mapping would otherwise ship as the type.
-            declared_type = spec.get("type")
-            if isinstance(declared_type, str):
+            declared_type = _schema_type(spec)
+            if declared_type:
                 entry["type"] = declared_type
             # Omitted rather than false, matching the auto path.
             if spec.get("required") is True:
@@ -367,8 +373,39 @@ def tool_parameters(parameters: Any) -> dict[str, Any]:
             continue
         if param in required_params:
             entry["required"] = True
+        # An empty entry is pruned. That is right for an unreportable type, but an optional parameter
+        # that declares no type at all must still be listed.
+        if not entry and isinstance(spec, dict) and not any(key in spec for key in ("type", "anyOf", "oneOf", "$ref")):
+            entry = {"type": "any"}
         coerced[param] = entry
     return coerced
+
+
+def _schema_type(spec: dict[Any, Any]) -> str:
+    """The JSON Schema type of one parameter, "" when it declares none.
+
+    Optional[X] arrives as anyOf/oneOf or a list-valued type, so the null member is dropped and the
+    rest joined. str-only per _manual_labels: wire_value coerces rather than drops, so an int or a
+    nested mapping would otherwise ship as the type.
+    """
+    declared = spec.get("type")
+    if isinstance(declared, str):
+        return declared
+    members: list[Any] = []
+    if isinstance(declared, list):
+        members = [{"type": member} for member in declared]
+    for key in ("anyOf", "oneOf"):
+        if isinstance(spec.get(key), list):
+            members.extend(member for member in spec[key] if isinstance(member, dict))
+    names: list[str] = []
+    for member in members:
+        name = _schema_type(member)
+        if name and name != "null" and name not in names:
+            names.append(name)
+    if names:
+        return " | ".join(names)
+    ref = spec.get("$ref")
+    return ref.rsplit("/", 1)[-1] if isinstance(ref, str) else ""
 
 
 def _tool_parameter_specs(parameters: dict[Any, Any]) -> tuple[dict[Any, Any], frozenset[str]]:

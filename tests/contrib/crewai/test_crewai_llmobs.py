@@ -17,14 +17,35 @@ from tests.llmobs._utils import assert_llmobs_span_data
 CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
 
 
+class _OneOf:
+    """Equal to any of the given values."""
+
+    def __init__(self, *values):
+        self.values = values
+
+    def __eq__(self, other):
+        return other in self.values
+
+    def __repr__(self):
+        return f"OneOf{self.values!r}"
+
+
+def _declared_or_interpolated(template):
+    # Instructions read the goal and backstory before kickoff inputs are interpolated, but these module
+    # level agents are copied by some crews, and a copy keeps only the interpolated text.
+    return _OneOf(template, template.replace("{topic}", "AI"))
+
+
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Senior Research Scientist": {
         "framework": "CrewAI",
         "name": "Senior Research Scientist",
-        "instructions": "Uncover cutting-edge developments in AI\n\n"
-        "You're a seasoned researcher with a knack for uncovering the latest developments in AI. "
-        "Known for your ability to find the most relevant information and present it in a clear "
-        "and concise manner.",
+        "instructions": _declared_or_interpolated(
+            "Uncover cutting-edge developments in {topic}\n\n"
+            "You're a seasoned researcher with a knack for uncovering the latest developments in {topic}. "
+            "Known for your ability to find the most relevant information and present it in a clear "
+            "and concise manner."
+        ),
         "model": "gpt-4o-mini",
         "handoffs": {"allow_delegation": False},
         "agent_settings": {"max_iter": 25, "max_retry_limit": 2},
@@ -32,10 +53,12 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "AI Reporting Analyst": {
         "framework": "CrewAI",
         "name": "AI Reporting Analyst",
-        "instructions": "Create detailed reports based on AI data analysis and research findings\n\n"
-        "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
-        "complex data into clear and concise reports, making it easy for others to understand and act on the "
-        "information you provide.",
+        "instructions": _declared_or_interpolated(
+            "Create detailed reports based on {topic} data analysis and research findings\n\n"
+            "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
+            "complex data into clear and concise reports, making it easy for others to understand and act on "
+            "the information you provide."
+        ),
         "model": "gpt-4o-mini",
         "handoffs": {"allow_delegation": False},
         "agent_settings": {"max_iter": 25, "max_retry_limit": 2},

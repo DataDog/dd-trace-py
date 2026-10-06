@@ -115,15 +115,18 @@ Agent spans report the agent's declared configuration as `agent_manifest`, typed
 in `ddtrace/llmobs/types.py`. Build it with the helpers in `_integrations/agent_manifest.py`:
 
 - `build_agent_manifest(framework, agent, sections, integration_name)` runs each section in
-  isolation, drops unset values, and guarantees a JSON-native result. Return `{}` means "do not
-  annotate".
+  isolation, drops unset values, and guarantees a JSON-native result. When it returns `{}`, do not
+  annotate.
 - Only emit keys declared on `AgentManifest`. Put loop-level knobs in `agent_settings` and inference
   params through `filter_model_settings` (an allowlist; widening it is a security decision).
-- Read declared configuration only, never per-run values (session ids, run config, interpolated
-  templates), so the manifest is identical run to run and version diffs stay meaningful.
+- Prefer declared configuration over per-run values (session ids, run config, interpolated
+  templates), so the manifest is identical run to run and version diffs stay meaningful. Known
+  fallbacks: LangGraph reads `recursion_limit` from the run config when the graph declares none, and
+  CrewAI uses the interpolated goal and backstory when a copied agent lost the originals.
 - Use `instruction_fields` for instructions: a callable ships by name in `extra_instructions` and is
   never called or `str()`-ed (its address changes every process).
-- Use `normalize_tool` so every tool is `{name, description?, parameters: {p: {type?, required?}}}`.
+- Use `normalize_tool` for function tools: `{name, description?, parameters: {p: {type, required?}}}`
+  with JSON Schema type names. Hosted tools may add declared config keys next to `name`.
 - A description other agents see when routing to this one goes in `handoff_description`.
 
 ## Key Constraints

@@ -519,7 +519,8 @@ def _manifest_tools(declared: dict[str, Any]) -> AgentManifest:
     init = declared["init"]
     tools = [{"name": tool} for tool in init.get("tools") or [] if isinstance(tool, str) and tool]
     servers = getattr(declared["options"], "mcp_servers", None)
-    if isinstance(servers, dict):
+    # The options default to {}, and servers from plugins or setting files only appear in init.
+    if isinstance(servers, dict) and servers:
         names = [name for name in servers if isinstance(name, str)]
     else:
         # The init entries also carry a connection status, which is per run and so not reported.

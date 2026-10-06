@@ -1,7 +1,10 @@
 import inspect
-from inspect import isfunction
+import types
 from typing import Any
 from typing import Optional
+from typing import Union
+from typing import get_args
+from typing import get_origin
 
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -204,11 +207,15 @@ _JSON_SCHEMA_TYPES = {
     "float": "number",
     "bool": "boolean",
     "list": "array",
+    "tuple": "array",
+    "set": "array",
+    "frozenset": "array",
     "dict": "object",
 }
 
 # Framework-injected arguments, not ones the model fills in.
-_IGNORED_TOOL_PARAMETERS = frozenset({"self", "cls", "tool_context"})
+_IGNORED_TOOL_PARAMETERS = frozenset({"self", "cls", "tool_context", "input_stream"})
+_IGNORED_TOOL_PARAMETER_TYPES = frozenset({"ToolContext", "CallbackContext"})
 
 
 def _manifest_labels(agent: Any) -> AgentManifest:
@@ -262,20 +269,24 @@ def _manifest_tools(agent: Any) -> AgentManifest:
     tools: list[dict[str, Any]] = []
     capabilities: list[AgentCapability] = []
     for tool in getattr(agent, "tools", None) or []:
-        if isfunction(tool):
-            entry = normalize_tool(tool.__name__, tool.__doc__, _function_parameters(tool))
-        elif hasattr(tool, "get_tools") and not hasattr(tool, "name"):
+        if hasattr(tool, "get_tools") and not hasattr(tool, "name"):
             # A toolset resolves its tools at run time, so only its presence is declared.
-            kind = "mcp" if "mcp" in type(tool).__name__.lower() else "toolset"
+            kind = "mcp" if "mcp" in type(tool).__name__.lower() else "custom"
             capabilities.append({"name": type(tool).__name__, "type": kind})
             continue
-        else:
+        if hasattr(tool, "name"):
             func = getattr(tool, "func", None)
             entry = normalize_tool(
                 getattr(tool, "name", None),
                 getattr(tool, "description", None),
                 _function_parameters(func) if callable(func) else None,
             )
+        elif callable(tool):
+            # ADK wraps any callable, including bound methods and functools.partial, in a FunctionTool.
+            doc = getattr(getattr(tool, "func", tool), "__doc__", None)
+            entry = normalize_tool(callable_name(tool), doc, _function_parameters(tool))
+        else:
+            continue
         if entry:
             tools.append(entry)
     return {"tools": tools, "capabilities": capabilities}
@@ -293,14 +304,30 @@ def _function_parameters(fn: Any) -> dict[str, Any]:
             continue
         spec: dict[str, Any] = {}
         if param.annotation is not param.empty:
-            annotation = param.annotation
-            # A string annotation comes from a module using postponed evaluation.
-            annotation_name = annotation if isinstance(annotation, str) else type_name(annotation)
-            spec["type"] = _JSON_SCHEMA_TYPES.get(annotation_name, annotation_name)
+            annotation_type = _annotation_type(param.annotation)
+            if annotation_type in _IGNORED_TOOL_PARAMETER_TYPES:
+                continue
+            spec["type"] = annotation_type
         if param.default is param.empty:
             spec["required"] = True
         parameters[name] = spec
     return parameters
+
+
+def _annotation_type(annotation: Any) -> str:
+    """The JSON Schema name the schema-based integrations report for the same parameter.
+
+    Optional[X] reports X, since the missing required flag already says it is optional.
+    """
+    if isinstance(annotation, str):
+        # A string annotation comes from a module using postponed evaluation.
+        return _JSON_SCHEMA_TYPES.get(annotation, annotation)
+    origin = get_origin(annotation)
+    if origin is Union or origin is getattr(types, "UnionType", None):
+        names = [_annotation_type(arg) for arg in get_args(annotation) if arg is not type(None)]
+        return " | ".join(dict.fromkeys(names))
+    name = type_name(origin) if origin in (list, dict, tuple, set, frozenset) else type_name(annotation)
+    return _JSON_SCHEMA_TYPES.get(name, name)
 
 
 def _manifest_data_contracts(agent: Any) -> AgentManifest:

@@ -58,7 +58,12 @@ class AgentCapability(TypedDict, total=False):
 
 
 class AgentInstructionResolver(TypedDict, total=False):
-    """A callable that decides instruction text at run time, recorded by name and never evaluated."""
+    """Instruction text decided outside the declared config, recorded by name and never evaluated.
+
+    type says what the name refers to: a run-time callable (dynamic_instructions,
+    dynamic_system_prompt, dynamic_global_instruction, dynamic_prompt), a stored prompt id (prompt),
+    or a framework preset (preset).
+    """
 
     name: str
     type: str
