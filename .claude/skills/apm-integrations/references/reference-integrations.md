@@ -28,3 +28,8 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 This APM reference lists LLM/AI integrations only to help choose comparable
 contrib patch modules. For LLMObs-specific architecture, provider extraction,
 streaming, and test transport guidance, use the `llmobs-integrations` skill.
+
+## Messaging tags
+
+Messaging subscribers apply tags with _set_attribute when the context ends.
+Kombu connection ports are normalized to integers to preserve their numeric span attributes.

@@ -30,7 +30,9 @@ class MessagingProduceSubscriber(TracingSubscriber[MessagingProducerEvent]):
         ctx: core.ExecutionContext[MessagingProducerEvent],
         _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        span_from_context(ctx).set_tags(ctx.event.additional_tags)
+        span = span_from_context(ctx)
+        for key, value in ctx.event.additional_tags.items():
+            span._set_attribute(key, value)
 
 
 class MessagingConsumeSubscriber(TracingSubscriber[MessagingConsumeEvent]):
@@ -44,7 +46,8 @@ class MessagingConsumeSubscriber(TracingSubscriber[MessagingConsumeEvent]):
     ) -> None:
         event = ctx.event
         span = span_from_context(ctx)
-        span.set_tags(event.additional_tags)
+        for key, value in event.additional_tags.items():
+            span._set_attribute(key, value)
 
         for link_ctx in event.span_links:
             if not link_ctx.trace_id or not link_ctx.span_id:
