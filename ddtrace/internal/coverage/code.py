@@ -370,7 +370,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._file_level_covered_paths_cache.popitem(last=False)
         return paths
 
-    class _ContextStack(list):
+    class _ContextStack(list[t.Any]):
         """Per-context stack of coverage data that compares by identity, not value.
 
         Context-propagation helpers (e.g. asgiref's ``_restore_context``, used by Django's
