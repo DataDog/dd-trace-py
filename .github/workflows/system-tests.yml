@@ -94,12 +94,13 @@ jobs:
 
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
+    # Keep the Lambda pin before telemetry activation, which requires ddtrace 4.15.
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@2f3c04d876db997050952b225d167b001da911bb
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@31587fb881bb3afc222471a7533a575a2959d878
     secrets: inherit
     with:
       library: python_lambda
-      ref: '2f3c04d876db997050952b225d167b001da911bb'
+      ref: '31587fb881bb3afc222471a7533a575a2959d878'
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
