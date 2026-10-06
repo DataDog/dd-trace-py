@@ -60,6 +60,46 @@ def test_exiting_collector_in_another_context_preserves_active_coverage():
         assert len(ctx_covered.get()) == len(ctx_covered_files.get()) == parent_depth
 
 
+def test_mismatched_exit_resyncs_tls_fallback():
+    """A mismatched exit must not leave the TLS fallback on the completed collector.
+
+    On Python 3.14+, sys.monitoring callbacks run in a snapshot context and fall back
+    to the thread-local coverage state when they cannot observe ContextVar changes.
+    When a collector entered in a copied context is exited from a different context
+    (a mismatched exit), that thread-local fallback must be re-synced to the active
+    collector instead of pointing at the collector that just completed.
+    """
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import ctx_covered
+
+    original_flag = coverage_code._PY_GE_314
+    coverage_code._PY_GE_314 = True
+    try:
+        with ModuleCodeCollector.CollectInContext():
+            parent_lines = ctx_covered.get()[-1]
+            parent_files = coverage_code.ctx_covered_files.get()[-1]
+            child_context = copy_context()
+            child = ModuleCodeCollector.CollectInContext()
+            child_context.run(child.__enter__)
+
+            # The thread-local fallback tracks the most recent collector entered in
+            # this thread, which is the child's.
+            assert coverage_code._tls_coverage.covered is child._covered_lines
+
+            # Exiting the child from the parent context is a mismatched exit.
+            child.__exit__()
+
+            # The fallback must be re-synced to the parent's active entries rather
+            # than left pointing at the completed child collector.
+            assert coverage_code._tls_coverage.covered is parent_lines
+            assert coverage_code._tls_coverage.covered_files is parent_files
+    finally:
+        coverage_code._PY_GE_314 = original_flag
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
 @pytest.mark.subprocess()
 def test_coverage_defaults_to_file_level_when_env_unset():

@@ -451,6 +451,15 @@ class ModuleCodeCollector(ModuleWatchdog):
             else:
                 # A copied context may finish a collector that was entered elsewhere.
                 # Leave this context's collector intact instead of popping the wrong one.
+                if _PY_GE_314:
+                    # The exited collector may still be this thread's TLS fallback: the
+                    # sys.monitoring callbacks fall back to this thread-local state when
+                    # their snapshot context cannot observe ContextVar changes. Re-sync
+                    # the fallback to the collector that is actually active in this
+                    # context (or clear it) so coverage keeps being attributed to the
+                    # right entry instead of the completed collector.
+                    _tls_coverage.covered = covered_lines_stack[-1] if covered_lines_stack else None
+                    _tls_coverage.covered_files = covered_files_stack[-1] if covered_files_stack else None
                 return
 
             # Stop coverage if we're exiting the last context
