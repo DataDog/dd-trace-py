@@ -423,3 +423,15 @@ def test_normalize_uses_link_relationships_to_order_identical_siblings(link_from
     assert normalize_otlp_requests(payload("root", "a", "b", "source", False)) == normalize_otlp_requests(
         payload("different-root", "z", "y", "different-source", True)
     )
+
+
+def test_normalize_orders_links_to_equally_linked_identical_siblings():
+    root = _span("root", "trace", "root", 1, 4)
+    first = _span("same", "trace", "a", 2, 3, parent_span_id="root")
+    second = _span("same", "trace", "b", 2, 3, parent_span_id="root")
+    source = _span("source", "trace", "source", 2, 3, parent_span_id="root")
+    source["links"] = [{"trace_id": "trace", "span_id": "b"}, {"trace_id": "trace", "span_id": "a"}]
+    forward = [_request([root, first, second, source])]
+    backward = [_request([root, second, first, source])]
+
+    assert normalize_otlp_requests(forward) == normalize_otlp_requests(backward)
