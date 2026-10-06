@@ -59,6 +59,11 @@ class MyLibIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract and annotate all LLMObs fields."""
         tools = self._extract_tools(kwargs)
+        metadata = self._extract_metadata(kwargs)
+        # Gate on the response, not span.error: an errored span can still carry a valid
+        # response. Merge so response-derived keys never clobber the request params.
+        if response is not None:
+            metadata.update(self._extract_response_metadata(response))
         _annotate_llmobs_span_data(
             span,
             kind="llm",
@@ -66,7 +71,7 @@ class MyLibIntegration(BaseLLMIntegration):
             model_provider="mylib",
             input_messages=self._extract_input_messages(kwargs),
             output_messages=self._extract_output_messages(response),
-            metadata=self._extract_metadata(kwargs),
+            metadata=metadata,
             metrics=self._extract_usage(response),
             tool_definitions=tools or None,
         )
@@ -79,6 +84,7 @@ Common helpers (implement only what applies):
 - `_extract_usage(self, response: Any) -> dict[str, int]` — map library token field names to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`
 - `_extract_tools(self, kwargs: dict[str, Any]) -> list[ToolDefinition]` — convert `tools` list to `ToolDefinition` list
 - `_extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]` — pick scalar request params: `temperature`, `top_p`, `max_tokens`, etc.
+- `_extract_response_metadata(self, response: Any) -> dict[str, Any]` — pick scalar params the provider reports on the *response* and that `metrics`/`output_messages` do not already cover. The stop reason is the established case: record it as `finish_reason`, omit the key when the provider reports none, and comma-join per-choice reasons in choice order when a request returns multiple choices so the value stays a single string. See the Response Metadata section of `SKILL.md` for the per-provider sources and `_openai_finish_reason_metadata()` in `_integrations/utils.py` for the comma-join helper.
 
 Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__` entry).
 
@@ -103,7 +109,11 @@ Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/llmobs/_integrations
 
 - `initialize_chunk_storage()` — set up accumulators for content, usage, role
 - `process_chunk(chunk)` — accumulate text, tool blocks, usage from each chunk
-- `finalize_stream(exception)` — build the final response and complete the deferred span lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; direct-trace integrations may need to call `llmobs_set_tags()` and `span.finish()` themselves.
+- `finalize_stream(exception)` — build the final response and complete the deferred span lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; direct-trace integrations may need to call `llmobs_set_tags()` and `span.finish()` themselves. Call this only via `close_stream()` (including eager finish from `process_chunk`, as Claude Agent SDK does). `close_stream()` invokes it at most once. A local idempotency guard inside `finalize_stream()` is still fine if an older path can call it directly.
+
+`TracedStream` / `TracedAsyncStream` invoke `close_stream()` from `__iter__`/`__aiter__` (`finally`), from `StopIteration`/`StopAsyncIteration` on `__next__`/`__anext__`, from `__exit__`/`__aexit__` after the wrapped stream exits, and from `__del__` as a last resort. `__exit__`/`__aexit__` catch `BaseException` so `asyncio.CancelledError` from wrapped cleanup still finalizes. That path matters: a caller that uses `with stream:` and does not exhaust the iterator still finishes the span.
+
+When `__enter__` wraps a stream manager, the parent retains the child wrapper for the `with` body so `__del__` cannot finalize the shared handler early. `on_stream_created` runs before that retain; if it raises, the handler is finalized immediately because Python will not call `__exit__`.
 
 Wire into patch with `make_traced_stream(response, handler)`.
 

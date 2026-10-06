@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 from confluent_kafka import TopicPartition
 
@@ -22,7 +23,9 @@ disable_header_injection = False
 log = get_logger(__name__)
 
 
-def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
+def dsm_kafka_message_produce(
+    instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any], is_serializing: bool, span: Any
+) -> None:
     from . import data_streams_processor as processor
 
     topic = core.find_item("kafka_topic")
@@ -40,10 +43,11 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
-    if not disable_header_injection:
-        DsmPathwayCodec.encode(ctx, headers)
-        kwargs["headers"] = headers
+    if (p := processor()) is not None:
+        ctx = p.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
+        if not disable_header_injection:
+            DsmPathwayCodec.encode(ctx, headers)
+            kwargs["headers"] = headers
 
     on_delivery_kwarg = "on_delivery"
     on_delivery_arg = 5
@@ -60,9 +64,8 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         global disable_header_injection
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
-            processor().track_kafka_produce(
-                msg.topic(), msg.partition(), reported_offset, time.time(), cluster_id=cluster_id
-            )
+            if (p := processor()) is not None:
+                p.track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time(), cluster_id=cluster_id)
         elif err.code() == -1 and not disable_header_injection:
             disable_header_injection = True
             log.error(
@@ -100,7 +103,11 @@ def dsm_kafka_message_consume(instance, message, span):
     payload_size += _calculate_byte_size(message.key())
     payload_size += _calculate_byte_size(headers)
 
-    ctx = DsmPathwayCodec.decode(headers, processor())
+    p = processor()
+    if p is None:
+        return
+
+    ctx = DsmPathwayCodec.decode(headers, p)
 
     edge_tags = ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"]
     if cluster_id:
@@ -116,7 +123,7 @@ def dsm_kafka_message_consume(instance, message, span):
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
         # when it's read. We add one because the commit offset is the next message to read.
         reported_offset = (message.offset() + 1) if isinstance(message.offset(), INT_TYPES) else -1
-        processor().track_kafka_commit(
+        p.track_kafka_commit(
             instance._group_id,
             message.topic(),
             message.partition(),
@@ -140,9 +147,13 @@ def dsm_kafka_message_commit(instance, args, kwargs):
     else:
         offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
 
+    p = processor()
+    if p is None:
+        return
+
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1
-        processor().track_kafka_commit(
+        p.track_kafka_commit(
             instance._group_id,
             offset.topic,
             offset.partition,

@@ -56,6 +56,14 @@ This outputs JSON showing:
 - All venvs (Python versions + package combinations) available for each suite
 - Their hashes, Python versions, and package versions
 
+The JSON goes to stdout, but status lines (for example `📁 Checking explicitly provided files: ...`)
+go to stderr. When piping into a JSON parser, do not use `2>&1`, or the status line lands before
+the JSON and parsing fails with `Expecting value: line 1 column 1 (char 0)`. Use `2>/dev/null` instead:
+
+```bash
+scripts/run-tests --list <edited-files> 2>/dev/null | jq '.suites[].venvs[] | {hash, python_version}'
+```
+
 ### Step 3: Intelligently Select Venvs
 
 Rather than running ALL available venvs (which could take hours), I'll select the **minimal set** needed to validate your changes:
@@ -88,7 +96,7 @@ When you modify `tests/` files (but not test infrastructure):
 
 #### For Test Infrastructure Changes
 When you modify:
-- `tests/conftest.py`, `tests/suitespec.yml`, `riotfile.py`, `.riot/requirements/`, or `scripts/run-tests`
+- `tests/conftest.py`, suite or environment definitions, dependency locks, or `scripts/run-tests`
 
 **Strategy:** Run a quick smoke test suite
 - Example: `internal` suite with 1 venv as a sanity check
@@ -117,7 +125,7 @@ scripts/run-tests -s --venv <hash1> --venv <hash2>
 - After merging or rebasing from main (dependencies or native code may have changed)
 - C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
 - `setup.py`, `pyproject.toml`, or `setup.cfg` were modified
-- `riotfile.py` or `.riot/requirements/` files were modified
+- Test environment definitions or dependency locks were modified
 
 This will:
 - Start required Docker services (redis, postgres, etc.)

@@ -67,6 +67,22 @@ def test_retry_after_iter_exc():
     assert next(n) == 6
 
 
+def test_retry_raises_final_rejected_result_after_exception():
+    outcomes = iter([NotEnough(), "final result"])
+
+    @retry(after=[0], until=lambda result: result == "accepted")
+    def f():
+        outcome = next(outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    with pytest.raises(RetryError) as error:
+        f()
+
+    assert error.value.args[0] == "final result"
+
+
 def test_retry_sleep_func_receives_delays():
     """A custom sleep_func is used for the initial wait and every backoff."""
     waits = []
@@ -148,3 +164,16 @@ def test_retry_fibonacci_backoff_with_jitter():
     with pytest.raises(NotEnough) as e:
         f(10)
     assert e.value.args[0] == 4
+
+
+def test_retry_fibonacci_backoff_with_jitter_sleep_func():
+    waits = []
+
+    @fibonacci_backoff_with_jitter(2, initial_wait=0.0, sleep_func=waits.append)
+    def f():
+        raise NotEnough()
+
+    with pytest.raises(NotEnough):
+        f()
+
+    assert waits == [0, 0]

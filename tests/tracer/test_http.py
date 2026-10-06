@@ -16,7 +16,7 @@ def _url_fixtures():
             yield line.strip()
 
 
-class TestHeaderNameNormalization(object):
+class TestHeaderNameNormalization:
     def test_name_is_trimmed(self):
         assert normalize_header_name("   content-type   ") == "content-type"
 

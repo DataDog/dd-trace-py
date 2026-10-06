@@ -6,6 +6,28 @@ set -euo pipefail
 # It is used by CodeQL to build the Go language DB, and our own Go script that pushes results to GitHub.
 export PATH=$PATH:/usr/local/go/bin
 
+build_sarif_uploader() {
+    local attempt=1
+    local build_status
+    local max_attempts=3
+
+    while true; do
+        if go build -o codescanning_binary; then
+            return 0
+        else
+            build_status=$?
+        fi
+
+        if ((attempt >= max_attempts)); then
+            return "$build_status"
+        fi
+
+        echo "Uploader build failed; retrying ($((attempt + 1))/$max_attempts)..." >&2
+        sleep $((attempt * 5))
+        attempt=$((attempt + 1))
+    done
+}
+
 # Clone Code Scanning repository to download custom CodeQL packs from.
 git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
 git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
@@ -21,5 +43,7 @@ $CODEQL database analyze "$CODEQL_DB" "$PYTHON_CUSTOM_QLPACK" $SCAN_CONFIGS --sa
 set +x # Disable command echoing to prevent token leakage
 export GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/dd-trace-py --policy codeql)"
 set -x # Re-enable command echoing
-cd /tmp/codescanning && go build -o codescanning_binary && chmod +x codescanning_binary
+cd /tmp/codescanning
+build_sarif_uploader
+chmod +x codescanning_binary
 CODEQL_SARIF="/tmp/python.sarif" ./codescanning_binary -upload_sarif=true -scan_started_time="${CI_JOB_STARTED_AT}"

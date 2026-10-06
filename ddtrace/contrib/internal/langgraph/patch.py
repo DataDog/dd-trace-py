@@ -203,7 +203,7 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
                     yield item
                 except StopAsyncIteration:
                     break
-                # AIDEV-NOTE: do not widen to bare ``BaseException`` here - this wraps a ``yield``, so
+                # do not widen to bare ``BaseException`` here - this wraps a ``yield``, so
                 # ``GeneratorExit`` / ``CancelledError`` from normal stream teardown must not be caught
                 # (they'd be mis-reported as span errors). The ``finally`` below still closes the span.
                 except (DDBlockException, Exception) as e:
@@ -290,7 +290,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
                         span.set_exc_info(*sys.exc_info())
                     raise
         finally:
-            # AIDEV-NOTE: finish in ``finally`` so the span closes on every exit, including early
+            # finish in ``finally`` so the span closes on every exit, including early
             # abandonment - a consumer ``break`` tears the generator down via ``GeneratorExit``, which is
             # intentionally not caught above, so teardown is not flagged as an error. ``response`` stays
             # ``None`` unless the stream ran to completion, so abandonment reports no misleading output.
@@ -338,7 +338,7 @@ def traced_pregel_astream(func, instance, args, kwargs):
                         span.set_exc_info(*sys.exc_info())
                     raise
         finally:
-            # AIDEV-NOTE: finish in ``finally`` so the span closes on every exit, including early
+            # finish in ``finally`` so the span closes on every exit, including early
             # abandonment - a consumer ``break`` on ``__interrupt__`` (human-in-the-loop) tears the generator
             # down via ``GeneratorExit``, which is intentionally not caught above, so teardown is not
             # flagged as an error. ``response`` stays ``None`` unless the stream ran to completion.

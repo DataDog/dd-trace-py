@@ -25,9 +25,13 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     // This is obviously wrong, but it's a no-op if copy fails
     tstate.current_frame = reinterpret_cast<_PyInterpreterFrame*>(123456);
 #elif PY_VERSION_HEX >= 0x030b0000
-    _PyCFrame cframe;
-    cframe.current_frame = reinterpret_cast<_PyInterpreterFrame*>(123456);
-    tstate.cframe = &cframe;
+    // Keep the initial C frame readable so a copy failure does not prevent task fuzzing.
+    std::vector<uint8_t> memory_image(data, data + size);
+    memory_image.resize(size + sizeof(_PyCFrame));
+    _PyCFrame cframe{};
+    std::memcpy(memory_image.data() + size, &cframe, sizeof(cframe));
+    set_memory_image(memory_image.data(), memory_image.size());
+    tstate.cframe = reinterpret_cast<_PyCFrame*>(kRemoteBase + size);
 #else
     tstate.frame = reinterpret_cast<PyFrameObject*>(123456);
 #endif
@@ -49,9 +53,8 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     auto p_scheduled = reinterpret_cast<PyObject*>(addr_from_u64(load_u64_le(data, size, 2 * sizeof(uintptr_t))));
     echion_sampler.init_asyncio(p_scheduled, Py_None);
 
-    // Tries to unwind_python_stack (which does nothing because we
-    // have bogus data), then unwind_tasks (the one we test here)
-    thread.unwind(echion_sampler, &tstate, 0);
+    // An empty or unreadable Python frame chain still lets us exercise task discovery.
+    (void)thread.unwind(echion_sampler, &tstate, 0);
 
     g_data = nullptr;
     g_size = 0;

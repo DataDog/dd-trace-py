@@ -39,7 +39,7 @@ def _collect_endpoints(app):
         target = getattr(rule, "target", None)
 
         if path is not None and isinstance(target, type) and issubclass(target, tornado.web.RequestHandler):
-            resource_name = "{}.{}".format(target.__module__, target.__name__)
+            resource_name = f"{target.__module__}.{target.__name__}"
             for method_name in _HTTP_METHODS:
                 if _handler_has_method(target, method_name):
                     endpoint_collection.add_endpoint(

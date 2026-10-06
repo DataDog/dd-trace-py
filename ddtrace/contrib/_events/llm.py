@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from dataclasses import field
 from typing import TYPE_CHECKING
@@ -28,7 +30,7 @@ class LlmRequestEvent(TracingEvent):
 
     provider: str = event_field()
     model: Optional[str] = event_field(default=None)
-    llmobs_integration: "BaseLLMIntegration" = event_field()
+    llmobs_integration: BaseLLMIntegration = event_field()
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
     instance: Optional[Any] = event_field(default=None)

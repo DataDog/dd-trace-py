@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 import sys
-from typing import Iterable
 
 from pymemcache.client.base import Client
 from pymemcache.client.base import PooledClient
@@ -49,7 +49,7 @@ _HashClient = HashClient
 class _WrapperBase(wrapt.ObjectProxy):
     def __init__(self, wrapped_class, *args, **kwargs):
         c = wrapped_class(*args, **kwargs)
-        super(_WrapperBase, self).__init__(c)
+        super().__init__(c)
 
         # Keep per-client connection tags so spans can be enriched.
         self._datadog_tags = _get_address_tags(*args, **kwargs)
@@ -72,7 +72,7 @@ class WrappedClient(_WrapperBase):
     """
 
     def __init__(self, *args, **kwargs):
-        super(WrappedClient, self).__init__(_Client, *args, **kwargs)
+        super().__init__(_Client, *args, **kwargs)
 
     def set(self, *args, **kwargs):
         return self._traced_cmd("set", *args, **kwargs)
@@ -179,7 +179,7 @@ class WrappedHashClient(_WrapperBase):
             return getattr(self.__wrapped__, cmd)(key, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
-        super(WrappedHashClient, self).__init__(_HashClient, *args, **kwargs)
+        super().__init__(_HashClient, *args, **kwargs)
 
     def set(self, key, *args, **kwargs):
         return self._ensure_traced("set", key, False, *args, **kwargs)

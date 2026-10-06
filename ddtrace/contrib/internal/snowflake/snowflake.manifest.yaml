@@ -1,0 +1,12 @@
+_v: 1
+name: snowflake
+display_name: Snowflake
+description: Instruments Snowflake database query execution and transaction control operations through the Snowflake Connector
+  for Python.
+packages:
+- name: snowflake-connector-python
+category:
+- db.client
+systems:
+- snowflake
+creation_date: '2021-10-14'

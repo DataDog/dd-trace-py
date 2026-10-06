@@ -20,7 +20,7 @@ _SUBAPP_APP = "tests.appsec.contrib_appsec.flask_app.app_subapps"
 
 class DDFlaskTestClient(FlaskClient):
     def __init__(self, *args, **kwargs):
-        super(DDFlaskTestClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def open(self, *args, **kwargs):
         # From pep-333: If an iterable returned by the application has a close() method,
@@ -28,7 +28,7 @@ class DDFlaskTestClient(FlaskClient):
         # FlaskClient does not align with this specification so we must do this manually.
         # Closing the application iterable will finish the flask.request and flask.response
         # spans.
-        res = super(DDFlaskTestClient, self).open(*args, **kwargs)
+        res = super().open(*args, **kwargs)
         res.make_sequence()
         if hasattr(res, "close"):
             # Note - werkzeug>=2.0 (used in flask>=2.0) calls response.close() for non streamed responses:
@@ -41,7 +41,7 @@ class BaseFlaskTestCase(TracerTestCase):
     app_module = _FLAT_APP
 
     def setUp(self):
-        super(BaseFlaskTestCase, self).setUp()
+        super().setUp()
         # Reload so DM.__init__ re-fires under the currently-patched werkzeug.
         endpoint_collection.reset()
         module = importlib.reload(importlib.import_module(self.app_module))
@@ -51,7 +51,7 @@ class BaseFlaskTestCase(TracerTestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
-        super(BaseFlaskTestCase, self).tearDown()
+        super().tearDown()
 
 
 class _Test_Flask_Base:
@@ -172,7 +172,7 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         response = app.test_client().get("/rasp/sql_injection/?user_id_1=1%20OR%201%3D1")
         assert response.status_code == (403 if rasp_enabled else 200)
 
-    # Helper unit tests live on Test_Flask so the riot venv ``::Test_Flask`` selector picks them up.
+    # Helper unit tests live on Test_Flask so the suite's class selector picks them up.
 
     def test_collect_flask_routes_registers_every_method_served(self, _isolated_endpoints):
         """User methods plus Werkzeug-auto-HEAD and Flask-auto-OPTIONS are all part of the attack surface."""
@@ -382,7 +382,7 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
             assert span.resource == "GET /asm/<int:param_int>/<string:param_str>"
             assert get_tag(FLASK_RESOURCE_FULL) is None
 
-    def test_api10_redirect_urllib3(self, interface, api10_http_server_port, entry_span):
+    def test_api10_redirect_urllib3(self, interface, api10_server, test_spans, entry_span):
         # Direct urllib3 (PoolManager) redirect analysis. The downstream call follows a 3xx
         # redirect; the intermediate redirect response must still be inspected by the SSRF
         # response WAF. urllib3 bottoms out in http.client.HTTPConnection.getresponse, so the
@@ -391,7 +391,6 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
         INSPECTED_REDIRECT_RESP_STATUS = "apiA-100-007"
 
-        url = f"/redirect_urllib3/redirect-source/{api10_http_server_port}"
         with override_global_config(
             dict(
                 _asm_enabled=True,
@@ -402,11 +401,11 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
             )
         ):
             self.update_tracer(interface)
-            response = interface.client.get(url)
-            assert self.status(response) == 200, f"{self.status(response)} is not 200 {self.body(response)}"
-            redirect_response_payload = json.loads(self.body(response)).get("payload")
-            api_response_payload = json.loads(redirect_response_payload).get("payload")
-            assert api_response_payload == "api10-response-body", api_response_payload
+            result = self.api10_downstream_request(
+                interface, test_spans, api10_server, "/redirect_urllib3/redirect-source"
+            )
+            api_response_payload = json.loads(result["payload"]).get("payload")
+            assert api_response_payload == "api10-response-body", result
 
             self.check_rules_triggered(
                 sorted([INSPECTED_REDIRECT_RESP_HEADERS, INSPECTED_REDIRECT_RESP_STATUS]), entry_span

@@ -1,14 +1,6 @@
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import _get_iast_env
-from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._metrics import _metric_key_as_snake_case
-
-
-def _set_span_tag_iast_request_tainted(span):
-    total_objects_tainted = _num_objects_tainted_in_request()
-
-    if total_objects_tainted > 0:
-        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
 def _set_span_tag_iast_executed_sink(span):

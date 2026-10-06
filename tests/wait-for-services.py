@@ -286,5 +286,5 @@ if __name__ == "__main__":
             else:
                 check_functions[service]()
     else:
-        print("usage: python {} SERVICE_NAME".format(sys.argv[0]))
+        print(f"usage: python {sys.argv[0]} SERVICE_NAME")
         sys.exit(1)

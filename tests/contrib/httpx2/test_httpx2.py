@@ -19,9 +19,8 @@ DEFAULT_HEADERS = {
 }
 
 
-def get_url(path):
-    # type: (str) -> str
-    return "http://{}:{}{}".format(HOST, PORT, path)
+def get_url(path: str) -> str:
+    return f"http://{HOST}:{PORT}{path}"
 
 
 @pytest.fixture(autouse=True)

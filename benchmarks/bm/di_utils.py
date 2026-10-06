@@ -7,7 +7,7 @@ class BMDebugger(Debugger):
 
     @classmethod
     def enable(cls):
-        super(BMDebugger, cls).enable()
+        super().enable()
 
         cls.add_probes(*cls.pending_probes)
 

@@ -21,10 +21,10 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
     ENGINE_ARGS = {"url": "mysql+mysqlconnector://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s" % MYSQL_CONFIG}
 
     def setUp(self):
-        super(MysqlConnectorTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
-        super(MysqlConnectorTestCase, self).tearDown()
+        super().tearDown()
 
     def check_meta(self, span):
         # check database connection tags
@@ -44,7 +44,7 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
         span = traces[0][0]
         # span fields
         assert_is_measured(span)
-        self.assertEqual(span.name, "{}.query".format(self.VENDOR))
+        self.assertEqual(span.name, f"{self.VENDOR}.query")
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
@@ -65,10 +65,10 @@ class TestSchematization(SQLAlchemyTestBase, TracerTestCase):
     ENGINE_ARGS = {"url": "mysql+mysqlconnector://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s" % MYSQL_CONFIG}
 
     def setUp(self):
-        super(TestSchematization, self).setUp()
+        super().setUp()
 
     def tearDown(self):
-        super(TestSchematization, self).tearDown()
+        super().tearDown()
 
     def _generate_span(self):
         with pytest.raises(ProgrammingError):

@@ -2,8 +2,8 @@ import jinja2
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -37,10 +37,6 @@ def patch():
         # already patched
         return
     jinja2.__datadog_patch = True
-    Pin(
-        service=config.jinja2["service_name"],
-        _config=config.jinja2,
-    ).onto(jinja2.environment.Environment)
     _w(jinja2, "environment.Template.render", _wrap_render)
     _w(jinja2, "environment.Template.generate", _wrap_render)
     _w(jinja2, "environment.Environment.compile", _wrap_compile)
@@ -59,12 +55,11 @@ def unpatch():
 
 def _wrap_render(wrapped, instance, args, kwargs):
     """Wrap `Template.render()` or `Template.generate()`"""
-    pin = Pin.get_from(instance.environment)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     template_name = str(instance.name or DEFAULT_TEMPLATE_NAME)
-    with tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with tracer.trace("jinja2.render", config.jinja2.service_name, span_type=SpanTypes.TEMPLATE) as span:
         span._set_attribute(COMPONENT, config.jinja2.integration_name)
 
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
@@ -76,8 +71,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
 
 
 def _wrap_compile(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     try:
@@ -85,7 +79,7 @@ def _wrap_compile(wrapped, instance, args, kwargs):
     except ArgumentError:
         template_name = DEFAULT_TEMPLATE_NAME
 
-    with tracer.trace("jinja2.compile", pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with tracer.trace("jinja2.compile", config.jinja2.service_name, span_type=SpanTypes.TEMPLATE) as span:
         try:
             return wrapped(*args, **kwargs)
         finally:
@@ -96,12 +90,11 @@ def _wrap_compile(wrapped, instance, args, kwargs):
 
 
 def _wrap_load_template(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     template_name = get_argument_value(args, kwargs, 0, "name")
-    with tracer.trace("jinja2.load", pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with tracer.trace("jinja2.load", config.jinja2.service_name, span_type=SpanTypes.TEMPLATE) as span:
         template = None
         try:
             template = wrapped(*args, **kwargs)

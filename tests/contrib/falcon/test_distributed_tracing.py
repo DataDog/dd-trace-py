@@ -16,7 +16,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
     """
 
     def setUp(self):
-        super(DistributedTracingTestCase, self).setUp()
+        super().setUp()
         self._service = "falcon"
         self.api = get_app(tracer=self.tracer)
         if FALCON_VERSION >= (2, 0, 0):
