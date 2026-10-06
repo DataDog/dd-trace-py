@@ -7,7 +7,7 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace._trace.http_semantics import is_otel_server_error_status
+from ddtrace._trace.otel.http.tags import is_otel_server_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
