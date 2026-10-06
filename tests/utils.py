@@ -1276,9 +1276,9 @@ def snapshot_context(
     wait_for_num_traces=None,
     otel_semantics=False,
 ):
-    # With ``otel_semantics`` subprocesses started inside the context export OTLP traces with OTel
+    # With otel_semantics subprocesses started inside the context export OTLP traces with OTel
     # semantics enabled. The test agent cannot snapshot OTLP, so on exit the traces are fetched from
-    # its OTLP port and compared with ``tests/snapshots/<token>.json`` here instead (see
+    # its OTLP port and compared with tests/snapshots/<token>.json here instead (see
     # tests/otel_semantics_snapshot.py).
 
     # Use variant that applies to update test token. One must apply. If none
@@ -1297,6 +1297,8 @@ def snapshot_context(
     # tests in tests/llmobs and tests/contrib/<integration>/test_*_llmobs.py,
     # so we ignore them globally in snapshot comparisons.
     ignores.extend(_LLMOBS_SHADOW_IGNORES)
+    # Validate the OTLP token before installing session headers or starting an agent session.
+    otel_env = otel_semantics_env(token) if otel_semantics else {}
     tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
@@ -1348,7 +1350,7 @@ def snapshot_context(
         previous_env = {}
         if otel_semantics:
             # Subprocess test apps inherit this environment.
-            for key, value in otel_semantics_env(token).items():
+            for key, value in otel_env.items():
                 previous_env[key] = os.environ.get(key)
                 os.environ[key] = value
         try:
