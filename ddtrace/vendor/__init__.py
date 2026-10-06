@@ -82,6 +82,25 @@ License: MIT
 Notes:
   - The source were largely modified to keep only the parse function with default parameters.
 
+
+OpenTelemetry metrics
+---------------------
+
+Source: https://github.com/open-telemetry/opentelemetry-python
+Version: SDK/proto/exporters 1.45.0; semantic conventions/transports 0.66b0
+License: Apache License 2.0
+
+Source: https://github.com/vmagamedov/grpclib
+Version: 0.4.8
+License: BSD 3-Clause
+
+Notes:
+  - Only the OpenTelemetry metrics SDK, OTLP protobuf encoder, and HTTP exporter are included.
+  - Only the grpclib client is included. h2, hpack, hyperframe, and the pure-Python protobuf
+    runtime are private dependencies of this stack.
+  - OTLP/HTTP uses a small standard-library transport instead of vendoring requests or urllib3.
+  - grpclib's multidict dependency is replaced by the small subset needed for client metadata.
+
 """
 
 from ddtrace.internal.module import ModuleWatchdog

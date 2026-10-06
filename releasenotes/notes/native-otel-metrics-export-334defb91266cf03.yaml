@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    OpenTelemetry: Adds built-in OTLP metrics aggregation and export when
+    ``DD_METRICS_OTEL_ENABLED=true``, without requiring the OpenTelemetry Python SDK or exporter packages.
+    Both ``grpc`` and ``http/protobuf`` protocols are supported.

@@ -16,6 +16,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 log = get_logger(__name__)
 
 MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
+MINIMUM_VENDORED_VERSION = (1, 34, 0)
 API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")[:3])
 
 DD_METRICS_PROVIDER_CONFIGURED = False
@@ -78,7 +79,14 @@ def _should_configure_metrics_exporter() -> bool:
 def _build_resource() -> Optional[Any]:
     """Build an OpenTelemetry Resource using DD_TAGS and OTEL_RESOURCE_ATTRIBUTES."""
     try:
-        from opentelemetry.sdk.resources import Resource
+        if API_VERSION >= MINIMUM_VENDORED_VERSION:
+            from ddtrace.vendor.otel.sdk.resources import Resource as VendoredResource
+
+            resource_class = VendoredResource
+        else:
+            from opentelemetry.sdk.resources import Resource as UpstreamResource
+
+            resource_class = UpstreamResource
 
         resource_attributes = {
             **config.tags,
@@ -90,14 +98,17 @@ def _build_resource() -> Optional[Any]:
         if config._report_hostname and "host.name" not in resource_attributes:
             resource_attributes["host.name"] = get_hostname()
 
-        resource_attributes = {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}
+        resource_attributes = {key: value for key, value in resource_attributes.items() if value is not None}
 
-        return Resource.create(resource_attributes)
-    except ImportError:
-        log.warning(
-            "OpenTelemetry SDK is not installed, opentelemetry metrics will not be enabled. "
-            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Metrics support."
-        )
+        return resource_class.create(resource_attributes)
+    except ImportError as e:
+        if API_VERSION >= MINIMUM_VENDORED_VERSION:
+            log.warning("The bundled OpenTelemetry metrics SDK could not be loaded: %s", str(e))
+        else:
+            log.warning(
+                "OpenTelemetry SDK is not installed, opentelemetry metrics will not be enabled. "
+                "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Metrics support."
+            )
         return None
 
 
@@ -141,40 +152,59 @@ def _dd_metrics_exporter(otel_exporter: type[Any], protocol: str, encoding: str)
 def _import_exporter(protocol):
     """Import the appropriate OpenTelemetry Metrics exporter based on the set protocol"""
     try:
-        if protocol == "grpc":
-            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-            from opentelemetry.exporter.otlp.proto.grpc.version import __version__ as exporter_version
-        elif protocol == "http/protobuf":
-            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-            from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
-        else:
-            log.warning(
-                "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
-                protocol,
-            )
-            return None
+        exporter_class: type[Any]
+        if API_VERSION >= MINIMUM_VENDORED_VERSION:
+            if protocol == "grpc":
+                from ddtrace.internal.opentelemetry.grpclib_metric_exporter import (
+                    OTLPMetricExporter as VendoredGrpcExporter,
+                )
 
-        if tuple(int(x) for x in exporter_version.split(".")[:3]) < MINIMUM_SUPPORTED_VERSION:
-            log.warning(
-                "OpenTelemetry Metrics exporter for %s requires version %r or higher, but found version %r. "
-                "Please upgrade the appropriate opentelemetry-exporter package.",
-                protocol,
-                MINIMUM_SUPPORTED_VERSION,
-                exporter_version,
-            )
-            return None
+                exporter_class = VendoredGrpcExporter
+            elif protocol == "http/protobuf":
+                from ddtrace.vendor.otel.exporter.otlp.proto.http.metric_exporter import (
+                    OTLPMetricExporter as VendoredHttpExporter,
+                )
+
+                exporter_class = VendoredHttpExporter
+            else:
+                log.warning(
+                    "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
+                    protocol,
+                )
+                return None
+        else:
+            if protocol == "grpc":
+                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+                    OTLPMetricExporter as UpstreamGrpcExporter,
+                )
+
+                exporter_class = UpstreamGrpcExporter
+            elif protocol == "http/protobuf":
+                from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+                    OTLPMetricExporter as UpstreamHttpExporter,
+                )
+
+                exporter_class = UpstreamHttpExporter
+            else:
+                log.warning(
+                    "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
+                    protocol,
+                )
+                return None
 
         protocol_name = "grpc" if protocol == "grpc" else "http"
-        return _dd_metrics_exporter(OTLPMetricExporter, protocol_name, "protobuf")
+        return _dd_metrics_exporter(exporter_class, protocol_name, "protobuf")
 
     except ImportError as e:
-        log.warning(
-            "OpenTelemetry Metrics exporter for %s is not available. "
-            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
-            protocol,
-            "grpc" if protocol == "grpc" else "http",
-            str(e),
-        )
+        if API_VERSION >= MINIMUM_VENDORED_VERSION:
+            log.warning("The bundled OpenTelemetry Metrics exporter for %s is not available: %s", protocol, str(e))
+        else:
+            log.warning(
+                "OpenTelemetry Metrics exporter for %s is not available. "
+                "Please install a supported opentelemetry-exporter package: %s",
+                protocol,
+                str(e),
+            )
         return None
 
 
@@ -208,8 +238,6 @@ def _prepare_agentless_export(endpoint_env_var: str, headers_env_var: str, proto
 def _initialize_metrics(exporter_class, protocol, resource):
     """Configures and sets up the OpenTelemetry Metrics exporter."""
     try:
-        from opentelemetry.sdk._configuration import _init_metrics
-
         # Ensure metrics exporter is configured to send payloads to a Datadog Agent.
         _prepare_agentless_export(
             "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", protocol, "metrics"
@@ -219,7 +247,23 @@ def _initialize_metrics(exporter_class, protocol, resource):
         env["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
         env["OTEL_METRIC_EXPORT_INTERVAL"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL)
         env["OTEL_METRIC_EXPORT_TIMEOUT"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT)
-        _init_metrics({protocol: exporter_class}, resource=resource)
+        if API_VERSION >= MINIMUM_VENDORED_VERSION:
+            from opentelemetry.metrics import set_meter_provider
+
+            from ddtrace.vendor.otel.sdk.metrics import MeterProvider
+            from ddtrace.vendor.otel.sdk.metrics.export import PeriodicExportingMetricReader
+
+            exporter = exporter_class()
+            reader = PeriodicExportingMetricReader(
+                exporter,
+                export_interval_millis=otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL,
+                export_timeout_millis=otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT,
+            )
+            set_meter_provider(MeterProvider(metric_readers=(reader,), resource=resource))
+        else:
+            from opentelemetry.sdk._configuration import _init_metrics
+
+            _init_metrics({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:
         log.warning(

@@ -1954,6 +1954,7 @@ setup(
             ["libdd_wrapper*.*"]
             + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
         ),
+        "ddtrace.vendor": ["licenses/otel_metrics/*/*"],
     },
     zip_safe=False,
     cmdclass={
