@@ -2072,6 +2072,24 @@ def test_annotated_agent_version_reaches_spans_started_after_it(llmobs):
     assert get_llmobs_tags(after_span)["agent_version"] == "v3"
 
 
+def test_annotated_agent_version_reaches_spans_under_running_children(llmobs):
+    with llmobs.agent(name="test_agent") as agent_span:
+        with llmobs.workflow(name="step"):
+            llmobs.annotate(span=agent_span, agent={"version": "v3"})
+            with llmobs.tool(name="test_tool") as tool_span:
+                pass
+    assert get_llmobs_tags(tool_span)["agent_version"] == "v3"
+
+
+def test_updated_agent_version_reaches_spans_under_running_children(llmobs):
+    with llmobs.agent(name="test_agent", version="v1") as agent_span:
+        with llmobs.workflow(name="step"):
+            llmobs.annotate(span=agent_span, agent={"version": "v2"})
+            with llmobs.tool(name="test_tool") as tool_span:
+                pass
+    assert get_llmobs_tags(tool_span)["agent_version"] == "v2"
+
+
 def test_inherited_agent_version_wins_over_explicit_tag(llmobs):
     with llmobs.agent(name="test_agent", version="v3"):
         with llmobs.tool(name="test_tool") as tool_span:

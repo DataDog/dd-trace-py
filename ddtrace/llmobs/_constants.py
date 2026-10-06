@@ -159,6 +159,9 @@ AGENT_ANNOTATION = "_ml_obs.agent_annotation"
 # Holds the version of the nearest agent ancestor, resolved at activation. Also carried on the
 # in-process context handed to asyncio tasks and threads. It is never propagated across services.
 PARENT_AGENT_VERSION = "_ml_obs.parent_agent_version"
+# Holds the nearest agent ancestor span, so a version annotated on it later still reaches spans
+# started under its already running children.
+PARENT_AGENT_SPAN = "_ml_obs.parent_agent_span"
 # Holds the manifest the annotations declared, for the same reason. Each annotation is validated
 # and shallow-merged into it as it runs.
 AGENT_DECLARATION_ANNOTATION = "_ml_obs.agent_declaration_annotation"

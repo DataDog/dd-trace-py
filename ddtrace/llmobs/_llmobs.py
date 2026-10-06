@@ -81,6 +81,7 @@ from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import PARENT_AGENT_SPAN
 from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -2512,7 +2513,7 @@ class LLMObs(Service):
             # Carry the nearest agent onto the context so spans created in in-process task
             # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
             # Stamped last so the budget check sees the full tagset.
-            parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(active)
+            parent_agent_name, parent_agent_span_id, parent_agent_version, _ = _resolve_parent_agent(active)
             _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
             if parent_agent_version:
                 context._meta[PARENT_AGENT_VERSION] = parent_agent_version
@@ -2540,7 +2541,9 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         # Resolve the nearest agent ancestor once, at activation: O(1) one-level lookup
         # (the parent already resolved its own attribution when it activated).
-        parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(llmobs_parent)
+        parent_agent_name, parent_agent_span_id, parent_agent_version, parent_agent = _resolve_parent_agent(
+            llmobs_parent
+        )
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
@@ -2633,6 +2636,8 @@ class LLMObs(Service):
         )
         if parent_agent_version:
             span._set_ctx_item(PARENT_AGENT_VERSION, parent_agent_version)
+        if parent_agent is not None:
+            span._set_ctx_item(PARENT_AGENT_SPAN, parent_agent)
         # Shared by reference across the trace; absent on spans whose decision came from upstream.
         span._set_ctx_item(LLMOBS_SAMPLING, sampling_state)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
@@ -3599,7 +3604,7 @@ class LLMObs(Service):
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
         # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
         # rather than overflowing x-datadog-tags.
-        parent_agent_name, parent_agent_span_id, _ = _resolve_parent_agent(active_span)
+        parent_agent_name, parent_agent_span_id, _, _ = _resolve_parent_agent(active_span)
         _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
 
     @classmethod
