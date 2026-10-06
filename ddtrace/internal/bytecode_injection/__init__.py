@@ -1,8 +1,8 @@
 from collections import deque
 from types import CodeType
 from types import FunctionType
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
+from typing import Any
+from typing import Callable
 
 from bytecode import Bytecode
 from bytecode import Instr

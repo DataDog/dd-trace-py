@@ -11,6 +11,7 @@ import threading
 from tracemalloc import Statistic
 from types import CodeType
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import Union
 from typing import cast
@@ -72,6 +73,23 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
     ddup.start()
 
     return output_filename
+
+
+def _assert_valid_memory_samples(
+    profile: "pprof_pb2.Profile", heap_space_idx: int, alloc_space_idx: int, alloc_count_idx: int
+) -> None:
+    # NOTE: The exported pprof profile can include non-memory samples, whose memory
+    # values are all zero. Check non-negativity without requiring a positive memory value.
+    for sample in profile.sample:
+        assert sample.value[heap_space_idx] >= 0, (
+            f"heap-space should be non-negative, got {sample.value[heap_space_idx]}"
+        )
+        assert sample.value[alloc_space_idx] >= 0, (
+            f"alloc-space should be non-negative, got {sample.value[alloc_space_idx]}"
+        )
+        assert sample.value[alloc_count_idx] >= 0, (
+            f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+        )
 
 
 # This test is marked as subprocess as it changes default heap sample size
@@ -574,14 +592,7 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
 
         assert len(live_samples) > 0, "Should have some live samples"
 
-        # Validate all samples have valid values
-        for sample in profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+        _assert_valid_memory_samples(profile, heap_space_idx, alloc_space_idx, alloc_count_idx)
 
         one_freed_samples = [sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)]
 
@@ -653,15 +664,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        # Validate all samples have valid values
-        for sample in final_profile.sample:
-            # Check that at least one value type is non-zero
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+        _assert_valid_memory_samples(final_profile, heap_space_idx, alloc_space_idx, alloc_count_idx)
 
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
@@ -753,14 +756,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             f"Got final={len(final_heap_samples)}, after_first={len(after_first_heap_samples)}"
         )
 
-        # Validate all samples in final profile have valid values
-        for sample in final_profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+        _assert_valid_memory_samples(final_profile, heap_space_idx, alloc_space_idx, alloc_count_idx)
 
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
@@ -962,7 +958,7 @@ def test_memory_collector_allocation_during_shutdown() -> None:
     shutdown_event = threading.Event()
     allocation_thread = None
 
-    def allocate_continuously():
+    def allocate_continuously() -> None:
         while not shutdown_event.is_set():
             data = [0] * 100
             del data
@@ -1031,44 +1027,45 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
 
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        # Get sample type indices
-        alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
-        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+    # Stop collection before analysing the profile so assertion allocations are not profiled.
+    # Get sample type indices
+    alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
+    assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        deep_alloc_total_count = 0
-        max_stack_depth = 0
-        sampled_thread_ids: set[int] = set()
+    deep_alloc_total_count = 0
+    max_stack_depth = 0
+    sampled_thread_ids: set[int] = set()
 
-        for sample in profile.sample:
-            # Buffer pool test: All samples should have stack frames
-            assert len(sample.location_id) > 0, "Buffer pool test: All samples should have stack frames"
-            stack_depth = len(sample.location_id)
-            max_stack_depth = max(max_stack_depth, stack_depth)
+    for sample in profile.sample:
+        # Buffer pool test: All samples should have stack frames
+        assert len(sample.location_id) > 0, "Buffer pool test: All samples should have stack frames"
+        stack_depth = len(sample.location_id)
+        max_stack_depth = max(max_stack_depth, stack_depth)
 
-            if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
-                # Samples with identical stack traces are merged in pprof profiles,
-                # so we need to sum the alloc-samples count value
-                deep_alloc_total_count += sample.value[alloc_count_idx]
-                # Track which threads got sampled
-                thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
-                if thread_id_label is not None:
-                    sampled_thread_ids.add(thread_id_label.num)
+        if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
+            # Samples with identical stack traces are merged in pprof profiles,
+            # so we need to sum the alloc-samples count value
+            deep_alloc_total_count += sample.value[alloc_count_idx]
+            # Track which threads got sampled
+            thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+            if thread_id_label is not None:
+                sampled_thread_ids.add(thread_id_label.num)
 
-        assert deep_alloc_total_count >= 10, (
-            f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
-        )
+    assert deep_alloc_total_count >= 10, (
+        f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+    )
 
-        # Verify we got samples from all threads
-        assert sampled_thread_ids == thread_ids, (
-            f"Buffer pool test: Expected samples from all {num_threads} threads, "
-            f"but only got samples from {len(sampled_thread_ids)} threads. "
-            f"Missing: {thread_ids - sampled_thread_ids}"
-        )
+    # Verify we got samples from all threads
+    assert sampled_thread_ids == thread_ids, (
+        f"Buffer pool test: Expected samples from all {num_threads} threads, "
+        f"but only got samples from {len(sampled_thread_ids)} threads. "
+        f"Missing: {thread_ids - sampled_thread_ids}"
+    )
 
-        assert max_stack_depth >= 50, (
-            f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
-            f"but max depth was only {max_stack_depth}"
-        )
+    assert max_stack_depth >= 50, (
+        f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
+        f"but max depth was only {max_stack_depth}"
+    )
 
 
 def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
@@ -1082,7 +1079,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
     with mc:
         threads: list[threading.Thread] = []
 
-        def worker():
+        def worker() -> None:
             for i in range(10):
                 # On Python 3.14+, increase the allocation size to more reliably
                 # trigger sampling. The CPython internal could have optimized
@@ -1108,14 +1105,13 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        worker_samples = 0
-        for sample in profile.sample:
-            if has_function_in_profile_sample(profile, sample, worker):
-                worker_samples += 1
+    # Stop collection before analysing the profile so assertion allocations are not profiled.
+    worker_samples = 0
+    for sample in profile.sample:
+        if has_function_in_profile_sample(profile, sample, worker):
+            worker_samples += 1
 
-        assert worker_samples > 0, (
-            "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
-        )
+    assert worker_samples > 0, "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
 
 
 def test_start_twice() -> None:
@@ -1177,7 +1173,7 @@ def test_heap_stress() -> None:
 
 
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
-def test_memalloc_speed(benchmark, heap_sample_size) -> None:
+def test_memalloc_speed(benchmark: Any, heap_sample_size: int) -> None:
     if heap_sample_size:
         with memalloc.MemoryCollector(heap_sample_size=heap_sample_size):
             benchmark(_allocate_1k)
@@ -1251,7 +1247,7 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
     )
 
     # Create a very deep call stack to trigger frame dropping
-    def make_deep_stack(depth: int):
+    def make_deep_stack(depth: int) -> list[object]:
         """Recursively creates a call stack of given depth."""
         if depth == 0:
             # Allocate at the leaf to create a sample
@@ -1808,3 +1804,89 @@ def test_allocator_domain_label_on_live_heap_samples(tmp_path: Path) -> None:
     )
 
     del obj
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_memalloc_does_not_accumulate_after_stop",
+        DD_PROFILING_HEAP_SAMPLE_SIZE="64",
+        # Long enough that the scheduler never flushes on its own, so each upload below
+        # comes from a Profiler.stop() and nothing else.
+        DD_PROFILING_UPLOAD_INTERVAL="600",
+    ),
+    err=None,
+)
+def test_memalloc_does_not_accumulate_after_stop() -> None:
+    """Stopping a Profiler must leave memalloc nothing to record into."""
+    import json
+    import os
+
+    import pytest
+
+    from ddtrace.profiling.collector import _memalloc
+    from ddtrace.profiling.profiler import Profiler
+    from tests.profiling.collector import pprof_utils
+
+    # The three allocation phases of the test.
+    def _allocate_while_running() -> list[object]:
+        return [object() for _ in range(2000)]
+
+    def _allocate_while_stopped() -> list[object]:
+        return [object() for _ in range(2000)]
+
+    def _allocate_after_restart() -> list[object]:
+        return [object() for _ in range(2000)]
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = Profiler()
+    p.start()
+    held_while_running = _allocate_while_running()
+    p.stop()
+
+    # Sanity check: the heap tracker really was accumulating these allocations, so their
+    # absence from the second upload means something.
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert pprof_utils.get_samples_with_function(profile, heap_samples, "_allocate_while_running"), (
+        "No live heap sample was attributed to _allocate_while_running, so this test cannot "
+        "tell a torn-down heap tracker apart from one that never sampled"
+    )
+
+    metadata_files = pprof_utils.get_internal_metadata_files(output_filename)
+    assert metadata_files, "Expected an internal_metadata.json file next to the profile"
+    with open(metadata_files[-1]) as fp:
+        assert json.load(fp)["heap_tracker_count"] > 0
+
+    # Stop uninstalls the allocation hooks, destroys the heap tracker and clears the enabled
+    # flag in one go, and heap() is the flag's only Python-visible probe. Its refusal to run
+    # means a leaked hook would have had no tracker to write into.
+    with pytest.raises(RuntimeError, match="the memalloc module was not started"):
+        _memalloc.heap()
+
+    held_while_stopped = _allocate_while_stopped()
+
+    # A fresh profiler re-initializes memalloc from scratch, and its stop flushes the alloc
+    # samples and exports the live heap. That upload is where anything recorded during the
+    # stopped window, or carried over from the first tracker, would surface.
+    p2 = Profiler()
+    p2.start()
+    held_after_restart = _allocate_after_restart()
+    p2.stop()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    for phase, held in (
+        ("_allocate_while_stopped", held_while_stopped),
+        ("_allocate_while_running", held_while_running),
+    ):
+        leaked = pprof_utils.get_samples_with_function(profile, profile.sample, phase)
+        assert not leaked, (
+            f"{len(leaked)} sample(s) attributed to {phase} reached the next upload, so memalloc "
+            f"kept recording across the stop ({len(held)} objects still held)"
+        )
+
+    assert pprof_utils.get_samples_with_function(profile, profile.sample, "_allocate_after_restart"), (
+        f"The restarted profiler recorded none of its own {len(held_after_restart)} allocations, "
+        "so the two absences checked above prove nothing"
+    )

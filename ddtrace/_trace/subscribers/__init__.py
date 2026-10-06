@@ -3,4 +3,5 @@ import ddtrace._trace.subscribers.http_client  # noqa: F401
 import ddtrace._trace.subscribers.kafka  # noqa: F401
 import ddtrace._trace.subscribers.llm  # noqa: F401
 import ddtrace._trace.subscribers.messaging  # noqa: F401
+import ddtrace._trace.subscribers.molten  # noqa: F401
 import ddtrace._trace.subscribers.web_framework  # noqa: F401

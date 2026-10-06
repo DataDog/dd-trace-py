@@ -1435,7 +1435,7 @@
                 "tested": [
                     "0.64.0",
                     "0.90.1",
-                    "0.139.0"
+                    "0.141.1"
                 ]
             },
             {
@@ -1449,7 +1449,7 @@
                 "supportedRange": ">=0.64.0",
                 "tested": [
                     "0.86.0",
-                    "0.139.0"
+                    "0.141.1"
                 ]
             },
             {
@@ -1460,7 +1460,7 @@
                 },
                 "supportedRange": ">=0.64.0",
                 "tested": [
-                    "0.139.0"
+                    "0.141.1"
                 ]
             }
         ]
@@ -2598,6 +2598,51 @@
         ]
     },
     {
+        "dependencyName": "mysql-connector-python",
+        "integrationName": "mysql",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=8.0.5",
+                "tested": [
+                    "8.0.33",
+                    "9.4.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10",
+                        "3.11"
+                    ]
+                },
+                "supportedRange": ">=8.0.5",
+                "tested": [
+                    "8.0.33",
+                    "26.7.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=8.0.5",
+                "tested": [
+                    "26.7.0"
+                ]
+            }
+        ]
+    },
+    {
         "dependencyName": "mysqlclient",
         "integrationName": "mysqldb",
         "autoInstrumented": true,
@@ -2665,7 +2710,7 @@
                     "1.66.0",
                     "1.76.2",
                     "1.109.1",
-                    "3.3.1"
+                    "3.16.2"
                 ]
             },
             {
@@ -2680,7 +2725,7 @@
                     "1.66.0",
                     "1.76.2",
                     "1.109.1",
-                    "3.3.1"
+                    "3.16.2"
                 ]
             }
         ]

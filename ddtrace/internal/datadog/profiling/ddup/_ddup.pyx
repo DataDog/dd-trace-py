@@ -444,7 +444,7 @@ def set_profiler_settings_json(settings_json: StringType) -> None:
     call_func_with_str(ddup_set_profiler_settings_json, settings_json)
 
 
-def _get_endpoint(tracer)-> str:
+def _get_endpoint(tracer: Tracer) -> str:
     # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
     # leads to a circular import, so re-implementing it here.
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
@@ -486,14 +486,14 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
 cdef class SampleHandle:
     cdef Sample *ptr
 
-    def __cinit__(self):
+    def __cinit__(self) -> None:
         self.ptr = NULL
         ddup_start()
         if not ddup_is_initialized():
             return
         self.ptr = SampleManager.start_sample()
 
-    def __dealloc__(self):
+    def __dealloc__(self) -> None:
         if self.ptr is not NULL:
             SampleManager.drop_sample(self.ptr)
             self.ptr = NULL  # defensively, in case of post-dealloc access in native
