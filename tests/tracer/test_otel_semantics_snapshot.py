@@ -334,3 +334,92 @@ def test_otel_semantics_env_enables_semantics_and_sends_the_session_token_unchan
 def test_otel_semantics_env_rejects_a_token_with_a_comma():
     with pytest.raises(ValueError, match="comma"):
         otel_semantics_env("tests.test_x[a, b]")
+
+
+@pytest.mark.parametrize("ci_value", ["0", "false", ""])
+def test_missing_snapshot_is_generated_for_false_ci_values(tmp_path, monkeypatch, ci_value):
+    monkeypatch.setenv("CI", ci_value)
+    snapshot_file = tmp_path / "token.json"
+
+    assert_matches_snapshot({"resource_spans": []}, snapshot_file)
+
+    assert json.loads(snapshot_file.read_text()) == {"resource_spans": []}
+
+
+def test_normalize_merges_equivalent_resource_and_scope_groups_across_batches():
+    first = _span("first", "trace", "first", 1, 3)
+    second = _span("second", "trace", "second", 2, 3, parent_span_id="first")
+    combined = [_request([first, second], [_attribute("service.name", "svc")])]
+    split = [
+        _request([second], [_attribute("process.pid", "20"), _attribute("service.name", "svc")], "2.0"),
+        _request([first], [_attribute("service.name", "svc"), _attribute("process.pid", "10")], "1.0"),
+    ]
+
+    assert normalize_otlp_requests(combined) == normalize_otlp_requests(split)
+
+
+def test_normalize_preserves_distinct_resource_and_scope_metadata():
+    first = _request([_span("first", "a", "a", 1, 2)])
+    second = copy.deepcopy(first)
+    second["resource_spans"][0]["scope_spans"][0]["spans"] = [_span("first", "b", "b", 1, 2)]
+    second["resource_spans"][0]["schema_url"] = "different-resource-schema"
+    third = copy.deepcopy(first)
+    third["resource_spans"][0]["scope_spans"][0]["spans"] = [_span("first", "c", "c", 1, 2)]
+    third["resource_spans"][0]["scope_spans"][0]["schema_url"] = "different-scope-schema"
+
+    normalized = normalize_otlp_requests([first, second, third])
+
+    assert len(normalized["resource_spans"]) == 2
+    assert sorted(len(rs["scope_spans"]) for rs in normalized["resource_spans"]) == [1, 2]
+    assert normalized == normalize_otlp_requests([third, second, first])
+
+
+def test_normalize_sorts_scopes_regardless_of_delivery_order():
+    first = _request([_span("same", "a", "a", 1, 2)])
+    second = _request([_span("same", "b", "b", 1, 2)])
+    second["resource_spans"][0]["scope_spans"][0]["scope"]["name"] = "other-library"
+    combined = copy.deepcopy(first)
+    combined["resource_spans"][0]["scope_spans"].extend(second["resource_spans"][0]["scope_spans"])
+    reversed_scopes = copy.deepcopy(combined)
+    reversed_scopes["resource_spans"][0]["scope_spans"].reverse()
+
+    assert normalize_otlp_requests([combined]) == normalize_otlp_requests([reversed_scopes])
+    assert normalize_otlp_requests([combined]) == normalize_otlp_requests([second, first])
+
+
+def test_normalize_keeps_reused_span_ids_scoped_to_their_trace():
+    spans = [
+        _span("root-a", "trace-a", "a", 1, 3),
+        _span("child-a", "trace-a", "b", 2, 3, parent_span_id="a"),
+        _span("root-b", "trace-b", "b", 1, 3),
+        _span("child-b", "trace-b", "a", 2, 3, parent_span_id="b"),
+    ]
+    spans[1]["links"] = [{"trace_id": "trace-b", "span_id": "a"}]
+
+    normalized = normalize_otlp_requests([_request(spans)])
+
+    by_name = {span["name"]: span for span in normalized["resource_spans"][0]["scope_spans"][0]["spans"]}
+    assert len({span["span_id"] for span in by_name.values()}) == 4
+    for suffix in ("a", "b"):
+        assert by_name[f"child-{suffix}"]["parent_span_id"] == by_name[f"root-{suffix}"]["span_id"]
+        assert by_name[f"child-{suffix}"]["trace_id"] == by_name[f"root-{suffix}"]["trace_id"]
+    assert by_name["child-a"]["links"] == [
+        {"trace_id": by_name["child-b"]["trace_id"], "span_id": by_name["child-b"]["span_id"]}
+    ]
+    assert normalized == normalize_otlp_requests([_request(list(reversed(spans)))])
+
+
+@pytest.mark.parametrize("link_from_child", [False, True])
+def test_normalize_uses_link_relationships_to_order_identical_siblings(link_from_child):
+    def payload(root_id, linked_id, other_id, source_id, reverse):
+        root = _span("root", "trace", root_id, 1, 4)
+        linked = _span("same", "trace", linked_id, 2, 3, parent_span_id=root_id)
+        other = _span("same", "trace", other_id, 2, 3, parent_span_id=root_id)
+        source = _span("source", "trace", source_id, 2, 3, parent_span_id=linked_id if link_from_child else root_id)
+        source["links"] = [{"trace_id": "trace", "span_id": linked_id}]
+        spans = [root, linked, other, source]
+        return [_request(list(reversed(spans)) if reverse else spans)]
+
+    assert normalize_otlp_requests(payload("root", "a", "b", "source", False)) == normalize_otlp_requests(
+        payload("different-root", "z", "y", "different-source", True)
+    )
