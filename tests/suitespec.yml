@@ -402,7 +402,7 @@ suites:
         - name: openfeature
           dependencies: [pytest-randomly, 'openfeature-sdk~=0.8.0']
         - name: openfeature
-          dependencies: [pytest-randomly, 'openfeature-sdk<0.10']
+          dependencies: [pytest-randomly, 'openfeature-sdk>=0.8.0,<0.10']
   telemetry:
     env:
       # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
