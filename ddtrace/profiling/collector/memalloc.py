@@ -23,6 +23,7 @@ except ImportError:
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
+from ddtrace.profiling.collector import threading as collector_threading
 
 
 LOG = logging.getLogger(__name__)
@@ -51,6 +52,8 @@ class MemoryCollector:
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
+
+        collector_threading.init_thread_names()
 
         try:
             _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
