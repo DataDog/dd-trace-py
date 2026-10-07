@@ -1,7 +1,7 @@
 import typing as t
 
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._agent import _otlp_traces_export_enabled
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
@@ -152,7 +152,7 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
-    return _otlp_traces_export_enabled()
+    return agent_config.trace_otlp_export_enabled
 
 
 def _is_otlp_trace_metrics_enabled(
