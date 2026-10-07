@@ -38,7 +38,7 @@ os tests ubuntu:
 os tests macos:
   extends: .multi_os_test_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
-  tags: ["macos:tart"]
+  tags: ["macos:tart-sequoia-test"]
   needs: [ "build macos arm64" ]
   variables:
     WHEEL_PATTERN: "macosx*arm64.whl"

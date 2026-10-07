@@ -193,7 +193,7 @@ variables:
 "build macos arm64":
   extends: .build_macos_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
-  tags: [ "macos:tart" ]
+  tags: [ "macos:tart-sequoia-test" ]
   variables:
     ARCH_TAG: "arm64"
     # Use bash instead of the Tart VM's default zsh
