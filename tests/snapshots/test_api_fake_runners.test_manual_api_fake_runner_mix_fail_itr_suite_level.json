@@ -617,7 +617,7 @@
           "meta": {
             "_dd.base_service": "test_manual_api_fake_runner_mix_fail_itr_suite_level0",
             "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
-            "_dd.ci.itr.tests_skipped": "false",
+            "_dd.ci.itr.tests_skipped": "true",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
             "_dd.p.tid": "68f7664400000000",
@@ -671,7 +671,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 0
+            "test.itr.tests_skipping.count": 1
           },
           "duration": 12332083,
           "start": 1761044036614440173
@@ -759,7 +759,7 @@
           "meta": {
             "_dd.base_service": "test_manual_api_fake_runner_mix_fail_itr_suite_level0",
             "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
-            "_dd.ci.itr.tests_skipped": "false",
+            "_dd.ci.itr.tests_skipped": "true",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
             "_dd.p.tid": "68f7664400000000",
@@ -813,7 +813,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 0
+            "test.itr.tests_skipping.count": 1
           },
           "duration": 670709,
           "start": 1761044036626916339
@@ -1186,7 +1186,7 @@
           "meta": {
             "_dd.base_service": "test_manual_api_fake_runner_mix_fail_itr_suite_level0",
             "_dd.ci.env_vars": "{\"CI_PROJECT_URL\":\"https://test.test.io/Test/test-test/test-test\",\"CI_PIPELINE_ID\":\"43949931\",\"CI_JOB_ID\":\"633358062\"}",
-            "_dd.ci.itr.tests_skipped": "false",
+            "_dd.ci.itr.tests_skipped": "true",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
             "_dd.p.tid": "68f7664400000000",
@@ -1240,7 +1240,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 0
+            "test.itr.tests_skipping.count": 1
           },
           "duration": 253625,
           "start": 1761044036628930048

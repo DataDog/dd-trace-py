@@ -44,12 +44,16 @@ This applies to both pytest implementations and all xdist scheduling modes:
 workers cannot reliably determine the complete suite's results. Existing xdist
 test skipping, session totals, and suite event timing are preserved.
 
-Test mode counts the suite's Test Impact Analysis skipped test executions; suite
-mode counts a skipped suite once. Framework skips, disabled tests, and forced runs
-do not contribute. A collected suite is marked as skipped by Test Impact Analysis
-only after every selected child has finished with a Test Impact Analysis skip
-and a final skip outcome. Pytest waits for all selected tests even when a suite's
-items are interleaved with other suites. After early termination, started suites
-and modules are finalized without treating incomplete suites as fully skipped by
-Test Impact Analysis. Counters belong to individual suites and propagate to
-ancestors using the existing session counting rules.
+These fields identify suites whose duration is affected by Test Impact Analysis,
+so the backend can exclude their duration from comparisons. Any TIA-skipped child
+makes the flag `"true"`, even if other children run, fail, are framework-skipped,
+or remain unexecuted after early termination. This does not change the suite's
+overall status or mean the entire suite was skipped by TIA.
+
+Test mode counts TIA-skipped test executions within the suite; suite mode counts
+an affected suite once, whether TIA skips the entire suite or any child. Framework
+skips, disabled tests, and forced runs do not themselves contribute, and do not
+cancel an actual TIA skip elsewhere in the suite. Pytest waits for all selected
+tests even when items are interleaved with other suites, and finalizes started
+suites and modules after early termination. Existing session counting semantics
+are preserved.

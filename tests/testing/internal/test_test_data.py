@@ -332,16 +332,19 @@ class TestITRTestSkippingEnabledTags:
 
 
 class TestSuiteITRReporting:
+    @pytest.mark.parametrize("suite_mode", [False, True])
     @pytest.mark.parametrize("reporting_enabled", [True, False])
     @pytest.mark.parametrize("itr_enabled,skipping_enabled", [(True, True), (True, False), (False, False)])
     @pytest.mark.parametrize(
         "outcomes", [[], ["pass"], ["skip"], ["itr", "itr", "skip", "pass"], ["forced", "unskippable", "disabled"]]
     )
-    def test_serialized_suite(self, itr_enabled, skipping_enabled, outcomes, reporting_enabled):
+    def test_serialized_suite(self, itr_enabled, skipping_enabled, outcomes, reporting_enabled, suite_mode):
         session = TestSession("session")
         session.itr_suite_reporting_enabled = reporting_enabled
         session.set_attributes("test", "pytest", "1.0")
-        session.set_itr_attributes(itr_enabled, skipping_enabled, ITRSkippingLevel.TEST)
+        session.set_itr_attributes(
+            itr_enabled, skipping_enabled, ITRSkippingLevel.SUITE if suite_mode else ITRSkippingLevel.TEST
+        )
         module, _ = session.get_or_create_child("module")
         suite, _ = module.get_or_create_child("suite")
         suite.start()
@@ -359,6 +362,8 @@ class TestSuiteITRReporting:
                 child.set_attributes(is_disabled=True)
         suite.finish()
         content = serialize_suite(suite)["content"]
+        if suite_mode:
+            count = int(count > 0)
         if itr_enabled and reporting_enabled:
             assert type(content["metrics"][TestTag.ITR_TESTS_SKIPPING_COUNT]) is int
             assert content["metrics"][TestTag.ITR_TESTS_SKIPPING_COUNT] == count

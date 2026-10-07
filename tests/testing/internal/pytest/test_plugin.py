@@ -33,7 +33,6 @@ from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
-from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import MockDefaults
@@ -84,11 +83,8 @@ class TestSkippingAndITRFeatures:
                 plugin.pytest_runtest_setup(mock_item)
             list(protocol)
 
-        # Verify that the test was marked as skipped
-        mock_item.add_marker.assert_called()
-        call_args = mock_item.add_marker.call_args
-        assert call_args[0][0].mark.name == "skip"
-        assert call_args[0][0].mark.kwargs["reason"] == SKIPPED_BY_ITR_REASON
+        assert test.is_skipped_by_itr()
+        mock_item.add_marker.assert_not_called()
 
     def test_skippable_test_with_attempt_to_fix_not_skipped(self) -> None:
         """Test that a skippable test that IS attempt_to_fix does NOT get skipped."""
@@ -121,16 +117,8 @@ class TestSkippingAndITRFeatures:
             plugin.pytest_runtest_setup(mock_item)
             list(protocol)
 
-        # Verify that the test was NOT marked as skipped with ITR reason
-        skip_calls = [
-            call
-            for call in mock_item.add_marker.call_args_list
-            if len(call[0]) > 0 and hasattr(call[0][0], "mark") and call[0][0].mark.name == "skip"
-        ]
-
-        itr_skip_calls = [call for call in skip_calls if call[0][0].mark.kwargs.get("reason") == SKIPPED_BY_ITR_REASON]
-
-        assert len(itr_skip_calls) == 0, "Test should not be skipped with ITR reason when is_attempt_to_fix=True"
+        assert not test.is_skipped_by_itr()
+        mock_item.add_marker.assert_not_called()
 
     def test_suite_level_skipping_works(self) -> None:
         """Test that tests from a skippable suite get skipped."""
@@ -169,11 +157,8 @@ class TestSkippingAndITRFeatures:
                 plugin.pytest_runtest_setup(mock_item)
             list(protocol)
 
-        # Verify that the test was marked as skipped
-        mock_item.add_marker.assert_called()
-        call_args = mock_item.add_marker.call_args
-        assert call_args[0][0].mark.name == "skip"
-        assert call_args[0][0].mark.kwargs["reason"] == SKIPPED_BY_ITR_REASON
+        assert test.is_skipped_by_itr()
+        mock_item.add_marker.assert_not_called()
 
     def test_disabled_test_management_features(self) -> None:
         """Test test management features like disabled and quarantined tests."""
@@ -2391,44 +2376,3 @@ class TestRetryReportsTeardownTracking:
         # Degraded report — the bug's symptom.
         assert final_report.outcome == "failed"
         assert final_report.longrepr is None
-
-
-class TestSuiteITRReporting:
-    @pytest.mark.parametrize("all_tests_finished", [True, False])
-    @pytest.mark.parametrize("other_skipped_by_itr", [True, False])
-    @pytest.mark.parametrize("other_finished", [True, False])
-    @pytest.mark.parametrize("other_status", [TestStatus.SKIP, TestStatus.FAIL])
-    def test_suite_mode_waits_for_all_children(
-        self, other_skipped_by_itr, other_finished, other_status, all_tests_finished
-    ):
-        session = TestSession("session")
-        session.set_itr_attributes(True, True, ITRSkippingLevel.SUITE)
-        module, _ = session.get_or_create_child("module")
-        suite, _ = module.get_or_create_child("suite")
-        suite.start()
-        first, _ = suite.get_or_create_child("first")
-        first.start()
-        first.mark_skipped_by_itr()
-        first.set_status(TestStatus.SKIP)
-        first.finish()
-        other, _ = suite.get_or_create_child("other")
-        other.start()
-        if other_skipped_by_itr:
-            other.mark_skipped_by_itr()
-        other.set_status(other_status)
-        if other_finished:
-            other.finish()
-        assert TestTag.SKIPPED_BY_ITR not in suite.tags
-        manager = session_manager_mock().build_mock()
-        manager.session = session
-        plugin = TestOptPlugin(session_manager=manager)
-        with patch("ddtrace.testing.internal.pytest.plugin.TelemetryAPI.get"):
-            plugin._finish_suite(suite, all_tests_finished=all_tests_finished)
-        expected = int(
-            all_tests_finished and other_skipped_by_itr and other_finished and other_status == TestStatus.SKIP
-        )
-        assert suite.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] == expected
-        assert suite.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("true" if expected else "false")
-        assert suite.tags.get(TestTag.SKIPPED_BY_ITR) == ("true" if expected else None)
-        if other_finished:
-            assert suite.get_status() == other_status

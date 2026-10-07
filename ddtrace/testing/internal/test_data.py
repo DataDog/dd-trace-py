@@ -318,7 +318,7 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def mark_skipped_by_itr(self) -> None:
         self.tags[TestTag.SKIPPED_BY_ITR] = TAG_TRUE
         self.session.count_itr_skipped()
-        if self.session.itr_suite_reporting_enabled and self.session.itr_skipping_level == ITRSkippingLevel.TEST:
+        if self.session.itr_suite_reporting_enabled:
             try:
                 self.suite.count_itr_skipped()
             except Exception:
@@ -383,11 +383,10 @@ class TestSuite(TestItem["TestModule", "Test"]):
         self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
         if self.session.itr_enabled and self.session.itr_suite_reporting_enabled:
             try:
+                with self._itr_skipped_count_lock:
+                    count = self.tests_skipped_by_itr
                 if self.session.itr_skipping_level == ITRSkippingLevel.SUITE:
-                    count = int(self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE)
-                else:
-                    with self._itr_skipped_count_lock:
-                        count = self.tests_skipped_by_itr
+                    count = int(count > 0 or self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE)
                 self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = count
                 self.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] = TAG_TRUE if count > 0 else "false"
             except Exception:

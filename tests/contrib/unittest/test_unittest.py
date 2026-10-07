@@ -95,7 +95,7 @@ class UnittestTestCase(TracerTestCase):
             def test_framework_skip(self):
                 pass
 
-            def test_pass(self):
+            def test_tia_forced(self):
                 pass
 
         class SuiteB(unittest.TestCase):
@@ -164,6 +164,7 @@ class UnittestTestCase(TracerTestCase):
 
     @_disable_ci_visibility
     def test_unittest_suite_itr_reporting_in_suite_mode(self):
+        # A suite with TIA skips has a skewed duration even with framework skips and forced runs.
         self._run_suite_itr_reporting(suite_skipping_mode=True)
 
     @_disable_ci_visibility

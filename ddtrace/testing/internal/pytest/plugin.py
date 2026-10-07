@@ -827,26 +827,12 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         self._finish_test_parents(test_ref, next_test_ref, test)
 
-    def _finish_suite(self, suite: TestSuite, all_tests_finished: bool = False) -> None:
+    def _finish_suite(self, suite: TestSuite) -> None:
         self.manager._set_suite_source_location(suite)
         for test in suite.children.values():
             if codeowners := test.tags.get(TestTag.CODEOWNERS):
                 suite.tags[TestTag.CODEOWNERS] = codeowners
                 break
-        if (
-            all_tests_finished
-            and self.session.itr_enabled
-            and self.session.itr_suite_reporting_enabled
-            and self.session.itr_skipping_level == ITRSkippingLevel.SUITE
-        ):
-            try:
-                if suite.children and all(
-                    child.is_finished() and child.is_skipped_by_itr() and child.get_status() == TestStatus.SKIP
-                    for child in suite.children.values()
-                ):
-                    suite.mark_skipped_by_itr()
-            except Exception:
-                log.debug("Error reporting suite ITR skips", exc_info=True)
         suite.finish()
         self.manager.writer.put_item(suite)
         TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
@@ -868,7 +854,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             finish_suite = not next_test_ref or test_ref.suite != next_test_ref.suite
             finish_module = not next_test_ref or test_ref.suite.module != next_test_ref.suite.module
         if finish_suite:
-            self._finish_suite(test.suite, all_tests_finished=True)
+            self._finish_suite(test.suite)
         if finish_module:
             self._finish_module(test.module)
 
@@ -1340,7 +1326,6 @@ class TestOptPlugin(TestOptPluginProtocol):
         if test.is_disabled():
             return
 
-        item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)

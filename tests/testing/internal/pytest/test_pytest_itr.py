@@ -148,8 +148,33 @@ class TestITR:
         [suite] = capture.events_by_type("test_suite_end")
         assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
+    @pytest.mark.parametrize("suite_mode", [False, True])
+    def test_repeated_item_counts_each_tia_skipped_execution(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, suite_mode: bool
+    ) -> None:
+        pytester.makepyfile(test_repeat="def test_skip():\n    assert False\n")
+        pytester.makeconftest("def pytest_collection_modifyitems(items):\n    items[:] = [items[0], items[0]]\n")
+        suite_ref = SuiteRef(ModuleRef(""), "test_repeat.py")
+        skippable = {suite_ref} if suite_mode else {TestRef(suite_ref, "test_skip")}
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1" if suite_mode else "0")
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+            EventCapture.capture() as capture,
+        ):
+            result = pytester.inline_run("--ddtrace", "test_repeat.py")
+        result.assertoutcome(skipped=2)
+        [suite] = capture.events_by_type("test_suite_end")
+        [session] = capture.events_by_type("test_session_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == (1 if suite_mode else 2)
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 2
+
     @pytest.mark.parametrize("other_outcome", ["framework", "disabled", "attempt_to_fix"])
-    def test_suite_reporting_requires_every_child_to_be_tia_skipped(
+    def test_suite_reporting_flags_any_tia_skipped_child(
         self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, other_outcome: str
     ) -> None:
         marker = '@pytest.mark.skip(reason="framework")' if other_outcome == "framework" else ""
@@ -188,8 +213,8 @@ class TestITR:
             result = pytester.inline_run("--ddtrace", "test_foo.py")
         assert result.ret == 0
         [suite] = capture.events_by_type("test_suite_end")
-        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
-        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
         assert suite["content"]["meta"].get("test.skipped_by_itr") is None
         assert suite["content"]["meta"]["test.status"] == ("pass" if other_outcome == "attempt_to_fix" else "skip")
 
@@ -245,10 +270,9 @@ class TestITR:
         suites = list(capture.events_by_type("test_suite_end"))
         assert len(suites) == 2
         [suite] = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == "test_a.py"]
-        count = int(other_outcome == "tia")
-        assert suite["metrics"]["test.itr.tests_skipping.count"] == count
-        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == ("true" if count else "false")
-        assert suite["meta"].get("test.skipped_by_itr") == ("true" if count else None)
+        assert suite["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+        assert suite["meta"].get("test.skipped_by_itr") is None
         assert suite["meta"]["test.status"] == "skip"
         modules = list(capture.events_by_type("test_module_end"))
         assert len(modules) == (2 if different_module else 1)
@@ -294,8 +318,8 @@ class TestITR:
         [suite] = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == "test_a.py"]
         assert suite["meta"]["test.status"] == ("skip" if skip_first else "fail")
         assert suite["meta"].get("test.skipped_by_itr") is None
-        assert suite["metrics"]["test.itr.tests_skipping.count"] == 0
-        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+        assert suite["metrics"]["test.itr.tests_skipping.count"] == int(skip_first)
+        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == ("true" if skip_first else "false")
         [module] = capture.events_by_type("test_module_end")
         assert module["content"]["meta"]["test.status"] == "fail"
 
@@ -333,8 +357,8 @@ class TestITR:
         [suite] = capture.events_by_type("test_suite_end")
         assert suite["content"]["meta"]["test.status"] == "fail"
         assert suite["content"]["meta"].get("test.skipped_by_itr") is None
-        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
-        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
 
     @pytest.mark.parametrize("selection", ["test_skippable.py", "test_skippable.py::test_one"])
     def test_suite_reporting_for_explicitly_selected_skippable_suite(
@@ -367,7 +391,7 @@ class TestITR:
         [suite] = capture.events_by_type("test_suite_end")
         assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
         assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
-        assert suite["content"]["meta"]["test.skipped_by_itr"] == "true"
+        assert suite["content"]["meta"].get("test.skipped_by_itr") is None
 
     def test_suite_reporting_excludes_disabled_tests(self, pytester: Pytester) -> None:
         pytester.makepyfile(

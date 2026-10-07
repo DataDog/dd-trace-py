@@ -175,6 +175,7 @@ class TestSuiteITRReporting:
         assert event["type"] == "test_suite_end"
         return event["content"]
 
+    @pytest.mark.parametrize("suite_mode", [False, True])
     @pytest.mark.parametrize("coverage_enabled", [False, True])
     @pytest.mark.parametrize(
         "itr_enabled,skipping_enabled,outcomes,expected",
@@ -191,13 +192,13 @@ class TestSuiteITRReporting:
         ],
     )
     def test_serialized_suite(
-        self, civisibility_settings, itr_enabled, skipping_enabled, outcomes, expected, coverage_enabled
+        self, civisibility_settings, itr_enabled, skipping_enabled, outcomes, expected, coverage_enabled, suite_mode
     ):
         settings = dataclasses.replace(
             civisibility_settings,
             itr_enabled=itr_enabled,
             itr_test_skipping_enabled=skipping_enabled,
-            itr_test_skipping_level=ITR_SKIPPING_LEVEL.TEST,
+            itr_test_skipping_level=ITR_SKIPPING_LEVEL.SUITE if suite_mode else ITR_SKIPPING_LEVEL.TEST,
             coverage_enabled=coverage_enabled,
         )
         suite = TestVisibilitySuite("suite", settings)
@@ -221,6 +222,7 @@ class TestSuiteITRReporting:
             assert test.ITR_TEST_SKIPPING_COUNT not in content["metrics"]
             assert test.ITR_DD_CI_ITR_TESTS_SKIPPED not in content["meta"]
         else:
+            expected = int(expected > 0) if suite_mode else expected
             count = content["metrics"][test.ITR_TEST_SKIPPING_COUNT]
             assert isinstance(count, (int, float)) and not isinstance(count, bool)
             assert count >= 0 and count == int(count) == expected
