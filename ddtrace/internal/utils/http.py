@@ -24,6 +24,7 @@ from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import W3C_DD_LIST_MEMBER_MAX_CHARS
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
@@ -172,7 +173,6 @@ def connector(url: str, **kwargs: Any) -> Connector:
     return _connector_context
 
 
-_W3C_DD_LIST_MEMBER_MAX_CHARS = 256
 _W3C_DD_LIST_MEMBER_RESERVED_LEN = len("dd=") + len(f"{W3C_TRACESTATE_PARENT_ID_KEY}:{0:016x};")
 
 
@@ -211,7 +211,7 @@ def w3c_get_dd_list_member(context):
             )
             # account for ; before next tag entry
             next_tag_len = len(next_tag) + (1 if tags else 0)
-            if current_tags_len + next_tag_len <= _W3C_DD_LIST_MEMBER_MAX_CHARS:
+            if current_tags_len + next_tag_len <= W3C_DD_LIST_MEMBER_MAX_CHARS:
                 tags.append(next_tag)
                 current_tags_len += next_tag_len
             else:
