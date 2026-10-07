@@ -169,8 +169,20 @@ Create an executable ``build.sh``:
 
 .. code-block:: bash
 
-    $ docker build -f docker/Dockerfile.fuzz -t ddtrace-py-fuzz .
-    $ docker run --rm -it ddtrace-py-fuzz
+    $ docker build -f docker/Dockerfile.fuzz \
+        --build-arg FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py:vXXX-fuzz_base \
+        --build-arg PYTHON_VERSION=3.12 \
+        -t ddtrace-py-fuzz .
+    $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-fuzz
+
+Use the ``FUZZ_BASE_IMAGE`` value from ``.gitlab/fuzz.yml``. The default command runs the fuzzer
+named by ``FUZZ_TARGET`` through fuzzydog, which requires ``FUZZYDOG_AUTH_TOKEN``. To run a fuzzer
+locally without fuzzydog, call the binary directly:
+
+.. code-block:: bash
+
+    $ docker run --rm ddtrace-py-fuzz sh -c \
+        'cd /tmp && /fuzzer/builds/fuzz_echion_frame_create -max_total_time=30'
 
 **Local build:**
 
@@ -213,10 +225,14 @@ See the profiling stack sampler fuzzer for a complete example:
 
     ddtrace/internal/datadog/profiling/stack/fuzz/
     ├── build.sh
-    ├── fuzz_echion_remote_read.cpp
-    └── CMakeLists.txt
+    ├── CMakeLists.txt
+    ├── fuzz_common.h
+    ├── fuzz_memory_image.h
+    ├── fuzz_echion_frame_create.cpp
+    └── fuzz_echion_*.cpp
 
-This fuzzer tests echion's ability to parse Python stack frames from remote processes.
+These fuzzers test echion's ability to parse Python stack frames, tasks, and objects from remote
+processes. See the ``README.md`` in that directory for the full list of fuzzers.
 
 Advanced: Testing Remote Process Memory Reads
 ----------------------------------------------
@@ -247,7 +263,8 @@ to replace the real memory read function with a mock:
         return 0;
     }
 
-See ``ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_remote_read.cpp`` for a complete example.
+See ``ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_common.h`` for the mock hook and
+``ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_frame_create.cpp`` for a complete example.
 
 Common Build Options
 --------------------
@@ -293,9 +310,9 @@ Common Build Options
 Current Limitations
 -------------------
 
-**Single Python Version**
-  Fuzzing currently only runs on Python 3.12.3, despite dd-trace-py supporting Python 3.9-3.14.
-  Bugs in version-specific code paths may not be discovered.
+**Python Versions**
+  CI fuzzes on Python 3.9 through 3.14 (one image per version, see ``.gitlab/fuzz.yml``).
+  Python 3.15 is not fuzzed yet, so bugs in 3.15-specific code paths may not be discovered.
 
 Resources and References
 ------------------------
@@ -316,7 +333,7 @@ Resources and References
   https://github.com/google/fuzzing/blob/master/docs/good-fuzz-target.md
 
 **Example fuzzer in this repository:**
-  ``ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_remote_read.cpp``
+  ``ddtrace/internal/datadog/profiling/stack/fuzz/fuzz_echion_frame_create.cpp``
 
 **Crash reports:**
   Check ``#fuzzing-ops`` Slack channel
