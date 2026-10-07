@@ -173,8 +173,7 @@ def connector(url: str, **kwargs: Any) -> Connector:
 
 
 _W3C_DD_LIST_MEMBER_MAX_CHARS = 256
-# len("dd=") + len("p:0000000000000000;")
-_W3C_DD_LIST_MEMBER_RESERVED_LEN = 3 + len(W3C_TRACESTATE_PARENT_ID_KEY) + 1 + 16 + 1
+_W3C_DD_LIST_MEMBER_RESERVED_LEN = len("dd=") + len(f"{W3C_TRACESTATE_PARENT_ID_KEY}:{0:016x};")
 
 
 def w3c_get_dd_list_member(context):
@@ -200,8 +199,6 @@ def w3c_get_dd_list_member(context):
     if usr_id:
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
-    # The 256 char limit applies to the whole "dd=" list-member as it goes on the wire, so count the
-    # "dd=" prefix, the ";" separators, and the "p:<16 hex>;" field prepended at injection time.
     current_tags_len = _W3C_DD_LIST_MEMBER_RESERVED_LEN + len(";".join(tags))
     for k, v in _get_metas_to_propagate(context):
         if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, _USER_ID_KEY]:
@@ -212,6 +209,7 @@ def w3c_get_dd_list_member(context):
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY, "_", k)),
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", v)),
             )
+            # account for ; before next tag entry
             next_tag_len = len(next_tag) + (1 if tags else 0)
             if current_tags_len + next_tag_len <= _W3C_DD_LIST_MEMBER_MAX_CHARS:
                 tags.append(next_tag)

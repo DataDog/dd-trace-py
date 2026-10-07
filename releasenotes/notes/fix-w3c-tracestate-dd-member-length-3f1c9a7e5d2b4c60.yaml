@@ -4,5 +4,4 @@ fixes:
     tracing: Fixes an issue where the ``dd=`` list-member of the W3C ``tracestate`` header could exceed
     256 characters, because the length check left out the ``dd=`` prefix, the ``;`` separators, and the
     ``p:`` parent id field. Proxies that enforce the W3C limit could drop the whole ``tracestate``
-    header, which broke LLM Observability trace linking across services. Propagated tags that do not fit
-    are now dropped whole.
+    header. Propagated tags that do not fit are now dropped whole.
