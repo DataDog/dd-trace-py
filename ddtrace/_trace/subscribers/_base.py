@@ -107,6 +107,9 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
 
+    if config._request_queuing_enabled:
+        core.dispatch("request_queuing.start", (ctx, span))
+
     return span
 
 
