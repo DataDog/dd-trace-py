@@ -52,7 +52,6 @@ from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.xdist import XdistManifest
 from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
-from ddtrace.testing.internal.pytest.xdist import is_xdist_distribution_enabled
 from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
@@ -1788,29 +1787,23 @@ def pytest_configure(config: pytest.Config) -> None:
         # report upload to the xdist controller: every worker then persists its
         # own data file (".coverage.*", no clobbering) for the controller to
         # combine into the single session report (see pytest_sessionfinish).
-        # Non-delegated processes keep writing the single unsuffixed data file
-        # as before; nothing consumes it (reports are generated from in-memory
-        # data), and a suffix per run would only accumulate stale files.
+        # Every other process, the controller included, keeps the data file
+        # naming from the coverage.py configuration: reports are generated from
+        # in-memory data, and a suffix the controller's combine never consumes
+        # would just accumulate one stale parallel file per session.
         # NOTE: config.workerinput is set by pytest-xdist before any
         # pytest_configure hook runs, so workers already see the delegation
         # flag their controller published (XdistTestOptPlugin.pytest_configure_node).
         from ddtrace.contrib.internal.coverage.patch import start_coverage
 
+        # Only a delegating worker needs a unique parallel data file for the
+        # controller to combine; data_suffix=None leaves the naming to the
+        # coverage.py configuration (e.g. [run] parallel = true) instead of
+        # overriding it.
         worker_input = getattr(config, "workerinput", None)
-        if worker_input is not None:
-            # Workers suffix their data file when they delegate the upload: each
-            # then persists its own parallel file for the controller to combine.
-            suffixed = bool(worker_input.get("dd_coverage_upload_delegated"))
-        else:
-            # The controller combines its data file with the workers', so it
-            # writes a parallel one as well.
-            suffixed = is_xdist_distribution_enabled(config)
+        suffixed = bool(worker_input.get("dd_coverage_upload_delegated")) if worker_input is not None else None
 
         workspace_path = get_workspace_path()
-        # data_suffix=None leaves the suffix decision to the coverage.py
-        # configuration (e.g. [run] parallel = true) instead of overriding it;
-        # only a delegating or combining process needs a suffixed data file,
-        # and a suffix on every run would accumulate stale files.
         start_coverage(source=[str(workspace_path)], data_suffix=True if suffixed else None)
         log.debug("Started coverage.py collection for report upload (pytest-cov not enabled)")
 

@@ -209,8 +209,8 @@ def _combine_delegated_coverage_data(data_paths: Optional[list[str]]) -> None:
     files; this merges exactly the files those workers reported (via pytest-xdist's
     workeroutput) so the controller's single LCOV report covers every worker's execution
     without touching unrelated or stale parallel data files in the workspace. Only instances
-    ddtrace owns are combined; external sessions (e.g. pytest-cov or ``coverage run``) handle
-    their own data or keep per-worker uploads.
+    ddtrace owns are combined; external sessions (e.g. pytest-cov, or a session
+    started with coverage run) handle their own data or keep per-worker uploads.
     """
     if not data_paths:
         return
