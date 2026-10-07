@@ -468,7 +468,36 @@ def async_openai_client_mock(openai_sdk):
 # ---------------------------------------------------------------------------
 
 
-def _fake_response_body() -> bytes:
+_MESSAGE_OUTPUT = [
+    {
+        "id": "msg-test",
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+    }
+]
+
+# A hosted MCP tool configured with require_approval: OpenAI lists the server tools and asks the
+# application to approve the call instead of running it.
+MCP_APPROVAL_OUTPUT = [
+    {
+        "id": "mcpl_test",
+        "type": "mcp_list_tools",
+        "server_label": "deepwiki",
+        "tools": [{"name": "ask_question", "input_schema": {"type": "object"}}],
+    },
+    {
+        "id": "mcpr_test",
+        "type": "mcp_approval_request",
+        "server_label": "deepwiki",
+        "name": "ask_question",
+        "arguments": '{"repoName":"DataDog/dd-trace-py"}',
+    },
+]
+
+
+def _fake_response_body(output=None) -> bytes:
     # Full payload shape (metadata, parallel_tool_calls, tool_choice, …) — the
     # OpenAI SDK validates response payloads against pydantic models that
     # tighten across releases, so we mirror the real wire format rather than a
@@ -480,15 +509,7 @@ def _fake_response_body() -> bytes:
             "created_at": 0,
             "model": "gpt-4o-mini",
             "status": "completed",
-            "output": [
-                {
-                    "id": "msg-test",
-                    "type": "message",
-                    "role": "assistant",
-                    "status": "completed",
-                    "content": [{"type": "output_text", "text": "ok", "annotations": []}],
-                }
-            ],
+            "output": _MESSAGE_OUTPUT if output is None else output,
             "usage": {
                 "input_tokens": 1,
                 "output_tokens": 1,
@@ -507,11 +528,11 @@ def _fake_response_body() -> bytes:
     ).encode()
 
 
-def _fake_response_http() -> httpx.Response:
+def _fake_response_http(output=None) -> httpx.Response:
     return httpx.Response(
         status_code=200,
         headers={"content-type": "application/json"},
-        content=_fake_response_body(),
+        content=_fake_response_body(output),
     )
 
 
@@ -523,6 +544,19 @@ class _ResponseMockTransport(httpx.BaseTransport):
 class _AsyncResponseMockTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         return _fake_response_http()
+
+
+class _MCPApprovalResponseMockTransport(httpx.BaseTransport):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_response_http(MCP_APPROVAL_OUTPUT)
+
+
+@pytest.fixture
+def openai_responses_mcp_approval_client(openai_sdk, _require_responses_api):
+    return openai_sdk.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_MCPApprovalResponseMockTransport()),
+    )
 
 
 @pytest.fixture

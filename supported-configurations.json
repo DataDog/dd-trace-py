@@ -166,6 +166,13 @@
         "default": "true"
       }
     ],
+    "DD_AI_GUARD_COLLECT_MCP_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AI_GUARD_ENABLED": [
       {
         "implementation": "A",

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    AI Guard: Adds MCP server and tool details to the evaluation of remote MCP tools run by the
+    OpenAI Responses API, and evaluates MCP approval requests before the application can approve
+    them. Enable it with ``DD_AI_GUARD_COLLECT_MCP_ENABLED=true`` (default ``false``).

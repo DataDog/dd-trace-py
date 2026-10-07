@@ -844,6 +844,18 @@ AI Guard
        set ``DD_AI_GUARD_ANTHROPIC_ENABLED=false``. To stop AI Guard for a LangChain app regardless of
        provider, set ``DD_AI_GUARD_ENABLED=false``.
 
+   DD_AI_GUARD_COLLECT_MCP_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       When set to True and AI Guard is enabled, AI Guard extends its coverage of the remote MCP
+       tools that the OpenAI Responses API runs on your behalf (tools of type mcp). MCP calls are
+       evaluated with their server label, sanitized server URL and tool name. MCP approval requests
+       are also evaluated before your application sees them; a blocking verdict raises
+       AIGuardAbortError, so the call can never be approved and never runs. MCP calls that need no
+       approval have already run by the time the response arrives, so a blocking verdict only
+       keeps their result from reaching your application.
+
 Code Security
 -------------
 
