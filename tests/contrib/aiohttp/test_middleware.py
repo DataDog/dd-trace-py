@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.utils.version import parse_version
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -165,9 +166,9 @@ async def test_param_handler_otel_semantics(app, test_spans, aiohttp_client, que
     span = traces[0][0]
     assert span.resource == "GET /echo/{name}"
     if trace_query_string:
-        assert span.get_tag(http.OTEL_URL_QUERY) == query_string
+        assert span.get_tag(otel_http.URL_QUERY) == query_string
     else:
-        assert span.get_tag(http.OTEL_URL_QUERY) is None
+        assert span.get_tag(otel_http.URL_QUERY) is None
 
 
 async def test_404_handler(app, test_spans, aiohttp_client):

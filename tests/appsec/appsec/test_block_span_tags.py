@@ -11,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.trace import Span
 from tests.utils import override_http_config
 
@@ -23,12 +24,12 @@ _ENVIRON = {"REQUEST_METHOD": "GET", "QUERY_STRING": _QUERY}
 
 _DATADOG_KEYS = (http.STATUS_CODE, http.METHOD, http.URL, http.QUERY_STRING, http.USER_AGENT)
 _OTEL_KEYS = (
-    http.OTEL_RESPONSE_STATUS_CODE,
-    http.OTEL_REQUEST_METHOD,
-    http.OTEL_URL_PATH,
-    http.OTEL_URL_SCHEME,
-    http.OTEL_URL_QUERY,
-    http.OTEL_USER_AGENT_ORIGINAL,
+    otel_http.RESPONSE_STATUS_CODE,
+    otel_http.REQUEST_METHOD,
+    otel_http.URL_PATH,
+    otel_http.URL_SCHEME,
+    otel_http.URL_QUERY,
+    otel_http.USER_AGENT_ORIGINAL,
 )
 # Block paths must not resolve client IPs or store referrer/security headers; those tags were
 # never written by them before OTel semantics were introduced.
@@ -36,7 +37,7 @@ _NEVER_SET_KEYS = (
     http.CLIENT_IP,
     "network.client.ip",
     http.REFERRER_HOSTNAME,
-    http.OTEL_CLIENT_ADDRESS,
+    otel_http.CLIENT_ADDRESS,
     "network.peer.address",
 )
 
@@ -50,14 +51,14 @@ def _assert_block_tags(span: Span, otel_enabled: bool) -> None:
         assert span.get_tag(key) is None, key
 
     if otel_enabled:
-        assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 403
-        assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
-        assert span.get_tag(http.OTEL_URL_PATH) == "/blocked"
-        assert span.get_tag(http.OTEL_URL_SCHEME) == "http"
+        assert span.get_metric(otel_http.RESPONSE_STATUS_CODE) == 403
+        assert span.get_tag(otel_http.REQUEST_METHOD) == "GET"
+        assert span.get_tag(otel_http.URL_PATH) == "/blocked"
+        assert span.get_tag(otel_http.URL_SCHEME) == "http"
         assert span.get_tag(net.SERVER_ADDRESS) == "localhost"
-        assert span.get_metric(net.SERVER_PORT) == 80
-        assert span.get_tag(http.OTEL_URL_QUERY) == _QUERY
-        assert span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == _USER_AGENT
+        assert span.get_metric(otel_http.SERVER_PORT) == 80
+        assert span.get_tag(otel_http.URL_QUERY) == _QUERY
+        assert span.get_tag(otel_http.USER_AGENT_ORIGINAL) == _USER_AGENT
         for key in _DATADOG_KEYS:
             assert span.get_tag(key) is None, key
     else:
@@ -96,7 +97,7 @@ def test_flask_blocked_request_tags_bytes_query_string(otel_enabled):
     ):
         _on_flask_blocked_request(span)
 
-    query_key = http.OTEL_URL_QUERY if otel_enabled else http.QUERY_STRING
+    query_key = otel_http.URL_QUERY if otel_enabled else http.QUERY_STRING
     assert span.get_tag(query_key) in (_QUERY, _QUERY.encode())
     _assert_block_tags(span, otel_enabled)
 
@@ -115,9 +116,9 @@ def test_flask_blocked_request_without_query_string(otel_enabled):
         _on_flask_blocked_request(span)
 
     if otel_enabled:
-        assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 403
-        assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
-        assert span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == _USER_AGENT
+        assert span.get_metric(otel_http.RESPONSE_STATUS_CODE) == 403
+        assert span.get_tag(otel_http.REQUEST_METHOD) == "GET"
+        assert span.get_tag(otel_http.USER_AGENT_ORIGINAL) == _USER_AGENT
         for key in _DATADOG_KEYS:
             assert span.get_tag(key) is None, key
     else:
@@ -136,7 +137,7 @@ def test_flask_blocked_request_tags_keep_status_when_request_unreadable(otel_ena
         _on_flask_blocked_request(span)
 
     if otel_enabled:
-        assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 403
+        assert span.get_metric(otel_http.RESPONSE_STATUS_CODE) == 403
     else:
         assert span.get_tag(http.STATUS_CODE) == "403"
 
