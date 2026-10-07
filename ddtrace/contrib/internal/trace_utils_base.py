@@ -2,6 +2,7 @@ from collections.abc import Mapping
 import re
 from typing import Any
 from typing import Optional
+from typing import Union
 
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
@@ -160,27 +161,27 @@ def set_user(
         )
 
 
-def _set_url_tag(integration_config: IntegrationConfig, span: SpanData, url: str, query: str) -> None:
-    if not integration_config.http_tag_query_string:
-        span._set_attribute(http.URL, strip_query_string(url))
-    elif config._global_query_string_obfuscation_disabled:
+def _sanitized_url(url: str, query: Optional[str], tag_query_string: bool) -> Union[str, bytes]:
+    if not tag_query_string:
+        return strip_query_string(url)
+    if config._global_query_string_obfuscation_disabled:
         # TODO(munir): This case exists for backwards compatibility. To remove query strings from URLs,
         # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
         # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
-        span._set_attribute(http.URL, url)
-    elif (
+        return url
+    if (
         config._obfuscation_query_string_pattern is None
         or getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
     ):
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
-        span._set_attribute(http.URL, strip_query_string(url))
-    else:
-        span._set_attribute(
-            http.URL,
-            redact_url(
-                url,
-                config._obfuscation_query_string_pattern,
-                query,
-                preserve_delimiter=config._query_string_obfuscation_preserve_delimiter,
-            ),
-        )
+        return strip_query_string(url)
+    return redact_url(
+        url,
+        config._obfuscation_query_string_pattern,
+        query,
+        preserve_delimiter=config._query_string_obfuscation_preserve_delimiter,
+    )
+
+
+def _set_url_tag(integration_config: IntegrationConfig, span: SpanData, url: str, query: str) -> None:
+    span._set_attribute(http.URL, _sanitized_url(url, query, integration_config.http_tag_query_string))

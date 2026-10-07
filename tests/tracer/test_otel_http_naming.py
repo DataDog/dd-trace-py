@@ -20,6 +20,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
+from ddtrace.internal.settings import _core as settings_core
 from ddtrace.internal.settings._config import config
 from ddtrace.trace import Span
 
@@ -164,6 +165,15 @@ def test_set_url_tags_otel_server_preserves_path_parameters(url, raw_uri):
     assert span.get_tag(http.OTEL_URL_QUERY) is None
 
 
+def test_set_url_tags_otel_server_keeps_leading_double_slash_in_raw_uri():
+    integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
+    span = Span("web.request")
+
+    set_url_tags_otel_server(integration_config, span, "https://example.com/bar?x=1", None, raw_uri="//foo/bar?x=1")
+
+    assert span.get_tag(http.OTEL_URL_PATH) == "//foo/bar"
+
+
 def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("http.request")
@@ -178,6 +188,21 @@ def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
     assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search"
     assert span.get_tag(net.SERVER_ADDRESS) == "example.com"
     assert span.get_metric(net.SERVER_PORT) == 443
+
+
+def test_set_url_tags_otel_client_keeps_separate_query_without_obfuscation():
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
+    span = Span("http.request")
+
+    with mock.patch.object(config, "_global_query_string_obfuscation_disabled", True):
+        set_url_tags_otel_client(
+            integration_config,
+            span,
+            "https://user:password@example.com/search#results",
+            "q=visible",
+        )
+
+    assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search?q=visible#results"
 
 
 @pytest.fixture
@@ -365,6 +390,19 @@ def test_otel_span_attributes_honors_custom_server_error_statuses():
         attributes.set_status_code(status_code)
 
         assert span.error == expected_error
+
+
+@pytest.mark.parametrize("source_name", ("LOCAL_CONFIG", "FLEET_CONFIG"))
+def test_otel_span_attributes_honors_stable_server_error_statuses(
+    integration_config, server_error_statuses, source_name
+):
+    source = getattr(settings_core, source_name)
+    with mock.patch.dict(source, {"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"}):
+        server_error_statuses.error_statuses = "404-412"
+        for status_code, expected_error in ((404, 1), (500, 0)):
+            span = Span("request", span_type=SpanTypes.WEB)
+            OTelHTTPSpanAttributes(span, integration_config).set_status_code(status_code)
+            assert span.error == expected_error
 
 
 def test_otel_span_attributes_status_preserves_exception_error_type(integration_config, server_error_statuses):
