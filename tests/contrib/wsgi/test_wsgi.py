@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 
 import pytest
 from webtest import TestApp
@@ -8,6 +9,9 @@ from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
+from ddtrace.trace import tracer as global_tracer
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -99,6 +103,27 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
+
+
+def test_otel_semantics_keeps_method_resource_before_response_on_exception(tracer, test_spans):
+    observed_resources = []
+
+    def failing_application(environ, start_response):
+        root_span = global_tracer.current_root_span()
+        assert root_span is not None
+        observed_resources.append(root_span.resource)
+        global_tracer.sample(root_span)
+        raise RuntimeError("before start_response")
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        app = TestApp(DDWSGIMiddleware(failing_application, tracer=tracer))
+        with pytest.raises(RuntimeError, match="before start_response"):
+            app.get("/users/12345")
+
+    spans = test_spans.pop()
+    request_span = next(span for span in spans if span.name == "wsgi.request")
+    assert observed_resources == ["GET"]
+    assert request_span.resource == "GET"
 
 
 def test_distributed_tracing(tracer, test_spans):
@@ -672,3 +697,76 @@ def test_construct_url_query_string_backfilled_when_raw_uri_lacks_it():
         "QUERY_STRING": "a=1&b=2",
     }
     assert construct_url(environ) == "http://localhost:8000/users?a=1&b=2"
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
+def test_otel_semantics_server_span_attributes():
+    from webtest import TestApp
+
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    statuses = {"/ok": "200 OK", "/teapot": "418 I'm a teapot", "/broken": "500 Internal Server Error"}
+
+    def application(environ, start_response):
+        start_response(statuses.get(environ["PATH_INFO"], "404 Not Found"), [("Content-Type", "text/plain")])
+        return [b"*"]
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = TestApp(DDWSGIMiddleware(application))
+
+        def request_span(path, method="GET"):
+            spans.reset()
+            client.request(path, method=method, headers=TEST_HEADERS, expect_errors=True)
+            return next(span for span in spans.get_spans() if span.name == "wsgi.request")
+
+        # A generic WSGI app has no route, so the resource is the method alone for every status.
+        span = request_span("/ok?q=1")
+        assert_otel_server_span(span, method="GET", status=200, path="/ok", query="q=1", resource="GET")
+
+        span = request_span("/ok", method="PROPFIND")
+        assert_otel_server_span(
+            span, method="_OTHER", original_method="PROPFIND", status=200, path="/ok", resource="HTTP"
+        )
+
+        span = request_span("/no/such/path/123")
+        assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+        span = request_span("/teapot")
+        assert_otel_server_span(span, method="GET", status=418, path="/teapot", resource="GET")
+
+        span = request_span("/broken")
+        assert_otel_server_span(span, method="GET", status=500, path="/broken", resource="GET")
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV)
+def test_otel_semantics_server_error_statuses_override():
+    from webtest import TestApp
+
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    def application(environ, start_response):
+        status = "500 Internal Server Error" if environ["PATH_INFO"] == "/broken" else "404 Not Found"
+        start_response(status, [("Content-Type", "text/plain")])
+        return [b"*"]
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = TestApp(DDWSGIMiddleware(application))
+
+        client.get("/missing", headers=TEST_HEADERS, expect_errors=True)
+        span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
+        assert_otel_server_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
+
+        spans.reset()
+        client.get("/broken", headers=TEST_HEADERS, expect_errors=True)
+        span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
+        assert_otel_server_span(span, method="GET", status=500, path="/broken", resource="GET", error=False)

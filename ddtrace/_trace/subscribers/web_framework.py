@@ -1,6 +1,13 @@
 from types import TracebackType
 from typing import Optional
 
+from ddtrace import config
+from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import set_otel_http_resource
+from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_query_string_tag
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
@@ -28,24 +35,14 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         if event.allow_default_resource:
             event.set_resource = True
 
-        try:
-            trace_utils.set_http_meta(
-                span=span,
-                integration_config=event.integration_config,
-                method=event.request_method,
-                url=event.request_url,
-                # set_http_meta checks only integration_config when deciding
-                # whether to trace the query string. aiohttp supports a
-                # per-application override instead.
-                query=event.query if event.trace_query_string is None else None,
-                request_headers=event.request_headers,
-                headers_are_case_sensitive=event.headers_case_sensitive,
-            )
-        except Exception:
-            log.debug("%s: error adding request tags", event.integration_config.integration_name, exc_info=True)
-
-        if event.trace_query_string and event.query is not None:
-            span._set_attribute(http.QUERY_STRING, event.query)
+        if config._otel_trace_semantics_enabled and event.request_method:
+            set_method_tag(span, event.request_method)
+            # Set the currently known resource before sampling; preserve span-start callback replacements.
+            record_initial_instrumentation_resource(span, event.resource)
+            normalized_method, original_method = normalize_http_method(event.request_method)
+            if event.request_route:
+                span._set_attribute(http.OTEL_ROUTE, event.request_route)
+            set_otel_http_resource(span, normalized_method, original_method, event.request_route)
 
     @classmethod
     def on_ended(
@@ -62,21 +59,33 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
 
         # event.resource can be updated at span finish time
         if event.resource:
-            span.resource = event.resource
+            set_instrumentation_resource(span, event.resource)
         elif event.set_resource and status_code is not None:
-            span.resource = f"{method} {status_code}"
+            set_instrumentation_resource(span, f"{method} {status_code}")
 
         try:
             trace_utils.set_http_meta(
                 span=span,
                 integration_config=event.integration_config,
+                method=method,
+                url=event.request_url,
+                # set_http_meta checks only integration_config when deciding
+                # whether to trace the query string. aiohttp supports a
+                # per-application override instead.
+                query=event.query if event.trace_query_string is None else None,
                 status_code=status_code,
+                request_headers=event.request_headers,
                 response_headers=dict(res_headers) if res_headers is not None else None,
                 headers_are_case_sensitive=event.headers_case_sensitive,
                 route=event.request_route,
             )
         except Exception:
-            log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
+            log.debug("%s: error adding tags", event.integration_config.integration_name, exc_info=True)
+
+        # aiohttp supports per-app trace_query_string overrides that may differ from
+        # integration_config.trace_query_string.
+        if event.trace_query_string and event.query is not None:
+            set_query_string_tag(span, event.query)
 
         _set_inferred_proxy_tags(span, status_code)
         for tk, tv in event.additional_tags.items():

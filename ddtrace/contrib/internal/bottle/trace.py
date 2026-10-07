@@ -7,6 +7,7 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import is_otel_server_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -68,6 +69,7 @@ class TracePlugin:
             ) as ctx:
                 code = None
                 result = None
+                deferred_http_exception = None
                 try:
                     result = callback(*args, **kwargs)
                     return result
@@ -77,7 +79,13 @@ class TracePlugin:
                     # we also need to handle when response is raised as is the
                     # case with a 4xx status
                     code = e.status_code
-                    raise
+                    if config._otel_trace_semantics_enabled and not is_otel_server_error_status(code):
+                        # An exception leaving the span context would mark it as failed, but with OTel
+                        # semantics this response is only an error when its status is. It is raised
+                        # again once the span has ended.
+                        deferred_http_exception = e
+                    else:
+                        raise
                 except Exception:
                     # bottle doesn't always translate unhandled exceptions, so
                     # we mark it here.
@@ -96,5 +104,8 @@ class TracePlugin:
                     event: WebFrameworkRequestEvent = ctx.event
                     event.response_status_code = response_code
                     event.response_headers = response.headers
+
+            if deferred_http_exception is not None:
+                raise deferred_http_exception
 
         return wrapped

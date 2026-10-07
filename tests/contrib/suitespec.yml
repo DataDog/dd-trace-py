@@ -77,6 +77,7 @@ components:
     # Shared test utilities
     - tests/contrib/patch.py
     - tests/contrib/config.py
+    - tests/contrib/otel_http_server.py
     - tests/contrib/__init__.py
     - tests/contrib/suitespec.yml
   coverage:

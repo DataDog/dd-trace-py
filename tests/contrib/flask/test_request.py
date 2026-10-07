@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import time
+from unittest import mock
 
 import flask
 from flask import abort
@@ -14,9 +15,13 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.internal import core
+from ddtrace.internal.settings._config import config
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -107,6 +112,68 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.index")
         self.assertEqual(handler_span.resource, "/")
         self.assertEqual(req_span.error, 0)
+
+    def test_otel_semantics_replaces_flask_route_resource(self):
+        @self.app.route("/users/<int:user_id>")
+        def user(user_id):
+            return str(user_id)
+
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            response = self.client.get("/users/42")
+
+        self.assertEqual(response.status_code, 200)
+        request_span = self.get_spans()[0]
+        self.assertEqual(request_span.resource, "GET /users/<int:user_id>")
+
+    def test_otel_semantics_replaces_flask_method_not_allowed_resource(self):
+        @self.app.route("/")
+        def index():
+            return "Hello Flask"
+
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            response = self.client.open("/", method="PROPFIND")
+
+        self.assertEqual(response.status_code, 405)
+        request_span = self.get_spans()[0]
+        self.assertEqual(request_span.resource, "HTTP")
+
+    def test_otel_semantics_normalizes_route_resource_before_view(self):
+        from ddtrace.trace import tracer
+
+        captured = {}
+
+        @self.app.route("/items/<int:item_id>", methods=["PROPFIND"])
+        def item(item_id):
+            captured["resource"] = tracer.current_root_span().resource
+            return str(item_id)
+
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            response = self.client.open("/items/42", method="PROPFIND")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["resource"], "HTTP /items/<int:item_id>")
+        self.assertEqual(self.get_spans()[0].resource, "HTTP /items/<int:item_id>")
+
+    def test_otel_semantics_does_not_expose_raw_path_resource_during_request(self):
+        @self.app.route("/users/<int:user_id>")
+        def user(user_id):
+            return str(user_id)
+
+        captured = []
+
+        def record_resource(ctx, *args):
+            captured.append(ctx.get_item("req_span").resource)
+
+        # Registered after the integration's listener, so it sees the resource that listener left.
+        core.on("flask.request_call_modifier", record_resource)
+        try:
+            with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+                response = self.client.get("/users/42")
+        finally:
+            core.reset_listeners("flask.request_call_modifier", record_resource)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured, ["flask.request"])
 
     def test_route_params_request(self):
         """
@@ -1289,3 +1356,116 @@ if __name__ == '__main__':
     subp.terminate()
     subp.terminate()
     assert subp.wait() == SIGTERM_EXIT_CODE, "An instrumented Flask app should respond to SIGINT by exiting"
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_span_attributes():
+    from flask import Flask
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = Flask(__name__)
+
+    @app.route("/users/<int:user_id>")
+    def user(user_id):
+        return str(user_id)
+
+    @app.route("/teapot")
+    def teapot():
+        return "short and stout", 418
+
+    @app.route("/broken")
+    def broken():
+        return "oops", 500
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = app.test_client()
+
+        def request_span(*args, **kwargs):
+            spans.reset()
+            response = client.open(*args, headers=TEST_HEADERS, **kwargs)
+            # The request span finishes when the response is closed.
+            response.close()
+            return response, spans.get_root_span()
+
+        response, span = request_span("/users/42?q=1")
+        assert response.status_code == 200
+        assert_otel_server_span(
+            span,
+            method="GET",
+            status=200,
+            path="/users/42",
+            query="q=1",
+            route="/users/<int:user_id>",
+            resource="GET /users/<int:user_id>",
+        )
+
+        response, span = request_span("/users/42", method="PROPFIND")
+        assert response.status_code == 405
+        assert_otel_server_span(
+            span,
+            method="_OTHER",
+            original_method="PROPFIND",
+            status=405,
+            path="/users/42",
+            resource="HTTP",
+        )
+
+        # An unmatched route must not leak the URL path into the resource.
+        response, span = request_span("/no/such/path/123")
+        assert response.status_code == 404
+        assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+        response, span = request_span("/teapot")
+        assert response.status_code == 418
+        assert_otel_server_span(span, method="GET", status=418, path="/teapot", route="/teapot", resource="GET /teapot")
+
+        # Returning a 500 (rather than raising) leaves the status code as the only source of error.type.
+        response, span = request_span("/broken")
+        assert response.status_code == 500
+        assert_otel_server_span(span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken")
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True)
+def test_otel_semantics_server_error_statuses_override():
+    from flask import Flask
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = Flask(__name__)
+
+    @app.route("/broken")
+    def broken():
+        return "oops", 500
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = app.test_client()
+
+        response = client.get("/missing", headers=TEST_HEADERS)
+        response.close()
+        assert response.status_code == 404
+        assert_otel_server_span(
+            spans.get_root_span(), method="GET", status=404, path="/missing", resource="GET", error=True
+        )
+
+        spans.reset()
+        response = client.get("/broken", headers=TEST_HEADERS)
+        response.close()
+        assert response.status_code == 500
+        assert_otel_server_span(
+            spans.get_root_span(),
+            method="GET",
+            status=500,
+            path="/broken",
+            route="/broken",
+            resource="GET /broken",
+            error=False,
+        )

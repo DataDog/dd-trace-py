@@ -1,5 +1,6 @@
 import asyncio
 import os
+from unittest import mock
 
 import pytest
 import sqlalchemy
@@ -14,7 +15,10 @@ from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
+from ddtrace.internal.settings._config import config
 from ddtrace.propagation import http as http_propagation
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerSpanContainer
@@ -653,6 +657,43 @@ def test_inferred_spans_api_gateway(client, test_spans):
         )
 
 
+def test_otel_semantics_replaces_starlette_route_resource(tracer, test_spans):
+    async def endpoint(request):
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/items/{item_id}", endpoint=endpoint, methods=["PROPFIND"])])
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        with TestClient(app) as client:
+            response = client.request("PROPFIND", "/items/42")
+
+    assert response.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "HTTP /items/{item_id}"
+
+
+def test_otel_semantics_copies_complete_url_for_old_starlette_nested_span():
+    from ddtrace.contrib.internal.starlette.patch import _copy_server_url_attributes
+    from ddtrace.trace import Span
+
+    outer = Span("starlette.request")
+    inner = Span("starlette.request")
+    outer._set_attribute("url.scheme", "https")
+    outer._set_attribute("url.path", "/items/42")
+    outer._set_attribute("url.query", "view=full")
+    outer._set_attribute("server.address", "example.com")
+    outer._set_attribute("server.port", 8443)
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        _copy_server_url_attributes(outer, inner)
+
+    assert inner.get_tag("url.scheme") == "https"
+    assert inner.get_tag("url.path") == "/items/42"
+    assert inner.get_tag("url.query") == "view=full"
+    assert inner.get_tag("server.address") == "example.com"
+    assert inner.get_metric("server.port") == 8443
+
+
 def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
     """CORSMiddleware short-circuits OPTIONS preflight before the router runs.
 
@@ -810,3 +851,122 @@ def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
     assert request_span.get_tag("http.route") == "/resource/{item_id}", (
         f"Expected http.route tag '/resource/{{item_id}}', got: {request_span.get_tag('http.route')!r}"
     )
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_span_attributes():
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    async def ok(request):
+        return PlainTextResponse("ok")
+
+    async def teapot(request):
+        return PlainTextResponse("short and stout", status_code=418)
+
+    async def broken(request):
+        return PlainTextResponse("oops", status_code=500)
+
+    app = Starlette(
+        routes=[
+            Route("/users/{user_id:int}", endpoint=ok),
+            Route("/items/{item_id}", endpoint=ok, methods=["PROPFIND"]),
+            Route("/teapot", endpoint=teapot),
+            Route("/broken", endpoint=broken),
+        ]
+    )
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        with TestClient(app, client=("198.51.100.9", 4321)) as client:
+
+            def request_span(method, path, **kwargs):
+                spans.reset()
+                response = client.request(method, path, headers=TEST_HEADERS, **kwargs)
+                return response, next(span for span in spans.get_spans() if span.name == "starlette.request")
+
+            response, span = request_span("GET", "/users/42?q=1")
+            assert response.status_code == 200
+            assert_otel_server_span(
+                span,
+                method="GET",
+                status=200,
+                path="/users/42",
+                query="q=1",
+                route="/users/{user_id:int}",
+                resource="GET /users/{user_id:int}",
+            )
+
+            response, span = request_span("PROPFIND", "/items/42")
+            assert response.status_code == 200
+            assert_otel_server_span(
+                span,
+                method="_OTHER",
+                original_method="PROPFIND",
+                status=200,
+                path="/items/42",
+                route="/items/{item_id}",
+                resource="HTTP /items/{item_id}",
+            )
+
+            # An unmatched route must not leak the URL path into the resource.
+            response, span = request_span("GET", "/no/such/path/123")
+            assert response.status_code == 404
+            assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+            response, span = request_span("GET", "/teapot")
+            assert response.status_code == 418
+            assert_otel_server_span(
+                span, method="GET", status=418, path="/teapot", route="/teapot", resource="GET /teapot"
+            )
+
+            response, span = request_span("GET", "/broken")
+            assert response.status_code == 500
+            assert_otel_server_span(
+                span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken"
+            )
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True)
+def test_otel_semantics_server_error_statuses_override():
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    async def broken(request):
+        return PlainTextResponse("oops", status_code=500)
+
+    app = Starlette(routes=[Route("/broken", endpoint=broken)])
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        with TestClient(app, client=("198.51.100.9", 4321)) as client:
+            assert client.get("/missing", headers=TEST_HEADERS).status_code == 404
+            span = next(span for span in spans.get_spans() if span.name == "starlette.request")
+            assert_otel_server_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
+
+            spans.reset()
+            assert client.get("/broken", headers=TEST_HEADERS).status_code == 500
+            span = next(span for span in spans.get_spans() if span.name == "starlette.request")
+            assert_otel_server_span(
+                span,
+                method="GET",
+                status=500,
+                path="/broken",
+                route="/broken",
+                resource="GET /broken",
+                error=False,
+            )

@@ -20,6 +20,8 @@ from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlett
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
+from tests.contrib.otel_http_server import OTEL_SERVER_ERROR_STATUSES_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -1095,3 +1097,86 @@ def test_fastapi_app_is_picklable(tracer):
     pickled = cloudpickle.dumps(app)
     assert pickled is not None
     assert len(pickled) > 0
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
+def test_otel_semantics_server_span_attributes():
+    from fastapi import FastAPI
+    from fastapi import HTTPException
+    from fastapi.responses import JSONResponse
+    from fastapi.testclient import TestClient
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = FastAPI()
+
+    @app.get("/items/{item_id}")
+    async def item(item_id: int):
+        return {"item_id": item_id}
+
+    @app.get("/gone")
+    async def gone():
+        raise HTTPException(status_code=410)
+
+    @app.get("/broken")
+    async def broken():
+        return JSONResponse({"detail": "oops"}, status_code=500)
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        with TestClient(app, client=("198.51.100.9", 4321)) as client:
+
+            def request_span(path):
+                spans.reset()
+                response = client.get(path, headers=TEST_HEADERS)
+                return response, next(span for span in spans.get_spans() if span.name == "fastapi.request")
+
+            response, span = request_span("/items/42?q=1")
+            assert response.status_code == 200
+            assert_otel_server_span(
+                span,
+                method="GET",
+                status=200,
+                path="/items/42",
+                query="q=1",
+                route="/items/{item_id}",
+                resource="GET /items/{item_id}",
+            )
+
+            # An unmatched route must not leak the URL path into the resource.
+            response, span = request_span("/no/such/path/123")
+            assert response.status_code == 404
+            assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+
+            response, span = request_span("/gone")
+            assert response.status_code == 410
+            assert_otel_server_span(span, method="GET", status=410, path="/gone", route="/gone", resource="GET /gone")
+
+            response, span = request_span("/broken")
+            assert response.status_code == 500
+            assert_otel_server_span(
+                span, method="GET", status=500, path="/broken", route="/broken", resource="GET /broken"
+            )
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ERROR_STATUSES_ENV, ddtrace_run=True, err=None)
+def test_otel_semantics_server_error_statuses_override():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = FastAPI()
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        with TestClient(app, client=("198.51.100.9", 4321)) as client:
+            assert client.get("/missing", headers=TEST_HEADERS).status_code == 404
+            span = next(span for span in spans.get_spans() if span.name == "fastapi.request")
+            assert_otel_server_span(span, method="GET", status=404, path="/missing", resource="GET", error=True)
