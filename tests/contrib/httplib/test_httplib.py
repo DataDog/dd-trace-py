@@ -152,7 +152,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].resource, "GET")
+        span = spans[0]
+        self.assertEqual(span.resource, "GET")
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("url.full") == URL_200
+        assert span.get_tag("http.method") is None
+        assert span.get_tag("http.url") is None
 
     def test_httplib_request_get_request_multiqs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):
