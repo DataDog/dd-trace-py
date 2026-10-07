@@ -1329,10 +1329,13 @@ def total_memory_bytes() -> int:
 def scan_distributions(
     entry: str,
     module_suffixes: list[str],
+    release_gil: bool = False,
 ) -> tuple[list[tuple[str, Optional[str], list[str], list[str]]], list[tuple[str, str]]]:
     """Scan one sys.path entry, a directory or a zip archive, for installed distributions.
 
     :param module_suffixes: ``importlib.machinery.all_suffixes()``, longest first.
+    :param release_gil: Release the GIL during the scan; only for threads that cannot outlive
+        interpreter shutdown.
     :return: ``(dists, errors)``, where each dist is ``(name, version, keys, top_level)``:
         ``version`` is ``None`` when missing, ``keys`` are the import roots it ships and
         ``top_level`` the names ``packages_distributions`` maps to it. Each error is
