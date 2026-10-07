@@ -32,6 +32,10 @@ class Distribution(t.NamedTuple):
     version: str
 
 
+class IncompleteDistributionSnapshot(RuntimeError):
+    """A custom finder re-entered discovery before its distributions were available."""
+
+
 # dist.metadata access is per-dist defensive — malformed METADATA
 # (rare but real on system-Python / CI images) must not poison the @callonce cache.
 _BAD_DISTS_WARNED: set[str] = set()
@@ -77,9 +81,12 @@ def get_distributions() -> t.Mapping[str, str]:
     return _installed().versions
 
 
-def get_package_distributions() -> t.Mapping[str, list[str]]:
-    """a mapping of importable package names to their distribution name(s)"""
-    return _installed().packages
+def get_package_distributions(*, require_complete: bool = False) -> t.Mapping[str, list[str]]:
+    """Map importable names to distributions; persistent caches require a complete snapshot."""
+    snapshot = _installed()
+    if require_complete and not snapshot.complete:
+        raise IncompleteDistributionSnapshot()
+    return snapshot.packages
 
 
 def get_distribution_version(name: str) -> str:
@@ -88,9 +95,14 @@ def get_distribution_version(name: str) -> str:
     Names follow package metadata normalization: case and runs of hyphens,
     underscores and dots are equivalent. Duplicate installations use the first
     discovered distribution, as importlib.metadata.version does.
+    Reentrant discovery raises IncompleteDistributionSnapshot so callers do not
+    persist a version from a partial snapshot.
     """
     key = _DISTRIBUTION_NAME_NORMALIZER.sub("-", name).lower()
-    return _installed().versions_by_name.get(key, "")
+    snapshot = _installed()
+    if not snapshot.complete:
+        raise IncompleteDistributionSnapshot()
+    return snapshot.versions_by_name.get(key, "")
 
 
 @cached(maxsize=1024)
@@ -421,6 +433,7 @@ class _Installed:
         "sys_path",
         "meta_path",
         "checked",
+        "complete",
         "versions",
         "versions_by_name",
         "packages",
@@ -435,6 +448,7 @@ class _Installed:
         self.meta_path = list(sys.meta_path)
         # Whether a read has done the full check (mtimes, custom finders).
         self.checked = False
+        self.complete = True
 
         versions: dict[str, str] = {}
         versions_by_name: dict[str, str] = {}
@@ -573,6 +587,7 @@ def _installed(check: bool = True) -> _Installed:
         segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
         with _INSTALLED_DISTRIBUTIONS_LOCK:
             snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
+        snapshot.complete = False
     else:
         # Custom finders run arbitrary Python, which could re-enter: ask them
         # outside the lock.

@@ -1170,6 +1170,29 @@ def test_custom_finder_reading_the_maps_does_not_recurse(
     assert _p._installed_distributions() == records
 
 
+def test_persistent_lookups_reject_reentrant_snapshots(tmp_path, reset_packages_caches, monkeypatch):
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    nested = []
+
+    def on_find():
+        # Existing non-persistent readers retain their native-only view.
+        nested.append(_p.get_package_distributions())
+        with pytest.raises(_p.IncompleteDistributionSnapshot):
+            _p.get_package_distributions(require_complete=True)
+        with pytest.raises(_p.IncompleteDistributionSnapshot):
+            _p.get_distribution_version("from-finder")
+
+    finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=on_find)
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [finder, _p.PathFinder])
+    assert _p.get_distribution_version("from-finder") == "1.0"
+    assert nested == [{"on_path": ["on-path"]}]
+    assert "from_finder" in _p.get_package_distributions(require_complete=True)
+
+
 class MetadataPathFinder:
     """Stands in for the importlib_metadata backport's sys.path distribution finder."""
 

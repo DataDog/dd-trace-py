@@ -57,6 +57,93 @@ def test_sca_uses_shared_distribution_snapshot(tmp_path: Path, monkeypatch: pyte
         packages._reset_installed_distributions()
 
 
+@pytest.mark.parametrize("operation", ["register_cve", "attach_metadata"])
+@pytest.mark.parametrize("discovery", ["lazy", "prefetch", "report"])
+def test_sca_keeps_reentrant_metadata_until_version_is_available(tmp_path, monkeypatch, operation, discovery):
+    import importlib.metadata
+
+    from ddtrace.internal import packages
+    from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+    dist = tmp_path / "Finder_Package-1.0.dist-info"
+    dist.mkdir()
+    (dist / "METADATA").write_text("Name: Finder-Package\nVersion: 1.0\n")
+    (dist / "top_level.txt").write_text("finder_package\n")
+    appsec_telemetry_config.SCA_ENABLED = True
+    tracker = DependencyTracker()
+    nested_reports = []
+
+    class Finder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            assert tracker._lock.acquire(False), "Custom discovery must run outside the telemetry lock"
+            tracker._lock.release()
+            if operation == "register_cve":
+                added = tracker.register_cve("finder-package", "CVE-1")
+            else:
+                added = tracker.attach_metadata("finder-package", "CVE-1", "finder_package", "function", 1)
+            if not nested_reports:
+                assert added
+            nested_reports.append(tracker.collect_report())
+            return [importlib.metadata.PathDistribution(dist)]
+
+    packages._reset_installed_distributions()
+    packages.get_module_distribution_versions.cache_clear()
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(sys, "path", [])
+            patch.setattr(sys, "meta_path", [Finder(), packages.PathFinder])
+            patch.setattr(telemetry_config, "DEPENDENCY_COLLECTION", True)
+            patch.setattr(
+                "ddtrace.internal.telemetry.dependency_tracker.modules.get_newly_imported_modules",
+                lambda seen: {"finder_package"} if discovery == "report" else set(),
+            )
+            if discovery == "prefetch":
+                packages.prefetch_distributions()
+                assert packages._PREFETCH_DONE.wait(10)
+            elif discovery == "report":
+                assert tracker.collect_report() is None
+            else:
+                assert packages.get_distribution_version("finder-package") == "1.0"
+
+            report = tracker.collect_report()
+            assert nested_reports and all(payload is None for payload in nested_reports)
+            assert report is not None and len(report) == 1
+            assert report[0]["name"] == "finder-package"
+            assert report[0]["version"] == "1.0"
+            metadata = json.loads(report[0]["metadata"][0]["value"])
+            reached = (
+                [] if operation == "register_cve" else [{"path": "finder_package", "symbol": "function", "line": 1}]
+            )
+            assert metadata == {"id": "CVE-1", "reached": reached}
+            assert not tracker._pending_versions
+            assert tracker.collect_report() is None
+    finally:
+        packages._reset_installed_distributions()
+        packages.get_module_distribution_versions.cache_clear()
+
+
+def test_sca_reset_discards_pending_versions():
+    from unittest import mock
+
+    from ddtrace.internal.packages import IncompleteDistributionSnapshot
+    from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+    appsec_telemetry_config.SCA_ENABLED = True
+    tracker = DependencyTracker()
+    with mock.patch(
+        "ddtrace.internal.telemetry.dependency_tracker.get_distribution_version",
+        side_effect=IncompleteDistributionSnapshot,
+    ):
+        assert tracker.register_cve("pending-package", "CVE-1")
+    assert tracker._pending_versions == {"pending-package"}
+    tracker.reset()
+    assert not tracker._pending_versions
+    assert not tracker._imported_dependencies
+
+
 class TestReachabilityMetadata:
     def test_to_telemetry_dict_serializes_value_as_json_string(self):
         meta = ReachabilityMetadata(

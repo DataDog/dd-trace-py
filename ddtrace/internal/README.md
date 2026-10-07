@@ -14,6 +14,10 @@ with equivalent hyphens, underscores and dots, selects the first installation
 in discovery order, and returns an empty string when no version is available.
 The snapshot refreshes when the import path changes. Call it outside component
 locks: first use may wait for prefetch or invoke custom distribution finders.
+Reentrant discovery raises `IncompleteDistributionSnapshot`; retry after the
+finder finishes rather than caching the temporary result. Consumers that persist
+`get_package_distributions()` results should pass `require_complete=True` for
+the same protection.
 
 
 ## The Product Protocol

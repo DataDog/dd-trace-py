@@ -172,6 +172,62 @@ def test_initialize_iast_lists_uses_shared_distributions(tmp_path, monkeypatch):
         initialize_iast_lists()
 
 
+@pytest.mark.parametrize("discovery", ["lazy", "iast", "prefetch"])
+def test_iast_retries_initialization_after_reentrant_discovery(tmp_path, monkeypatch, discovery):
+    import importlib.metadata
+    import sys
+
+    from ddtrace.appsec._iast._ast import ast_patching
+    from ddtrace.internal import packages
+
+    site = tmp_path / "native"
+    site.mkdir()
+    native = site / "native_dependency-1.0.dist-info"
+    native.mkdir()
+    (native / "METADATA").write_text("Name: native-dependency\nVersion: 1.0\n")
+    (native / "top_level.txt").write_text("native_dependency\n")
+    custom = tmp_path / "finder_dependency-1.0.dist-info"
+    custom.mkdir()
+    (custom / "METADATA").write_text("Name: finder-dependency\nVersion: 1.0\n")
+    (custom / "top_level.txt").write_text("iast_finder_dependency\n")
+    nested = []
+
+    class Finder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            # Importing a finder helper invokes the same IAST decision hook.
+            decision = ast_patching._should_iast_patch("iast_finder_dependency.helper")
+            nested.append((decision, ast_patching.IAST_PATCHING_LAZY_LOADED))
+            return [importlib.metadata.PathDistribution(custom)]
+
+    packages._reset_installed_distributions()
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(sys, "path", [str(site)])
+            patch.setattr(sys, "meta_path", [Finder(), packages.PathFinder])
+            patch.setattr(ast_patching, "IAST_PATCHING_LAZY_LOADED", True)
+            # A previous complete cache must not classify unknown finder modules as first-party.
+            iastpatch.set_packages_distributions({"unrelated_dependency"})
+            if discovery == "prefetch":
+                packages.prefetch_distributions()
+                assert packages._PREFETCH_DONE.wait(10)
+            elif discovery == "iast":
+                assert ast_patching._should_iast_patch("iast_finder_application")
+            else:
+                assert "iast_finder_dependency" in packages.get_package_distributions()
+
+            assert not ast_patching._should_iast_patch("iast_finder_dependency.module")
+            assert nested and all(state == (False, True) for state in nested)
+            assert not ast_patching.IAST_PATCHING_LAZY_LOADED
+            assert iastpatch.should_iast_patch("iast_finder_dependency.module") == iastpatch.DENIED_NOT_FOUND
+            assert ast_patching._should_iast_patch("iast_finder_application")
+    finally:
+        packages._reset_installed_distributions()
+        initialize_iast_lists()
+
+
 def test_should_iast_patch_allow_first_party():
     assert iastpatch.should_iast_patch("file_in_my_project.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
     assert iastpatch.should_iast_patch("file_in_my_project.print_str") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST

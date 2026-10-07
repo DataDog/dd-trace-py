@@ -10,11 +10,13 @@ single DependencyTracker instance.
 """
 
 from collections.abc import Iterable
+from collections.abc import Mapping
 import re
 from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import IncompleteDistributionSnapshot
 from ddtrace.internal.packages import get_distribution_version
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.settings._telemetry import config as telemetry_config
@@ -58,6 +60,7 @@ class DependencyTracker:
     def __init__(self) -> None:
         self._imported_dependencies: dict[str, DependencyEntry] = {}
         self._modules_already_imported: set[str] = set()
+        self._pending_versions: set[str] = set()
         self._lock = Lock()
 
     def collect_report(self) -> Optional[list[dict[str, Any]]]:
@@ -69,9 +72,20 @@ class DependencyTracker:
         if not telemetry_config.DEPENDENCY_COLLECTION:
             return None
 
+        if self._pending_versions:
+            self._refresh_pending_versions()
         with self._lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            new_deps = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+        distributions: dict[str, Optional[tuple[str, str]]] = {}
+        for module_name in newly_imported_deps:
+            try:
+                distributions[module_name] = get_module_distribution_versions(module_name)
+            except Exception:
+                log.debug("update_imported_dependencies: failed for %r", module_name, exc_info=True)
+        with self._lock:
+            new_deps = update_imported_dependencies(
+                self._imported_dependencies, newly_imported_deps, resolved_distributions=distributions
+            )
 
             # Normalize once; reuse the set for sent-marking and re-report dedup.
             new_keys = {_normalize_dep_name(d["name"]) for d in new_deps}
@@ -85,7 +99,8 @@ class DependencyTracker:
             if not appsec_telemetry_config.SCA_ENABLED:
                 return new_deps if new_deps else None
 
-            re_report_deps = self._collect_rereports(new_keys)
+            skip_keys = new_keys | self._pending_versions if self._pending_versions else new_keys
+            re_report_deps = self._collect_rereports(skip_keys)
             all_deps = new_deps + re_report_deps
             return all_deps if all_deps else None
 
@@ -119,6 +134,19 @@ class DependencyTracker:
                 entry.mark_all_metadata_sent()
         return re_report
 
+    def _refresh_pending_versions(self) -> None:
+        with self._lock:
+            pending = [(key, self._imported_dependencies[key]) for key in self._pending_versions]
+        for key, entry in pending:
+            try:
+                version = get_distribution_version(entry.name)
+            except IncompleteDistributionSnapshot:
+                continue
+            with self._lock:
+                if self._imported_dependencies.get(key) is entry:
+                    entry.version = version
+                    self._pending_versions.discard(key)
+
     def _ensure_entry(self, package_name: str) -> None:
         """Auto-create a DependencyEntry if SCA is active and package not yet tracked.
 
@@ -130,10 +158,18 @@ class DependencyTracker:
         with self._lock:
             if key in self._imported_dependencies:
                 return
-        version = get_distribution_version(package_name)
+        pending = False
+        try:
+            version = get_distribution_version(package_name)
+        except IncompleteDistributionSnapshot:
+            # Keep CVE metadata, but do not report it until discovery completes.
+            version = ""
+            pending = True
         with self._lock:
             if key not in self._imported_dependencies and appsec_telemetry_config.SCA_ENABLED:
                 self._imported_dependencies[key] = DependencyEntry(name=package_name, version=version, metadata=[])
+                if pending:
+                    self._pending_versions.add(key)
 
     def attach_metadata(
         self,
@@ -192,11 +228,14 @@ class DependencyTracker:
         with self._lock:
             self._imported_dependencies = {}
             self._modules_already_imported = set()
+            self._pending_versions = set()
 
 
 def update_imported_dependencies(
     already_imported: dict[str, DependencyEntry],
     new_modules: Iterable[str],
+    *,
+    resolved_distributions: Optional[Mapping[str, Optional[tuple[str, str]]]] = None,
 ) -> list[dict]:
     """Standalone version of dependency discovery for backward compatibility.
 
@@ -205,6 +244,7 @@ def update_imported_dependencies(
     dicts ready for the ``app-dependencies-loaded`` telemetry payload.
 
     SCA-enabled state is read from ``appsec_telemetry_config.SCA_ENABLED``.
+    Callers holding a lock can pass distributions resolved before acquiring it.
 
     NOTE: This function is kept for backward compatibility with
     tests and benchmarks that call it directly.  Production code should use
@@ -221,13 +261,13 @@ def update_imported_dependencies(
         return []
 
     deps: list[dict] = []
+    lookup = get_module_distribution_versions if resolved_distributions is None else resolved_distributions.get
     for module_name in new_modules:
         try:
-            dists = get_module_distribution_versions(module_name)
-            if not dists:
+            distribution = lookup(module_name)
+            if not distribution:
                 continue
-
-            name, version = dists
+            name, version = distribution
             key = _normalize_dep_name(name)
             if key == "ddtrace" or key in already_imported:
                 continue

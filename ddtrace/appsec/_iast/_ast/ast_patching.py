@@ -11,6 +11,7 @@ from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.packages import IncompleteDistributionSnapshot
 from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -27,7 +28,7 @@ IAST_PATCHING_LAZY_LOADED = True
 log = get_logger(__name__)
 
 
-def initialize_iast_lists():
+def initialize_iast_lists() -> bool:
     """Initialize IAST module lists safely from Python.
 
     This function initializes the user allowlist and denylist for IAST module patching.
@@ -62,10 +63,14 @@ def initialize_iast_lists():
     This approach is safer than C-level initialization in init_globals() which can
     lead to inconsistent state or crashes due to GIL-related issues.
     """
+    initialized = True
     # Reuse the shared snapshot instead of scanning installed distributions again.
     try:
-        result = set(get_package_distributions())
+        result = set(get_package_distributions(require_complete=True))
         iastpatch.set_packages_distributions(result)
+    except IncompleteDistributionSnapshot:
+        # A finder can import modules while discovery runs. Retry after it finishes.
+        initialized = False
     except (ImportError, AttributeError):
         # If metadata module is not available, the C extension will handle
         # first-party detection gracefully by returning False
@@ -75,6 +80,7 @@ def initialize_iast_lists():
 
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
+    return initialized
 
 
 def _should_iast_patch(module_name: str) -> bool:
@@ -111,8 +117,7 @@ def _should_iast_patch(module_name: str) -> bool:
     """
     global IAST_PATCHING_LAZY_LOADED
     if IAST_PATCHING_LAZY_LOADED:
-        initialize_iast_lists()
-        IAST_PATCHING_LAZY_LOADED = False
+        IAST_PATCHING_LAZY_LOADED = not initialize_iast_lists()
     result = False
     try:
         result = iastpatch.should_iast_patch(module_name)
@@ -135,6 +140,9 @@ def _should_iast_patch(module_name: str) -> bool:
         iast_instrumentation_ast_patching_debug_log(
             f"An error occurred while attempting to patch the {module_name} module. Error: {e}"
         )
+    # An old cache cannot establish first-party ownership during a reentrant scan.
+    if IAST_PATCHING_LAZY_LOADED and result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
+        return False
     return result >= iastpatch.ALLOWED_USER_ALLOWLIST
 
 
