@@ -2,6 +2,7 @@ import base64
 from collections import OrderedDict
 from contextvars import ContextVar
 import json
+import math
 import time
 from typing import Any
 from typing import Optional
@@ -25,6 +26,8 @@ log = get_logger(__name__)
 _RAW_LIMIT = LLMOBS_AUDIO_INLINE_MAX_BYTES * 3 // 4 - 128
 _MAX_OPEN_TURNS = 2
 _MAX_TOOLS = 64
+_MAX_ACTIVITY_INTERVALS = 128
+_VAD_HOLD_NS = 500_000_000
 _CURRENT_STATE: ContextVar[Optional["ConversationState"]] = ContextVar("elevenlabs_conversation_state", default=None)
 _EVENT_FIELDS = {
     "user_transcript": "user_transcription_event",
@@ -61,12 +64,113 @@ def _event_id(event: dict[str, Any]) -> Optional[int]:
     return None
 
 
+class SpeechActivity:
+    """Bounded silence observations; unobserved microphone samples remain active."""
+
+    def __init__(self) -> None:
+        self.silence: list[tuple[int, int]] = []
+        self.last_offset: Optional[int] = None
+        self.last_received: Optional[int] = None
+        self.speaking = True
+        self.overflow = False
+
+    def _silence(self, start: int, end: int) -> None:
+        start = max(0, start)
+        if end <= start or self.overflow:
+            return
+        if self.silence and start <= self.silence[-1][1]:
+            self.silence[-1] = (self.silence[-1][0], max(end, self.silence[-1][1]))
+        elif len(self.silence) < _MAX_ACTIVITY_INTERVALS:
+            self.silence.append((start, end))
+        else:
+            self.silence.clear()
+            self.overflow = True
+
+    def observe(self, score: Any, offset: int, now: int) -> None:
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            return
+        if not 0 <= score <= 1 or not math.isfinite(score):
+            return
+        if self.last_offset is not None:
+            if offset < self.last_offset or (self.last_received is not None and now < self.last_received):
+                return
+            # Scores have no acoustic timestamp. Never extend a silence estimate
+            # through a long delivery gap or beyond half a second of input samples.
+            if not self.speaking and self.last_received is not None and now - self.last_received <= _VAD_HOLD_NS:
+                self._silence(self.last_offset, min(offset, self.last_offset + _VAD_HOLD_NS))
+            if offset - self.last_offset > _VAD_HOLD_NS or now - (self.last_received or now) > _VAD_HOLD_NS:
+                self.speaking = True
+        self.last_offset = offset
+        self.last_received = now
+        if score >= 0.5:
+            self.speaking = True
+        elif score <= 0.35:
+            self.speaking = False
+
+    def continue_at(self, duration: int) -> "SpeechActivity":
+        following = SpeechActivity()
+        if self.last_offset is not None:
+            following.last_offset = self.last_offset - duration
+            following.last_received = self.last_received
+            following.speaking = self.speaking
+        return following
+
+    def extend(self, other: "SpeechActivity", duration: int, last_audio_ns: Optional[int]) -> None:
+        if (
+            not self.speaking
+            and self.last_offset is not None
+            and self.last_received is not None
+            and last_audio_ns is not None
+            and last_audio_ns - self.last_received <= _VAD_HOLD_NS
+        ):
+            self._silence(self.last_offset, min(duration, self.last_offset + _VAD_HOLD_NS))
+        for start, end in other.silence:
+            self._silence(start + duration, end + duration)
+        if other.last_offset is not None:
+            self.last_offset = other.last_offset + duration
+            self.last_received = other.last_received
+            self.speaking = other.speaking
+        self.overflow = self.overflow or other.overflow
+
+    def metadata(self, duration: int, last_audio_ns: Optional[int]) -> Optional[dict[str, Any]]:
+        if self.last_offset is None or self.overflow or duration <= 0:
+            return None
+        silence = list(self.silence)
+        if (
+            not self.speaking
+            and self.last_received is not None
+            and last_audio_ns is not None
+            and last_audio_ns - self.last_received <= _VAD_HOLD_NS
+        ):
+            silence.append((max(0, self.last_offset), min(duration, self.last_offset + _VAD_HOLD_NS)))
+        intervals = []
+        cursor = 0
+        for start, end in silence:
+            start, end = min(duration, start), min(duration, end)
+            if start > cursor:
+                intervals.append([cursor // 1_000_000, (start + 999_999) // 1_000_000])
+            cursor = max(cursor, end)
+        if cursor < duration:
+            intervals.append([cursor // 1_000_000, (duration + 999_999) // 1_000_000])
+        merged: list[list[int]] = []
+        for start, end in intervals:
+            if merged and start <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], end)
+            else:
+                merged.append([start, end])
+        if len(merged) > _MAX_ACTIVITY_INTERVALS:
+            return None
+        return {"version": 1, "source": "elevenlabs_vad", "timing": "estimated", "intervals_ms": merged}
+
+
 class AudioBuffer:
     def __init__(self) -> None:
         self.data = bytearray()
         self.start_ns: Optional[int] = None
         self.total_bytes = 0
         self.overflow = False
+        self.activity = SpeechActivity()
+        self.last_audio_ns: Optional[int] = None
 
     def append(self, encoded: Any, now: int, rate: int, input_audio: bool = False) -> None:
         if not rate or not isinstance(encoded, str):
@@ -84,16 +188,23 @@ class AudioBuffer:
         if self.start_ns is None:
             self.start_ns = now - len(chunk) * 1_000_000_000 // (2 * rate) if input_audio else now
         self.total_bytes += len(chunk)
+        self.last_audio_ns = now
         if not self.overflow and len(self.data) + len(chunk) <= _RAW_LIMIT:
             self.data.extend(chunk)
         else:
             self.data.clear()
             self.overflow = True
 
-    def extend(self, other: "AudioBuffer") -> None:
+    def duration_ns(self, rate: int) -> int:
+        return self.total_bytes * 1_000_000_000 // (2 * rate) if rate else 0
+
+    def extend(self, other: "AudioBuffer", rate: int) -> None:
+        self.activity.extend(other.activity, self.duration_ns(rate), self.last_audio_ns)
         if self.start_ns is None:
             self.start_ns = other.start_ns
         self.total_bytes += other.total_bytes
+        if other.last_audio_ns is not None:
+            self.last_audio_ns = other.last_audio_ns
         if self.overflow or other.overflow or len(self.data) + len(other.data) > _RAW_LIMIT:
             self.data.clear()
             self.overflow = True
@@ -194,6 +305,7 @@ class ConversationState:
             self._finish_turn(previous, now)
         turn = Turn(event_id, self.pending, now)
         self.pending = AudioBuffer()
+        self.pending.activity = turn.input_audio.activity.continue_at(turn.input_audio.duration_ns(self.input_rate))
         turn.user_text = self.pending_text
         self.pending_text = ""
         turn.root = self._span("conversation.turn", self.parent)
@@ -263,6 +375,11 @@ class ConversationState:
                         if interrupted_turn.event_id <= interrupt_id:
                             interrupted_turn.interrupted = True
                             interrupted_turn.output_audio.trim(now, self.output_rate)
+                return
+            if kind == "vad_score":
+                data = event.get("vad_score_event")
+                if self.input_rate and isinstance(data, dict):
+                    self.pending.activity.observe(data.get("vad_score"), self.pending.duration_ns(self.input_rate), now)
                 return
             key = _EVENT_FIELDS.get(kind)
             if key is None:
@@ -379,6 +496,11 @@ class ConversationState:
         end = audio.end_ns(rate)
         if start is None or end is None or end <= start or turn.root is None:
             return
+        metadata = self.metadata(turn)
+        if name == "user speech" and not audio.overflow:
+            activity = audio.activity.metadata(audio.duration_ns(rate), audio.last_audio_ns)
+            if activity is not None:
+                metadata["user_speech_activity"] = activity
         span = self._span("conversation." + name.replace(" ", "_"), turn.root)
         span.start_ns = start
         try:
@@ -387,7 +509,7 @@ class ConversationState:
                 "workflow",
                 name,
                 self.session_id,
-                self.metadata(turn),
+                metadata,
                 parent=turn.root,
                 output_value=text or None,
             )
@@ -475,7 +597,7 @@ class ConversationState:
             if self.turns:
                 last = next(reversed(self.turns.values()))
                 # Retain the final microphone window without inventing an extra response.
-                last.input_audio.extend(self.pending)
+                last.input_audio.extend(self.pending, self.input_rate)
                 self._bound_audio(last)
             self.pending = AudioBuffer()
             self.early_audio.clear()

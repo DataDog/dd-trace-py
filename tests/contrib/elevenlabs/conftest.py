@@ -12,7 +12,8 @@ from tests.utils import override_global_config
 def elevenlabs_llmobs(tracer):
     LLMObs.disable()
     with override_global_config({"_llmobs_ml_app": "elevenlabs-tests", "_dd_api_key": "test-key"}):
-        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        # Preserve the tracer fixture's DummyWriter; agentless mode replaces it.
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         patch()

@@ -36,3 +36,7 @@ conversation-local WebSocket proxies. It replaces only the SDK's imported
 asynchronous module binding; the global websockets module remains unchanged.
 The SDK's audio interfaces and application callbacks are preserved. See the LLMObs
 implementation guide for per-turn span layout and audio timing eligibility.
+
+Optional raw vad_score events are observed by the same connection-local proxies
+before SDK filtering. They do not require new callbacks, patch points, or event
+subscriptions. See the LLMObs guide for the bounded clip-relative activity schema.

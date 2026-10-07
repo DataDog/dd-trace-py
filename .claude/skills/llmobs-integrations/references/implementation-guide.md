@@ -234,3 +234,13 @@ Regression fixtures preserve event order and shapes with synthetic audio and tex
 Cover default/custom audio interfaces, both SDK loops, ordinary event subscriptions,
 typed messages, interruption, errors, parent context, concurrent conversations,
 missing completion events, and audio limits.
+
+Optional ElevenLabs vad_score events produce user_speech_activity metadata only
+on the matching user speech phase. Version 1 carries source=elevenlabs_vad,
+timing=estimated, and at most 128 clip-relative integer-millisecond intervals_ms
+pairs. An empty list means observed silence; absent metadata keeps phase-based
+colors. Input WAV bytes and placement anchors remain unchanged. Scores enter speech
+at 0.5 and leave at 0.35. Low scores cover at most 500 ms of input samples, with
+stale delivery gaps and unobserved portions conservatively active. State follows
+input-buffer transfers and shutdown extension; overflow omits activity metadata.
+Never turn these observations into TTFA or alter customer event subscriptions.

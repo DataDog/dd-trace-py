@@ -315,7 +315,8 @@ class Socket:
 
 
 @pytest.mark.parametrize("default_interface", [False, True])
-def test_ordinary_sync_sdk_with_normal_event_subset(monkeypatch, test_spans, default_interface):
+@pytest.mark.parametrize("vad_enabled", [False, True])
+def test_ordinary_sync_sdk_with_normal_event_subset(monkeypatch, test_spans, default_interface, vad_enabled):
     clock = Clock()
     monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
     if default_interface:
@@ -336,6 +337,7 @@ def test_ordinary_sync_sdk_with_normal_event_subset(monkeypatch, test_spans, def
     )
     events = [
         metadata(),
+        *([{"type": "vad_score", "vad_score_event": {"vad_score": 0}}] if vad_enabled else []),
         event("user_transcript", 37, user_transcript="Question"),
         event("audio", 37, audio_base_64=B64),
         event("agent_response", 37, agent_response="Answer"),
@@ -349,14 +351,18 @@ def test_ordinary_sync_sdk_with_normal_event_subset(monkeypatch, test_spans, def
     finally:
         instance.end_session()
     assert instance.audio_interface is audio
-    _, data = llm_rows(test_spans)[0]
+    captured = rows(test_spans)
+    data = next(row for _, row in captured if row["name"] == "elevenlabs response")
+    phase = next(row for _, row in captured if row["name"] == "user speech")
+    assert ("user_speech_activity" in phase["meta"]["metadata"]) is vad_enabled
     assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM
     assert decoded_frames(data["meta"]["output"]["messages"][0]) == PCM
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("default_interface", [False, True])
-async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans, default_interface):
+@pytest.mark.parametrize("vad_enabled", [False, True])
+async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans, default_interface, vad_enabled):
     clock = Clock()
     monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
     if default_interface:
@@ -378,6 +384,7 @@ async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans,
     events = iter(
         [
             metadata(),
+            *([{"type": "vad_score", "vad_score_event": {"vad_score": 0}}] if vad_enabled else []),
             event("user_transcript", 37, user_transcript="Question"),
             event("audio", 37, audio_base_64=B64),
             event("agent_response", 37, agent_response="Answer"),
@@ -413,7 +420,10 @@ async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans,
         await instance.wait_for_session_end()
     finally:
         await instance.end_session()
-    _, data = llm_rows(test_spans)[0]
+    captured = rows(test_spans)
+    data = next(row for _, row in captured if row["name"] == "elevenlabs response")
+    phase = next(row for _, row in captured if row["name"] == "user speech")
+    assert ("user_speech_activity" in phase["meta"]["metadata"]) is vad_enabled
     assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM
     assert decoded_frames(data["meta"]["output"]["messages"][0]) == PCM
 
@@ -621,3 +631,173 @@ async def test_tool_observation_failure_preserves_handler_result(state, monkeypa
         assert result == "Tool result"
     finally:
         _state._CURRENT_STATE.reset(token)
+
+
+def vad(value, score):
+    receive(value, {"type": "vad_score", "vad_score_event": {"vad_score": score}})
+
+
+def phase_rows(test_spans):
+    return [row for _, row in rows(test_spans) if row["name"] == "user speech"]
+
+
+def test_vad_serialized_activity_preserves_wav_placement_and_ttfa_opt_out(state, test_spans):
+    value, clock = state
+    vad(value, 0)
+    for i in range(1, 11):
+        clock.advance(0.1)
+        input_audio(value)
+        vad(value, 0.9 if i in (2, 3, 7, 8) else 0)
+    receive(value, event("user_transcript", 37, user_transcript="Same phrase"))
+    receive(value, event("audio", 37, audio_base_64=B64))
+    clock.advance(0.1)
+    value.close()
+    captured = rows(test_spans)
+    phase = next(row for _, row in captured if row["name"] == "user speech")
+    activity = phase["meta"]["metadata"]["user_speech_activity"]
+    assert activity == {
+        "version": 1,
+        "source": "elevenlabs_vad",
+        "timing": "estimated",
+        "intervals_ms": [[200, 400], [700, 900]],
+    }
+    assert phase["start_ns"] == BASE_NS
+    assert phase["duration"] == 1_000_000_000
+    data = next(row for _, row in captured if row["name"] == "elevenlabs response")
+    assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM * 10
+    assert decoded_frames(data["meta"]["output"]["messages"][0]) == PCM
+    assert all(row["meta"]["metadata"]["ttfa_eligible"] is False for _, row in captured)
+    assert all("user_speech_activity" not in row["meta"]["metadata"] for _, row in captured if row is not phase)
+    assert len(json.dumps(activity)) < 200
+
+
+def test_vad_silence_during_agent_audio_and_shutdown_tail(state, test_spans):
+    value, clock = state
+    vad(value, 0)
+    for _ in range(3):
+        clock.advance(0.1)
+        input_audio(value)
+        vad(value, 0)
+    receive(value, event("audio", 37, audio_base_64=B64))
+    for _ in range(3):
+        clock.advance(0.1)
+        input_audio(value)
+        vad(value, 0)
+    value.close()
+    captured = rows(test_spans)
+    phase = next(row for _, row in captured if row["name"] == "user speech")
+    assert phase["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == []
+    assert phase["duration"] == 600_000_000
+    data = next(row for _, row in captured if row["name"] == "elevenlabs response")
+    assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM * 6
+
+
+def test_vad_turn_transfer_keeps_activity_relative_to_each_clip(state, test_spans):
+    value, clock = state
+    vad(value, 0)
+    for event_id in (37, 117, 280):
+        for i in range(3):
+            clock.advance(0.1)
+            input_audio(value)
+            vad(value, 1 if i == 0 else 0)
+        receive(value, event("user_transcript", event_id, user_transcript="Repeated phrase"))
+    value.close()
+    phases = phase_rows(test_spans)
+    assert len(phases) == 3
+    assert all(p["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == [[100, 200]] for p in phases)
+    assert sorted(p["start_ns"] for p in phases) == [BASE_NS, BASE_NS + 300_000_000, BASE_NS + 600_000_000]
+
+
+@pytest.mark.parametrize("score", [None, True, "0.1", float("nan"), float("inf"), -0.1, 1.1])
+def test_invalid_vad_retains_phase_fallback(state, test_spans, score):
+    value, clock = state
+    input_audio(value)
+    vad(value, score)
+    receive(value, event("agent_response", 37, agent_response="Answer"))
+    value.close()
+    assert "user_speech_activity" not in phase_rows(test_spans)[0]["meta"]["metadata"]
+
+
+def test_vad_missing_and_sparse_events_leave_unknown_audio_active(state, test_spans):
+    value, clock = state
+    input_audio(value)
+    vad(value, 0)
+    clock.advance(1)
+    input_audio(value)
+    vad(value, 0)
+    clock.advance(0.1)
+    input_audio(value)
+    receive(value, event("agent_response", 37, agent_response="Answer"))
+    value.close()
+    # No VAD for the first block, and stale delivery between the next two.
+    assert phase_rows(test_spans)[0]["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == [[0, 200]]
+
+
+def test_vad_silence_hold_is_bounded_by_samples(state, test_spans):
+    value, clock = state
+    vad(value, 0)
+    input_audio(value, base64.b64encode(PCM * 10).decode())
+    receive(value, event("agent_response", 37, agent_response="Answer"))
+    value.close()
+    assert phase_rows(test_spans)[0]["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == [[500, 1000]]
+
+
+def test_vad_hysteresis_and_conversation_isolation(state, test_spans):
+    value, clock = state
+    other = ConversationState(ElevenLabsIntegration(config.elevenlabs), SimpleNamespace(agent_id="other"))
+    receive(other, metadata(session="other"))
+    vad(value, 0)
+    vad(other, 1)
+    for score in (0.4, 0.6, 0.4, 0.3):
+        clock.advance(0.1)
+        for connection in (value, other):
+            input_audio(connection)
+        vad(value, score)
+        vad(other, 1)
+    for connection in (value, other):
+        receive(connection, event("agent_response", 37, agent_response="Answer"))
+        connection.close()
+    phases = {row["session_id"]: row for row in phase_rows(test_spans)}
+    assert phases["session-test"]["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == [[200, 400]]
+    assert phases["other"]["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == [[0, 400]]
+
+
+def test_vad_interval_overflow_and_audio_budget_retain_fallback(state, test_spans, monkeypatch):
+    value, clock = state
+    vad(value, 0)
+    for i in range(260):
+        clock.advance(0.1)
+        input_audio(value)
+        vad(value, i % 2)
+    assert value.pending.activity.overflow
+    assert not value.pending.activity.silence
+    receive(value, event("agent_response", 37, agent_response="Answer"))
+    value.close()
+    assert "user_speech_activity" not in phase_rows(test_spans)[0]["meta"]["metadata"]
+
+    other = ConversationState(ElevenLabsIntegration(config.elevenlabs), SimpleNamespace(agent_id="other"))
+    receive(other, metadata(session="other"))
+    monkeypatch.setattr(_state, "_RAW_LIMIT", 1)
+    vad(other, 0)
+    input_audio(other)
+    receive(other, event("agent_response", 37, agent_response="Answer"))
+    other.close()
+    assert all("user_speech_activity" not in row["meta"]["metadata"] for _, row in rows(test_spans))
+
+
+def test_vad_stale_score_does_not_color_audio_after_a_microphone_pause(state, test_spans):
+    value, clock = state
+    vad(value, 0)
+    clock.advance(2)
+    input_audio(value)
+    receive(value, event("agent_response", 37, agent_response="Answer"))
+    value.close()
+    assert phase_rows(test_spans)[0]["meta"]["metadata"]["user_speech_activity"]["intervals_ms"] == [[0, 100]]
+
+
+def test_vad_millisecond_quantization_coalesces_overlapping_activity():
+    activity = _state.SpeechActivity()
+    activity.observe(1, 0, BASE_NS)
+    activity.observe(0, 100_000, BASE_NS + 100_000)
+    activity.observe(1, 200_000, BASE_NS + 200_000)
+    assert activity.metadata(1_000_000, BASE_NS + 1_000_000)["intervals_ms"] == [[0, 1]]

@@ -11,5 +11,12 @@ budget per response; oversized or unsupported audio is omitted while transcripts
 Timing describes audio sent or handed to the SDK, with estimated playback and interruption
 truncation. These turns opt out of time-to-first-agent-audio measurements.
 
+For improved user-speaking colors, enable the optional ``vad_score`` client event
+in the ElevenLabs agent's Advanced settings under Client Events and save the agent.
+Retain the application's other client events. The integration never changes agent
+configuration or event subscriptions. Without usable VAD, existing audio playback
+and phase-based colors remain available. VAD timing is estimated and does not enable
+latency measurements.
+
 Standalone speech-to-text, text-to-speech, and browser transports are not instrumented.
 """
