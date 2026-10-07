@@ -34,6 +34,12 @@ logger = ddlogger.get_logger(__name__)
 # ``evaluate`` runs the AI Guard verdict and raises ``AIGuardAbortError`` on block.
 ReconstructFn = Callable[[list[Any]], Any]
 EvaluateFn = Callable[[Any], Any]
+# Checked when the stream is first consumed, so a flag turned off by then leaves it unbuffered.
+EnabledFn = Callable[[], bool]
+
+
+def _stream_analysis_enabled() -> bool:
+    return bool(aiguard_config._ai_guard_analyze_stream_responses_enabled)
 
 
 def _is_traced_stream(result: Any) -> bool:
@@ -98,15 +104,23 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
     completely, calls ``evaluate`` on the reconstructed response, then replays
     the buffered chunks.
 
-    If the flag is off or a framework collision context is active the proxy is
+    If enabled() is false or a framework collision context is active the proxy is
     transparent: ``_drained()`` returns ``None`` and every method delegates
     directly to the wrapped stream.
     """
 
-    def __init__(self, wrapped: Any, *, reconstruct: ReconstructFn, evaluate: EvaluateFn) -> None:
+    def __init__(
+        self,
+        wrapped: Any,
+        *,
+        reconstruct: ReconstructFn,
+        evaluate: EvaluateFn,
+        enabled: EnabledFn = _stream_analysis_enabled,
+    ) -> None:
         super().__init__(wrapped)
         self._self_reconstruct = reconstruct
         self._self_evaluate = evaluate
+        self._self_enabled = enabled
         self._self_chunks: Optional[list[Any]] = None
         self._self_passthrough: bool = False
         self._self_index: int = 0
@@ -115,7 +129,7 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
         if self._self_passthrough:
             return None
         if self._self_chunks is None:
-            if not aiguard_config._ai_guard_analyze_stream_responses_enabled or is_aiguard_context_active():
+            if not self._self_enabled() or is_aiguard_context_active():
                 self._self_passthrough = True
                 return None
             chunks = list(self.__wrapped__)  # drives contrib tracing + finalize_stream
@@ -214,10 +228,18 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
 class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt ships no stubs
     """Async mirror of BufferedAIGuardStream for TracedAsyncStream."""
 
-    def __init__(self, wrapped: Any, *, reconstruct: ReconstructFn, evaluate: EvaluateFn) -> None:
+    def __init__(
+        self,
+        wrapped: Any,
+        *,
+        reconstruct: ReconstructFn,
+        evaluate: EvaluateFn,
+        enabled: EnabledFn = _stream_analysis_enabled,
+    ) -> None:
         super().__init__(wrapped)
         self._self_reconstruct = reconstruct
         self._self_evaluate = evaluate
+        self._self_enabled = enabled
         self._self_chunks: Optional[list[Any]] = None
         self._self_passthrough: bool = False
         self._self_index: int = 0
@@ -226,7 +248,7 @@ class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wr
         if self._self_passthrough:
             return None
         if self._self_chunks is None:
-            if not aiguard_config._ai_guard_analyze_stream_responses_enabled or is_aiguard_context_active():
+            if not self._self_enabled() or is_aiguard_context_active():
                 self._self_passthrough = True
                 return None
             chunks: list[Any] = []

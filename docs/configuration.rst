@@ -849,16 +849,20 @@ AI Guard
      default: False
      description: |
        When set to True and AI Guard is enabled, AI Guard evaluates MCP tool calls with their MCP
-       server and tool details (server label, sanitized server URL, transport and tool name).
-       Credentials, headers and URL query strings are never sent.
+       server and tool details (server label, server origin, transport and tool name). Only the
+       scheme, host and port of the server URL are sent: credentials, headers, URL paths and
+       query strings are never sent.
 
-       For remote MCP tools run by the OpenAI Responses API (tools of type mcp), MCP approval
-       requests are evaluated before your application sees them, and an approval your
-       application sends back is checked again unless that request was already evaluated. Only
-       approvals prevent execution: configure require_approval to always for MCP calls that need
-       preventive control. Calls that need no approval have already run, and their result has
-       already been read by the model, when the response arrives, so a blocking verdict only
-       keeps the response from reaching your application.
+       For remote MCP tools run by the OpenAI Responses API (tools of type ``mcp``), MCP approval
+       requests are evaluated before your application sees them, including in streamed
+       responses. Streamed responses of requests whose MCP tools can ask for approval are
+       buffered until that evaluation completes, even when
+       DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off. An approval your application sends
+       back is checked again only when this process has no decision for it and the request is
+       replayed in the input. Only approvals prevent execution: configure require_approval to
+       always for MCP calls that need preventive control. Calls that need no approval have
+       already run, and their result has already been read by the model, when the response
+       arrives, so a blocking verdict only keeps the response from reaching your application.
 
 Code Security
 -------------

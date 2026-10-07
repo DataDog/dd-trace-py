@@ -1,16 +1,16 @@
 """Shared helpers for evaluating MCP tool calls detected on the model SDK side.
 
-OpenAI hosted MCP approvals are decided when the approval request is returned, and that decision
-is reused when the application sends its approval back.
+OpenAI hosted MCP approval requests are enforced when they are returned to the application. The
+decision is remembered so the approval the application sends back is not evaluated again.
 """
 
 from collections import OrderedDict
-import threading
 from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.aiguard._types import MCP
-from ddtrace.internal.utils.http import canonicalize_url
+from ddtrace.internal import forksafe
+from ddtrace.internal.utils.http import url_origin
 
 
 def mcp_metadata(transport: str, tool_name: str, name: Optional[str] = None, url: Optional[str] = None) -> MCP:
@@ -18,9 +18,9 @@ def mcp_metadata(transport: str, tool_name: str, name: Optional[str] = None, url
     mcp = MCP(transport=transport, tool_name=tool_name)
     if name:
         mcp["name"] = name
-    canonical_url = canonicalize_url(url) if url else None
-    if canonical_url:
-        mcp["url"] = canonical_url
+    origin = url_origin(url) if url else None
+    if origin:
+        mcp["url"] = origin
     return mcp
 
 
@@ -34,14 +34,14 @@ class ApprovalDecision(NamedTuple):
 class _ApprovalDecisions:
     """Bounded, thread-safe map from OpenAI MCP approval request IDs to their AI Guard decision.
 
-    Kept in process memory only: a continuation served by another process re-evaluates when the
-    approval request is replayed in its input.
+    Only avoids evaluating a request twice: it was already enforced when returned, so a miss in
+    another process or after eviction is not a bypass.
     """
 
     def __init__(self, max_size: int = 1024) -> None:
         self._max_size = max_size
         self._decisions: OrderedDict[str, ApprovalDecision] = OrderedDict()
-        self._lock = threading.Lock()
+        self._lock = forksafe.Lock()
 
     def record(self, approval_ids: list[str], decision: ApprovalDecision) -> None:
         with self._lock:

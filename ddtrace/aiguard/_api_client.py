@@ -294,8 +294,18 @@ class AIGuardClient:
         return None
 
     @staticmethod
-    def _set_mcp_tags(span: Any, message: Message) -> None:
-        for tool_call in message.get("tool_calls") or []:
+    def _set_mcp_tags(span: Any, message: Message, messages: list[Message]) -> None:
+        tool_calls = message.get("tool_calls") or []
+        target_id = message.get("tool_call_id")
+        if not tool_calls and target_id:
+            # A tool result carries no metadata: read it from the call it answers.
+            tool_calls = [
+                tool_call
+                for msg in reversed(messages)
+                for tool_call in msg.get("tool_calls") or []
+                if tool_call.get("id") == target_id
+            ][:1]
+        for tool_call in tool_calls:
             mcp = tool_call.get("mcp")
             if not isinstance(mcp, dict):
                 continue
@@ -367,7 +377,7 @@ class AIGuardClient:
                 if tool_name:
                     span.set_tag(AI_GUARD.TARGET_TAG, "tool")
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
-                    self._set_mcp_tags(span, last)
+                    self._set_mcp_tags(span, last, messages)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
 

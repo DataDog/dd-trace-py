@@ -107,11 +107,11 @@ def strip_query_string(url: str) -> str:
 _DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
 
 
-def canonicalize_url(url: str) -> Optional[str]:
-    """Reduce url to an identity safe to report and match on.
+def url_origin(url: str) -> Optional[str]:
+    """Reduce url to its origin (scheme, host and non-default port), an identity safe to report.
 
-    Drops userinfo, query and fragment, lowercases scheme and host, removes the scheme default
-    port and keeps the path untouched. Returns None when url has no scheme or host.
+    The path is dropped along with userinfo, query and fragment, since credentials can sit in any
+    of them. Returns None when url has no scheme or host.
     """
     try:
         parts = parse.urlsplit(url)
@@ -125,7 +125,7 @@ def canonicalize_url(url: str) -> Optional[str]:
     if ":" in host:
         host = f"[{host}]"
     netloc = host if port is None or _DEFAULT_PORTS.get(scheme) == port else f"{host}:{port}"
-    return parse.urlunsplit((scheme, netloc, parts.path, "", ""))
+    return f"{scheme}://{netloc}"
 
 
 def redact_query_string(query_string: str, query_string_obfuscation_pattern: re.Pattern) -> Union[bytes, str]:

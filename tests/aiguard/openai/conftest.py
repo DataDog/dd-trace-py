@@ -99,6 +99,22 @@ def openai_sdk_buffered():
 
 
 @pytest.fixture
+def openai_sdk_mcp_buffered():
+    """Like openai_sdk but with only MCP collection enabled before patch(), so the Responses
+    stream wrappers buffer only the requests that can carry hosted MCP approval requests.
+    """
+    with override_env(dict(OPENAI_API_KEY="<not-a-real-key>")):
+        with override_ai_guard_config(dict(_ai_guard_collect_mcp_enabled=True)):
+            patch()
+            import openai
+
+            try:
+                yield openai
+            finally:
+                unpatch()
+
+
+@pytest.fixture
 def openai_url() -> str:
     """
     Use the request recording endpoint of the testagent to capture requests to OpenAI.
@@ -399,6 +415,22 @@ def openai_responses_mcp_approval_stream_client_buffered(openai_sdk_buffered, _r
 @pytest.fixture
 def async_openai_responses_mcp_approval_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
     return openai_sdk_buffered.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncMCPApprovalStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def openai_responses_mcp_approval_stream_client_mcp_buffered(openai_sdk_mcp_buffered, _require_responses_api):
+    return openai_sdk_mcp_buffered.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_MCPApprovalStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_responses_mcp_approval_stream_client_mcp_buffered(openai_sdk_mcp_buffered, _require_responses_api):
+    return openai_sdk_mcp_buffered.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncMCPApprovalStreamMockTransport()),
     )
