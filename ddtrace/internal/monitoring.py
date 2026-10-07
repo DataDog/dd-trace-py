@@ -146,8 +146,17 @@ class _IdentityWeakKeyDictionary:
         self._data.clear()
 
 
-def _on_code_registration_collected() -> None:
+def _on_code_registration_collected(_is_finalizing: Callable[[], bool] = sys.is_finalizing) -> None:
     """Release tool ownership when weak cleanup removes the final local registration."""
+
+    # Registered code objects can be freed after interpreter shutdown has set this
+    # module's globals (e.g. _registry_lock) to None.
+    # _is_finalizing is never passed by callers, but it is in parameters and captured
+    # at function definition time as sys.is_finalizing so that we still hold a direct
+    # reference to it all the time (even if sys has been set to None).
+    if _is_finalizing():
+        return
+
     with _registry_lock:
         _release_tool_if_unused()
 
