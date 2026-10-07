@@ -10,6 +10,7 @@ from ddtrace._trace.otel.http.resource import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils_base import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -18,11 +19,11 @@ from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings._core import FLEET_CONFIG
+from ddtrace.internal.settings._core import LOCAL_CONFIG
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import redact_query_string
-from ddtrace.internal.utils.http import redact_url
-from ddtrace.internal.utils.http import strip_query_string
 
 
 log = get_logger(__name__)
@@ -111,7 +112,9 @@ def set_url_tags_otel_server(
     if parsed.scheme:
         span._set_attribute(http.OTEL_URL_SCHEME, parsed.scheme)
     raw_path = None
-    if raw_uri:
+    if raw_uri and raw_uri.startswith("/"):
+        raw_path = raw_uri.partition("?")[0].partition("#")[0]
+    elif raw_uri:
         try:
             raw_path = parse.urlsplit(raw_uri).path
         except ValueError:
@@ -135,25 +138,14 @@ def set_url_tags_otel_server(
     _set_otel_query(span, query if query is not None else parsed.query)
 
 
-def _obfuscated_full_url(url: str, query: Optional[str], tag_query_string: bool) -> Union[str, bytes]:
-    if not tag_query_string:
-        return strip_query_string(url)
-    if config._global_query_string_obfuscation_disabled:
-        return url
-    if config._obfuscation_query_string_pattern is None or (
-        getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
-    ):
-        # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
-        return strip_query_string(url)
-    return redact_url(url, config._obfuscation_query_string_pattern, query)
-
-
 def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
 
     tag_query_string = integration_config.http_tag_query_string or integration_config.trace_query_string
-    span._set_attribute(http.OTEL_URL_FULL, cast(Any, _obfuscated_full_url(url, query, tag_query_string)))
+    # url.full must carry a separately supplied query even when it is not obfuscated.
+    full_url = parse.urlunsplit(parse.urlsplit(url)._replace(query=query)) if query else url
+    span._set_attribute(http.OTEL_URL_FULL, cast(Any, _sanitized_url(full_url, query, tag_query_string)))
 
     address, port = _split_netloc(parsed.netloc)
     if port is None:
@@ -254,7 +246,8 @@ class OTelHTTPSpanAttributes:
     def _is_error_status(self, status_code: int) -> bool:
         if self.is_client:
             return status_code >= 400
-        if "DD_TRACE_HTTP_SERVER_ERROR_STATUSES" not in env:
+        setting = "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"
+        if setting not in env and setting not in LOCAL_CONFIG and setting not in FLEET_CONFIG:
             # OTel treats any code at or above 500 as an error.
             return status_code >= 500
         return bool(config._http_server.is_error_code(status_code))

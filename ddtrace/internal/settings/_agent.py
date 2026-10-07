@@ -72,23 +72,31 @@ def _derive_stats_url(config: "AgentConfig") -> str:
     return url
 
 
-def _otel_semantics_enabled() -> bool:
-    """Resolve the flag before global Config exists, preserving stable-config precedence."""
-    name = "DD_TRACE_OTEL_SEMANTICS_ENABLED"
-    value = LOCAL_CONFIG.get(name, False)
+def _get_startup_config(name: str, default: Optional[str] = None) -> Optional[str]:
+    """Resolve configuration before global Config exists, preserving stable-config precedence."""
+    value = LOCAL_CONFIG.get(name, default)
     value = env.get(name, value)
-    return asbool(FLEET_CONFIG.get(name, value))
+    return FLEET_CONFIG.get(name, value)
 
 
-def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
+def _otel_semantics_enabled() -> bool:
+    return asbool(_get_startup_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", "false"))
+
+
+def _otlp_traces_export_enabled() -> bool:
+    """Read live so callers observe configuration changed after AgentConfig was built."""
     # OTel semantics force OTLP export ahead of the agent-protocol override.
     if _otel_semantics_enabled():
         return True
     return (
         env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
-        and not config._trace_agent_protocol_version
-        and not env.get("DD_TRACE_API_VERSION")
+        and not _get_startup_config("DD_TRACE_AGENT_PROTOCOL_VERSION")
+        and not _get_startup_config("DD_TRACE_API_VERSION")
     )
+
+
+def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
+    return _otlp_traces_export_enabled()
 
 
 def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
