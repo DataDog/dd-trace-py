@@ -86,7 +86,7 @@ def create_mock_grpc_server():
     return mock_service, MockServer(mock_service)
 
 
-def create_mock_http_server():
+def create_mock_http_server(port):
     """Create a mock HTTP server for testing OpenTelemetry logs exporter."""
     requests = []
 
@@ -103,7 +103,7 @@ def create_mock_http_server():
         def log_message(self, format_string, *args):
             pass
 
-    server = MockHTTPServer(("127.0.0.1", 4318), Handler)
+    server = MockHTTPServer(("127.0.0.1", port), Handler)
     thread = Thread(target=server.serve_forever, daemon=True)
 
     class MockServer:
@@ -275,6 +275,7 @@ def test_otel_logs_support_not_enabled():
         "DD_TRACE_REPORT_HOSTNAME": "true",
         "DD_HOSTNAME": "ddhost",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:14318",
     },
     err=None,
 )
@@ -289,7 +290,7 @@ def test_otel_logs_exporter_auto_configured_http():
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
 
     log = getLogger()
-    requests, server = create_mock_http_server()
+    requests, server = create_mock_http_server(14318)
     try:
         server.start()
         log.error("test_otel_logs_exporter_auto_configured_http")
@@ -673,7 +674,12 @@ def test_otel_logs_does_not_generate_client_grpc_spans():
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
 @pytest.mark.subprocess(
-    ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf"}
+    ddtrace_run=True,
+    env={
+        "DD_LOGS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:14319",
+    },
 )
 def test_otel_logs_does_not_generate_client_http_spans():
     """Test that OpenTelemetry http logs exporter does not generate client spans."""
@@ -686,7 +692,7 @@ def test_otel_logs_does_not_generate_client_http_spans():
     from tests.utils import DummyWriter
 
     logger = getLogger()
-    requests, server = create_mock_http_server()
+    requests, server = create_mock_http_server(14319)
     writer = DummyWriter()
     tracer._span_aggregator.writer = writer
     try:
