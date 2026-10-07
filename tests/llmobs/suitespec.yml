@@ -133,6 +133,7 @@ suites:
     snapshot: true
     venvs_per_job: 1
   llmobs:
+    no_proxy: true
     paths:
       - '@bootstrap'
       - '@core'
