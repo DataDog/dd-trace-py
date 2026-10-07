@@ -27,10 +27,11 @@ from ddtrace.llmobs._utils import _get_attr
 
 
 def traced_send_request(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Injects distributed tracing headers into MCP request metadata"""
+    """Sends the request with the current trace context added to its params metadata."""
     if not args or not config.mcp.distributed_tracing:
         return func(*args, **kwargs)
-    return func(*((inject_distributed_headers(args[0]),) + args[1:]), **kwargs)
+    request, *rest = args
+    return func(inject_distributed_headers(request), *rest, **kwargs)
 
 
 async def traced_server_runner_on_request(

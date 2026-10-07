@@ -33,17 +33,17 @@ def _request_meta(request_root: Any) -> Optional[dict[str, Any]]:
 
 
 def traced_send_request(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Injects distributed tracing headers into MCP request metadata"""
+    """Sends the request with the current trace context added to its params metadata."""
     if not args or not config.mcp.distributed_tracing:
         return func(*args, **kwargs)
-    request = args[0]
+    request, *rest = args
     # Every request is wrapped in a ClientRequest root model
     request_root = _get_attr(request, "root", None)
     if request_root is not None:
         new_root = inject_distributed_headers(request_root)
         if new_root is not request_root:
             request = type(request)(new_root)
-    return func(*((request,) + args[1:]), **kwargs)
+    return func(request, *rest, **kwargs)
 
 
 def traced_request_responder_enter(
