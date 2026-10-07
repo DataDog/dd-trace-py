@@ -17,6 +17,7 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._core import FLEET_CONFIG
@@ -98,7 +99,7 @@ def _obfuscated_query(query: Optional[str]) -> Optional[Union[str, bytes]]:
 
 def _set_otel_query(span: Span, query: Optional[str]) -> None:
     if obfuscated := _obfuscated_query(query):
-        span._set_attribute(http.OTEL_URL_QUERY, cast(Any, obfuscated))
+        span._set_attribute(otel_http.URL_QUERY, cast(Any, obfuscated))
 
 
 def set_url_tags_otel_server(
@@ -110,7 +111,7 @@ def set_url_tags_otel_server(
 ) -> None:
     parsed = parse.urlsplit(url)
     if parsed.scheme:
-        span._set_attribute(http.OTEL_URL_SCHEME, parsed.scheme)
+        span._set_attribute(otel_http.URL_SCHEME, parsed.scheme)
     raw_path = None
     if raw_uri and raw_uri.startswith("/"):
         raw_path = raw_uri.partition("?")[0].partition("#")[0]
@@ -122,7 +123,7 @@ def set_url_tags_otel_server(
             # not prevent the remaining request metadata from being reported.
             pass
     # url.path is required; an empty origin-form path is "/".
-    span._set_attribute(http.OTEL_URL_PATH, raw_path or parsed.path or "/")
+    span._set_attribute(otel_http.URL_PATH, raw_path or parsed.path or "/")
 
     address, port = _split_netloc(parsed.netloc)
     if port is None:
@@ -130,7 +131,7 @@ def set_url_tags_otel_server(
     if address:
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
-            span._set_attribute(net.SERVER_PORT, port)
+            span._set_attribute(otel_http.SERVER_PORT, port)
 
     # Either existing query-string option enables url.query capture.
     if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
@@ -145,7 +146,7 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
     tag_query_string = integration_config.http_tag_query_string or integration_config.trace_query_string
     # url.full must carry a separately supplied query even when it is not obfuscated.
     full_url = parse.urlunsplit(parse.urlsplit(url)._replace(query=query)) if query else url
-    span._set_attribute(http.OTEL_URL_FULL, cast(Any, _sanitized_url(full_url, query, tag_query_string)))
+    span._set_attribute(otel_http.URL_FULL, cast(Any, _sanitized_url(full_url, query, tag_query_string)))
 
     address, port = _split_netloc(parsed.netloc)
     if port is None:
@@ -153,7 +154,7 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
     if address:
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
-            span._set_attribute(net.SERVER_PORT, port)
+            span._set_attribute(otel_http.SERVER_PORT, port)
 
 
 # This writer deliberately does not read the OTel semantics feature flag. Callers
@@ -164,8 +165,8 @@ class OTelHTTPSpanAttributes:
     def __init__(self, span: Span, integration_config: IntegrationConfig) -> None:
         self._span = span
         self._integration_config = integration_config
-        self._normalized_method = span.get_tag(http.OTEL_REQUEST_METHOD)
-        self._original_method = span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL)
+        self._normalized_method = span.get_tag(otel_http.REQUEST_METHOD)
+        self._original_method = span.get_tag(otel_http.REQUEST_METHOD_ORIGINAL)
 
         kind = span.get_tag(SPAN_KIND)
         self.is_client = kind == SpanKind.CLIENT if kind is not None else span.span_type == SpanTypes.HTTP
@@ -177,11 +178,11 @@ class OTelHTTPSpanAttributes:
         normalized_method, original_method = normalize_http_method(method)
         self._normalized_method = normalized_method
         self._original_method = original_method
-        self._span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
+        self._span._set_attribute(otel_http.REQUEST_METHOD, normalized_method)
         if original_method is not None:
-            self._span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
+            self._span._set_attribute(otel_http.REQUEST_METHOD_ORIGINAL, original_method)
         else:
-            self._span.remove_tag(http.OTEL_REQUEST_METHOD_ORIGINAL)
+            self._span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)
 
     def set_url(
         self,
@@ -221,7 +222,7 @@ class OTelHTTPSpanAttributes:
             log.debug("failed to convert http status code %r to int", status_code)
             return
 
-        self._span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, int_status_code)
+        self._span._set_attribute(otel_http.RESPONSE_STATUS_CODE, int_status_code)
         previous_status_error = self._span._get_ctx_item(_HTTP_STATUS_ERROR)
         if previous_status_error is not None:
             previous_error_type, previous_error = previous_status_error
@@ -254,7 +255,7 @@ class OTelHTTPSpanAttributes:
 
     def set_user_agent(self, user_agent: Optional[str]) -> None:
         if user_agent:
-            self._span._set_attribute(http.OTEL_USER_AGENT_ORIGINAL, user_agent)
+            self._span._set_attribute(otel_http.USER_AGENT_ORIGINAL, user_agent)
 
     def set_client_addresses(
         self,
@@ -262,9 +263,9 @@ class OTelHTTPSpanAttributes:
         network_peer_address: Optional[str],
     ) -> None:
         if client_address:
-            self._span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
+            self._span._set_attribute(otel_http.CLIENT_ADDRESS, client_address)
         if network_peer_address:
-            self._span._set_attribute(net.NETWORK_PEER_ADDRESS, network_peer_address)
+            self._span._set_attribute(otel_http.NETWORK_PEER_ADDRESS, network_peer_address)
 
     def set_resource(self, route: Optional[str]) -> None:
         if self._normalized_method is None:
