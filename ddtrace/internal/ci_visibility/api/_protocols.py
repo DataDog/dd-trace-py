@@ -15,6 +15,8 @@ class TestVisibilitySessionProtocol(t.Protocol):
     importing from _session.py (which would create a circular import).
     """
 
+    itr_suite_reporting_enabled: bool
+
     def get_child_by_id(self, child_id: Any) -> Any: ...
 
     def get_session_settings(self) -> Any: ...

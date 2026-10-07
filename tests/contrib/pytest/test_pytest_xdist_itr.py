@@ -357,8 +357,8 @@ class TestScope2:
         suite_spans = self.worker_suite_itr_events()
         assert len(suite_spans) == 2
         for span in suite_spans:
-            assert span["count"] == 1
-            assert span["skipped"] == "true"
+            assert span["count"] is None
+            assert span["skipped"] is None
 
     def test_pytest_xdist_itr_skips_tests_at_test_level_without_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
@@ -466,15 +466,13 @@ CIVisibility.enable = classmethod(patched_enable)
         # Verify number of skipped tests in session
         assert session_span.get_metric("test.itr.tests_skipping.count") == 3
 
-        # Each worker emits its own suite event; sums across events for a file remain local to that suite.
         suite_spans = self.worker_suite_itr_events()
-        for name, expected in (("test_fail.py", 2), ("test_pass.py", 1)):
+        for name in ("test_fail.py", "test_pass.py"):
             matching = [span for span in suite_spans if span["suite"] == name]
             assert matching
-            assert sum(span["count"] for span in matching) == expected
             for span in matching:
-                count = span["count"]
-                assert span["skipped"] == ("true" if count > 0 else "false")
+                assert span["count"] is None
+                assert span["skipped"] is None
 
     def test_pytest_xdist_itr_skips_tests_at_suite_level_with_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""

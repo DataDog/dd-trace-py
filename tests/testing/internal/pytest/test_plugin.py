@@ -33,6 +33,7 @@ from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
+from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import MockDefaults
@@ -2390,3 +2391,44 @@ class TestRetryReportsTeardownTracking:
         # Degraded report — the bug's symptom.
         assert final_report.outcome == "failed"
         assert final_report.longrepr is None
+
+
+class TestSuiteITRReporting:
+    @pytest.mark.parametrize("all_tests_finished", [True, False])
+    @pytest.mark.parametrize("other_skipped_by_itr", [True, False])
+    @pytest.mark.parametrize("other_finished", [True, False])
+    @pytest.mark.parametrize("other_status", [TestStatus.SKIP, TestStatus.FAIL])
+    def test_suite_mode_waits_for_all_children(
+        self, other_skipped_by_itr, other_finished, other_status, all_tests_finished
+    ):
+        session = TestSession("session")
+        session.set_itr_attributes(True, True, ITRSkippingLevel.SUITE)
+        module, _ = session.get_or_create_child("module")
+        suite, _ = module.get_or_create_child("suite")
+        suite.start()
+        first, _ = suite.get_or_create_child("first")
+        first.start()
+        first.mark_skipped_by_itr()
+        first.set_status(TestStatus.SKIP)
+        first.finish()
+        other, _ = suite.get_or_create_child("other")
+        other.start()
+        if other_skipped_by_itr:
+            other.mark_skipped_by_itr()
+        other.set_status(other_status)
+        if other_finished:
+            other.finish()
+        assert TestTag.SKIPPED_BY_ITR not in suite.tags
+        manager = session_manager_mock().build_mock()
+        manager.session = session
+        plugin = TestOptPlugin(session_manager=manager)
+        with patch("ddtrace.testing.internal.pytest.plugin.TelemetryAPI.get"):
+            plugin._finish_suite(suite, all_tests_finished=all_tests_finished)
+        expected = int(
+            all_tests_finished and other_skipped_by_itr and other_finished and other_status == TestStatus.SKIP
+        )
+        assert suite.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] == expected
+        assert suite.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("true" if expected else "false")
+        assert suite.tags.get(TestTag.SKIPPED_BY_ITR) == ("true" if expected else None)
+        if other_finished:
+            assert suite.get_status() == other_status

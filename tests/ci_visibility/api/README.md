@@ -39,15 +39,17 @@ When Test Impact Analysis is enabled, every completed suite reports
 `_dd.ci.itr.tests_skipped` as the string `"true"` exactly when that count is positive.
 Empty suites and suites without Test Impact Analysis skips report zero and `"false"`,
 including when test skipping or coverage collection is disabled. Both fields are
-omitted when Test Impact Analysis is disabled.
+omitted when Test Impact Analysis is disabled or tests run in pytest-xdist workers.
+This applies to both pytest implementations and all xdist scheduling modes:
+workers cannot reliably determine the complete suite's results. Existing xdist
+test skipping, session totals, and suite event timing are preserved.
 
 Test mode counts the suite's Test Impact Analysis skipped test executions; suite
 mode counts a skipped suite once. Framework skips, disabled tests, and forced runs
 do not contribute. A collected suite is marked as skipped by Test Impact Analysis
 only after every selected child has finished with a Test Impact Analysis skip
 and a final skip outcome. Pytest waits for all selected tests even when a suite's
-items are interleaved with other suites. Distributed workers finalize their
-locally executed suites at worker completion. Counters
-belong to individual suites and propagate to ancestors using the existing session
-counting rules. Distributed workers report their own suite events, while the
-controller aggregates the session total.
+items are interleaved with other suites. After early termination, started suites
+and modules are finalized without treating incomplete suites as fully skipped by
+Test Impact Analysis. Counters belong to individual suites and propagate to
+ancestors using the existing session counting rules.

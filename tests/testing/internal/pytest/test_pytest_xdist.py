@@ -360,52 +360,41 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 
 
 class TestSuiteITRReporting:
-    def test_worker_finalizes_interleaved_suite_once(
+    def test_completed_suite_survives_later_worker_crash(
         self, mock_server: MockCIVisibilityServer, test_project: Path
     ) -> None:
         assert mock_server.server is not None
         server = t.cast(t.Any, mock_server.server)
         server.settings_attributes = {**_settings_attributes(), "itr_enabled": True, "tests_skipping": True}
-        server.skippable_items = [
-            {
-                "id": "1",
-                "type": "suite",
-                "attributes": {"configurations": {"test.bundle": ""}, "suite": "test_a.py", "name": ""},
-            }
-        ]
-        (test_project / "test_a.py").write_text(
-            textwrap.dedent("""\
-            import pytest
-
-            def test_tia():
-                assert False
-
-            @pytest.mark.skip(reason="framework")
-            def test_framework():
-                assert False
-            """)
-        )
-        (test_project / "test_b.py").write_text("def test_pass():\n    assert True\n")
+        (test_project / "test_a.py").write_text("def test_pass():\n    assert True\n")
+        (test_project / "test_b.py").write_text("import os\n\ndef test_crash():\n    os._exit(1)\n")
         _git_commit(test_project)
         result = _run_pytest_subprocess(
             test_project,
             "-n",
             "1",
-            "--randomly-dont-reorganize",
-            env=_make_env(mock_server.url, {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "true"}),
-            test_selection=("test_a.py::test_tia", "test_b.py::test_pass", "test_a.py::test_framework"),
+            "--max-worker-restart",
+            "0",
+            "-p",
+            "no:randomly",
+            env=_make_env(mock_server.url, {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"}),
+            test_selection=("test_a.py", "test_b.py"),
         )
-        assert result.returncode == 0, result.stdout + result.stderr
-        suites = mock_server.get_suite_events()
-        assert len(suites) == 2
-        [suite] = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == "test_a.py"]
-        assert suite["meta"]["test.status"] == "skip"
-        assert suite["meta"].get("test.skipped_by_itr") is None
-        assert suite["metrics"]["test.itr.tests_skipping.count"] == 0
-        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+        assert result.returncode == 1, result.stdout + result.stderr
+        [suite] = [
+            event["content"]
+            for event in mock_server.get_suite_events()
+            if event["content"]["meta"]["test.suite"] == "test_a.py"
+        ]
+        assert suite["meta"]["test.status"] == "pass"
+        assert "test.itr.tests_skipping.count" not in suite["metrics"]
+        assert "_dd.ci.itr.tests_skipped" not in suite["meta"]
 
     @pytest.mark.parametrize("suite_mode", [False, True])
-    def test_distributed_suite_counts(self, mock_server: MockCIVisibilityServer, test_project: Path, suite_mode):
+    @pytest.mark.parametrize("distribution", ["load", "loadfile", "worksteal"])
+    def test_distributed_suites_omit_fields(
+        self, mock_server: MockCIVisibilityServer, test_project: Path, suite_mode, distribution
+    ):
         assert mock_server.server is not None
         server = t.cast(t.Any, mock_server.server)
         server.settings_attributes = {**_settings_attributes(), "itr_enabled": True, "tests_skipping": True}
@@ -443,19 +432,15 @@ class TestSuiteITRReporting:
         (test_project / "test_c.py").write_text("def test_pass():\n    assert True\n")
         _git_commit(test_project)
         env = _make_env(mock_server.url, {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "true" if suite_mode else "false"})
-        result = _run_pytest_subprocess(
-            test_project, "-n", "2", "--dist=loadfile" if suite_mode else "--dist=load", env=env
-        )
+        result = _run_pytest_subprocess(test_project, "-n", "2", f"--dist={distribution}", env=env)
         assert result.returncode == 0, result.stdout + result.stderr
         suites = mock_server.get_suite_events()
-        for name, expected in (("test_a.py", 1 if suite_mode else 2), ("test_b.py", 1), ("test_c.py", 0)):
+        for name in ("test_a.py", "test_b.py", "test_c.py"):
             matching = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == name]
             assert matching
-            assert sum(content["metrics"]["test.itr.tests_skipping.count"] for content in matching) == expected
             for content in matching:
-                count = content["metrics"]["test.itr.tests_skipping.count"]
-                assert type(count) is int
-                assert content["meta"]["_dd.ci.itr.tests_skipped"] == ("true" if count else "false")
+                assert "test.itr.tests_skipping.count" not in content["metrics"]
+                assert "_dd.ci.itr.tests_skipped" not in content["meta"]
         [session] = mock_server.get_events_by_type("test_session_end")
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == (2 if suite_mode else 3)
 

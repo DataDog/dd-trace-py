@@ -576,6 +576,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         extracted_context = None
         distributed_children = False
         if hasattr(session.config, "workerinput"):
+            InternalTestSession.disable_itr_suite_reporting()
             from ddtrace._trace.context import Context
             from ddtrace.constants import USER_KEEP
 

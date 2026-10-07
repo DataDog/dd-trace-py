@@ -403,6 +403,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._osr_candidates: list[pytest.Item] = []
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
+        # Worker assignments do not provide a complete view of a suite.
+        self.session.itr_suite_reporting_enabled = not hasattr(session.config, "workerinput")
         if xdist_worker_input := getattr(session.config, "workerinput", None):
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
@@ -522,9 +524,8 @@ class TestOptPlugin(TestOptPluginProtocol):
             # Clean up external coverage instance registration
             clear_coverage_instance()
 
-        # Workers collect the entire session, but their assigned tests are only known at run time.
-        # Finish their locally executed suites after the worker has completed all its tests.
-        if self.is_xdist_worker:
+        # Fail-fast or interruption may leave selected tests unexecuted in started parents.
+        if not self.is_xdist_worker:
             for module in self.session.children.values():
                 for suite in module.children.values():
                     if suite.is_started() and not suite.is_finished():
@@ -623,8 +624,9 @@ class TestOptPlugin(TestOptPluginProtocol):
         for item in session.items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
-            self._remaining_tests_by_suite[test_ref.suite] += 1
-            self._remaining_tests_by_module[test_ref.suite.module] += 1
+            if not self.is_xdist_worker:
+                self._remaining_tests_by_suite[test_ref.suite] += 1
+                self._remaining_tests_by_module[test_ref.suite.module] += 1
             if (
                 self.manager.itr_skipping_level == ITRSkippingLevel.SUITE
                 and self.manager.is_skippable_test(test_ref)
@@ -825,12 +827,26 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         self._finish_test_parents(test_ref, next_test_ref, test)
 
-    def _finish_suite(self, suite: TestSuite) -> None:
+    def _finish_suite(self, suite: TestSuite, all_tests_finished: bool = False) -> None:
         self.manager._set_suite_source_location(suite)
         for test in suite.children.values():
             if codeowners := test.tags.get(TestTag.CODEOWNERS):
                 suite.tags[TestTag.CODEOWNERS] = codeowners
                 break
+        if (
+            all_tests_finished
+            and self.session.itr_enabled
+            and self.session.itr_suite_reporting_enabled
+            and self.session.itr_skipping_level == ITRSkippingLevel.SUITE
+        ):
+            try:
+                if suite.children and all(
+                    child.is_finished() and child.is_skipped_by_itr() and child.get_status() == TestStatus.SKIP
+                    for child in suite.children.values()
+                ):
+                    suite.mark_skipped_by_itr()
+            except Exception:
+                log.debug("Error reporting suite ITR skips", exc_info=True)
         suite.finish()
         self.manager.writer.put_item(suite)
         TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
@@ -841,9 +857,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _finish_test_parents(self, test_ref: TestRef, next_test_ref: t.Optional[TestRef], test: Test) -> None:
-        if self.is_xdist_worker:
-            return
-        if self._collection_finished:
+        if self._collection_finished and not self.is_xdist_worker:
             # Explicit node selection and ordering plugins can revisit a suite or module later.
             # File boundaries are insufficient: wait for every selected test execution instead.
             self._remaining_tests_by_suite[test_ref.suite] -= 1
@@ -854,7 +868,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             finish_suite = not next_test_ref or test_ref.suite != next_test_ref.suite
             finish_module = not next_test_ref or test_ref.suite.module != next_test_ref.suite.module
         if finish_suite:
-            self._finish_suite(test.suite)
+            self._finish_suite(test.suite, all_tests_finished=True)
         if finish_module:
             self._finish_module(test.module)
 

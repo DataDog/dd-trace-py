@@ -254,6 +254,51 @@ class TestITR:
         assert len(modules) == (2 if different_module else 1)
         assert sum(event["content"]["meta"]["test.status"] == "pass" for event in modules) == 1
 
+    @pytest.mark.parametrize("skip_first", [False, True])
+    def test_fail_fast_finishes_incomplete_parents(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, skip_first: bool
+    ) -> None:
+        pytester.makepyfile(
+            test_a="""
+            def test_first():
+                assert False
+
+            def test_later():
+                assert False
+            """,
+            test_b="def test_fail():\n    assert False\n",
+        )
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    skippable_items={SuiteRef(ModuleRef(""), "test_a.py")} if skip_first else set(),
+                ),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+            EventCapture.capture() as capture,
+        ):
+            result = pytester.inline_run(
+                "--ddtrace",
+                "-x",
+                "--randomly-dont-reorganize",
+                "test_a.py::test_first",
+                "test_b.py::test_fail",
+                "test_a.py::test_later",
+            )
+        result.assertoutcome(failed=1, skipped=int(skip_first))
+        suites = list(capture.events_by_type("test_suite_end"))
+        assert len(suites) == (2 if skip_first else 1)
+        [suite] = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == "test_a.py"]
+        assert suite["meta"]["test.status"] == ("skip" if skip_first else "fail")
+        assert suite["meta"].get("test.skipped_by_itr") is None
+        assert suite["metrics"]["test.itr.tests_skipping.count"] == 0
+        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+        [module] = capture.events_by_type("test_module_end")
+        assert module["content"]["meta"]["test.status"] == "fail"
+
     def test_suite_tia_reporting_preserves_teardown_failure(
         self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
     ) -> None:

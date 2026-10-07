@@ -76,6 +76,11 @@ class InternalTestBase(ext_api.TestBase):
 
 class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin, AttemptToFixSessionMixin):
     @staticmethod
+    @_catch_and_log_exceptions
+    def disable_itr_suite_reporting() -> None:
+        require_ci_visibility_service().get_session().itr_suite_reporting_enabled = False
+
+    @staticmethod
     def get_span() -> Span:
         return _get_item_span(TestSessionId())
 

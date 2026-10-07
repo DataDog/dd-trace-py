@@ -48,6 +48,7 @@ class TestVisibilitySession(
             "test_visibility_session", session_settings, session_settings.session_operation_name, initial_tags
         )
         self._test_command = self._session_settings.test_command
+        self.itr_suite_reporting_enabled = True
 
         self._efd_abort_reason: Optional[str] = None
         self._efd_is_faulty_session: Optional[bool] = None

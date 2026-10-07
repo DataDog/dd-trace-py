@@ -332,12 +332,14 @@ class TestITRTestSkippingEnabledTags:
 
 
 class TestSuiteITRReporting:
+    @pytest.mark.parametrize("reporting_enabled", [True, False])
     @pytest.mark.parametrize("itr_enabled,skipping_enabled", [(True, True), (True, False), (False, False)])
     @pytest.mark.parametrize(
         "outcomes", [[], ["pass"], ["skip"], ["itr", "itr", "skip", "pass"], ["forced", "unskippable", "disabled"]]
     )
-    def test_serialized_suite(self, itr_enabled, skipping_enabled, outcomes):
+    def test_serialized_suite(self, itr_enabled, skipping_enabled, outcomes, reporting_enabled):
         session = TestSession("session")
+        session.itr_suite_reporting_enabled = reporting_enabled
         session.set_attributes("test", "pytest", "1.0")
         session.set_itr_attributes(itr_enabled, skipping_enabled, ITRSkippingLevel.TEST)
         module, _ = session.get_or_create_child("module")
@@ -357,7 +359,7 @@ class TestSuiteITRReporting:
                 child.set_attributes(is_disabled=True)
         suite.finish()
         content = serialize_suite(suite)["content"]
-        if itr_enabled:
+        if itr_enabled and reporting_enabled:
             assert type(content["metrics"][TestTag.ITR_TESTS_SKIPPING_COUNT]) is int
             assert content["metrics"][TestTag.ITR_TESTS_SKIPPING_COUNT] == count
             assert content["meta"][TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("true" if count else "false")
@@ -377,36 +379,6 @@ class TestSuiteITRReporting:
         suite.finish()
         assert suite.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] == (0 if forced else 1)
         assert suite.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("false" if forced else "true")
-
-    @pytest.mark.parametrize("other_skipped_by_itr", [True, False])
-    @pytest.mark.parametrize("other_finished", [True, False])
-    @pytest.mark.parametrize("other_status", [TestStatus.SKIP, TestStatus.FAIL])
-    def test_suite_mode_waits_for_all_children(self, other_skipped_by_itr, other_finished, other_status):
-        session = TestSession("session")
-        session.set_itr_attributes(True, True, ITRSkippingLevel.SUITE)
-        module, _ = session.get_or_create_child("module")
-        suite, _ = module.get_or_create_child("suite")
-        suite.start()
-        first, _ = suite.get_or_create_child("first")
-        first.start()
-        first.mark_skipped_by_itr()
-        first.set_status(TestStatus.SKIP)
-        first.finish()
-        other, _ = suite.get_or_create_child("other")
-        other.start()
-        if other_skipped_by_itr:
-            other.mark_skipped_by_itr()
-        other.set_status(other_status)
-        if other_finished:
-            other.finish()
-        assert TestTag.SKIPPED_BY_ITR not in suite.tags
-        suite.finish()
-        expected = int(other_skipped_by_itr and other_finished and other_status == TestStatus.SKIP)
-        assert suite.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] == expected
-        assert suite.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("true" if expected else "false")
-        assert suite.tags.get(TestTag.SKIPPED_BY_ITR) == ("true" if expected else None)
-        if other_finished:
-            assert suite.get_status() == other_status
 
     def test_concurrent_skips_are_local_and_preserve_session_total(self):
         session = TestSession("session")

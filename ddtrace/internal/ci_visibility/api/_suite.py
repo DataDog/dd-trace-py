@@ -83,7 +83,12 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         """Set suite-level tags based on ITR enablement status"""
         super()._set_itr_tags(itr_enabled)
 
-        if itr_enabled:
+        session = self.get_session()
+        if session is not None and not session.itr_suite_reporting_enabled:
+            # The parent implementation also sets the count for nonempty suites.
+            self._tags.pop(test.ITR_TEST_SKIPPING_COUNT, None)
+            self._tags.pop(test.ITR_DD_CI_ITR_TESTS_SKIPPED, None)
+        elif itr_enabled:
             # Empty suites also report zero, independently of skipping and coverage enablement.
             self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
             self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
