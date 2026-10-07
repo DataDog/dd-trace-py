@@ -140,10 +140,14 @@ jobs:
         with:
           platforms: all
 
+      # The pypa/cibuildwheel action of this version calls actions/setup-python
+      # by tag, and the repository policy rejects actions that are not pinned
+      # to a commit SHA. Keep this version in sync with build-wheels-matrix.
       - name: Build wheels
-        uses: pypa/cibuildwheel@c923d83ad9c1bc00211c5041d0c3f73294ff88f6 # v3.1.4
-        with:
-          only: ${{ matrix.only }}
+        shell: bash
+        run: |
+          python -m pip install cibuildwheel==3.1.4
+          python -m cibuildwheel --only "${{ matrix.only }}" 2>&1
 
       - name: Validate wheel RECORD files
         shell: bash
