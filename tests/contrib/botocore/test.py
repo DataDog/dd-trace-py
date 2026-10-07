@@ -5,6 +5,7 @@ import json
 import sys
 import unittest
 from unittest import mock
+import uuid
 import zipfile
 
 import botocore.exceptions
@@ -1433,9 +1434,10 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
         lamb.create_function(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
@@ -1447,10 +1449,10 @@ class BotocoreTest(TracerTestCase):
             MemorySize=128,
         )
         lamb.invoke(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Payload=json.dumps({}),
         )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        lamb.delete_function(FunctionName=function_name)
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1467,9 +1469,10 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
         lamb.create_function(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
@@ -1481,10 +1484,10 @@ class BotocoreTest(TracerTestCase):
             MemorySize=128,
         )
         lamb.invoke(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Payload=json.dumps({}),
         )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        lamb.delete_function(FunctionName=function_name)
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1497,9 +1500,10 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
         lamb.create_function(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
@@ -1511,10 +1515,10 @@ class BotocoreTest(TracerTestCase):
             MemorySize=128,
         )
         lamb.invoke(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Payload=json.dumps({}),
         )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        lamb.delete_function(FunctionName=function_name)
 
         spans = self.get_spans()
         assert spans[0].service == "mysvc"
@@ -1527,9 +1531,10 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_unspecified_service_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
         lamb.create_function(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
@@ -1541,10 +1546,10 @@ class BotocoreTest(TracerTestCase):
             MemorySize=128,
         )
         lamb.invoke(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Payload=json.dumps({}),
         )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        lamb.delete_function(FunctionName=function_name)
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1557,9 +1562,10 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_unspecified_service_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
         lamb.create_function(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
@@ -1571,10 +1577,10 @@ class BotocoreTest(TracerTestCase):
             MemorySize=128,
         )
         lamb.invoke(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Payload=json.dumps({}),
         )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        lamb.delete_function(FunctionName=function_name)
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1587,9 +1593,10 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_unspecified_service_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
         lamb.create_function(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
@@ -1601,10 +1608,10 @@ class BotocoreTest(TracerTestCase):
             MemorySize=128,
         )
         lamb.invoke(
-            FunctionName="guns-and-roses",
+            FunctionName=function_name,
             Payload=json.dumps({}),
         )
-        lamb.delete_function(FunctionName="guns-and-roses")
+        lamb.delete_function(FunctionName=function_name)
 
         spans = self.get_spans()
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
