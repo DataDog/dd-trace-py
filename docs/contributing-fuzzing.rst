@@ -176,8 +176,8 @@ Create an executable ``build.sh``:
     $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-fuzz
 
 Use the ``FUZZ_BASE_IMAGE`` value from ``.gitlab/fuzz.yml``. The default command runs the fuzzer
-named by ``FUZZ_TARGET`` through fuzzydog, which requires ``FUZZYDOG_AUTH_TOKEN``. To run a fuzzer
-locally without fuzzydog, call the binary directly:
+named by ``FUZZ_TARGET`` through ``fuzzydog``, which requires ``FUZZYDOG_AUTH_TOKEN``. To run a
+fuzzer locally without ``fuzzydog``, call the binary directly:
 
 .. code-block:: bash
 
