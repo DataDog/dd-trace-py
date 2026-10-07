@@ -253,7 +253,9 @@ class OTelHTTPSpanAttributes:
 
     def _is_error_status(self, status_code: int) -> bool:
         if self.is_client:
-            return status_code >= 400
+            if not config._http_client.error_statuses_configured:
+                return status_code >= 400
+            return bool(config._http_client.is_error_code(status_code))
         if not config._http_server.error_statuses_configured:
             # OTel treats any code at or above 500 as an error.
             return status_code >= 500
