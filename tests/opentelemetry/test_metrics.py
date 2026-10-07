@@ -163,6 +163,28 @@ def test_grpclib_exporter_uses_otlp_temporality_preference(monkeypatch):
 
 
 @skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
+def test_grpclib_exporter_ignores_interpreter_shutdown_error(monkeypatch, caplog):
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry.grpclib_metric_exporter import OTLPMetricExporter
+
+    async def export(request, *, timeout, metadata):
+        raise RuntimeError("cannot schedule new futures after interpreter shutdown")
+
+    provider, metrics_data = _metrics_data()
+    exporter = OTLPMetricExporter(endpoint="http://127.0.0.1:4317")
+    monkeypatch.setattr(exporter, "_method", export)
+    try:
+        assert exporter.export(metrics_data) is MetricExportResult.FAILURE
+    finally:
+        exporter.shutdown()
+        provider.shutdown()
+
+    assert not [record for record in caplog.records if record.levelno >= 30]
+
+
+@skipif(exporter_not_installed=True)
 def test_resource_attributes_preserve_types(monkeypatch):
     from ddtrace.internal.opentelemetry import metrics
 

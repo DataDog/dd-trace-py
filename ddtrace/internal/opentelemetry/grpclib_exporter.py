@@ -137,6 +137,12 @@ class GrpclibExporter:
                 log.warning("Transient gRPC error exporting OpenTelemetry %s; retrying in %ss", self._signal, delay)
                 sleep(delay)
                 delay = min(delay * 2, _MAX_RETRY_DELAY)
+            except RuntimeError as error:
+                if "after interpreter shutdown" in str(error):
+                    log.debug("Skipped final OpenTelemetry %s export during interpreter shutdown", self._signal)
+                    return failure
+                log.exception("Failed to export OpenTelemetry %s over gRPC", self._signal)
+                return failure
             except Exception:
                 log.exception("Failed to export OpenTelemetry %s over gRPC", self._signal)
                 return failure
