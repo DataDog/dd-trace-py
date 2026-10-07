@@ -11,7 +11,6 @@ from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
