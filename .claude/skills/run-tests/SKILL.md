@@ -56,6 +56,14 @@ This outputs JSON showing:
 - All venvs (Python versions + package combinations) available for each suite
 - Their hashes, Python versions, and package versions
 
+The JSON goes to stdout, but status lines (for example `📁 Checking explicitly provided files: ...`)
+go to stderr. When piping into a JSON parser, do not use `2>&1`, or the status line lands before
+the JSON and parsing fails with `Expecting value: line 1 column 1 (char 0)`. Use `2>/dev/null` instead:
+
+```bash
+scripts/run-tests --list <edited-files> 2>/dev/null | jq '.suites[].venvs[] | {hash, python_version}'
+```
+
 ### Step 3: Intelligently Select Venvs
 
 Rather than running ALL available venvs (which could take hours), I'll select the **minimal set** needed to validate your changes:
