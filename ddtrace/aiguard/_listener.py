@@ -28,6 +28,8 @@ from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
+from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
+from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_invoke_tool_before
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
@@ -125,6 +127,11 @@ def _openai_listen(client: AIGuardClient) -> None:
     core.on("openai.responses.create.after", partial(_openai_response_create_after, client))
     core.on("openai.patch", partial(_install_openai_wrappers, client))
     core.on("openai.unpatch", _uninstall_openai_wrappers)
+    # openai-agents MCP server tools, opt-in (DD_AI_GUARD_COLLECT_MCP_ENABLED) until the AI Guard
+    # service validates the optional mcp object of the evaluate contract.
+    if aiguard_config._ai_guard_collect_mcp_enabled:
+        core.on("openai_agents.mcp.invoke_tool.before", partial(_openai_agents_mcp_invoke_tool_before, client))
+        core.on("openai_agents.mcp.call_tool.before", partial(_openai_agents_mcp_call_tool_before, client))
 
 
 def _make_openai_stream_wrappers(

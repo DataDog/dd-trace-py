@@ -8,6 +8,7 @@ import pytest
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard._initialization import load_ai_guard
+from ddtrace.aiguard.integrations._mcp import _model_tool_calls
 from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
@@ -619,9 +620,11 @@ def async_openai_responses_mcp_approval_client(openai_sdk, _require_responses_ap
 
 @pytest.fixture(autouse=True)
 def _reset_mcp_state():
-    """MCP approval decisions are kept process-wide: isolate tests."""
+    """MCP approval decisions are process-wide and model tool calls per context: isolate tests."""
     approval_decisions.clear()
+    token = _model_tool_calls.set(None)
     yield
+    _model_tool_calls.reset(token)
     approval_decisions.clear()
 
 

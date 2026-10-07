@@ -1,4 +1,6 @@
+from contextvars import ContextVar
 import importlib
+import inspect
 
 import agents
 from agents.tracing import add_trace_processor
@@ -7,7 +9,9 @@ from ddtrace import config
 from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.trace import tracer
 
@@ -65,6 +69,71 @@ _MODULE_RUN_LOOP_WRAP_TARGETS = [
 ]
 
 
+async def _patched_invoke_mcp_tool(func, instance, args, kwargs):
+    # Agent-driven MCP tool run: the model-visible tool and its call context are only known here.
+    core.dispatch(
+        "openai_agents.mcp.invoke_tool.before",
+        (
+            get_argument_value(args, kwargs, 0, "server", optional=True),
+            get_argument_value(args, kwargs, 1, "tool", optional=True),
+            get_argument_value(args, kwargs, 2, "context", optional=True),
+            get_argument_value(args, kwargs, 3, "input_json", optional=True),
+            kwargs.get("tool_display_name"),
+        ),
+        allow_raise=True,
+    )
+    return await func(*args, **kwargs)
+
+
+# Set while a wrapped server call_tool runs, so an override calling super() dispatches once.
+_in_mcp_server_call_tool: ContextVar[bool] = ContextVar("dd_openai_agents_in_mcp_call_tool", default=False)
+
+
+async def _patched_mcp_server_call_tool(func, instance, args, kwargs):
+    # Lowest MCP call boundary of the SDK servers, also reached by direct server.call_tool calls.
+    if _in_mcp_server_call_tool.get():
+        return await func(*args, **kwargs)
+    token = _in_mcp_server_call_tool.set(True)
+    try:
+        core.dispatch(
+            "openai_agents.mcp.call_tool.before",
+            (
+                instance,
+                get_argument_value(args, kwargs, 0, "tool_name", optional=True),
+                get_argument_value(args, kwargs, 1, "arguments", optional=True),
+            ),
+            allow_raise=True,
+        )
+        return await func(*args, **kwargs)
+    finally:
+        _in_mcp_server_call_tool.reset(token)
+
+
+def _mcp_wrap_targets() -> list:
+    """(owner, attribute, wrapper) for the MCP adapter, empty when agents.mcp is unavailable.
+
+    agents.mcp needs the optional mcp package, which is not installable on every Python version.
+    """
+    try:
+        from agents.mcp import server as mcp_server
+        from agents.mcp.util import MCPUtil
+    except ImportError:
+        return []
+    targets: list = [(MCPUtil, "invoke_mcp_tool", _patched_invoke_mcp_tool)]
+    # Concrete SDK servers may override call_tool without calling super(), so each class that
+    # implements it gets wrapped. The abstract MCPServer.call_tool is never reached.
+    for _, cls in inspect.getmembers(mcp_server, inspect.isclass):
+        call_tool = cls.__dict__.get("call_tool")
+        if (
+            cls.__module__ == mcp_server.__name__
+            and issubclass(cls, mcp_server.MCPServer)
+            and call_tool is not None
+            and not getattr(call_tool, "__isabstractmethod__", False)
+        ):
+            targets.append((cls, "call_tool", _patched_mcp_server_call_tool))
+    return targets
+
+
 def patch():
     """
     Patch the instrumented methods
@@ -91,6 +160,9 @@ def patch():
             if hasattr(runner_cls, "_run_single_turn_streamed"):
                 wrap(runner_cls, "_run_single_turn_streamed", _patched_run_single_turn)
 
+    for owner, attr_name, wrapper in _mcp_wrap_targets():
+        wrap(owner, attr_name, wrapper)
+
 
 def unpatch():
     """
@@ -113,3 +185,6 @@ def unpatch():
                 unwrap(runner_cls, "_run_single_turn")
             if hasattr(runner_cls, "_run_single_turn_streamed"):
                 unwrap(runner_cls, "_run_single_turn_streamed")
+
+    for owner, attr_name, _ in _mcp_wrap_targets():
+        unwrap(owner, attr_name)
