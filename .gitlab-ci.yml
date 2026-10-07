@@ -1091,3 +1091,49 @@ render-spike:
       postmessage "$CHANNEL" '🚫 Performance SLO check found no benchmark results for dd-trace-java — benchmark jobs failed, not an SLO breach.
       ℹ️ what to do: access the CI pipeline https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106, investigate failing jobs.
       🔗 CI pipeline: https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106 - Commit: https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/commit/3e5c0b48a5 - Dashboard: https://app.datadoghq.com/dashboard/w6a-xc3-kyz'
+
+# Spike: render the new SLO gate notification texts (as produced by
+# bp-analyzer's markdown_slack reporter golden fixtures) in the real Slack
+# client — validating bullets ('-' markers), emoji spacing and link
+# auto-linking before the strings land. Posts ONLY to the test channel.
+# Play manually; safe to remove after rollout.
+render-spike:
+  stage: benchmarks
+  needs: []
+  when: manual
+  tags: ["arch:amd64"]
+  image: "registry.ddbuild.io/images/benchmarking-platform-tools-notifier:0184e511"
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      CHANNEL="apm-dcs-performance-alerts-test"
+      postmessage "$CHANNEL" "🔔 render spike v2 (bullets •, backticks, labeled links): the four corrected SLO gate notification formats."
+
+      postmessage "$CHANNEL" '🟥 Performance SLOs for dd-trace-java were breached!
+      • `startup:insecure-bank:tracing:GlobalTracer` / `execution_time` = 242.60 ms > 10.00 ms — CI job: [993685721](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/jobs/993685721).
+        Suggestion: 256.17 ms
+      • `startup:insecure-bank:tracing:Agent` / `execution_time` = 8589.00 ms > 1000.00 ms — CI job: [993685721](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/jobs/993685721).
+        Suggestion: 9093.51 ms
+      • `startup:insecure-bank:tracing:Agent.start` / `execution_time` = 1027.76 ms > 1000.00 ms — CI job: [993685721](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/jobs/993685721).
+        Suggestion: 1086.58 ms
+      2 more scenarios missing — treated as failed checks — access the CI pipeline [68475106](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106), investigate failing jobs.
+      ℹ️ What to do: fix the regression, or loosen the SLOs. More info: https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+Quality+Gates#What-to-do-in-case-of-warnings-(%F0%9F%9F%A8)-or-breaches-(%F0%9F%9F%A5)%3F
+      🔗 CI pipeline: [68475106](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106) - Commit: [3e5c0b48a5](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/commit/3e5c0b48a5) - Dashboard: [APM SDKs Perf SLOs Dashboard](https://app.datadoghq.com/dashboard/w6a-xc3-kyz)'
+
+      postmessage "$CHANNEL" '🟨 Performance SLOs for dd-trace-java were almost breached!
+      • `load:petclinic:appsec:high_load` / `agg_http_req_duration_p50` = 46.41 ms (warns at 43.20 ms) — CI job: [993685722](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/jobs/993685722).
+        Suggestion: 50.31 ms
+      ℹ️ What to do: consider addressing the regression now, or loosen the SLOs — acting now prevents future breaches from blocking releases. More info: https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+Quality+Gates#What-to-do-in-case-of-warnings-(%F0%9F%9F%A8)-or-breaches-(%F0%9F%9F%A5)%3F
+      🔗 CI pipeline: [68475106](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106) - Commit: [3e5c0b48a5](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/commit/3e5c0b48a5) - Dashboard: [APM SDKs Perf SLOs Dashboard](https://app.datadoghq.com/dashboard/w6a-xc3-kyz)'
+
+      postmessage "$CHANNEL" '🚫 Performance SLO check found no results for 3 scenarios in dd-trace-java — treated as failed checks.
+      • `another-missing-scenario`
+      • `non-existent-scenario:.*`
+      • `startup:insecure-bank:.*`
+      ℹ️ What to do: access the CI pipeline [68475106](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106), investigate failing jobs.
+      🔗 CI pipeline: [68475106](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106) - Commit: [3e5c0b48a5](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/commit/3e5c0b48a5) - Dashboard: [APM SDKs Perf SLOs Dashboard](https://app.datadoghq.com/dashboard/w6a-xc3-kyz)'
+
+      postmessage "$CHANNEL" '🚫 Performance SLO check found no benchmark results for dd-trace-java — benchmark jobs failed, not an SLO breach.
+      ℹ️ What to do: access the CI pipeline [68475106](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106), investigate failing jobs.
+      🔗 CI pipeline: [68475106](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/pipelines/68475106) - Commit: [3e5c0b48a5](https://gitlab.ddbuild.io/DataDog/dd-trace-java/-/commit/3e5c0b48a5) - Dashboard: [APM SDKs Perf SLOs Dashboard](https://app.datadoghq.com/dashboard/w6a-xc3-kyz)'
