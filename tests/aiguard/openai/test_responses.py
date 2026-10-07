@@ -11,10 +11,14 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.aiguard import AIGuardAbortError
+from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_output
+from ddtrace.aiguard.integrations._openai_responses import _mcp_server_urls
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
+from ddtrace.aiguard.integrations._openai_responses import may_request_mcp_approval
 from tests.aiguard.openai._span_helpers import assert_block_emits_both_spans
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
@@ -814,7 +818,7 @@ class _RecordingClient:
 
     def evaluate(self, messages, options, **kwargs):
         self.calls.append(list(messages))
-        return None
+        return {"action": "ALLOW", "reason": "", "tags": [], "sds": [], "tag_probs": None, "messages": messages}
 
 
 def test_before_hook_skips_streaming():
@@ -1260,3 +1264,470 @@ def test_listeners_registered():
 
     assert core.has_listeners("openai.responses.create.before")
     assert core.has_listeners("openai.responses.create.after")
+
+
+# ---------------------------------------------------------------------------
+# Hosted MCP tools (tools=[{"type": "mcp", ...}])
+# ---------------------------------------------------------------------------
+
+MCP_TOOLS = [
+    {
+        "type": "mcp",
+        "server_label": "deepwiki",
+        "server_url": "https://user:secret@MCP.DeepWiki.com:443/mcp?token=abc#frag",
+        "require_approval": "always",
+        "authorization": "oauth-secret",
+    },
+    {"type": "mcp", "server_label": "gmail", "connector_id": "connector_gmail"},
+    {"type": "function", "name": "lookup"},
+]
+DEEPWIKI_MCP = {
+    "transport": "unknown",
+    "tool_name": "ask_question",
+    "name": "deepwiki",
+    "url": "https://mcp.deepwiki.com",
+}
+APPROVAL_TOOL_CALL = {
+    "id": "mcpr_test",
+    "function": {"name": "ask_question", "arguments": '{"repoName":"DataDog/dd-trace-py"}'},
+    "mcp": DEEPWIKI_MCP,
+}
+
+
+@pytest.fixture
+def collect_mcp():
+    with override_ai_guard_config(dict(_ai_guard_collect_mcp_enabled=True)):
+        yield
+
+
+def _approval_request(request_id="mcpr_test", server_label="deepwiki", name="ask_question"):
+    return {
+        "type": "mcp_approval_request",
+        "id": request_id,
+        "server_label": server_label,
+        "name": name,
+        "arguments": '{"repoName":"DataDog/dd-trace-py"}',
+    }
+
+
+def test_mcp_server_urls_disabled_by_default():
+    assert _mcp_server_urls(MCP_TOOLS) is None
+
+
+def test_mcp_server_urls_keeps_only_sanitized_remote_urls(collect_mcp):
+    assert _mcp_server_urls(MCP_TOOLS) == {"deepwiki": "https://mcp.deepwiki.com"}
+    assert _mcp_server_urls(None) == {}
+
+
+def test_mcp_call_output_carries_mcp_metadata():
+    resp = _Item(
+        output=[
+            {
+                "type": "mcp_call",
+                "id": "mcp_1",
+                "server_label": "deepwiki",
+                "name": "ask_question",
+                "arguments": "{}",
+                "output": "answer",
+            }
+        ]
+    )
+    result = _convert_openai_response_output(resp, {"deepwiki": "https://mcp.deepwiki.com"})
+    assert result[0]["tool_calls"][0]["mcp"] == DEEPWIKI_MCP
+    assert result[1] == {"role": "tool", "tool_call_id": "mcp_1", "content": "answer"}
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_completed_mcp_call_tags_span(mock_execute_request, collect_mcp, test_spans):
+    """The evaluated tool result carries no MCP metadata: the tags come from the call it answers."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    resp = _Item(
+        output=[
+            {
+                "type": "mcp_call",
+                "id": "mcp_1",
+                "server_label": "deepwiki",
+                "name": "ask_question",
+                "arguments": "{}",
+                "output": "answer",
+            }
+        ]
+    )
+
+    _openai_response_create_after(new_ai_guard_client(), {"input": "Ask deepwiki", "tools": MCP_TOOLS}, resp)
+
+    assert _evaluated_messages(mock_execute_request)[-1] == {
+        "role": "tool",
+        "tool_call_id": "mcp_1",
+        "content": "answer",
+    }
+    ai_guard_span = [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE][-1]
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_TOOL_NAME_TAG) == "ask_question"
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_SERVER_NAME_TAG) == "deepwiki"
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_SERVER_URL_TAG) == "https://mcp.deepwiki.com"
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_TRANSPORT_TAG) == "unknown"
+
+
+@pytest.mark.parametrize(
+    "tools,expected",
+    [
+        (MCP_TOOLS, True),
+        ([{"type": "mcp", "server_label": "deepwiki"}], True),
+        ([{"type": "mcp", "server_label": "deepwiki", "require_approval": {"never": {"tool_names": ["a"]}}}], True),
+        ([{"type": "mcp", "server_label": "deepwiki", "require_approval": "never"}], False),
+        ([{"type": "function", "name": "lookup"}], False),
+        (None, False),
+    ],
+)
+def test_may_request_mcp_approval(collect_mcp, tools, expected):
+    assert may_request_mcp_approval(tools) is expected
+
+
+def test_may_request_mcp_approval_disabled_by_default():
+    assert may_request_mcp_approval(MCP_TOOLS) is False
+
+
+def test_mcp_call_without_configured_url_omits_url():
+    resp = _Item(output=[{"type": "mcp_call", "id": "mcp_1", "server_label": "gmail", "name": "search"}])
+    (assistant,) = _convert_openai_response_output(resp, {})
+    assert assistant["tool_calls"][0]["mcp"] == {"transport": "unknown", "tool_name": "search", "name": "gmail"}
+
+
+def test_mcp_call_without_collection_has_no_mcp_metadata():
+    resp = _Item(output=[{"type": "mcp_call", "id": "mcp_1", "server_label": "deepwiki", "name": "ask_question"}])
+    (assistant,) = _convert_openai_response_output(resp)
+    assert "mcp" not in assistant["tool_calls"][0]
+
+
+def test_mcp_approval_requests_become_the_last_assistant_turn():
+    resp = _Item(
+        output=[
+            _approval_request("mcpr_1"),
+            {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Need approval"}]},
+            _Item(**_approval_request("mcpr_2", name="read_wiki_structure")),
+        ]
+    )
+    result = _convert_openai_response_output(resp, {"deepwiki": "https://mcp.deepwiki.com"})
+    assert result[0] == {"role": "assistant", "content": "Need approval"}
+    assert [tool_call["id"] for tool_call in result[-1]["tool_calls"]] == ["mcpr_1", "mcpr_2"]
+    assert result[-1]["tool_calls"][1]["mcp"]["tool_name"] == "read_wiki_structure"
+
+
+def test_mcp_approval_requests_skipped_without_collection():
+    resp = _Item(output=[_approval_request()])
+    assert _convert_openai_response_output(resp) == []
+
+
+def test_mcp_approval_input_items():
+    input_ = [
+        {"role": "user", "content": "Ask deepwiki"},
+        _approval_request(),
+        {"type": "mcp_approval_response", "approval_request_id": "mcpr_test", "approve": True},
+    ]
+    result = _convert_openai_response_input(None, input_, mcp_server_urls={})
+    unconfigured_mcp = {"transport": "unknown", "tool_name": "ask_question", "name": "deepwiki"}
+    assert result == [
+        {"role": "user", "content": "Ask deepwiki"},
+        {"role": "assistant", "tool_calls": [{**APPROVAL_TOOL_CALL, "mcp": unconfigured_mcp}]},
+    ]
+    assert _convert_openai_response_input(None, input_) == [{"role": "user", "content": "Ask deepwiki"}]
+
+
+def test_after_hook_evaluates_mcp_approval_request(collect_mcp):
+    client = _RecordingClient()
+    _openai_response_create_after(
+        client, {"input": "Ask deepwiki", "tools": MCP_TOOLS}, _Item(output=[_approval_request()])
+    )
+    assert client.calls == [
+        [
+            {"role": "user", "content": "Ask deepwiki"},
+            {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]},
+        ]
+    ]
+
+
+def _evaluated_messages(mock_execute_request, index=-1):
+    return mock_execute_request.call_args_list[index].args[1]["data"]["attributes"]["messages"]
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_mcp_approval_request_blocked(
+    mock_execute_request, openai_responses_mcp_approval_client, collect_mcp, decision
+):
+    """A blocked approval request never reaches the application, so OpenAI never runs the call."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+
+    with pytest.raises(AIGuardAbortError):
+        openai_responses_mcp_approval_client.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS
+        )
+
+    assert mock_execute_request.call_count == 2
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+    payload = str(mock_execute_request.call_args_list[-1].args[1])
+    for secret in ("secret", "token", "frag", "user:"):
+        assert secret not in payload
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_mcp_approval_request_allowed_tags_span(
+    mock_execute_request, openai_responses_mcp_approval_client, collect_mcp, test_spans
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    resp = openai_responses_mcp_approval_client.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS
+    )
+
+    assert resp.output[-1].type == "mcp_approval_request"
+    assert mock_execute_request.call_count == 2
+    ai_guard_span = [span for span in test_spans.spans if span.name == AI_GUARD.RESOURCE_TYPE][-1]
+    assert ai_guard_span.get_tag(AI_GUARD.TARGET_TAG) == "tool"
+    assert ai_guard_span.get_tag(AI_GUARD.TOOL_NAME_TAG) == "ask_question"
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_TOOL_NAME_TAG) == "ask_question"
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_SERVER_NAME_TAG) == "deepwiki"
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_SERVER_URL_TAG) == "https://mcp.deepwiki.com"
+    assert ai_guard_span.get_tag(AI_GUARD.MCP_TRANSPORT_TAG) == "unknown"
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_mcp_approval_request_not_evaluated_by_default(
+    mock_execute_request, openai_responses_mcp_approval_client
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    resp = openai_responses_mcp_approval_client.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS
+    )
+
+    assert resp.output[-1].type == "mcp_approval_request"
+    assert mock_execute_request.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Hosted MCP approval continuations, streaming and async
+# ---------------------------------------------------------------------------
+
+EXECUTE_REQUEST = "ddtrace.aiguard._api_client.AIGuardClient._execute_request"
+
+
+def _approval_response(approval_id="mcpr_test", approve=True):
+    return {"type": "mcp_approval_response", "approval_request_id": approval_id, "approve": approve}
+
+
+def _continuation(*input_items, **kwargs):
+    return {"previous_response_id": "resp-test", "input": list(input_items), "tools": MCP_TOOLS, **kwargs}
+
+
+def _return_approval_requests(*approval_requests, decision="ALLOW", block=True):
+    """Run the after-hook on a response holding approval requests, as OpenAI returns them."""
+    with patch(EXECUTE_REQUEST) as mock_execute_request:
+        mock_execute_request.return_value = mock_evaluate_response(decision, block=block)
+        _openai_response_create_after(
+            new_ai_guard_client(),
+            {"input": "Ask deepwiki", "tools": MCP_TOOLS},
+            _Item(output=list(approval_requests) or [_approval_request()]),
+        )
+
+
+@pytest.mark.parametrize("decision,block", [("ALLOW", True), ("DENY", False)], ids=["allow", "monitor"])
+@patch(EXECUTE_REQUEST)
+def test_approval_continuation_reuses_the_returned_decision(mock_execute_request, collect_mcp, decision, block):
+    _return_approval_requests(_approval_request("mcpr_1"), _approval_request("mcpr_2"), decision=decision, block=block)
+
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response("mcpr_2")))
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_approval_continuation_of_a_blocked_request_is_blocked(mock_execute_request, collect_mcp):
+    with pytest.raises(AIGuardAbortError):
+        _return_approval_requests(decision="DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response()))
+
+    mock_execute_request.assert_not_called()
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+@patch(EXECUTE_REQUEST)
+def test_replayed_approval_request_is_evaluated(mock_execute_request, collect_mcp, stream):
+    """Another process returned the request: the replayed request is evaluated, streaming or not."""
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
+    kwargs = {
+        "input": [{"role": "user", "content": "Ask deepwiki"}, _approval_request(), _approval_response()],
+        "tools": MCP_TOOLS,
+        "stream": stream,
+    }
+
+    with pytest.raises(AIGuardAbortError):
+        _openai_response_create_before(new_ai_guard_client(), kwargs)
+
+    assert mock_execute_request.call_count == 1
+    messages = mock_execute_request.call_args.args[1]["data"]["attributes"]["messages"]
+    assert messages == [
+        {"role": "user", "content": "Ask deepwiki"},
+        {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]},
+    ]
+
+
+@patch(EXECUTE_REQUEST)
+def test_unknown_approval_without_replay_proceeds(mock_execute_request, collect_mcp):
+    """The request was returned to another process, which enforced it then."""
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response("mcpr_unknown")))
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_rejected_approval_is_not_evaluated(mock_execute_request, collect_mcp):
+    kwargs = _continuation(_approval_request(), _approval_response(approve=False))
+
+    _openai_response_create_before(new_ai_guard_client(), kwargs)
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_approval_continuations_not_checked_without_collection(mock_execute_request):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
+
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_request(), _approval_response()))
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_responses_mcp_approval_blocking_disabled(
+    mock_execute_request, openai_responses_mcp_approval_client, collect_mcp
+):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
+
+    with override_ai_guard_config(dict(_ai_guard_block=False)):
+        resp = openai_responses_mcp_approval_client.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS
+        )
+
+    assert resp.output[-1].type == "mcp_approval_request"
+
+
+@pytest.mark.asyncio
+@patch(EXECUTE_REQUEST)
+async def test_responses_mcp_approval_async_blocked(
+    mock_execute_request, async_openai_responses_mcp_approval_client, collect_mcp
+):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    with pytest.raises(AIGuardAbortError):
+        await async_openai_responses_mcp_approval_client.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS
+        )
+
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+
+@patch(EXECUTE_REQUEST)
+def test_responses_mcp_approval_stream_buffered_blocked(
+    mock_execute_request, openai_responses_mcp_approval_stream_client_buffered, collect_mcp
+):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    stream = openai_responses_mcp_approval_stream_client_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS, stream=True
+    )
+    seen = []
+    with pytest.raises(AIGuardAbortError):
+        for event in stream:
+            seen.append(event)
+
+    assert seen == []
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+
+@pytest.mark.asyncio
+@patch(EXECUTE_REQUEST)
+async def test_responses_mcp_approval_async_stream_buffered_allowed(
+    mock_execute_request, async_openai_responses_mcp_approval_stream_client_buffered, collect_mcp
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = await async_openai_responses_mcp_approval_stream_client_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS, stream=True
+    )
+    events = [event async for event in stream]
+
+    assert events
+    assert mock_execute_request.call_count == 2
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+    # The approval sent back afterwards reuses the decision taken on the stream.
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response()))
+    assert mock_execute_request.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Hosted MCP approvals in streams with stream response analysis disabled
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch(EXECUTE_REQUEST)
+def test_streamed_mcp_approval_request_blocked_without_stream_analysis(
+    mock_execute_request, openai_responses_mcp_approval_stream_client_mcp_buffered, decision
+):
+    """A blocked streamed approval request never reaches the application, so it cannot be approved."""
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    stream = openai_responses_mcp_approval_stream_client_mcp_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS, stream=True
+    )
+    seen = []
+    with pytest.raises(AIGuardAbortError):
+        for event in stream:
+            seen.append(event)
+
+    assert seen == []
+    # Only the approval requests are evaluated: the prompt is not, since streams are not analyzed.
+    assert mock_execute_request.call_count == 1
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+
+@pytest.mark.asyncio
+@patch(EXECUTE_REQUEST)
+async def test_streamed_mcp_approval_request_allowed_without_stream_analysis(
+    mock_execute_request, async_openai_responses_mcp_approval_stream_client_mcp_buffered
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = await async_openai_responses_mcp_approval_stream_client_mcp_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS, stream=True
+    )
+    events = [event async for event in stream]
+
+    assert events
+    assert mock_execute_request.call_count == 1
+
+    # The approval sent back afterwards reuses the decision taken on the stream.
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response(), stream=True))
+    assert mock_execute_request.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "tools",
+    [[{"type": "function", "name": "lookup"}], [{**MCP_TOOLS[0], "require_approval": "never"}]],
+    ids=["no_mcp_tool", "approval_never_required"],
+)
+@patch(EXECUTE_REQUEST)
+def test_stream_without_mcp_approvals_is_not_buffered(
+    mock_execute_request, openai_responses_mcp_approval_stream_client_mcp_buffered, tools
+):
+    stream = openai_responses_mcp_approval_stream_client_mcp_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=tools, stream=True
+    )
+
+    assert type(stream).__name__ not in ("BufferedAIGuardStream", "BufferedAIGuardAsyncStream")
+    assert list(stream)
+    mock_execute_request.assert_not_called()

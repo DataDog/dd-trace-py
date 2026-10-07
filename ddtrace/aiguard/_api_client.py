@@ -13,6 +13,7 @@ from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
+from ddtrace.aiguard._types import MCP  # noqa:F401
 from ddtrace.aiguard._types import ContentPart  # noqa:F401
 from ddtrace.aiguard._types import Function  # noqa:F401
 from ddtrace.aiguard._types import ImageURL  # noqa:F401
@@ -37,7 +38,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
 
 
-__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL"]
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "MCP"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -293,6 +294,34 @@ class AIGuardClient:
         return None
 
     @staticmethod
+    def _set_mcp_tags(span: Any, message: Message, messages: list[Message]) -> None:
+        tool_calls = message.get("tool_calls") or []
+        target_id = message.get("tool_call_id")
+        if not tool_calls and target_id:
+            # A tool result carries no metadata: read it from the call it answers.
+            tool_calls = [
+                tool_call
+                for msg in reversed(messages)
+                for tool_call in msg.get("tool_calls") or []
+                if tool_call.get("id") == target_id
+            ][:1]
+        for tool_call in tool_calls:
+            mcp = tool_call.get("mcp")
+            if not isinstance(mcp, dict):
+                continue
+            for tag, key in (
+                (AI_GUARD.MCP_TOOL_NAME_TAG, "tool_name"),
+                (AI_GUARD.MCP_TRANSPORT_TAG, "transport"),
+                (AI_GUARD.MCP_SERVER_NAME_TAG, "name"),
+                (AI_GUARD.MCP_SERVER_URL_TAG, "url"),
+            ):
+                value = mcp.get(key)
+                if value:
+                    span.set_tag(tag, value)
+            # Tool-call evaluations carry a single call, so the first MCP identity is the target.
+            return
+
+    @staticmethod
     def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
         if not remote_enabled:
             return False
@@ -348,6 +377,7 @@ class AIGuardClient:
                 if tool_name:
                     span.set_tag(AI_GUARD.TARGET_TAG, "tool")
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
+                    self._set_mcp_tags(span, last, messages)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
 

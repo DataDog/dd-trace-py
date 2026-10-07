@@ -104,6 +104,30 @@ def strip_query_string(url: str) -> str:
     return h + fs + f
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+
+def url_origin(url: str) -> Optional[str]:
+    """Reduce url to its origin (scheme, host and non-default port), an identity safe to report.
+
+    The path is dropped along with userinfo, query and fragment, since credentials can sit in any
+    of them. Returns None when url has no scheme or host.
+    """
+    try:
+        parts = parse.urlsplit(url)
+        host = parts.hostname
+        port = parts.port
+    except (TypeError, ValueError):
+        return None
+    if not parts.scheme or not host:
+        return None
+    scheme = parts.scheme.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = host if port is None or _DEFAULT_PORTS.get(scheme) == port else f"{host}:{port}"
+    return f"{scheme}://{netloc}"
+
+
 def redact_query_string(query_string: str, query_string_obfuscation_pattern: re.Pattern) -> Union[bytes, str]:
     bytes_query = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
     return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)

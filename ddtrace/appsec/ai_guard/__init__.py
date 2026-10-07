@@ -27,6 +27,7 @@ _PUBLIC = frozenset(
         "Evaluation",
         "Function",
         "ImageURL",
+        "MCP",
         "Message",
         "Options",
         "ToolCall",

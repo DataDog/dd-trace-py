@@ -18,6 +18,15 @@ class AI_GUARD(metaclass=Constant_Class):
     REDACTED_TAG: str = TAG + ".redacted"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
     EVENT_TAG: str = TAG + ".event"
+    # MCP identity of the evaluated tool call, mirroring the optional mcp object of the
+    # evaluate contract. Provisional names pending the APM span alignment of the MCP RFC.
+    MCP_TOOL_NAME_TAG: str = TAG + ".mcp.tool_name"
+    MCP_SERVER_NAME_TAG: str = TAG + ".mcp.name"
+    MCP_SERVER_URL_TAG: str = TAG + ".mcp.url"
+    MCP_TRANSPORT_TAG: str = TAG + ".mcp.transport"
+    # OpenAI runs hosted MCP tools itself and does not report whether it reached the server over
+    # streamable HTTP or SSE, so their calls carry the unknown transport.
+    MCP_TRANSPORT_UNKNOWN: Literal["unknown"] = "unknown"
 
     # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
     # span only if an ai_guard span is created during the request.
@@ -108,3 +117,6 @@ class AI_GUARD(metaclass=Constant_Class):
     ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
     ENV_ANTHROPIC_ENABLED: Literal["DD_AI_GUARD_ANTHROPIC_ENABLED"] = "DD_AI_GUARD_ANTHROPIC_ENABLED"
     ENV_LANGCHAIN_ENABLED: Literal["DD_AI_GUARD_LANGCHAIN_ENABLED"] = "DD_AI_GUARD_LANGCHAIN_ENABLED"
+    # Adds MCP metadata to tool-call evaluations and evaluates MCP approval requests. Off by
+    # default until the AI Guard service validates the optional mcp object of the evaluate contract.
+    ENV_COLLECT_MCP_ENABLED: Literal["DD_AI_GUARD_COLLECT_MCP_ENABLED"] = "DD_AI_GUARD_COLLECT_MCP_ENABLED"

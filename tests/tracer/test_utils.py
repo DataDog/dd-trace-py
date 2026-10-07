@@ -16,6 +16,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.http import url_origin
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.trace import Context
@@ -552,3 +553,24 @@ def test_hourglass_turn():
 def test_hourglass_sorting():
     """Test that we can sort hourglasses."""
     sorted(time.HourGlass(1) for _ in range(100))
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://mcp.example.com/mcp", "https://mcp.example.com"),
+        ("HTTPS://MCP.Example.COM:443/Mcp/", "https://mcp.example.com"),
+        ("http://mcp.example.com:80/sse", "http://mcp.example.com"),
+        ("http://mcp.example.com:8080/sse", "http://mcp.example.com:8080"),
+        ("https://user:secret@mcp.example.com/mcp?token=abc#frag", "https://mcp.example.com"),
+        ("https://mcp.example.com/session/s3cr3t-t0ken/mcp", "https://mcp.example.com"),
+        ("http://[::1]:9000/mcp", "http://[::1]:9000"),
+        ("https://mcp.example.com", "https://mcp.example.com"),
+        ("https://mcp.example.com:notaport/mcp", None),
+        ("/relative/path", None),
+        ("not a url", None),
+        ("", None),
+    ],
+)
+def test_url_origin(url, expected):
+    assert url_origin(url) == expected

@@ -8,6 +8,7 @@ import pytest
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard._initialization import load_ai_guard
+from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from tests.aiguard.utils import override_ai_guard_config
@@ -88,6 +89,22 @@ def openai_sdk_buffered():
     """
     with override_env(dict(OPENAI_API_KEY="<not-a-real-key>")):
         with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+            patch()
+            import openai
+
+            try:
+                yield openai
+            finally:
+                unpatch()
+
+
+@pytest.fixture
+def openai_sdk_mcp_buffered():
+    """Like openai_sdk but with only MCP collection enabled before patch(), so the Responses
+    stream wrappers buffer only the requests that can carry hosted MCP approval requests.
+    """
+    with override_env(dict(OPENAI_API_KEY="<not-a-real-key>")):
+        with override_ai_guard_config(dict(_ai_guard_collect_mcp_enabled=True)):
             patch()
             import openai
 
@@ -283,7 +300,7 @@ def openai_client_stream_tool_calls_buffered(openai_sdk_buffered):
 # ---------------------------------------------------------------------------
 
 
-def _fake_response_snapshot() -> dict:
+def _fake_response_snapshot(output=None) -> dict:
     return {
         "id": "resp-test",
         "object": "response",
@@ -294,7 +311,9 @@ def _fake_response_snapshot() -> dict:
         "incomplete_details": None,
         "instructions": None,
         "max_output_tokens": None,
-        "output": [
+        "output": output
+        if output is not None
+        else [
             {
                 "id": "msg-test",
                 "type": "message",
@@ -356,6 +375,64 @@ def _fake_responses_stream_response() -> httpx.Response:
         status_code=200,
         headers={"content-type": "text/event-stream"},
         stream=httpx.ByteStream(_fake_responses_stream_chunks()),
+    )
+
+
+def _fake_mcp_approval_stream_response() -> httpx.Response:
+    events = [
+        _sse("response.output_item.done", {"type": "response.output_item.done", "output_index": index, "item": item})
+        for index, item in enumerate(MCP_APPROVAL_OUTPUT)
+    ]
+    events.append(
+        _sse(
+            "response.completed",
+            {"type": "response.completed", "response": _fake_response_snapshot(MCP_APPROVAL_OUTPUT)},
+        )
+    )
+    return httpx.Response(
+        status_code=200, headers={"content-type": "text/event-stream"}, stream=httpx.ByteStream(b"".join(events))
+    )
+
+
+class _MCPApprovalStreamMockTransport(httpx.BaseTransport):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_mcp_approval_stream_response()
+
+
+class _AsyncMCPApprovalStreamMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_mcp_approval_stream_response()
+
+
+@pytest.fixture
+def openai_responses_mcp_approval_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
+    return openai_sdk_buffered.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_MCPApprovalStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_responses_mcp_approval_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
+    return openai_sdk_buffered.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncMCPApprovalStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def openai_responses_mcp_approval_stream_client_mcp_buffered(openai_sdk_mcp_buffered, _require_responses_api):
+    return openai_sdk_mcp_buffered.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_MCPApprovalStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_responses_mcp_approval_stream_client_mcp_buffered(openai_sdk_mcp_buffered, _require_responses_api):
+    return openai_sdk_mcp_buffered.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncMCPApprovalStreamMockTransport()),
     )
 
 
@@ -468,7 +545,36 @@ def async_openai_client_mock(openai_sdk):
 # ---------------------------------------------------------------------------
 
 
-def _fake_response_body() -> bytes:
+_MESSAGE_OUTPUT = [
+    {
+        "id": "msg-test",
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+    }
+]
+
+# A hosted MCP tool configured with require_approval: OpenAI lists the server tools and asks the
+# application to approve the call instead of running it.
+MCP_APPROVAL_OUTPUT = [
+    {
+        "id": "mcpl_test",
+        "type": "mcp_list_tools",
+        "server_label": "deepwiki",
+        "tools": [{"name": "ask_question", "input_schema": {"type": "object"}}],
+    },
+    {
+        "id": "mcpr_test",
+        "type": "mcp_approval_request",
+        "server_label": "deepwiki",
+        "name": "ask_question",
+        "arguments": '{"repoName":"DataDog/dd-trace-py"}',
+    },
+]
+
+
+def _fake_response_body(output=None) -> bytes:
     # Full payload shape (metadata, parallel_tool_calls, tool_choice, …) — the
     # OpenAI SDK validates response payloads against pydantic models that
     # tighten across releases, so we mirror the real wire format rather than a
@@ -480,15 +586,7 @@ def _fake_response_body() -> bytes:
             "created_at": 0,
             "model": "gpt-4o-mini",
             "status": "completed",
-            "output": [
-                {
-                    "id": "msg-test",
-                    "type": "message",
-                    "role": "assistant",
-                    "status": "completed",
-                    "content": [{"type": "output_text", "text": "ok", "annotations": []}],
-                }
-            ],
+            "output": _MESSAGE_OUTPUT if output is None else output,
             "usage": {
                 "input_tokens": 1,
                 "output_tokens": 1,
@@ -507,11 +605,11 @@ def _fake_response_body() -> bytes:
     ).encode()
 
 
-def _fake_response_http() -> httpx.Response:
+def _fake_response_http(output=None) -> httpx.Response:
     return httpx.Response(
         status_code=200,
         headers={"content-type": "application/json"},
-        content=_fake_response_body(),
+        content=_fake_response_body(output),
     )
 
 
@@ -523,6 +621,40 @@ class _ResponseMockTransport(httpx.BaseTransport):
 class _AsyncResponseMockTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         return _fake_response_http()
+
+
+class _MCPApprovalResponseMockTransport(httpx.BaseTransport):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_response_http(MCP_APPROVAL_OUTPUT)
+
+
+class _AsyncMCPApprovalResponseMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_response_http(MCP_APPROVAL_OUTPUT)
+
+
+@pytest.fixture
+def openai_responses_mcp_approval_client(openai_sdk, _require_responses_api):
+    return openai_sdk.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_MCPApprovalResponseMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_responses_mcp_approval_client(openai_sdk, _require_responses_api):
+    return openai_sdk.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncMCPApprovalResponseMockTransport()),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _reset_mcp_state():
+    """MCP approval decisions are kept process-wide: isolate tests."""
+    approval_decisions.clear()
+    yield
+    approval_decisions.clear()
 
 
 @pytest.fixture

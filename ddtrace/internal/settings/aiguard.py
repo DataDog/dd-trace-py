@@ -20,6 +20,7 @@ class AIGuardConfig(DDConfig):
     _ai_guard_openai_enabled = DDConfig.var(bool, AI_GUARD.ENV_OPENAI_ENABLED, default=True)
     _ai_guard_anthropic_enabled = DDConfig.var(bool, AI_GUARD.ENV_ANTHROPIC_ENABLED, default=True)
     _ai_guard_langchain_enabled = DDConfig.var(bool, AI_GUARD.ENV_LANGCHAIN_ENABLED, default=True)
+    _ai_guard_collect_mcp_enabled = DDConfig.var(bool, AI_GUARD.ENV_COLLECT_MCP_ENABLED, default=False)
 
     # for tests purposes
     _ai_guard_config_keys = [
@@ -34,6 +35,7 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_openai_enabled",
         "_ai_guard_anthropic_enabled",
         "_ai_guard_langchain_enabled",
+        "_ai_guard_collect_mcp_enabled",
     ]
 
     def reset(self) -> None:
