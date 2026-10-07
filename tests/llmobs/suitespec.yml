@@ -137,10 +137,15 @@ suites:
       command: pytest {cmdargs} tests/contrib/vertexai
       env:
         DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
-      python: ['3.9', '3.10', '3.11', '3.12']
       variants:
         - name: vertexai
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
+        # shapely (pulled in transitively via google-cloud-aiplatform[all]) has no stable
+        # wheel for 3.15 yet; pin to the 2.2.0 pre-release, which ships cp315 wheels.
+        - name: vertexai
+          python: ['3.15']
+          dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform, 'shapely>=2.2.0rc1']
   llama_index:
     venvs_per_job: 3
     paths:
