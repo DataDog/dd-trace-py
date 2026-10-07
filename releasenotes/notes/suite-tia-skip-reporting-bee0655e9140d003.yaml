@@ -1,0 +1,5 @@
+features:
+  - |
+    CI visibility: Adds per-suite Test Impact Analysis skip counts so suites with no
+    tests skipped by Test Impact Analysis can be identified, including when code
+    coverage collection is disabled.

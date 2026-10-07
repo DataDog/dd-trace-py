@@ -31,3 +31,18 @@ tests.
 1. Run the selected environment; the test runner starts `testagent` when needed:
    1. All tests: `scripts/run-tests --venv <environment-hash> -- -k FakeApiRunnersSnapshotTestCase`
    1. Individual test: `scripts/run-tests --venv <environment-hash> -- -k test_manual_api_fake_runner_mix_fail_itr_test_level`
+
+### Suite Test Impact Analysis reporting
+
+When Test Impact Analysis is enabled, every completed suite reports
+`test.itr.tests_skipping.count` as a non-negative integer-valued metric and
+`_dd.ci.itr.tests_skipped` as the string `"true"` exactly when that count is positive.
+Empty suites and suites without Test Impact Analysis skips report zero and `"false"`,
+including when test skipping or coverage collection is disabled. Both fields are
+omitted when Test Impact Analysis is disabled.
+
+Test mode counts the suite's Test Impact Analysis skipped test executions; suite
+mode counts a skipped suite once. Framework skips, disabled tests, and forced runs
+do not contribute. Counters belong to individual suites and propagate to ancestors
+using the existing session counting rules. Distributed workers report their own
+suite events, while the controller aggregates the session total.

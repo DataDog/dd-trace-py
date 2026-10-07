@@ -1,5 +1,6 @@
 """Tests for ddtrace.testing.internal.test_data module."""
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.writer import serialize_suite
 
 
 class TestModuleRef:
@@ -327,3 +329,80 @@ class TestITRTestSkippingEnabledTags:
             item.start()
             item.finish()
             assert item.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] == expected
+
+
+class TestSuiteITRReporting:
+    @pytest.mark.parametrize("itr_enabled,skipping_enabled", [(True, True), (True, False), (False, False)])
+    @pytest.mark.parametrize(
+        "outcomes", [[], ["pass"], ["skip"], ["itr", "itr", "skip", "pass"], ["forced", "unskippable", "disabled"]]
+    )
+    def test_serialized_suite(self, itr_enabled, skipping_enabled, outcomes):
+        session = TestSession("session")
+        session.set_attributes("test", "pytest", "1.0")
+        session.set_itr_attributes(itr_enabled, skipping_enabled, ITRSkippingLevel.TEST)
+        module, _ = session.get_or_create_child("module")
+        suite, _ = module.get_or_create_child("suite")
+        suite.start()
+        count = 0
+        for index, outcome in enumerate(outcomes):
+            child, _ = suite.get_or_create_child(str(index))
+            if outcome == "itr" and skipping_enabled:
+                child.mark_skipped_by_itr()
+                count += 1
+            elif outcome == "forced":
+                child.mark_forced_run()
+            elif outcome == "unskippable":
+                child.mark_unskippable()
+            elif outcome == "disabled":
+                child.set_attributes(is_disabled=True)
+        suite.finish()
+        content = serialize_suite(suite)["content"]
+        if itr_enabled:
+            assert type(content["metrics"][TestTag.ITR_TESTS_SKIPPING_COUNT]) is int
+            assert content["metrics"][TestTag.ITR_TESTS_SKIPPING_COUNT] == count
+            assert content["meta"][TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("true" if count else "false")
+        else:
+            assert TestTag.ITR_TESTS_SKIPPING_COUNT not in content["metrics"]
+            assert TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED not in content["meta"]
+
+    @pytest.mark.parametrize("forced", [False, True])
+    def test_suite_mode(self, forced):
+        session = TestSession("session")
+        session.set_itr_attributes(True, True, ITRSkippingLevel.SUITE)
+        module, _ = session.get_or_create_child("module")
+        suite, _ = module.get_or_create_child("suite")
+        suite.start()
+        if not forced:
+            suite.mark_skipped_by_itr()
+        suite.finish()
+        assert suite.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] == (0 if forced else 1)
+        assert suite.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == ("false" if forced else "true")
+
+    def test_concurrent_skips_are_local_and_preserve_session_total(self):
+        session = TestSession("session")
+        session.set_itr_attributes(True, True, ITRSkippingLevel.TEST)
+        module, _ = session.get_or_create_child("module")
+        suites = [module.get_or_create_child(name)[0] for name in ("A", "B")]
+        children = []
+        for suite, count in zip(suites, (200, 100)):
+            suite.start()
+            children.extend(suite.get_or_create_child(str(index))[0] for index in range(count))
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda child: child.mark_skipped_by_itr(), children))
+        for suite, count in zip(suites, (200, 100)):
+            suite.finish()
+            assert suite.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] == count
+            assert suite.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] == "true"
+        assert session.tests_skipped_by_itr == 300
+
+
+def test_suite_itr_reporting_failure_does_not_prevent_finish():
+    session = TestSession("session")
+    session.set_itr_attributes(True, True, ITRSkippingLevel.TEST)
+    module, _ = session.get_or_create_child("module")
+    suite, _ = module.get_or_create_child("suite")
+    suite.start()
+    with patch.object(suite, "_itr_skipped_count_lock") as lock:
+        lock.__enter__.side_effect = RuntimeError("counter unavailable")
+        suite.finish()
+    assert suite.is_finished()

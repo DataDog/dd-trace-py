@@ -671,7 +671,7 @@ class TestOptPlugin(TestOptPluginProtocol):
                 test_suite.finish()
                 self.manager.writer.put_item(test_suite)
                 TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
-                self.session.tests_skipped_by_itr += 1
+                self.session.count_itr_skipped()
 
             if module_name not in running_module_names:
                 test_module.finish()

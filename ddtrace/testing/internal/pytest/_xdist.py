@@ -106,7 +106,7 @@ class XdistTestOptPlugin:
             return
 
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
+            self.main_plugin.session.count_itr_skipped(tests_skipped_by_itr)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logstart(self, nodeid: str, location: t.Any) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import sys
 import typing as t
 from unittest.mock import patch
@@ -24,6 +25,54 @@ class TestITR:
     def isolate_coverage_upload_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Unset coverage upload env var so tests are not affected by external environment."""
         monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
+
+    def test_suite_reporting_with_tia_enabled_and_skipping_disabled(self, pytester: Pytester) -> None:
+        pytester.makepyfile(
+            test_foo="""
+            import pytest
+
+            def test_pass():
+                assert True
+
+            @pytest.mark.skip(reason="framework")
+            def test_skip():
+                assert False
+        """
+        )
+        client = mock_api_client_settings(skipping_enabled=False, coverage_enabled=False)
+        client.get_settings.return_value = replace(client.get_settings.return_value, itr_enabled=True)
+        with patch("ddtrace.testing.internal.session_manager.APIClient", return_value=client), setup_standard_mocks():
+            with EventCapture.capture() as capture:
+                result = pytester.inline_run("--ddtrace")
+        result.assertoutcome(passed=1, skipped=1)
+        [suite] = capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+
+    def test_suite_counting_failure_does_not_fail_tests(self, pytester: Pytester) -> None:
+        pytester.makepyfile(
+            test_foo="""
+            def test_tia():
+                assert False
+
+            def test_pass():
+                assert True
+        """
+        )
+        skippable = {TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_tia")}
+        client = mock_api_client_settings(skipping_enabled=True, skippable_items=skippable)
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=client),
+            patch(
+                "ddtrace.testing.internal.test_data.TestSuite.count_itr_skipped", side_effect=RuntimeError("counter")
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as capture:
+                result = pytester.inline_run("--ddtrace")
+        result.assertoutcome(passed=1, skipped=1)
+        [session] = capture.events_by_type("test_session_end")
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
     def test_itr_one_skipped_test(self, pytester: Pytester) -> None:
         """Test that IntelligentTestRunner skips tests marked as skippable."""
@@ -83,6 +132,10 @@ class TestITR:
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+
     def test_itr_disabled(self, pytester: Pytester) -> None:
         """Test that IntelligentTestRunner does not skip tests when ITR is disabled."""
         # Create a test file with multiple tests
@@ -140,6 +193,10 @@ class TestITR:
         assert session["content"]["meta"].get("_dd.ci.itr.tests_skipped") is None
         assert session["content"]["meta"].get("test.itr.tests_skipping.type") is None
         assert session["content"]["metrics"].get("test.itr.tests_skipping.count") is None
+
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert "test.itr.tests_skipping.count" not in suite["content"]["metrics"]
+        assert "_dd.ci.itr.tests_skipped" not in suite["content"]["meta"]
 
     def test_itr_unskippable_not_emitted_when_skipping_disabled(self, pytester: Pytester) -> None:
         """Regression: unskippable tag and telemetry must not be emitted when ITR skipping is disabled."""
@@ -360,10 +417,14 @@ class TestITR:
         skipped_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_skippable.py")
         assert skipped_suite["content"]["meta"]["test.status"] == "skip"
         assert skipped_suite["content"]["meta"]["test.skipped_by_itr"] == "true"
+        assert skipped_suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert skipped_suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
 
         running_suite = next(e for e in suite_events if e["content"]["meta"]["test.suite"] == "test_running.py")
         assert running_suite["content"]["meta"]["test.status"] == "pass"
         assert running_suite["content"]["meta"].get("test.skipped_by_itr") is None
+        assert running_suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
+        assert running_suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "false"
 
         [session] = event_capture.events_by_type("test_session_end")
         assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "suite"
@@ -423,6 +484,10 @@ class TestITR:
         [session] = event_capture.events_by_type("test_session_end")
         assert session["content"]["metrics"].get("test.itr.tests_skipping.count") == 0
         assert session["content"]["meta"].get("test.itr.tests_skipping.tests_skipped") == "false"
+
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "false"
 
     @pytest.mark.skipif("slipcover" in sys.modules, reason="slipcover is incompatible with ITR code coverage")
     @pytest.mark.skipif(sys.version_info >= (3, 14), reason="ITR code coverage currently not supported in Python 3.14")

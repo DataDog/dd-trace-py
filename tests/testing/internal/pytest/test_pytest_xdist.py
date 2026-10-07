@@ -139,7 +139,9 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
         if self.path == "/api/v2/ci/tests/skippable":
             # NOTE: meta.correlation_id is required. Without it the API client records a configuration error, which
             # (among other things) makes the controller decline to cache its data for the xdist workers.
-            self._send_json({"data": [], "meta": {"correlation_id": "test-correlation-id"}})
+            self._send_json(
+                {"data": getattr(self.server, "skippable_items", []), "meta": {"correlation_id": "test-correlation-id"}}
+            )
             return
 
         if self.path == "/api/v2/git/repository/search_commits":
@@ -354,6 +356,63 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 # These tests use subprocess to run pytest with xdist, pointing at
 # a local mock HTTP server.  This is the only way to truly test multi-process
 # xdist behavior since inline_run + EventCapture cannot cross process boundaries.
+
+
+class TestSuiteITRReporting:
+    @pytest.mark.parametrize("suite_mode", [False, True])
+    def test_distributed_suite_counts(self, mock_server: MockCIVisibilityServer, test_project: Path, suite_mode):
+        assert mock_server.server is not None
+        server = t.cast(t.Any, mock_server.server)
+        server.settings_attributes = {**_settings_attributes(), "itr_enabled": True, "tests_skipping": True}
+        server.skippable_items = [
+            {
+                "id": str(index),
+                "type": "suite" if suite_mode else "test",
+                "attributes": {"configurations": {"test.bundle": ""}, "suite": suite, "name": name},
+            }
+            for index, (suite, name) in enumerate(
+                [("test_a.py", "test_tia_one"), ("test_a.py", "test_tia_two"), ("test_b.py", "test_tia_one")]
+                if not suite_mode
+                else [("test_a.py", ""), ("test_b.py", "")]
+            )
+        ]
+        (test_project / "test_a.py").write_text(
+            textwrap.dedent("""\
+            import pytest
+
+            def test_tia_one():
+                assert False
+
+            def test_tia_two():
+                assert False
+
+            @pytest.mark.skip(reason="framework")
+            def test_framework_skip():
+                assert False
+
+            def test_pass():
+                assert True
+        """)
+        )
+        (test_project / "test_b.py").write_text("def test_tia_one():\n    assert False\n")
+        (test_project / "test_c.py").write_text("def test_pass():\n    assert True\n")
+        _git_commit(test_project)
+        env = _make_env(mock_server.url, {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "true" if suite_mode else "false"})
+        result = _run_pytest_subprocess(
+            test_project, "-n", "2", "--dist=loadfile" if suite_mode else "--dist=load", env=env
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        suites = mock_server.get_suite_events()
+        for name, expected in (("test_a.py", 1 if suite_mode else 2), ("test_b.py", 1), ("test_c.py", 0)):
+            matching = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == name]
+            assert matching
+            assert sum(content["metrics"]["test.itr.tests_skipping.count"] for content in matching) == expected
+            for content in matching:
+                count = content["metrics"]["test.itr.tests_skipping.count"]
+                assert type(count) is int
+                assert content["meta"]["_dd.ci.itr.tests_skipped"] == ("true" if count else "false")
+        [session] = mock_server.get_events_by_type("test_session_end")
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == (2 if suite_mode else 3)
 
 
 class TestXdistManifestMode:

@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import typing as t
 
+from ddtrace.internal.forksafe import Lock
+from ddtrace.internal.logger import get_logger
 from ddtrace.testing.internal._protocols import TestRunProtocol
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -17,6 +19,9 @@ from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.tracer_api import Time
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
+
+
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -312,7 +317,12 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def mark_skipped_by_itr(self) -> None:
         self.tags[TestTag.SKIPPED_BY_ITR] = TAG_TRUE
-        self.session.tests_skipped_by_itr += 1
+        self.session.count_itr_skipped()
+        if self.session.itr_skipping_level == ITRSkippingLevel.TEST:
+            try:
+                self.suite.count_itr_skipped()
+            except Exception:
+                log.debug("Error counting suite ITR skips", exc_info=True)
         try:
             TelemetryAPI.get().record_itr_skipped(EventType.TEST)
         except RuntimeError:
@@ -350,6 +360,8 @@ class TestSuite(TestItem["TestModule", "Test"]):
         super().__init__(name=name, parent=parent)
         self.module = parent
         self.session = self.module.parent
+        self.tests_skipped_by_itr = 0
+        self._itr_skipped_count_lock = Lock()
 
     def __str__(self) -> str:
         return f"{self.parent.name}/{self.name}"
@@ -362,9 +374,24 @@ class TestSuite(TestItem["TestModule", "Test"]):
         except RuntimeError:
             pass
 
+    def count_itr_skipped(self) -> None:
+        with self._itr_skipped_count_lock:
+            self.tests_skipped_by_itr += 1
+
     def set_final_tags(self) -> None:
         super().set_final_tags()
         self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
+        if self.session.itr_enabled:
+            try:
+                if self.session.itr_skipping_level == ITRSkippingLevel.SUITE:
+                    count = int(self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE)
+                else:
+                    with self._itr_skipped_count_lock:
+                        count = self.tests_skipped_by_itr
+                self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = count
+                self.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] = TAG_TRUE if count > 0 else "false"
+            except Exception:
+                log.debug("Error reporting suite ITR skips", exc_info=True)
 
 
 class TestModule(TestItem["TestSession", "TestSuite"]):
@@ -393,6 +420,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def __init__(self, name: str):
         super().__init__(name=name, parent=None)  # type: ignore
         self.tests_skipped_by_itr = 0
+        self._itr_skipped_count_lock = Lock()
         self.itr_correlation_id: t.Optional[str] = None
         self.itr_enabled = False
         self.itr_skipping_enabled = False
@@ -401,6 +429,10 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
 
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
+
+    def count_itr_skipped(self, count: int = 1) -> None:
+        with self._itr_skipped_count_lock:
+            self.tests_skipped_by_itr += count
 
     def set_attributes(self, test_command: str, test_framework: str, test_framework_version: str) -> None:
         self.test_command = test_command
