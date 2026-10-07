@@ -913,3 +913,5 @@ deploy_to_reliability_env:
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
   needs: null
+  # The gate only echoes; without this, stage ordering downloads every prior job's artifacts.
+  dependencies: []
