@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import shutil
+import socket
 import tempfile
 import typing as t
 
@@ -27,6 +28,57 @@ log = get_logger(__name__)
 XDIST_UNSET = "UNSET"
 XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
+
+# Workerinput keys the controller publishes so workers can tell whether they run
+# collocated with it (same machine, same workspace copy). File-based handoffs
+# between controller and workers -- coverage data files being the current case --
+# are only possible between collocated processes: a remote worker (ssh/socket
+# gateway) runs on another machine, and even a local popen//chdir=... worker runs
+# against an rsynced copy of the workspace in a different directory, so paths
+# recorded there do not match the controller's workspace.
+_DD_CONTROLLER_HOSTNAME_WORKER_INPUT = "dd_controller_hostname"
+_DD_CONTROLLER_WORKSPACE_WORKER_INPUT = "dd_controller_workspace"
+
+
+def controller_identity(workspace_path: t.Union[Path, str]) -> dict[str, str]:
+    """Return the controller identity to publish to workers via workerinput.
+
+    A worker is collocated with its controller when both run on the same host
+    and resolve the same workspace path. This is the same notion pytest-cov
+    uses to decide whether xdist workers are collocated, and it deliberately
+    relies on observed identity rather than gateway specs: any spec that runs
+    the worker elsewhere (ssh=, socket=, popen//via=) or against a copy of the
+    workspace (popen//chdir=) fails one of the two comparisons.
+    """
+    return {
+        _DD_CONTROLLER_HOSTNAME_WORKER_INPUT: socket.gethostname(),
+        _DD_CONTROLLER_WORKSPACE_WORKER_INPUT: _normalize_workspace_path(workspace_path),
+    }
+
+
+def worker_is_collocated_with_controller(
+    workerinput: t.Mapping[str, t.Any], workspace_path: t.Union[Path, str]
+) -> bool:
+    """Return whether this worker is collocated with the controller that spawned it.
+
+    Takes the workerinput the controller populated (pytest-xdist sets it before any
+    pytest hook runs) and the worker's own workspace path. When the controller did
+    not publish its identity (an older library version), the worker is never
+    treated as collocated: file-based handoffs fall back to per-process behavior.
+    """
+    controller_hostname = workerinput.get(_DD_CONTROLLER_HOSTNAME_WORKER_INPUT)
+    controller_workspace = workerinput.get(_DD_CONTROLLER_WORKSPACE_WORKER_INPUT)
+    if not isinstance(controller_hostname, str) or not isinstance(controller_workspace, str):
+        return False
+    return controller_hostname == socket.gethostname() and controller_workspace == _normalize_workspace_path(
+        workspace_path
+    )
+
+
+def _normalize_workspace_path(workspace_path: t.Union[Path, str]) -> str:
+    """Canonical form for workspace comparison across processes on the same host."""
+    return os.path.normcase(str(Path(workspace_path).resolve()))
+
 
 # The controller-generated manifest cache lives in a private temp directory (XDIST_MANIFEST_DIR_PREFIX)
 # instead of the workspace: the workspace path is derived differently by different components (git root vs. CI provider

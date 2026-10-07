@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import socket
 import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
@@ -1810,9 +1811,9 @@ class TestReportAndLoggingMethods:
 class TestXdistPlugin:
     """Test XdistTestOptPlugin specific functionality."""
 
-    def test_pytest_configure_node(self) -> None:
+    def test_pytest_configure_node(self, tmp_path: Path) -> None:
         """Test pytest_configure_node method."""
-        session_manager = session_manager_mock().build_mock()
+        session_manager = session_manager_mock().with_workspace_path(str(tmp_path)).build_mock()
         plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=session_manager))
 
         # Mock session with session_id
@@ -1827,6 +1828,9 @@ class TestXdistPlugin:
 
         # Verify session ID was passed to worker
         assert mock_node.workerinput["dd_session_id"] == "test-session-123"
+        # Verify the controller identity was published for the worker's collocation check
+        assert mock_node.workerinput["dd_controller_hostname"] == socket.gethostname()
+        assert mock_node.workerinput["dd_controller_workspace"] == os.path.normcase(str(tmp_path.resolve()))
 
 
 class TestXdistCrashRequeue:

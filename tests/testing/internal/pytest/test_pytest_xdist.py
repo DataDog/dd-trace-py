@@ -21,6 +21,7 @@ from http.server import HTTPServer
 import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
 import tempfile
@@ -1666,3 +1667,121 @@ class TestXdistCoverageReportUpload:
 
         assert result.returncode == 0, result.stdout + result.stderr
         assert mock_server.recorded_coverage_uploads == []
+
+
+class TestWorkerCollocation:
+    """Collocation detection between pytest-xdist workers and their controller.
+
+    File-based handoffs between controller and workers (coverage data files being
+    the current case) are only possible for collocated workers: remote workers
+    (ssh/socket gateways) run on another machine, and a local popen//chdir worker
+    runs against an rsynced copy of the workspace in another directory.
+    """
+
+    def test_identity_roundtrip_for_same_workspace(self, tmp_path: Path) -> None:
+        from ddtrace.testing.internal.pytest.xdist import controller_identity
+        from ddtrace.testing.internal.pytest.xdist import worker_is_collocated_with_controller
+
+        workerinput = controller_identity(tmp_path)
+
+        assert worker_is_collocated_with_controller(workerinput, tmp_path)
+        # The same path via a different spelling still resolves to the same workspace.
+        assert worker_is_collocated_with_controller(workerinput, str(tmp_path) + "/")
+
+    def test_not_collocated_for_other_host_or_workspace(self, tmp_path: Path) -> None:
+        from ddtrace.testing.internal.pytest.xdist import worker_is_collocated_with_controller
+
+        workerinput = {"dd_controller_hostname": "other-host", "dd_controller_workspace": str(tmp_path)}
+        assert not worker_is_collocated_with_controller(workerinput, tmp_path)
+
+        workerinput = {"dd_controller_hostname": socket.gethostname(), "dd_controller_workspace": "/elsewhere"}
+        assert not worker_is_collocated_with_controller(workerinput, tmp_path)
+
+        workerinput = {"dd_controller_hostname": socket.gethostname(), "dd_controller_workspace": str(tmp_path)}
+        assert not worker_is_collocated_with_controller(workerinput, tmp_path / "other")
+
+    def test_not_collocated_without_published_identity(self, tmp_path: Path) -> None:
+        from ddtrace.testing.internal.pytest.xdist import worker_is_collocated_with_controller
+
+        # A controller that did not publish its identity (older library) is never
+        # assumed to be collocated: file-based handoffs fall back to per-process
+        # behavior instead.
+        assert not worker_is_collocated_with_controller({}, tmp_path)
+        assert not worker_is_collocated_with_controller({"dd_controller_hostname": None}, tmp_path)
+
+    def test_non_collocated_worker_uploads_own_report(
+        self, mock_server: MockCIVisibilityServer, tmp_path: Path
+    ) -> None:
+        """A popen//chdir worker (an rsynced copy of the workspace) keeps uploading its own report.
+
+        The chdir worker's workspace is a different directory, so it cannot hand its
+        coverage data files over to the controller: it keeps the pre-delegation
+        per-process uploads, while the collocated plain popen worker still delegates
+        to the controller. This is the same code path a remote (ssh/socket) worker
+        takes.
+        """
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        worker_ws = tmp_path / "worker_ws"
+        worker_ws.mkdir()
+
+        template = TestXdistCoverageReportUpload._TEST_FILE_TEMPLATE
+        marker_lines: dict[str, int] = {}
+        for name, value in (("a", 1), ("b", 2)):
+            source = textwrap.dedent(template.format(name=name, value=value))
+            (project_dir / f"test_mod_{name}.py").write_text(source)
+            marker_lines[f"test_mod_{name}.py"] = (
+                source.splitlines().index(f"    marker = {value}  # executed only when the tests run") + 1
+            )
+        subprocess.run(["git", "init", "--initial-branch=main"], cwd=project_dir, capture_output=True)
+        _git_commit(project_dir)
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--ddtrace",
+            "--no-cov",
+            "-p",
+            "no:cacheprovider",
+            "-q",
+            "--dist",
+            "load",
+            f"--rsyncdir={project_dir}",
+            "--tx",
+            "popen",
+            "--tx",
+            f"popen//chdir={worker_ws}",
+            str(project_dir),
+        ]
+        result = subprocess.run(
+            cmd,
+            env=_make_env(mock_server.url, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}),
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(tmp_path),
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert len(mock_server.get_test_names()) == 4
+        # Exactly two uploads: the controller's combined report (the collocated
+        # worker delegated to it) and the non-collocated worker's own partial
+        # report. Without the collocation check, the non-collocated worker would
+        # skip its upload and the controller could not read its data (or would
+        # combine it with its rsynced-copy paths).
+        reports = mock_server.get_coverage_reports()
+        assert len(reports) == 2, (
+            f"expected 2 uploads (controller combined + non-collocated worker), got {len(reports)}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+        combined_lcov = "\n".join(reports)
+        missing = [
+            f"{filename}:{marker_line}"
+            for filename, marker_line in marker_lines.items()
+            if f"DA:{marker_line},1" not in combined_lcov
+        ]
+        assert not missing, (
+            f"test-covered marker lines missing from the uploaded reports: {missing}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
