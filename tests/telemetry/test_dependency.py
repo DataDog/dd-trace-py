@@ -339,7 +339,7 @@ class TestWriterAttachDependencyMetadata:
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
-        with patch("importlib.metadata.version", return_value="2.28.0"):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.get_distribution_version", return_value="2.28.0"):
             result = writer.attach_dependency_metadata("requests", "CVE-1", "mod", "func", 1)
 
         assert result is True
@@ -551,7 +551,7 @@ class TestWriterRegisterCveMetadata:
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
-        with patch("importlib.metadata.version", return_value="1.0"):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.get_distribution_version", return_value="1.0"):
             result = writer.register_cve_metadata("flask", "CVE-NEW")
 
         assert result is True
@@ -568,21 +568,46 @@ class TestWriterRegisterCveMetadata:
         assert result is False
         assert "flask" not in tracker._imported_dependencies
 
-    def test_auto_create_with_version_lookup_failure(self):
-        """When importlib.metadata.version raises PackageNotFoundError, entry is created with version=""."""
-        from importlib.metadata import PackageNotFoundError
+    def test_auto_create_with_missing_distribution(self):
+        """A missing distribution still creates an entry with an empty version."""
         from unittest.mock import patch
 
         writer, tracker = _make_writer_and_tracker(sca_enabled=True)
 
         with patch(
-            "importlib.metadata.version",
-            side_effect=PackageNotFoundError("unknown-pkg"),
+            "ddtrace.internal.telemetry.dependency_tracker.get_distribution_version",
+            return_value="",
         ):
             result = writer.register_cve_metadata("unknown-pkg", "CVE-1")
 
         assert result is True
         assert tracker._imported_dependencies["unknown-pkg"].version == ""
+
+
+@pytest.mark.parametrize("operation", ["register_cve", "attach_metadata"])
+def test_sca_discovery_does_not_hold_telemetry_lock(monkeypatch: pytest.MonkeyPatch, operation):
+    from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+    tracker = DependencyTracker()
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+
+    appsec_telemetry_config.SCA_ENABLED = True
+
+    def lookup(name):
+        assert tracker._lock.acquire(False), "Distribution discovery must run outside the telemetry lock"
+        try:
+            # Discovery can re-enter telemetry and find an entry created meanwhile.
+            tracker._imported_dependencies["example"] = DependencyEntry(name="Example", version="2.0", metadata=[])
+        finally:
+            tracker._lock.release()
+        return "1.0"
+
+    monkeypatch.setattr("ddtrace.internal.telemetry.dependency_tracker.get_distribution_version", lookup)
+    if operation == "register_cve":
+        assert tracker.register_cve("example", "CVE-1")
+    else:
+        assert tracker.attach_metadata("example", "CVE-1", "example", "function", 1)
+    assert tracker._imported_dependencies["example"].version == "2.0"
 
 
 class TestNormalizeDepName:
@@ -637,12 +662,12 @@ class TestTrackerNameNormalization:
         appsec_telemetry_config.SCA_ENABLED = True
         tracker = DependencyTracker()
 
-        with patch("importlib.metadata.version", return_value="6.0"):
+        with patch("ddtrace.internal.telemetry.dependency_tracker.get_distribution_version") as lookup:
             # Telemetry discovers "PyYAML" first
             tracker._imported_dependencies["pyyaml"] = DependencyEntry(name="PyYAML", version="6.0", metadata=[])
             # SCA tries to ensure "pyyaml" — should find the existing entry
-            with tracker._lock:
-                tracker._ensure_entry("pyyaml")
+            tracker._ensure_entry("pyyaml")
+            lookup.assert_not_called()
 
         assert len(tracker._imported_dependencies) == 1
 

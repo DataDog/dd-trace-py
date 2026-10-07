@@ -968,9 +968,59 @@ def _site_with_dist(root: Path, name: str, module: str) -> Path:
     return root
 
 
+@pytest.mark.parametrize(
+    "name,query", [("PyYAML", "pyyaml"), ("My_.Package", "MY-package"), ("My-Package", "my.package")]
+)
 @pytest.mark.parametrize("version", ["1.0", ""])
+def test_distribution_version_from_snapshot(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, name: str, query: str, version: str
+) -> None:
+    import builtins
+
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path, name, "example_module")
+    (site / f"{name.replace('-', '_')}-1.0.dist-info" / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n"
+    )
+    monkeypatch.setattr(sys, "path", [str(site)])
+    real_import = builtins.__import__
+
+    def no_metadata_import(name, *args, **kwargs):
+        if name == "importlib.metadata":
+            raise AssertionError("Distribution version lookup must not import metadata")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_metadata_import)
+    assert _p.get_distribution_version(query) == version
+    assert _p.get_distribution_version("missing-package") == ""
+
+
+def test_distribution_version_uses_first_installation(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ddtrace.internal import packages as _p
+
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    _write_dist_info(first, "My-Package", "1.0")
+    dist = _write_dist_info(second, "my_package", "2.0")
+    (second / "alias_module.py").write_text("")
+    (dist / "RECORD").write_text("alias_module.py,,\n")
+    monkeypatch.setattr(sys, "path", [str(first), str(second)])
+    assert _p.get_distribution_version("my.package") == "1.0"
+    assert _p.get_module_distribution_versions("alias_module.child") == ("my_package", "1.0")
+
+    # Replacing sys.path must also refresh the normalized version index.
+    monkeypatch.setattr(sys, "path", [str(second), str(first)])
+    assert _p.get_distribution_version("MY-PACKAGE") == "2.0"
+    assert _p.get_module_distribution_versions("alias_module.child") == ("my_package", "2.0")
+
+
+@pytest.mark.parametrize("version", ["1.0", ""])
+@pytest.mark.parametrize("dist_name", ["example-dist", "Example-Dist", "Flask", "PyYAML"])
 def test_module_versions_without_importing_metadata(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, version: str
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, version: str, dist_name: str
 ) -> None:
     """Telemetry can resolve a module whose distribution has a different name
     without importing metadata on its background thread.
@@ -979,9 +1029,9 @@ def test_module_versions_without_importing_metadata(
 
     from ddtrace.internal import packages as _p
 
-    site = _site_with_dist(tmp_path, "example-dist", "example_module")
-    (site / "example_dist-1.0.dist-info" / "METADATA").write_text(
-        f"Metadata-Version: 2.1\nName: example-dist\nVersion: {version}\n"
+    site = _site_with_dist(tmp_path, dist_name, "example_module")
+    (site / f"{dist_name.replace('-', '_')}-1.0.dist-info" / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: {dist_name}\nVersion: {version}\n"
     )
     monkeypatch.setattr(sys, "path", [str(site)])
     _p.get_module_distribution_versions.cache_clear()
@@ -994,7 +1044,7 @@ def test_module_versions_without_importing_metadata(
 
     with monkeypatch.context() as imports:
         imports.setattr(builtins, "__import__", no_metadata_import)
-        assert _p.get_module_distribution_versions("example_module.child") == ("example-dist", version)
+        assert _p.get_module_distribution_versions("example_module.child") == (dist_name, version)
     _p.get_module_distribution_versions.cache_clear()
 
 

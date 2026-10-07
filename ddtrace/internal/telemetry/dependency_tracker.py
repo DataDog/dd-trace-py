@@ -10,12 +10,12 @@ single DependencyTracker instance.
 """
 
 from collections.abc import Iterable
-from importlib.metadata import PackageNotFoundError
 import re
 from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import get_distribution_version
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
@@ -122,18 +122,18 @@ class DependencyTracker:
     def _ensure_entry(self, package_name: str) -> None:
         """Auto-create a DependencyEntry if SCA is active and package not yet tracked.
 
-        Caller must hold self._lock.
+        Discovery runs outside the lock: custom finders can re-enter telemetry.
         """
+        if not appsec_telemetry_config.SCA_ENABLED:
+            return
         key = _normalize_dep_name(package_name)
-        if key not in self._imported_dependencies and appsec_telemetry_config.SCA_ENABLED:
-            try:
-                from importlib.metadata import version as importlib_metadata_version
-
-                version = importlib_metadata_version(package_name)
-            except PackageNotFoundError:
-                log.debug("Package %r not found in installed metadata", package_name)
-                version = ""
-            self._imported_dependencies[key] = DependencyEntry(name=package_name, version=version, metadata=[])
+        with self._lock:
+            if key in self._imported_dependencies:
+                return
+        version = get_distribution_version(package_name)
+        with self._lock:
+            if key not in self._imported_dependencies and appsec_telemetry_config.SCA_ENABLED:
+                self._imported_dependencies[key] = DependencyEntry(name=package_name, version=version, metadata=[])
 
     def attach_metadata(
         self,
@@ -155,8 +155,8 @@ class DependencyTracker:
             True if metadata was attached, False otherwise.
         """
         key = _normalize_dep_name(package_name)
+        self._ensure_entry(package_name)
         with self._lock:
-            self._ensure_entry(package_name)
             return attach_reachability_metadata(self._imported_dependencies, key, cve_id, path, symbol, line)
 
     def register_cve(self, package_name: str, cve_id: str) -> bool:
@@ -171,8 +171,8 @@ class DependencyTracker:
             True if the CVE was registered, False otherwise.
         """
         key = _normalize_dep_name(package_name)
+        self._ensure_entry(package_name)
         with self._lock:
-            self._ensure_entry(package_name)
             return register_cve_metadata(self._imported_dependencies, key, cve_id)
 
     def enable_sca_metadata(self) -> None:

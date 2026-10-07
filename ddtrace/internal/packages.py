@@ -7,6 +7,7 @@ import inspect
 import logging
 import os
 from pathlib import Path
+import re
 import sys
 import sysconfig
 import threading
@@ -23,6 +24,7 @@ from ddtrace.internal.utils.cache import callonce
 
 
 LOG = logging.getLogger(__name__)
+_DISTRIBUTION_NAME_NORMALIZER = re.compile(r"[-_.]+")
 
 
 class Distribution(t.NamedTuple):
@@ -80,6 +82,17 @@ def get_package_distributions() -> t.Mapping[str, list[str]]:
     return _installed().packages
 
 
+def get_distribution_version(name: str) -> str:
+    """Return the version from the shared snapshot, or an empty string if unknown.
+
+    Names follow package metadata normalization: case and runs of hyphens,
+    underscores and dots are equivalent. Duplicate installations use the first
+    discovered distribution, as importlib.metadata.version does.
+    """
+    key = _DISTRIBUTION_NAME_NORMALIZER.sub("-", name).lower()
+    return _installed().versions_by_name.get(key, "")
+
+
 @cached(maxsize=1024)
 def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, str]]:
     if not module_name:
@@ -111,7 +124,7 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
         return None
     # Metadata imports on telemetry threads can recreate threading after module
     # cloning, leaving interpreter shutdown waiting for the wrong main thread.
-    return (names[0], dist_map.get(names[0], ""))
+    return (names[0], get_distribution_version(names[0]))
 
 
 @cached(maxsize=1024)
@@ -402,7 +415,17 @@ class _Installed:
     """Installed distributions and the maps derived from them."""
 
     # Slots and eager maps keep attribute access on the read path specialised.
-    __slots__ = ("key", "records", "sys_path", "meta_path", "checked", "versions", "packages", "mapping")
+    __slots__ = (
+        "key",
+        "records",
+        "sys_path",
+        "meta_path",
+        "checked",
+        "versions",
+        "versions_by_name",
+        "packages",
+        "mapping",
+    )
 
     def __init__(self, key: _CacheKey, records: list[_DistributionRecord]) -> None:
         self.key = key
@@ -414,9 +437,12 @@ class _Installed:
         self.checked = False
 
         versions: dict[str, str] = {}
+        versions_by_name: dict[str, str] = {}
         packages = collections.defaultdict(list)
         mapping: dict[str, Distribution] = {}
         for name, version, keys, top_level in records:
+            version_key = _DISTRIBUTION_NAME_NORMALIZER.sub("-", name).lower()
+            versions_by_name.setdefault(version_key, version or "")
             for pkg in top_level:
                 packages[pkg].append(name)
             if version is None:
@@ -427,6 +453,7 @@ class _Installed:
                 if root not in mapping:
                     mapping[root] = d
         self.versions = versions
+        self.versions_by_name = versions_by_name
         self.packages = dict(packages)
         self.mapping = mapping
 

@@ -6,6 +6,15 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+## Installed distribution versions
+
+`ddtrace.internal.packages.get_distribution_version(name)` reads the shared
+installed-distribution snapshot. It accepts case-insensitive distribution names
+with equivalent hyphens, underscores and dots, selects the first installation
+in discovery order, and returns an empty string when no version is available.
+The snapshot refreshes when the import path changes. Call it outside component
+locks: first use may wait for prefetch or invoke custom distribution finders.
+
 
 ## The Product Protocol
 
