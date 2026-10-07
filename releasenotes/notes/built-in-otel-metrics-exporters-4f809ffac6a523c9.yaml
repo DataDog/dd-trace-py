@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    OpenTelemetry: The new ``opentelemetry-metrics`` extra provides OTLP metrics export over HTTP/protobuf and lightweight gRPC without requiring ``grpcio``.
+    OpenTelemetry: The ``opentelemetry`` extra now provides OTLP metrics and logs export over HTTP/protobuf and lightweight gRPC without requiring ``grpcio``.

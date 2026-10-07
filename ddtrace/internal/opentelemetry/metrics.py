@@ -95,7 +95,7 @@ def _build_resource() -> Optional[Any]:
     except ImportError:
         log.warning(
             "OpenTelemetry SDK is not installed, opentelemetry metrics will not be enabled. "
-            "Install ddtrace[opentelemetry-metrics] before enabling OpenTelemetry Metrics support."
+            "Install ddtrace[opentelemetry] before enabling OpenTelemetry Metrics support."
         )
         return None
 
@@ -182,7 +182,7 @@ def _import_exporter(protocol):
     except ImportError as e:
         log.warning(
             "OpenTelemetry Metrics exporter for %s is not available. "
-            "Install ddtrace[opentelemetry-metrics] before enabling OpenTelemetry Metrics support: %s",
+            "Install ddtrace[opentelemetry] before enabling OpenTelemetry Metrics support: %s",
             protocol,
             str(e),
         )

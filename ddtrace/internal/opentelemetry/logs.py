@@ -134,12 +134,35 @@ def _dd_logs_exporter(otel_exporter: type[Any], protocol: str, encoding: str) ->
 def _import_exporter(protocol):
     """Import the appropriate OpenTelemetry Logs exporter based on the set protocol"""
     try:
+        exporter: type[Any]
         if protocol == "grpc":
-            from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
-            from opentelemetry.exporter.otlp.proto.grpc.version import __version__ as exporter_version
+            try:
+                from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
+            except ImportError:
+                from opentelemetry.exporter.otlp.proto.grpc.version import __version__ as exporter_version
+
+            if tuple(int(x) for x in exporter_version.split(".")[:3]) >= (1, 18, 0):
+                try:
+                    from ddtrace.internal.opentelemetry.grpclib_log_exporter import OTLPLogExporter as GRPCLogExporter
+
+                    exporter = GRPCLogExporter
+                except ImportError:
+                    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
+                        OTLPLogExporter as UpstreamGRPCLogExporter,
+                    )
+
+                    exporter = UpstreamGRPCLogExporter
+            else:
+                from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
+                    OTLPLogExporter as LegacyGRPCLogExporter,
+                )
+
+                exporter = LegacyGRPCLogExporter
         elif protocol == "http/protobuf":
-            from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+            from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter as HTTPLogExporter
             from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
+
+            exporter = HTTPLogExporter
         else:
             log.warning(
                 "OpenTelemetry Logs exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
@@ -157,14 +180,13 @@ def _import_exporter(protocol):
             )
             return None
 
-        return _dd_logs_exporter(OTLPLogExporter, protocol.split("/")[0], "protobuf")
+        return _dd_logs_exporter(exporter, protocol.split("/")[0], "protobuf")
 
     except ImportError as e:
         log.warning(
             "OpenTelemetry Logs exporter for %s is not available. "
-            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
+            "Install ddtrace[opentelemetry] before enabling OpenTelemetry Logs support: %s",
             protocol,
-            "grpc" if protocol == "grpc" else "http",
             str(e),
         )
         return None

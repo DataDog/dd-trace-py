@@ -1,5 +1,9 @@
-from concurrent import futures
+import asyncio
+from http.server import BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 import os
+from threading import Event
+from threading import Thread
 
 from opentelemetry.version import __version__ as api_version_string
 import pytest
@@ -9,7 +13,7 @@ from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 
 
 try:
-    from opentelemetry.exporter.otlp.version import __version__ as exporter_version
+    from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
 
     EXPORTER_VERSION = tuple(int(x) for x in exporter_version.split(".")[:3])
 except ImportError:
@@ -18,25 +22,97 @@ except ImportError:
 
 def create_mock_grpc_server():
     """Create a mock gRPC server for testing OpenTelemetry logs exporter."""
-    import grpc
-    from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
-    from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
+    from grpclib.const import Cardinality
+    from grpclib.const import Handler
+    from grpclib.server import Server
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
 
-    class MockLogsService(LogsServiceServicer):
+    method = "/opentelemetry.proto.collector.logs.v1.LogsService/Export"
+
+    class MockLogsService:
         def __init__(self):
             self.received_requests = []
 
-        def Export(self, request, context):
-            from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
-
+        async def export(self, stream):
+            request = await stream.recv_message()
             self.received_requests.append(request)
-            return ExportLogsServiceResponse()
+            await stream.send_message(ExportLogsServiceResponse())
+
+        def __mapping__(self):
+            return {
+                method: Handler(
+                    self.export,
+                    Cardinality.UNARY_UNARY,
+                    ExportLogsServiceRequest,
+                    ExportLogsServiceResponse,
+                )
+            }
+
+    class MockServer:
+        def __init__(self, service):
+            self._service = service
+            self._started = Event()
+            self._error = None
+
+        def start(self):
+            self._thread = Thread(target=self._run, daemon=True)
+            self._thread.start()
+            assert self._started.wait(5), "Timed out starting the mock OTLP gRPC server"
+            if self._error is not None:
+                raise self._error
+
+        def _run(self):
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._server = Server([self._service])
+            try:
+                self._loop.run_until_complete(self._server.start("127.0.0.1", 4317))
+            except Exception as error:
+                self._error = error
+                self._started.set()
+                return
+            self._started.set()
+            self._loop.run_forever()
+            self._server.close()
+            self._loop.run_until_complete(self._server.wait_closed())
+            self._loop.close()
+
+        def stop(self, timeout):
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            self._thread.join(timeout)
 
     mock_service = MockLogsService()
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    add_LogsServiceServicer_to_server(mock_service, server)
-    server.add_insecure_port("[::]:4317")
-    return mock_service, server
+    return mock_service, MockServer(mock_service)
+
+
+def create_mock_http_server():
+    """Create a mock HTTP server for testing OpenTelemetry logs exporter."""
+    requests = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            requests.append((self.path, self.rfile.read(length)))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, format_string, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 4318), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+
+    class MockServer:
+        def start(self):
+            thread.start()
+
+        def stop(self, timeout):
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout)
+
+    return requests, MockServer()
 
 
 def decode_logs_request(request_body: bytes):
@@ -133,6 +209,13 @@ def test_otel_logs_support_enabled():
     )
 
 
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18, 0), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
+def test_grpc_protocol_selects_grpclib_exporter():
+    from ddtrace.internal.opentelemetry.logs import _import_exporter
+
+    assert _import_exporter("grpc").__mro__[1].__module__ == "ddtrace.internal.opentelemetry.grpclib_log_exporter"
+
+
 @pytest.mark.skipif(
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
@@ -195,34 +278,25 @@ def test_otel_logs_support_not_enabled():
 def test_otel_logs_exporter_auto_configured_http():
     """Test OpenTelemetry logs exporter auto-configuration for HTTP protocol."""
     from logging import getLogger
-    from unittest.mock import Mock
-    from unittest.mock import patch
 
     from opentelemetry._logs import get_logger_provider
 
+    from tests.opentelemetry.test_logs import create_mock_http_server
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
 
     log = getLogger()
-    with patch("requests.sessions.Session.request") as mock_request:
-        mock_response = Mock(status_code=200)
-        mock_request.return_value = mock_response
-
+    requests, server = create_mock_http_server()
+    try:
+        server.start()
         log.error("test_otel_logs_exporter_auto_configured_http")
-
         logger_provider = get_logger_provider()
         logger_provider.force_flush()
+    finally:
+        server.stop(2)
 
-        request_body = None
-        for call in mock_request.call_args_list:
-            method, url = call[0][:2]
-            if method == "POST" and "/v1/logs" in url:
-                request_body = call[1].get("data", None)
-                break
-        assert request_body is not None, (
-            "Expected a request body to be present in the "
-            f"OpenTelemetry logs exporter request {mock_request.call_args_list}"
-        )
+    request_body = next((body for path, body in requests if "/v1/logs" in path), None)
+    assert request_body is not None, f"Expected an OpenTelemetry logs exporter request, found {requests}"
 
     captured_logs = decode_logs_request(request_body)
     assert len(captured_logs.resource_logs) > 0, "Expected at least one resource log in the OpenTelemetry logs request"
@@ -598,20 +672,18 @@ def test_otel_logs_does_not_generate_client_grpc_spans():
 def test_otel_logs_does_not_generate_client_http_spans():
     """Test that OpenTelemetry http logs exporter does not generate client spans."""
     from logging import getLogger
-    from unittest.mock import Mock
-    from unittest.mock import patch
 
     from opentelemetry._logs import get_logger_provider
 
-    logger = getLogger()
-    with patch("requests.sessions.Session.request") as mock_request:
-        mock_request.return_value = Mock(status_code=200)
+    from tests.opentelemetry.test_logs import create_mock_http_server
 
+    logger = getLogger()
+    requests, server = create_mock_http_server()
+    try:
+        server.start()
         logger.error("test_otel_logs_http")
         get_logger_provider().force_flush()
+    finally:
+        server.stop(2)
 
-        log_request_found = any(
-            len(call[0]) >= 2 and call[0][0] == "POST" and "/v1/logs" in call[0][1]
-            for call in mock_request.call_args_list
-        )
-        assert log_request_found, f"Expected HTTP log export request but found none: {mock_request.call_args_list}"
+    assert any("/v1/logs" in path for path, _ in requests), f"Expected HTTP log export request, found {requests}"
