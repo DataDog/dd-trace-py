@@ -1,3 +1,4 @@
+import builtins
 import sys
 
 from hypothesis import given
@@ -22,6 +23,8 @@ PYTHON_OBJECTS = st.recursive(
 WRAPPER_KWARGS = dict(
     max_objects=st.integers(min_value=0, max_value=(1 << 63) - 1),
 )
+
+_frozendict = getattr(builtins, "frozendict", dict)
 
 
 @given(obj=PYTHON_OBJECTS, kwargs=st.fixed_dictionaries(WRAPPER_KWARGS))
@@ -67,6 +70,12 @@ def test_small_objects(obj, res):
         (CaseInsensitiveDict({"SomeHeader": "SomeValue"}), {"SomeHeader": "SomeValue"}),
         (range(1, 4), [1, 2, 3]),
         ((1, 2, 3), [1, 2, 3]),
+        pytest.param(
+            _frozendict({"user": _frozendict({"name": b"alice"}), "items": [_frozendict({"quantity": 2})]}),
+            {"user": {"name": "alice"}, "items": [{"quantity": 2}]},
+            id="nested-frozendict",
+            marks=pytest.mark.skipif(_frozendict is dict, reason="frozendict requires Python 3.15"),
+        ),
     ],
 )
 def test_mappings_and_sequences(obj, res):
