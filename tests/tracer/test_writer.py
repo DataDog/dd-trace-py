@@ -25,6 +25,8 @@ from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import _opentelemetry
+from ddtrace.internal.settings._agent import AgentConfig
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.utils import _human_size
@@ -1529,27 +1531,32 @@ def test_agentless_writer_no_api_key():
 
 def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_case_insensitive():
     with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_by_default():
     with override_env({"OTEL_TRACES_EXPORTER": ""}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_disabled_when_trace_api_version_set():
     with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_API_VERSION": "v0.4"}):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
 
 
 def test_is_otlp_traces_exporter_enabled_semantics_override_agent_protocol_version():
@@ -1561,7 +1568,8 @@ def test_is_otlp_traces_exporter_enabled_semantics_override_agent_protocol_versi
             "DD_TRACE_API_VERSION": "v0.4",
         }
     ):
-        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+        with mock.patch.object(_opentelemetry, "agent_config", AgentConfig()):
+            assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
 
 
 def test_native_writer_stores_otlp_endpoint():

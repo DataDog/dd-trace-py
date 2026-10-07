@@ -83,20 +83,15 @@ def _otel_semantics_enabled() -> bool:
     return asbool(_get_startup_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", "false"))
 
 
-def _otlp_traces_export_enabled() -> bool:
-    """Read live so callers observe configuration changed after AgentConfig was built."""
+def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
     # OTel semantics force OTLP export ahead of the agent-protocol override.
     if _otel_semantics_enabled():
         return True
     return (
         env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
-        and not _get_startup_config("DD_TRACE_AGENT_PROTOCOL_VERSION")
+        and not config._trace_agent_protocol_version
         and not _get_startup_config("DD_TRACE_API_VERSION")
     )
-
-
-def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
-    return _otlp_traces_export_enabled()
 
 
 def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
