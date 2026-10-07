@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes an issue where sensitive values were not redacted when
+    the name used ``-``, ``.``, ``@``, or ``$``.
