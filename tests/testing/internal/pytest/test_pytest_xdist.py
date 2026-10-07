@@ -533,7 +533,9 @@ class TestResolveInheritedManifestEnv:
         assert os.environ[DD_TEST_OPTIMIZATION_MANIFEST_FILE] == manifest
 
     def test_discards_manifest_generated_by_unrelated_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}1_abc/manifest.txt"
+        # PID 1 may be the test process's parent in a container.
+        unrelated_pid = max(os.getpid(), os.getppid()) + 1
+        manifest = f"/tmp/{XDIST_MANIFEST_DIR_PREFIX}{unrelated_pid}_abc/manifest.txt"
         monkeypatch.setenv(DD_TEST_OPTIMIZATION_MANIFEST_FILE, manifest)
 
         resolve_inherited_manifest_env()

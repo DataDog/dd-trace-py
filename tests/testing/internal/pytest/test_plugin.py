@@ -77,7 +77,11 @@ class TestSkippingAndITRFeatures:
             patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
         ):
             # Call the method that applies skipping logic
-            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+            protocol = plugin.pytest_runtest_protocol_wrapper(mock_item, None)
+            next(protocol)
+            with pytest.raises(pytest.skip.Exception, match=SKIPPED_BY_ITR_REASON):
+                plugin.pytest_runtest_setup(mock_item)
+            list(protocol)
 
         # Verify that the test was marked as skipped
         mock_item.add_marker.assert_called()
@@ -111,7 +115,10 @@ class TestSkippingAndITRFeatures:
             patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
         ):
             # Call the method that applies skipping logic
-            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+            protocol = plugin.pytest_runtest_protocol_wrapper(mock_item, None)
+            next(protocol)
+            plugin.pytest_runtest_setup(mock_item)
+            list(protocol)
 
         # Verify that the test was NOT marked as skipped with ITR reason
         skip_calls = [
@@ -155,7 +162,11 @@ class TestSkippingAndITRFeatures:
             patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
         ):
             # Call the method that applies skipping logic
-            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+            protocol = plugin.pytest_runtest_protocol_wrapper(mock_item, None)
+            next(protocol)
+            with pytest.raises(pytest.skip.Exception, match=SKIPPED_BY_ITR_REASON):
+                plugin.pytest_runtest_setup(mock_item)
+            list(protocol)
 
         # Verify that the test was marked as skipped
         mock_item.add_marker.assert_called()

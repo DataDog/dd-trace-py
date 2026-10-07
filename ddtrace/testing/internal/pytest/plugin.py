@@ -15,7 +15,6 @@ import typing as t
 from _pytest import hookspec as pytest_hookspec
 from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
-from _pytest.skipping import evaluate_skip_marks
 import pluggy
 import pytest
 
@@ -771,7 +770,6 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         self.tests_by_nodeid[item.nodeid] = test
 
-        self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
@@ -1261,6 +1259,16 @@ class TestOptPlugin(TestOptPluginProtocol):
         self.outcomes_by_nodeid.pop(nodeid, None)
         return status, tags
 
+    @pytest.hookimpl
+    def pytest_runtest_setup(self, item: pytest.Item) -> None:
+        # Pytest's tryfirst skip/skipif hook runs before TIA; fixtures run afterwards.
+        test = self.tests_by_nodeid.get(item.nodeid)
+        if test is None:
+            return
+        self._handle_itr(item, item_to_test_ref(item), test)
+        if test.is_skipped_by_itr():
+            pytest.skip(SKIPPED_BY_ITR_REASON)
+
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
         if not self.manager.is_skippable_test(test_ref):
             return
@@ -1279,22 +1287,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         if test.is_disabled():
             return
 
-        # Preserve pytest's skip conditions and reasons before adding the TIA marker.
-        try:
-            if evaluate_skip_marks(item) is not None:
-                return
-        except (Exception, pytest.fail.Exception):
-            # Let pytest report invalid skip conditions during setup.
-            return
-
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
-        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
-            try:
-                if test.suite.tags.get(TestTag.SKIPPED_BY_ITR) != TAG_TRUE:
-                    test.suite.mark_skipped_by_itr()
-            except Exception:
-                log.debug("Error recording suite ITR skip", exc_info=True)
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
     def pytest_terminal_summary(
@@ -1414,7 +1408,6 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         test.start()
         self.tests_by_nodeid[item.nodeid] = test
-        self._handle_itr(item, test_ref, test)
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:

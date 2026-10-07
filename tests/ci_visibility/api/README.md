@@ -43,6 +43,8 @@ omitted when Test Impact Analysis is disabled.
 
 Test mode counts the suite's Test Impact Analysis skipped test executions; suite
 mode counts a skipped suite once. Framework skips, disabled tests, and forced runs
-do not contribute. Counters belong to individual suites and propagate to ancestors
-using the existing session counting rules. Distributed workers report their own
-suite events, while the controller aggregates the session total.
+do not contribute. A collected suite is marked as skipped by Test Impact Analysis
+only after every child has finished with a Test Impact Analysis skip. Counters
+belong to individual suites and propagate to ancestors using the existing session
+counting rules. Distributed workers report their own suite events, while the
+controller aggregates the session total.

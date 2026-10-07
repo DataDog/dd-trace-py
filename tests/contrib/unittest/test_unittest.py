@@ -115,6 +115,7 @@ class UnittestTestCase(TracerTestCase):
         )
         settings = TestVisibilityAPISettings(False, skipping_enabled, False, itr_enabled)
         with (
+            override_env({"_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0"}),
             _mock_ddconfig_test_visibility(
                 ITR_SKIPPING_LEVEL.SUITE if suite_skipping_mode else ITR_SKIPPING_LEVEL.TEST
             ),
@@ -158,7 +159,8 @@ class UnittestTestCase(TracerTestCase):
 
     @_disable_ci_visibility
     def test_unittest_suite_itr_reporting(self):
-        self._run_suite_itr_reporting()
+        with override_env({"_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "1"}):
+            self._run_suite_itr_reporting()
 
     @_disable_ci_visibility
     def test_unittest_suite_itr_reporting_in_suite_mode(self):

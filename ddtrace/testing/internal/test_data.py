@@ -384,6 +384,12 @@ class TestSuite(TestItem["TestModule", "Test"]):
         if self.session.itr_enabled:
             try:
                 if self.session.itr_skipping_level == ITRSkippingLevel.SUITE:
+                    if (
+                        self.tags.get(TestTag.SKIPPED_BY_ITR) != TAG_TRUE
+                        and self.children
+                        and all(child.is_finished() and child.is_skipped_by_itr() for child in self.children.values())
+                    ):
+                        self.mark_skipped_by_itr()
                     count = int(self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE)
                 else:
                     with self._itr_skipped_count_lock:
