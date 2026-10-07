@@ -1,0 +1,4 @@
+fixes:
+  - |
+    CI Visibility: Fixes an incompatibility between vcrpy and Test Optimization
+    that prevents test traces from being uploaded to Datadog.
