@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    mcp: Adds support for ``mcp`` 2.x. Previously, applications using ``mcp`` 2.x did not emit MCP client or
+    server spans.

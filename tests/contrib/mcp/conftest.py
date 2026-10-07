@@ -4,14 +4,14 @@ import json
 import threading
 import time
 
-from mcp.server.fastmcp import FastMCP
-from mcp.shared.memory import create_connected_server_and_client_session
 import pytest
 
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
+from tests.contrib.mcp.utils import FastMCP
+from tests.contrib.mcp.utils import connect
 from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
 
@@ -117,9 +117,7 @@ def mcp_call_tool(mcp_server):
 
     def _call_tool(tool_name, arguments):
         async def run_test():
-            from mcp.shared.memory import create_connected_server_and_client_session
-
-            async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            async with connect(mcp_server) as client:
                 return await client.call_tool(tool_name, arguments)
 
         return run_test()
@@ -130,7 +128,7 @@ def mcp_call_tool(mcp_server):
 @pytest.fixture
 async def mcp_client(mcp_server):
     """Connected MCP client-server session."""
-    async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+    async with connect(mcp_server) as client:
         yield client
 
 
@@ -145,7 +143,7 @@ def mcp_server_initialized():
 
     async def run_init():
         client_info = Implementation(name="test-client", version="1.2.3")
-        async with create_connected_server_and_client_session(mcp_server._mcp_server, client_info=client_info):
+        async with connect(mcp_server, client_info=client_info):
             pass
 
     asyncio.run(run_init())
