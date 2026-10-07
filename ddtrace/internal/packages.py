@@ -109,7 +109,9 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
         # either it was not resolved due to multiple packages with the same name
         # or it's a multipurpose package (like '__pycache__')
         return None
-    return (names[0], get_version_for_package(names[0]))
+    # Metadata imports on telemetry threads can recreate threading after module
+    # cloning, leaving interpreter shutdown waiting for the wrong main thread.
+    return (names[0], dist_map.get(names[0], ""))
 
 
 @cached(maxsize=1024)

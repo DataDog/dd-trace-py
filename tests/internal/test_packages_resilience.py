@@ -968,6 +968,36 @@ def _site_with_dist(root: Path, name: str, module: str) -> Path:
     return root
 
 
+@pytest.mark.parametrize("version", ["1.0", ""])
+def test_module_versions_without_importing_metadata(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    """Telemetry can resolve a module whose distribution has a different name
+    without importing metadata on its background thread.
+    """
+    import builtins
+
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path, "example-dist", "example_module")
+    (site / "example_dist-1.0.dist-info" / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: example-dist\nVersion: {version}\n"
+    )
+    monkeypatch.setattr(sys, "path", [str(site)])
+    _p.get_module_distribution_versions.cache_clear()
+    real_import = builtins.__import__
+
+    def no_metadata_import(name, *args, **kwargs):
+        if name == "importlib.metadata":
+            raise AssertionError("Module version lookup must not import metadata")
+        return real_import(name, *args, **kwargs)
+
+    with monkeypatch.context() as imports:
+        imports.setattr(builtins, "__import__", no_metadata_import)
+        assert _p.get_module_distribution_versions("example_module.child") == ("example-dist", version)
+    _p.get_module_distribution_versions.cache_clear()
+
+
 def test_scan_does_not_reimport_importlib_metadata(
     tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
 ) -> None:
