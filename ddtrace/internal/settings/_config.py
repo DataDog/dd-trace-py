@@ -33,13 +33,12 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -437,12 +436,7 @@ class Config:
     """
 
     class _HTTPServerConfig:
-        _default_error_statuses = "500-599"
-        _error_statuses_from_env = (
-            _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", report_telemetry=False) is not None
-        )
-        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", _default_error_statuses)
-        _error_statuses_configured = _error_statuses_from_env
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
         @property
@@ -452,15 +446,9 @@ class Config:
         @error_statuses.setter
         def error_statuses(self, value: str) -> None:
             self._error_statuses = value
-            # Restoring the implicit default must also restore implicit OTel semantics.
-            self._error_statuses_configured = self._error_statuses_from_env or value != self._default_error_statuses
             self._error_ranges = get_error_ranges(value)
             # Mypy can't catch cached method's invalidate()
             self.is_error_code.cache_clear()  # type: ignore[attr-defined]
-
-        @property
-        def error_statuses_configured(self) -> bool:
-            return self._error_statuses_configured
 
         @property
         def error_ranges(self) -> list[tuple[int, int]]:
@@ -553,7 +541,7 @@ class Config:
 
         self._inferred_base_service = detect_service(sys.argv)
 
-        self._otel_trace_semantics_enabled = agent_config._trace_otel_semantics_enabled
+        self._otel_trace_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
 
         # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the
@@ -762,22 +750,24 @@ class Config:
                     "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED is set to true, but "
                     "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Peer service defaults stay disabled."
                 )
-                telemetry_writer.add_log(
-                    TELEMETRY_LOG_LEVEL.WARNING,
-                    "Enabling DD_TRACE_OTEL_SEMANTICS_ENABLED overrode DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED to false",
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_peer_service_defaults_enabled"),),
                 )
-                telemetry_writer.add_configuration("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, "calculated")
             _span_attribute_schema = _get_config("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", report_telemetry=False)
             if _span_attribute_schema != "v0":
                 log.warning(
                     "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA is set to a version other than v0, but "
                     "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Schema v0 is used instead."
                 )
-                telemetry_writer.add_log(
-                    TELEMETRY_LOG_LEVEL.WARNING,
-                    "Enabling DD_TRACE_OTEL_SEMANTICS_ENABLED overrode DD_TRACE_SPAN_ATTRIBUTE_SCHEMA to v0",
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_span_attribute_schema"),),
                 )
-                telemetry_writer.add_configuration("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", "calculated")
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()
