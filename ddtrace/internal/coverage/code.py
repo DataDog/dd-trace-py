@@ -71,10 +71,15 @@ def _get_active_collector(
     return None
 
 
-def _get_ctx_collector() -> t.Optional["ModuleCodeCollector.CollectInContext"]:
-    if ctx_coverage_enabled.get():
-        if collector := _get_active_collector(ctx_collectors.get()):
-            return collector
+def _get_ctx_collector(coverage_enabled: bool) -> t.Optional["ModuleCodeCollector.CollectInContext"]:
+    # Hooks pass their already-checked state to avoid reading the ContextVar twice.
+    if coverage_enabled:
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector
+            if active_collector := _get_active_collector(stack):
+                return active_collector
 
     # The same lifetime rules apply when monitoring callbacks need the TLS fallback.
     if _PY_GE_314:
@@ -83,14 +88,33 @@ def _get_ctx_collector() -> t.Optional["ModuleCodeCollector.CollectInContext"]:
 
 
 def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
-    if collector := _get_ctx_collector():
-        return collector._covered_lines
+    # Keep direct data lookups inline to avoid extra resolver calls.
+    if ctx_coverage_enabled.get():
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector._covered_lines
+            for collector in reversed(stack):
+                if not collector.closed:
+                    return collector._covered_lines
+    if _PY_GE_314:
+        if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
+            return active_collector._covered_lines
     return defaultdict(CoverageLines)
 
 
 def _get_ctx_covered_files() -> set[str]:
-    if collector := _get_ctx_collector():
-        return collector._covered_files
+    if ctx_coverage_enabled.get():
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector._covered_files
+            for collector in reversed(stack):
+                if not collector.closed:
+                    return collector._covered_files
+    if _PY_GE_314:
+        if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
+            return active_collector._covered_files
     return set()
 
 
@@ -179,21 +203,33 @@ class ModuleCodeCollector(ModuleWatchdog):
             self._covered_files.add(path)
             self.covered[path].add(0)
 
-        if ctx_coverage_enabled.get() or (_PY_GE_314 and bool(getattr(_tls_coverage, "stack", ()))):
-            ctx_covered_file_paths = _get_ctx_covered_files()
+        if ctx_coverage_enabled.get():
+            collector = _get_ctx_collector(True)
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            collector = _get_ctx_collector(False)
+        else:
+            return
+        if collector is not None:
+            ctx_covered_file_paths = collector._covered_files
             if path not in ctx_covered_file_paths:
                 ctx_covered_file_paths.add(path)
-                _get_ctx_covered_lines()[path].add(0)
+                collector._covered_lines[path].add(0)
 
     def hook_line(self, path: str, line: int) -> None:
         if self._coverage_enabled:
             lines = self.covered[path]
             lines.add(line)
 
-        if ctx_coverage_enabled.get() or (_PY_GE_314 and bool(getattr(_tls_coverage, "stack", ()))):
+        if ctx_coverage_enabled.get():
+            collector = _get_ctx_collector(True)
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            collector = _get_ctx_collector(False)
+        else:
+            return
+        if collector is not None:
             # Import-time contexts store their lines in a non-context variable to be aggregated on request when
             # reporting coverage
-            ctx_lines = _get_ctx_covered_lines()[path]
+            ctx_lines = collector._covered_lines[path]
             ctx_lines.add(line)
 
     def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
@@ -430,7 +466,8 @@ class ModuleCodeCollector(ModuleWatchdog):
                 stack = stack[:-1]
                 ctx_collectors.set(stack)
             # An exit in a different context must preserve that context's collectors.
-            ctx_coverage_enabled.set(_get_active_collector(stack) is not None)
+            coverage_enabled = bool(stack) and (not stack[-1].closed or _get_active_collector(stack) is not None)
+            ctx_coverage_enabled.set(coverage_enabled)
             if _PY_GE_314:
                 _tls_coverage.stack = stack
 
