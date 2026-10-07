@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import datetime
 import io
 import json
@@ -122,6 +123,27 @@ class BotocoreTest(TracerTestCase):
         """Override to filter out urllib3 spans that are captured alongside botocore spans."""
         spans = super().get_spans()
         return [s for s in spans if s.name != "urllib3.request"]
+
+    @contextlib.contextmanager
+    def _unique_lambda_function(self, lamb):
+        """Create a uniquely named Lambda function and delete it on exit."""
+        function_name = f"ddtrace-test-{uuid.uuid4()}"
+        lamb.create_function(
+            FunctionName=function_name,
+            Runtime="python3.8",
+            Role="test-iam-role",
+            Handler="lambda_function.lambda_handler",
+            Code={
+                "ZipFile": get_zip_lambda(),
+            },
+            Publish=True,
+            Timeout=30,
+            MemorySize=128,
+        )
+        try:
+            yield function_name
+        finally:
+            lamb.delete_function(FunctionName=function_name)
 
     @mock_ec2
     @mock_s3
@@ -1434,25 +1456,12 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
-        lamb.create_function(
-            FunctionName=function_name,
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName=function_name)
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1469,25 +1478,12 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
-        lamb.create_function(
-            FunctionName=function_name,
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName=function_name)
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1500,25 +1496,12 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
-        lamb.create_function(
-            FunctionName=function_name,
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName=function_name)
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "mysvc"
@@ -1531,25 +1514,12 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_unspecified_service_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
-        lamb.create_function(
-            FunctionName=function_name,
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName=function_name)
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1562,25 +1532,12 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_unspecified_service_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
-        lamb.create_function(
-            FunctionName=function_name,
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName=function_name)
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == "aws.lambda"
@@ -1593,25 +1550,12 @@ class BotocoreTest(TracerTestCase):
     def test_schematized_unspecified_service_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
-        function_name = f"ddtrace-test-{uuid.uuid4()}"
 
-        lamb.create_function(
-            FunctionName=function_name,
-            Runtime="python3.8",
-            Role="test-iam-role",
-            Handler="lambda_function.lambda_handler",
-            Code={
-                "ZipFile": get_zip_lambda(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128,
-        )
-        lamb.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps({}),
-        )
-        lamb.delete_function(FunctionName=function_name)
+        with self._unique_lambda_function(lamb) as function_name:
+            lamb.invoke(
+                FunctionName=function_name,
+                Payload=json.dumps({}),
+            )
 
         spans = self.get_spans()
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
