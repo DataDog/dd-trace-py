@@ -8,7 +8,9 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
+from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
 from ddtrace.appsec._iast._ast.ast_patching import visit_ast
+from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
 from tests.utils import override_env
 
@@ -145,6 +147,29 @@ import html"""
 )
 def test_astpatch_source_unchanged(module_name):
     assert ("", None) == astpatch_module(__import__(module_name, fromlist=["*"]))
+
+
+def test_initialize_iast_lists_uses_shared_distributions(tmp_path, monkeypatch):
+    dist_info = tmp_path / "iast_snapshot_dependency-1.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text("Name: iast-snapshot-dependency\nVersion: 1.0\n")
+    (dist_info / "top_level.txt").write_text("iast_snapshot_dependency\n")
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.syspath_prepend(str(tmp_path))
+            assert "iast_snapshot_dependency" in get_package_distributions()
+            with mock.patch(
+                "importlib.metadata.packages_distributions", side_effect=AssertionError("Unexpected scan"), create=True
+            ):
+                initialize_iast_lists()
+            assert iastpatch.should_iast_patch("iast_snapshot_dependency.module") == iastpatch.DENIED_NOT_FOUND
+            assert (
+                iastpatch.should_iast_patch("iast_snapshot_application.module")
+                == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+            )
+    finally:
+        initialize_iast_lists()
 
 
 def test_should_iast_patch_allow_first_party():
