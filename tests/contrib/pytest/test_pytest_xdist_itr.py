@@ -3,7 +3,6 @@
 The tests in this module validate the interaction between ITR and pytest-xdist.
 """
 
-import json
 from unittest import mock
 
 import pytest
@@ -83,43 +82,6 @@ class SomeTestCase(unittest.TestCase):
 
 
 class PytestXdistITRTestCase(PytestTestCaseBase):
-    def capture_worker_suite_itr_events(self):
-        sitecustomize = self.testdir.tmpdir.join("sitecustomize.py")
-        sitecustomize.write(
-            sitecustomize.read()
-            + """
-import json
-import os
-from pathlib import Path
-from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
-
-_original_suite_finish_span = TestVisibilitySuite._finish_span
-_suite_events_path = Path(__file__).parent / ("suite-itr-" + os.environ.get("PYTEST_XDIST_WORKER", "main") + ".jsonl")
-
-def _capture_suite_finish_span(suite):
-    was_finished = suite.is_finished()
-    _original_suite_finish_span(suite)
-    span = suite.get_span()
-    if not was_finished and span is not None and span.finished:
-        with _suite_events_path.open("a") as output:
-            output.write(json.dumps({
-                "suite": span.get_tag("test.suite"),
-                "count": span.get_metric("test.itr.tests_skipping.count"),
-                "skipped": span.get_tag("_dd.ci.itr.tests_skipped"),
-            }) + "\\n")
-
-TestVisibilitySuite._finish_span = _capture_suite_finish_span
-"""
-        )
-
-    def worker_suite_itr_events(self):
-        return [
-            json.loads(line)
-            for path in self.testdir.tmpdir.listdir()
-            if path.basename.startswith("suite-itr-")
-            for line in path.readlines()
-        ]
-
     def test_pytest_xdist_itr_skips_tests_at_test_level_by_pytest_addopts_env_var(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
         # Create a simplified sitecustomize with just the essential ITR setup
@@ -285,7 +247,6 @@ CIVisibility.enable = classmethod(patched_enable)
 
         # Create test files
         self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
-        self.capture_worker_suite_itr_events()
         self.make_xdist_worker_sitecustomize()
         self.testdir.makepyfile(
             test_scope1="""
@@ -354,12 +315,6 @@ class TestScope2:
         # Verify number of skipped SUITES in session (should be 2 suites, not 3 tests)
         assert session_span.get_metric("test.itr.tests_skipping.count") == 2
 
-        suite_spans = self.worker_suite_itr_events()
-        assert len(suite_spans) == 2
-        for span in suite_spans:
-            assert span["count"] is None
-            assert span["skipped"] is None
-
     def test_pytest_xdist_itr_skips_tests_at_test_level_without_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
         # Create a simplified sitecustomize with just the essential ITR setup
@@ -385,8 +340,7 @@ itr_settings = TestVisibilityAPISettings(
 # Create skippable tests
 skippable_tests = {
     TestId(TestSuiteId(TestModuleId(""), "test_fail.py"), "test_func_fail"),
-    TestId(TestSuiteId(TestModuleId(""), "test_fail.py"), "SomeTestCase::test_class_func_fail"),
-    TestId(TestSuiteId(TestModuleId(""), "test_pass.py"), "test_func_pass")
+    TestId(TestSuiteId(TestModuleId(""), "test_fail.py"), "SomeTestCase::test_class_func_fail")
 }
 
 
@@ -418,7 +372,6 @@ def patched_enable(cls, *args, **kwargs):
 CIVisibility.enable = classmethod(patched_enable)
 """
         self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
-        self.capture_worker_suite_itr_events()
         self.make_xdist_worker_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
@@ -464,15 +417,7 @@ CIVisibility.enable = classmethod(patched_enable)
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
         # Verify number of skipped tests in session
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 3
-
-        suite_spans = self.worker_suite_itr_events()
-        for name in ("test_fail.py", "test_pass.py"):
-            matching = [span for span in suite_spans if span["suite"] == name]
-            assert matching
-            for span in matching:
-                assert span["count"] is None
-                assert span["skipped"] is None
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
 
     def test_pytest_xdist_itr_skips_tests_at_suite_level_with_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""

@@ -34,7 +34,6 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
@@ -147,7 +146,6 @@ class TestVisibilityItemBase(abc.ABC):
         # ITR-related attributes
         self._is_itr_skipped: bool = False
         self._itr_skipped_count: int = 0
-        self._itr_skipped_count_lock = Lock()
         self._is_itr_unskippable: bool = False
         self._is_itr_forced_run: bool = False
 
@@ -328,9 +326,7 @@ class TestVisibilityItemBase(abc.ABC):
         return self.__source_file_info
 
     @_source_file_info.setter
-    def _source_file_info(  # pyright: ignore[reportRedeclaration]
-        self, source_file_info_value: Optional[TestSourceFileInfo] = None
-    ) -> None:
+    def _source_file_info(self, source_file_info_value: Optional[TestSourceFileInfo] = None) -> None:  # pyright: ignore[reportRedeclaration]
         """This checks that filepaths are absolute when setting source file info"""
         self.__source_file_info = None  # Default value until source_file_info is validated
 
@@ -470,9 +466,7 @@ class TestVisibilityItemBase(abc.ABC):
         self._status = status
 
     def count_itr_skipped(self) -> None:
-        # Each ancestor owns its counter; release its lock before propagating to avoid nested locks.
-        with self._itr_skipped_count_lock:
-            self._itr_skipped_count += 1
+        self._itr_skipped_count += 1
         if self.parent is not None:
             self.parent.count_itr_skipped()
 

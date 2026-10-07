@@ -3883,8 +3883,6 @@ class PytestTestCase(PytestTestCaseBase):
         inner_suite_span = [span for span in test_suite_spans if span.get_tag("test.suite") == "test_inner_abc.py"][0]
         assert inner_suite_span.get_tag("test.itr.forced_run") == "true"
         assert inner_suite_span.get_tag("test.itr.unskippable") == "true"
-        assert inner_suite_span.get_metric(test.ITR_TEST_SKIPPING_COUNT) == 0
-        assert inner_suite_span.get_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED) == "false"
 
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert len(test_spans) == 7

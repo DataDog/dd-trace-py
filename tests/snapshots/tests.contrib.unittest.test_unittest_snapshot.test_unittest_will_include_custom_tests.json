@@ -115,7 +115,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "",
-            "_dd.ci.itr.tests_skipped": "false",
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
             "_dd.p.tid": "69dea62300000000",
@@ -148,8 +147,7 @@
           "metrics": {
             "_dd.py.partial_flush": 1.0,
             "_dd.tracer_kr": 1.0,
-            "_sampling_priority_v1": 1.0,
-            "test.itr.tests_skipping.count": 0.0
+            "_sampling_priority_v1": 1.0
           },
           "duration": 26314500,
           "start": 1776199203957736802

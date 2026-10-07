@@ -31,29 +31,3 @@ tests.
 1. Run the selected environment; the test runner starts `testagent` when needed:
    1. All tests: `scripts/run-tests --venv <environment-hash> -- -k FakeApiRunnersSnapshotTestCase`
    1. Individual test: `scripts/run-tests --venv <environment-hash> -- -k test_manual_api_fake_runner_mix_fail_itr_test_level`
-
-### Suite Test Impact Analysis reporting
-
-When Test Impact Analysis is enabled, every completed suite reports
-`test.itr.tests_skipping.count` as a non-negative integer-valued metric and
-`_dd.ci.itr.tests_skipped` as the string `"true"` exactly when that count is positive.
-Empty suites and suites without Test Impact Analysis skips report zero and `"false"`,
-including when test skipping or coverage collection is disabled. Both fields are
-omitted when Test Impact Analysis is disabled or tests run in pytest-xdist workers.
-This applies to both pytest implementations and all xdist scheduling modes:
-workers cannot reliably determine the complete suite's results. Existing xdist
-test skipping, session totals, and suite event timing are preserved.
-
-These fields identify suites whose duration is affected by Test Impact Analysis,
-so the backend can exclude their duration from comparisons. Any TIA-skipped child
-makes the flag `"true"`, even if other children run, fail, are framework-skipped,
-or remain unexecuted after early termination. This does not change the suite's
-overall status or mean the entire suite was skipped by TIA.
-
-Test mode counts TIA-skipped test executions within the suite; suite mode counts
-an affected suite once, whether TIA skips the entire suite or any child. Framework
-skips, disabled tests, and forced runs do not themselves contribute, and do not
-cancel an actual TIA skip elsewhere in the suite. Pytest waits for all selected
-tests even when items are interleaved with other suites, and finalizes started
-suites and modules after early termination. Existing session counting semantics
-are preserved.

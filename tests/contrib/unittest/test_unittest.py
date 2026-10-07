@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 import functools
 import sys
 import unittest
@@ -22,14 +21,12 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
-from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.constants import COMPONENT
-from tests.ci_visibility.util import _mock_ddconfig_test_visibility
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -78,106 +75,6 @@ class UnittestTestCase(TracerTestCase):
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             yield
-
-    def _run_suite_itr_reporting(
-        self, itr_enabled=True, skipping_enabled=True, reporting_failure=False, suite_skipping_mode=False
-    ):
-        _set_tracer(self.tracer)
-
-        class SuiteA(unittest.TestCase):
-            def test_tia_one(self):
-                pass
-
-            def test_tia_two(self):
-                pass
-
-            @unittest.skip("framework skip")
-            def test_framework_skip(self):
-                pass
-
-            def test_tia_forced(self):
-                pass
-
-        class SuiteB(unittest.TestCase):
-            def test_tia_one(self):
-                pass
-
-        class SuiteC(unittest.TestCase):
-            @unittest.skip("framework skip")
-            def test_framework_skip(self):
-                pass
-
-            def test_tia_forced(self):
-                pass
-
-        suite = unittest.TestSuite(
-            [unittest.TestLoader().loadTestsFromTestCase(cls) for cls in (SuiteA, SuiteB, SuiteC)]
-        )
-        settings = TestVisibilityAPISettings(False, skipping_enabled, False, itr_enabled)
-        with (
-            override_env({"_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "0"}),
-            _mock_ddconfig_test_visibility(
-                ITR_SKIPPING_LEVEL.SUITE if suite_skipping_mode else ITR_SKIPPING_LEVEL.TEST
-            ),
-            mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=settings
-            ),
-            mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path",
-                side_effect=lambda path, name: name.startswith("test_tia"),
-            ),
-            mock.patch("ddtrace.contrib.internal.unittest.patch._global_skipped_elements", 0),
-            mock.patch(
-                "ddtrace.contrib.internal.unittest.patch._is_marked_as_unskippable",
-                side_effect=lambda item: item._testMethodName == "test_tia_forced",
-            ),
-        ):
-            if reporting_failure:
-                with mock.patch(
-                    "ddtrace.contrib.internal.unittest.patch._CIVisibility.is_itr_enabled",
-                    side_effect=RuntimeError("reporting failure"),
-                ):
-                    result = unittest.TextTestRunner(verbosity=0).run(suite)
-            else:
-                result = unittest.TextTestRunner(verbosity=0).run(suite)
-        assert result.wasSuccessful()
-        spans = self.pop_spans()
-        suite_spans = {span.get_tag(test.SUITE): span for span in spans if span.name == SUITE_OPERATION_NAME}
-        assert set(suite_spans) == {"SuiteA", "SuiteB", "SuiteC"}
-        for name, expected in (("SuiteA", 2), ("SuiteB", 1), ("SuiteC", 0)):
-            span = suite_spans[name]
-            if not itr_enabled or reporting_failure:
-                assert span.get_metric(test.ITR_TEST_SKIPPING_COUNT) is None
-                assert span.get_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED) is None
-            else:
-                expected = (int(expected > 0) if suite_skipping_mode else expected) if skipping_enabled else 0
-                assert span.get_metric(test.ITR_TEST_SKIPPING_COUNT) == expected
-                assert span.get_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED) == ("true" if expected else "false")
-        if itr_enabled and skipping_enabled:
-            [session] = [span for span in spans if span.name == SESSION_OPERATION_NAME]
-            assert session.get_metric(test.ITR_TEST_SKIPPING_COUNT) == 3
-
-    @_disable_ci_visibility
-    def test_unittest_suite_itr_reporting(self):
-        with override_env({"_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "1"}):
-            self._run_suite_itr_reporting()
-
-    @_disable_ci_visibility
-    def test_unittest_suite_itr_reporting_in_suite_mode(self):
-        # A suite with TIA skips has a skewed duration even with framework skips and forced runs.
-        self._run_suite_itr_reporting(suite_skipping_mode=True)
-
-    @_disable_ci_visibility
-    def test_unittest_suite_itr_reporting_without_skipping(self):
-        self._run_suite_itr_reporting(skipping_enabled=False)
-
-    @_disable_ci_visibility
-    def test_unittest_suite_itr_reporting_disabled(self):
-        self._run_suite_itr_reporting(itr_enabled=False, skipping_enabled=False)
-
-    @_disable_ci_visibility
-    def test_unittest_suite_itr_reporting_failure_does_not_fail_tests(self):
-        self._run_suite_itr_reporting(reporting_failure=True)
 
     @_disable_ci_visibility
     def test_unittest_set_test_session_name(self):
@@ -1135,26 +1032,3 @@ class UnittestTestCase(TracerTestCase):
             assert spans[i].get_tag(MODULE_ID) == expected_result[i].get(MODULE_ID, None)
             assert spans[i].get_tag(SUITE_ID) == expected_result[i].get(SUITE_ID, None)
             assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()[RUNTIME_VERSION]
-
-
-@pytest.mark.parametrize("suite_skipping_mode", [False, True])
-def test_unittest_concurrent_suite_itr_counts(monkeypatch, suite_skipping_mode):
-    from ddtrace.contrib.internal.unittest.patch import _update_skipped_elements_and_set_tags
-    from ddtrace.trace import Span
-
-    monkeypatch.setattr(CIVisibility, "is_itr_enabled", lambda: True)
-    monkeypatch.setattr("ddtrace.contrib.internal.unittest.patch._global_skipped_elements", 0)
-    module, session = Span("module"), Span("session")
-    suites = [Span("A"), Span("B")]
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        list(
-            pool.map(
-                lambda suite: _update_skipped_elements_and_set_tags(module, session, suite, suite_skipping_mode),
-                [suites[0]] * 200 + [suites[1]] * 100,
-            )
-        )
-    assert [suite.get_metric(test.ITR_TEST_SKIPPING_COUNT) for suite in suites] == (
-        [1, 1] if suite_skipping_mode else [200, 100]
-    )
-    assert all(suite.get_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED) == "true" for suite in suites)
-    assert module.get_metric(test.ITR_TEST_SKIPPING_COUNT) == 300

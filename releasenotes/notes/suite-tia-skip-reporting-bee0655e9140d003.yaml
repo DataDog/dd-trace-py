@@ -1,6 +1,7 @@
 features:
   - |
-    CI visibility: Adds per-suite Test Impact Analysis skip counts to identify
-    suites whose duration is affected by skipped tests, including suites where
-    other tests run and when code coverage collection is disabled. Per-suite skip
-    reporting is not available when running tests with pytest-xdist.
+    CI visibility: Adds per-suite Test Impact Analysis skip counts for the current
+    pytest integration to identify suites whose duration is affected by skipped
+    tests, including when code coverage collection is disabled. Per-suite skip
+    reporting is unavailable with pytest-xdist, the legacy pytest integration,
+    unittest, and the manual CI Visibility API.
