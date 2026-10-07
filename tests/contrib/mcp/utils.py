@@ -10,9 +10,9 @@ MCP_V2 = parse_version(version("mcp")) >= (2, 0, 0)
 
 if MCP_V2:
     from mcp import ClientSession
-    from mcp.server.mcpserver import MCPServer as FastMCP
+    from mcp.server.mcpserver import MCPServer as FastMCP  # noqa: F401
 else:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.fastmcp import FastMCP  # noqa: F401
     from mcp.shared.memory import create_connected_server_and_client_session
 
 

@@ -63,7 +63,9 @@ def is_tool_error_result(result: Any) -> bool:
 def _without_dd_trace_context(request: dict[str, Any]) -> dict[str, Any]:
     """Copy of a wire request dict without the tracing headers injected into params._meta."""
     params = request.get("params")
-    meta = params.get("_meta") if isinstance(params, dict) else None
+    if not isinstance(params, dict):
+        return request
+    meta = params.get("_meta")
     if not isinstance(meta, dict) or "_dd_trace_context" not in meta:
         return request
     meta = {k: v for k, v in meta.items() if k != "_dd_trace_context"}
@@ -148,7 +150,7 @@ class MCPIntegration(BaseLLMIntegration):
         elif operation == "initialize":
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
         elif operation == SERVER_REQUEST_OPERATION_NAME or operation == SERVER_TOOL_CALL_OPERATION_NAME:
-            self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
+            self._llmobs_set_tags_server_request(span, args, kwargs, response)
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)
         elif operation == "session":
@@ -251,7 +253,7 @@ class MCPIntegration(BaseLLMIntegration):
             # The argument is removed before recording the input and calling the tool
             del arguments[TELEMETRY_KEY]
 
-    def _llmobs_set_tags_request_responder_respond(
+    def _llmobs_set_tags_server_request(
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
     ) -> None:
         try:
@@ -259,19 +261,10 @@ class MCPIntegration(BaseLLMIntegration):
         except ImportError:
             MCP_SESSION_ID_HEADER = None
 
-        responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
-        if responder is not None:
-            # mcp<2: the RequestResponder carries the request, the response is the respond() argument
-            response_value = get_argument_value(args, kwargs, 0, "response", optional=True)
-            request = getattr(responder, "request", None)
-            request_root = getattr(request, "root", None)
-            response_root = getattr(response_value, "root", response_value)
-            message_metadata = _get_attr(responder, "message_metadata", None)
-        else:
-            # mcp>=2: the server passes the raw wire request and result dicts
-            request_root = kwargs.get("request")
-            response_root = response
-            message_metadata = kwargs.get("message_metadata")
+        # The parsed request model on mcp 1, the raw wire request and result dicts on mcp 2
+        request_root = kwargs.get("request")
+        response_root = response
+        message_metadata = kwargs.get("message_metadata")
 
         request_method = str(_get_attr(request_root, "method", "unknown"))
         common_tags = {"mcp_method": request_method}

@@ -385,6 +385,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
 
 def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture adds telemetry property to tool input schemas."""
+
     async def run_test():
         async with connect(mcp_server) as client:
             result = await client.list_tools()
@@ -421,6 +422,7 @@ def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans,
 
 def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent is recorded on the span meta and telemetry argument is excluded from input."""
+
     async def run_test():
         async with connect(mcp_server) as client:
             await client.call_tool(
@@ -466,6 +468,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
 
 def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture is disabled by default and telemetry property is not injected."""
+
     async def run_test():
         async with connect(mcp_server) as client:
             result = await client.list_tools()
@@ -480,6 +483,7 @@ def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, m
     assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
 
 
+@pytest.mark.skipif(MCP_V2, reason="mcp 2 removed RequestResponder")
 def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
     """Regression: llmobs_set_tags must run AFTER await func(), not before.
 
@@ -495,7 +499,7 @@ def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
     """
     import anyio
 
-    from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
+    from ddtrace.contrib.internal.mcp._patch_v1 import traced_request_responder_respond
 
     call_order = []
 
