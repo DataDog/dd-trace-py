@@ -9,6 +9,7 @@ from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import _create_anthropic_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_azure_openai_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
@@ -922,9 +923,7 @@ class TestClientOptionsPassthrough:
             content.append(block)
         mock_anthropic_mod.Anthropic.return_value.messages.create.return_value = mock.MagicMock(content=content)
         with mock.patch.dict("sys.modules", {"anthropic": mock_anthropic_mod}):
-            from ddtrace.llmobs._evaluators import llm_judge as lj
-
-            call = lj._create_anthropic_client(client_options={"api_key": "test-key"})
+            call = _create_anthropic_client(client_options={"api_key": "test-key"})
             result = call(
                 provider="anthropic",
                 messages=[{"role": "user", "content": "Rate this"}],
