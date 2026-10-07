@@ -33,6 +33,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -541,7 +542,7 @@ class Config:
 
         self._inferred_base_service = detect_service(sys.argv)
 
-        self._otel_trace_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
+        self._otel_trace_semantics_enabled = agent_config._trace_otel_semantics_enabled
 
         # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the

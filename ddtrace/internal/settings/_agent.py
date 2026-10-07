@@ -7,10 +7,7 @@ from urllib.parse import urlparse
 
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._core import FLEET_CONFIG
-from ddtrace.internal.settings._core import LOCAL_CONFIG
 from ddtrace.internal.settings._core import DDConfig
-from ddtrace.internal.utils.formats import asbool
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -72,25 +69,14 @@ def _derive_stats_url(config: "AgentConfig") -> str:
     return url
 
 
-def _get_startup_config(name: str, default: Optional[str] = None) -> Optional[str]:
-    """Resolve configuration before global Config exists, preserving stable-config precedence."""
-    value = LOCAL_CONFIG.get(name, default)
-    value = env.get(name, value)
-    return FLEET_CONFIG.get(name, value)
-
-
-def _otel_semantics_enabled() -> bool:
-    return asbool(_get_startup_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", "false"))
-
-
 def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
     # OTel semantics force OTLP export ahead of the agent-protocol override.
-    if _otel_semantics_enabled():
+    if config._trace_otel_semantics_enabled:
         return True
     return (
         env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
         and not config._trace_agent_protocol_version
-        and not _get_startup_config("DD_TRACE_API_VERSION")
+        and not config._trace_api_version
     )
 
 
@@ -183,6 +169,23 @@ class AgentConfig(DDConfig):
         help_type="String",
         help="Stores the agent protocol version override; when set, OTLP export is disabled "
         "unless OTel semantics are enabled",
+    )
+
+    _trace_api_version = DDConfig.v(
+        Optional[str],
+        "trace_api_version",
+        default=None,
+        help_type="String",
+        help="Stores the trace API version override; when set, OTLP export is disabled "
+        "unless OTel semantics are enabled",
+    )
+
+    _trace_otel_semantics_enabled = DDConfig.v(
+        bool,
+        "trace_otel_semantics_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Stores whether OTel HTTP semantic conventions are enabled",
     )
 
     _trace_native_span_events = DDConfig.v(
