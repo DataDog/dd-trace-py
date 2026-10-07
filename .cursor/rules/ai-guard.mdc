@@ -76,7 +76,8 @@ ddtrace/aiguard/
     ├── _anthropic.py       # Anthropic Messages API converters + listeners
     ├── _anthropic_streaming.py # Anthropic stream reconstruction
     ├── _anthropic_errors.py    # Anthropic-compatible abort error class
-    └── _langchain.py       # LangChain agent/chatmodel/llm listeners
+    ├── _langchain.py       # LangChain agent/chatmodel/llm listeners
+    └── _mcp.py             # MCP metadata builder, OpenAI MCP approval decision cache
 ```
 
 The old import path `ddtrace.appsec.ai_guard` remains as a deprecated re-export

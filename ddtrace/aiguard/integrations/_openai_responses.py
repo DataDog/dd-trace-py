@@ -24,7 +24,6 @@ from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
-from ddtrace.aiguard._api_client import MCP
 from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import Function
@@ -34,6 +33,9 @@ from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.aiguard.integrations._mcp import ApprovalDecision
+from ddtrace.aiguard.integrations._mcp import approval_decisions
+from ddtrace.aiguard.integrations._mcp import mcp_metadata
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
@@ -232,14 +234,11 @@ def _mcp_tool_call(item: Any, call_id: str, mcp_server_urls: Optional[dict[str, 
     tool_call = ToolCall(id=call_id, function=Function(name=name, arguments=_get(item, "arguments") or "{}"))
     if mcp_server_urls is None or not name:
         return tool_call
-    mcp = MCP(transport=AI_GUARD.MCP_TRANSPORT_UNKNOWN, tool_name=name)
     label = _get(item, "server_label")
-    if isinstance(label, str) and label:
-        mcp["name"] = label
-        url = mcp_server_urls.get(label)
-        if url:
-            mcp["url"] = url
-    tool_call["mcp"] = mcp
+    label = label if isinstance(label, str) else None
+    tool_call["mcp"] = mcp_metadata(
+        AI_GUARD.MCP_TRANSPORT_UNKNOWN, name, name=label, url=mcp_server_urls.get(label) if label else None
+    )
     return tool_call
 
 
@@ -472,26 +471,103 @@ def _convert_openai_response_output(resp: Any, mcp_server_urls: Optional[dict[st
     return result
 
 
+def _approval_request_ids(output: Any) -> list[str]:
+    """IDs of the mcp_approval_request items of a response output."""
+    if not isinstance(output, (list, tuple)):
+        return []
+    ids = (_get(item, "id") for item in output if _get(item, "type") == "mcp_approval_request")
+    return [approval_id for approval_id in ids if isinstance(approval_id, str) and approval_id]
+
+
+def _approved_request_ids(input_: Any) -> list[str]:
+    """Approval request IDs that an input approves (mcp_approval_response with approve: true)."""
+    if not isinstance(input_, (list, tuple)):
+        return []
+    ids = (
+        _get(item, "approval_request_id")
+        for item in input_
+        if _get(item, "type") == "mcp_approval_response" and _get(item, "approve") is True
+    )
+    return [approval_id for approval_id in ids if isinstance(approval_id, str) and approval_id]
+
+
+def _evaluate_mcp_approvals(client: AIGuardClient, messages: list[Message], approval_ids: list[str]) -> None:
+    """Evaluate the conversation ending in pending approval requests and remember the decision.
+
+    The decision is recorded for every approval ID, so the approval the application sends back is
+    not evaluated a second time. A block is recorded too, before it propagates.
+    """
+    try:
+        evaluation = evaluate_auto(client, messages, AI_GUARD.INTEGRATION_OPENAI)
+    except AIGuardAbortError as e:
+        approval_decisions.record(approval_ids, ApprovalDecision(True, e.action, e.reason, e.tags))
+        raise
+    decision = ApprovalDecision(False, evaluation["action"], evaluation["reason"], evaluation["tags"])
+    approval_decisions.record(approval_ids, decision)
+
+
+def _authorize_mcp_approvals(client: AIGuardClient, input_: Any, messages: list[Message]) -> None:
+    """Check every approve: true response before it lets OpenAI run the approved MCP call.
+
+    A decision taken when the approval request was returned is reused. Otherwise the approval
+    request must be replayed in the input to be evaluated: an approval sent with only
+    previous_response_id carries no tool or arguments, so it is a coverage gap left to proceed.
+    """
+    for approval_id in _approved_request_ids(input_):
+        decision = approval_decisions.get(approval_id)
+        if decision is not None:
+            if decision.blocked:
+                raise _wrap_abort_error(AIGuardAbortError(decision.action, decision.reason, decision.tags))
+            continue
+        index = next(
+            (
+                i
+                for i, message in enumerate(messages)
+                if any(tool_call["id"] == approval_id for tool_call in message.get("tool_calls") or [])
+            ),
+            None,
+        )
+        if index is None:
+            logger.debug("AI Guard openai responses: MCP approval with no known approval request, not evaluated")
+            continue
+        try:
+            _evaluate_mcp_approvals(client, messages[: index + 1], [approval_id])
+        except AIGuardAbortError as e:
+            raise _wrap_abort_error(e)
+        except Exception:
+            logger.debug("Failed to evaluate OpenAI MCP approval", exc_info=True)
+
+
 def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``openai.responses.create.before``.
 
     Streaming requests are evaluated only when the flag is on (the response is then buffered
-    and evaluated at stream end); otherwise they are skipped.
+    and evaluated at stream end); otherwise they are skipped. MCP approvals are checked either
+    way, because they authorize a tool call rather than inspect the response.
     """
-    if kwargs.get("stream") and not aiguard_config._ai_guard_analyze_stream_responses_enabled:
-        logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
-        return None
-
     if is_aiguard_context_active():
         logger.debug("AI Guard openai responses before-hook skipped: framework context active")
+        return None
+
+    mcp_server_urls = _mcp_server_urls(kwargs.get("tools"))
+    skip_streaming = kwargs.get("stream") and not aiguard_config._ai_guard_analyze_stream_responses_enabled
+    if skip_streaming and mcp_server_urls is None:
+        logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
         return None
 
     messages = _convert_openai_response_input(
         kwargs.get("instructions"),
         kwargs.get("input"),
         prompt=kwargs.get("prompt"),
-        mcp_server_urls=_mcp_server_urls(kwargs.get("tools")),
+        mcp_server_urls=mcp_server_urls,
     )
+    if mcp_server_urls is not None:
+        _authorize_mcp_approvals(client, kwargs.get("input"), messages)
+
+    if skip_streaming:
+        logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
+        return None
+
     if not messages:
         logger.debug("AI Guard openai responses before-hook skipped: no convertible input messages")
         return None
@@ -539,9 +615,13 @@ def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any],
         return None
 
     all_messages = request_messages + response_messages
+    approval_ids = _approval_request_ids(_get(resp, "output")) if mcp_server_urls is not None else []
 
     try:
-        evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_OPENAI)
+        if approval_ids:
+            _evaluate_mcp_approvals(client, all_messages, approval_ids)
+        else:
+            evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_OPENAI)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:

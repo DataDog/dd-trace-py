@@ -8,6 +8,7 @@ import pytest
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard._initialization import load_ai_guard
+from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from tests.aiguard.utils import override_ai_guard_config
@@ -283,7 +284,7 @@ def openai_client_stream_tool_calls_buffered(openai_sdk_buffered):
 # ---------------------------------------------------------------------------
 
 
-def _fake_response_snapshot() -> dict:
+def _fake_response_snapshot(output=None) -> dict:
     return {
         "id": "resp-test",
         "object": "response",
@@ -294,7 +295,9 @@ def _fake_response_snapshot() -> dict:
         "incomplete_details": None,
         "instructions": None,
         "max_output_tokens": None,
-        "output": [
+        "output": output
+        if output is not None
+        else [
             {
                 "id": "msg-test",
                 "type": "message",
@@ -356,6 +359,48 @@ def _fake_responses_stream_response() -> httpx.Response:
         status_code=200,
         headers={"content-type": "text/event-stream"},
         stream=httpx.ByteStream(_fake_responses_stream_chunks()),
+    )
+
+
+def _fake_mcp_approval_stream_response() -> httpx.Response:
+    events = [
+        _sse("response.output_item.done", {"type": "response.output_item.done", "output_index": index, "item": item})
+        for index, item in enumerate(MCP_APPROVAL_OUTPUT)
+    ]
+    events.append(
+        _sse(
+            "response.completed",
+            {"type": "response.completed", "response": _fake_response_snapshot(MCP_APPROVAL_OUTPUT)},
+        )
+    )
+    return httpx.Response(
+        status_code=200, headers={"content-type": "text/event-stream"}, stream=httpx.ByteStream(b"".join(events))
+    )
+
+
+class _MCPApprovalStreamMockTransport(httpx.BaseTransport):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_mcp_approval_stream_response()
+
+
+class _AsyncMCPApprovalStreamMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_mcp_approval_stream_response()
+
+
+@pytest.fixture
+def openai_responses_mcp_approval_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
+    return openai_sdk_buffered.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_MCPApprovalStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_responses_mcp_approval_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
+    return openai_sdk_buffered.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncMCPApprovalStreamMockTransport()),
     )
 
 
@@ -551,12 +596,33 @@ class _MCPApprovalResponseMockTransport(httpx.BaseTransport):
         return _fake_response_http(MCP_APPROVAL_OUTPUT)
 
 
+class _AsyncMCPApprovalResponseMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_response_http(MCP_APPROVAL_OUTPUT)
+
+
 @pytest.fixture
 def openai_responses_mcp_approval_client(openai_sdk, _require_responses_api):
     return openai_sdk.OpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.Client(transport=_MCPApprovalResponseMockTransport()),
     )
+
+
+@pytest.fixture
+def async_openai_responses_mcp_approval_client(openai_sdk, _require_responses_api):
+    return openai_sdk.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncMCPApprovalResponseMockTransport()),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _reset_mcp_state():
+    """MCP approval decisions are kept process-wide: isolate tests."""
+    approval_decisions.clear()
+    yield
+    approval_decisions.clear()
 
 
 @pytest.fixture

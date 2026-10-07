@@ -848,13 +848,17 @@ AI Guard
      type: Boolean
      default: False
      description: |
-       When set to True and AI Guard is enabled, AI Guard extends its coverage of the remote MCP
-       tools that the OpenAI Responses API runs on your behalf (tools of type mcp). MCP calls are
-       evaluated with their server label, sanitized server URL and tool name. MCP approval requests
-       are also evaluated before your application sees them; a blocking verdict raises
-       AIGuardAbortError, so the call can never be approved and never runs. MCP calls that need no
-       approval have already run by the time the response arrives, so a blocking verdict only
-       keeps their result from reaching your application.
+       When set to True and AI Guard is enabled, AI Guard evaluates MCP tool calls with their MCP
+       server and tool details (server label, sanitized server URL, transport and tool name).
+       Credentials, headers and URL query strings are never sent.
+
+       For remote MCP tools run by the OpenAI Responses API (tools of type mcp), MCP approval
+       requests are evaluated before your application sees them, and an approval your
+       application sends back is checked again unless that request was already evaluated. Only
+       approvals prevent execution: configure require_approval to always for MCP calls that need
+       preventive control. Calls that need no approval have already run, and their result has
+       already been read by the model, when the response arrives, so a blocking verdict only
+       keeps the response from reaching your application.
 
 Code Security
 -------------

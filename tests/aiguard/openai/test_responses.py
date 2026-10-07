@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.aiguard import AIGuardAbortError
+from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_output
@@ -816,7 +817,7 @@ class _RecordingClient:
 
     def evaluate(self, messages, options, **kwargs):
         self.calls.append(list(messages))
-        return None
+        return {"action": "ALLOW", "reason": "", "tags": [], "sds": [], "tag_probs": None, "messages": messages}
 
 
 def test_before_hook_skips_streaming():
@@ -1451,3 +1452,165 @@ def test_responses_mcp_approval_request_not_evaluated_by_default(
 
     assert resp.output[-1].type == "mcp_approval_request"
     assert mock_execute_request.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Hosted MCP approval continuations, streaming and async
+# ---------------------------------------------------------------------------
+
+EXECUTE_REQUEST = "ddtrace.aiguard._api_client.AIGuardClient._execute_request"
+
+
+def _approval_response(approval_id="mcpr_test", approve=True):
+    return {"type": "mcp_approval_response", "approval_request_id": approval_id, "approve": approve}
+
+
+def _continuation(*input_items, **kwargs):
+    return {"previous_response_id": "resp-test", "input": list(input_items), "tools": MCP_TOOLS, **kwargs}
+
+
+def _return_approval_requests(*approval_requests, decision="ALLOW", block=True):
+    """Run the after-hook on a response holding approval requests, as OpenAI returns them."""
+    with patch(EXECUTE_REQUEST) as mock_execute_request:
+        mock_execute_request.return_value = mock_evaluate_response(decision, block=block)
+        _openai_response_create_after(
+            new_ai_guard_client(),
+            {"input": "Ask deepwiki", "tools": MCP_TOOLS},
+            _Item(output=list(approval_requests) or [_approval_request()]),
+        )
+
+
+@pytest.mark.parametrize("decision,block", [("ALLOW", True), ("DENY", False)], ids=["allow", "monitor"])
+@patch(EXECUTE_REQUEST)
+def test_approval_continuation_reuses_the_returned_decision(mock_execute_request, collect_mcp, decision, block):
+    _return_approval_requests(_approval_request("mcpr_1"), _approval_request("mcpr_2"), decision=decision, block=block)
+
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response("mcpr_2")))
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_approval_continuation_of_a_blocked_request_is_blocked(mock_execute_request, collect_mcp):
+    with pytest.raises(AIGuardAbortError):
+        _return_approval_requests(decision="DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response()))
+
+    mock_execute_request.assert_not_called()
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+@patch(EXECUTE_REQUEST)
+def test_replayed_approval_request_is_evaluated(mock_execute_request, collect_mcp, stream):
+    """Another process returned the request: the replayed request is evaluated, streaming or not."""
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
+    kwargs = {
+        "input": [{"role": "user", "content": "Ask deepwiki"}, _approval_request(), _approval_response()],
+        "tools": MCP_TOOLS,
+        "stream": stream,
+    }
+
+    with pytest.raises(AIGuardAbortError):
+        _openai_response_create_before(new_ai_guard_client(), kwargs)
+
+    assert mock_execute_request.call_count == 1
+    messages = mock_execute_request.call_args.args[1]["data"]["attributes"]["messages"]
+    assert messages == [
+        {"role": "user", "content": "Ask deepwiki"},
+        {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]},
+    ]
+
+
+@patch(EXECUTE_REQUEST)
+def test_unknown_approval_without_replay_is_a_coverage_gap(mock_execute_request, collect_mcp):
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response("mcpr_unknown")))
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_rejected_approval_is_not_evaluated(mock_execute_request, collect_mcp):
+    kwargs = _continuation(_approval_request(), _approval_response(approve=False))
+
+    _openai_response_create_before(new_ai_guard_client(), kwargs)
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_approval_continuations_not_checked_without_collection(mock_execute_request):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
+
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_request(), _approval_response()))
+
+    mock_execute_request.assert_not_called()
+
+
+@patch(EXECUTE_REQUEST)
+def test_responses_mcp_approval_blocking_disabled(
+    mock_execute_request, openai_responses_mcp_approval_client, collect_mcp
+):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
+
+    with override_ai_guard_config(dict(_ai_guard_block=False)):
+        resp = openai_responses_mcp_approval_client.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS
+        )
+
+    assert resp.output[-1].type == "mcp_approval_request"
+
+
+@pytest.mark.asyncio
+@patch(EXECUTE_REQUEST)
+async def test_responses_mcp_approval_async_blocked(
+    mock_execute_request, async_openai_responses_mcp_approval_client, collect_mcp
+):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    with pytest.raises(AIGuardAbortError):
+        await async_openai_responses_mcp_approval_client.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS
+        )
+
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+
+@patch(EXECUTE_REQUEST)
+def test_responses_mcp_approval_stream_buffered_blocked(
+    mock_execute_request, openai_responses_mcp_approval_stream_client_buffered, collect_mcp
+):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    stream = openai_responses_mcp_approval_stream_client_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS, stream=True
+    )
+    seen = []
+    with pytest.raises(AIGuardAbortError):
+        for event in stream:
+            seen.append(event)
+
+    assert seen == []
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+
+@pytest.mark.asyncio
+@patch(EXECUTE_REQUEST)
+async def test_responses_mcp_approval_async_stream_buffered_allowed(
+    mock_execute_request, async_openai_responses_mcp_approval_stream_client_buffered, collect_mcp
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = await async_openai_responses_mcp_approval_stream_client_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=MCP_TOOLS, stream=True
+    )
+    events = [event async for event in stream]
+
+    assert events
+    assert mock_execute_request.call_count == 2
+    assert _evaluated_messages(mock_execute_request)[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+    # The approval sent back afterwards reuses the decision taken on the stream.
+    _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_response()))
+    assert mock_execute_request.call_count == 2
