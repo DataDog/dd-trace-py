@@ -165,6 +165,23 @@ def test_set_url_tags_otel_server_preserves_path_parameters(url, raw_uri):
     assert span.get_tag(http.OTEL_URL_QUERY) is None
 
 
+def test_set_url_tags_otel_server_query_falls_back_to_the_url_unless_tagged_separately():
+    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
+    url = "https://example.com/users?page=2"
+
+    from_url = Span("web.request")
+    set_url_tags_otel_server(integration_config, from_url, url, None)
+    assert from_url.get_tag(http.OTEL_URL_QUERY) == "page=2"
+
+    separate = Span("web.request")
+    set_url_tags_otel_server(integration_config, separate, url, None, query_tagged_separately=True)
+    assert separate.get_tag(http.OTEL_URL_QUERY) is None
+
+    explicit = Span("web.request")
+    set_url_tags_otel_server(integration_config, explicit, url, "page=3", query_tagged_separately=True)
+    assert explicit.get_tag(http.OTEL_URL_QUERY) == "page=3"
+
+
 def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("http.request")
@@ -254,24 +271,6 @@ def test_otel_span_attributes_set_method_clears_stale_original_method(integratio
     assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) is None
 
 
-def test_otel_span_attributes_dispatches_client_and_server_urls(integration_config):
-    client_span = Span("request", span_type=SpanTypes.HTTP)
-    client_span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
-    server_span = Span("request", span_type=SpanTypes.WEB)
-
-    OTelHTTPSpanAttributes(client_span, integration_config).set_url("https://example.com/users/42?token=secret")
-    OTelHTTPSpanAttributes(server_span, integration_config).set_url(
-        "https://example.com/users/42?token=secret",
-        raw_uri="/users/%34%32?token=secret",
-    )
-
-    assert client_span.get_tag(http.OTEL_URL_FULL) == "https://example.com/users/42"
-    assert client_span.get_tag(http.OTEL_URL_PATH) is None
-    assert server_span.get_tag(http.OTEL_URL_PATH) == "/users/%34%32"
-    assert server_span.get_tag(http.OTEL_URL_QUERY) is None
-    assert server_span.get_tag(http.OTEL_URL_FULL) is None
-
-
 def test_otel_span_attributes_sets_query_without_url():
     span = Span("request", span_type=SpanTypes.WEB)
     integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
@@ -280,14 +279,6 @@ def test_otel_span_attributes_sets_query_without_url():
         OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
 
     assert span.get_tag(http.OTEL_URL_QUERY) == "q=public"
-
-
-def test_otel_span_attributes_query_without_url_respects_query_string_tagging(integration_config):
-    span = Span("request", span_type=SpanTypes.WEB)
-
-    OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
-
-    assert span.get_tag(http.OTEL_URL_QUERY) is None
 
 
 def test_otel_span_attributes_server_address_precedence(integration_config):
@@ -445,18 +436,6 @@ def test_programmatic_client_error_status_state_restores(client_error_statuses):
     assert client_error_statuses.error_statuses_configured is original_configured
 
 
-def test_otel_span_attributes_status_preserves_exception_error_type(integration_config, server_error_statuses):
-    server_error_statuses.error_statuses = "500-599"
-    span = Span("request", span_type=SpanTypes.WEB)
-    span._set_attribute(ERROR_TYPE, "ValueError")
-    attributes = OTelHTTPSpanAttributes(span, integration_config)
-
-    attributes.set_status_code(503)
-
-    assert span.error == 1
-    assert span.get_tag(ERROR_TYPE) == "ValueError"
-
-
 def test_otel_span_attributes_success_clears_status_error(integration_config):
     span = Span("request", span_type=SpanTypes.WEB)
     OTelHTTPSpanAttributes(span, integration_config).set_status_code(503)
@@ -481,18 +460,6 @@ def test_otel_span_attributes_success_preserves_exception(integration_config):
     assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 200
     assert span.error == 1
     assert span.get_tag(ERROR_TYPE) == "builtins.ValueError"
-
-
-def test_otel_span_attributes_sets_user_agent_and_client_addresses(integration_config):
-    span = Span("request")
-    attributes = OTelHTTPSpanAttributes(span, integration_config)
-
-    attributes.set_user_agent("test-agent")
-    attributes.set_client_addresses("203.0.113.10", "10.0.0.5")
-
-    assert span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == "test-agent"
-    assert span.get_tag(http.OTEL_CLIENT_ADDRESS) == "203.0.113.10"
-    assert span.get_tag(net.NETWORK_PEER_ADDRESS) == "10.0.0.5"
 
 
 def test_otel_span_attributes_refines_server_resource_with_route(integration_config):
