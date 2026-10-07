@@ -470,7 +470,7 @@ class TestVisibilityItemBase(abc.ABC):
         self._status = status
 
     def count_itr_skipped(self) -> None:
-        # AIDEV-NOTE: Each ancestor owns its counter; release its lock before propagating to avoid nested locks.
+        # Each ancestor owns its counter; release its lock before propagating to avoid nested locks.
         with self._itr_skipped_count_lock:
             self._itr_skipped_count += 1
         if self.parent is not None:

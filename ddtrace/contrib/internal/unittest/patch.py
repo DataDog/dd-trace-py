@@ -161,11 +161,16 @@ def _update_skipped_elements_and_set_tags(
     test_module_span: ddtrace.trace.Span,
     test_session_span: ddtrace.trace.Span,
     test_suite_span: ddtrace.trace.Span,
-):
+    suite_skipping_mode: bool = False,
+) -> None:
     with _itr_skipped_count_lock:
         _update_skipped_elements_and_set_tags_locked(test_module_span, test_session_span)
         try:
-            count = int(test_suite_span._get_numeric_attribute(test.ITR_TEST_SKIPPING_COUNT) or 0) + 1
+            count = (
+                1
+                if suite_skipping_mode
+                else int(test_suite_span._get_numeric_attribute(test.ITR_TEST_SKIPPING_COUNT) or 0) + 1
+            )
             _set_suite_itr_skipping_tags(test_suite_span, count)
         except Exception:
             log.debug("Error counting suite ITR skips", exc_info=True)
@@ -620,7 +625,12 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                         test_module_span._set_attribute(test.ITR_FORCED_RUN, "true")
                         test_session_span._set_attribute(test.ITR_FORCED_RUN, "true")
                     else:
-                        _update_skipped_elements_and_set_tags(test_module_span, test_session_span, test_suite_span)
+                        _update_skipped_elements_and_set_tags(
+                            test_module_span,
+                            test_session_span,
+                            test_suite_span,
+                            suite_skipping_mode=_CIVisibility._instance._suite_skipping_mode,
+                        )
                         instance._dd_itr_skip = True
                         span._set_attribute(test.ITR_SKIPPED, "true")
                         span._set_attribute(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)

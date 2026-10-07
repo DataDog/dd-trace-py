@@ -8,6 +8,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -25,6 +26,124 @@ class TestITR:
     def isolate_coverage_upload_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Unset coverage upload env var so tests are not affected by external environment."""
         monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
+
+    @pytest.mark.parametrize(
+        "marker,tia_count",
+        [
+            ('skip(reason="framework")', 0),
+            ('skipif(True, reason="framework")', 0),
+            ('skipif(condition=True, reason="framework")', 0),
+            ('skipif("True", reason="framework")', 0),
+            ('skipif(False, True, reason="framework")', 0),
+            ('skipif(False, reason="framework")', 1),
+        ],
+    )
+    def test_suite_reporting_excludes_framework_skip_markers(
+        self, pytester: Pytester, marker: str, tia_count: int
+    ) -> None:
+        pytester.makepyfile(
+            test_foo=f"""
+            import pytest
+
+            @pytest.mark.{marker}
+            def test_skip():
+                assert False
+            """
+        )
+        skippable = {TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_skip")}
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True, coverage_enabled=False, skippable_items=skippable
+                ),
+            ),
+            setup_standard_mocks(),
+            EventCapture.capture() as capture,
+        ):
+            result = pytester.inline_run("--ddtrace")
+        result.assertoutcome(skipped=1)
+        [suite] = capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == tia_count
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == ("true" if tia_count else "false")
+        [session] = capture.events_by_type("test_session_end")
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == tia_count
+        event = capture.event_by_test_name("test_skip")
+        assert event["content"]["meta"].get("test.skipped_by_itr") == ("true" if tia_count else None)
+        assert event["content"]["meta"]["test.skip_reason"] == (
+            "Skipped by Datadog Intelligent Test Runner" if tia_count else "framework"
+        )
+
+    @pytest.mark.parametrize("selection", ["test_skippable.py", "test_skippable.py::test_one"])
+    def test_suite_reporting_for_explicitly_selected_skippable_suite(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, selection: str
+    ) -> None:
+        pytester.makepyfile(
+            test_skippable="""
+            def test_one():
+                assert False
+
+            def test_two():
+                assert False
+            """
+        )
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    coverage_enabled=False,
+                    skippable_items={SuiteRef(ModuleRef(""), "test_skippable.py")},
+                ),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+            EventCapture.capture() as capture,
+        ):
+            result = pytester.inline_run("--ddtrace", selection)
+        result.assertoutcome(skipped=1 if "::" in selection else 2)
+        [suite] = capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+        assert suite["content"]["meta"]["test.skipped_by_itr"] == "true"
+
+    def test_suite_reporting_excludes_disabled_tests(self, pytester: Pytester) -> None:
+        pytester.makepyfile(
+            test_foo="""
+            def test_disabled():
+                assert False
+
+            def test_tia():
+                assert False
+            """
+        )
+        suite_ref = SuiteRef(ModuleRef(""), "test_foo.py")
+        disabled_ref = TestRef(suite_ref, "test_disabled")
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    coverage_enabled=False,
+                    skippable_items={disabled_ref, TestRef(suite_ref, "test_tia")},
+                    test_management_enabled=True,
+                    test_management_properties={disabled_ref: TestProperties(disabled=True)},
+                ),
+            ),
+            setup_standard_mocks(),
+            EventCapture.capture() as capture,
+        ):
+            result = pytester.inline_run("--ddtrace")
+        result.assertoutcome(skipped=2)
+        [suite] = capture.events_by_type("test_suite_end")
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+        [session] = capture.events_by_type("test_session_end")
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        disabled_event = capture.event_by_test_name("test_disabled")
+        assert disabled_event["content"]["meta"].get("test.skipped_by_itr") is None
+        assert disabled_event["content"]["meta"]["test.test_management.is_test_disabled"] == "true"
+        assert disabled_event["content"]["meta"]["test.skip_reason"] == "Flaky test is disabled by Datadog"
 
     def test_suite_reporting_with_tia_enabled_and_skipping_disabled(self, pytester: Pytester) -> None:
         pytester.makepyfile(
@@ -432,8 +551,9 @@ class TestITR:
         assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
         assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
 
+    @pytest.mark.parametrize("selection", [None, "test_unskippable.py"])
     def test_itr_suite_level_unskippable_file_runs_normally(
-        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, selection: t.Optional[str]
     ) -> None:
         """Suite-level ITR: a file with datadog_itr_unskippable is NOT ignored and its tests run."""
         pytester.makepyfile(
@@ -463,7 +583,7 @@ class TestITR:
             setup_standard_mocks(workspace_path=str(pytester.path)),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtrace", "-v", "-s", *([selection] if selection else []))
 
         assert result.ret == 1
         # The unskippable file was not ignored, and the whole suite ran instead of skipping siblings test-by-test.

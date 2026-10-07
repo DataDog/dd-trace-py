@@ -22,12 +22,14 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.constants import COMPONENT
+from tests.ci_visibility.util import _mock_ddconfig_test_visibility
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -77,7 +79,9 @@ class UnittestTestCase(TracerTestCase):
         ):
             yield
 
-    def _run_suite_itr_reporting(self, itr_enabled=True, skipping_enabled=True, reporting_failure=False):
+    def _run_suite_itr_reporting(
+        self, itr_enabled=True, skipping_enabled=True, reporting_failure=False, suite_skipping_mode=False
+    ):
         _set_tracer(self.tracer)
 
         class SuiteA(unittest.TestCase):
@@ -111,6 +115,9 @@ class UnittestTestCase(TracerTestCase):
         )
         settings = TestVisibilityAPISettings(False, skipping_enabled, False, itr_enabled)
         with (
+            _mock_ddconfig_test_visibility(
+                ITR_SKIPPING_LEVEL.SUITE if suite_skipping_mode else ITR_SKIPPING_LEVEL.TEST
+            ),
             mock.patch(
                 "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=settings
             ),
@@ -142,7 +149,7 @@ class UnittestTestCase(TracerTestCase):
                 assert span.get_metric(test.ITR_TEST_SKIPPING_COUNT) is None
                 assert span.get_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED) is None
             else:
-                expected = expected if skipping_enabled else 0
+                expected = (int(expected > 0) if suite_skipping_mode else expected) if skipping_enabled else 0
                 assert span.get_metric(test.ITR_TEST_SKIPPING_COUNT) == expected
                 assert span.get_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED) == ("true" if expected else "false")
         if itr_enabled and skipping_enabled:
@@ -152,6 +159,10 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_suite_itr_reporting(self):
         self._run_suite_itr_reporting()
+
+    @_disable_ci_visibility
+    def test_unittest_suite_itr_reporting_in_suite_mode(self):
+        self._run_suite_itr_reporting(suite_skipping_mode=True)
 
     @_disable_ci_visibility
     def test_unittest_suite_itr_reporting_without_skipping(self):
@@ -1123,7 +1134,8 @@ class UnittestTestCase(TracerTestCase):
             assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()[RUNTIME_VERSION]
 
 
-def test_unittest_concurrent_suite_itr_counts(monkeypatch):
+@pytest.mark.parametrize("suite_skipping_mode", [False, True])
+def test_unittest_concurrent_suite_itr_counts(monkeypatch, suite_skipping_mode):
     from ddtrace.contrib.internal.unittest.patch import _update_skipped_elements_and_set_tags
     from ddtrace.trace import Span
 
@@ -1134,10 +1146,12 @@ def test_unittest_concurrent_suite_itr_counts(monkeypatch):
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(
             pool.map(
-                lambda suite: _update_skipped_elements_and_set_tags(module, session, suite),
+                lambda suite: _update_skipped_elements_and_set_tags(module, session, suite, suite_skipping_mode),
                 [suites[0]] * 200 + [suites[1]] * 100,
             )
         )
-    assert [suite.get_metric(test.ITR_TEST_SKIPPING_COUNT) for suite in suites] == [200, 100]
+    assert [suite.get_metric(test.ITR_TEST_SKIPPING_COUNT) for suite in suites] == (
+        [1, 1] if suite_skipping_mode else [200, 100]
+    )
     assert all(suite.get_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED) == "true" for suite in suites)
     assert module.get_metric(test.ITR_TEST_SKIPPING_COUNT) == 300
