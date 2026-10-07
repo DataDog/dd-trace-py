@@ -66,7 +66,12 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert out.status_code == 200
         spans = self.pop_spans()
         assert len(spans) == 1
-        assert spans[0].resource == "GET"
+        span = spans[0]
+        assert span.resource == "GET"
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("url.full") == URL_200
+        assert span.get_tag("http.method") is None
+        assert span.get_tag("http.url") is None
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work
