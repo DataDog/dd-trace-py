@@ -24,8 +24,12 @@ class AI_GUARD(metaclass=Constant_Class):
     MCP_SERVER_NAME_TAG: str = TAG + ".mcp.name"
     MCP_SERVER_URL_TAG: str = TAG + ".mcp.url"
     MCP_TRANSPORT_TAG: str = TAG + ".mcp.transport"
-    # OpenAI runs hosted MCP tools itself and does not report whether it reached the server over
-    # streamable HTTP or SSE, so their calls carry the unknown transport.
+    # Values of the transport field of the optional mcp object. OpenAI runs hosted MCP tools itself
+    # and does not report whether it reached the server over streamable HTTP or SSE, so their calls
+    # carry the unknown transport.
+    MCP_TRANSPORT_STREAMABLE_HTTP: Literal["streamable_http"] = "streamable_http"
+    MCP_TRANSPORT_SSE: Literal["sse"] = "sse"
+    MCP_TRANSPORT_STDIO: Literal["stdio"] = "stdio"
     MCP_TRANSPORT_UNKNOWN: Literal["unknown"] = "unknown"
 
     # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
@@ -89,6 +93,7 @@ class AI_GUARD(metaclass=Constant_Class):
     INTEGRATION_LANGCHAIN: Literal["langchain"] = "langchain"
     INTEGRATION_LITELLM: Literal["litellm"] = "litellm"
     INTEGRATION_STRANDS: Literal["strands"] = "strands"
+    INTEGRATION_OPENAI_AGENTS: Literal["openai_agents"] = "openai_agents"
 
     # Closed tag sets: anything else reaching the metrics is clamped back to these defaults,
     # so a bad value from a caller cannot invent telemetry series.
@@ -100,6 +105,7 @@ class AI_GUARD(metaclass=Constant_Class):
         INTEGRATION_LANGCHAIN,
         INTEGRATION_LITELLM,
         INTEGRATION_STRANDS,
+        INTEGRATION_OPENAI_AGENTS,
     )
 
     # environment variables
@@ -117,6 +123,7 @@ class AI_GUARD(metaclass=Constant_Class):
     ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
     ENV_ANTHROPIC_ENABLED: Literal["DD_AI_GUARD_ANTHROPIC_ENABLED"] = "DD_AI_GUARD_ANTHROPIC_ENABLED"
     ENV_LANGCHAIN_ENABLED: Literal["DD_AI_GUARD_LANGCHAIN_ENABLED"] = "DD_AI_GUARD_LANGCHAIN_ENABLED"
-    # Adds MCP metadata to tool-call evaluations and evaluates MCP approval requests. Off by
-    # default until the AI Guard service validates the optional mcp object of the evaluate contract.
+    # Evaluates MCP tool calls with their MCP metadata: OpenAI hosted MCP calls and approvals, and
+    # openai-agents MCP server tools before they run. Off by default until the AI Guard service
+    # validates the optional mcp object of the evaluate contract.
     ENV_COLLECT_MCP_ENABLED: Literal["DD_AI_GUARD_COLLECT_MCP_ENABLED"] = "DD_AI_GUARD_COLLECT_MCP_ENABLED"

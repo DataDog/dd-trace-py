@@ -849,8 +849,14 @@ AI Guard
      default: False
      description: |
        When set to True and AI Guard is enabled, AI Guard evaluates MCP tool calls with their MCP
-       server and tool details (server label, sanitized server URL, transport and tool name).
-       Credentials, headers and URL query strings are never sent.
+       server and tool details (configured server name, sanitized server URL, transport and
+       original tool name). Credentials, headers, URL query strings, stdio commands, arguments
+       and environment are never sent.
+
+       Tools of MCP servers configured in the OpenAI Agents SDK (MCPServerStdio, MCPServerSse,
+       MCPServerStreamableHttp) are evaluated before each call reaches the server, whether the
+       agent runs the tool or the application calls server.call_tool directly. A blocking verdict
+       raises AIGuardAbortError and the call is not sent.
 
        For remote MCP tools run by the OpenAI Responses API (tools of type mcp), MCP approval
        requests are evaluated before your application sees them, and an approval your

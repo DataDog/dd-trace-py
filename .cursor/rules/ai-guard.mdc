@@ -77,7 +77,9 @@ ddtrace/aiguard/
     ├── _anthropic_streaming.py # Anthropic stream reconstruction
     ├── _anthropic_errors.py    # Anthropic-compatible abort error class
     ├── _langchain.py       # LangChain agent/chatmodel/llm listeners
-    └── _mcp.py             # MCP metadata builder, OpenAI MCP approval decision cache
+    ├── _mcp.py             # MCP metadata builder, model tool-call registry (real call
+    │                       #   IDs + conversation), OpenAI MCP approval decision cache
+    └── _openai_agents.py   # openai-agents MCP server tool listeners
 ```
 
 The old import path `ddtrace.appsec.ai_guard` remains as a deprecated re-export
@@ -137,6 +139,7 @@ Events currently consumed:
 | OpenAI (stream wrappers) | `openai.patch` / `.unpatch` |
 | Anthropic | `anthropic.messages.create.before` / `.after`, `anthropic.patch` / `.unpatch` |
 | LangChain | `langchain.{chatmodel,llm}.{generate,agenerate,stream}.before` / `.finally`, `langchain.{chatmodel,llm}.stream.started`, `langchain.patch` / `.unpatch` |
+| openai-agents MCP (opt-in, DD_AI_GUARD_COLLECT_MCP_ENABLED) | `openai_agents.mcp.invoke_tool.before`, `openai_agents.mcp.call_tool.before` |
 | HTTP (client IP) | `set_http_meta_for_asm` |
 
 ### 3. Provider converters → canonical `Message` shape

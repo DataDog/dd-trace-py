@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    AI Guard: Evaluates the tool calls of MCP servers configured in the OpenAI Agents SDK before
+    each call reaches the server, including direct ``server.call_tool`` calls, when
+    ``DD_AI_GUARD_COLLECT_MCP_ENABLED=true``. A blocking verdict raises ``AIGuardAbortError`` and
+    the call is not sent.

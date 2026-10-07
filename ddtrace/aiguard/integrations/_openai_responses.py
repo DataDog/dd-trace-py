@@ -36,6 +36,7 @@ from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._mcp import ApprovalDecision
 from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.aiguard.integrations._mcp import mcp_metadata
+from ddtrace.aiguard.integrations._mcp import record_model_tool_calls
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
@@ -626,4 +627,5 @@ def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any],
         raise _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate OpenAI responses response", exc_info=True)
+    record_model_tool_calls(all_messages, len(request_messages))
     return None
