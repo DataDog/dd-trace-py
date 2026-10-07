@@ -65,7 +65,7 @@ def create_mock_grpc_server():
         def _run(self):
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
-            self._server = Server([self._service])
+            self._server = Server([self._service], loop=self._loop)
             try:
                 self._loop.run_until_complete(self._server.start("127.0.0.1", 4317))
             except Exception as error:
