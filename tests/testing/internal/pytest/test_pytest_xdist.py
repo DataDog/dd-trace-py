@@ -328,6 +328,17 @@ def _run_pytest_subprocess(
     )
 
 
+def _write_stale_coverage_data(test_project: Path, measured_filename: str) -> Path:
+    """Write a valid parallel coverage data file holding a fictitious previous session's data."""
+    from coverage import CoverageData
+
+    stale_path = test_project / ".coverage.stale"
+    stale = CoverageData(str(stale_path))
+    stale.add_lines({str(test_project / measured_filename): {1}})
+    stale.write()
+    return stale_path
+
+
 def _extract_lcov_from_multipart(content_type: str, body: bytes) -> str:
     """Extract and decompress the gzipped coverage part of a cicovreprt upload."""
     assert "boundary=" in content_type, f"unexpected content type: {content_type!r}"
@@ -1498,6 +1509,10 @@ class TestXdistCoverageReportUpload:
     ) -> None:
         """With ddtrace-owned coverage, workers persist data files and the controller uploads one merged report."""
         marker_lines = self._write_test_files(test_project)
+        # A parallel data file left over from another session must be neither
+        # merged into the report nor consumed: the controller combines exactly
+        # the files its workers report.
+        stale_data_file = _write_stale_coverage_data(test_project, "stale_marker_file.py")
         _git_commit(test_project)
 
         result = _run_pytest_subprocess(
@@ -1511,6 +1526,81 @@ class TestXdistCoverageReportUpload:
         assert result.returncode == 0, result.stdout + result.stderr
         assert len(mock_server.get_test_names()) == 4
         self._assert_single_merged_report(mock_server, test_project, marker_lines)
+        lcov = mock_server.get_coverage_reports()[0]
+        assert "stale_marker_file.py" not in lcov, "stale data file from another session was merged into the report"
+        assert stale_data_file.exists(), "stale data file from another session was consumed/deleted"
+
+    def test_workers_keep_uploading_when_controller_cannot_combine(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """Under ``coverage run`` the controller owns nothing it can combine, so workers upload per-process.
+
+        The controller adopts the externally started coverage.py instance and cannot stop,
+        combine or erase it, so it must not tell its workers to delegate: every process keeps
+        uploading its own partial report, which the intake merges, as before delegation existed.
+        """
+        marker_lines = self._write_test_files(test_project)
+        _git_commit(test_project)
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "-m",
+            "pytest",
+            "--ddtrace",
+            "-v",
+            "-s",
+            "-n",
+            "2",
+            str(test_project),
+        ]
+        result = subprocess.run(
+            cmd,
+            env=_make_env(mock_server.url, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}),
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(test_project),
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert len(mock_server.get_test_names()) == 4
+        # The controller plus both workers each upload their own report.
+        reports = mock_server.get_coverage_reports()
+        assert len(reports) == 3, f"expected 3 partial uploads (controller + 2 workers), got {len(reports)}"
+        # Every worker-covered marker line still reaches the backend across the union.
+        combined_lcov = "\n".join(reports)
+        for filename, marker_line in marker_lines.items():
+            assert f"DA:{marker_line},1" in combined_lcov, (
+                f"worker-covered marker line {marker_line} of {filename} missing from the uploaded reports"
+            )
+
+    def test_single_process_run_preserves_configured_data_file(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """Without xdist, ddtrace leaves the coverage data file naming to the coverage.py configuration.
+
+        The default (no ``[run] parallel`` setting) is a single unsuffixed ``.coverage`` file, as it
+        was before the delegation change; suffixed files must not accumulate per run.
+        """
+        self._write_test_files(test_project)
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-p",
+            "no:xdist",
+            env=_make_env(mock_server.url, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}),
+            timeout=120,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert mock_server.get_coverage_reports(), "expected the single-process coverage report upload"
+        assert (test_project / ".coverage").exists(), "expected the default unsuffixed .coverage data file"
+        suffixed_files = [p.name for p in test_project.glob(".coverage.*") if p.name != ".coveragerc"]
+        assert not suffixed_files, f"unexpected suffixed data files: {suffixed_files}"
 
     def test_controller_uploads_single_combined_report_with_pytest_cov(
         self, mock_server: MockCIVisibilityServer, test_project: Path
