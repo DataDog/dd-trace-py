@@ -84,6 +84,7 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -273,7 +274,7 @@ def _set_inferred_proxy_tags(span: Span, status_code):
         inferred_span = span._parent
         # Proxy spans keep Datadog status attributes; only the source lookup follows active semantics.
         status_code = status_code or span._get_attribute(
-            http.OTEL_RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
+            otel_http.RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
         )
         if status_code:
             inferred_span._set_attribute("http.status_code", status_code)

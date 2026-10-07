@@ -379,7 +379,7 @@ def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: 
     else:
         span._set_attribute(
             http.URL,
-            cast(Any, _obfuscated_full_url(url, query, integration_config.http_tag_query_string)),
+            cast(Any, _sanitized_url(url, query, integration_config.http_tag_query_string)),
         )
 
 

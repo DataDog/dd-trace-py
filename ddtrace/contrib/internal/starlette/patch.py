@@ -25,6 +25,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -278,11 +279,11 @@ def _copy_server_url_attributes(source: Span, destination: Span) -> None:
         return
 
     for key in (
-        http.OTEL_URL_SCHEME,
-        http.OTEL_URL_PATH,
-        http.OTEL_URL_QUERY,
+        otel_http.URL_SCHEME,
+        otel_http.URL_PATH,
+        otel_http.URL_QUERY,
         net.SERVER_ADDRESS,
-        net.SERVER_PORT,
+        otel_http.SERVER_PORT,
     ):
         value = source.get_tag(key)
         if value is None:

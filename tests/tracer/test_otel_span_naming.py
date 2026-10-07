@@ -9,6 +9,7 @@ from ddtrace._trace.otel.http.tags import normalize_http_method
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
@@ -294,15 +295,13 @@ def test_server_span_with_no_kind_gets_the_bare_method():
 
 
 def test_server_method_and_route_attributes_are_still_written():
-    from ddtrace.ext import http
-
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
         with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
             span._set_attribute(SPAN_KIND, "server")
             trace_utils.set_http_meta(span, _integration_config(), method="get", route="/x")
-            assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
-            assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "get"
-            assert span.get_tag(http.OTEL_ROUTE) == "/x"
+            assert span.get_tag(otel_http.REQUEST_METHOD) == "GET"
+            assert span.get_tag(otel_http.REQUEST_METHOD_ORIGINAL) == "get"
+            assert span.get_tag(otel_http.ROUTE) == "/x"
 
 
 def test_server_span_is_named_at_start_not_left_as_the_integration_resource():

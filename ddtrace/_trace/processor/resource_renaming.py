@@ -9,6 +9,7 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings._config import config
 
 
@@ -20,7 +21,7 @@ class _SpanTagReader(Protocol):
 
 
 def path_source_tag_value(span: _SpanTagReader) -> Optional[str]:
-    path_source_tags = (http.OTEL_URL_PATH, http.OTEL_URL_FULL) if config._otel_trace_semantics_enabled else (http.URL,)
+    path_source_tags = (otel_http.URL_PATH, otel_http.URL_FULL) if config._otel_trace_semantics_enabled else (http.URL,)
     return next((value for value in map(span.get_tag, path_source_tags) if value), None)
 
 
@@ -85,7 +86,7 @@ class ResourceRenamingProcessor(SpanProcessor):
         if not span._is_top_level or span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS):
             return
 
-        status_code_tag = http.OTEL_RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
+        status_code_tag = otel_http.RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
         status: Union[str, int, float, None] = span.get_tag(status_code_tag)
         if status is None:
             status = span.get_metric(status_code_tag)

@@ -6,6 +6,7 @@ from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings._config import config
 from ddtrace.trace import Context
 from ddtrace.trace import Span
@@ -133,7 +134,7 @@ class TestResourceRenaming:
 
         with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
             span = Span("test", context=Context(), span_type=SpanTypes.WEB)
-            span.set_tag(http.OTEL_URL_PATH, "/otel/123")
+            span.set_tag(otel_http.URL_PATH, "/otel/123")
             processor.on_span_finish(span)
             assert span.get_tag(http.ENDPOINT) == "/otel/{param:int}"
 
@@ -154,18 +155,19 @@ def test_processor_reads_the_otel_tag_names():
     from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
     from ddtrace.ext import SpanTypes
     from ddtrace.ext import http
+    from ddtrace.internal.otel_semantics import http as otel_http
     from ddtrace.trace import Span
 
     processor = ResourceRenamingProcessor()
 
     span = Span("test", span_type=SpanTypes.WEB)
-    span.set_tag(http.OTEL_URL_PATH, "/api/users/123")
-    span.set_tag(http.OTEL_RESPONSE_STATUS_CODE, 200)
+    span.set_tag(otel_http.URL_PATH, "/api/users/123")
+    span.set_tag(otel_http.RESPONSE_STATUS_CODE, 200)
     processor.on_span_finish(span)
     assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
 
     span = Span("test", span_type=SpanTypes.WEB)
-    span.set_tag(http.OTEL_URL_PATH, "/missing")
-    span.set_tag(http.OTEL_RESPONSE_STATUS_CODE, 404)
+    span.set_tag(otel_http.URL_PATH, "/missing")
+    span.set_tag(otel_http.RESPONSE_STATUS_CODE, 404)
     processor.on_span_finish(span)
     assert span.get_tag(http.ENDPOINT) is None

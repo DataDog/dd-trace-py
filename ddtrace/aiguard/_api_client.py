@@ -19,7 +19,6 @@ from ddtrace.aiguard._types import ImageURL  # noqa:F401
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
 from ddtrace.ext import http
-from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
@@ -31,6 +30,7 @@ from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -475,9 +475,9 @@ class AIGuardClient:
                         source_tag = tag_name
                         if otel_semantics:
                             source_tag = {
-                                http.USER_AGENT: http.OTEL_USER_AGENT_ORIGINAL,
-                                http.CLIENT_IP: http.OTEL_CLIENT_ADDRESS,
-                                "network.client.ip": net.NETWORK_PEER_ADDRESS,
+                                http.USER_AGENT: otel_http.USER_AGENT_ORIGINAL,
+                                http.CLIENT_IP: otel_http.CLIENT_ADDRESS,
+                                "network.client.ip": otel_http.NETWORK_PEER_ADDRESS,
                             }.get(tag_name, tag_name)
                         tag_value = root_span.get_tag(source_tag)
                         if tag_value is not None:
