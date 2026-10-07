@@ -128,6 +128,33 @@ def test_upload_does_not_block_sample_flush():
     assert elapsed < upload_timeout / 2, "flush_sample() waited %.3f s for the upload" % elapsed
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(err=None)
+def test_upload_during_exit_does_not_abort():
+    """
+    Regression test: an upload that runs in an atexit handler of the C library must not abort the process.
+    uWSGI finalizes Python in such a handler, and the profiler then uploads the last profile. At that time,
+    exit() has already destroyed the thread-local data that libdatadog needs to send the request.
+    """
+    import ctypes
+
+    from ddtrace.internal.datadog.profiling import ddup
+
+    ddup.config(env="my_env", service="my_service", version="my_version", tags={})
+    ddup.start()
+
+    libc = ctypes.CDLL(None)
+
+    @ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+    def upload_at_exit(_arg):
+        ddup.upload()
+
+    # atexit() is not a dynamic symbol of glibc, so use the function that atexit() calls
+    libc.__cxa_atexit(upload_at_exit, None, None)
+    # Call exit() of the C library directly, so that the handler runs before Python is finalized
+    libc.exit(0)
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_TAGS="hello:world",

@@ -17,6 +17,28 @@
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
+namespace {
+
+// True after the destructors of the thread-local data of the current thread have run. They run when the thread
+// ends. For the thread that calls exit(), they also run at the start of exit(), before the atexit handlers.
+// The flag has no destructor, so it is safe to read it after that point.
+thread_local bool thread_locals_destroyed = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+
+struct ThreadLocalsSentinel
+{
+    ~ThreadLocalsSentinel() { thread_locals_destroyed = true; }
+};
+
+// Makes `thread_locals_destroyed` valid for the current thread. The flag can only become true for a thread that
+// called this function before its thread-local data was destroyed.
+void
+watch_thread_locals()
+{
+    thread_local ThreadLocalsSentinel sentinel;
+}
+
+} // namespace
+
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
 void
@@ -149,6 +171,9 @@ ddup_start() // cppcheck-suppress unusedFunction
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+
+        // The thread that starts the profiler is usually the thread that stops it when the process exits
+        watch_thread_locals();
 
         // Set the global initialization flag
         is_ddup_initialized = true;
@@ -335,6 +360,15 @@ ddup_upload() // cppcheck-suppress unusedFunction
             already_warned = true;
             std::cerr << "ddup_upload() called before ddup_start()" << std::endl;
         }
+        return false;
+    }
+
+    // Do not upload after exit() destroyed the thread-local data of this thread. libdatadog keeps the state of its
+    // HTTP client in thread-local data, and ddog_prof_Exporter_send() aborts the process when that state is destroyed.
+    // This occurs when an embedder finalizes Python in an atexit handler, as uWSGI does: the profiler stops there,
+    // and tries to upload the last profile.
+    watch_thread_locals();
+    if (thread_locals_destroyed) {
         return false;
     }
 
