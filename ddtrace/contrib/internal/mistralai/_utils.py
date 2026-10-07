@@ -4,7 +4,28 @@ from typing import Optional
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
+
+
+def _get_attr(o: object, attr: str, default: Any) -> Any:
+    # Streamed chunks may be SDK objects or plain dicts.
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    return getattr(o, attr, default)
+
+
+# Duplicated from ddtrace.llmobs._integrations.mistralai_utils.extract_provider (and
+# ddtrace.llmobs._constants.UNKNOWN_MODEL_PROVIDER) so this module does not import LLMObs.
+# The LLMObs side recomputes it at span finish; both copies must agree.
+_UNKNOWN_MODEL_PROVIDER = "unknown"
+
+
+def extract_provider(kwargs: dict[str, Any]) -> str:
+    server_url = kwargs.get("server_url") or ""
+    return "mistral" if not server_url or "mistral" in server_url.lower() else _UNKNOWN_MODEL_PROVIDER
 
 
 def _accumulate_tool_calls(tool_calls_map: dict[int, dict[str, Any]], tool_calls: list[Any]) -> None:
@@ -100,15 +121,27 @@ def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
 
 
 class BaseMistralAIStreamHandler(BaseStreamHandler):
+    """Shared finalization for the sync and async MistralAI stream handlers.
+
+    The handlers only need the context to dispatch the deferred ended event, so the
+    integration slot BaseStreamHandler keeps for other integrations goes unused.
+    """
+
     def finalize_stream(self, exception: Optional[BaseException] = None) -> None:
-        self.integration.llmobs_set_tags(
-            self.primary_span,
-            args=list(self.request_args),
-            kwargs=self.request_kwargs,
-            response=_join_chunks(self.chunks),
-            operation="llm",
-        )
-        self.primary_span.finish()
+        """Merge the chunks onto the event, then dispatch the deferred ended event.
+
+        The TracingSubscriber's _on_context_ended sets the LLMObs tags (via the
+        SPAN_FINISHING subscriber) and finishes the span.
+        """
+        ctx = self.options["ctx"]
+        try:
+            ctx.event.response = _join_chunks(self.chunks)
+        except Exception:
+            log.warning("Error processing streamed MistralAI response.", exc_info=True)
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class MistralAIStreamHandler(BaseMistralAIStreamHandler, StreamHandler):
