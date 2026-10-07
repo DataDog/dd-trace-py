@@ -16,6 +16,7 @@ except ImportError:
 from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
 from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import is_coverage_running
+from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
@@ -201,6 +202,25 @@ def _stop_coverage_if_needed(stop_coverage_func, config, is_pytest_cov_enabled_f
         stop_coverage_func(save=True)
 
 
+def _combine_delegated_coverage_data() -> None:
+    """Merge delegated workers' coverage data files into the controller's instance.
+
+    xdist workers that delegate the coverage report upload persist their data as parallel data files (".coverage.*")
+    next to the controller's data file. Combining them here gives the controller the union of the session's coverage
+    so that the single LCOV report it uploads is complete. Only instances ddtrace owns are combined; external
+    sessions (e.g. pytest-cov) handle their own cross-process merging.
+    """
+    cov = get_coverage_instance()
+    if cov is None or not owns_coverage_instance():
+        return
+
+    try:
+        cov.combine()
+        log.debug("Combined delegated worker coverage data files")
+    except Exception:
+        log.debug("Could not combine delegated worker coverage data files", exc_info=True)
+
+
 def _build_path_aliases(cov_instance: Any = None) -> Optional[Any]:
     """Build a PathAliases object from the ``[paths]`` section of the active coverage config.
 
@@ -322,6 +342,7 @@ def handle_coverage_report(
     upload_func: Callable[[bytes, str], bool],
     is_pytest_cov_enabled_func: Callable,
     stop_coverage_func: Optional[Callable] = None,
+    combine_delegated_coverage: bool = False,
 ) -> None:
     """
     Shared coverage report upload handling for pytest plugins.
@@ -331,6 +352,8 @@ def handle_coverage_report(
         upload_func: Function to call for uploading (signature: upload_func(bytes, format) -> bool)
         is_pytest_cov_enabled_func: Function to check if pytest-cov is enabled
         stop_coverage_func: Optional function to stop coverage collection
+        combine_delegated_coverage: Whether to merge the parallel data files persisted by
+            xdist workers that delegated their coverage report upload to this controller
     """
     coverage_stopped = False
     try:
@@ -355,6 +378,8 @@ def handle_coverage_report(
         else:
             _stop_coverage_if_needed(stop_coverage_func, config, is_pytest_cov_enabled_func)
             coverage_stopped = True
+            if combine_delegated_coverage:
+                _combine_delegated_coverage_data()
 
         # Generate and upload report
         coverage_format = "lcov"

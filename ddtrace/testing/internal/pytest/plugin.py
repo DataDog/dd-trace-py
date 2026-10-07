@@ -19,6 +19,7 @@ import pluggy
 import pytest
 
 from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
+from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
@@ -51,6 +52,7 @@ from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.pytest.xdist import XdistManifest
 from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
 from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import is_xdist_distribution_enabled
 from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
@@ -378,6 +380,9 @@ class TestOptPlugin(TestOptPluginProtocol):
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
+        # Whether this worker hands the coverage report upload over to the xdist
+        # controller, which produces a single combined report for the session.
+        self._coverage_upload_delegated = False
         # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
         # Every xdist worker performs a full, unsharded collection pass (so they all discover the
         # same ignored suites), but we must only report/count them once per session. We elect the
@@ -404,6 +409,10 @@ class TestOptPlugin(TestOptPluginProtocol):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
                 self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
+                # Set by the controller (XdistTestOptPlugin.pytest_configure_node) when every
+                # worker is local: only then can workers persist coverage data files that the
+                # controller combines into one report (see pytest_sessionfinish).
+                self._coverage_upload_delegated = bool(xdist_worker_input.get("dd_coverage_upload_delegated"))
             if crash_state_path := xdist_worker_input.get(_CRASH_RETRY_STATE_WORKER_INPUT):
                 self.xdist_atr_crash_state_path = Path(crash_state_path)
 
@@ -482,33 +491,44 @@ class TestOptPlugin(TestOptPluginProtocol):
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # This hook runs in every process, so an xdist session uploads one report per process, each
-        # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
-        # for a session, so the partial uploads add up to full coverage.
         #
-        # Do NOT "fix" this by restricting the upload to the controller. Which process holds which data depends on who
-        # owns coverage.py:
-        #   - with pytest-cov, workers ship their data to the controller and pytest-cov merges it in its
-        #     pytest_runtestloop wrapper, i.e. before this hook, so the controller's report is complete;
-        #   - without pytest-cov, ddtrace starts coverage.py per process in pytest_configure and nothing merges across
-        #     processes, so the controller (which runs no tests under xdist) has an empty report and the workers hold
-        #     all the real data.
-        # Controller-only upload would therefore be harmless in the first case and lose everything in the second.
-        # Uploading once from the controller would only save bandwidth, and would first require implementing the
-        # cross-process merge that pytest-cov does for us in the first case but nobody does in the second.
+        # Under xdist, the controller uploads a single report for the whole session.
+        # Workers that share the controller's filesystem delegate to it: generating an
+        # LCOV report in every process meant re-parsing and re-analyzing every measured
+        # file in every worker, a per-worker CPU cost on the order of a full-repository
+        # coverage analysis that could dominate the test job itself.
+        #   - with pytest-cov, workers ship their data to the controller and pytest-cov
+        #     combines it in its pytest_runtestloop wrapper, i.e. before this hook, so the
+        #     controller's report is complete;
+        #   - with ddtrace-owned coverage, workers persist parallel data files
+        #     (".coverage.*") that the controller combines before reporting.
+        # NOTE: delegation assumes workers run as local popen subprocesses (the only
+        # supported pytest-xdist setup with coverage report upload); detecting remote
+        # workers consistently across xdist handoffs is deferred to a follow-up. Processes
+        # holding a coverage.py instance ddtrace neither owns nor knows how to persist
+        # (an external session started by user code) keep uploading per-process.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
-            # Create upload function wrapper for manager
-            def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
-                return self.manager.upload_coverage_report(
-                    coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
-                )
+            can_delegate = _is_pytest_cov_enabled(session.config) or owns_coverage_instance()
+            if self.is_xdist_worker and self._coverage_upload_delegated and can_delegate:
+                # The controller reports for the whole session; just make sure our
+                # coverage data is persisted so the controller can combine it.
+                # (With pytest-cov the worker's own plugin already persists its data.)
+                if not _is_pytest_cov_enabled(session.config):
+                    stop_coverage(save=True)
+            else:
+                # Create upload function wrapper for manager
+                def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
+                    return self.manager.upload_coverage_report(
+                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
+                    )
 
-            handle_coverage_report(
-                config=session.config,
-                upload_func=upload_func,
-                is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
-                stop_coverage_func=stop_coverage,
-            )
+                handle_coverage_report(
+                    config=session.config,
+                    upload_func=upload_func,
+                    is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
+                    stop_coverage_func=stop_coverage,
+                    combine_delegated_coverage=is_xdist_distribution_enabled(session.config),
+                )
 
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
@@ -1755,11 +1775,32 @@ def pytest_configure(config: pytest.Config) -> None:
     # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
     if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
-        # Start coverage.py ourselves for report generation
+        # Start coverage.py ourselves for report generation. Data files get a
+        # parallel suffix exactly when this process delegates its coverage
+        # report upload to the xdist controller: every worker then persists its
+        # own data file (".coverage.*", no clobbering) for the controller to
+        # combine into the single session report (see pytest_sessionfinish).
+        # Non-delegated processes keep writing the single unsuffixed data file
+        # as before; nothing consumes it (reports are generated from in-memory
+        # data), and a suffix per run would only accumulate stale files.
+        # NOTE: config.workerinput is set by pytest-xdist before any
+        # pytest_configure hook runs, so workers already see the delegation
+        # flag their controller published (XdistTestOptPlugin.pytest_configure_node).
         from ddtrace.contrib.internal.coverage.patch import start_coverage
 
+        worker_input = getattr(config, "workerinput", None)
+        if worker_input is not None:
+            # Workers suffix their data file when they delegate the upload: each
+            # then persists its own parallel file for the controller to combine.
+            suffixed = bool(worker_input.get("dd_coverage_upload_delegated"))
+        else:
+            # The controller combines its data file with the workers', so it
+            # writes a parallel one as well; single-process runs keep the
+            # unsuffixed data file so runs do not accumulate stale files.
+            suffixed = is_xdist_distribution_enabled(config)
+
         workspace_path = get_workspace_path()
-        start_coverage(source=[str(workspace_path)])
+        start_coverage(source=[str(workspace_path)], data_suffix=suffixed)
         log.debug("Started coverage.py collection for report upload (pytest-cov not enabled)")
 
     # Patch coverage.py to capture percentage if it's available and (enabled OR needed for report upload)

@@ -22,6 +22,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 
 _CRASH_RETRY_REASON = "xdist_worker_crash"
 _CRASH_RETRY_STATE_WORKER_INPUT = "dd_atr_crash_retry_state"
+_DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT = "dd_coverage_upload_delegated"
 
 
 class CrashRetryBudget(t.NamedTuple):
@@ -78,6 +79,14 @@ class XdistTestOptPlugin:
         self._dynamic_retries = is_dynamic_retries_enabled()
         self._dynamic_retry_buckets = get_retries_buckets() if self._dynamic_retries else None
 
+        # Delegation is currently unconditional: only workers that share the controller's
+        # filesystem can hand their coverage data over for a single combined report, and no
+        # known usage combines coverage report upload with remote (non-popen) workers. Detecting
+        # remote workers consistently is a cross-cutting xdist concern to be addressed together
+        # with the other controller/worker handoffs, at which point this becomes the flag's
+        # computation only.
+        self._delegate_coverage_upload = True
+
         if self._enabled and not is_xdist_worker_process():
             try:
                 self._crash_retry_state_dir = tempfile.TemporaryDirectory(prefix="ddtrace_atr_xdist_")
@@ -93,6 +102,7 @@ class XdistTestOptPlugin:
         node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
         if self._crash_retry_state_path is not None:
             node.workerinput[_CRASH_RETRY_STATE_WORKER_INPUT] = str(self._crash_retry_state_path)
+        node.workerinput[_DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT] = self._delegate_coverage_upload
 
     @pytest.hookimpl
     def pytest_sessionfinish(self) -> None:

@@ -154,6 +154,14 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
             self._send_json({})
             return
 
+        if self.path == "/api/v2/cicovreprt":
+            # Coverage report upload: multipart/form-data with a gzipped report part.
+            self.server.recorded_coverage_uploads.append(  # type: ignore[attr-defined]
+                (self.headers.get("Content-Type", ""), body)
+            )
+            self._send_json({})
+            return
+
         if self.path == "/api/v2/test/libraries/test-management/tests":
             self._send_json(
                 {"data": {"id": "1", "type": "ci_app_libraries_tests_test_management", "attributes": {"tests": {}}}}
@@ -183,6 +191,7 @@ class MockCIVisibilityServer:
         self.server = HTTPServer(("127.0.0.1", 0), _MockCIVisibilityHandler)
         self.server.recorded_payloads = []  # type: ignore[attr-defined]
         self.server.recorded_request_paths = []  # type: ignore[attr-defined]
+        self.server.recorded_coverage_uploads = []  # type: ignore[attr-defined]
         self.server.settings_attributes = _settings_attributes()  # type: ignore[attr-defined]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -240,6 +249,18 @@ class MockCIVisibilityServer:
 
     def get_test_names(self) -> list[str]:
         return [e["content"]["meta"]["test.name"] for e in self.get_test_events()]
+
+    @property
+    def recorded_coverage_uploads(self) -> list[tuple[str, bytes]]:
+        assert self.server is not None
+        server = t.cast(t.Any, self.server)
+        return t.cast(list[tuple[str, bytes]], server.recorded_coverage_uploads)
+
+    def get_coverage_reports(self) -> list[str]:
+        """Return the decoded LCOV content of every uploaded coverage report."""
+        return [
+            _extract_lcov_from_multipart(content_type, body) for content_type, body in self.recorded_coverage_uploads
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +326,19 @@ def _run_pytest_subprocess(
         timeout=timeout,
         cwd=str(test_dir),
     )
+
+
+def _extract_lcov_from_multipart(content_type: str, body: bytes) -> str:
+    """Extract and decompress the gzipped coverage part of a cicovreprt upload."""
+    assert "boundary=" in content_type, f"unexpected content type: {content_type!r}"
+    boundary = content_type.split("boundary=", 1)[1].strip()
+    for part in body.split(b"--" + boundary.encode("utf-8")):
+        if b'name="coverage"' not in part:
+            continue
+        _headers, _, payload = part.partition(b"\r\n\r\n")
+        payload = payload.strip(b"\r\n")
+        return gzip.decompress(payload).decode("utf-8")
+    raise AssertionError("no coverage part found in cicovreprt upload")
 
 
 # ---------------------------------------------------------------------------
@@ -1408,3 +1442,114 @@ class TestXdistAtrCrashRequeue:
         assert result.returncode != 0
         assert attempt_file.read_text() == "2"
         assert "xdist_worker_crash" not in result.stdout
+
+
+class TestXdistCoverageReportUpload:
+    """Coverage report upload under xdist: the controller uploads one merged report.
+
+    Workers delegate report generation and upload to the controller when they
+    share its filesystem; the controller combines their data files, so the
+    single report covers every worker's execution.
+    """
+
+    _TEST_FILE_TEMPLATE = """\
+        def _covered_only_by_tests_{name}():
+            marker = {value}  # executed only when the tests run
+            return marker
+
+        def test_{name}_1():
+            assert _covered_only_by_tests_{name}() == {value}
+
+        def test_{name}_2():
+            assert _covered_only_by_tests_{name}() == {value}
+    """
+
+    def _write_test_files(self, test_project: Path) -> dict[str, int]:
+        """Write two test files; return the marker line number of each file."""
+        marker_lines: dict[str, int] = {}
+        for name, value in (("a", 1), ("b", 2)):
+            source = textwrap.dedent(self._TEST_FILE_TEMPLATE.format(name=name, value=value))
+            (test_project / f"test_mod_{name}.py").write_text(source)
+            marker_lines[f"test_mod_{name}.py"] = (
+                source.splitlines().index(f"    marker = {value}  # executed only when the tests run") + 1
+            )
+        return marker_lines
+
+    def _assert_single_merged_report(
+        self, mock_server: MockCIVisibilityServer, test_project: Path, marker_lines: dict[str, int]
+    ) -> None:
+        reports = mock_server.get_coverage_reports()
+        assert len(reports) == 1, (
+            f"expected exactly one coverage report upload (from the controller), got {len(reports)}"
+        )
+        lcov = reports[0]
+        for filename, marker_line in marker_lines.items():
+            assert "SF:" in lcov
+            assert filename in lcov, f"{filename} missing from merged LCOV report"
+            # The marker line is only executed by the tests, which all run in
+            # workers: its presence proves worker data was combined into the
+            # controller's report rather than only the controller's collection.
+            assert f"DA:{marker_line},1" in lcov, (
+                f"worker-covered marker line {marker_line} of {filename} missing from merged report"
+            )
+
+    def test_controller_uploads_single_combined_report(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """With ddtrace-owned coverage, workers persist data files and the controller uploads one merged report."""
+        marker_lines = self._write_test_files(test_project)
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "2",
+            env=_make_env(mock_server.url, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}),
+            timeout=120,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert len(mock_server.get_test_names()) == 4
+        self._assert_single_merged_report(mock_server, test_project, marker_lines)
+
+    def test_controller_uploads_single_combined_report_with_pytest_cov(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """With pytest-cov active, the controller's pytest-cov master has the combined data: one upload."""
+        pytest_cov = pytest.importorskip("pytest_cov")
+        assert pytest_cov is not None  # pragma: no cover
+
+        marker_lines = self._write_test_files(test_project)
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "2",
+            "--cov",
+            "--cov-report=",
+            env=_make_env(mock_server.url, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}),
+            timeout=120,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert len(mock_server.get_test_names()) == 4
+        self._assert_single_merged_report(mock_server, test_project, marker_lines)
+
+    def test_no_coverage_report_uploaded_when_disabled(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """Without the upload setting, no cicovreprt requests happen at all."""
+        self._write_test_files(test_project)
+        _git_commit(test_project)
+
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "2",
+            env=_make_env(mock_server.url),
+            timeout=120,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert mock_server.recorded_coverage_uploads == []

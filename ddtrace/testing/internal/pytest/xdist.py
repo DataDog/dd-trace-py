@@ -40,6 +40,18 @@ def is_xdist_worker_process() -> bool:
     return bool(os.environ.get("PYTEST_XDIST_WORKER"))
 
 
+def is_xdist_distribution_enabled(config: t.Any) -> bool:
+    """Return whether pytest-xdist is distributing this session's tests to worker processes.
+
+    pytest-xdist populates the ``tx`` option with the worker specs whenever it distributes a session
+    (``-n``/``--numprocesses`` becomes ``tx = ["popen"] * n``), and clears it otherwise. Workers
+    clear the option while parsing their own configuration, so this is only meaningful in the
+    process that spawned them.
+    """
+    tx_specs = getattr(config.option, "tx", None)
+    return isinstance(tx_specs, (list, tuple)) and bool(tx_specs)
+
+
 class XdistManifest(t.NamedTuple):
     """Bookkeeping for the manifest cache an xdist controller generated for its workers."""
 
