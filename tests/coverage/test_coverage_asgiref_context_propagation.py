@@ -15,22 +15,15 @@ the caller with IndexError: pop from empty list and mis-attributing coverage
 data between contexts.
 """
 
-import importlib.util
-
 import pytest
 
 
-# The first test hand-rolls the context-propagation mechanism and has no
-# dependency on asgiref. The second exercises the real library and is skipped
-# when it is not installed.
-HAS_ASGIREF = importlib.util.find_spec("asgiref") is not None
-
-
-@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_context_thread_value_based_context_restore():
     import contextvars
     import os
     from pathlib import Path
+    import sys
     import threading
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
@@ -101,14 +94,17 @@ def test_coverage_context_thread_value_based_context_restore():
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
 
+    if ModuleCodeCollector.file_level_coverage_enabled() and sys.version_info >= (3, 12):
+        expected_lines = {path: {0} for path in expected_lines}
+
     assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
 
-@pytest.mark.skipif(not HAS_ASGIREF, reason="asgiref is not installed")
-@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
 def test_coverage_context_thread_async_to_sync():
     import os
     from pathlib import Path
+    import sys
 
     from asgiref.sync import async_to_sync
     from asgiref.sync import sync_to_async
@@ -149,5 +145,8 @@ def test_coverage_context_thread_async_to_sync():
         "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
+
+    if ModuleCodeCollector.file_level_coverage_enabled() and sys.version_info >= (3, 12):
+        expected_lines = {path: {0} for path in expected_lines}
 
     assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"

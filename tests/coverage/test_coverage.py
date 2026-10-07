@@ -12,52 +12,85 @@ import sys
 import pytest
 
 
+@pytest.mark.parametrize("mismatched_exit", [False, True])
+def test_tls_fallback_skips_completed_inherited_collectors(monkeypatch, mismatched_exit):
+    from contextvars import Context
+    from contextvars import copy_context
+
+    import ddtrace.internal.coverage.code as coverage_code
+
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    snapshot = Context()
+    collector = object.__new__(coverage_code.ModuleCodeCollector)
+    collector._coverage_enabled = False
+    with coverage_code.ModuleCodeCollector.CollectInContext() as test_collector:
+        with coverage_code.ModuleCodeCollector.CollectInContext() as import_collector:
+            task_context = copy_context()
+
+        nested = coverage_code.ModuleCodeCollector.CollectInContext()
+        if mismatched_exit:
+            child_context = task_context.copy()
+            child_context.run(nested.__enter__)
+            # This inherited stack does not contain the nested collector and
+            # its top collector has already completed.
+            task_context.run(nested.__exit__)
+        else:
+            task_context.run(nested.__enter__)
+            task_context.run(nested.__exit__)
+
+        # Monitoring callbacks see a snapshot without the task's ContextVars.
+        snapshot.run(collector.hook_line, "/repo/active.py", 42)
+        snapshot.run(collector.hook_file, "/repo/file.py")
+        assert 42 in test_collector.get_covered_lines()["/repo/active.py"].to_sorted_list()
+        assert "/repo/file.py" in test_collector._covered_files
+        assert "/repo/active.py" not in import_collector.get_covered_lines()
+        assert "/repo/active.py" not in nested.get_covered_lines()
+        assert "/repo/file.py" not in import_collector.get_covered_file_paths()
+        assert "/repo/file.py" not in nested.get_covered_file_paths()
+
+    snapshot.run(collector.hook_line, "/repo/late.py", 7)
+    assert "/repo/late.py" not in test_collector.get_covered_lines()
+
+
 def test_coverage_stacks_are_isolated_across_copied_contexts():
     from contextvars import copy_context
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
-    from ddtrace.internal.coverage.code import ctx_covered
-    from ddtrace.internal.coverage.code import ctx_covered_files
+    from ddtrace.internal.coverage.code import ctx_collectors
 
     with ModuleCodeCollector.CollectInContext():
-        parent_lines_stack = ctx_covered.get()
-        parent_files_stack = ctx_covered_files.get()
-        parent_depth = len(parent_lines_stack)
+        parent_stack = ctx_collectors.get()
+        parent_depth = len(parent_stack)
         child_context = copy_context()
 
         def collect_in_child_context():
-            with ModuleCodeCollector.CollectInContext():
-                assert len(ctx_covered.get()) == len(ctx_covered_files.get()) == parent_depth + 1
-                assert ctx_covered.get()[-1] is not parent_lines_stack[-1]
-                assert ctx_covered_files.get()[-1] is not parent_files_stack[-1]
+            with ModuleCodeCollector.CollectInContext() as child:
+                assert len(ctx_collectors.get()) == parent_depth + 1
+                assert ctx_collectors.get()[-1] is child
+                assert ctx_collectors.get()[-2] is parent_stack[-1]
 
         child_context.run(collect_in_child_context)
-        assert ctx_covered.get() is parent_lines_stack
-        assert ctx_covered_files.get() is parent_files_stack
-        assert len(parent_lines_stack) == len(parent_files_stack) == parent_depth
+        assert ctx_collectors.get() is parent_stack
+        assert len(parent_stack) == parent_depth
 
 
 def test_exiting_collector_in_another_context_preserves_active_coverage():
     from contextvars import copy_context
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
-    from ddtrace.internal.coverage.code import ctx_covered
-    from ddtrace.internal.coverage.code import ctx_covered_files
+    from ddtrace.internal.coverage.code import ctx_collectors
 
     with ModuleCodeCollector.CollectInContext():
-        parent_depth = len(ctx_covered.get())
-        parent_lines = ctx_covered.get()[-1]
-        parent_files = ctx_covered_files.get()[-1]
+        parent_stack = ctx_collectors.get()
         child_context = copy_context()
         child = ModuleCodeCollector.CollectInContext()
         child_context.run(child.__enter__)
 
         child.__exit__()
-        assert ctx_covered.get()[-1] is parent_lines
-        assert ctx_covered_files.get()[-1] is parent_files
+        assert ctx_collectors.get() is parent_stack
 
         child_context.run(child.__exit__)
-        assert len(ctx_covered.get()) == len(ctx_covered_files.get()) == parent_depth
+        assert ctx_collectors.get() is parent_stack
 
 
 def test_completed_collector_entries_do_not_capture_inherited_context_coverage():
@@ -77,11 +110,11 @@ def test_completed_collector_entries_do_not_capture_inherited_context_coverage()
         with ModuleCodeCollector.CollectInContext() as import_collector:
             task_context = copy_context()
 
-        assert import_collector._covered_lines.closed
+        assert import_collector.closed
 
         # The task context still sees the completed import entry atop its stack.
-        task_stack = task_context.run(coverage_code.ctx_covered.get)
-        assert task_stack[-1] is import_collector._covered_lines
+        task_stack = task_context.run(coverage_code.ctx_collectors.get)
+        assert task_stack[-1] is import_collector
 
         # Resolution inside the task context must skip the completed entry and
         # attribute coverage to the still-active test collector.
@@ -103,44 +136,25 @@ def test_completed_collector_entries_do_not_capture_inherited_context_coverage()
     assert stale is not test_collector._covered_lines
 
 
-def test_mismatched_exit_resyncs_tls_fallback():
-    """A mismatched exit must not leave the TLS fallback on the completed collector.
-
-    On Python 3.14+, sys.monitoring callbacks run in a snapshot context and fall back
-    to the thread-local coverage state when they cannot observe ContextVar changes.
-    When a collector entered in a copied context is exited from a different context
-    (a mismatched exit), that thread-local fallback must be re-synced to the active
-    collector instead of pointing at the collector that just completed.
-    """
+def test_mismatched_exit_resyncs_tls_fallback(monkeypatch):
+    """A mismatched exit must leave snapshot callbacks recording in the active collector."""
+    from contextvars import Context
     from contextvars import copy_context
 
     import ddtrace.internal.coverage.code as coverage_code
     from ddtrace.internal.coverage.code import ModuleCodeCollector
-    from ddtrace.internal.coverage.code import ctx_covered
 
-    original_flag = coverage_code._PY_GE_314
-    coverage_code._PY_GE_314 = True
-    try:
-        with ModuleCodeCollector.CollectInContext():
-            parent_lines = ctx_covered.get()[-1]
-            parent_files = coverage_code.ctx_covered_files.get()[-1]
-            child_context = copy_context()
-            child = ModuleCodeCollector.CollectInContext()
-            child_context.run(child.__enter__)
+    monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    snapshot = Context()
+    with ModuleCodeCollector.CollectInContext() as parent:
+        child_context = copy_context()
+        child = ModuleCodeCollector.CollectInContext()
+        child_context.run(child.__enter__)
+        assert snapshot.run(coverage_code._get_ctx_covered_lines) is child._covered_lines
 
-            # The thread-local fallback tracks the most recent collector entered in
-            # this thread, which is the child's.
-            assert coverage_code._tls_coverage.covered is child._covered_lines
-
-            # Exiting the child from the parent context is a mismatched exit.
-            child.__exit__()
-
-            # The fallback must be re-synced to the parent's active entries rather
-            # than left pointing at the completed child collector.
-            assert coverage_code._tls_coverage.covered is parent_lines
-            assert coverage_code._tls_coverage.covered_files is parent_files
-    finally:
-        coverage_code._PY_GE_314 = original_flag
+        child.__exit__()
+        assert snapshot.run(coverage_code._get_ctx_covered_lines) is parent._covered_lines
+        assert snapshot.run(coverage_code._get_ctx_covered_files) is parent._covered_files
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
