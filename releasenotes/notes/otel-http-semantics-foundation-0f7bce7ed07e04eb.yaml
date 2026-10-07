@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    tracing: Adds shared OpenTelemetry HTTP span behavior for upcoming client and server
+    integrations. It normalizes request methods (for example, ``get`` becomes ``GET`` and unknown
+    methods become ``_OTHER``) while preserving their original values. It records client and
+    server URL, address, port, and status attributes; redacts URL credentials and obfuscates
+    captured query values; keeps ports and status codes numeric for OTLP; and applies separate
+    client and server error rules. It also generates low-cardinality resource names from methods
+    and route templates without overwriting names set by application code. When the existing
+    ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` option is enabled, tracing selects OTLP export and schema
+    ``v0``, disables automatic peer-service names, and enables native span events. Conflicting
+    schema and peer-service settings are overridden and reported through logs and telemetry.
