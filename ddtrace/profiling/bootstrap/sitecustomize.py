@@ -4,6 +4,7 @@ import platform
 import sys
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.service import ServiceStatus
 import ddtrace.profiling as profiling
 from ddtrace.profiling import bootstrap
 
@@ -23,7 +24,13 @@ def start_profiler() -> None:
     from ddtrace.profiling import profiler
 
     if hasattr(bootstrap, "profiler"):
-        bootstrap.profiler.stop()  # pyright: ignore[reportAttributeAccessIssue, reportCallIssue]
+        existing = bootstrap.profiler  # pyright: ignore[reportAttributeAccessIssue]
+        # An install-only profiler is not running. Start that instance so its
+        # patches stay in place. A running profiler is replaced, as before.
+        if existing.status != ServiceStatus.RUNNING:
+            existing.start()
+            return
+        existing.stop()
 
     # Export the profiler so we can introspect it if needed
     profiler_instance = profiler.Profiler()

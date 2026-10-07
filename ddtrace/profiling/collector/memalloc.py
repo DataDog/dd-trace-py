@@ -47,6 +47,10 @@ class MemoryCollector:
         mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
 
+    def install(self) -> None:
+        # The allocator hooks record as soon as they are installed, so they wait for start.
+        return
+
     def start(self) -> None:
         """Start collecting memory profiles."""
         if _memalloc is None:

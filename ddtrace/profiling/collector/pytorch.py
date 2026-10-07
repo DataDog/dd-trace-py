@@ -8,6 +8,7 @@ from typing import Any
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -49,6 +50,7 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
         self.tracer: Tracer | None = None
         # Holds the pytorch profiler object which is wrapped by this class
         self._original: Any = None
+        self._installed: bool = False
 
     @abc.abstractmethod
     def _get_patch_target(self) -> Any:
@@ -58,20 +60,26 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
     def _set_patch_target(self, value: Any) -> None:
         pass
 
-    def _start_service(self) -> None:
-        """Start collecting framework profiler usage."""
+    def install(self) -> None:
+        if self._installed:
+            return
         try:
             import torch
         except ImportError as e:
             raise collector.CollectorUnavailable(e)
         self._torch_module = torch
         self.patch()
+        self._installed = True
+
+    def _start_service(self) -> None:
+        self.install()
         super()._start_service()  # type: ignore[safe-super]
 
     def _stop_service(self) -> None:
         """Stop collecting framework profiler usage."""
         super()._stop_service()  # type: ignore[safe-super]
         self.unpatch()
+        self._installed = False
 
     def patch(self) -> None:
         """Patch the module for tracking profiling data."""
@@ -80,6 +88,10 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
 
         def profiler_init(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> Any:
             profiler = wrapped(*args, **kwargs)
+
+            if self.status != ServiceStatus.RUNNING:
+                return profiler
+
             return self.PROFILED_TORCH_CLASS(
                 profiler,
                 self.tracer,

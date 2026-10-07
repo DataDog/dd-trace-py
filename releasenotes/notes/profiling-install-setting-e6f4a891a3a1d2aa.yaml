@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    profiling: Add ``DD_PROFILING_INSTALL`` (default ``false``). Set it to ``true``
+    to install profiler patches and signal handlers without starting profiling.
+    ``DD_PROFILING_ENABLED`` controls whether profiling runs and forces installation on.
