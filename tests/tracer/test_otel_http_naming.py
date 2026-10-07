@@ -349,40 +349,22 @@ def test_otel_span_attributes_status_error_semantics(
     assert span.get_tag(ERROR_TYPE) == (str(status_code) if expected_error else None)
 
 
-@pytest.mark.parametrize(
-    "status_code, expected_error",
-    [
-        (404, 1),
-        (412, 1),
-        (413, 0),
-        (500, 0),
-        (700, 0),
-    ],
-)
-def test_otel_span_attributes_honors_custom_server_error_statuses(
-    integration_config,
-    server_error_statuses,
-    status_code,
-    expected_error,
-):
-    server_error_statuses.error_statuses = "404-412"
-    span = Span("request", span_type=SpanTypes.WEB)
-    attributes = OTelHTTPSpanAttributes(span, integration_config)
+@pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+def test_otel_span_attributes_honors_custom_server_error_statuses():
+    from unittest import mock
 
-    attributes.set_status_code(status_code)
+    from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
+    from ddtrace.ext import SpanTypes
+    from ddtrace.trace import Span
 
-    assert span.error == expected_error
+    integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
+    for status_code, expected_error in ((404, 1), (412, 1), (413, 0), (500, 0), (700, 0)):
+        span = Span("request", span_type=SpanTypes.WEB)
+        attributes = OTelHTTPSpanAttributes(span, integration_config)
 
+        attributes.set_status_code(status_code)
 
-def test_programmatic_server_error_status_state_restores(server_error_statuses):
-    original_statuses = server_error_statuses.error_statuses
-    original_configured = server_error_statuses.error_statuses_configured
-
-    server_error_statuses.error_statuses = "404-412"
-    assert server_error_statuses.error_statuses_configured is True
-
-    server_error_statuses.error_statuses = original_statuses
-    assert server_error_statuses.error_statuses_configured is original_configured
+        assert span.error == expected_error
 
 
 def test_otel_span_attributes_status_preserves_exception_error_type(integration_config, server_error_statuses):
@@ -476,13 +458,11 @@ def test_otel_span_attributes_explicit_default_server_status_does_not_expand():
 
     from ddtrace._trace.otel.http.tags import OTelHTTPSpanAttributes
     from ddtrace.ext import SpanTypes
-    from ddtrace.internal.settings._config import config
     from ddtrace.trace import Span
 
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("web.request", span_type=SpanTypes.WEB)
 
-    assert config._http_server.error_statuses_configured is True
     OTelHTTPSpanAttributes(span, integration_config).set_status_code(600)
 
     assert span.error == 0
@@ -509,6 +489,7 @@ def test_otel_semantics_overrides_conflicting_schema_and_peer_service_settings()
         "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
         "OTEL_TRACES_EXPORTER": "none",
         "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4",
+        "DD_TRACE_API_VERSION": "v0.4",
     },
     err=None,
 )
@@ -519,7 +500,6 @@ def test_otel_semantics_flag_resolves_identically_when_enabled():
     from ddtrace.internal.settings._opentelemetry import otel_config
     from ddtrace.trace import tracer
 
-    assert agent_config._trace_otel_semantics_enabled is True
     assert config._otel_trace_semantics_enabled is True
     assert _is_otlp_traces_exporter_enabled(otel_config.exporter) is True
     assert agent_config.trace_native_span_events is True
@@ -528,11 +508,9 @@ def test_otel_semantics_flag_resolves_identically_when_enabled():
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"}, err=None)
 def test_otel_semantics_flag_resolves_identically_when_disabled():
-    from ddtrace.internal.settings._agent import config as agent_config
     from ddtrace.internal.settings._config import config
     from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
     from ddtrace.internal.settings._opentelemetry import otel_config
 
-    assert agent_config._trace_otel_semantics_enabled is False
     assert config._otel_trace_semantics_enabled is False
     assert _is_otlp_traces_exporter_enabled(otel_config.exporter) is False

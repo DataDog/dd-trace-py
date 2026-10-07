@@ -16,6 +16,7 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
@@ -253,7 +254,7 @@ class OTelHTTPSpanAttributes:
     def _is_error_status(self, status_code: int) -> bool:
         if self.is_client:
             return status_code >= 400
-        if not config._http_server.error_statuses_configured:
+        if "DD_TRACE_HTTP_SERVER_ERROR_STATUSES" not in env:
             # OTel treats any code at or above 500 as an error.
             return status_code >= 500
         return bool(config._http_server.is_error_code(status_code))
