@@ -56,6 +56,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -385,6 +386,9 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._is_itr_ignored_suite_event_owner = True
         self._itr_ignored_suite_paths: list[Path] = []
         self._itr_unskippable_suites: set[SuiteRef] = set()
+        self._remaining_tests_by_suite: dict[SuiteRef, int] = defaultdict(int)
+        self._remaining_tests_by_module: dict[ModuleRef, int] = defaultdict(int)
+        self._collection_finished = False
 
         self.manager = session_manager
         self.session = self.manager.session
@@ -518,6 +522,16 @@ class TestOptPlugin(TestOptPluginProtocol):
             # Clean up external coverage instance registration
             clear_coverage_instance()
 
+        # Workers collect the entire session, but their assigned tests are only known at run time.
+        # Finish their locally executed suites after the worker has completed all its tests.
+        if self.is_xdist_worker:
+            for module in self.session.children.values():
+                for suite in module.children.values():
+                    if suite.is_started() and not suite.is_finished():
+                        self._finish_suite(suite)
+                if module.is_started() and not module.is_finished():
+                    self._finish_module(module)
+
         self.session.finish()
 
         TelemetryAPI.get().record_session_finished(
@@ -609,6 +623,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         for item in session.items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
+            self._remaining_tests_by_suite[test_ref.suite] += 1
+            self._remaining_tests_by_module[test_ref.suite.module] += 1
             if (
                 self.manager.itr_skipping_level == ITRSkippingLevel.SUITE
                 and self.manager.is_skippable_test(test_ref)
@@ -616,6 +632,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             ):
                 self._itr_unskippable_suites.add(test_ref.suite)
 
+        self._collection_finished = True
         async_flush_events = _get_async_flush_events(len(session.items))
         self.manager.writer.set_async_flush_events(async_flush_events)
         self.manager.coverage_writer.set_async_flush_events(async_flush_events)
@@ -806,18 +823,40 @@ class TestOptPlugin(TestOptPluginProtocol):
                 test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
             )
 
-        if not next_test_ref or test_ref.suite != next_test_ref.suite:
-            self.manager._set_suite_source_location(test_suite)
-            if codeowners := test.tags.get(TestTag.CODEOWNERS):
-                test_suite.tags[TestTag.CODEOWNERS] = codeowners
-            test_suite.finish()
-            self.manager.writer.put_item(test_suite)
-            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+        self._finish_test_parents(test_ref, next_test_ref, test)
 
-        if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
-            test_module.finish()
-            self.manager.writer.put_item(test_module)
-            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+    def _finish_suite(self, suite: TestSuite) -> None:
+        self.manager._set_suite_source_location(suite)
+        for test in suite.children.values():
+            if codeowners := test.tags.get(TestTag.CODEOWNERS):
+                suite.tags[TestTag.CODEOWNERS] = codeowners
+                break
+        suite.finish()
+        self.manager.writer.put_item(suite)
+        TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+
+    def _finish_module(self, module: TestModule) -> None:
+        module.finish()
+        self.manager.writer.put_item(module)
+        TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+    def _finish_test_parents(self, test_ref: TestRef, next_test_ref: t.Optional[TestRef], test: Test) -> None:
+        if self.is_xdist_worker:
+            return
+        if self._collection_finished:
+            # Explicit node selection and ordering plugins can revisit a suite or module later.
+            # File boundaries are insufficient: wait for every selected test execution instead.
+            self._remaining_tests_by_suite[test_ref.suite] -= 1
+            self._remaining_tests_by_module[test_ref.suite.module] -= 1
+            finish_suite = self._remaining_tests_by_suite[test_ref.suite] == 0
+            finish_module = self._remaining_tests_by_module[test_ref.suite.module] == 0
+        else:
+            finish_suite = not next_test_ref or test_ref.suite != next_test_ref.suite
+            finish_module = not next_test_ref or test_ref.suite.module != next_test_ref.suite.module
+        if finish_suite:
+            self._finish_suite(test.suite)
+        if finish_module:
+            self._finish_module(test.module)
 
     if _HOOKIMPL_SUPPORTS_SPECNAME:
         pytest_runtest_protocol_wrapper = pytest.hookimpl(
@@ -1422,18 +1461,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
             test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
         )
 
-        if not next_test_ref or test_ref.suite != next_test_ref.suite:
-            self.manager._set_suite_source_location(test_suite)
-            if codeowners := test.tags.get(TestTag.CODEOWNERS):
-                test_suite.tags[TestTag.CODEOWNERS] = codeowners
-            test_suite.finish()
-            self.manager.writer.put_item(test_suite)
-            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
-
-        if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
-            test_module.finish()
-            self.manager.writer.put_item(test_module)
-            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+        self._finish_test_parents(test_ref, next_test_ref, test)
 
         return True
 

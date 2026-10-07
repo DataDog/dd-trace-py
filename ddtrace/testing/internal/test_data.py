@@ -387,7 +387,10 @@ class TestSuite(TestItem["TestModule", "Test"]):
                     if (
                         self.tags.get(TestTag.SKIPPED_BY_ITR) != TAG_TRUE
                         and self.children
-                        and all(child.is_finished() and child.is_skipped_by_itr() for child in self.children.values())
+                        and all(
+                            child.is_finished() and child.is_skipped_by_itr() and child.get_status() == TestStatus.SKIP
+                            for child in self.children.values()
+                        )
                     ):
                         self.mark_skipped_by_itr()
                     count = int(self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE)

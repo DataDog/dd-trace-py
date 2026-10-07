@@ -44,7 +44,10 @@ omitted when Test Impact Analysis is disabled.
 Test mode counts the suite's Test Impact Analysis skipped test executions; suite
 mode counts a skipped suite once. Framework skips, disabled tests, and forced runs
 do not contribute. A collected suite is marked as skipped by Test Impact Analysis
-only after every child has finished with a Test Impact Analysis skip. Counters
+only after every selected child has finished with a Test Impact Analysis skip
+and a final skip outcome. Pytest waits for all selected tests even when a suite's
+items are interleaved with other suites. Distributed workers finalize their
+locally executed suites at worker completion. Counters
 belong to individual suites and propagate to ancestors using the existing session
 counting rules. Distributed workers report their own suite events, while the
 controller aggregates the session total.

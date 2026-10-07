@@ -193,6 +193,104 @@ class TestITR:
         assert suite["content"]["meta"].get("test.skipped_by_itr") is None
         assert suite["content"]["meta"]["test.status"] == ("pass" if other_outcome == "attempt_to_fix" else "skip")
 
+    @pytest.mark.parametrize("other_outcome", ["tia", "framework"])
+    @pytest.mark.parametrize("different_module", [False, True])
+    def test_interleaved_selected_suites_finish_once(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, other_outcome: str, different_module: bool
+    ) -> None:
+        marker = '@pytest.mark.skip(reason="framework")' if other_outcome == "framework" else ""
+        pytester.makepyfile(
+            test_a=f"""
+            import pytest
+
+            def test_tia():
+                assert False
+
+            {marker}
+            def test_other():
+                assert False
+            """
+        )
+        if different_module:
+            running_file = "other/test_b.py"
+            pytester.mkdir("other").joinpath("test_b.py").write_text("def test_pass():\n    assert True\n")
+        else:
+            running_file = "test_b.py"
+            pytester.makepyfile(test_b="def test_pass():\n    assert True\n")
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    skippable_items={SuiteRef(ModuleRef(""), "test_a.py")},
+                ),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+            EventCapture.capture() as capture,
+        ):
+            result = pytester.inline_run(
+                "--ddtrace",
+                "--randomly-dont-reorganize",
+                "test_a.py::test_tia",
+                f"{running_file}::test_pass",
+                "test_a.py::test_other",
+            )
+        assert [call.nodeid for call in result.getcalls("pytest_runtest_logstart")] == [
+            "test_a.py::test_tia",
+            f"{running_file}::test_pass",
+            "test_a.py::test_other",
+        ]
+        result.assertoutcome(passed=1, skipped=2)
+        suites = list(capture.events_by_type("test_suite_end"))
+        assert len(suites) == 2
+        [suite] = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == "test_a.py"]
+        count = int(other_outcome == "tia")
+        assert suite["metrics"]["test.itr.tests_skipping.count"] == count
+        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == ("true" if count else "false")
+        assert suite["meta"].get("test.skipped_by_itr") == ("true" if count else None)
+        assert suite["meta"]["test.status"] == "skip"
+        modules = list(capture.events_by_type("test_module_end"))
+        assert len(modules) == (2 if different_module else 1)
+        assert sum(event["content"]["meta"]["test.status"] == "pass" for event in modules) == 1
+
+    def test_suite_tia_reporting_preserves_teardown_failure(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pytester.makeconftest(
+            """
+            import pytest
+
+            @pytest.hookimpl(hookwrapper=True)
+            def pytest_runtest_teardown(item, nextitem):
+                yield
+                raise RuntimeError("teardown failed")
+            """
+        )
+        pytester.makepyfile(test_a="def test_tia():\n    assert False\n")
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    skippable_items={SuiteRef(ModuleRef(""), "test_a.py")},
+                ),
+            ),
+            setup_standard_mocks(workspace_path=str(pytester.path)),
+            EventCapture.capture() as capture,
+        ):
+            result = pytester.inline_run("--ddtrace", "test_a.py::test_tia")
+        result.assertoutcome(skipped=1, failed=1)
+        event = capture.event_by_test_name("test_tia")
+        assert event["content"]["meta"]["test.status"] == "fail"
+        assert event["content"]["meta"]["test.skipped_by_itr"] == "true"
+        [suite] = capture.events_by_type("test_suite_end")
+        assert suite["content"]["meta"]["test.status"] == "fail"
+        assert suite["content"]["meta"].get("test.skipped_by_itr") is None
+        assert suite["content"]["metrics"]["test.itr.tests_skipping.count"] == 0
+        assert suite["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+
     @pytest.mark.parametrize("selection", ["test_skippable.py", "test_skippable.py::test_one"])
     def test_suite_reporting_for_explicitly_selected_skippable_suite(
         self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, selection: str

@@ -287,6 +287,7 @@ def _run_pytest_subprocess(
     *extra_args: str,
     env: dict[str, str],
     timeout: int = 120,
+    test_selection: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
     """Run pytest in a subprocess with the given environment."""
     cmd = [
@@ -296,7 +297,7 @@ def _run_pytest_subprocess(
         "--ddtrace",
         "-v",
         "-s",
-        str(test_dir),
+        *(test_selection or (str(test_dir),)),
         *extra_args,
     ]
     return subprocess.run(
@@ -359,6 +360,50 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 
 
 class TestSuiteITRReporting:
+    def test_worker_finalizes_interleaved_suite_once(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        assert mock_server.server is not None
+        server = t.cast(t.Any, mock_server.server)
+        server.settings_attributes = {**_settings_attributes(), "itr_enabled": True, "tests_skipping": True}
+        server.skippable_items = [
+            {
+                "id": "1",
+                "type": "suite",
+                "attributes": {"configurations": {"test.bundle": ""}, "suite": "test_a.py", "name": ""},
+            }
+        ]
+        (test_project / "test_a.py").write_text(
+            textwrap.dedent("""\
+            import pytest
+
+            def test_tia():
+                assert False
+
+            @pytest.mark.skip(reason="framework")
+            def test_framework():
+                assert False
+            """)
+        )
+        (test_project / "test_b.py").write_text("def test_pass():\n    assert True\n")
+        _git_commit(test_project)
+        result = _run_pytest_subprocess(
+            test_project,
+            "-n",
+            "1",
+            "--randomly-dont-reorganize",
+            env=_make_env(mock_server.url, {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "true"}),
+            test_selection=("test_a.py::test_tia", "test_b.py::test_pass", "test_a.py::test_framework"),
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        suites = mock_server.get_suite_events()
+        assert len(suites) == 2
+        [suite] = [event["content"] for event in suites if event["content"]["meta"]["test.suite"] == "test_a.py"]
+        assert suite["meta"]["test.status"] == "skip"
+        assert suite["meta"].get("test.skipped_by_itr") is None
+        assert suite["metrics"]["test.itr.tests_skipping.count"] == 0
+        assert suite["meta"]["_dd.ci.itr.tests_skipped"] == "false"
+
     @pytest.mark.parametrize("suite_mode", [False, True])
     def test_distributed_suite_counts(self, mock_server: MockCIVisibilityServer, test_project: Path, suite_mode):
         assert mock_server.server is not None
