@@ -227,7 +227,6 @@ ddtrace/internal/settings/profiling.py            @DataDog/profiling-python
 ddtrace/internal/settings/profiling.pyi           @DataDog/profiling-python
 ddtrace/internal/datadog/profiling                @DataDog/profiling-python
 tests/profiling                                   @DataDog/profiling-python
-.github/workflows/profiling-native.yml            @DataDog/profiling-python
 .gitlab/tests/profiling.yml                       @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
 .github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
@@ -269,6 +268,7 @@ ddtrace/contrib/internal/vllm                                 @DataDog/ml-observ
 ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/cassettes                                               @DataDog/ml-observability
+tests/cassettes/stripe/                                       @DataDog/asm-python
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py                        @DataDog/ml-observability

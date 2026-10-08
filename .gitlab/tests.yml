@@ -8,6 +8,10 @@ variables:
   # CI_DEBUG_SERVICES: "true"
 
 include:
+  - local: ".gitlab/retry-policies.yml"
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 

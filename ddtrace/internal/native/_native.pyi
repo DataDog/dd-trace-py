@@ -221,6 +221,12 @@ class SharedRuntime:
     def defer_after_fork_child(self) -> None:
         """Prevent lazy runtime restart while Python child hooks run."""
         ...
+    def before_python_fork(self) -> None:
+        """Mark a Python-managed fork so native preparation does not pause workers."""
+        ...
+    def after_python_fork_parent(self) -> None:
+        """Clear the Python-managed fork mark in the parent."""
+        ...
     def allow_after_fork_child(self) -> None:
         """Allow lazy runtime restart after Python child hooks finish."""
         ...
@@ -1159,6 +1165,7 @@ class SpanData:
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
     _parent_context: Optional[Any]  # parent Context, or None
+    context: Context  # this span's trace context, built lazily on first read
 
     def __new__(
         cls: type[_SpanDataT],
@@ -1170,11 +1177,12 @@ class SpanData:
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[float] = None,
-        context: Optional[Any] = None,  # placeholder for Span.__init__
+        context: Optional[Context] = None,  # parent Context, or None for a root span
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
         links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
+    def _context_for_child(self) -> Context: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
@@ -1318,6 +1326,25 @@ def process_metrics() -> tuple[int, int, int, int, int, int]:
 
 def total_memory_bytes() -> int:
     """Return total physical RAM plus swap, in bytes."""
+    ...
+
+def scan_distributions(
+    entry: str,
+    module_suffixes: list[str],
+    release_gil: bool = False,
+) -> tuple[list[tuple[str, Optional[str], list[str], list[str]]], list[tuple[str, str]]]:
+    """Scan one sys.path entry, a directory or a zip archive, for installed distributions.
+
+    :param module_suffixes: ``importlib.machinery.all_suffixes()``, longest first.
+    :param release_gil: Release the GIL during the scan; only for threads that cannot outlive
+        interpreter shutdown.
+    :return: ``(dists, errors)``, where each dist is ``(name, version, keys, top_level)``:
+        ``version`` is ``None`` when missing, ``keys`` are the import roots it ships and
+        ``top_level`` the names ``packages_distributions`` maps to it. Each error is
+        ``(metadata_path, message)`` for a file that could not be decoded. Entries that
+        cannot be listed have no distributions.
+    :raises RuntimeError: If the scan fails unexpectedly; never ``PanicException``.
+    """
     ...
 
 class config:
