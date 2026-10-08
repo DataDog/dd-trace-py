@@ -173,7 +173,13 @@ class Profiler:
             self._profiler.start()
             Profiler._active_instance = self
 
+        # start() returned before reporting activation in the uWSGI master, so the worker reports it.
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+
     def __getattr__(self, key: str) -> Any:
+        # Without this, any lookup on an instance that skipped __init__ (e.g. copy.copy, pickle) recurses forever.
+        if key == "_profiler":
+            raise AttributeError(key)
         return getattr(self._profiler, key)
 
 
@@ -416,15 +422,23 @@ class _ProfilerInstance(service.Service):
                 LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
     _COPY_IGNORE_ATTRIBUTES = {"status", "process_tags"}
+    # Constructor arguments that are stored under a private name, so the generic filter below would drop them.
+    _COPY_PRIVATE_ATTRIBUTES = (
+        "_memory_collector_enabled",
+        "_stack_collector_enabled",
+        "_lock_collector_enabled",
+        "_pytorch_collector_enabled",
+        "_exception_profiling_enabled",
+    )
 
     def copy(self) -> "_ProfilerInstance":
-        return self.__class__(
-            **{
-                key: value
-                for key, value in vars(self).items()
-                if not key.startswith("_") and key not in self._COPY_IGNORE_ATTRIBUTES
-            }
-        )
+        kwargs = {
+            key: value
+            for key, value in vars(self).items()
+            if not key.startswith("_") and key not in self._COPY_IGNORE_ATTRIBUTES
+        }
+        kwargs.update({key: getattr(self, key) for key in self._COPY_PRIVATE_ATTRIBUTES})
+        return self.__class__(**kwargs)
 
     def _start_service(self) -> None:
         """Start the profiler."""

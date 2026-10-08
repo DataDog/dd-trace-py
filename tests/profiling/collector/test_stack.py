@@ -479,6 +479,30 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
         unregister_thread.assert_called_with(thread_id)
 
 
+@pytest.mark.subprocess
+def test_restarts_do_not_stack_thread_hooks() -> None:
+    import threading
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restarts_do_not_stack_thread_hooks", version="my_version")
+    ddup.start()
+
+    for _ in range(3):
+        with stack.StackCollector():
+            pass
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
 def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
     tracer._endpoint_call_counter_span_processor.enable()
 
