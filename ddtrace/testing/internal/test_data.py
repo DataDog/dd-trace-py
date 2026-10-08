@@ -365,6 +365,13 @@ class TestSuite(TestItem["TestModule", "Test"]):
     def set_final_tags(self) -> None:
         super().set_final_tags()
         self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
+        if self.session.itr_enabled and self.session.itr_suite_reporting_enabled:
+            # Only indicate whether TIA affected this suite's duration; exact counts are unnecessary.
+            skipped = self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE or any(
+                test.is_skipped_by_itr() for test in self.children.values()
+            )
+            self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = int(skipped)
+            self.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] = TAG_TRUE if skipped else "false"
 
 
 class TestModule(TestItem["TestSession", "TestSuite"]):
@@ -395,6 +402,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.tests_skipped_by_itr = 0
         self.itr_correlation_id: t.Optional[str] = None
         self.itr_enabled = False
+        self.itr_suite_reporting_enabled = False
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST
         self.configuration_errors: dict[str, str] = {}

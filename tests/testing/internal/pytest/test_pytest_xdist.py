@@ -439,6 +439,12 @@ class TestXdistManifestMode:
         assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") == 1
         assert mock_server.count_requests("/api/v2/ci/tests/skippable") == 1
 
+        suites = mock_server.get_suite_events()
+        assert suites
+        for suite in suites:
+            assert "test.itr.tests_skipping.count" not in suite["content"]["metrics"]
+            assert "_dd.ci.itr.tests_skipped" not in suite["content"]["meta"]
+
         worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
         assert len(worker_test_counts) == 2
         assert sum(worker_test_counts) == 4
