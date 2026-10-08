@@ -2390,6 +2390,34 @@
         ]
       }
     ],
+    "DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "DD_LITELLM_USAGE_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_LITELLM_USAGE_METRICS_EXPORTER": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "otlp"
+      }
+    ],
+    "DD_LITELLM_USAGE_METRICS_TAGS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_LIVE_DEBUGGING_ENABLED": [
       {
         "implementation": "A",

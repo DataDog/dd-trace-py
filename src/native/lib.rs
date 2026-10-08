@@ -14,6 +14,8 @@ mod ddsketch;
 mod ddtrace_utils;
 mod debugger;
 mod event_hub;
+#[cfg(feature = "ai_usage")]
+mod ai_usage;
 #[cfg(feature = "ffe")]
 mod ffe;
 mod http_client;
@@ -104,6 +106,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "ffe")]
     {
         m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
+    }
+
+    // Add LLM usage metrics submodule
+    #[cfg(feature = "ai_usage")]
+    {
+        m.add_wrapped(pyo3::wrap_pymodule!(ai_usage::ai_usage))?;
     }
 
     // Add logger submodule

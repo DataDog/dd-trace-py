@@ -3,18 +3,36 @@ import sys
 import litellm
 
 from ddtrace import config
+from ddtrace.contrib.internal.litellm import _usage_metrics
+from ddtrace.contrib.internal.litellm import _usage_metrics_writer
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import atexit
+from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
-config._add("litellm", {})
+log = get_logger(__name__)
+
+config._add(
+    "litellm",
+    {
+        "usage_metrics_enabled": asbool(env.get("DD_LITELLM_USAGE_METRICS_ENABLED", default=False)),
+        "usage_metrics_tags": env.get("DD_LITELLM_USAGE_METRICS_TAGS", default=""),
+        "usage_metrics_exporter": env.get("DD_LITELLM_USAGE_METRICS_EXPORTER", default="otlp"),
+        "usage_metrics_client_source": env.get("DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE"),
+    },
+)
 
 
 def get_version() -> str:
@@ -113,6 +131,7 @@ def traced_router_completion(func, instance, args, kwargs):
         base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=True,
     )
+    _mark_gateway_span(span, kwargs)
     stream = kwargs.get("stream", False)
     resp = None
     try:
@@ -142,6 +161,7 @@ async def traced_router_acompletion(func, instance, args, kwargs):
         base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=True,
     )
+    _mark_gateway_span(span, kwargs)
     stream = kwargs.get("stream", False)
     resp = None
     try:
@@ -157,6 +177,78 @@ async def traced_router_acompletion(func, instance, args, kwargs):
             kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
+
+
+def traced_chunk_creator(func, instance, args, kwargs):
+    """Note when a provider's stream chunk carries usage, so streamed token counts are known to be reported."""
+    logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
+    if logger is not None:
+        try:
+            chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
+            usage = chunk.get("usage") if isinstance(chunk, dict) else getattr(chunk, "usage", None)
+            if usage:
+                logger.mark_provider_usage(getattr(getattr(instance, "logging_obj", None), "litellm_call_id", None))
+        except Exception:
+            log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
+    return func(*args, **kwargs)
+
+
+def _mark_gateway_span(span, kwargs):
+    logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
+    if logger is not None and logger.has_request(kwargs.get("litellm_call_id")):
+        span._set_attribute(_usage_metrics.RECORDED_PROFILES_TAG, _usage_metrics.GATEWAY_PROFILES)
+
+
+def _enable_usage_metrics():
+    if _usage_metrics_writer.ai_usage is None:
+        log.warning("LiteLLM usage metrics are not available in this build of ddtrace")
+        return
+    exporter = (config.litellm.usage_metrics_exporter or "otlp").strip().lower()
+    if exporter not in ("otlp", "dogstatsd"):
+        log.warning("Unknown DD_LITELLM_USAGE_METRICS_EXPORTER %r, using otlp", exporter)
+        exporter = "otlp"
+    tags = frozenset(tag.strip().lower() for tag in (config.litellm.usage_metrics_tags or "").split(",") if tag.strip())
+    unknown = tags - _usage_metrics.OPT_IN_TAGS
+    if unknown:
+        log.warning("Ignoring unknown DD_LITELLM_USAGE_METRICS_TAGS values: %s", ", ".join(sorted(unknown)))
+    resource = {}
+    if "service" in tags and config.service:
+        resource["service.name"] = config.service
+    if "host" in tags:
+        resource["host.name"] = get_hostname()
+    writer = _usage_metrics_writer.UsageMetricsWriter(
+        exporter,
+        interval=otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL / 1000.0,
+        metrics=list(_usage_metrics.DEFAULT_METRICS),
+    )
+    logger = _usage_metrics.UsageMetricsLogger(
+        writer, tags & _usage_metrics.OPT_IN_TAGS, config.litellm.usage_metrics_client_source, resource
+    )
+    manager = getattr(litellm, "logging_callback_manager", None)
+    if manager is not None:
+        manager.add_litellm_callback(logger)
+    else:
+        litellm.callbacks.append(logger)
+    writer.start()
+    atexit.register(writer.on_shutdown)
+    litellm._datadog_usage_metrics_writer = writer
+    litellm._datadog_usage_metrics_logger = logger
+    wrap("litellm", "litellm_core_utils.streaming_handler.CustomStreamWrapper.chunk_creator", traced_chunk_creator)
+
+
+def _disable_usage_metrics():
+    logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
+    writer = getattr(litellm, "_datadog_usage_metrics_writer", None)
+    if logger is None or writer is None:
+        return
+    if logger in litellm.callbacks:
+        litellm.callbacks.remove(logger)
+    unwrap(litellm.litellm_core_utils.streaming_handler.CustomStreamWrapper, "chunk_creator")
+    atexit.unregister(writer.on_shutdown)
+    writer.stop()
+    writer.flush()
+    del litellm._datadog_usage_metrics_logger
+    del litellm._datadog_usage_metrics_writer
 
 
 def traced_get_llm_provider(func, instance, args, kwargs):
@@ -188,12 +280,17 @@ def patch():
     wrap("litellm", "router.Router.text_completion", traced_router_completion)
     wrap("litellm", "router.Router.atext_completion", traced_router_acompletion)
 
+    if config.litellm.usage_metrics_enabled:
+        _enable_usage_metrics()
+
 
 def unpatch():
     if not getattr(litellm, "_datadog_patch", False):
         return
 
     litellm._datadog_patch = False
+
+    _disable_usage_metrics()
 
     unwrap(litellm, "completion")
     unwrap(litellm, "acompletion")
