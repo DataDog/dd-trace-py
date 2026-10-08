@@ -14,6 +14,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.debugging._config import di_config
+from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import process_tags
@@ -24,6 +25,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 
 
 log = get_logger(__name__)
+meter = metrics.get_meter("signal.collector")
 
 
 class JsonBuffer(object):
@@ -263,7 +265,17 @@ class SnapshotJsonEncoder(LogSignalJsonEncoder):
     """Encoder for snapshot signals, with automatic pruning of large snapshots."""
 
     def encode(self, item: LogSignal) -> bytes:
-        return self.pruned(self._encode(item)).encode("utf-8")
+        encoded = self._encode(item)
+        pruned = self.pruned(encoded)
+        if pruned is not encoded:
+            # pruned() returns the same str object unchanged when nothing
+            # needed pruning (see its early return below); any other result
+            # means at least one node was replaced with {"pruned":true}.
+            tags = {"reason": "payloadTooLarge", "probe_id": item.probe.probe_id}
+            if item.__type__ is not None:
+                tags["event_type"] = item.__type__
+            meter.increment("dynamic_instrumentation.guardrails.capture.incomplete", tags=tags)
+        return pruned.encode("utf-8")
 
     def pruned(self, log_signal_json: str) -> str:
         if len(log_signal_json) <= self.MAX_SIGNAL_SIZE:

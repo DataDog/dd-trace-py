@@ -200,6 +200,16 @@ class Signal(abc.ABC):
         return False
 
     @property
+    def __type__(self) -> Optional[str]:
+        """debugger.events.*/debugger.capture.incomplete's event_type tag,
+        and (for LogSignal) the backend wire payload's
+        debugger.snapshot.type field. None here means "no defined
+        event_type yet" (e.g. span probes) -- subclasses override as
+        needed; see LogSignal and Snapshot.
+        """
+        return None
+
+    @property
     def session(self) -> Optional[Session]:
         session_id = self.probe.tags.get("session_id")
         return Session.lookup(session_id) if session_id is not None else None

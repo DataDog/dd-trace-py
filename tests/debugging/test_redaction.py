@@ -114,8 +114,11 @@ def test_timed_redacted_expression_bounds_every_iteration(ast):
 
 
 class _SlowProperty:
+    call_count = 0
+
     @property
     def value(self):
+        _SlowProperty.call_count += 1
         end = time.perf_counter() + 0.005
         while time.perf_counter() < end:
             pass
@@ -125,6 +128,14 @@ class _SlowProperty:
 def test_timed_redacted_expression_slow_predicate_overshoots_by_one_call():
     """Chunks shrink to one element when the predicate is slow, so the deadline
     is overshot by about one predicate evaluation rather than a whole chunk.
+
+    The primary assertion is on the number of predicate calls, not wall-clock
+    elapsed time: elapsed time is also at the mercy of OS scheduling on a
+    loaded host, independent of whether chunking itself is working -- the
+    call count isolates the chunk-shrinking behavior this test is actually
+    about from that noise. The wall-clock check is kept too, but only as a
+    loose sanity bound (a fixed 64-element chunk would cost ~320ms; this
+    gives several times that much headroom for scheduling jitter).
     """
     expr = DDTimedRedactedExpression.compile(
         {
@@ -133,15 +144,19 @@ def test_timed_redacted_expression_slow_predicate_overshoots_by_one_call():
         }
     )
 
+    _SlowProperty.call_count = 0
     with mock.patch.object(config, "evaluation_timeout_ms", 20):
         start = time.monotonic()
         with pytest.raises(EvaluationTimeoutError):
             expr.eval({"xs": [_SlowProperty() for _ in range(1000)]})
         elapsed = time.monotonic() - start
 
-    # 20ms budget plus about one 5ms call; a fixed 64-element chunk would
-    # overshoot by 320ms.
-    assert elapsed < 0.1
+    # One 4-element chunk (before the first shrink) plus a handful of
+    # 1-element chunks while still under budget -- nowhere near the 64-cap.
+    assert _SlowProperty.call_count < 20, (
+        f"Expected chunks to shrink to ~1 element, but {_SlowProperty.call_count} calls were made"
+    )
+    assert elapsed < 1.5
 
 
 def test_timed_redacted_expression_cost_rising_mid_collection():

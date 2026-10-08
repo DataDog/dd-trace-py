@@ -252,6 +252,48 @@ def redacted_type(t: Any) -> dict[str, Any]:
     return {"type": safe_qualname(t), "notCapturedReason": "redactedType"}
 
 
+class IncompleteCapture:
+    """Records the first capture.incomplete reason hit during a
+    capture_value()/capture_pairs() call tree, at the exact point each one
+    is decided -- rather than re-deriving it afterward by re-inspecting the
+    captured dict's shape, which would have to independently track (and
+    could drift from) capture_value()'s own structure.
+
+    First-reason-wins: capture.incomplete counts incomplete *events*, not
+    individual field-level limits, so only the first one matters (see
+    Snapshot._capture_incomplete_reason).
+    """
+
+    # Maps a capture_value()/capture_pairs() notCapturedReason (or the
+    # HourGlass-backed stopping_cond's own name, "timeout") to the
+    # capture.incomplete metric's reason vocabulary. Redaction
+    # ("redactedIdent"/"redactedType") never reaches record() at all --
+    # redacted fields are built by redacted_value()/redact_type() directly,
+    # bypassing capture_value()'s own limit checks entirely -- so there's no
+    # privacy-vs-guardrail distinction to make here.
+    _REASON_MAP = {
+        "depth": "depth",
+        "fieldCount": "fieldCount",
+        "collectionSize": "collectionSize",
+        "timeout": "timeout",
+        "concurrentModification": "other",
+    }
+
+    __slots__ = ("reason",)
+
+    def __init__(self) -> None:
+        self.reason: Optional[str] = None
+
+    def record(self, not_captured_reason: str) -> None:
+        if self.reason is not None:
+            return
+        self.reason = self._REASON_MAP.get(not_captured_reason, "other")
+
+    def record_string_truncated(self) -> None:
+        if self.reason is None:
+            self.reason = "stringLength"
+
+
 def capture_pairs(
     pairs: Iterable[tuple[str, Any]],
     level: int = MAXLEVEL,
@@ -259,9 +301,14 @@ def capture_pairs(
     maxsize: int = MAXSIZE,
     maxfields: int = MAXFIELDS,
     stopping_cond: Optional[Callable[[Any], bool]] = None,
+    incomplete: Optional[IncompleteCapture] = None,
 ) -> dict[str, Any]:
     return {
-        n: (capture_value(v, level, maxlen, maxsize, maxfields, stopping_cond) if not redact(n) else redacted_value(v))
+        n: (
+            capture_value(v, level, maxlen, maxsize, maxfields, stopping_cond, incomplete)
+            if not redact(n)
+            else redacted_value(v)
+        )
         for n, v in pairs
     }
 
@@ -273,6 +320,7 @@ def capture_value(
     maxsize: int = MAXSIZE,
     maxfields: int = MAXFIELDS,
     stopping_cond: Optional[Callable[[Any], bool]] = None,
+    incomplete: Optional[IncompleteCapture] = None,
 ) -> dict[str, Any]:
     cond = stopping_cond if stopping_cond is not None else (lambda _: False)
 
@@ -286,6 +334,8 @@ def capture_value(
             return {"type": "NoneType", "isNull": True}
 
         if cond(value):
+            if incomplete is not None:
+                incomplete.record(cond.__name__)
             return {
                 "type": _type.__qualname__,
                 "notCapturedReason": cond.__name__,
@@ -293,26 +343,28 @@ def capture_value(
 
         value_repr = serialize(value)
         value_repr_len = len(value_repr)
-        return (
-            {
+        if value_repr_len <= maxlen:
+            return {
                 "type": _type.__qualname__,
                 "value": value_repr,
             }
-            if value_repr_len <= maxlen
-            else {
-                "type": _type.__qualname__,
-                "value": value_repr[:maxlen],
-                "truncated": True,
-                "size": value_repr_len,
-            }
-        )
+        if incomplete is not None:
+            incomplete.record_string_truncated()
+        return {
+            "type": _type.__qualname__,
+            "value": value_repr[:maxlen],
+            "truncated": True,
+            "size": value_repr_len,
+        }
 
     if _type in CONTAINER_TYPES:
         if _type is NDARRAY_TYPE and value.ndim == 0:
             # A 0-dimensional array is a scalar; capture its scalar item instead.
-            return capture_value(value[()], level, maxlen, maxsize, maxfields, stopping_cond)
+            return capture_value(value[()], level, maxlen, maxsize, maxfields, stopping_cond, incomplete)
 
         if level < 0:
+            if incomplete is not None:
+                incomplete.record("depth")
             return {
                 "type": _type.__qualname__,
                 "notCapturedReason": "depth",
@@ -320,6 +372,8 @@ def capture_value(
             }
 
         if cond(value):
+            if incomplete is not None:
+                incomplete.record(cond.__name__)
             return {
                 "type": _type.__qualname__,
                 "notCapturedReason": cond.__name__,
@@ -344,6 +398,7 @@ def capture_value(
                             maxsize=maxsize,
                             maxfields=maxfields,
                             stopping_cond=cond,
+                            incomplete=incomplete,
                         ),
                         capture_value(
                             v,
@@ -352,6 +407,7 @@ def capture_value(
                             maxsize=maxsize,
                             maxfields=maxfields,
                             stopping_cond=cond,
+                            incomplete=incomplete,
                         )
                         if not (_isinstance(k, (str, bytes)) and redact(k))
                         else redacted_value(v),
@@ -392,6 +448,7 @@ def capture_value(
                         maxsize=maxsize,
                         maxfields=maxfields,
                         stopping_cond=cond,
+                        incomplete=incomplete,
                     )
                     for v in takewhile(lambda _: not cond(_), value_snapshot)
                 ]
@@ -406,21 +463,31 @@ def capture_value(
 
         if concurrent_modification:
             data["notCapturedReason"] = "concurrentModification"
+            if incomplete is not None:
+                incomplete.record("concurrentModification")
         elif len(collection) < min(maxsize, size):
             data["notCapturedReason"] = cond.__name__
+            if incomplete is not None:
+                incomplete.record(cond.__name__)
         elif size > maxsize:
             data["notCapturedReason"] = "collectionSize"
+            if incomplete is not None:
+                incomplete.record("collectionSize")
 
         return data
 
     # Arbitrary object
     if level < 0:
+        if incomplete is not None:
+            incomplete.record("depth")
         return {
             "type": _type.__qualname__,
             "notCapturedReason": "depth",
         }
 
     if cond(value):
+        if incomplete is not None:
+            incomplete.record(cond.__name__)
         return {
             "type": _type.__qualname__,
             "notCapturedReason": cond.__name__,
@@ -438,7 +505,15 @@ def capture_value(
 
     captured_fields = {
         n: (
-            capture_value(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields, stopping_cond=cond)
+            capture_value(
+                v,
+                level=level - 1,
+                maxlen=maxlen,
+                maxsize=maxsize,
+                maxfields=maxfields,
+                stopping_cond=cond,
+                incomplete=incomplete,
+            )
             if not redact(n)
             else redacted_value(v)
         )
@@ -450,8 +525,12 @@ def capture_value(
     }
     if len(captured_fields) < min(maxfields, len(fields)):
         data["notCapturedReason"] = cond.__name__
+        if incomplete is not None:
+            incomplete.record(cond.__name__)
     elif len(fields) > maxfields:
         data["notCapturedReason"] = "fieldCount"
+        if incomplete is not None:
+            incomplete.record("fieldCount")
 
     if _isinstance(value, BaseException):
         # DEV: Celery doesn't like that we store references to these objects so we

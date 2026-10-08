@@ -30,6 +30,10 @@ class MetricSample(LogSignal):
 
     meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
 
+    @property
+    def __type__(self) -> Optional[str]:
+        return "metric"
+
     def enter(self, scope: Mapping[str, Any]) -> None:
         if self._timing is ProbeEvalTiming.ENTRY:
             self.sample(scope)

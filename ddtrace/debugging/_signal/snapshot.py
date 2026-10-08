@@ -54,6 +54,7 @@ def _capture_context(
     throwable: ExcInfoType,
     retval: Any = _NOTSET,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
+    incomplete: Optional[utils.IncompleteCapture] = None,
 ) -> dict[str, Any]:
     with HourGlass(duration=di_config.capture_timeout_ms / 1000) as hg:
 
@@ -72,45 +73,21 @@ def _capture_context(
 
         return {
             "arguments": utils.capture_pairs(
-                arguments, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+                arguments, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout, incomplete
             )
             if arguments
             else {},
             "locals": utils.capture_pairs(
-                _locals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+                _locals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout, incomplete
             )
             if _locals
             else {},
             "staticFields": utils.capture_pairs(
-                _globals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+                _globals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout, incomplete
             )
             if _globals
             else {},
             "throwable": utils.capture_exc_info(throwable),
-        }
-
-
-def _capture_expressions(
-    exprs: list[CaptureExpression],
-    scope: Mapping[str, Any],
-) -> dict[str, Any]:
-    with HourGlass(duration=di_config.capture_timeout_ms / 1000) as hg:
-
-        def timeout(_: Any) -> bool:
-            return not hg.trickling()
-
-        return {
-            "captureExpressions": {
-                e.name: utils.capture_value(
-                    e.expr.eval(scope),
-                    e.capture.max_level,
-                    e.capture.max_len,
-                    e.capture.max_size,
-                    e.capture.max_fields,
-                    timeout,
-                )
-                for e in exprs
-            }
         }
 
 
@@ -135,6 +112,13 @@ class Snapshot(LogSignal):
     _capture_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
     _template_eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
     _segment_timed_out: bool = field(default=False, init=False, repr=False)
+    # Structural capture.incomplete reason (depth/fieldCount/collectionSize/
+    # stringLength/other) -- no evaluation_kind, since it reflects a capacity
+    # limit on the captured value, not an expression evaluation outcome.
+    _capture_incomplete_reason: Optional[str] = field(default=None, init=False, repr=False)
+    # "timeout" or "runtimeError" when a capture expression's own eval()
+    # failed -- tagged evaluation_kind=capture_expression, unlike the above.
+    _capture_expr_error_reason: Optional[str] = field(default=None, init=False, repr=False)
 
     def _eval_segment(self, segment: TemplateSegment, _locals: Mapping[str, Any]) -> str:
         probe = cast(LogProbeMixin, self.probe)
@@ -187,6 +171,65 @@ class Snapshot(LogSignal):
                 )
             )
 
+    def _capture_expressions(
+        self,
+        exprs: list[CaptureExpression],
+        scope: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Evaluate each capture expression independently, so one failing
+        expression doesn't take down the whole event.
+
+        Sets self._capture_incomplete_reason to the capture.incomplete reason
+        for the first structural limit (depth/fieldCount/collectionSize/
+        stringLength/other) hit while serializing a successfully-evaluated
+        expression's value, if any. Sets self._capture_expr_error_reason to
+        "timeout" or "runtimeError" for the first capture expression whose
+        own eval() failed -- kept separate from the structural reason since
+        it carries an evaluation_kind=capture_expression tag downstream.
+        """
+        incomplete = utils.IncompleteCapture()
+        with HourGlass(duration=di_config.capture_timeout_ms / 1000) as hg:
+
+            def timeout(_: Any) -> bool:
+                return not hg.trickling()
+
+            captured: dict[str, Any] = {}
+            for e in exprs:
+                try:
+                    value = e.expr.eval(scope)
+                except EvaluationTimeoutError:
+                    if self._capture_expr_error_reason is None:
+                        self._capture_expr_error_reason = "timeout"
+                    captured[e.name] = {"notCapturedReason": "timeout"}
+                    self.errors.append(
+                        EvaluationError(
+                            expr=e.expr.dsl,
+                            message=(
+                                f"Capture expression evaluation timed out after {di_config.evaluation_timeout_ms}ms"
+                            ),
+                        )
+                    )
+                    continue
+                except DDExpressionEvaluationError as exc:
+                    if self._capture_expr_error_reason is None:
+                        self._capture_expr_error_reason = "runtimeError"
+                    captured[e.name] = {"notCapturedReason": "runtimeError"}
+                    self.errors.append(EvaluationError(expr=exc.dsl, message=exc.error))
+                    continue
+
+                captured[e.name] = utils.capture_value(
+                    value,
+                    e.capture.max_level,
+                    e.capture.max_len,
+                    e.capture.max_size,
+                    e.capture.max_fields,
+                    timeout,
+                    incomplete,
+                )
+
+            self._capture_incomplete_reason = incomplete.reason
+            return {"captureExpressions": captured}
+
     def _do(self, retval: Any, exc_info: ExcInfoType, scope: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         probe = cast(LogProbeMixin, self.probe)
         frame = self.frame
@@ -196,14 +239,18 @@ class Snapshot(LogSignal):
         self._stack = utils.capture_stack(self.frame)
 
         if probe.take_snapshot:
+            incomplete = utils.IncompleteCapture()
             t_start = Time.monotonic()
-            result = _capture_context(frame, exc_info, retval=retval, limits=probe.limits)
+            result = _capture_context(frame, exc_info, retval=retval, limits=probe.limits, incomplete=incomplete)
             self._capture_duration_ms = (Time.monotonic() - t_start) * 1000
+            self._capture_incomplete_reason = incomplete.reason
             return result
 
         if probe.capture_expressions:
+            self._capture_incomplete_reason = None
+            self._capture_expr_error_reason = None
             t_start = Time.monotonic()
-            result = _capture_expressions(probe.capture_expressions, scope)
+            result = self._capture_expressions(probe.capture_expressions, scope)
             self._capture_duration_ms = (Time.monotonic() - t_start) * 1000
             return result
 
@@ -236,6 +283,17 @@ class Snapshot(LogSignal):
 
     def has_message(self) -> bool:
         return self._message is not None or bool(self.errors)
+
+    @property
+    def __type__(self) -> str:
+        """Overrides LogSignal.__type__'s static "snapshot": a log probe with
+        no snapshot/capture_expressions is really just a log message, not a
+        snapshot, both for the debugger.events.*/debugger.capture.incomplete
+        telemetry tag and for the backend wire payload's
+        debugger.snapshot.type field (see LogSignal.snapshot).
+        """
+        probe = cast(LogProbeMixin, self.probe)
+        return "snapshot" if (probe.take_snapshot or probe.capture_expressions) else "log"
 
     @property
     def data(self) -> dict[str, Any]:

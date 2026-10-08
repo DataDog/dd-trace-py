@@ -39,6 +39,10 @@ class DynamicSpan(Signal):
 
     _span_cm: t.Optional[Span] = field(init=False, default=None)
 
+    @property
+    def __type__(self) -> t.Optional[str]:
+        return "span"
+
     def __post_init__(self) -> None:
         super().__post_init__()
 
@@ -87,6 +91,13 @@ class DynamicSpan(Signal):
 @dataclass
 class SpanDecoration(LogSignal):
     """Decorate a span."""
+
+    @property
+    def __type__(self) -> t.Optional[str]:
+        # Its log message (when any) is only ever an evaluation-error
+        # report (see message/has_message below), never real snapshot/log
+        # content -- same as Trigger.
+        return "diagnostic"
 
     def _decorate_span(self, scope: t.Mapping[str, t.Any]) -> None:
         probe = t.cast(SpanDecorationMixin, self.probe)

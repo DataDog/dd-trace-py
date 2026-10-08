@@ -159,17 +159,18 @@ def test_collector_push_unknown_track():
 # ---------------------------------------------------------------------------
 
 
-def test_push_skip_cond_error_emits_evaluation_error_throttled():
+def test_push_skip_cond_error_emits_no_guardrail_metric():
+    """evaluationErrorThrottled isn't part of the events.skipped reason
+    vocabulary; no skipped metric should be emitted for SKIP_COND_ERROR.
+    """
     collector, _ = _make_collector()
     signal = _snapshot(state=SignalState.SKIP_COND_ERROR)
 
     with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
         collector.push(signal)
 
-    m.increment.assert_any_call(
-        "dynamic_instrumentation.guardrails.events.skipped",
-        tags={"reason": "evaluationErrorThrottled", "probe_type": "LogLineProbe"},
-    )
+    for call in m.increment.call_args_list:
+        assert "dynamic_instrumentation.guardrails.events.skipped" not in call.args
 
 
 def test_push_cond_timeout_emits_evaluation_timeout_and_uploads():
@@ -185,7 +186,12 @@ def test_push_cond_timeout_emits_evaluation_timeout_and_uploads():
 
     m.increment.assert_any_call(
         "dynamic_instrumentation.guardrails.events.skipped",
-        tags={"reason": "evaluationTimeout", "probe_type": "LogLineProbe"},
+        tags={
+            "reason": "evaluationTimeout",
+            "probe_id": signal.probe.probe_id,
+            "event_type": "snapshot",
+            "evaluation_kind": "condition",
+        },
     )
     assert not any(
         c.args and c.args[0] == "dynamic_instrumentation.guardrails.evaluation.errors"
@@ -203,7 +209,7 @@ def test_push_skip_rate_global_emits_rate_limit_global():
 
     m.increment.assert_any_call(
         "dynamic_instrumentation.guardrails.events.skipped",
-        tags={"reason": "rateLimitGlobal", "probe_type": "LogLineProbe"},
+        tags={"reason": "rateLimitGlobal", "probe_id": signal.probe.probe_id, "event_type": "snapshot"},
     )
 
 
@@ -216,21 +222,22 @@ def test_push_skip_rate_probe_emits_rate_limit_probe():
 
     m.increment.assert_any_call(
         "dynamic_instrumentation.guardrails.events.skipped",
-        tags={"reason": "rateLimitProbe", "probe_type": "LogLineProbe"},
+        tags={"reason": "rateLimitProbe", "probe_id": signal.probe.probe_id, "event_type": "snapshot"},
     )
 
 
-def test_push_skip_budget_emits_budget_exceeded_invocation():
+def test_push_skip_budget_emits_no_guardrail_metric():
+    """budgetExceededInvocation isn't part of the events.skipped reason
+    vocabulary; no skipped metric should be emitted for SKIP_BUDGET.
+    """
     collector, _ = _make_collector()
     signal = _snapshot(state=SignalState.SKIP_BUDGET)
 
     with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
         collector.push(signal)
 
-    m.increment.assert_any_call(
-        "dynamic_instrumentation.guardrails.events.skipped",
-        tags={"reason": "budgetExceededInvocation", "probe_type": "LogLineProbe"},
-    )
+    for call in m.increment.call_args_list:
+        assert "dynamic_instrumentation.guardrails.events.skipped" not in call.args
 
 
 def test_push_skip_cond_emits_no_guardrail_metric():
@@ -258,7 +265,7 @@ def test_push_buffer_full_emits_queue_full_drop_metric():
 
     m.increment.assert_any_call(
         "dynamic_instrumentation.guardrails.events.dropped",
-        tags={"reason": "queueFull", "event_type": "snapshot"},
+        tags={"reason": "queueFull", "probe_id": signal.probe.probe_id, "event_type": "snapshot"},
     )
 
 
@@ -339,3 +346,80 @@ def test_push_emits_template_eval_duration_when_measured():
         2.1,
         tags={"probe_type": "LogLineProbe", "evaluation_kind": "template"},
     )
+
+
+# ---------------------------------------------------------------------------
+# capture.incomplete metric
+# ---------------------------------------------------------------------------
+
+
+def test_push_emits_capture_incomplete_for_template_timeout():
+    collector, _ = _make_collector()
+    signal = _snapshot(state=SignalState.DONE)
+    signal._segment_timed_out = True
+
+    with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
+        collector.push(signal)
+
+    m.increment.assert_any_call(
+        "dynamic_instrumentation.guardrails.capture.incomplete",
+        tags={
+            "reason": "timeout",
+            "probe_id": signal.probe.probe_id,
+            "event_type": "snapshot",
+            "evaluation_kind": "template",
+        },
+    )
+
+
+def test_push_emits_capture_incomplete_for_capture_expression_error():
+    collector, _ = _make_collector()
+    signal = _snapshot(state=SignalState.DONE)
+    signal._capture_expr_error_reason = "runtimeError"
+
+    with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
+        collector.push(signal)
+
+    m.increment.assert_any_call(
+        "dynamic_instrumentation.guardrails.capture.incomplete",
+        tags={
+            "reason": "runtimeError",
+            "probe_id": signal.probe.probe_id,
+            "event_type": "snapshot",
+            "evaluation_kind": "capture_expression",
+        },
+    )
+
+
+def test_push_emits_capture_incomplete_for_structural_limit():
+    """A structural limit (depth/fieldCount/collectionSize/stringLength/other)
+    carries no evaluation_kind -- it's not an expression evaluation outcome.
+    """
+    collector, _ = _make_collector()
+    signal = _snapshot(state=SignalState.DONE)
+    signal._capture_incomplete_reason = "collectionSize"
+
+    with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
+        collector.push(signal)
+
+    m.increment.assert_any_call(
+        "dynamic_instrumentation.guardrails.capture.incomplete",
+        tags={"reason": "collectionSize", "probe_id": signal.probe.probe_id, "event_type": "snapshot"},
+    )
+
+
+def test_push_emits_no_capture_incomplete_when_complete():
+    collector, _ = _make_collector()
+    signal = _snapshot(state=SignalState.DONE)
+    # _snapshot() captures the real test frame, whose own locals can
+    # legitimately trip a structural limit (e.g. depth) -- clear the fields
+    # explicitly so this test is isolated from that incidental noise.
+    signal._segment_timed_out = False
+    signal._capture_expr_error_reason = None
+    signal._capture_incomplete_reason = None
+
+    with mock.patch("ddtrace.debugging._signal.collector.meter") as m:
+        collector.push(signal)
+
+    for call in m.increment.call_args_list:
+        assert "dynamic_instrumentation.guardrails.capture.incomplete" not in call.args

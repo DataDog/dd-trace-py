@@ -12,6 +12,7 @@ from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
 from typing import cast
+from unittest import mock
 
 import pytest
 
@@ -671,6 +672,46 @@ def test_json_pruning_not_capture_depth(size, expected):
         )
         == expected
     )
+
+
+def test_encode_emits_capture_incomplete_payload_too_large_when_pruned():
+    """encode() emits capture.incomplete{reason=payloadTooLarge} exactly when
+    pruned() actually had to trim something.
+    """
+
+    class TestEncoder(SnapshotJsonEncoder):
+        MAX_SIGNAL_SIZE = 10
+        MIN_LEVEL = 0
+
+    probe = create_snapshot_line_probe(probe_id="test", source_file="test.py", line=1)
+    frame = inspect.currentframe()
+    assert frame is not None
+    snapshot = Snapshot(probe=probe, frame=frame, thread=threading.current_thread())
+
+    encoder = TestEncoder("test-service")
+    with mock.patch.object(TestEncoder, "_encode", return_value='{"big": "a very long string past the cap"}'):
+        with mock.patch("ddtrace.debugging._encoding.meter") as m:
+            encoder.encode(snapshot)
+
+    m.increment.assert_any_call(
+        "dynamic_instrumentation.guardrails.capture.incomplete",
+        tags={"reason": "payloadTooLarge", "probe_id": probe.probe_id, "event_type": "snapshot"},
+    )
+
+
+def test_encode_emits_no_capture_incomplete_when_not_pruned():
+    probe = create_snapshot_line_probe(probe_id="test", source_file="test.py", line=1)
+    frame = inspect.currentframe()
+    assert frame is not None
+    snapshot = Snapshot(probe=probe, frame=frame, thread=threading.current_thread())
+
+    encoder = SnapshotJsonEncoder("test-service")
+    with mock.patch.object(SnapshotJsonEncoder, "_encode", return_value='{"small": "fine"}'):
+        with mock.patch("ddtrace.debugging._encoding.meter") as m:
+            encoder.encode(snapshot)
+
+    for call in m.increment.call_args_list:
+        assert "dynamic_instrumentation.guardrails.capture.incomplete" not in call.args
 
 
 def test_capture_value_redacted_type():

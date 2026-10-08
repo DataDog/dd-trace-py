@@ -12,6 +12,7 @@ from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._redaction import DDRedactedExpression
+from ddtrace.debugging._redaction import DDTimedRedactedExpression
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
@@ -268,7 +269,7 @@ class CaptureExpression:
     def parse(cls, data: dict[str, Any]) -> "CaptureExpression":
         return cls(
             name=data["name"],
-            expr=DDRedactedExpression.compile(data["expr"]),
+            expr=DDTimedRedactedExpression.compile(data["expr"]),
             capture=CaptureLimits.parse(data["capture"]) if "capture" in data else DEFAULT_CAPTURE_LIMITS,
         )
 

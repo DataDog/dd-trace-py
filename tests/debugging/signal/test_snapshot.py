@@ -5,12 +5,16 @@ import threading
 import time
 from unittest import mock
 
+from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
+from ddtrace.debugging._probe.model import CaptureExpression
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
+from ddtrace.debugging._redaction import DDTimedRedactedExpression
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_capture_expressions_line_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_snapshot_line_probe
 from tests.debugging.utils import slow_timed_expr
@@ -152,3 +156,108 @@ def test_slow_segment_times_out():
     # Reported once, not again by the post-hoc overrun check.
     assert [e.message for e in snap.errors] == ["Segment evaluation timed out after 20ms"]
     assert elapsed < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Capture-expression evaluation errors/timeouts don't kill the whole event
+# ---------------------------------------------------------------------------
+
+
+def _bad_capture_expression(name="bad"):
+    def _raise(scope):
+        raise ZeroDivisionError("boom")
+
+    return CaptureExpression(
+        name=name, expr=DDTimedRedactedExpression(dsl=name, callable=_raise), capture=DEFAULT_CAPTURE_LIMITS
+    )
+
+
+def _good_capture_expression(name="good", value=1):
+    return CaptureExpression(
+        name=name,
+        expr=DDTimedRedactedExpression(dsl=name, callable=lambda scope: value),
+        capture=DEFAULT_CAPTURE_LIMITS,
+    )
+
+
+def _slow_capture_expression(name="slow"):
+    return CaptureExpression(name=name, expr=slow_timed_expr(name), capture=DEFAULT_CAPTURE_LIMITS)
+
+
+def test_capture_expression_runtime_error_does_not_kill_event():
+    """A capture expression that raises is recorded as an error and marked
+    notCapturedReason=runtimeError, but other expressions still evaluate and
+    the event still carries a message/captures.
+    """
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression(), _bad_capture_expression()],
+    )
+    snap = _make_snapshot(probe)
+    snap.line({})
+
+    captured = snap.line_capture["captureExpressions"]
+    assert captured["good"]["value"] == "1"
+    assert captured["bad"] == {"notCapturedReason": "runtimeError"}
+    assert snap._capture_expr_error_reason == "runtimeError"
+    assert snap.errors, "Expected an EvaluationError for the failing capture expression"
+
+
+def test_capture_expression_timeout_does_not_kill_event():
+    """A capture expression that times out is marked notCapturedReason=timeout
+    without preventing the rest of the event from being captured.
+    """
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression(), _slow_capture_expression()],
+    )
+    snap = _make_snapshot(probe)
+
+    with mock.patch.object(di_config, "evaluation_timeout_ms", 20):
+        start = time.monotonic()
+        snap.line(SLOW_SCOPE)
+        elapsed = time.monotonic() - start
+
+    captured = snap.line_capture["captureExpressions"]
+    assert captured["good"]["value"] == "1"
+    assert captured["slow"] == {"notCapturedReason": "timeout"}
+    assert snap._capture_expr_error_reason == "timeout"
+    timeout_errors = [e for e in snap.errors if "timed out" in e.message]
+    assert timeout_errors
+    assert elapsed < 1.0
+
+
+def test_capture_expression_structural_limit_sets_incomplete_reason():
+    """A capture expression whose value overruns a structural limit sets
+    _capture_incomplete_reason (no evaluation_kind -- it's not an evaluation
+    failure, just a value too big to capture in full).
+    """
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression(value=list(range(1000)))],
+    )
+    snap = _make_snapshot(probe)
+    snap.line({})
+
+    assert snap._capture_incomplete_reason == "collectionSize"
+    assert snap._capture_expr_error_reason is None
+
+
+def test_capture_expression_complete_capture_sets_no_incomplete_reason():
+    probe = create_capture_expressions_line_probe(
+        probe_id="test",
+        source_file="test.py",
+        line=1,
+        capture_expressions=[_good_capture_expression()],
+    )
+    snap = _make_snapshot(probe)
+    snap.line({})
+
+    assert snap._capture_incomplete_reason is None
+    assert snap._capture_expr_error_reason is None

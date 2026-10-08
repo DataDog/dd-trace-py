@@ -212,7 +212,9 @@ class SpanExceptionProbe(LogLineProbe):
 
 @dataclass
 class SpanExceptionSnapshot(Snapshot):
-    __type__ = "snapshot"
+    # __type__ left unset: always take_snapshot=True (see the probe built
+    # above), so Snapshot.__type__'s own property already resolves to
+    # "snapshot" here -- no need to shadow it with a static override.
 
     exc_id: t.Optional[uuid.UUID] = None
 
