@@ -382,7 +382,6 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/aiokafka/
       env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
         DD_DATA_STREAMS_ENABLED: 'true'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
@@ -567,8 +566,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/aws_lambda
       variants:
         - name: aws_lambda
@@ -592,8 +589,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python
       variants:
         - name: aws_durable_execution_sdk_python
@@ -617,8 +612,6 @@ suites:
       - azurite
       - azurecosmosemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_cosmos
       variants:
         - name: azure_cosmos
@@ -652,8 +645,6 @@ suites:
       KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
@@ -678,8 +669,6 @@ suites:
   # (the one that runs from scripts/ddtest on Mac OS)
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
         - name: azure_durable_functions
@@ -703,8 +692,6 @@ suites:
     services:
       - azurite
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions
       variants:
         - name: azure_functions
@@ -730,8 +717,6 @@ suites:
       - azurite
       - azurecosmosemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_cosmos
       variants:
         - name: azure_functions:cosmos
@@ -763,8 +748,6 @@ suites:
       - azurite
       - azureeventhubsemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_eventhubs
       variants:
         - name: azure_functions:eventhubs
@@ -791,8 +774,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_servicebus
       variants:
         - name: azure_functions:servicebus
@@ -816,8 +797,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_servicebus
       variants:
         - name: azure_servicebus
@@ -1508,8 +1487,6 @@ suites:
       - pubsub
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/google_cloud_pubsub
       variants:
         - name: google_cloud_pubsub
@@ -1633,8 +1610,6 @@ suites:
       - tests/snapshots/tests.contrib.gunicorn.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/gunicorn
       variants:
         - name: gunicorn
@@ -1772,7 +1747,6 @@ suites:
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka
       env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
         DD_DATA_STREAMS_ENABLED: 'true'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
@@ -1819,8 +1793,6 @@ suites:
       - tests/contrib/logbook/*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/logbook
       variants:
         - name: logbook
@@ -1837,8 +1809,6 @@ suites:
       - tests/contrib/loguru/*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/loguru
       variants:
         - name: loguru
@@ -1923,8 +1893,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten
       variants:
         - name: molten
@@ -2577,8 +2545,6 @@ suites:
       - '@sourcecode'
       - tests/sourcecode/*
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/sourcecode
       variants:
         - name: sourcecode
@@ -2925,8 +2891,6 @@ suites:
       - valkey
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/valkey
       variants:
         - name: valkey
