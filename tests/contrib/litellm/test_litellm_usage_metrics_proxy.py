@@ -24,7 +24,11 @@ from tests.contrib.litellm.usage_metrics_proxy import PROVIDER_KEYS
 from tests.contrib.litellm.usage_metrics_proxy import Gateway
 
 
-pytest.importorskip("litellm.proxy.proxy_server", reason="the LiteLLM proxy extras are not installed")
+try:
+    # Without its extras the proxy raises a plain ImportError, which importorskip does not skip.
+    import litellm.proxy.proxy_server  # noqa: F401
+except ImportError:
+    pytest.skip("the LiteLLM proxy extras are not installed", allow_module_level=True)
 metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
 pytestmark = pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 
