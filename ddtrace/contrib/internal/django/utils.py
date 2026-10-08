@@ -19,6 +19,7 @@ from ddtrace.ext import user as _user
 from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
@@ -254,6 +255,16 @@ def _before_request_tags(pin, span, request):
 def _extract_body(request):
     # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
     if request.method in _BODY_METHODS:
+        body_limit = asm_config._asm_body_parsing_size_limit
+        content_length = request.META.get("CONTENT_LENGTH")
+        try:
+            content_length = int(content_length) if content_length is not None else None
+        except (TypeError, ValueError):
+            content_length = None
+        if body_limit <= 0 or content_length is None or content_length > body_limit:
+            # Unknown or over-limit size: skip collection, accessing request.body
+            # would buffer the whole stream in memory.
+            return None
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
         media_type = classify_media_type(content_type)

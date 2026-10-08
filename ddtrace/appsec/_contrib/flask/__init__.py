@@ -61,6 +61,86 @@ def _get_content_length(environ: Mapping[str, Any]) -> Optional[int]:
         return 0
 
 
+class _ChainedInputStream:
+    """WSGI input that replays a buffered prefix, then serves the remaining live stream.
+
+    Installed when a request body exceeds the body parsing limit on a
+    ``wsgi.input_terminated`` stream: the bytes consumed while measuring are
+    replayed from memory and the rest flows through the original stream, so the
+    application still observes the complete, ordered body.
+    """
+
+    def __init__(self, prefix: bytes, tail: Any) -> None:
+        self._prefix = io.BytesIO(prefix)
+        self._tail = tail
+        self._carry = b""
+
+    def _read_raw(self, size: Optional[int] = -1) -> bytes:
+        if size is None or size < 0:
+            return self._prefix.read() + self._tail.read()
+        part = self._prefix.read(size)
+        if len(part) < size:
+            part += self._tail.read(size - len(part))
+        return part
+
+    def read(self, size: Optional[int] = -1) -> bytes:
+        if self._carry:
+            if size is None or size < 0:
+                data = self._carry + self._read_raw()
+                self._carry = b""
+                return data
+            if size <= len(self._carry):
+                data = self._carry[:size]
+                self._carry = self._carry[size:]
+                return data
+            data = self._carry + self._read_raw(size - len(self._carry))
+            self._carry = b""
+            return data
+        return self._read_raw(size)
+
+    def readline(self, size: Optional[int] = -1) -> bytes:
+        collected = []
+        total = 0
+        while size is None or size < 0 or total < size:
+            chunk = self.read(8192 if size is None or size < 0 else min(8192, size - total))
+            if not chunk:
+                break
+            collected.append(chunk)
+            total += len(chunk)
+            if b"\n" in chunk:
+                break
+        data = b"".join(collected)
+        if b"\n" in data:
+            end = data.index(b"\n") + 1
+            self._carry = data[end:] + self._carry
+            data = data[:end]
+        return data
+
+    def readlines(self, hint: int = -1) -> list[bytes]:
+        lines = []
+        while True:
+            line = self.readline()
+            if not line:
+                break
+            lines.append(line)
+            if 0 <= hint <= sum(map(len, lines)):
+                break
+        return lines
+
+    def __iter__(self):  # type: ignore[override]
+        while True:
+            line = self.readline()
+            if not line:
+                break
+            yield line
+
+    def close(self) -> None:
+        try:
+            self._tail.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _on_request_span_modifier(
     _ctx: ExecutionContext[Event],
     _flask_config: IntegrationConfig,
@@ -75,11 +155,19 @@ def _on_request_span_modifier(
     if asm_config._asm_enabled and request.method in _BODY_METHODS:
         media_type = classify_media_type(request.content_type)
         wsgi_input = environ.get("wsgi.input", "")
+        body_limit = asm_config._asm_body_parsing_size_limit
+        # Collect the body only when its size is known and within the limit, or the
+        # stream is input_terminated so the read itself can be bounded. An absent or
+        # unparsable content length is treated as unknown: collecting through the
+        # framework would buffer an unbounded stream.
+        content_length = _get_content_length(environ) if wsgi_input else None
+        input_terminated = bool(environ.get("wsgi.input_terminated"))
+        collect_body = body_limit > 0 and (bool(content_length) or input_terminated)
 
         # Copy wsgi input if not seekable
         seekable = False
         body = b""
-        if wsgi_input:
+        if wsgi_input and collect_body:
             try:
                 seekable = wsgi_input.seekable()
             # expect AttributeError in normal error cases
@@ -90,39 +178,57 @@ def _on_request_span_modifier(
                 # Provide wsgi.input as an end-of-file terminated stream.
                 # In that case wsgi.input_terminated is set to True
                 # and an app is required to read to the end of the file and disregard CONTENT_LENGTH for reading.
-                if environ.get("wsgi.input_terminated"):
-                    body = wsgi_input.read()
-                else:
-                    content_length = _get_content_length(environ)
-                    if content_length:
-                        body = wsgi_input.read(content_length)
-                environ["wsgi.input"] = io.BytesIO(body)
+                if input_terminated:
+                    # Unknown length: read at most limit + 1 bytes so collection
+                    # stays bounded; the extra byte distinguishes over-limit bodies
+                    # from exact fits.
+                    body = wsgi_input.read(body_limit + 1)
+                    if len(body) > body_limit:
+                        # Over the limit: skip analysis and restore the application's
+                        # stream with the consumed prefix chained to the remainder.
+                        environ["wsgi.input"] = _ChainedInputStream(body, wsgi_input)
+                        return None
+                    environ["wsgi.input"] = io.BytesIO(body)
+                elif content_length:
+                    if content_length > body_limit:
+                        # Over the limit: consume nothing and leave the stream
+                        # untouched for the application.
+                        return None
+                    body = wsgi_input.read(content_length)
+                    environ["wsgi.input"] = io.BytesIO(body)
+            elif content_length and content_length > body_limit:
+                # Seekable stream with a known over-limit size: skip collection
+                # without touching the stream (parsing would buffer via the framework).
+                return None
 
-        try:
-            with iast_disabled_taint_sources():
-                if media_type is MediaType.JSON:
-                    if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
-                        req_body = request.json
-                    elif request.data is None or request.data == b"":
-                        req_body = None
+        if collect_body:
+            try:
+                with iast_disabled_taint_sources():
+                    if media_type is MediaType.JSON:
+                        if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
+                            req_body = request.json
+                        elif request.data is None or request.data == b"":
+                            req_body = None
+                        else:
+                            req_body = json.loads(request.data.decode("UTF-8"))
+                    elif media_type is MediaType.XML:
+                        req_body = xmltodict.parse(request.get_data())
+                    elif hasattr(request, "form"):
+                        req_body = {
+                            k: vs if len(vs) > 1 else vs[0] for k, vs in request.form.to_dict(flat=False).items()
+                        }
                     else:
-                        req_body = json.loads(request.data.decode("UTF-8"))
-                elif media_type is MediaType.XML:
-                    req_body = xmltodict.parse(request.get_data())
-                elif hasattr(request, "form"):
-                    req_body = {k: vs if len(vs) > 1 else vs[0] for k, vs in request.form.to_dict(flat=False).items()}
-                else:
-                    # no raw body
-                    req_body = None
-        except Exception:
-            logger.debug("Failed to parse request body", exc_info=True)
-        finally:
-            # Reset wsgi input to the beginning
-            if wsgi_input:
-                if seekable:
-                    wsgi_input.seek(0)
-                else:
-                    environ["wsgi.input"] = io.BytesIO(initial_bytes=body)
+                        # no raw body
+                        req_body = None
+            except Exception:
+                logger.debug("Failed to parse request body", exc_info=True)
+            finally:
+                # Reset wsgi input to the beginning
+                if wsgi_input:
+                    if seekable:
+                        wsgi_input.seek(0)
+                    else:
+                        environ["wsgi.input"] = io.BytesIO(initial_bytes=body)
     return req_body
 
 

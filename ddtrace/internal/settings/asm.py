@@ -185,6 +185,17 @@ class ASMConfig(DDConfig):
     # Timeout for the request body reading in seconds.
     _fast_api_async_body_timeout = DDConfig.var(float, "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", default=0.1)
 
+    # REQUEST BODY COLLECTION
+    # Maximum number of bytes of HTTP request body buffered and analyzed for AppSec.
+    # Bodies larger than this are not collected; 0 disables request body collection.
+    # Fleet parity with Go/Ruby DD_APPSEC_BODY_PARSING_SIZE_LIMIT (Java: dd.appsec.*.body.size.limit).
+    _asm_body_parsing_size_limit = DDConfig.var(
+        int,
+        APPSEC.BODY_PARSING_SIZE_LIMIT,
+        default=DEFAULT.BODY_PARSING_SIZE_LIMIT,
+        validator=_validate_non_negative_int,
+    )
+
     # DOWNSTREAM REQUESTS INSTRUMENTATION
     # sample rate for body analysis
     _dr_sample_rate = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5)
@@ -223,6 +234,7 @@ class ASMConfig(DDConfig):
         "_api_security_enabled",
         "_api_security_sample_delay",
         "_api_security_parse_response_body",
+        "_asm_body_parsing_size_limit",
         "_dr_sample_rate",
         "_dr_body_limit_per_request",
         "_waf_timeout",

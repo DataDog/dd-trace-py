@@ -31,6 +31,7 @@ class APPSEC(metaclass=Constant_Class):
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
     AGENTIC_ONBOARDING: Literal["DD_APPSEC_AGENTIC_ONBOARDING"] = "DD_APPSEC_AGENTIC_ONBOARDING"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
+    BODY_PARSING_SIZE_LIMIT: Literal["DD_APPSEC_BODY_PARSING_SIZE_LIMIT"] = "DD_APPSEC_BODY_PARSING_SIZE_LIMIT"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
     ENABLED_ORIGIN_DEFAULT: Literal["default"] = "default"
@@ -356,6 +357,9 @@ class DEFAULT(metaclass=Constant_Class):
     RULES = os.path.join(ROOT_DIR, "rules.json")
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
+    # Maximum request body bytes buffered for AppSec analysis. 10 MiB matches the
+    # documented default of the Go and Ruby tracers (Java uses 10000000).
+    BODY_PARSING_SIZE_LIMIT = 10 * 1024 * 1024
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
         r"(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?"
         r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\.net[_-]sessionid|sid|jwt"

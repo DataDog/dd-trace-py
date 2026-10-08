@@ -51,26 +51,41 @@ def tornado_call_waf_first(integration: str, handler: Any) -> None:
         tornado_block(integration, handler, block)
         return
     with iast_disabled_taint_sources():
-        handler.request._parse_body()
-        request_headers = get_headers() or {}
-        parsed_body = handler.request.body_arguments
-        if parsed_body:
-            parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
-        else:
-            media_type = classify_media_type(request_headers.get("content-type"))
-            _body: bytes = handler.request.body
-            try:
-                if media_type is MediaType.JSON:
-                    parsed_body = json.loads(_body)
-            except BaseException:
-                pass  # nosec
-            try:
-                if not parsed_body and media_type is MediaType.XML:
-                    import ddtrace.vendor.xmltodict as xmltodict
+        body_limit = asm_config._asm_body_parsing_size_limit
+        collect_body = body_limit > 0
+        if collect_body:
+            content_length = handler.request.headers.get("Content-Length")
+            if content_length is not None:
+                try:
+                    collect_body = int(content_length) <= body_limit
+                except ValueError:
+                    pass
+            else:
+                # tornado already buffers the body at the HTTP layer, so measuring
+                # it is free; this bounds what _parse_body/json.loads allocate below.
+                collect_body = len(handler.request.body) <= body_limit
+        parsed_body = {}
+        if collect_body:
+            handler.request._parse_body()
+            request_headers = get_headers() or {}
+            parsed_body = handler.request.body_arguments
+            if parsed_body:
+                parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
+            else:
+                media_type = classify_media_type(request_headers.get("content-type"))
+                _body: bytes = handler.request.body
+                try:
+                    if media_type is MediaType.JSON:
+                        parsed_body = json.loads(_body)
+                except BaseException:
+                    pass  # nosec
+                try:
+                    if not parsed_body and media_type is MediaType.XML:
+                        import ddtrace.vendor.xmltodict as xmltodict
 
-                    parsed_body = xmltodict.parse(_body)
-            except BaseException:
-                pass  # nosec
+                        parsed_body = xmltodict.parse(_body)
+                except BaseException:
+                    pass  # nosec
     if parsed_body:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_BODY, parsed_body)
         call_waf_callback()

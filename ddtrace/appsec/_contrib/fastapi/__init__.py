@@ -38,20 +38,56 @@ async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[st
         # This must not be imported globally due to 3rd party patching timeline
         import asyncio
 
+        body_limit = asm_config._asm_body_parsing_size_limit
+        if body_limit <= 0:
+            return receive, None
+        content_length = headers.get("content-length") or headers.get("Content-Length")
+        if content_length:
+            try:
+                if int(content_length) > body_limit:
+                    # Known over-limit size: consume nothing, leave the app's
+                    # receive channel untouched.
+                    return receive, None
+            except ValueError:
+                pass
+
         more_body = True
         body_parts: list[bytes] = []
+        replay_parts: list[bytes] = []
+        buffered = 0
+        over_limit = False
         try:
-            while more_body:
+            # Stop pulling from receive() as soon as the limit is exceeded: the
+            # consumed chunks are replayed to the application, the remaining body
+            # keeps flowing live, and analysis is skipped.
+            while more_body and not over_limit:
                 data_received = await asyncio.wait_for(receive(), asm_config._fast_api_async_body_timeout)
                 if data_received is None:
                     more_body = False
                 if isinstance(data_received, dict):
                     more_body = data_received.get("more_body", False)
-                    body_parts.append(data_received.get("body", b""))
+                    chunk = data_received.get("body", b"")
+                    replay_parts.append(chunk)
+                    if buffered + len(chunk) > body_limit:
+                        over_limit = True
+                    else:
+                        body_parts.append(chunk)
+                        buffered += len(chunk)
         except asyncio.TimeoutError:
             pass
         except Exception:
             return receive, None
+
+        if over_limit:
+            replay = list(replay_parts)
+
+            async def receive_wrapped_over_limit() -> Optional[dict[str, Any]]:
+                if replay:
+                    return {"type": "http.request", "body": replay.pop(0), "more_body": True}
+                return await receive()
+
+            return receive_wrapped_over_limit, None
+
         body = b"".join(body_parts)
 
         async def receive_wrapped(once: list[bool] = [True]) -> Optional[dict[str, Any]]:
