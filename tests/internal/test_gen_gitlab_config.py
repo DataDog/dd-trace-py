@@ -66,6 +66,34 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     assert "$DD_API_KEY" not in config
 
 
+def test_testmon_is_enabled_for_llmobs(gen_gitlab_config_mod):
+    config = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+    assert "extends: [.test_base, .llmobs_tia]" in config
+    other = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer"))
+    assert ".llmobs_tia" not in other
+
+
+def test_testmon_preserves_snapshot_base(gen_gitlab_config_mod):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value=".riot/requirements/wait.txt"):
+        config = str(
+            gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs", snapshot=True)
+        )
+    assert "extends: [.test_base_snapshot, .llmobs_tia]" in config
+
+
+@pytest.mark.parametrize("diagnostics", ["off", "selection", "full"])
+def test_testmon_diagnostics_reach_child_jobs(gen_gitlab_config_mod, monkeypatch, diagnostics):
+    monkeypatch.setenv("DD_LLMOBS_TIA_DIAGNOSTICS", diagnostics)
+    config = str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+    assert f'DD_LLMOBS_TIA_DIAGNOSTICS: "{diagnostics}"' in config
+
+
+def test_testmon_diagnostics_reject_invalid_values(gen_gitlab_config_mod, monkeypatch):
+    monkeypatch.setenv("DD_LLMOBS_TIA_DIAGNOSTICS", "unknown")
+    with pytest.raises(ValueError, match="DD_LLMOBS_TIA_DIAGNOSTICS"):
+        str(gen_gitlab_config_mod.JobSpec(name="llmobs", stage="llmobs", suite="llmobs::llmobs"))
+
+
 @pytest.mark.parametrize(
     "config, message",
     [
@@ -76,6 +104,47 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
 def test_gen_tests_rejects_unsupported_sharding_controls(gen_gitlab_config_mod, config, message):
     with pytest.raises(ValueError, match=message):
         gen_gitlab_config_mod._gen_tests({"suite": {"type": "test", **config}}, ["suite"])
+
+
+def test_llmobs_cold_start_pair_is_opt_in_and_matches_fifth_shard(gen_gitlab_config_mod, monkeypatch, tmp_path):
+    module = gen_gitlab_config_mod
+    monkeypatch.setattr(module, "TESTS_GEN", tmp_path / "tests-gen.yml")
+    monkeypatch.setattr(module, "_wait_lockfile", lambda: ".riot/requirements/wait.txt")
+    hashes = tuple(f"hash{i}" for i in range(10))
+    monkeypatch.setattr(
+        module,
+        "collect_all_suite_venv_info",
+        lambda configs: {
+            "llmobs::llmobs": module.SuiteVenvInfo(
+                hashes, tuple((hash_, "3.13" if i in (4, 9) else "3.12") for i, hash_ in enumerate(hashes)), {}
+            )
+        },
+    )
+    config = {"llmobs::llmobs": {"snapshot": True, "no_proxy": True, "venvs_per_job": 2}}
+    module._gen_tests(config, ["llmobs::llmobs"])
+    default = module.TESTS_GEN.read_text()
+    assert "llmobs/file-itr-cold-start:" not in default
+    monkeypatch.setenv("DD_LLMOBS_TIA_COLD_START_PAIR", "true")
+    module._gen_tests(config, ["llmobs::llmobs"])
+    generated = module.TESTS_GEN.read_text()
+    assert generated.startswith(default)
+    for name, mode in (("file-itr-cold-start", "file"), ("testmon-cold-start", "testmon_cold")):
+        job = generated.split(f"llmobs/{name}:\n", 1)[1].split("\nllmobs/", 1)[0]
+        assert "extends: [.test_base_snapshot, .llmobs_tia]" in job
+        assert f"DD_LLMOBS_TIA_CI_MODE: {mode}" in job
+        assert 'DD_LLMOBS_TIA_DIAGNOSTICS: "off"' in job
+        assert 'TEST_ENVIRONMENTS_1: "hash4 hash9"' in job
+        assert "  cache: []" in job
+        assert "pytest" not in job  # Both use the same suitespec commands via .test_base.
+
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "MAX_TOTAL_TEST_JOBS", 7)
+        with pytest.raises(ValueError, match="would produce 7 test job instances"):
+            module._gen_tests(config, ["llmobs::llmobs"])
+
+    config["llmobs::llmobs"]["skip"] = True
+    with pytest.raises(ValueError, match="requires the llmobs suite to be enabled"):
+        module._gen_tests(config, ["llmobs::llmobs"])
 
 
 def test_parallelism_defaults_to_one_job(gen_gitlab_config_mod):

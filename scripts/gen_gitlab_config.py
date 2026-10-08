@@ -109,6 +109,9 @@ class JobSpec:
         lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
         lines.append(f"  extends: {base}")
 
+        if self.suite == "llmobs::llmobs":
+            lines[-1] = f"  extends: [{base}, .llmobs_tia]"
+
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
@@ -162,6 +165,11 @@ class JobSpec:
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
         env["TEST_SUITE"] = self.suite or self.name
+        if self.suite == "llmobs::llmobs":
+            diagnostics = os.environ.get("DD_LLMOBS_TIA_DIAGNOSTICS", "off")
+            if diagnostics not in ("off", "selection", "full"):
+                raise ValueError("DD_LLMOBS_TIA_DIAGNOSTICS must be off, selection, or full")
+            env.setdefault("DD_LLMOBS_TIA_DIAGNOSTICS", f'"{diagnostics}"')
         if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
             env["UV_PRERELEASE"] = "allow"
 
@@ -478,7 +486,11 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
         else:
             final_jobs[suite] = 1
 
-    total_test_jobs = 0
+    cold_start_pair = _get_bool_env("DD_LLMOBS_TIA_COLD_START_PAIR") == "true" and "llmobs::llmobs" in required_suites
+    if cold_start_pair and "llmobs::llmobs" not in non_skipped:
+        raise ValueError("llmobs cold-start pair requires the llmobs suite to be enabled")
+
+    total_test_jobs = 2 if cold_start_pair else 0
     for suite in non_skipped:
         config = suites[suite]
         if config.get("ddtest"):
@@ -544,6 +556,28 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 pass  # leave as None (GitLab default: single job)
 
             print(str(jobspec), file=f)
+
+        # Opt-in comparison uses the exact environments of the existing 5/5 shard.
+        if cold_start_pair:
+            info = suite_venv_info["llmobs::llmobs"]
+            if final_jobs["llmobs::llmobs"] != 5:
+                raise ValueError("llmobs cold-start pair requires five llmobs shards")
+            hashes = info.environment_hashes[4::5]
+            if len(hashes) != 2 or any(python != "3.13" for hash_, python in info.environments if hash_ in hashes):
+                raise ValueError("llmobs 5/5 environments changed; recheck cold-start pair")
+            for name, mode in (("file-itr-cold-start", "file"), ("testmon-cold-start", "testmon_cold")):
+                pair = JobSpec(
+                    name=name,
+                    stage="llmobs",
+                    suite="llmobs::llmobs",
+                    snapshot=True,
+                    no_proxy=True,
+                    environment_hashes=hashes,
+                    env={"DD_LLMOBS_TIA_CI_MODE": mode, "DD_LLMOBS_TIA_DIAGNOSTICS": '"off"'},
+                )
+                print(str(pair), file=f)
+                # Neither experiment restores nor writes the regular branch/shard TIA cache.
+                print("  cache: []", file=f)
 
 
 def gen_build_docs() -> None:
