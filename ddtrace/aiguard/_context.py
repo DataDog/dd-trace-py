@@ -57,7 +57,8 @@ def is_aiguard_context_active(phase: Optional[Phase] = None) -> bool:
 def set_aiguard_context_active(*phases: Phase) -> _Claim:
     """Claim phases (all phases when none are given) and return the handle that releases them."""
     claim = _Claim(frozenset(phases) if phases else ALL_PHASES)
-    _CLAIMS.set(_CLAIMS.get() + (claim,))
+    # Drop claims released from another context: that release could not prune this context's copy.
+    _CLAIMS.set(tuple(c for c in _CLAIMS.get() if not c.released) + (claim,))
     return claim
 
 

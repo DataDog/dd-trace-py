@@ -278,6 +278,25 @@ class TestTokenlessRelease:
             reset_aiguard_context_active(claim)
 
 
+class TestReleasedClaimsArePruned:
+    def test_claims_released_from_another_context_do_not_accumulate(self):
+        """A release from another context cannot prune this context's copy; the next claim here does."""
+        import contextvars
+
+        from ddtrace.aiguard import _context
+
+        for _ in range(100):
+            claim = set_aiguard_context_active(Phase.REQUEST)
+            contextvars.copy_context().run(reset_aiguard_context_active, claim)
+        assert is_aiguard_context_active() is False
+
+        last = set_aiguard_context_active(Phase.REQUEST)
+        try:
+            assert _context._CLAIMS.get() == (last,)
+        finally:
+            reset_aiguard_context_active(last)
+
+
 class TestCrossContextRelease:
     @pytest.mark.asyncio
     async def test_token_reset_from_foreign_context_does_not_raise(self):

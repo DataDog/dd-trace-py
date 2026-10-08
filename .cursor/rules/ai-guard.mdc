@@ -181,7 +181,7 @@ streams check `Phase.RESPONSE`.
 | Framework path | Claims |
 |----------------|--------|
 | LangChain `generate` / `agenerate` (`.before` to `.finally`) | `REQUEST` + `RESPONSE` |
-| LangChain `stream` / `astream` (`.stream.started` to the first chunk) | `REQUEST` only: the provider's buffered stream evaluates the response |
+| LangChain `stream` / `astream` (around each read: `.stream.started` / `.stream.finally`) | `REQUEST` only: the provider's buffered stream evaluates the response |
 | Strands invocation | `REQUEST` + `RESPONSE` |
 
 A claim is a shared object, so a release from another asyncio task is seen by

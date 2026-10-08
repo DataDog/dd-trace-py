@@ -87,9 +87,8 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
     core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
 
-    # .stream.started claims the request phase on iteration entry, so a stream created but
-    # never consumed holds no claim. The contrib sends .stream.finally after the first chunk
-    # (the provider request is out by then), so the caller's loop body is not claimed.
+    # The contrib sends .stream.started before each read of a LangChain stream and .stream.finally
+    # when the read returns, so the claim never spans the caller's loop body or outlives a read.
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 

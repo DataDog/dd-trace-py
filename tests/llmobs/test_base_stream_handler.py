@@ -5,7 +5,6 @@ LLM contrib, so a regression here surfaces as silent breakage downstream.
 
 import asyncio
 import gc
-from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
@@ -549,21 +548,27 @@ async def test_traced_async_stream_finalizes_when_on_stream_created_raises():
     assert traced._self_entered_stream is None
 
 
-def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
-    from ddtrace.contrib.internal.langchain.utils import LangchainStreamHandler
+def test_langchain_read_events_wrap_each_read_and_nothing_else():
+    from ddtrace.contrib.internal.langchain.utils import _dispatch_around_reads
 
-    span = Mock()
-    handler = LangchainStreamHandler(None, span, (), {}, aiguard_finally_event="langchain.llm.stream.finally")
-    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
-        handler.finalize_stream()
-    dispatch.assert_not_called()
-    span.finish.assert_called_once()
+    seen = []
 
-    started = LangchainStreamHandler(None, Mock(), (), {}, aiguard_finally_event="langchain.llm.stream.finally")
-    started._stream_started = True
-    with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
-        started.finalize_stream()
-    dispatch.assert_called_once_with("langchain.llm.stream.finally", ())
+    def chunks():
+        seen.append("read")
+        yield "a"
+        seen.append("read")
+        yield "b"
+
+    with patch(
+        "ddtrace.contrib.internal.langchain.utils.core.dispatch", side_effect=lambda event, args: seen.append(event)
+    ):
+        stream = _dispatch_around_reads(chunks(), "started", "finally")
+        assert seen == []  # a stream that is never read dispatches nothing
+        for chunk in stream:
+            seen.append(chunk)
+
+    # Each read is bracketed, the caller's loop body is not, and the read that ends the stream is bracketed too.
+    assert seen == ["started", "read", "finally", "a", "started", "read", "finally", "b", "started", "finally"]
 
 
 def _sync_chunks_then_cancel(n):

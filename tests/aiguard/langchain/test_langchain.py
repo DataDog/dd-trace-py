@@ -1583,3 +1583,65 @@ async def test_astream_events_stream_after_verdict(
             stream_events.append(mock_execute_request.call_count)
 
     assert stream_events and set(stream_events) == {2}
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_async_stream_closed_from_an_earlier_task_leaves_no_claim(mock_execute_request, langchain):
+    """Entering a stream claims nothing (a claim lasts one read), so closing it from an earlier task leaks nothing."""
+    import asyncio
+
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    release = asyncio.Event()
+    holder: dict = {}
+
+    async def closer():
+        await release.wait()
+        await holder["iterator"].aclose()
+
+    closer_task = asyncio.create_task(closer())
+    holder["iterator"] = FakeListChatModel(responses=["several chunks"]).astream(input="hi").__aiter__()
+    assert is_aiguard_context_active() is False
+
+    release.set()
+    await closer_task
+    assert is_aiguard_context_active() is False
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_provider_call_on_a_later_stream_read_is_claimed(mock_execute_request, langchain):
+    """A model can yield a prelude and reach its provider on a later read; that read is claimed too."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessageChunk
+    from langchain_core.outputs import ChatGenerationChunk
+
+    from ddtrace.aiguard._context import Phase
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    provider_read_claimed = []
+
+    class _LateProviderModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-late-provider"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            raise NotImplementedError
+
+        def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+            yield ChatGenerationChunk(message=AIMessageChunk(content="intro "))
+            provider_read_claimed.append(is_aiguard_context_active(Phase.REQUEST))
+            yield ChatGenerationChunk(message=AIMessageChunk(content="answer"))
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    loop_body_claimed = []
+
+    for _ in _LateProviderModel().stream(input="hi"):
+        loop_body_claimed.append(is_aiguard_context_active())
+
+    assert provider_read_claimed == [True]
+    assert loop_body_claimed and not any(loop_body_claimed)

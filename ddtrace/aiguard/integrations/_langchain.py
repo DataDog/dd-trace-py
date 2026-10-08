@@ -627,25 +627,16 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance: Any, args: Any
 
 
 def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
-    """Paired ``.stream.started`` listener for langchain stream events.
+    """Claim the request phase for one read of a LangChain stream; the contrib sends this before each read.
 
-    Acquires the AI Guard active-context counter for the duration of stream
-    iteration. Dispatched from ``BaseLangchainStreamHandler.start_stream``
-    (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
-    by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
-    iteration entry — so a stream created but never iterated cannot bump
-    the depth. The matching release is _langchain_stream_finally, on the
-    .stream.finally event.
-
-    Only the request phase: LangChain evaluates the request in .stream.before but
-    has no event for the streamed response, so the provider's buffered stream
-    evaluates it.
+    Only the request phase: LangChain evaluates the request in .stream.before but has no event for the
+    streamed response, so the provider's buffered stream evaluates it.
     """
     set_aiguard_context_active(Phase.REQUEST)
 
 
 def _langchain_stream_finally(*args: Any, **kwargs: Any) -> None:
-    """Release the stream claim: the contrib sends this after the first chunk, or at the end of a stream with none."""
+    """Release the read's claim; the contrib sends this when the read returns or raises, in the same frame."""
     reset_aiguard_context_active_current(Phase.REQUEST)
 
 
