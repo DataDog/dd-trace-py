@@ -98,7 +98,7 @@ def tracer_config(__init__, app, args, kwargs):
     if tags:
         tracer.set_tags(tags)
 
-    # AIDEV-NOTE: Keep the integration default unchanged for service-source attribution.
+    # Keep the integration default unchanged for service-source attribution.
     config.tornado._template_service = service
 
     _collect_endpoints(app)
