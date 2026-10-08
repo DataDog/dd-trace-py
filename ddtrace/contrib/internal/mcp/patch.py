@@ -363,7 +363,9 @@ async def traced_server_runner_on_request(func, instance, args: tuple, kwargs: d
     """
     method = get_argument_value(args, kwargs, 1, "method", optional=True)
     params = get_argument_value(args, kwargs, 2, "params", optional=True)
-    operation_name = _TRACED_SERVER_METHODS.get(method)
+    # The method is a string on the wire; anything else means the private SDK signature
+    # changed, so pass through untraced rather than fail the request.
+    operation_name = _TRACED_SERVER_METHODS.get(method) if isinstance(method, str) else None
     if operation_name is None:
         result = await func(*args, **kwargs)
         if config.mcp.capture_intent and method == "tools/list":
@@ -438,7 +440,12 @@ def patch():
 
         wrap(ClientSession, "send_request", traced_send_request)
         wrap(ClientSession, "adopt", traced_client_session_adopt)
-        wrap(ServerRunner, "_on_request", traced_server_runner_on_request)
+        # _on_request is private to the SDK and could be renamed in a 2.x release. Skip
+        # only the server side then, so client tracing keeps working.
+        if hasattr(ServerRunner, "_on_request"):
+            wrap(ServerRunner, "_on_request", traced_server_runner_on_request)
+        else:
+            log.warning("mcp ServerRunner._on_request not found, MCP server requests will not be traced")
         return
 
     from mcp.shared.session import BaseSession
@@ -474,7 +481,9 @@ def unpatch():
 
         unwrap(ClientSession, "send_request")
         unwrap(ClientSession, "adopt")
-        unwrap(ServerRunner, "_on_request")
+        # Only wrapped when the SDK has it, see patch().
+        if iswrapped(ServerRunner, "_on_request"):
+            unwrap(ServerRunner, "_on_request")
     else:
         from mcp.shared.session import BaseSession
         from mcp.shared.session import RequestResponder
