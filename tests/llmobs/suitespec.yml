@@ -98,8 +98,10 @@ suites:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/google_adk
       variants:
         - name: google_adk
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-xdist, 'google-adk~=1.0.0', vcrpy, deprecated]
         - name: google_adk
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
     venvs_per_job: 3
