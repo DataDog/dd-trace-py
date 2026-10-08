@@ -163,6 +163,7 @@ variables:
     SYSTEM_VERSION_COMPAT: "0"
     MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
+  retry: 2
   parallel:
     matrix:
       - PYTHON_VERSIONS:
