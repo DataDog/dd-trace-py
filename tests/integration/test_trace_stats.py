@@ -85,7 +85,7 @@ def send_once_stats_tracer(stats_tracer):
 
 # Can't use a value between 0 and 1 since sampling is not deterministic.
 @pytest.mark.parametrize("sample_rate", [1.0, 0.0])
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(compute_stats_enabled=True)
 def test_sampling_rate(stats_tracer, sample_rate):
     """Ensure traces are sent according to the sampling rate."""
     for _ in range(10):
@@ -93,7 +93,7 @@ def test_sampling_rate(stats_tracer, sample_rate):
             pass
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(compute_stats_enabled=True)
 def test_stats_30(send_once_stats_tracer):
     for _ in range(30):
         with send_once_stats_tracer.trace("name", service="abc", resource="/users/list"):
@@ -119,7 +119,7 @@ def test_stats_additional_tags_v06_payload():
         assert group["AdditionalMetricTags"] == ["customer.tier:gold", "region:us-east-1"]
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(compute_stats_enabled=True)
 def test_stats_errors(send_once_stats_tracer):
     for i in range(30):
         with send_once_stats_tracer.trace("name", service="abc", resource="/users/list") as span:
@@ -127,7 +127,7 @@ def test_stats_errors(send_once_stats_tracer):
                 span.error = 1
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(compute_stats_enabled=True)
 def test_stats_aggrs(send_once_stats_tracer):
     """
     When different span properties are set
@@ -161,7 +161,7 @@ def test_stats_aggrs(send_once_stats_tracer):
         pass
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(compute_stats_enabled=True)
 def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
@@ -173,7 +173,7 @@ def test_measured_span(send_once_stats_tracer):
                 span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(compute_stats_enabled=True)
 def test_top_level(send_once_stats_tracer):
     for _ in range(30):
         with send_once_stats_tracer.trace("parent", service="svc-one"):  # Should have stats

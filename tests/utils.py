@@ -1272,6 +1272,7 @@ def snapshot_context(
     async_mode=True,
     variants=None,
     wait_for_num_traces=None,
+    compute_stats_enabled=False,
 ):
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
@@ -1291,15 +1292,13 @@ def snapshot_context(
     ignores.extend(_LLMOBS_SHADOW_IGNORES)
     tracer = ddtrace.tracer
 
-    has_stats_snapshot = (FILE_PATH / "snapshots" / f"{token}_tracestats.json").is_file()
-    original_compute_stats_enabled = None
+    original_compute_stats_enabled = dd_config._trace_compute_stats
     original_stats_env = os.environ.get("DD_TRACE_STATS_COMPUTATION_ENABLED")
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
-        if not has_stats_snapshot:
-            # Subprocesses must use the same stats setting as the snapshot writer.
-            os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = "false"
+        # Subprocesses must use the same stats setting as the snapshot writer.
+        os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = str(compute_stats_enabled).lower()
 
         # clear queue in case traces have been generated before test case is
         # itself run
@@ -1311,9 +1310,8 @@ def snapshot_context(
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
             if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
-                original_compute_stats_enabled = tracer._span_aggregator.writer._compute_stats_enabled
                 tracer._span_aggregator.writer.set_test_session_token(
-                    token, compute_stats_enabled=original_compute_stats_enabled and has_stats_snapshot
+                    token, compute_stats_enabled=compute_stats_enabled
                 )
             else:
                 tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
@@ -1414,7 +1412,13 @@ def snapshot_context(
 
 
 def snapshot(
-    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
+    ignores=None,
+    include_tracer=False,
+    variants=None,
+    async_mode=True,
+    token_override=None,
+    wait_for_num_traces=None,
+    compute_stats_enabled=False,
 ):
     """Performs a snapshot integration test with the testing agent.
 
@@ -1451,6 +1455,7 @@ def snapshot(
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
+            compute_stats_enabled=compute_stats_enabled,
         ):
             # Run the test.
             if include_tracer:

@@ -370,14 +370,18 @@ def test_rate_limiter_on_long_running_spans(tracer):
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_SERVICE": "animals",
         "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
         "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
     },
-    parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
+    parametrize={
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": [
+            pytest.param("false", marks=pytest.mark.snapshot()),
+            pytest.param("true", marks=pytest.mark.snapshot(compute_stats_enabled=True)),
+        ]
+    },
 )
 def test_single_span_and_trace_sampling_match_non_root_span():
     """Validates that a single span sampling rule applied to a non-root span does not
@@ -413,7 +417,6 @@ def test_single_span_and_trace_sampling_match_non_root_span():
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_SERVICE": "animals",
@@ -421,7 +424,12 @@ def test_single_span_and_trace_sampling_match_non_root_span():
         "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
         "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
     },
-    parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
+    parametrize={
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": [
+            pytest.param("false", marks=pytest.mark.snapshot()),
+            pytest.param("true", marks=pytest.mark.snapshot(compute_stats_enabled=True)),
+        ]
+    },
 )
 def test_single_span_and_trace_sampling_match_root_span_partial_flushing():
     """Validates that a single span sampling rule applied to a root span does not
