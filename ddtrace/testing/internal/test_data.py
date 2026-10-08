@@ -430,9 +430,9 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
 
-    def count_itr_skipped(self, count: int = 1) -> None:
+    def count_itr_skipped(self) -> None:
         with self._itr_skipped_count_lock:
-            self.tests_skipped_by_itr += count
+            self.tests_skipped_by_itr += 1
 
     def set_attributes(self, test_command: str, test_framework: str, test_framework_version: str) -> None:
         self.test_command = test_command
