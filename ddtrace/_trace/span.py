@@ -168,12 +168,6 @@ class Span(SpanData):
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 self._local_root._remove_attribute(key)
 
-    def _set_sampling_decision_maker(
-        self,
-        sampling_mechanism: int,
-    ) -> Optional[str]:
-        return self.context._set_sampling_decision_maker(sampling_mechanism)
-
     def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span."""
         # Explicitly try to convert expected integers to `int`

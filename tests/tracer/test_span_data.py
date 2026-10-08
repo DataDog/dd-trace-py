@@ -50,31 +50,44 @@ def test_native_child_context_shares_pending_sampling_state():
 
 def test_sampling_decision_metadata_callback_can_read_context():
     reads = []
+    references = []
 
     class Key(str):
         __hash__ = str.__hash__
 
         def __eq__(self, other):
-            reads.append(context.trace_id)
+            context, span = references[0]
+            reads.append((context.trace_id, span.span_id))
             return super().__eq__(other)
 
-    context = Context(trace_id=123, meta={Key("_dd.p.dm"): "-0"})
-    assert context._set_sampling_decision_maker(3) == "-3"
-    assert reads == [123]
+    span = SpanData(name="native", trace_id=123, span_id=456)
+    context = span.context
+    references.append((context, span))
+    context._meta[Key("_dd.p.dm")] = "-0"
+    assert span._set_sampling_decision_maker(3) == "-3"
+    assert reads == [(123, 456)]
     assert context._meta["_dd.p.dm"] == "-3"
+    # Release the callback's captured native objects before GC tests count live spans.
+    references.clear()
 
 
 def test_context_copy_override_can_read_native_span():
     reads = []
+    spans = []
 
     class CustomContext(Context):
         def copy(self, trace_id, span_id):
-            reads.append(span.span_id)
+            reads.append(spans[0].span_id)
             return super().copy(trace_id, span_id)
 
     span = SpanData(name="child", trace_id=123, span_id=456, context=CustomContext(trace_id=123))
+    spans.append(span)
+    assert span._set_sampling_decision_maker(3) == "-3"
     assert span.context.span_id == 456
+    assert span.context._meta["_dd.p.dm"] == "-3"
     assert reads == [456]
+    # Release the override's captured span before GC tests count live spans.
+    spans.clear()
 
 
 def test_replaced_context_weakref_callback_can_read_native_span():

@@ -27,6 +27,8 @@ use super::utils::{
 };
 use super::{SpanEvent, SpanLink};
 
+const SAMPLING_DECISION_TRACE_TAG_KEY: &str = "_dd.p.dm";
+
 #[pyo3::pyclass(
     name = "SpanData",
     module = "ddtrace.internal.native._native",
@@ -742,6 +744,18 @@ impl SpanData {
         let old = slf.borrow_mut()._context.replace(new_ctx.clone().unbind());
         drop(old);
         Ok(new_ctx)
+    }
+
+    /// Set the decision-maker tag; callers decide whether an existing value can be replaced.
+    fn _set_sampling_decision_maker(
+        slf: &Bound<'_, Self>,
+        sampling_mechanism: i64,
+    ) -> PyResult<String> {
+        let context = Self::get_context(slf)?;
+        let value = format!("-{}", sampling_mechanism);
+        let meta = context.borrow_mut().get_meta(slf.py());
+        meta.set_item(SAMPLING_DECISION_TRACE_TAG_KEY, &value)?;
+        Ok(value)
     }
 
     /// Takes `slf` rather than `&mut self` so the native borrow is released before the old
