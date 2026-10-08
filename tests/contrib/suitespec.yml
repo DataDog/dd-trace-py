@@ -382,7 +382,6 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/aiokafka/
       env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
         DD_DATA_STREAMS_ENABLED: 'true'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
@@ -567,8 +566,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/aws_lambda
       variants:
         - name: aws_lambda
@@ -592,8 +589,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python
       variants:
         - name: aws_durable_execution_sdk_python
@@ -617,8 +612,6 @@ suites:
       - azurite
       - azurecosmosemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_cosmos
       variants:
         - name: azure_cosmos
@@ -642,6 +635,7 @@ suites:
     env:
       # This job's services are heavier than average; pin resources and disable
       # the VPA to make sure it consistently gets enough CPU/memory to start.
+      DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES: '4'
       DD_DISABLE_VPA: 'true'
       KUBERNETES_CPU_REQUEST: '2'
       KUBERNETES_CPU_LIMIT: '2'
@@ -652,8 +646,6 @@ suites:
       KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
@@ -678,8 +670,6 @@ suites:
   # (the one that runs from scripts/ddtest on Mac OS)
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
         - name: azure_durable_functions
@@ -703,8 +693,6 @@ suites:
     services:
       - azurite
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions
       variants:
         - name: azure_functions
@@ -730,8 +718,6 @@ suites:
       - azurite
       - azurecosmosemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_cosmos
       variants:
         - name: azure_functions:cosmos
@@ -763,8 +749,6 @@ suites:
       - azurite
       - azureeventhubsemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_eventhubs
       variants:
         - name: azure_functions:eventhubs
@@ -791,8 +775,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_functions_servicebus
       variants:
         - name: azure_functions:servicebus
@@ -816,8 +798,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/azure_servicebus
       variants:
         - name: azure_servicebus
@@ -845,6 +825,7 @@ suites:
       - tests/snapshots/tests.contrib.botocore*
     pattern: ^botocore$
     snapshot: true
+    no_proxy: true
     services:
       - localstack
     matrix:
@@ -878,7 +859,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [WebTest, pytest-randomly, bottle]
   celery:
-    venvs_per_job: 2
+    venvs_per_job: 1
     env:
       DD_DISABLE_ERROR_RESPONSES: true
       DD_POOL_TRACE_CHECK_FAILURES: true
@@ -1508,8 +1489,6 @@ suites:
       - pubsub
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/google_cloud_pubsub
       variants:
         - name: google_cloud_pubsub
@@ -1633,8 +1612,6 @@ suites:
       - tests/snapshots/tests.contrib.gunicorn.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/gunicorn
       variants:
         - name: gunicorn
@@ -1653,6 +1630,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/httplib
       variants:
@@ -1671,6 +1649,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/httpx
       variants:
@@ -1770,7 +1749,6 @@ suites:
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka
       env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
         DD_DATA_STREAMS_ENABLED: 'true'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
@@ -1817,8 +1795,6 @@ suites:
       - tests/contrib/logbook/*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/logbook
       variants:
         - name: logbook
@@ -1835,8 +1811,6 @@ suites:
       - tests/contrib/loguru/*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/loguru
       variants:
         - name: loguru
@@ -1921,14 +1895,49 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten
       variants:
         - name: molten
           dependencies: ['cattrs<23.1.1', 'molten>=1.0,<1.1', pytest-randomly, pytest-xdist]
         - name: molten
           dependencies: ['cattrs<23.1.1', molten, pytest-randomly, pytest-xdist]
+  mysql:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@dbapi'
+      - '@mysql'
+      - tests/contrib/mysql/*
+      - tests/contrib/shared_tests.py
+    services:
+      - mysql
+    snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/contrib/mysql
+      variants:
+        - name: mysql
+          python: ['3.9']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.28']
+        - name: mysql
+          python: ['3.9']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.10']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.28']
+        - name: mysql
+          python: ['3.10']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.11']
+          dependencies: [pytest-randomly, 'mysql-connector-python~=8.0.31']
+        - name: mysql
+          python: ['3.11']
+          dependencies: [pytest-randomly, mysql-connector-python]
+        - name: mysql
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [pytest-randomly, mysql-connector-python]
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -2176,6 +2185,8 @@ suites:
     snapshot: true
     matrix:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb
+      env:
+        DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: '0'
       variants:
         - name: pynamodb
           python: ['3.9']
@@ -2407,6 +2418,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    no_proxy: true
     matrix:
       command: pytest {cmdargs} tests/contrib/requests
       variants:
@@ -2535,8 +2547,6 @@ suites:
       - '@sourcecode'
       - tests/sourcecode/*
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/sourcecode
       variants:
         - name: sourcecode
@@ -2883,8 +2893,6 @@ suites:
       - valkey
     snapshot: true
     matrix:
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       command: pytest {cmdargs} tests/contrib/valkey
       variants:
         - name: valkey

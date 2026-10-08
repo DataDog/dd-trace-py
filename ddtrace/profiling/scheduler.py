@@ -33,6 +33,7 @@ class Scheduler(periodic.PeriodicService):
     def _start_service(self) -> None:
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
+        ddup.reset(self._tracer)
         super()._start_service()
         self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
@@ -46,9 +47,12 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
-        ddup.upload(self._tracer, self._enable_code_provenance)
-
-        self._last_export = time.time_ns()
+        try:
+            ddup.upload(self._tracer, self._enable_code_provenance)
+        except Exception:
+            LOG.error("Failed to upload profile", exc_info=True)
+        finally:
+            self._last_export = time.time_ns()
 
     def periodic(self) -> None:
         start_time = time.monotonic()

@@ -253,7 +253,7 @@ Traces
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
-         ``'(?ix)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?: bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
+         ``'(?i)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?|app(?:lication)?[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?:bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|(^|[^\\w%-]|%[0-9a-f]{2})ey[I-L][\\w-]+(?:=|%3D)*\\.ey[I-L][\\w-]+(?:=|%3D)*(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
 
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
 
@@ -738,6 +738,45 @@ AI Guard
 --------
 
 .. ddtrace-configuration-options::
+
+   DD_AI_GUARD_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       Master switch for AI Guard. When set to ``True``, the tracer evaluates LLM prompts, tool calls
+       and tool results of the instrumented integrations with the Datadog AI Guard service. When set
+       to ``False`` (default), AI Guard is not loaded and every other ``DD_AI_GUARD_*`` option is
+       ignored. Requires ``DD_API_KEY`` and ``DD_APP_KEY``.
+
+   DD_AI_GUARD_ENDPOINT:
+     type: String
+     default: (derived from ``DD_SITE``)
+     description: |
+       Overrides the AI Guard service endpoint. When unset, the endpoint is
+       ``https://app.<DD_SITE>/api/v2/ai-guard``, for example
+       ``https://app.datadoghq.com/api/v2/ai-guard``.
+
+   DD_AI_GUARD_TIMEOUT:
+     type: Integer
+     default: 10000 (unit:milliseconds)
+     description: |
+       Timeout of each request to the AI Guard service. The value is currently applied with
+       whole-second granularity: it is rounded down to the nearest second, so set it to at least
+       ``1000``.
+
+   DD_AI_GUARD_MAX_CONTENT_SIZE:
+     type: Integer
+     default: 524288 (unit:characters)
+     description: |
+       Maximum length of each message content reported on the AI Guard span. Longer content is
+       truncated in the span only; the AI Guard service always evaluates the full content.
+
+   DD_AI_GUARD_MAX_MESSAGES_LENGTH:
+     type: Integer
+     default: 16
+     description: |
+       Maximum number of messages reported on the AI Guard span. Only the most recent messages are
+       kept; the AI Guard service always evaluates the full conversation.
 
    DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED:
      type: Boolean

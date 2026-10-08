@@ -13,6 +13,7 @@ from ddtrace.internal.schema import schematize_url_operation
 
 class WebFrameworkEvents(str, Enum):
     WEB_REQUEST = "web.request"
+    WEB_REQUEST_STARTING = "web.request.starting"
 
 
 @dataclass
@@ -40,6 +41,9 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Optional per-request override for query string tagging.
     # aiohttp supports app-level trace_query_string that can differ from integration_config.
     trace_query_string: Optional[bool] = event_field(default=None)
+
+    # Use to add additional tags after the span was created
+    additional_tags: dict[str, str] = event_field(default_factory=dict)
 
     def __post_init__(self):
         self.operation_name = schematize_url_operation(
