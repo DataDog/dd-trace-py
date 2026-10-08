@@ -268,8 +268,7 @@ def _set_sampling_tags(
     probabilistic_decision: bool = False,
 ) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
-    context = span.context
-    if not context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+    if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
         span._set_sampling_decision_maker(mechanism)
 
     # Set the sampling psr rate
