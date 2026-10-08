@@ -8,6 +8,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 
 
+WEB_REQUEST_STARTING_EVENT = "web.request.starting"
 _WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
 
 

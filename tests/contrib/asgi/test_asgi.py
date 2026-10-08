@@ -225,6 +225,76 @@ async def test_web_request_starting_dispatch_precedes_span_creation(scope):
 
 
 @pytest.mark.asyncio
+async def test_web_request_starting_dispatch_precedes_distributed_header_activation(scope):
+    # A MicroVM /run refresh detaches the active context from this event, so the request's own
+    # distributed context must not be active yet, matching WSGI.
+    active_at_request_starting = []
+
+    def record_request_starting(*args, **kwargs):
+        active_at_request_starting.append(tracer.current_trace_context())
+
+    scope["headers"] = [(b"x-datadog-trace-id", b"1234"), (b"x-datadog-parent-id", b"5678")]
+    app = TraceMiddleware(basic_app)
+    instance = ApplicationCommunicator(app, scope)
+
+    core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+    try:
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+    finally:
+        core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+    assert active_at_request_starting == [None]
+
+
+async def test_microvm_run_hook_refreshes_identity(scope):
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    app = TraceMiddleware(basic_app)
+    scope.update({"method": "POST", "path": "/run", "root_path": "/aws/lambda-microvms/runtime/v1"})
+    # The middleware stores its spans in scope["datadog"], and a scope that has it is treated as a
+    # sub-app that skips the request-start event. Give each request its own copy.
+    base_scope = dict(scope)
+    dispatched = []
+
+    def record_request_starting(method, path):
+        dispatched.append((method, path))
+
+    _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+    core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+    core.on(event_name, record_request_starting)
+
+    try:
+        with mock.patch.object(_runtime_id, "in_aws_lambda_microvm", return_value=True):
+            core.on(event_name, runtime.maybe_refresh_identity)
+            runtime_id = runtime.get_runtime_id()
+
+            instance = ApplicationCommunicator(app, dict(base_scope))
+            await instance.send_input({"type": "http.request", "body": b""})
+            await instance.receive_output(1)
+            await instance.receive_output(1)
+
+            refreshed_runtime_id = runtime.get_runtime_id()
+            assert refreshed_runtime_id != runtime_id
+
+            instance = ApplicationCommunicator(app, dict(base_scope))
+            await instance.send_input({"type": "http.request", "body": b""})
+            await instance.receive_output(1)
+            await instance.receive_output(1)
+
+            # Both requests dispatched the event, so the once-per-process guard kept the ID.
+            assert len(dispatched) == 2
+            assert runtime.get_runtime_id() == refreshed_runtime_id
+    finally:
+        core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+        core.reset_listeners(event_name, record_request_starting)
+        _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+
+
+@pytest.mark.asyncio
 async def test_basic_asgi(scope, test_spans):
     app = TraceMiddleware(basic_app)
     instance = ApplicationCommunicator(app, scope)
