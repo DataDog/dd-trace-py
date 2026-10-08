@@ -14,6 +14,7 @@ object to the corresponding unregister function to remove it.
 """
 
 from abc import ABC
+import atexit
 import sys
 from types import CodeType
 from typing import Any
@@ -89,8 +90,8 @@ class _IdentityWeakKeyDictionary:
             item = self._data.get(key_id)
             if item is not None and item[0] is ref:
                 self._data.pop(key_id, None)
-                if self._on_remove is not None:
-                    self._on_remove()
+                if (on_remove := self._on_remove) is not None:
+                    on_remove()
 
         return remove
 
@@ -146,22 +147,20 @@ class _IdentityWeakKeyDictionary:
         self._data.clear()
 
 
-def _on_code_registration_collected(_is_finalizing: Callable[[], bool] = sys.is_finalizing) -> None:
+def _on_code_registration_collected() -> None:
     """Release tool ownership when weak cleanup removes the final local registration."""
-
-    # Registered code objects can be freed after interpreter shutdown has set this
-    # module's globals (e.g. _registry_lock) to None.
-    # _is_finalizing is never passed by callers, but it is in parameters and captured
-    # at function definition time as sys.is_finalizing so that we still hold a direct
-    # reference to it all the time (even if sys has been set to None).
-    if _is_finalizing():
-        return
-
     with _registry_lock:
         _release_tool_if_unused()
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_registration_collected)
+
+
+def _disarm_registry_cleanup() -> None:
+    _registry._on_remove = None
+
+
+atexit.register(_disarm_registry_cleanup)
 
 
 class MonitoringEventHandler(ABC):
