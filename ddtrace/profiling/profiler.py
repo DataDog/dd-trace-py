@@ -173,6 +173,9 @@ class Profiler:
             self._profiler.start()
             Profiler._active_instance = self
 
+        # start() returned before reporting activation in the uWSGI master, so the worker reports it.
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
 
