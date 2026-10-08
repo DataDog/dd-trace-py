@@ -48,8 +48,8 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENT_ANNOTATION
-from ddtrace.llmobs._constants import AGENT_DECLARATION_ANNOTATION
+from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import AGENT_VERSION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -81,7 +81,6 @@ from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import PARENT_AGENT_SPAN
 from ddtrace.llmobs._constants import PARENT_AGENT_VERSION
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -725,10 +724,10 @@ class LLMObs(Service):
         # Agent annotations are applied here, where the span kind is known: annotation_context
         # reaches every span in its block, but only agent spans carry the manifest.
         if span_kind == "agent":
-            agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
-            if agent_annotation:
-                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
-            declared_manifest = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+            agent_version = span._get_ctx_item(AGENT_VERSION) or span._get_ctx_item(PARENT_AGENT_VERSION)
+            if agent_version:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_version)
+            declared_manifest = span._get_ctx_item(AGENT_MANIFEST)
             if declared_manifest:
                 # Both levels are type-checked because caller metadata is not sanitized until
                 # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
@@ -1991,9 +1990,9 @@ class LLMObs(Service):
         :param agent: A dictionary declaring the agent running in this context, accepting
                       ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
                       ``tools``; see ``ddtrace.llmobs.Agent``. ``version`` is set as an
-                      ``agent_version`` tag on every agent span in the block and the spans it
-                      runs, and the rest as the agent's manifest on every agent span in the
-                      block. All keys are optional; unreportable values are dropped, not raised.
+                      ``agent_version`` tag on every agent span in the block and its child spans,
+                      and the rest as the agent's manifest on every agent span in the block. All
+                      keys are optional; unreportable values are dropped, not raised.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2513,7 +2512,7 @@ class LLMObs(Service):
             # Carry the nearest agent onto the context so spans created in in-process task
             # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
             # Stamped last so the budget check sees the full tagset.
-            parent_agent_name, parent_agent_span_id, parent_agent_version, _ = _resolve_parent_agent(active)
+            parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(active)
             _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
             if parent_agent_version:
                 context._meta[PARENT_AGENT_VERSION] = parent_agent_version
@@ -2541,9 +2540,7 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         # Resolve the nearest agent ancestor once, at activation: O(1) one-level lookup
         # (the parent already resolved its own attribution when it activated).
-        parent_agent_name, parent_agent_span_id, parent_agent_version, parent_agent = _resolve_parent_agent(
-            llmobs_parent
-        )
+        parent_agent_name, parent_agent_span_id, parent_agent_version = _resolve_parent_agent(llmobs_parent)
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
@@ -2636,8 +2633,6 @@ class LLMObs(Service):
         )
         if parent_agent_version:
             span._set_ctx_item(PARENT_AGENT_VERSION, parent_agent_version)
-        if parent_agent is not None:
-            span._set_ctx_item(PARENT_AGENT_SPAN, parent_agent)
         # Shared by reference across the trace; absent on spans whose decision came from upstream.
         span._set_ctx_item(LLMOBS_SAMPLING, sampling_state)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
@@ -2674,7 +2669,7 @@ class LLMObs(Service):
             ml_app=agent_service,
         )
         if agent_version:
-            span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+            span._set_ctx_item(AGENT_VERSION, agent_version)
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         # First session in the trace becomes the trace-level default (first-writer wins), so later
@@ -2810,8 +2805,7 @@ class LLMObs(Service):
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
         :param str version: The version of this agent. Set as an ``agent_version`` tag on this span
-                            and on the spans started under it, up to a nested agent. Not propagated
-                            across services.
+                            and on its child spans within the same process.
 
         :returns: The Span object representing the traced operation.
         """
@@ -3072,10 +3066,10 @@ class LLMObs(Service):
         :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
                       ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
                       ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag on
-                      the agent span and the spans started under it after this call, up to a nested
-                      agent. The rest is reported as the agent's manifest, on agent spans only. All
-                      keys are optional; unreportable values are dropped, not raised, and an unset
-                      value leaves what an earlier annotation declared in place.
+                      the agent span and its child spans within the same process. The rest is
+                      reported as the agent's manifest, on agent spans only. All keys are optional;
+                      unreportable values are dropped, not raised, and an unset value leaves what
+                      an earlier annotation declared in place.
         """
         error = None
         try:
@@ -3121,17 +3115,17 @@ class LLMObs(Service):
                 agent_version = agent.get("version") if isinstance(agent, dict) else None
                 if agent_version:
                     # Stashed rather than tagged: the span kind is not resolved yet.
-                    span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+                    span._set_ctx_item(AGENT_VERSION, agent_version)
                 if isinstance(agent, dict):
                     # Validated here, and unreportable or unset values dropped, so repeated
                     # annotate() calls and nested annotation_context blocks shallow-update field by
                     # field rather than overwrite. A version-only agent declares nothing.
                     declared = build_manual_agent_manifest(agent)
                     if declared:
-                        stashed = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+                        stashed = span._get_ctx_item(AGENT_MANIFEST)
                         if not isinstance(stashed, dict):
                             stashed = {}
-                            span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, stashed)
+                            span._set_ctx_item(AGENT_MANIFEST, stashed)
                         stashed.update(declared)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
@@ -3604,7 +3598,7 @@ class LLMObs(Service):
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
         # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
         # rather than overflowing x-datadog-tags.
-        parent_agent_name, parent_agent_span_id, _, _ = _resolve_parent_agent(active_span)
+        parent_agent_name, parent_agent_span_id, _ = _resolve_parent_agent(active_span)
         _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
 
     @classmethod

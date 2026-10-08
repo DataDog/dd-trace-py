@@ -250,8 +250,8 @@ class Agent(TypedDict, total=False):
             extra_headers, since those can carry secrets.
         tools: list[AgentTool] - the tools the agent declares it can call.
 
-    ``version`` becomes an ``agent_version`` tag on the agent span and the spans it runs, up to a
-    nested agent. The rest becomes the agent's manifest, on agent spans only. Declared through
+    ``version`` becomes an ``agent_version`` tag on the agent span and its child spans within the
+    same process. The rest becomes the agent's manifest, on agent spans only. Declared through
     ``annotation_context``, both reach every agent span in the block.
     Unreportable values are dropped rather than raising, and a key whose value is unset (``None``
     or empty) declares nothing rather than erasing what an earlier annotation declared. Each

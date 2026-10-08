@@ -2040,14 +2040,13 @@ def test_nested_agent_spans_each_carry_their_own_version(llmobs):
     assert get_llmobs_tags(inner_span)["agent_version"] == "v3"
 
 
-def test_nested_agent_span_does_not_inherit_ancestor_version(llmobs):
-    """An unversioned sub-agent stays unversioned rather than claiming its parent's version."""
+def test_nested_agent_without_version_inherits_ancestor_version(llmobs):
     with llmobs.agent(name="outer_agent", version="v1"):
         with llmobs.agent(name="inner_agent") as inner_span:
             with llmobs.llm(name="inner_llm", model_name="test") as inner_llm:
                 pass
-    assert "agent_version" not in get_llmobs_tags(inner_span)
-    assert "agent_version" not in get_llmobs_tags(inner_llm)
+    assert get_llmobs_tags(inner_span)["agent_version"] == "v1"
+    assert get_llmobs_tags(inner_llm)["agent_version"] == "v1"
 
 
 def test_nested_agent_version_scoped_to_its_subtree(llmobs):
@@ -2059,35 +2058,6 @@ def test_nested_agent_version_scoped_to_its_subtree(llmobs):
             pass
     assert get_llmobs_tags(inner_llm)["agent_version"] == "v2"
     assert get_llmobs_tags(outer_llm)["agent_version"] == "v1"
-
-
-def test_annotated_agent_version_reaches_spans_started_after_it(llmobs):
-    with llmobs.agent(name="test_agent") as agent_span:
-        with llmobs.tool(name="before") as before_span:
-            pass
-        llmobs.annotate(span=agent_span, agent={"version": "v3"})
-        with llmobs.tool(name="after") as after_span:
-            pass
-    assert "agent_version" not in get_llmobs_tags(before_span)
-    assert get_llmobs_tags(after_span)["agent_version"] == "v3"
-
-
-def test_annotated_agent_version_reaches_spans_under_running_children(llmobs):
-    with llmobs.agent(name="test_agent") as agent_span:
-        with llmobs.workflow(name="step"):
-            llmobs.annotate(span=agent_span, agent={"version": "v3"})
-            with llmobs.tool(name="test_tool") as tool_span:
-                pass
-    assert get_llmobs_tags(tool_span)["agent_version"] == "v3"
-
-
-def test_updated_agent_version_reaches_spans_under_running_children(llmobs):
-    with llmobs.agent(name="test_agent", version="v1") as agent_span:
-        with llmobs.workflow(name="step"):
-            llmobs.annotate(span=agent_span, agent={"version": "v2"})
-            with llmobs.tool(name="test_tool") as tool_span:
-                pass
-    assert get_llmobs_tags(tool_span)["agent_version"] == "v2"
 
 
 def test_inherited_agent_version_wins_over_explicit_tag(llmobs):
