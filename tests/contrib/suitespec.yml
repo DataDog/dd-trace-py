@@ -539,6 +539,7 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   botocore:
+    no_proxy: true
     retry: 2
     parallelism: 11
     paths:
@@ -872,6 +873,7 @@ suites:
       - tests/snapshots/tests.contrib.gunicorn.*
     snapshot: true
   httplib:
+    no_proxy: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -884,6 +886,7 @@ suites:
     snapshot: true
     venvs_per_job: 1
   httpx:
+    no_proxy: true
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -1214,6 +1217,7 @@ suites:
       - rediscluster
     snapshot: true
   requests:
+    no_proxy: true
     parallelism: 1
     paths:
       - '@bootstrap'
