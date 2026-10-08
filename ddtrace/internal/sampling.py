@@ -290,7 +290,7 @@ def _set_sampling_tags(
     # Injection treats a non-None sampling priority as the publication marker for the
     # complete decision. Publish the deferred ot= state and priority together in one native call,
     # which does not release the GIL, so concurrent branches cannot observe a partial decision.
-    context._publish_sampling_decision(priorities[priority_index], sample_rate, probabilistic_decision)
+    span.context._publish_sampling_decision(priorities[priority_index], sample_rate, probabilistic_decision)
 
 
 def add_trace_source(span: SpanTraceSourceProtocol, source: int) -> None:
