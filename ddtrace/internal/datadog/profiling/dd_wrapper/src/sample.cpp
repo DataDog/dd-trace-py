@@ -518,21 +518,6 @@ Datadog::Sample::reset_alloc()
     }
 }
 
-void
-Datadog::Sample::reset_heap()
-{
-    if (0U != (type_mask & SampleType::Heap)) {
-        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
-        const size_t heap_count_idx = ProfilerState::get().profile_state.val().heap_count;
-        if (heap_space_idx < values.size()) {
-            values[heap_space_idx] = 0;
-        }
-        if (heap_count_idx < values.size()) {
-            values[heap_count_idx] = 0;
-        }
-    }
-}
-
 bool
 Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 {
@@ -823,12 +808,6 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
     }
 
     return true;
-}
-
-void
-Datadog::Sample::set_timeline(bool enabled)
-{
-    ProfilerState::get().timeline_enabled = enabled;
 }
 
 bool

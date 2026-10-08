@@ -1,6 +1,6 @@
+from collections.abc import Mapping
 import re
 from typing import Any
-from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -50,7 +50,7 @@ def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
     #   - any digit is left unchanged
     #   - any block of any length of different ASCII chars is converted to a single underscore '_'
     normalized_name = _normalized_header_name(header_name)
-    return "http.{}.headers.{}".format(request_or_response, normalized_name)
+    return f"http.{request_or_response}.headers.{normalized_name}"
 
 
 def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:
@@ -119,8 +119,7 @@ def set_user(
     span: Optional[SpanData] = None,
     may_block: bool = True,
     mode: str = "sdk",
-):
-    # type: (...) -> None
+) -> None:
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
@@ -176,4 +175,12 @@ def _set_url_tag(integration_config: IntegrationConfig, span: SpanData, url: str
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
         span._set_attribute(http.URL, strip_query_string(url))
     else:
-        span._set_attribute(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+        span._set_attribute(
+            http.URL,
+            redact_url(
+                url,
+                config._obfuscation_query_string_pattern,
+                query,
+                preserve_delimiter=config._query_string_obfuscation_preserve_delimiter,
+            ),
+        )

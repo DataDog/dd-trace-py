@@ -1,6 +1,6 @@
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version

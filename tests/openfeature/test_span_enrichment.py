@@ -81,6 +81,15 @@ class TestDeltaVarintCodec:
     def test_hash_targeting_key_golden(self):
         assert hash_targeting_key("user-123") == "fcdec6df4d44dbc637c7c5b58efface52a7f8a88535423430255be0bb89bedd8"
 
+    def test_hash_targeting_key_ignores_subclass_byte_override(self):
+        class HostileString(str):
+            def encode(self, *args, **kwargs):
+                raise AssertionError("subclass encode must not run")
+
+        assert hash_targeting_key(HostileString("user-123")) == (
+            "fcdec6df4d44dbc637c7c5b58efface52a7f8a88535423430255be0bb89bedd8"
+        )
+
 
 class TestSpanEnrichmentState:
     """Unit-tests the accumulator limits (no tracer)."""

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from io import StringIO
 import math
 import sys
@@ -5,9 +6,7 @@ import traceback
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
-from typing import Text
 from typing import Union
 from typing import cast
 
@@ -61,11 +60,8 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "_context",
         "_store",
         # Internal attributes
-        "_local_root_value",
-        "_service_entry_span_value",
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
@@ -109,73 +105,13 @@ class Span(SpanData):
         """
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._parent_context: Optional[Context] = context
-        if context is None:
-            # PERF/CORRECTNESS: a root span owns fresh, unshared trace-level state.
-            # Build its Context inline now, in the creating thread before the span can
-            # be published, so concurrent first-readers can't race and build divergent
-            # state — no lock required. Built inline (not via the `context` property) to
-            # keep root-span creation off the property-getter call overhead on the hot
-            # path; this mirrors the property's root branch below. Child spans stay lazy.
-            self._context: Optional[Context] = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-        else:
-            self._context = None
-
         if links:
             for link in links:
                 self._set_link(link.trace_id, link.span_id, link.tracestate, link.flags, link.attributes)
 
-        self._parent: Optional["Span"] = None
+        self._parent: Optional[Span] = None
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
-        self._local_root_value: Optional["Span"] = None  # None means this is the root span.
-        self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
-
-    @property
-    def context(self) -> Context:
-        """The trace context for this span.
-
-        For a child span this is a copy of the parent context that shares the
-        trace-level ``_meta``/``_metrics``/``_baggage`` while carrying this
-        span's own ``trace_id``/``span_id``; for a root span it is fresh
-        trace-level state. Child contexts are built lazily on first read; root
-        contexts are forced eagerly in ``__init__`` (before the span is published)
-        so the build cannot race across threads.
-        """
-        ctx = self._context
-        if ctx is None:
-            parent = self._parent_context
-            if parent is not None:
-                ctx = parent.copy(self.trace_id, self.span_id)
-            else:
-                # Root fallback (mirrors the eager inline build in __init__); reached
-                # only if a root's _context was cleared, e.g. via the setter.
-                ctx = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-            self._context = ctx
-        return ctx
-
-    @context.setter
-    def context(self, value: Context) -> None:
-        self._context = value
-
-    def _context_for_child(self) -> Context:
-        """Return the context a child span should inherit trace-level state from.
-
-        Reuses a context that already holds this trace's shared
-        ``_meta``/``_metrics``/``_baggage`` — this span's own context if it
-        was built, otherwise its (local) parent-context — so a deep local trace
-        materializes a single Context instead of one per span. A remote
-        parent-context is never handed down: a local child's parent-context must
-        stay local so ``_is_remote``/reactivation keep their meaning, so a
-        distributed entry span materializes its (local) context once here.
-        """
-        ctx = self._context
-        if ctx is not None:
-            return ctx
-        parent = self._parent_context
-        if parent is not None and not parent._is_remote:
-            return parent
-        return self.context
 
     def _update_tags_from_context(self) -> None:
         ctx = self.context
@@ -236,7 +172,7 @@ class Span(SpanData):
     def _set_sampling_decision_maker(
         self,
         sampling_mechanism: int,
-    ) -> Optional[Text]:
+    ) -> Optional[str]:
         value = "-%d" % sampling_mechanism
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
@@ -519,30 +455,6 @@ class Span(SpanData):
 
         return False
 
-    @property
-    def _local_root(self) -> "Span":
-        return self._local_root_value or self
-
-    @_local_root.setter
-    def _local_root(self, value: "Span") -> None:
-        self._local_root_value = value if value is not self else None
-
-    @_local_root.deleter
-    def _local_root(self) -> None:
-        del self._local_root_value
-
-    @property
-    def _service_entry_span(self) -> "Span":
-        return self._service_entry_span_value or self
-
-    @_service_entry_span.setter
-    def _service_entry_span(self, span: "Span") -> None:
-        self._service_entry_span_value = None if span is self else span
-
-    @_service_entry_span.deleter
-    def _service_entry_span(self) -> None:
-        del self._service_entry_span_value
-
     def link_span(self, context: Context, attributes: Optional[Mapping[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
@@ -602,7 +514,7 @@ class Span(SpanData):
         This method is useful if a sudden program shutdown is required and finishing
         the trace is desired.
         """
-        span: Optional["Span"] = self
+        span: Optional[Span] = self
         while span is not None:
             span.finish()
             span = span._parent

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+import contextlib
 from functools import lru_cache
 import inspect
 from io import StringIO
@@ -18,6 +19,7 @@ import pluggy
 import pytest
 
 from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
+from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
@@ -37,6 +39,9 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_STATE_WORKER_INPUT
+from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -64,6 +69,7 @@ from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
+from ddtrace.testing.internal.tracer_api.coverage import CoverageData
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
@@ -274,6 +280,36 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
             return 0, 0
 
 
+@contextlib.contextmanager
+def _maybe_collect_coverage(coverage_enabled: bool) -> t.Generator[CoverageData, None, None]:
+    """Yield a per-test coverage collector, or a no-op when coverage is disabled.
+
+    Entering coverage_collection() is only meaningful when the ModuleCodeCollector is
+    installed, which setup_coverage_collection() gates on the same coverage_enabled flag.
+    Entering it regardless left the interpreter misreporting its own state for the
+    duration of every test: CollectInContext sets the ctx_coverage_enabled ContextVar,
+    which makes ModuleCodeCollector.coverage_enabled() answer True even though no
+    collector exists, and on Python 3.12+ it calls the global sys.monitoring
+    restart_events() once per test on behalf of a tool that was never registered. The
+    collected bitmaps were empty either way, so nothing was gained by it.
+
+    An empty CoverageData is what the disabled collector produced anyway, and it flows
+    through the same put_coverage empty fast path, so uploads are unchanged.
+
+    The code_coverage_started/finished telemetry is recorded here, so it describes
+    coverage actually running rather than merely a test executing. That matches the
+    legacy plugin, which only reaches record_code_coverage_started() when
+    InternalTestSession.should_collect_coverage() is true.
+    """
+    if coverage_enabled:
+        TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+        with coverage_collection() as coverage_data:
+            yield coverage_data
+        TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+    else:
+        yield CoverageData()
+
+
 class TestPhase:
     SETUP = "setup"
     CALL = "call"
@@ -343,6 +379,12 @@ class TestOptPlugin(TestOptPluginProtocol):
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
+        # Whether this worker hands the coverage report upload over to the xdist
+        # controller, which produces a single combined report for the session.
+        self._coverage_upload_delegated = False
+        # Coverage data files persisted by delegated xdist workers; only meaningful
+        # in the controller, filled by XdistTestOptPlugin.pytest_testnodedown.
+        self.delegated_coverage_data_files: list[str] = []
         # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
         # Every xdist worker performs a full, unsharded collection pass (so they all discover the
         # same ignored suites), but we must only report/count them once per session. We elect the
@@ -354,6 +396,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         self.manager = session_manager
         self.session = self.manager.session
         self.xdist_manifest: t.Optional[XdistManifest] = None
+        self.xdist_atr_crash_state_path: t.Optional[Path] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -368,6 +411,14 @@ class TestOptPlugin(TestOptPluginProtocol):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
                 self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
+                # Set by the controller (XdistTestOptPlugin.pytest_configure_node) when every
+                # worker is local: only then can workers persist coverage data files that the
+                # controller combines into one report (see pytest_sessionfinish).
+                self._coverage_upload_delegated = bool(xdist_worker_input.get("dd_coverage_upload_delegated"))
+            if crash_state_path := xdist_worker_input.get(_CRASH_RETRY_STATE_WORKER_INPUT):
+                self.xdist_atr_crash_state_path = Path(crash_state_path)
+        else:
+            self.session.itr_suite_reporting_enabled = True
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -444,33 +495,49 @@ class TestOptPlugin(TestOptPluginProtocol):
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # This hook runs in every process, so an xdist session uploads one report per process, each
-        # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
-        # for a session, so the partial uploads add up to full coverage.
         #
-        # Do NOT "fix" this by restricting the upload to the controller. Which process holds which data depends on who
-        # owns coverage.py:
-        #   - with pytest-cov, workers ship their data to the controller and pytest-cov merges it in its
-        #     pytest_runtestloop wrapper, i.e. before this hook, so the controller's report is complete;
-        #   - without pytest-cov, ddtrace starts coverage.py per process in pytest_configure and nothing merges across
-        #     processes, so the controller (which runs no tests under xdist) has an empty report and the workers hold
-        #     all the real data.
-        # Controller-only upload would therefore be harmless in the first case and lose everything in the second.
-        # Uploading once from the controller would only save bandwidth, and would first require implementing the
-        # cross-process merge that pytest-cov does for us in the first case but nobody does in the second.
+        # Under xdist, the controller uploads a single report for the whole session.
+        # Workers that share the controller's filesystem delegate to it: generating an
+        # LCOV report in every process meant re-parsing and re-analyzing every measured
+        # file in every worker, a per-worker CPU cost on the order of a full-repository
+        # coverage analysis that could dominate the test job itself.
+        #   - with pytest-cov, workers ship their data to the controller and pytest-cov
+        #     combines it in its pytest_runtestloop wrapper, i.e. before this hook, so the
+        #     controller's report is complete;
+        #   - with ddtrace-owned coverage, workers persist parallel data files
+        #     (".coverage.*") that the controller combines before reporting.
+        # NOTE: delegation assumes workers run as local popen subprocesses (the only
+        # supported pytest-xdist setup with coverage report upload); detecting remote
+        # workers consistently across xdist handoffs is deferred to a follow-up. Processes
+        # holding a coverage.py instance ddtrace neither owns nor knows how to persist
+        # (an external session started by user code) keep uploading per-process.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
-            # Create upload function wrapper for manager
-            def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
-                return self.manager.upload_coverage_report(
-                    coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
-                )
+            can_delegate = _is_pytest_cov_enabled(session.config) or owns_coverage_instance()
+            if self.is_xdist_worker and self._coverage_upload_delegated and can_delegate:
+                # The controller reports for the whole session; just make sure our
+                # coverage data is persisted so the controller can combine it.
+                # (With pytest-cov the worker's own plugin already persists its data.)
+                if not _is_pytest_cov_enabled(session.config) and hasattr(session.config, "workeroutput"):
+                    cov = stop_coverage(save=True)
+                    if cov is not None:
+                        # Tell the controller which file to combine; it merges exactly
+                        # the files its workers report rather than every parallel data
+                        # file it can find in the workspace.
+                        session.config.workeroutput["dd_coverage_data_file"] = cov.get_data().data_filename()
+            else:
+                # Create upload function wrapper for manager
+                def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
+                    return self.manager.upload_coverage_report(
+                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
+                    )
 
-            handle_coverage_report(
-                config=session.config,
-                upload_func=upload_func,
-                is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
-                stop_coverage_func=stop_coverage,
-            )
+                handle_coverage_report(
+                    config=session.config,
+                    upload_func=upload_func,
+                    is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
+                    stop_coverage_func=stop_coverage,
+                    delegated_coverage_data_paths=self.delegated_coverage_data_files,
+                )
 
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
@@ -693,7 +760,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             on_new_test=_on_new_test,
         )
 
-    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+    def _apply_test_management_markers(self, item: pytest.Item, test: Test) -> None:
         """Apply test management markers for the base plugin (used when an external rerun plugin drives execution).
 
         ATF retries are not supported in this mode — the external plugin controls the protocol and we cannot intercept
@@ -736,10 +803,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 yield
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -840,6 +905,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
     def _do_test_runs(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> None:
         test = self.tests_by_nodeid[item.nodeid]
+        self._sync_xdist_atr_crash_budget(item.nodeid, test)
         retry_handler = self._check_applicable_retry_handlers(test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
@@ -877,6 +943,33 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         if self._osr_enabled and self._is_osr_candidate(test, retry_handler):
             self._osr_candidates.append(item)
+
+    def _sync_xdist_atr_crash_budget(self, nodeid: str, test: Test) -> None:
+        """Apply controller-consumed crash retries to the worker's ATR handler."""
+        if self.xdist_atr_crash_state_path is None:
+            return
+
+        atr_handler = next(
+            (handler for handler in self.manager.retry_handlers if isinstance(handler, AutoTestRetriesHandler)),
+            None,
+        )
+        if atr_handler is None:
+            return
+
+        try:
+            state = read_atr_crash_retry_state(self.xdist_atr_crash_state_path)
+        except (OSError, ValueError):
+            # A crash-requeued attempt still runs, but no further worker retry is safe without the consumed budget.
+            atr_handler.disable_retries()
+            return
+
+        budget = state.get(nodeid)
+        atr_handler.set_external_retry_budget(
+            test,
+            retries=budget.retries if budget is not None else 0,
+            retry_limit=budget.retry_limit if budget is not None else atr_handler.max_retries_per_test,
+            session_retries=len(state),
+        )
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
         status, tags = self._get_test_outcome(item.nodeid)
@@ -1274,7 +1367,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
     span bookkeeping.
     """
 
-    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+    def _apply_test_management_markers(self, item: pytest.Item, test: Test) -> None:
         """Apply test management markers for the plugin that drives retries itself.
 
         ATF tests must NOT use skip or xfail here: ATF takes precedence over quarantine/disable markers, and any
@@ -1336,12 +1429,10 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         test.finish()
 
@@ -1478,29 +1569,6 @@ class RetryReports:
             return self.reports_by_outcome["failed"][0]
 
         return None
-
-
-class XdistTestOptPlugin:
-    def __init__(self, main_plugin: TestOptPlugin) -> None:
-        self.main_plugin = main_plugin
-
-    @pytest.hookimpl
-    def pytest_configure_node(self, node: t.Any) -> None:
-        """
-        Pass test session id from the main process to xdist workers.
-        """
-        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
-
-    @pytest.hookimpl
-    def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
-        """
-        Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
-        """
-        if not hasattr(node, "workeroutput"):
-            return
-
-        if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
@@ -1716,11 +1784,29 @@ def pytest_configure(config: pytest.Config) -> None:
     # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
     if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
-        # Start coverage.py ourselves for report generation
+        # Start coverage.py ourselves for report generation. Data files get a
+        # parallel suffix exactly when this process delegates its coverage
+        # report upload to the xdist controller: every worker then persists its
+        # own data file (".coverage.*", no clobbering) for the controller to
+        # combine into the single session report (see pytest_sessionfinish).
+        # Every other process, the controller included, keeps the data file
+        # naming from the coverage.py configuration: reports are generated from
+        # in-memory data, and a suffix the controller's combine never consumes
+        # would just accumulate one stale parallel file per session.
+        # NOTE: config.workerinput is set by pytest-xdist before any
+        # pytest_configure hook runs, so workers already see the delegation
+        # flag their controller published (XdistTestOptPlugin.pytest_configure_node).
         from ddtrace.contrib.internal.coverage.patch import start_coverage
 
+        # Only a delegating worker needs a unique parallel data file for the
+        # controller to combine; data_suffix=None leaves the naming to the
+        # coverage.py configuration (e.g. [run] parallel = true) instead of
+        # overriding it.
+        worker_input = getattr(config, "workerinput", None)
+        suffixed = bool(worker_input.get("dd_coverage_upload_delegated")) if worker_input is not None else None
+
         workspace_path = get_workspace_path()
-        start_coverage(source=[str(workspace_path)])
+        start_coverage(source=[str(workspace_path)], data_suffix=True if suffixed else None)
         log.debug("Started coverage.py collection for report upload (pytest-cov not enabled)")
 
     # Patch coverage.py to capture percentage if it's available and (enabled OR needed for report upload)
@@ -1735,7 +1821,7 @@ def _get_test_command(config: pytest.Config) -> str:
     if invocation_params := getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(invocation_params.args))
     if addopts := env.get("PYTEST_ADDOPTS"):
-        command += " {}".format(addopts)
+        command += f" {addopts}"
     return command
 
 

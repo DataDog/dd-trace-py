@@ -1,7 +1,7 @@
 import asyncio
 import functools
-from typing import Callable  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Callable
+from typing import Union
 
 import grpc
 from grpc import aio

@@ -1,8 +1,8 @@
 import abc
+from collections.abc import Sequence
 import dataclasses
 from typing import Any
 from typing import Optional
-from typing import Sequence
 
 
 @dataclasses.dataclass(unsafe_hash=True)

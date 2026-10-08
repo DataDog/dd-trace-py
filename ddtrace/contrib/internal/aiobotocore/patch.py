@@ -2,7 +2,6 @@ import aiobotocore.client
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 
 # _http_propagation_suppressed is the shared seam telling the
 # aiohttp-layer subscriber to skip its own injection during AWS calls; _wrapped_api_call
@@ -18,6 +17,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import SpanKind
@@ -80,7 +80,6 @@ def patch():
     aiobotocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
-    Pin().onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
@@ -93,13 +92,13 @@ def unpatch():
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
-    def __init__(self, body, pin, parent_span):
-        super(WrappedClientResponseContentProxy, self).__init__(body)
+    def __init__(self, body, parent_span):
+        super().__init__(body)
         self._self_parent_span = parent_span
 
     async def read(self, *args, **kwargs):
         # async read that must be child of the parent span operation
-        operation_name = "{}.read".format(self._self_parent_span.name)
+        operation_name = f"{self._self_parent_span.name}.read"
 
         with tracer.start_span(name=operation_name, child_of=self._self_parent_span) as span:
             span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
@@ -129,23 +128,19 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
 
 
 async def _wrapped_api_call(original_func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        result = await original_func(*args, **kwargs)
-        return result
+    if not is_tracing_enabled():
+        return await original_func(*args, **kwargs)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    fallback_service = config._get_service(default="aws.{}".format(endpoint_name))
+    fallback_service = config._get_service(default=f"aws.{endpoint_name}")
     with tracer.trace(
-        schematize_cloud_api_operation(
-            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
-        ),
+        schematize_cloud_api_operation(f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
         set_service_and_source(
             span,
-            ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
+            ext_service(None, config.aiobotocore, default=schematize_service_name(fallback_service)),
             config.aiobotocore,
         )
         span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
@@ -159,7 +154,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             operation = get_argument_value(args, kwargs, 0, "operation_name")
             params = get_argument_value(args, kwargs, 1, "api_params")
 
-            span.resource = "{}.{}".format(endpoint_name, operation.lower())
+            span.resource = f"{endpoint_name}.{operation.lower()}"
 
             if params and not config.aiobotocore["tag_no_params"]:
                 aws._add_api_param_span_tags(span, endpoint_name, params)
@@ -208,7 +203,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         # ClientResponseContentProxy removed in aiobotocore 2.3.x: https://github.com/aio-libs/aiobotocore/pull/934/
         if hasattr(body, "ClientResponseContentProxy") and isinstance(body, ClientResponseContentProxy):
-            result["Body"] = WrappedClientResponseContentProxy(body, pin, span)
+            result["Body"] = WrappedClientResponseContentProxy(body, span)
 
         response_meta = result["ResponseMetadata"]
         response_headers = response_meta["HTTPHeaders"]

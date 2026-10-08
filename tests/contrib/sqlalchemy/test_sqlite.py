@@ -18,10 +18,10 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
     ENGINE_ARGS = {"url": "sqlite:///:memory:"}
 
     def setUp(self):
-        super(SQLiteTestCase, self).setUp()
+        super().setUp()
 
     def tearDown(self):
-        super(SQLiteTestCase, self).tearDown()
+        super().tearDown()
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
@@ -36,7 +36,7 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
         span = traces[0][0]
         # span fields
         assert_is_measured(span)
-        self.assertEqual(span.name, "{}.query".format(self.VENDOR))
+        self.assertEqual(span.name, f"{self.VENDOR}.query")
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
         self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)

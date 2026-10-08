@@ -100,7 +100,7 @@ def test_provider_lifecycle_starts_and_stops_source(mock_cdn):
     mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
 
     with override_global_config({"_dd_api_key": "secret", "_dd_site": "datadoghq.com"}):
-        provider = DataDogProvider()
+        provider = DataDogProvider(initialization_timeout=5.0)
         try:
             provider.initialize(EvaluationContext())
             assert provider._configuration_source is not None

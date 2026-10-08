@@ -1,4 +1,5 @@
 use pyo3::{
+    exceptions::PyTypeError,
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
         PyFloat, PyFloatMethods as _, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _,
@@ -8,6 +9,7 @@ use pyo3::{
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
+use crate::context::Context;
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
@@ -63,8 +65,22 @@ pub struct SpanData {
     /// Set from Python during span creation; read natively by the context
     /// provider when walking the ancestor chain in `_update_active`.
     pub _parent: Option<Py<PyAny>>,
+    /// The process-local root span, or `None` when this span is the local root.
+    ///
+    /// This mirrors the Python-facing `_local_root` property while keeping the
+    /// relationship available to native consumers without a Python slot lookup.
+    pub _local_root: Option<Py<SpanData>>,
+    /// The entry span for this service, or `None` when this span is the entry.
+    ///
+    /// Like `_local_root`, `None` represents `self` to preserve the existing
+    /// Python property contract without creating a self-reference.
+    pub _service_entry_span: Option<Py<SpanData>>,
     /// The parent `Context` this span was created under, or `None`.
     pub _parent_context: Option<Py<crate::context::Context>>,
+    /// This span's own `Context`, built eagerly for a root span (in `__new__`, before the
+    /// span is published) and lazily on first read for a child span. `None` on a child means
+    /// "not yet built" — see the `context` getter.
+    pub _context: Option<Py<Context>>,
 }
 
 impl SpanData {
@@ -192,7 +208,7 @@ impl SpanData {
         span_id=None,
         parent_id=None,
         start=None,
-        context=None,      // placeholder for Span.__init__ positional arg
+        context=None,
         on_finish=None,    // placeholder for Span.__init__ positional arg
         span_api=None,
         *args,
@@ -208,13 +224,13 @@ impl SpanData {
         span_id: Option<&Bound<'p, PyAny>>,
         parent_id: Option<&Bound<'p, PyAny>>,
         start: Option<&Bound<'p, PyAny>>,
-        context: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        context: Option<&Bound<'p, PyAny>>, // parent Context, or None for a root span
         on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
         span_api: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let mut span = Self::default();
         span.set_name(name);
         match service {
@@ -294,7 +310,15 @@ impl SpanData {
         span.span_api = span_api
             .map(|obj| extract_backed_string_or_default(obj))
             .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
-        span
+        // `context` is the parent Context, or None for a root span.
+        span._parent_context = context.and_then(|ctx| ctx.extract().ok());
+        if span._parent_context.is_none() {
+            // A root span owns fresh, unshared trace-level state. Building its Context
+            // here, before the span can be published, keeps concurrent first readers from
+            // building divergent state without needing a lock.
+            span._context = Some(Context::new_root(py, span.trace_id, span.span_id as u128)?);
+        }
+        Ok(span)
     }
 
     #[getter]
@@ -550,6 +574,116 @@ impl SpanData {
         };
     }
 
+    // _local_root property — the local root Span, or self when this is the root.
+    #[getter(_local_root)]
+    #[inline(always)]
+    fn get_local_root<'py>(slf: &Bound<'py, Self>) -> Bound<'py, SpanData> {
+        slf.borrow()
+            ._local_root
+            .as_ref()
+            .map(|span| span.bind(slf.py()).clone())
+            .unwrap_or_else(|| slf.clone())
+    }
+
+    #[setter(_local_root)]
+    #[inline(always)]
+    fn set_local_root(slf: &Bound<'_, Self>, value: Option<&Bound<'_, SpanData>>) {
+        let value = value
+            .and_then(|value| (!value.as_any().is(slf.as_any())).then(|| value.clone().unbind()));
+        // Releasing the borrow before the replaced reference is dropped avoids
+        // a re-entrant finalizer observing an active mutable SpanData borrow.
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._local_root, value)
+        };
+        drop(replaced);
+    }
+
+    #[deleter(_local_root)]
+    #[inline(always)]
+    fn del_local_root(slf: &Bound<'_, Self>) {
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::take(&mut this._local_root)
+        };
+        drop(replaced);
+    }
+
+    // _service_entry_span property — the service entry Span, or self when this is it.
+    #[getter(_service_entry_span)]
+    #[inline(always)]
+    fn get_service_entry_span<'py>(slf: &Bound<'py, Self>) -> Bound<'py, SpanData> {
+        slf.borrow()
+            ._service_entry_span
+            .as_ref()
+            .map(|span| span.bind(slf.py()).clone())
+            .unwrap_or_else(|| slf.clone())
+    }
+
+    #[setter(_service_entry_span)]
+    #[inline(always)]
+    fn set_service_entry_span(slf: &Bound<'_, Self>, value: Option<&Bound<'_, SpanData>>) {
+        let value = value
+            .and_then(|value| (!value.as_any().is(slf.as_any())).then(|| value.clone().unbind()));
+        // See set_local_root: dropping a Python reference can invoke arbitrary
+        // Python finalizers, so it must happen after releasing the native borrow.
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._service_entry_span, value)
+        };
+        drop(replaced);
+    }
+
+    #[deleter(_service_entry_span)]
+    #[inline(always)]
+    fn del_service_entry_span(slf: &Bound<'_, Self>) {
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::take(&mut this._service_entry_span)
+        };
+        drop(replaced);
+    }
+
+    /// Attach a newly-created child span and derive its local-root and
+    /// same-service entry relationships in one native operation.
+    fn _inherit_from_parent(slf: &Bound<'_, Self>, parent: &Bound<'_, SpanData>) {
+        if parent.is(slf) {
+            return;
+        }
+
+        let py = slf.py();
+        let parent_ref = parent.clone().unbind().into_any();
+        let parent_span_ref = parent.clone().unbind();
+        let (inherits_service_entry, local_root, service_entry_span) = {
+            let child = slf.borrow();
+            let parent = parent.borrow();
+            (
+                parent.service == child.service,
+                parent
+                    ._local_root
+                    .as_ref()
+                    .map(|span| span.clone_ref(py))
+                    .unwrap_or_else(|| parent_span_ref.clone_ref(py)),
+                parent
+                    ._service_entry_span
+                    .as_ref()
+                    .map(|span| span.clone_ref(py))
+                    .unwrap_or_else(|| parent_span_ref.clone_ref(py)),
+            )
+        };
+        let service_entry_span = inherits_service_entry.then_some(service_entry_span);
+
+        let replaced = {
+            let mut child = slf.borrow_mut();
+            let old_parent = child._parent.replace(parent_ref);
+            let old_local_root = child._local_root.replace(local_root);
+            let old_service_entry_span =
+                std::mem::replace(&mut child._service_entry_span, service_entry_span);
+            (old_parent, old_local_root, old_service_entry_span)
+        };
+        drop(replaced);
+    }
+
     // _parent_context property — the parent Context, or None.
     #[getter(_parent_context)]
     #[inline(always)]
@@ -569,6 +703,90 @@ impl SpanData {
             // Silently ignore non-Context values, matching other setters' defensive style.
             value.extract::<Py<crate::context::Context>>().ok()
         };
+    }
+
+    /// The trace context for this span.
+    ///
+    /// For a child span this is a copy of the parent context that shares the trace-level
+    /// ``_meta``/``_metrics``/``_baggage`` while carrying this span's own
+    /// ``trace_id``/``span_id``; for a root span it is fresh trace-level state. Child
+    /// contexts are built lazily on first read; root contexts are built eagerly at
+    /// construction (before the span is published) so the build cannot race across threads.
+    ///
+    /// Takes `slf` rather than `&mut self` so no borrow of this span is held while a
+    /// `Context` subclass's Python `copy` override runs.
+    #[getter(context)]
+    fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
+        let py = slf.py();
+
+        let this = slf.borrow();
+        if let Some(ctx) = &this._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let parent = this._parent_context.as_ref().map(|p| p.bind(py).clone());
+        let (trace_id, span_id) = (this.trace_id, this.span_id as u128);
+        drop(this);
+
+        let new_ctx = match parent {
+            // Fast path for the base class; a Python subclass may override `copy`, so
+            // route through Python dispatch for those.
+            Some(parent) if parent.is_exact_instance_of::<Context>() => {
+                Context::copy_native(&parent, Some(trace_id), Some(span_id))?.into_bound(py)
+            }
+            Some(parent) => parent
+                .call_method1("copy", (trace_id, span_id))?
+                .cast_into()?,
+            None => Context::new_root(py, trace_id, span_id)?.into_bound(py),
+        };
+
+        let old = slf.borrow_mut()._context.replace(new_ctx.clone().unbind());
+        drop(old);
+        Ok(new_ctx)
+    }
+
+    /// Takes `slf` rather than `&mut self` so the native borrow is released before the old
+    /// value is dropped: `Context` is `weakref`-enabled, so dropping the last strong
+    /// reference can run a weakref callback/finalizer, and one that re-enters this same
+    /// `SpanData` would otherwise hit "already mutably borrowed".
+    ///
+    /// Raises `TypeError` for anything other than a `Context` or `None`: the field is a
+    /// native `Option<Py<Context>>`, and discarding an unrecognized value would make a later
+    /// `context` read fabricate unrelated trace state.
+    #[setter(context)]
+    fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        let new_value: Option<Py<Context>> = value
+            .extract()
+            .map_err(|_| PyTypeError::new_err("context must be a Context instance or None"))?;
+        let old = std::mem::replace(&mut slf.borrow_mut()._context, new_value);
+        drop(old);
+        Ok(())
+    }
+
+    /// Return the context a child span should inherit trace-level state from.
+    ///
+    /// Reuses a context that already holds this trace's shared `_meta`/`_metrics`/
+    /// `_baggage` — this span's own context if it was built, otherwise its (local)
+    /// parent-context — so a deep local trace materializes a single Context instead of
+    /// one per span. A remote parent-context is never handed down: a local child's
+    /// parent-context must stay local so `_is_remote`/reactivation keep their meaning, so
+    /// a distributed entry span materializes its (local) context once here.
+    fn _context_for_child<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
+        let py = slf.py();
+
+        let this = slf.borrow();
+        if let Some(ctx) = &this._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let local_parent = this
+            ._parent_context
+            .as_ref()
+            .filter(|parent| !parent.bind(py).borrow().is_remote);
+        if let Some(parent) = local_parent {
+            return Ok(parent.bind(py).clone());
+        }
+        drop(this);
+
+        Self::get_context(slf)
     }
 
     // _is_top_level property (native for performance - avoids Python property hop).
@@ -1011,13 +1229,22 @@ impl SpanData {
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
         }
-        // `_parent` closes span -> parent span -> ... cycles; `_parent_context`
-        // can reach back to the span through the Context. Both must be visited
+        // Span relationships close span -> ancestor cycles; `_parent_context`
+        // can reach back to the span through the Context. All must be visited
         // so the cyclic GC can collect a finished trace.
         if let Some(p) = &self._parent {
             visit.call(p)?;
         }
+        if let Some(span) = &self._local_root {
+            visit.call(span)?;
+        }
+        if let Some(span) = &self._service_entry_span {
+            visit.call(span)?;
+        }
         if let Some(c) = &self._parent_context {
+            visit.call(c)?;
+        }
+        if let Some(c) = &self._context {
             visit.call(c)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.

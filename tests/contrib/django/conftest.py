@@ -13,7 +13,7 @@ if django.VERSION >= (2, 0, 0):
     app_name = "django_app"
 else:
     app_name = "django1_app"
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.contrib.django.{0}.settings".format(app_name))
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", f"tests.contrib.django.{app_name}.settings")
 
 
 # `pytest` automatically calls this function once when tests are run.

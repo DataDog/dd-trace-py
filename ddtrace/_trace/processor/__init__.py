@@ -133,7 +133,7 @@ class TraceSamplingProcessor(TraceProcessor):
         single_span_rules: list[SpanSamplingRule],
         apm_opt_out: bool,
     ):
-        super(TraceSamplingProcessor, self).__init__()
+        super().__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
         self.sampler = DatadogSampler()
@@ -357,7 +357,7 @@ class SpanAggregator(SpanProcessor):
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
-        super(SpanAggregator, self).__init__()
+        super().__init__()
 
     def __repr__(self) -> str:
         return (

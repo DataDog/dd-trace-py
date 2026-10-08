@@ -4,117 +4,12 @@
 #include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
 #include "profiler_state.hpp"
-#include "profiler_stats.hpp"
-#include "sample_manager.hpp"
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
 #include <iostream>
 #include <string_view>
 #include <unordered_map>
-
-// Configuration
-void
-ddup_config_env(std::string_view dd_env) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_env(dd_env);
-}
-
-void
-ddup_config_service(std::string_view service) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_service(service);
-}
-
-void
-ddup_config_version(std::string_view version) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_version(version);
-}
-
-void
-ddup_config_runtime(std::string_view runtime) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_runtime(runtime);
-}
-
-void
-ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_runtime_id(runtime_id);
-}
-
-void
-ddup_set_process_id() // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_process_id();
-}
-
-void
-ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_runtime_version(runtime_version);
-}
-
-void
-ddup_config_profiler_version(std::string_view profiler_version) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_profiler_version(profiler_version);
-}
-
-void
-ddup_config_url(std::string_view url) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_url(url);
-}
-
-void
-ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_tag(key, val);
-}
-
-void
-ddup_config_process_tags(std::string_view process_tags) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_process_tags(process_tags);
-}
-
-void
-ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
-{
-    Datadog::SampleManager::add_type(_type);
-}
-
-void
-ddup_config_max_nframes(int max_nframes) // cppcheck-suppress unusedFunction
-{
-    Datadog::SampleManager::set_max_nframes(max_nframes);
-}
-
-void
-ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
-{
-    Datadog::SampleManager::set_timeline(enabled);
-}
-
-void
-ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppress unusedFunction
-{
-    Datadog::UploaderBuilder::set_output_filename(output_filename);
-}
-
-void
-ddup_config_sample_pool_capacity(uint64_t capacity) // cppcheck-suppress unusedFunction
-{
-    Datadog::SampleManager::set_sample_pool_capacity(capacity);
-}
-
-void
-ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
-{
-    Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
-}
 
 void
 ddup_set_profiler_settings_json(std::string_view settings_json) // cppcheck-suppress unusedFunction
@@ -194,6 +89,38 @@ ddup_upload() // cppcheck-suppress unusedFunction
     bool result = uploader.upload_unlocked();
 
     return result;
+}
+
+bool
+ddup_reset() // cppcheck-suppress unusedFunction
+{
+    if (!ddup_is_initialized()) {
+        return false;
+    }
+
+    // Same lock as ddup_upload, so a reset cannot interleave with an upload or a fork.
+    Datadog::Uploader::lock();
+    defer
+    {
+        Datadog::Uploader::unlock();
+    };
+
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
+    borrowed.stats().reset_state();
+
+    // Drops all samples and sets the profile start time to now.
+    auto res = ddog_prof_Profile_reset(&borrowed.profile());
+    if (res.tag != DDOG_PROF_PROFILE_RESULT_OK) {
+        static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+        auto err = res.err;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << Datadog::err_to_msg(&err, "Error resetting profile") << std::endl;
+        }
+        ddog_Error_drop(&err);
+        return false;
+    }
+    return true;
 }
 
 // Pass by value is intentional: the map may be modified concurrently by other threads,

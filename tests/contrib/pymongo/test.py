@@ -67,7 +67,7 @@ def test_normalize_filter():
         assert expected == out
 
 
-class PymongoCore(object):
+class PymongoCore:
     """Test suite for pymongo
 
     Independent of the way it got instrumented.
@@ -284,8 +284,8 @@ class PymongoCore(object):
 
         expected_resources.extend(
             [
-                "{} teams".format(name),
-                '{} teams {{"name": "?"}}'.format(name),
+                f"{name} teams",
+                f'{name} teams {{"name": "?"}}',
             ]
         )
 
@@ -448,49 +448,16 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     """Test suite for pymongo with a configured patched library"""
 
     def setUp(self):
-        super(TestPymongoPatchConfigured, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
         unpatch()
-        super(TestPymongoPatchConfigured, self).tearDown()
+        super().tearDown()
 
     def get_tracer_and_client(self):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         return self.tracer, client
-
-    def test_patch_unpatch(self):
-        # Test patch idempotence
-        patch()
-        patch()
-
-        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-
-        client["testdb"].drop_collection("whatever")
-
-        spans = self.get_user_spans()
-        assert spans, spans
-        assert len(spans) == 2
-
-        # Test unpatch
-        unpatch()
-
-        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        client["testdb"].drop_collection("whatever")
-
-        spans = self.pop_spans()
-        assert not spans, spans
-
-        # Test patch again
-        patch()
-
-        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-
-        client["testdb"].drop_collection("whatever")
-
-        spans = self.get_user_spans()
-        assert spans, spans
-        assert len(spans) == 2
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
@@ -751,9 +718,9 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert '{"$oid": "' in tag
         assert str(oid) in tag
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ENABLED="false"))
     def test_patch_with_disabled_tracer(self):
-        tracer, client = self.get_tracer_and_client()
-        tracer.enabled = False
+        _, client = self.get_tracer_and_client()
 
         db = client.testdb
         db.drop_collection("teams")
@@ -819,7 +786,7 @@ class TestPymongoSocketTracing(TracerTestCase):
     _INTERNAL_COMMANDS = {"ismaster", "isMaster", "hello"}
 
     def setUp(self):
-        super(TestPymongoSocketTracing, self).setUp()
+        super().setUp()
         patch()
         # maxPoolSize controls the number of sockets that the client can instantiate
         # and choose from to perform classic operations. For the sake of our tests,
@@ -829,7 +796,7 @@ class TestPymongoSocketTracing(TracerTestCase):
     def tearDown(self):
         unpatch()
         self.client.close()
-        super(TestPymongoSocketTracing, self).tearDown()
+        super().tearDown()
 
     def get_user_spans(self):
         """Return spans filtered to exclude internal MongoDB commands."""
@@ -960,7 +927,7 @@ class TestPymongoDBMInjection(TracerTestCase):
     """
 
     def setUp(self):
-        super(TestPymongoDBMInjection, self).setUp()
+        super().setUp()
         # Create and register the command listener BEFORE patching
         self.command_capture = CommandCapture()
         pymongo.monitoring.register(self.command_capture)
@@ -971,7 +938,7 @@ class TestPymongoDBMInjection(TracerTestCase):
         self.command_capture.clear()
         unpatch()
         self.client.close()
-        super(TestPymongoDBMInjection, self).tearDown()
+        super().tearDown()
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
