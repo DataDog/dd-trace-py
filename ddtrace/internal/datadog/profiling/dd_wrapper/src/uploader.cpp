@@ -101,10 +101,9 @@ Datadog::Uploader::upload()
 
     bool ret = true;
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
-    // we ensure exclusivity here.
+    // we ensure exclusivity here: the caller holds the upload lock (see ddup_upload).
     {
         // If we're here, we're about to create a new upload, so cancel any inflight ones
-        const std::lock_guard<std::mutex> lock_guard(upload_lock);
         cancel_inflight();
 
         // We have to create a new cancellation token, as cancel_inflight() drops the previous one.

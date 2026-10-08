@@ -28,6 +28,7 @@ class Uploader
     bool export_to_file(ddog_prof_EncodedProfile& encoded);
 
   public:
+    // The caller must hold the upload lock (see lock() and unlock())
     bool upload();
     static void cancel_inflight();
     static void lock();

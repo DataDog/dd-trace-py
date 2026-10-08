@@ -37,6 +37,15 @@ watch_thread_locals()
     thread_local ThreadLocalsSentinel sentinel;
 }
 
+// Holds the upload lock during the lifetime of the object
+struct UploadLockGuard
+{
+    UploadLockGuard() { Datadog::Uploader::lock(); }
+    ~UploadLockGuard() { Datadog::Uploader::unlock(); }
+    UploadLockGuard(const UploadLockGuard&) = delete;
+    UploadLockGuard& operator=(const UploadLockGuard&) = delete;
+};
+
 } // namespace
 
 // When a fork is detected, we need to reinitialize this state.
@@ -371,6 +380,12 @@ ddup_upload() // cppcheck-suppress unusedFunction
     if (thread_locals_destroyed) {
         return false;
     }
+
+    // Hold the upload lock from before the Uploader is built until after it is destroyed. The prefork handler takes
+    // the same lock, so fork() cannot occur while this thread builds or uses the libdatadog exporter. A child process
+    // would get a copy of the exporter that it cannot free, and a copy of the libdatadog state that this thread was
+    // initializing.
+    const UploadLockGuard upload_lock_guard;
 
     // Build the Uploader. The builder also serializes the profile, which clears it.
     // The builder holds the profile lock only during serialization, and releases it on success and on failure.
