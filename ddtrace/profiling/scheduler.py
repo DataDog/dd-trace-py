@@ -33,6 +33,7 @@ class Scheduler(periodic.PeriodicService):
     def _start_service(self) -> None:
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
+        ddup.reset(self._tracer)
         super()._start_service()
         self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
