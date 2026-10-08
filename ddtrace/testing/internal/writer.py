@@ -152,8 +152,16 @@ class BaseWriter(ABC):
         return events
 
     def start(self) -> None:
+        self._startup_complete = threading.Event()
+        self._startup_error: t.Optional[BaseException] = None
         self.task = threading.Thread(target=self._periodic_task, daemon=True)
         self.task.start()
+        self._startup_complete.wait()
+        # The worker may have replaced None during the wait; static narrowing cannot track that write.
+        startup_error = t.cast(t.Optional[BaseException], self._startup_error)
+        if startup_error is not None:
+            self.task.join()
+            raise startup_error
 
     def set_async_flush_events(self, async_flush_events: t.Optional[int]) -> None:
         self.async_flush_events = async_flush_events
@@ -191,6 +199,17 @@ class BaseWriter(ABC):
             connector.close()
 
     def _periodic_task(self) -> None:
+        try:
+            # Access each thread-local connector before tests can patch http.client (e.g. vcrpy).
+            # close() initializes this thread's connection without opening a socket and also works in offline mode.
+            for connector in self._connectors:
+                connector.close()
+        except BaseException as e:
+            self._startup_error = e
+            return
+        finally:
+            self._startup_complete.set()
+
         while True:
             self._flush_now.wait(timeout=self.flush_interval_seconds)
             self._flush_now.clear()

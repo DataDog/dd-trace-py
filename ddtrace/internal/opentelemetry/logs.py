@@ -88,7 +88,7 @@ def _build_resource() -> Optional[Any]:
             **config.tags,
             "service.name": config.service,
             "service.version": config.version,
-            "deployment.environment": config.env,
+            "deployment.environment.name": config.env,
         }
 
         if config._report_hostname and "host.name" not in resource_attributes:

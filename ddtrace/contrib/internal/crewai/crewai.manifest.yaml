@@ -1,0 +1,11 @@
+_v: 1
+name: crewai
+display_name: CrewAI
+description: Instruments CrewAI crews, tasks, agents, tools, and flows with tracing, LLM Observability metadata, and causal
+  span links.
+packages:
+- name: crewai
+category:
+- gen_ai
+systems: []
+creation_date: '2025-04-08'
