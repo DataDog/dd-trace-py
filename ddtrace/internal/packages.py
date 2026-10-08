@@ -36,6 +36,11 @@ class IncompleteDistributionSnapshot(RuntimeError):
     """A custom finder re-entered discovery before its distributions were available."""
 
 
+def _normalize_distribution_name(name: str) -> str:
+    """Canonicalize case and separator runs in distribution names."""
+    return _DISTRIBUTION_NAME_NORMALIZER.sub("-", name).lower()
+
+
 # dist.metadata access is per-dist defensive — malformed METADATA
 # (rare but real on system-Python / CI images) must not poison the @callonce cache.
 _BAD_DISTS_WARNED: set[str] = set()
@@ -98,7 +103,7 @@ def get_distribution_version(name: str) -> str:
     Reentrant discovery raises IncompleteDistributionSnapshot so callers do not
     persist a version from a partial snapshot.
     """
-    key = _DISTRIBUTION_NAME_NORMALIZER.sub("-", name).lower()
+    key = _normalize_distribution_name(name)
     snapshot = _installed()
     if not snapshot.complete:
         raise IncompleteDistributionSnapshot()
@@ -115,6 +120,8 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
     snapshot = _INSTALLED
     if snapshot is None or not snapshot.checked or snapshot.sys_path != sys.path or snapshot.meta_path != sys.meta_path:
         snapshot = _installed()
+    if not snapshot.complete:
+        raise IncompleteDistributionSnapshot()
     pkgs = snapshot.packages
     dist_map = snapshot.versions
     while names == []:
@@ -136,7 +143,7 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
         return None
     # Metadata imports on telemetry threads can recreate threading after module
     # cloning, leaving interpreter shutdown waiting for the wrong main thread.
-    return (names[0], get_distribution_version(names[0]))
+    return (names[0], snapshot.versions_by_name.get(_normalize_distribution_name(names[0]), ""))
 
 
 @cached(maxsize=1024)
@@ -455,7 +462,7 @@ class _Installed:
         packages = collections.defaultdict(list)
         mapping: dict[str, Distribution] = {}
         for name, version, keys, top_level in records:
-            version_key = _DISTRIBUTION_NAME_NORMALIZER.sub("-", name).lower()
+            version_key = _normalize_distribution_name(name)
             versions_by_name.setdefault(version_key, version or "")
             for pkg in top_level:
                 packages[pkg].append(name)
@@ -589,21 +596,28 @@ def _installed(check: bool = True) -> _Installed:
             snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
         snapshot.complete = False
     else:
-        # Custom finders run arbitrary Python, which could re-enter: ask them
-        # outside the lock.
-        _FINDER_QUERY.active = True
-        _FINDER_QUERY.nested = False
-        try:
-            segments = _meta_path_segments(layout, warn)
-        finally:
-            _FINDER_QUERY.active = False
-        if _FINDER_QUERY.nested:
-            _clear_lookup_caches()
+        prefetch = getattr(_IN_PREFETCH, "active", False)
+        if prefetch:
+            # An import hook may wait for prefetch while holding a module lock.
+            # A finder importing that module would deadlock, so defer finders to readers.
+            segments = [None] if None in layout else []
+        else:
+            # Custom finders run arbitrary Python, which could re-enter: ask them
+            # outside the lock.
+            _FINDER_QUERY.active = True
+            _FINDER_QUERY.nested = False
+            try:
+                segments = _meta_path_segments(layout, warn)
+            finally:
+                _FINDER_QUERY.active = False
+            if _FINDER_QUERY.nested:
+                _clear_lookup_caches()
         replaced = False
         with _INSTALLED_DISTRIBUTIONS_LOCK:
             previous = _INSTALLED
             if custom or previous is None or previous.key != key:
                 snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
+                snapshot.complete = not (prefetch and custom)
                 _INSTALLED = snapshot
                 replaced = previous is not None
             else:
@@ -657,9 +671,10 @@ def _end_prefetch() -> None:
 
 
 def prefetch_distributions() -> None:
-    """Scan the installed distributions in the background, on boot.
+    """Scan filesystem and ZIP distributions in the background, on boot.
 
     Readers that arrive before the scan ends wait for it; forks join it.
+    Custom finders run on the first reader, since they can import modules.
     """
     global _PREFETCH_THREAD
     if _INSTALLED is not None or _PREFETCH_THREAD is not None:

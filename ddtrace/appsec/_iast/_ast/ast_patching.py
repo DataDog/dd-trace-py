@@ -29,39 +29,10 @@ log = get_logger(__name__)
 
 
 def initialize_iast_lists() -> bool:
-    """Initialize IAST module lists safely from Python.
+    """Initialize IAST patch lists; return False when discovery needs a retry.
 
-    This function initializes the user allowlist and denylist for IAST module patching.
-    It is critical that this initialization happens from Python rather than from C code
-    during module initialization for several reasons:
-
-    1. Python GIL (Global Interpreter Lock) Management:
-       - During C module initialization, GIL handling can be problematic
-       - Python operations from C during initialization may not be fully thread-safe
-       - The interpreter state might not be fully ready for certain Python API calls
-
-    2. Module State:
-       - When called from Python, we ensure the module is fully initialized
-       - All required Python objects and state are properly set up
-       - Memory management is handled by Python's garbage collector
-
-    3. Error Handling:
-       - Python-level initialization provides better error handling
-       - Exceptions can be properly caught and managed
-       - Prevents potential segmentation faults or undefined behavior
-
-    4. Thread Safety:
-       - Ensures thread-safe initialization of global lists
-       - Avoids race conditions during module loading
-       - Provides consistent state across all threads
-
-    The function specifically:
-    1. Builds the user allowlist from _DD_IAST_PATCH_MODULES environment variable
-    2. Builds the user denylist from _DD_IAST_DENY_MODULES environment variable
-    3. Sets installed package names from the shared snapshot for first-party package detection
-
-    This approach is safer than C-level initialization in init_globals() which can
-    lead to inconsistent state or crashes due to GIL-related issues.
+    Only a complete snapshot can replace the C extension's package classification.
+    User allowlists and denylists remain available during reentrant discovery.
     """
     initialized = True
     # Reuse the shared snapshot instead of scanning installed distributions again.

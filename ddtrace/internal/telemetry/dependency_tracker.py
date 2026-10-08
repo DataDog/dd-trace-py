@@ -11,12 +11,12 @@ single DependencyTracker instance.
 
 from collections.abc import Iterable
 from collections.abc import Mapping
-import re
 from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import IncompleteDistributionSnapshot
+from ddtrace.internal.packages import _normalize_distribution_name as _normalize_dep_name
 from ddtrace.internal.packages import get_distribution_version
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.settings._telemetry import config as telemetry_config
@@ -30,18 +30,6 @@ from .dependency import register_cve_metadata
 
 
 log = get_logger(__name__)
-
-_NORMALIZE_RE = re.compile(r"[-_.]+")
-
-
-def _normalize_dep_name(name: str) -> str:
-    """PEP 503 package name canonicalization for consistent dict lookups.
-
-    Distribution metadata may use original casing (e.g. "PyYAML") while
-    SCA CVE data uses lowercased names (e.g. "pyyaml").  Normalizing keys
-    prevents duplicate entries and lookup misses.
-    """
-    return _NORMALIZE_RE.sub("-", name).lower()
 
 
 class DependencyTracker:
@@ -80,6 +68,10 @@ class DependencyTracker:
         for module_name in newly_imported_deps:
             try:
                 distributions[module_name] = get_module_distribution_versions(module_name)
+            except IncompleteDistributionSnapshot:
+                # The module is still imported, so the next collection can retry it.
+                with self._lock:
+                    self._modules_already_imported.discard(module_name)
             except Exception:
                 log.debug("update_imported_dependencies: failed for %r", module_name, exc_info=True)
         with self._lock:

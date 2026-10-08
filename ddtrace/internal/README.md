@@ -19,6 +19,12 @@ finder finishes rather than caching the temporary result. Consumers that persist
 `get_package_distributions()` results should pass `require_complete=True` for
 the same protection.
 
+Background prefetch scans filesystem and ZIP distributions only. Custom finders
+run on the first reader, because an import hook can wait for prefetch while
+holding a module lock that the finder needs. Module-version lookups also reject
+incomplete snapshots; dependency collection retries those modules on its next
+report instead of marking them permanently consumed.
+
 
 ## The Product Protocol
 

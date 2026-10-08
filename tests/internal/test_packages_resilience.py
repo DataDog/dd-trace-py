@@ -1184,6 +1184,9 @@ def test_persistent_lookups_reject_reentrant_snapshots(tmp_path, reset_packages_
             _p.get_package_distributions(require_complete=True)
         with pytest.raises(_p.IncompleteDistributionSnapshot):
             _p.get_distribution_version("from-finder")
+        for module_name in ("on-path", "on_path", "from_finder", "unknown"):
+            with pytest.raises(_p.IncompleteDistributionSnapshot):
+                _p.get_module_distribution_versions(module_name)
 
     finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=on_find)
     monkeypatch.setattr(sys, "path", [str(site)])
@@ -1191,6 +1194,44 @@ def test_persistent_lookups_reject_reentrant_snapshots(tmp_path, reset_packages_
     assert _p.get_distribution_version("from-finder") == "1.0"
     assert nested == [{"on_path": ["on-path"]}]
     assert "from_finder" in _p.get_package_distributions(require_complete=True)
+
+
+@pytest.mark.parametrize("finder_first", [False, True])
+def test_prefetch_defers_custom_finders_to_the_first_reader(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, finder_first: bool
+) -> None:
+    from importlib.machinery import PathFinder
+    import threading
+
+    from ddtrace.internal import packages as _p
+    from ddtrace.internal.native import scan_distributions
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    finder_threads = []
+    finder = _DistFinder(
+        custom / "from_finder-1.0.dist-info", on_find=lambda: finder_threads.append(threading.get_ident())
+    )
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [finder, PathFinder] if finder_first else [PathFinder, finder])
+    scans = []
+    real_scan = scan_distributions
+
+    def scan(entry, *args):
+        scans.append(entry)
+        return real_scan(entry, *args)
+
+    monkeypatch.setattr(_p, "scan_distributions", scan)
+    _prefetch_and_wait(_p)
+
+    assert finder_threads == []
+    assert _p._INSTALLED is not None and not _p._INSTALLED.complete
+    assert [record[0] for record in _p._INSTALLED.records] == ["on-path"]
+    assert _p.get_distribution_version("from-finder") == "1.0"
+    assert finder_threads == [threading.get_ident()]
+    expected = ["from-finder", "on-path"] if finder_first else ["on-path", "from-finder"]
+    assert [record[0] for record in _p._installed_distributions()] == expected
+    assert scans == [str(site)]
 
 
 class MetadataPathFinder:
@@ -1423,20 +1464,20 @@ def test_queued_prefetch_does_not_strand_a_fork_child(reset_packages_caches) -> 
     assert _p._PREFETCH_DONE.is_set()
 
 
-def test_lookups_cached_inside_a_finder_query_are_dropped(
+def test_module_lookups_inside_a_finder_query_are_not_cached(
     tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A finder that looks up its own module while being queried gets an answer
-    from incomplete records; that answer must not stay cached.
-    """
+    """An incomplete lookup must raise instead of caching a missing module."""
     from ddtrace.internal import packages as _p
 
     custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
-    seen = []
+    seen: list[str] = []
 
     def look_up_own_module():
         if not seen:
-            seen.append(_p.get_module_distribution_versions("from_finder"))
+            with pytest.raises(_p.IncompleteDistributionSnapshot):
+                _p.get_module_distribution_versions("from_finder")
+            seen.append("incomplete")
 
     finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=look_up_own_module)
     monkeypatch.setattr(sys, "path", [])
@@ -1445,7 +1486,7 @@ def test_lookups_cached_inside_a_finder_query_are_dropped(
 
     _p._installed()
 
-    assert seen == [None]
+    assert seen == ["incomplete"]
     assert _p.get_module_distribution_versions("from_finder") == ("from-finder", "1.0")
 
 

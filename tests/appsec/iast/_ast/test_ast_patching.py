@@ -228,6 +228,75 @@ def test_iast_retries_initialization_after_reentrant_discovery(tmp_path, monkeyp
         initialize_iast_lists()
 
 
+@pytest.mark.subprocess(timeout=15, env={"DD_IAST_ENABLED": "false", "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+def test_iast_import_during_prefetch_does_not_deadlock_with_a_finder():
+    import importlib.metadata
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+    import threading
+
+    from ddtrace.appsec._iast._ast import ast_patching
+    from ddtrace.internal import packages
+    from ddtrace.internal.module import ModuleWatchdog
+
+    packages._reset_installed_distributions()
+    ast_patching.IAST_PATCHING_LAZY_LOADED = True
+    main_thread = threading.get_ident()
+    prefetch_started = threading.Event()
+    import_started = threading.Event()
+    finder_threads = []
+    real_scan = packages.scan_distributions
+
+    def scan(entry, *args):
+        prefetch_started.set()
+        assert import_started.wait(5)
+        return real_scan(entry, *args)
+
+    class Finder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            finder_threads.append(threading.get_ident())
+            prefetch_started.set()
+            assert import_started.wait(5)
+            importlib.import_module("iast_prefetch_application")
+            return []
+
+    def condition(module_name):
+        if module_name != "iast_prefetch_application":
+            return False
+        # ModuleWatchdog runs this condition while the application holds its module lock.
+        import_started.set()
+        assert ast_patching._should_iast_patch(module_name)
+        return True
+
+    def execute(loader, module):
+        loader.loader.exec_module(module)
+
+    with TemporaryDirectory() as directory:
+        site = Path(directory)
+        (site / "iast_prefetch_application.py").write_text("value = 1\n")
+        dist = site / "native_dependency-1.0.dist-info"
+        dist.mkdir()
+        (dist / "METADATA").write_text("Name: native-dependency\nVersion: 1.0\n")
+        (dist / "top_level.txt").write_text("native_dependency\n")
+        sys.path = [directory]
+        sys.meta_path.append(Finder())
+        packages.scan_distributions = scan
+        ModuleWatchdog.register_pre_exec_module_hook(condition, execute)
+
+        packages.prefetch_distributions()
+        assert prefetch_started.wait(5)
+        module = importlib.import_module("iast_prefetch_application")
+
+        assert module.value == 1
+        assert packages._PREFETCH_DONE.wait(5)
+        assert finder_threads == [main_thread]
+        assert not ast_patching.IAST_PATCHING_LAZY_LOADED
+
+
 def test_should_iast_patch_allow_first_party():
     assert iastpatch.should_iast_patch("file_in_my_project.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
     assert iastpatch.should_iast_patch("file_in_my_project.print_str") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST

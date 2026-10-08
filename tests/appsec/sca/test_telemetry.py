@@ -103,6 +103,8 @@ def test_sca_keeps_reentrant_metadata_until_version_is_available(tmp_path, monke
             if discovery == "prefetch":
                 packages.prefetch_distributions()
                 assert packages._PREFETCH_DONE.wait(10)
+                # Custom finders are deferred until the first reader.
+                assert packages.get_distribution_version("finder-package") == "1.0"
             elif discovery == "report":
                 assert tracker.collect_report() is None
             else:

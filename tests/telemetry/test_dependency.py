@@ -610,6 +610,73 @@ def test_sca_discovery_does_not_hold_telemetry_lock(monkeypatch: pytest.MonkeyPa
     assert tracker._imported_dependencies["example"].version == "2.0"
 
 
+@pytest.mark.parametrize("sca_enabled", [False, True])
+@pytest.mark.parametrize(
+    "distribution_name,module_name,custom_distribution",
+    [("Native-Dep", "native_dep", False), ("native_dep", "native_dep", False), ("Finder-Dep", "finder_dep", True)],
+)
+def test_dependency_collection_retries_incomplete_module_versions(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    sca_enabled: bool,
+    distribution_name: str,
+    module_name: str,
+    custom_distribution: bool,
+) -> None:
+    from importlib.machinery import PathFinder
+    import importlib.metadata
+    import sys
+    from types import ModuleType
+
+    from ddtrace.internal import packages
+    from ddtrace.internal.settings._telemetry import config as telemetry_config
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_config
+    from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+    site = tmp_path / "site"
+    site.mkdir()
+    root = tmp_path if custom_distribution else site
+    dist = root / f"{distribution_name.replace('-', '_')}-1.0.dist-info"
+    dist.mkdir()
+    (dist / "METADATA").write_text(f"Name: {distribution_name}\nVersion: 1.0\n")
+    (dist / "top_level.txt").write_text(f"{module_name}\n")
+    tracker = DependencyTracker()
+    nested_reports = []
+
+    class Finder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            assert tracker._lock.acquire(False), "Finder discovery must run outside the tracker lock"
+            tracker._lock.release()
+            nested_reports.append(tracker.collect_report())
+            return [importlib.metadata.PathDistribution(dist)] if custom_distribution else []
+
+    packages._reset_installed_distributions()
+    packages.get_module_distribution_versions.cache_clear()
+    try:
+        monkeypatch.setattr(sys, "path", [str(site)])
+        monkeypatch.setattr(sys, "meta_path", [Finder(), PathFinder])
+        monkeypatch.setattr(telemetry_config, "DEPENDENCY_COLLECTION", True)
+        monkeypatch.setattr(appsec_config, "SCA_ENABLED", sca_enabled)
+        monkeypatch.setitem(sys.modules, module_name, ModuleType(module_name))
+        tracker._modules_already_imported = set(sys.modules) - {module_name}
+
+        packages.get_distributions()
+
+        assert nested_reports == [None]
+        assert module_name not in tracker._modules_already_imported
+        expected: dict[str, object] = {"name": distribution_name, "version": "1.0"}
+        if sca_enabled:
+            expected["metadata"] = []
+        assert tracker.collect_report() == [expected]
+        assert tracker.collect_report() is None
+    finally:
+        packages._reset_installed_distributions()
+        packages.get_module_distribution_versions.cache_clear()
+
+
 class TestNormalizeDepName:
     """Tests for PEP 503 package name canonicalization."""
 
