@@ -104,7 +104,9 @@ def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     before = time.time_ns() // 1_000_000
     headers = {
         "x-dd-proxy": "azure-fd",
-        # Front Door cannot set this header itself, so a value here is untrusted and must be ignored
+        # A fixed past timestamp, i.e. what a static rules-engine value or a spoofed header looks
+        # like. Front Door is not known to set this header, so a value this far from now is dropped
+        # in favor of the current time.
         "x-dd-proxy-request-time-ms": "1736973768000",
         # path intentionally missing leading slash to test normalization
         "x-dd-proxy-path": "api/my-function",
@@ -195,17 +197,63 @@ def test_malformed_timestamp_does_not_leave_an_active_span(bad_timestamp, tracer
         assert tracer.current_span() is parent
 
 
-def test_untrusted_timestamp_is_ignored_for_non_timestamp_provider(tracer) -> None:
-    """A client-supplied timestamp must not reach start_ns for proxies that don't provide one."""
-    ctx = ExecutionContext("test")
+def _azure_fd_headers(request_time_ms=None) -> dict:
     headers = {
         "x-dd-proxy": "azure-fd",
-        # a plausible-looking but arbitrary value that would otherwise distort the span duration
-        "x-dd-proxy-request-time-ms": "1",
         "x-dd-proxy-path": "/api/my-function",
         "x-dd-proxy-httpmethod": "GET",
         "x-dd-proxy-domain-name": "my-app.azurefd.net",
     }
+    if request_time_ms is not None:
+        headers["x-dd-proxy-request-time-ms"] = str(request_time_ms)
+    return headers
+
+
+# Offsets from now, in ms, that are within _MAX_UNTRUSTED_PROXY_SKEW_MS (30s) and so are treated as
+# real request times. Negative means the proxy clock is ahead of ours.
+@pytest.mark.parametrize("offset_ms", [0, -5_000, 5_000, 25_000])
+def test_plausible_timestamp_is_used_for_non_timestamp_provider(offset_ms, tracer) -> None:
+    """A request time close enough to now to be real is honored even though azure-fd isn't known to send one."""
+    ctx = ExecutionContext("test")
+    request_time_ms = (time.time_ns() // 1_000_000) - offset_ms
+
+    create_inferred_proxy_span_if_headers_exist(ctx, _azure_fd_headers(request_time_ms))
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    assert span.start_ns == request_time_ms * 1_000_000
+
+
+# Offsets beyond the skew allowance: a static constant from a rules engine, a spoofed value, or a
+# clock far enough off that the duration would be meaningless. Each falls back to the current time.
+@pytest.mark.parametrize(
+    "offset_ms",
+    [
+        60_000,  # a minute in the past
+        -60_000,  # a minute in the future
+        86_400_000,  # a day in the past
+    ],
+)
+def test_implausible_timestamp_is_ignored_for_non_timestamp_provider(offset_ms, tracer) -> None:
+    """An arbitrary request time must not reach start_ns for a proxy that isn't known to send one."""
+    ctx = ExecutionContext("test")
+    request_time_ms = (time.time_ns() // 1_000_000) - offset_ms
+
+    before = time.time_ns() // 1_000_000
+    create_inferred_proxy_span_if_headers_exist(ctx, _azure_fd_headers(request_time_ms))
+    after = time.time_ns() // 1_000_000
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    assert before * 1_000_000 <= span.start_ns <= after * 1_000_000
+
+
+@pytest.mark.parametrize("bad_timestamp", ["not-a-number", "1736973768000.5", "1e12", " ", "0x64"])
+def test_malformed_timestamp_falls_back_to_now_for_non_timestamp_provider(bad_timestamp, tracer) -> None:
+    """Malformed input must not raise, and must not stop azure-fd from getting an inferred span."""
+    ctx = ExecutionContext("test")
+    headers = _azure_fd_headers()
+    headers["x-dd-proxy-request-time-ms"] = bad_timestamp
 
     before = time.time_ns() // 1_000_000
     create_inferred_proxy_span_if_headers_exist(ctx, headers)

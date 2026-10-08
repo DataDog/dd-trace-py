@@ -89,6 +89,13 @@ POSSIBLE_PROXY_HEADER_USER = _possible_header("x-dd-proxy-user")
 
 HEADER_USERAGENT = _possible_header("user-agent")
 
+# How far a request time from a proxy that is not known to set one may differ from the current time
+# and still be used. Such a value is either a static constant from the proxy's rules engine or
+# client-supplied, so it is only honored when it is close enough to now to be plausible: that covers
+# clock skew between the proxy and the origin plus the proxy-to-application delay, which can reach
+# seconds when the origin cold starts or the proxy fails over to a second origin.
+_MAX_UNTRUSTED_PROXY_SKEW_MS = 30_000
+
 POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION = _possible_header("x-goog-pubsub-subscription-name")
 POSSIBLE_HEADER_PUBSUB_MESSAGE_ID = _possible_header("x-goog-pubsub-message-id")
 
@@ -171,6 +178,29 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
     return span
 
 
+def _plausible_request_time_ms(header_value: Optional[str]) -> int:
+    """Return header_value as epoch ms if it is close enough to now to be a real request time.
+
+    Falls back to the current time when the header is absent, not an integer, or too far from now.
+    """
+    now_ms = Time.time_ns() // 1_000_000
+
+    if not header_value:
+        return now_ms
+
+    try:
+        request_time_ms = int(header_value)
+    except ValueError:
+        log.debug("Ignoring inferred proxy request time that is not an integer: %r", header_value)
+        return now_ms
+
+    if abs(now_ms - request_time_ms) > _MAX_UNTRUSTED_PROXY_SKEW_MS:
+        log.debug("Ignoring implausible inferred proxy request time: %r", header_value)
+        return now_ms
+
+    return request_time_ms
+
+
 def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     proxy_header_system = _extract_header_value(POSSIBLE_PROXY_HEADER_SYSTEM, headers)
 
@@ -204,11 +234,12 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     if proxy_header_path and not proxy_header_path.startswith("/"):
         proxy_header_path = f"/{proxy_header_path}"
 
-    # Proxies that cannot inject a request timestamp (e.g. Azure Front Door, whose rules engine only
-    # supports static header values) have no trustworthy value to offer, so any header present is
-    # ignored in favor of the current time. Proxies that do provide one must provide a valid one.
+    # Proxies that are not known to inject a request timestamp (e.g. Azure Front Door, whose rules
+    # engine only supports static header values) fall back to the current time, but still use a
+    # header value that is plausibly a real request time. Proxies that do provide one must provide a
+    # valid one.
     if not proxy_info.does_provide_timestamp:
-        start_time_ms = Time.time_ns() // 1_000_000
+        start_time_ms = _plausible_request_time_ms(proxy_header_start_time_ms)
     elif not proxy_header_start_time_ms:
         return None
     else:
