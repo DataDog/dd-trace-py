@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    mcp: Adds support for ``mcp`` 2.x. Previously the integration was skipped on ``mcp`` 2.x,
+    so no MCP client or server spans were produced.
