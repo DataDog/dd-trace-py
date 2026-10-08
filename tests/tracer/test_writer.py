@@ -1793,7 +1793,7 @@ def test_agent_mode_exports_trace_metrics_to_the_agent():
 
 
 @pytest.mark.subprocess(
-    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"}
+    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"}
 )
 def test_agentless_stats_go_to_the_stats_intake():
     """There is no Agent to forward /v0.6/stats to, so computed stats go straight to the intake."""
@@ -1808,7 +1808,6 @@ def test_agentless_stats_go_to_the_stats_intake():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
         "DD_SITE": "datadoghq.eu",
     }
 )
@@ -1854,7 +1853,6 @@ def test_agentless_leaves_stats_to_the_backend_when_disabled():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
     },
     err=None,  # warns that OTLP trace metrics are skipped

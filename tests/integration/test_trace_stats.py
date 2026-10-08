@@ -103,7 +103,6 @@ def test_stats_30(send_once_stats_tracer):
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_STATS_ADDITIONAL_TAGS": "customer.tier,region",
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
     }
 )
 def test_stats_additional_tags_v06_payload():

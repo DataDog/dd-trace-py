@@ -637,9 +637,10 @@ class AgentWriterInterface(metaclass=abc.ABCMeta):
     intake_url: str
     _api_version: str
     _sync_mode: bool
+    _compute_stats_enabled: bool
 
     @abc.abstractmethod
-    def set_test_session_token(self, token: Optional[str]) -> None:
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -979,12 +980,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     raise
                 _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
-    def set_test_session_token(self, token: Optional[str]) -> None:
-        """
-        Set the test session token and recreate the exporter with the new configuration.
-        :param token: The test session token to use for authentication.
-        """
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
+        """Recreate the exporter with a test token, optionally changing stats computation."""
         self._test_session_token = token
+        if compute_stats_enabled is not None:
+            self._compute_stats_enabled = compute_stats_enabled
         old_exporter = self._exporter
         self._exporter = self._create_exporter()
         self._shutdown_exporter(old_exporter)
