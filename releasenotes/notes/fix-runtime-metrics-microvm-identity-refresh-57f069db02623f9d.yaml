@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    runtime metrics: Fixes an issue where runtime metrics could report CPU time, context switch,
+    and garbage collection pause deltas spanning a previous AWS Lambda MicroVM invocation
+    after the runtime identity is refreshed.
