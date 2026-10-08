@@ -1456,3 +1456,37 @@ def test_effective_root_reuses_the_package_probe_across_files(
 
     info = _p._is_regular_package.cache_info()
     assert (info.misses, info.hits) == (1, 2)
+
+
+def test_directory_probes_follow_snapshot_replacement(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory that gains distribution metadata after it was first probed
+    (pip install --target into a vendor directory already on sys.path) is seen
+    once the snapshot is replaced, rather than staying cached as shipping nothing.
+    """
+    from ddtrace.internal import packages as _p
+
+    tmp_path = tmp_path.resolve()
+    site = _site_with_dist(tmp_path / "site", "first", "first")
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    (vendor / "vendored.py").write_text("")
+    monkeypatch.setattr(sys, "path", [str(site), str(vendor)])
+    _prefetch_and_wait(_p)
+    _p.filename_to_package.cache_clear()
+
+    assert _p.filename_to_package(vendor / "vendored.py") is None
+    assert _p._is_install_root(vendor) is False
+
+    di = _write_dist_info(vendor, "vendored", "1.0")
+    (di / "RECORD").write_text("vendored.py,,\n")
+    # Any sys.path change replaces the snapshot on the next read of the maps.
+    sys.path.append(str(tmp_path / "elsewhere"))
+    assert "vendored" in [r[0] for r in _p._installed_distributions()]
+
+    # filename_to_package can still get there through the root-module fallback,
+    # so check the probe that gates _install_root_owner directly.
+    assert _p._is_install_root(vendor) is True
+    pkg = _p.filename_to_package(vendor / "vendored.py")
+    assert pkg is not None and pkg.name == "vendored"

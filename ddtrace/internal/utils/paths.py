@@ -1,34 +1,34 @@
 r"""Cheap replacements for the pathlib containment operations.
 
-``PurePath.relative_to`` and ``PurePath.is_relative_to`` are the natural way to
+PurePath.relative_to and PurePath.is_relative_to are the natural way to
 ask "is this file inside that directory, and where relative to it", but on
 Python 3.12 a single call costs path allocations and case-folded comparisons
-proportional to the depth of *both* operands, whether it succeeds or fails. Code
-that probes one file against every entry of ``sys.path`` then spends most of its
-time building throwaway path objects, which is what ``ddtrace.internal.packages``
+proportional to the depth of both operands, whether it succeeds or fails. Code
+that probes one file against every entry of sys.path then spends most of its
+time building throwaway path objects, which is what ddtrace.internal.packages
 was doing in production allocation profiles.
 
-These helpers answer the same questions by comparing ``PurePath.parts``, which
+These helpers answer the same questions by comparing PurePath.parts, which
 pathlib has already parsed: containment becomes a prefix check on a tuple of
 strings, with no intermediate objects and no exceptions on the miss path.
 
 Contract, and where it differs from pathlib:
 
-- Arguments must be ``PurePath`` instances; a string raises ``AttributeError``
+- Arguments must be PurePath instances; a string raises AttributeError
   rather than quietly answering. Comparing parsed components is what guarantees
-  that ``.`` and repeated separators are already collapsed, and that anchors
-  match only as whole units -- ``/`` and POSIX's separate ``//``, or Windows'
-  ``C:`` and ``C:\``, are distinct, as pathlib also has it. (pathlib agreed on
+  that "." and repeated separators are already collapsed, and that anchors
+  match only as whole units -- "/" and POSIX's separate "//", or Windows'
+  "C:" and "C:\", are distinct, as pathlib also has it. (pathlib agreed on
   that last one only from 3.12, where anchors became strict; no caller here
   passes a non-absolute root.)
-- ``..`` is not resolved and nothing here touches the filesystem, so resolve
+- ".." is not resolved and nothing here touches the filesystem, so resolve
   first if symlinks matter. Comparing a resolved path against an unresolved root
   is as meaningless here as it is in pathlib.
 - Case sensitivity follows the host rather than the flavour of the path passed
   in. That matches pathlib for the native paths every caller uses, but a
-  ``PureWindowsPath`` compared on POSIX will not fold case.
+  PureWindowsPath compared on POSIX will not fold case.
 - A path is relative to itself, giving an empty tuple of components, matching
-  the empty ``.parts`` of the ``"."`` pathlib returns.
+  the empty parts of the "." pathlib returns.
 """
 
 import os
@@ -49,7 +49,7 @@ _SEP = os.sep
 def _starts_with(path_parts: tuple[str, ...], root_parts: tuple[str, ...], n: int) -> bool:
     """Whether the first n components of path_parts are root_parts.
 
-    Callers must have checked ``n == len(root_parts) <= len(path_parts)``, which
+    Callers must have checked n == len(root_parts) <= len(path_parts), which
     is what bounds the zip below.
 
     Folding per component, rather than folding the joined path and indexing into
@@ -64,8 +64,8 @@ def _starts_with(path_parts: tuple[str, ...], root_parts: tuple[str, ...], n: in
 def relative_parts(path: PurePath, root: PurePath) -> t.Optional[tuple[str, ...]]:
     """Components of path relative to root, or None if not contained.
 
-    The fast equivalent of ``path.relative_to(root).parts`` guarded by a
-    ``try/except ValueError``. Returns an empty tuple when path is root itself.
+    The fast equivalent of path.relative_to(root).parts guarded by a
+    try/except ValueError. Returns an empty tuple when path is root itself.
     """
     path_parts = path.parts
     root_parts = root.parts
@@ -85,8 +85,8 @@ def relative_parts(path: PurePath, root: PurePath) -> t.Optional[tuple[str, ...]
 def is_contained(path: PurePath, root: PurePath) -> bool:
     """Whether path is root or lives under it.
 
-    The fast equivalent of ``path.is_relative_to(root)``. Prefer
-    ``relative_parts`` when the relative components are needed too, so the
+    The fast equivalent of path.is_relative_to(root). Prefer
+    relative_parts when the relative components are needed too, so the
     containment test is not paid twice.
     """
     path_parts = path.parts
@@ -102,8 +102,8 @@ def is_contained(path: PurePath, root: PurePath) -> bool:
 def relative_path(path: PurePath, root: PurePath) -> t.Optional[str]:
     """path relative to root as a string, or None if not contained.
 
-    The fast equivalent of ``str(path.relative_to(root))``, using the native
-    separator. Yields ``""`` rather than pathlib's ``"."`` when path is root.
+    The fast equivalent of str(path.relative_to(root)), using the native
+    separator. Yields "" rather than pathlib's "." when path is root.
     """
     parts = relative_parts(path, root)
     return None if parts is None else _SEP.join(parts)

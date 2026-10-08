@@ -128,7 +128,7 @@ def get_version_for_package(name: str) -> str:
 
 @cached(maxsize=256)
 def _is_regular_package(parent: Path, base: str) -> bool:
-    """Whether ``parent/base`` is a regular package (it ships an ``__init__.py``).
+    """Whether parent/base is a regular package (it ships an __init__.py).
 
     Keyed on the top-level name, not the caller's full relative path, which would
     spend a cache entry per source file and almost never hit.
@@ -196,7 +196,7 @@ def _normalized_dist_name(name: str) -> str:
 
 @cached(maxsize=256)
 def _shipped_distributions(directory: Path) -> frozenset[str]:
-    """Normalized names of the distributions whose metadata ``directory`` ships.
+    """Normalized names of the distributions whose metadata directory ships.
 
     One cached listing serves both callers below. Keying on the directory alone
     is what allows that, and an install root is routinely large enough that
@@ -204,7 +204,7 @@ def _shipped_distributions(directory: Path) -> frozenset[str]:
     """
     try:
         return frozenset(
-            # ``{name}-{version}.dist-info`` / ``{name}.egg-info``: the name part
+            # {name}-{version}.dist-info / {name}.egg-info: the name part
             # (escaped, so it never contains a dash) precedes the first dash.
             _normalized_dist_name(child.name[: -len(child.suffix)].split("-", 1)[0])
             for child in directory.iterdir()
