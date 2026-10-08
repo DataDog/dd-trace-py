@@ -42,9 +42,11 @@ def _expected_server_tool_output(text, is_error):
     }
 
 
-# mcp 2.x no longer includes the exception message in the tool error result.
+# Since mcp 2.1 the tool error result no longer includes the exception message.
 FAILING_TOOL_ERROR_TEXT = (
-    "Error executing tool failing_tool" if MCP_V2 else "Error executing tool failing_tool: Tool execution failed"
+    "Error executing tool failing_tool"
+    if MCP_VERSION >= (2, 1, 0)
+    else "Error executing tool failing_tool: Tool execution failed"
 )
 
 
@@ -245,7 +247,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
         },
         error={
             "type": "ToolError",
-            "message": "Error executing tool failing_tool: Tool execution failed",
+            "message": FAILING_TOOL_ERROR_TEXT,
             "stack": "",
         },
         name="failing_tool",
@@ -292,14 +294,11 @@ def test_server_initialization_span_created(mcp_setup, mcp_llmobs, test_spans, m
 
 
 def test_server_tool_call_tagged_with_client_info(mcp_setup, mcp_llmobs, test_spans, mcp_server):
-    from mcp.shared.memory import create_connected_server_and_client_session
     from mcp.types import Implementation
 
     async def run():
         client_info = Implementation(name="test-client", title="Test Client", version="1.2.3")
-        async with create_connected_server_and_client_session(
-            mcp_server._mcp_server, client_info=client_info
-        ) as client:
+        async with connect_client(mcp_server, client_info=client_info) as client:
             await client.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
 
     asyncio.run(run())
