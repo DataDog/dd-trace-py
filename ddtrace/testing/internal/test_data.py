@@ -406,6 +406,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST
         self.configuration_errors: dict[str, str] = {}
+        self.tests_deselected_by_testmon = 0
 
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
@@ -437,6 +438,9 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
             self.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] = TAG_TRUE if has_itr_skips else "false"
             self.tags[TestTag.ITR_TESTS_SKIPPING_TYPE] = self.itr_skipping_level.value
             self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = self.tests_skipped_by_itr
+
+        if self.tests_deselected_by_testmon > 0:
+            self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = self.tests_deselected_by_testmon
 
 
 class TestTag:

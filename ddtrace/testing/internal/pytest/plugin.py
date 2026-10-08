@@ -386,6 +386,10 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._itr_ignored_suite_paths: list[Path] = []
         self._itr_unskippable_suites: set[SuiteRef] = set()
 
+        # Whether pytest-testmon is active in this session. When True, deselected items are counted
+        # as testmon deselections and reported in the session span.
+        self._testmon_active = False
+
         self.manager = session_manager
         self.session = self.manager.session
         self.xdist_manifest: t.Optional[XdistManifest] = None
@@ -480,6 +484,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
+            # Propagate number of testmon-deselected tests to the main process.
+            session.config.workeroutput["tests_deselected_by_testmon"] = self.session.tests_deselected_by_testmon
 
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
@@ -679,6 +685,16 @@ class TestOptPlugin(TestOptPluginProtocol):
                 test_module.finish()
                 self.manager.writer.put_item(test_module)
                 TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+    def pytest_deselected(self, items: list[pytest.Item]) -> None:
+        """Count items deselected by pytest-testmon.
+
+        When testmon is active, deselected tests are tests that testmon determined do not need to run
+        based on coverage data. We count them so they can be reported in the session span as a metric,
+        providing visibility into how many tests testmon skipped — analogous to ITR's tests_skipped_by_itr.
+        """
+        if self._testmon_active:
+            self.session.tests_deselected_by_testmon += len(items)
 
     def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
@@ -1742,6 +1758,9 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config.pluginmanager.register(plugin)
     config.pluginmanager.add_hookspecs(TestOptHooks)
+
+    # Detect pytest-testmon: when active, deselected items are counted as testmon deselections.
+    plugin._testmon_active = config.pluginmanager.hasplugin("testmon")
 
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
