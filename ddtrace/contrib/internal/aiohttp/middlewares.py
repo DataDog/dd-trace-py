@@ -6,7 +6,7 @@ from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 CONFIG_KEY = "datadog_trace"
@@ -86,9 +86,9 @@ async def trace_middleware(app, handler):
 
 
 def finish_request_span(request, response):
-    # safe-guard: discard if we don't have a request span
+    # Response preparation and the task callback can both finalize a request; the first releases its event.
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or not span_from_context(ctx):
+    if not ctx or ctx._end_event_dispatched or not span_from_context(ctx):
         return
 
     # default resource name
@@ -106,7 +106,7 @@ def finish_request_span(request, response):
             resource = res_info.get("prefix")
 
         # prefix the resource name by the http method
-        resource = "{} {}".format(request.method, resource)
+        resource = f"{request.method} {resource}"
 
     event: WebFrameworkRequestEvent = ctx.event
     event.resource = resource

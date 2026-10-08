@@ -1,14 +1,14 @@
 from typing import Any
 
-from ddtrace.debugging._import import DebuggerModuleWatchdog
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings.dynamic_instrumentation import config
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
 
-# We need to install this on start-up because if DI gets enabled remotely
-# we won't be able to capture many of the code objects from the modules
-# that are already loaded.
-DebuggerModuleWatchdog.install()
+# We need to register with the shared code collector unconditionally so that
+# code objects from modules loaded before DI is enabled remotely are not
+# missed.
+ModuleCodeCollector.register("di")
 
 requires = ["remote-configuration"]
 

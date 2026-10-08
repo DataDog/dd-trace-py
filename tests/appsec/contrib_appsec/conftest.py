@@ -13,13 +13,17 @@ try:
 except Exception:
     pass  # nosec
 
-from http.server import BaseHTTPRequestHandler  # noqa: E402
-from http.server import ThreadingHTTPServer  # noqa: E402
+from pathlib import Path  # noqa: E402
 import socket  # noqa: E402
-import threading  # noqa: E402
-import time  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import tempfile  # noqa: E402
 
 import pytest  # noqa: E402
+
+# patch requests here: patch() is one-shot and installs the AppSec Session.request
+# wrapper only if _load_modules is true, which a test may have turned off by then
+import requests  # noqa: E402,F401
 
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
@@ -77,81 +81,63 @@ def check_waf_timeout(request):
     asm_config._waf_timeout = previous_timeout
 
 
-@pytest.fixture
-def api10_http_server_port(monkeypatch):
-    class Api10Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self._handle_request()
+API10_SERVER_SCRIPT = str(Path(__file__).with_name("api10_server.py"))
 
-        def do_POST(self):
-            content_length = int(self.headers.get("Content-Length", "0"))
-            if content_length:
-                self.rfile.read(content_length)
-            self._handle_request()
 
-        def log_message(self, *args, **kwargs):
-            pass  # silence test output
+class Api10Server:
+    STARTUP_TIMEOUT = 30.0
 
-        def _handle_request(self):
-            if self.path == "/request-headers":
-                status = 200
-                body = b"ok"
-                headers = {"Content-Type": "text/plain"}
-            elif self.path == "/response-headers":
-                status = 200
-                body = b"ok"
-                headers = {"Content-Type": "text/plain", "x-api10-response": "api10-response-header"}
-            elif self.path == "/response-body":
-                status = 200
-                body = b'{"payload": "api10-response-body"}'
-                headers = {"Content-Type": "application/json"}
-            elif self.path == "/response-status":
-                status = 210
-                body = b"ok"
-                headers = {"Content-Type": "application/json"}
-            elif self.path == "/redirect-source":
-                status = 302
-                body = b'{"payload": "api10-response-body"}'
-                headers = {
-                    "Content-Type": "application/json",
-                    "Location": "/redirect-target",
-                    "x-api10-redirect": "api10-redirect",
-                }
-            elif self.path == "/redirect-target":
-                status = 200
-                body = b'{"payload": "api10-response-body"}'
-                headers = {"Content-Type": "application/json"}
-            else:
-                status = 404
-                body = b"not found"
-                headers = {"Content-Type": "text/plain"}
+    def __init__(self):
+        self._process = None
+        self._stderr = None
+        self._port = 0
 
-            self.send_response(status)
-            for header, value in headers.items():
-                self.send_header(header, value)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+    def port(self) -> int:
+        if self._process is None or self._process.poll() is not None:
+            self.restart()
+        return self._port
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Api10Handler)
-    _, port = server.server_address
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
-    deadline = time.monotonic() + 2.0
-    while True:
+    def restart(self) -> None:
+        self.stop()
+        stderr = tempfile.TemporaryFile()
+        with socket.create_server(("127.0.0.1", 0), backlog=128) as listener:
+            process = subprocess.Popen(
+                [sys.executable, "-I", "-S", API10_SERVER_SCRIPT, str(listener.fileno())],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=stderr,
+                pass_fds=(listener.fileno(),),
+            )
+            port = listener.getsockname()[1]
+        self._process, self._stderr, self._port = process, stderr, port
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.1):
-                break
-        except OSError:
-            if time.monotonic() >= deadline:
-                raise RuntimeError("api10 http server failed to start")
-            time.sleep(0.01)
+            with socket.create_connection(("127.0.0.1", port), timeout=self.STARTUP_TIMEOUT) as probe:
+                probe.sendall(b"GET /request-headers HTTP/1.0\r\n\r\n")
+                with probe.makefile("rb") as response:
+                    status_line = response.readline()
+        except OSError as e:
+            status_line = repr(e).encode()
+        if b" 200 " not in status_line:
+            stderr.seek(0)
+            message = f"api10 server not ready: {status_line!r}, exit code {process.poll()}, stderr: {stderr.read()!r}"
+            self.stop()
+            raise RuntimeError(message)
 
-    yield port
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+    def stop(self) -> None:
+        if self._process is not None:
+            with self._process:
+                self._process.kill()
+            self._process = None
+        if self._stderr is not None:
+            self._stderr.close()
+            self._stderr = None
+
+
+@pytest.fixture(scope="session")
+def api10_server():
+    server = Api10Server()
+    yield server
+    server.stop()
 
 
 @pytest.fixture

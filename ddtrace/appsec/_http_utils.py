@@ -1,8 +1,8 @@
 import base64
 from collections.abc import Mapping
+from collections.abc import MutableMapping
 from http.cookies import SimpleCookie
 import json
-from typing import MutableMapping
 from typing import Optional
 from urllib.parse import parse_qs
 

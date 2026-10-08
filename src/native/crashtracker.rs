@@ -82,6 +82,7 @@ impl CrashtrackerConfigurationPy {
         endpoint=None,
         unix_socket_path=None,
         test_token=None,
+        api_key=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -95,6 +96,7 @@ impl CrashtrackerConfigurationPy {
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
         test_token: Option<String>,
+        api_key: Option<&str>,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let mut builder = CrashtrackerConfiguration::builder()
@@ -111,6 +113,9 @@ impl CrashtrackerConfigurationPy {
         }
         if let Some(token) = test_token {
             builder = builder.endpoint_test_token(&token);
+        }
+        if let Some(api_key) = api_key {
+            builder = builder.endpoint_api_key(api_key);
         }
         if let Some(path) = unix_socket_path {
             builder = builder.unix_socket_path(path);

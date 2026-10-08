@@ -1,4 +1,6 @@
+from copy import deepcopy
 from dataclasses import dataclass
+from dataclasses import field
 from dataclasses import replace
 from typing import Any
 from typing import Literal
@@ -6,6 +8,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
@@ -13,7 +16,6 @@ from ddtrace.llmobs._utils import attach_prompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
-from ddtrace.vendor.debtcollector import deprecate
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,7 @@ class ManagedPrompt:
     STABLE API:
         - format(**vars) -> str | list[dict]
         - to_annotation_dict(**vars) -> dict[str, Any]
+        - config -> dict[str, Any]
 
     INTERNAL (may change):
         - All fields (id, version, label, source, template)
@@ -36,16 +39,26 @@ class ManagedPrompt:
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
+    _config: dict[str, Any] = field(default_factory=dict, repr=False, hash=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self._config, dict):
+            raise TypeError("config must be a dictionary")
+        object.__setattr__(self, "_config", deepcopy(self._config))
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return deepcopy(self._config)
 
     def __getattribute__(self, name: str) -> Any:
         if name == "label":
-            deprecate(  # type: ignore[no-untyped-call]
+            deprecate(
                 prefix="The 'label' property of ManagedPrompt is deprecated",
                 category=DDTraceDeprecationWarning,
             )
         return object.__getattribute__(self, name)
 
-    def format(self, **variables: str) -> Union[str, list[Message]]:
+    def format(self, **variables: Any) -> Union[str, list[Message]]:
         """
         Render the template with variables.
 
@@ -55,7 +68,7 @@ class ManagedPrompt:
         Uses safe substitution: missing variables are left as placeholders.
 
         Args:
-            **variables: Template variables to substitute
+            **variables: Text variables and message-list placeholder values.
 
         Returns:
             str (for text templates) or list[Message] (for chat templates)
@@ -83,7 +96,14 @@ class ManagedPrompt:
             "version": self.version,
         }
         if variables:
-            result["variables"] = variables
+            placeholder_names = (
+                set()
+                if isinstance(self.template, str)
+                else {item.get("name") for item in self.template if item.get("type") == "placeholder"}
+            )
+            scalar_variables = {name: value for name, value in variables.items() if name not in placeholder_names}
+            if scalar_variables:
+                result["variables"] = scalar_variables
         label = object.__getattribute__(self, "label")
         if label:
             result["label"] = label
@@ -113,6 +133,7 @@ class ManagedPrompt:
             "template": self.template,
             "_uuid": self._uuid,
             "_version_uuid": self._version_uuid,
+            "config": self.config,
         }
 
     @classmethod
@@ -126,6 +147,7 @@ class ManagedPrompt:
             template=data["template"],
             _uuid=data.get("_uuid"),
             _version_uuid=data.get("_version_uuid"),
+            _config=data.get("config", {}),
         )
 
     def _with_source(self, source: Literal["registry", "cache", "fallback"]) -> "ManagedPrompt":
@@ -151,12 +173,14 @@ class ManagedPrompt:
         """
         template: Union[str, list[Message]] = ""
         version = "fallback"
+        config: Any = {}
 
         if fallback is not None:
             value = fallback() if callable(fallback) else fallback
             if isinstance(value, dict):
                 template = extract_template(value)
                 version = value.get("version") or "fallback"
+                config = value.get("config", {})
             else:
                 template = value
 
@@ -166,4 +190,5 @@ class ManagedPrompt:
             label=None,
             source="fallback",
             template=template,
+            _config=config,
         )

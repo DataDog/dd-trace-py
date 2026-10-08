@@ -8,12 +8,9 @@ from ddtrace.internal.settings._inferred_base_service import detect_service
 class TelemetryConfig(DDConfig):
     __prefix__ = "dd"
 
-    API_KEY = DDConfig.v(t.Optional[str], "api_key", default=None)
-    SITE = DDConfig.v(str, "site", default="datadoghq.com")
     ENV = DDConfig.v(str, "env", default="")
     SERVICE = DDConfig.v(str, "service", default=detect_service(sys.argv) or "unnamed-python-service")
     VERSION = DDConfig.v(str, "version", default="")
-    AGENTLESS_MODE = DDConfig.v(bool, "civisibility.agentless.enabled", default=False)
     DEBUG = DDConfig.v(bool, "internal.telemetry.debug.enabled", default=False)
     HEARTBEAT_INTERVAL = DDConfig.v(float, "telemetry.heartbeat_interval", default=60.0)
     TELEMETRY_ENABLED = DDConfig.v(bool, "instrumentation_telemetry.enabled", default=True)

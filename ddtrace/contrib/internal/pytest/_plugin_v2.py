@@ -69,6 +69,7 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
@@ -78,10 +79,9 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils import deprecations as deprecation_utils
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import _utils as deprecation_utils
-from ddtrace.vendor.debtcollector import deprecate
 
 
 if _pytest_version_supports_retries():
@@ -431,7 +431,7 @@ def _handle_coverage_patch_early(config):
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol, skipped_suites
 
-    # AIDEV-NOTE: Reset per-session module-level state for every new main-process
+    # Reset per-session module-level state for every new main-process
     # session. This is necessary when inline_run() calls pytest.main() inside an
     # outer xdist worker: the module is already imported, so module-level
     # initialisations don't re-run. Without this reset, skipped_suites accumulates
@@ -498,7 +498,7 @@ def pytest_configure(config: pytest_Config) -> None:
 
                 if not hasattr(config, "workerinput"):
                     # Main process: reset per-session xdist ITR skip counter.
-                    # AIDEV-NOTE: Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
+                    # Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
                     # PYTEST_XDIST_WORKER_VALUE is a module-level constant frozen at import time.
                     # When inline_run() is called inside an outer xdist worker, the constant is
                     # "gw0" for the entire process lifetime, so the reset would never fire and

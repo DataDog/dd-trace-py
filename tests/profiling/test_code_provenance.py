@@ -108,8 +108,8 @@ class TestCodeProvenance:
                 # See below test_stdlib_paths
                 continue
 
-            if item["name"] == "native":
-                # Synthetic entry for profiler native frames, path is "<native>"
+            if item["name"] in {"native", "runtime"}:
+                # Synthetic entries for profiler-generated frames are not filesystem paths.
                 continue
 
             for path in item["paths"]:
@@ -143,6 +143,16 @@ class TestCodeProvenance:
         assert len(native) == 1
         assert native[0]["kind"] == "library"
         assert native[0]["paths"] == ["<native>"]
+
+    def test_runtime_frames_are_third_party(self) -> None:
+        file_path = get_code_provenance_file()
+        assert file_path is not None
+        json_obj = _read_json(file_path)
+
+        runtime = [item for item in json_obj["v1"] if item["name"] == "runtime"]
+        assert len(runtime) == 1
+        assert runtime[0]["kind"] == "library"
+        assert runtime[0]["paths"] == ["<runtime>"]
 
     @pytest.mark.subprocess(
         env=dict(DD_MAIN_PACKAGE="ddtrace"),
@@ -191,7 +201,7 @@ class TestCodeProvenance:
         calls = 0
         expected_json = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1.2.3", "paths": ["/x"]}]})
 
-        def _compute_json():
+        def _compute_json() -> str:
             nonlocal calls
             calls += 1
             return expected_json
@@ -234,7 +244,7 @@ class TestCodeProvenance:
         expected_json = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1.2.3", "paths": ["/x"]}]})
         calls = 0
 
-        def _ensure(*_):
+        def _ensure(*_: Any) -> bool:
             nonlocal calls
             calls += 1
             if calls == 1:

@@ -1,6 +1,6 @@
-# -*- encoding: utf-8 -*-
 from __future__ import annotations
 
+from collections.abc import Generator
 import concurrent.futures
 import os
 import pathlib
@@ -11,7 +11,6 @@ import sys
 import time
 from typing import Any
 from typing import Callable
-from typing import Generator
 import urllib.request
 
 import pytest

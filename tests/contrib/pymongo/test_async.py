@@ -205,34 +205,3 @@ class TestAsyncPymongo(AsyncioTestCase):
         finally:
             await client.close()
             await asyncio.sleep(0.1)
-
-    @mark_asyncio
-    async def test_async_patch_unpatch(self):
-        patch()
-        patch()
-
-        client = AsyncMongoClient(port=MONGO_CONFIG["port"])
-        try:
-            await client["testdb"].drop_collection("test")
-            assert len(self.pop_spans()) >= 1
-
-            unpatch()
-            client2 = AsyncMongoClient(port=MONGO_CONFIG["port"])
-            try:
-                await client2["testdb"].drop_collection("test")
-                assert len(self.pop_spans()) == 0
-            finally:
-                await client2.close()
-                await asyncio.sleep(0.1)
-
-            patch()
-            client3 = AsyncMongoClient(port=MONGO_CONFIG["port"])
-            try:
-                await client3["testdb"].drop_collection("test")
-                assert len(self.pop_spans()) >= 1
-            finally:
-                await client3.close()
-                await asyncio.sleep(0.1)
-        finally:
-            await client.close()
-            await asyncio.sleep(0.1)

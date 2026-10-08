@@ -17,9 +17,12 @@ Tracing
 .. autoclass:: ddtrace.trace.Span
     :members:
 
+    .. autoattribute:: context
+
 .. autoclass:: ddtrace.trace.Context
     :members:
     :undoc-members:
+    :inherited-members:
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members:

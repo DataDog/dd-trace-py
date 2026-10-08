@@ -19,11 +19,11 @@ TMPL_DIR = os.path.join(TEST_DIR, "templates")
 
 class MakoTest(TracerTestCase):
     def setUp(self):
-        super(MakoTest, self).setUp()
+        super().setUp()
         patch()
 
     def tearDown(self):
-        super(MakoTest, self).tearDown()
+        super().tearDown()
         unpatch()
 
     def test_render(self):
@@ -121,7 +121,7 @@ class MakoTest(TracerTestCase):
             The mako integration should use it as the service name
         """
         spans = self._schema_test_spans()
-        assert spans[0].service == "mysvc", "Expected service name to be mysvc, got {}".format(spans[0].service)
+        assert spans[0].service == "mysvc", f"Expected service name to be mysvc, got {spans[0].service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
@@ -130,7 +130,7 @@ class MakoTest(TracerTestCase):
             The mako integration should use it as the service name
         """
         spans = self._schema_test_spans()
-        assert spans[0].service == "mysvc", "Expected service name to be mysvc, got {}".format(spans[0].service)
+        assert spans[0].service == "mysvc", f"Expected service name to be mysvc, got {spans[0].service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
@@ -139,7 +139,7 @@ class MakoTest(TracerTestCase):
             The mako integration should use it as the service name
         """
         spans = self._schema_test_spans()
-        assert spans[0].service == "mysvc", "Expected service name to be mysvc, got {}".format(spans[0].service)
+        assert spans[0].service == "mysvc", f"Expected service name to be mysvc, got {spans[0].service}"
 
     @TracerTestCase.run_in_subprocess()
     def test_schematized_unspecified_service_name_default(self):
@@ -148,7 +148,7 @@ class MakoTest(TracerTestCase):
             The mako integration should use it as the service name
         """
         spans = self._schema_test_spans()
-        assert spans[0].service == "mako", "Expected service name to be mysvc, got {}".format(spans[0].service)
+        assert spans[0].service == "mako", f"Expected service name to be mysvc, got {spans[0].service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
@@ -157,7 +157,7 @@ class MakoTest(TracerTestCase):
             The mako integration should use it as the service name
         """
         spans = self._schema_test_spans()
-        assert spans[0].service == "mako", "Expected service name to be mysvc, got {}".format(spans[0].service)
+        assert spans[0].service == "mako", f"Expected service name to be mysvc, got {spans[0].service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
@@ -166,6 +166,6 @@ class MakoTest(TracerTestCase):
             The mako integration should use it as the service name
         """
         spans = self._schema_test_spans()
-        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME, "Expected service name to be mysvc, got {}".format(
-            spans[0].service
+        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME, (
+            f"Expected service name to be mysvc, got {spans[0].service}"
         )

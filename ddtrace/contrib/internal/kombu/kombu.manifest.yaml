@@ -1,0 +1,12 @@
+_v: 1
+name: kombu
+display_name: Kombu
+description: Instruments Kombu message publishing and consumer processing, including distributed trace propagation and data-stream
+  pathway checkpoints.
+packages:
+- name: kombu
+category:
+- messaging.consumer
+- messaging.producer
+systems: []
+creation_date: '2018-11-06'

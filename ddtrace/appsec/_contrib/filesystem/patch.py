@@ -7,7 +7,6 @@ from typing import Union
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._patch_utils import _raise_without_wrapper_frame
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._rasp import _must_block
@@ -41,10 +40,7 @@ def wrapped_builtin_open(
             if filename:
                 handle_lfi(filename)
 
-    try:
-        return original(*args, **kwargs)
-    except Exception as exc:
-        raise _raise_without_wrapper_frame(exc)
+    return original(*args, **kwargs)
 
 
 def wrapped_path_open(
@@ -62,10 +58,7 @@ def wrapped_path_open(
             if filename:
                 handle_lfi(filename)
 
-    try:
-        return original(*args, **kwargs)
-    except Exception as exc:
-        raise _raise_without_wrapper_frame(exc)
+    return original(*args, **kwargs)
 
 
 def handle_lfi(filename: Union[str, bytes]) -> None:

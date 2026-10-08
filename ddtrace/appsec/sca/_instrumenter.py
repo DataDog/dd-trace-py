@@ -7,7 +7,6 @@ bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 from __future__ import annotations
 
 import sys
-from threading import Lock
 import types
 from types import FunctionType
 from typing import TYPE_CHECKING
@@ -22,9 +21,13 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.inspection import linenos
 
 
 if TYPE_CHECKING:
+    from _thread import LockType
+
     from ddtrace.appsec.sca._registry import InstrumentationRegistry
 
 
@@ -63,14 +66,27 @@ elif sys.version_info < (3, 14):
         return code.co_firstlineno
 
 
-else:
+elif sys.version_info < (3, 15):
 
     def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first instruction line on Python 3.14 and later."""
+        """Return the first instruction line on Python 3.14."""
         import dis
 
         for instr in dis.get_instructions(code):
             if instr.line_number is not None:
+                return instr.line_number
+        return code.co_firstlineno
+
+
+else:
+
+    def _first_instr_line(code: types.CodeType) -> int:
+        """Return the first body line on Python 3.15+, since sys.monitoring never reports the def line."""
+        import dis
+
+        valid_lines = linenos(code)
+        for instr in dis.get_instructions(code):
+            if instr.line_number in valid_lines:
                 return instr.line_number
         return code.co_firstlineno
 
@@ -172,11 +188,11 @@ class Instrumenter:
 
     def __init__(self, registry: InstrumentationRegistry) -> None:
         self.registry = registry
-        self._instrumentation_locks: dict[str, Lock] = {}
+        self._instrumentation_locks: dict[str, LockType] = {}
         self._locks_lock = Lock()
         set_registry(registry)
 
-    def _get_lock(self, qualified_name: str) -> Lock:
+    def _get_lock(self, qualified_name: str) -> LockType:
         with self._locks_lock:
             if qualified_name not in self._instrumentation_locks:
                 self._instrumentation_locks[qualified_name] = Lock()
@@ -200,8 +216,8 @@ class Instrumenter:
                 original_code = func.__code__
                 # co_firstlineno is the `def` line, but on
                 # Python <3.11 the bytecode instructions start on the first
-                # body line (the line after `def`).  Use the first real
-                # instruction line so inject_hook can find a matching line.
+                # body line (the line after `def`), and on 3.15+ the def line
+                # cannot be hooked. Use the first hookable instruction line.
                 first_line = _first_instr_line(original_code)
 
                 inject_hook(func, sca_detection_hook, first_line, qualified_name)

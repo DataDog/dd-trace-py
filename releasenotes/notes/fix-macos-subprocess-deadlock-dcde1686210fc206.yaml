@@ -1,0 +1,4 @@
+fixes:
+  - |
+    internal: Fixes an issue on macOS where starting a subprocess can deadlock while
+    a hostname lookup is in progress.

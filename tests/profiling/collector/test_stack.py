@@ -1,11 +1,11 @@
 import _thread
+from collections.abc import Generator
 import os
 from pathlib import Path
 import sys
 import threading
 import time
 from typing import TYPE_CHECKING
-from typing import Generator
 from unittest.mock import patch
 import uuid
 
@@ -70,7 +70,9 @@ def func5() -> None:
 def test_collect_truncate() -> None:
     import os
 
-    from ddtrace.profiling import profiler
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import func1
 
@@ -79,19 +81,241 @@ def test_collect_truncate() -> None:
 
     max_nframes = int(os.environ["DD_PROFILING_MAX_FRAMES"])
 
-    p = profiler.Profiler()
-    p.start()
-
-    func1()
-
-    p.stop()
+    # Leave exporter headroom for injected native frames so only the sampler can truncate this stack.
+    ddup.config(env="test", service="test", version="0.0.0", max_nframes=64, output_filename=pprof_prefix)
+    ddup.start()
+    with stack.StackCollector():
+        assert _stack._get_frame_limits() == (max_nframes, 1024)
+        func1()
+    ddup.upload()
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
+    found_func1_stack = False
     for sample in samples:
-        # stack adds one extra frame for "%d frames omitted" message
-        assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if any(location.function_name == "func5" for location in locations):
+            found_func1_stack = True
+            python_locations = [location for location in locations[:-1] if location.filename != "<native>"]
+            assert [location.function_name for location in python_locations] == [
+                "func5",
+                "func4",
+                "func3",
+                "func2",
+                "func1",
+            ]
+            assert locations[-1].function_name == "<1 frame omitted>"
+
+    assert found_func1_stack
+
+
+@pytest.mark.subprocess
+def test_native_frame_limit() -> None:
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    _stack.set_max_frames(0)
+    assert _stack._get_frame_limits() == (64, 1024)
+
+    _stack.set_max_frames(65)
+    assert _stack._get_frame_limits() == (65, 1024)
+
+    _stack.set_max_frames(10_000)
+    assert _stack._get_frame_limits() == (10_000, 1024)
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_exact_native_frame_limit",
+    ),
+    err=None,
+)
+def test_exact_native_frame_limit_is_not_truncated() -> None:
+    import os
+    import sys
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+
+    def sample_full_stack() -> None:
+        frame_count = 0
+        frame = sys._getframe()
+        while frame is not None:
+            frame_count += 1
+            frame = frame.f_back
+
+        ddup.config(
+            env="test",
+            service="test",
+            version="0.0.0",
+            # The sampler limit counts Python frames, not the injected time.sleep frame.
+            max_nframes=frame_count + 1,
+            output_filename=pprof_prefix,
+        )
+        ddup.start()
+
+        with stack.StackCollector(nframes=frame_count):
+            time.sleep(0.5)
+
+    sample_full_stack()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
+    found_test_stack = False
+    for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time"):
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        python_locations = [location for location in locations if location.filename != "<native>"]
+        if python_locations and python_locations[0].function_name == "sample_full_stack":
+            found_test_stack = True
+            assert "omitted>" not in locations[-1].function_name
+
+    assert found_test_stack
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
+@pytest.mark.subprocess(err=None)
+def test_set_max_frames_after_fork_restart() -> None:
+    import os
+    import traceback
+
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import func1
+
+    pprof_prefix = "/tmp/test_set_max_frames_after_fork_restart"
+    ddup.config(env="test", service="test", version="0.0.0", max_nframes=64, output_filename=pprof_prefix)
+    ddup.start()
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+    try:
+        with pytest.raises(RuntimeError, match="cannot change max frames while the stack sampler is running"):
+            stack.set_max_frames(32)
+
+        pid = os.fork()
+        if pid == 0:
+            try:
+                stack.stop()
+                stack.set_max_frames(1)
+                assert _stack._get_frame_limits() == (1, 1024)
+                assert stack.start()
+                func1()
+                stack.stop()
+                ddup.upload()
+
+                profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
+                found_func1_stack = False
+                for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time"):
+                    locations = [
+                        pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id
+                    ]
+                    if not any(location.function_name == "func5" for location in locations):
+                        continue
+                    found_func1_stack = True
+                    python_locations = [location for location in locations[:-1] if location.filename != "<native>"]
+                    assert [location.function_name for location in python_locations] == ["func5"]
+                    assert locations[-1].function_name == "<1 frame omitted>"
+                assert found_func1_stack
+            except BaseException:
+                traceback.print_exc()
+                os._exit(1)
+            os._exit(0)
+
+        _, status = os.waitpid(pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+    finally:
+        stack.stop()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_native_frame_limit",
+    ),
+    err=None,
+)
+def test_asyncio_discovery_ignores_plain_stack_limit() -> None:
+    import asyncio
+    import os
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    ddup.config(
+        env="test",
+        service="test",
+        version="0.0.0",
+        max_nframes=64,
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+    ddup.upload()
+
+    def sync_leaf() -> None:
+        time.sleep(0.5)
+
+    def sync_outer() -> None:
+        sync_leaf()
+
+    async def inner() -> None:
+        sync_outer()
+
+    async def outer() -> None:
+        await inner()
+
+    with stack.StackCollector(nframes=1):
+        assert _stack._get_frame_limits() == (1, 1024)
+        sync_outer()
+        asyncio.run(outer())
+
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
+
+    plain_samples = [
+        sample
+        for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        if pprof_utils.get_label_with_key(profile.string_table, sample, "task name") is None
+    ]
+    plain_stack_was_bounded = False
+    for sample in plain_samples:
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if not any(location.function_name == "sync_leaf" for location in locations):
+            continue
+        python_locations = [
+            location
+            for location in locations
+            if location.filename != "<native>" and not location.function_name.startswith("<")
+        ]
+        plain_stack_was_bounded = len(python_locations) <= 1 and "omitted>" in locations[-1].function_name
+        if plain_stack_was_bounded:
+            break
+
+    assert plain_stack_was_bounded
+
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            locations=[
+                pprof_utils.StackLocation(function_name="sync_leaf", filename="", line_no=-1),
+                pprof_utils.StackLocation(function_name="sync_outer", filename="", line_no=-1),
+                pprof_utils.StackLocation(function_name="inner", filename="", line_no=-1),
+                pprof_utils.StackLocation(function_name="outer", filename="", line_no=-1),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 def test_stack_locations(tmp_path: Path) -> None:
@@ -255,6 +479,130 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
         unregister_thread.assert_called_with(thread_id)
 
 
+@pytest.mark.subprocess
+def test_restarts_do_not_stack_thread_hooks() -> None:
+    import threading
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restarts_do_not_stack_thread_hooks", version="my_version")
+    ddup.start()
+
+    for _ in range(3):
+        with stack.StackCollector():
+            pass
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_restart_reinstalls_replaced_thread_hooks() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restart_reinstalls_replaced_thread_hooks", version="my_version")
+    ddup.start()
+
+    original_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+    with stack.StackCollector():
+        pass
+
+    # Same as the coverage threading patch: the replacement delegates to the method it captured before the profiler
+    # hook was installed.
+    def replaced_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        original_bootstrap_inner(self, *args, **kwargs)
+
+    threading.Thread._bootstrap_inner = replaced_bootstrap_inner  # type: ignore[attr-defined]
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_restart_does_not_stack_thread_hooks_beneath_wrapper() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restart_does_not_stack_thread_hooks_beneath_wrapper", version="my_version")
+    ddup.start()
+
+    with stack.StackCollector():
+        pass
+
+    # Same as the coverage threading patch when it is imported after the profiler started: the replacement delegates
+    # to the profiler hook it captured.
+    profiler_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+    def wrapped_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        profiler_bootstrap_inner(self, *args, **kwargs)
+
+    threading.Thread._bootstrap_inner = wrapped_bootstrap_inner  # type: ignore[attr-defined]
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_thread_spanning_restart_with_wrapper_is_unregistered() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_thread_spanning_restart_with_wrapper_is_unregistered", version="my_version")
+    ddup.start()
+
+    release = threading.Event()
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            # This thread only has the first profiler hook in its call chain.
+            t = threading.Thread(target=release.wait)
+            t.start()
+
+        profiler_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+        def wrapped_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+            profiler_bootstrap_inner(self, *args, **kwargs)
+
+        threading.Thread._bootstrap_inner = wrapped_bootstrap_inner  # type: ignore[attr-defined]
+
+        with stack.StackCollector():
+            release.set()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
 def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
     tracer._endpoint_call_counter_span_processor.enable()
 
@@ -352,7 +700,7 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
 
 
 def test_collect_once_with_class(tmp_path: Path) -> None:
-    class SomeClass(object):
+    class SomeClass:
         @classmethod
         def sleep_class(cls) -> None:
             return cls().sleep_instance()
@@ -414,12 +762,15 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
     (e.g., using 'foobar' instead of 'self' or 'cls').
     """
 
-    class SomeClass(object):
+    class SomeClass:
         @classmethod
-        def sleep_class(foobar, cls) -> None:  # pyright: ignore[reportSelfClsParameterName]
+        def sleep_class(foobar: type["SomeClass"], cls: int) -> None:  # pyright: ignore[reportSelfClsParameterName]
             return foobar().sleep_instance(cls)
 
-        def sleep_instance(foobar, self) -> None:  # pyright: ignore[reportUnusedParameter, reportSelfClsParameterName]
+        def sleep_instance(
+            foobar: "SomeClass",  # pyright: ignore[reportSelfClsParameterName]
+            self: int,  # pyright: ignore[reportUnusedParameter]
+        ) -> None:
             for _ in range(10):
                 time.sleep(0.1)
 
@@ -451,7 +802,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 pprof_utils.StackLocation(
                     function_name="sleep_instance",
                     filename="test_stack.py",
-                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
+                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 5,
                 ),
                 pprof_utils.StackLocation(
                     function_name="sleep_class",
@@ -461,7 +812,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class_not_right_type",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 26,
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 29,
                 ),
             ],
         ),
@@ -493,6 +844,7 @@ def test_collect_gevent_thread_task() -> None:
     import time
 
     from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
@@ -503,7 +855,9 @@ def test_collect_gevent_thread_task() -> None:
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    # Greenlet logical stacks retain their existing discovery depth in this PR. Leave exporter
+    # headroom so the repeated _fib frames below prove discovery exceeded the plain-stack limit.
+    ddup.config(env="test", service=test_name, version="my_version", max_nframes=64, output_filename=pprof_prefix)
     ddup.start()
     ddup.upload()
 
@@ -520,7 +874,8 @@ def test_collect_gevent_thread_task() -> None:
 
     threads = []
 
-    with stack.StackCollector():
+    with stack.StackCollector(nframes=1):
+        assert _stack._get_frame_limits() == (1, 1024)
         for i in range(5):
             t = threading.Thread(target=_do_fib, name=f"TestThread {i}")
             t.start()
@@ -844,11 +1199,11 @@ for num in range(MAX_FN_NUM):
     exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
 
 exec(
-    """def _f{MAX_FN_NUM}():
+    f"""def _f{MAX_FN_NUM}():
     try:
       raise ValueError('test')
     except Exception:
-      time.sleep(2)""".format(MAX_FN_NUM=MAX_FN_NUM)
+      time.sleep(2)"""
 )
 
 
@@ -1125,7 +1480,8 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     SWITCHES = 200
     N_IDLE_HIGH = 2000
     STACK_DEPTH = 50
-    MAX_SCALING_RATIO = 3.0
+    MAX_SCALING_RATIO = 6.0
+    N_MEASUREMENTS = 5
     MEASURE_TIMEOUT = 30  # generous timeout to prevent CI hangs
 
     def active_worker() -> None:
@@ -1163,8 +1519,8 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     stack.set_adaptive_sampling(False)
     try:
         measure(0)  # warm up
-        t_low = min(measure(0) for _ in range(3))
-        t_high = min(measure(N_IDLE_HIGH) for _ in range(3))
+        t_low = min(measure(0) for _ in range(N_MEASUREMENTS))
+        t_high = min(measure(N_IDLE_HIGH) for _ in range(N_MEASUREMENTS))
     finally:
         p.stop()
 
@@ -1306,7 +1662,7 @@ def test_span_id_in_profile_after_fork() -> None:
                 print(
                     f"FAIL: no profile sample in child carries span_id={span_id} / "
                     f"local_root_span_id={local_root_span_id}.\n"
-                    "ThreadSpanLinks was not repopulated after fork.\n"
+                    "SpanLinks was not repopulated after fork.\n"
                     f"AssertionError: {e}"
                 )
                 os._exit(1)

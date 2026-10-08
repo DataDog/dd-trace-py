@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    uWSGI: added support for normal, non-lazy mode, provided threads are enabled
+    and the `py-call-uwsgi-fork-hooks <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#py-call-uwsgi-fork-hooks>`__
+    option is set.

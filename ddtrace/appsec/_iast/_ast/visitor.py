@@ -4,9 +4,9 @@ from _ast import ImportFrom
 import ast
 import copy
 import os
-import sys
 from typing import Any
-from typing import Text
+
+from ddtrace.internal.compat import is_at_least_py
 
 from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
@@ -33,7 +33,7 @@ def _mark_avoid_convert_recursively(node):
             _mark_avoid_convert_recursively(child)
 
 
-_ASPECTS_SPEC: dict[Text, Any] = {
+_ASPECTS_SPEC: dict[str, Any] = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
     "alias_module": _PREFIX + "aspects",
     "functions": {
@@ -149,10 +149,10 @@ _ASPECTS_SPEC: dict[Text, Any] = {
 }
 
 
-if sys.version_info >= (3, 12):
+if is_at_least_py(3, 12):
     _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = _PREFIX + "aspects.ospathsplitroot_aspect"
 
-if sys.version_info >= (3, 12) or os.name == "nt":
+if is_at_least_py(3, 12) or os.name == "nt":
     _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = _PREFIX + "aspects.ospathsplitdrive_aspect"
 
 
@@ -248,7 +248,7 @@ class AstVisitor(ast.NodeTransformer):
         return False
 
     @staticmethod
-    def _get_function_name(call_node: ast.Call, is_function: bool) -> Text:
+    def _get_function_name(call_node: ast.Call, is_function: bool) -> str:
         if is_function:
             return call_node.func.id  # type: ignore[attr-defined]
         # If the call is to a method
@@ -260,7 +260,7 @@ class AstVisitor(ast.NodeTransformer):
     def _is_node_constant_or_binop(self, node: Any) -> bool:
         return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, ast.BinOp)
 
-    def _is_call_excluded(self, func_name_node: Text) -> bool:
+    def _is_call_excluded(self, func_name_node: str) -> bool:
         if not self.excluded_functions:
             return False
         excluded_for_caller = self.excluded_functions.get(func_name_node, tuple()) + self.excluded_functions.get(
@@ -326,7 +326,7 @@ class AstVisitor(ast.NodeTransformer):
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
         )
 
-    def _name_node(self, from_node: Any, _id: Text, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
+    def _name_node(self, from_node: Any, _id: str, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
         return self._node(
             ast.Name,
             from_node,
@@ -334,7 +334,7 @@ class AstVisitor(ast.NodeTransformer):
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node: Any, attr: Text, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
+    def _attr_node(self, from_node: Any, attr: str, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
         attr_attr = ""
         name_attr = ""
         if attr:

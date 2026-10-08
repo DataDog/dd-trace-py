@@ -3,17 +3,19 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 
+from collections.abc import Mapping
 import json
 from json.decoder import JSONDecodeError
-from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
 from ..internal.constants import MAX_UINT_64BITS
+from ..internal.constants import PROBABILISTIC_SAMPLING_MECHANISMS
 from ..internal.constants import SAMPLING_HASH_MODULO
 from ..internal.constants import SAMPLING_KNUTH_FACTOR
 from ..internal.constants import SamplingMechanism
@@ -46,7 +48,7 @@ class RateSampler:
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
-    def sample(self, span: Span) -> bool:
+    def sample(self, span: SpanData) -> bool:
         sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
 
@@ -164,12 +166,17 @@ class DatadogSampler:
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
+        sampled, _ = self.sample_or_discard(span)
+        return sampled
+
+    def sample_or_discard(self, span: Span) -> tuple[bool, bool]:
         span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
         sampled = True
         sample_rate = 1.0
         agent_sampler = None
+        limiter_dropped = False
         if matched_rule:
             # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
@@ -188,14 +195,19 @@ class DatadogSampler:
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
             if sampled:
                 sampled = self.limiter.is_allowed()
+                limiter_dropped = not sampled
                 span._set_attribute(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
+        probabilistic_decision = (
+            sample_rate > 0 and not limiter_dropped and sampling_mechanism in PROBABILISTIC_SAMPLING_MECHANISMS
+        )
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
             sampling_mechanism,
+            probabilistic_decision,
         )
         log.debug(
             self.SAMPLE_DEBUG_MESSAGE,
@@ -208,7 +220,8 @@ class DatadogSampler:
             str(self.rules) if self.rules is not None else "None",
             id(self),
         )
-        return sampled
+        discarded = bool(matched_rule is not None and matched_rule.discard and not sampled)
+        return sampled, discarded
 
     def _get_sampling_mechanism(self, matched_rule: Optional[SamplingRule], agent_service_based: bool) -> int:
         if matched_rule and matched_rule.provenance == "customer":

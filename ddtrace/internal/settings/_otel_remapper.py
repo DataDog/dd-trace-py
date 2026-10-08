@@ -10,6 +10,7 @@ from ddtrace.internal.settings import env
 log = get_logger(__name__)
 
 OTEL_UNIFIED_TAG_MAPPINGS = {
+    "deployment.environment.name": ENV_KEY,
     "deployment.environment": ENV_KEY,
     "service.name": "service",
     "service.version": VERSION_KEY,
@@ -85,9 +86,13 @@ def _remap_otel_tags(otel_value: str) -> Optional[str]:
             key, value = tag.split("=")
             otel_user_tag_dict[key] = value
 
+        has_stable_environment = any(key.lower() == "deployment.environment.name" for key in otel_user_tag_dict)
         for key, value in otel_user_tag_dict.items():
-            if key.lower() in OTEL_UNIFIED_TAG_MAPPINGS:
-                dd_key = OTEL_UNIFIED_TAG_MAPPINGS[key.lower()]
+            normalized_key = key.lower()
+            if normalized_key == "deployment.environment" and has_stable_environment:
+                continue
+            if normalized_key in OTEL_UNIFIED_TAG_MAPPINGS:
+                dd_key = OTEL_UNIFIED_TAG_MAPPINGS[normalized_key]
                 dd_tags.insert(0, f"{dd_key}:{value}")
             else:
                 dd_tags.append(f"{key}:{value}")

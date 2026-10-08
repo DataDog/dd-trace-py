@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: EventBridge ``PutEvents`` now propagates Data Streams Monitoring (DSM) context when ``DD_DATA_STREAMS_ENABLED`` is enabled.

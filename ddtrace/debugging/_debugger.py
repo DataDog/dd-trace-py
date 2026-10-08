@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+from collections.abc import Iterable
 from itertools import chain
 import json
 import linecache
@@ -12,8 +13,8 @@ from types import FunctionType
 from types import ModuleType
 from types import TracebackType
 from typing import Any
-from typing import Iterable
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import cast
 
@@ -54,11 +55,20 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
-from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
+
+
+class TracerProtocol(Protocol):
+    """Structural stand-in for ddtrace.trace.Tracer, so this module does not need to import from the tracing
+    product.
+    """
+
+    def current_trace_context(self, *args: Any, **kwargs: Any) -> Any: ...
+
 
 _probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
 _probe_metrics.enable()
@@ -80,7 +90,7 @@ class DebuggerWrappingContext(WrappingContext):
         f: FunctionType,
         collector: SignalCollector,
         registry: ProbeRegistry,
-        tracer: Tracer,
+        tracer: TracerProtocol,
         probe_meter: Metrics.Meter,
     ) -> None:
         super().__init__(f)
@@ -220,6 +230,8 @@ class Debugger(Service):
         if di_config.metrics:
             metrics.enable()
 
+        cls.__watchdog__.install()
+
         cls._instance = debugger = cls()
 
         debugger.start()
@@ -260,6 +272,8 @@ class Debugger(Service):
         cls._instance.stop(join=join)
         cls._instance = None
 
+        cls.__watchdog__.uninstall()
+
         if di_config.metrics:
             metrics.disable()
 
@@ -267,7 +281,7 @@ class Debugger(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    def __init__(self, tracer: Optional[Tracer] = None) -> None:
+    def __init__(self, tracer: Optional[TracerProtocol] = None) -> None:
         super().__init__()
 
         self._tracer = tracer or ddtrace.tracer
@@ -282,7 +296,7 @@ class Debugger(Service):
         log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
         self._global_rate_limiter = RateLimiter(
             limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
-            on_exceed=lambda: log_limiter.limit(log.warning, "Global rate limit exceeded"),
+            on_exceed=lambda: log_limiter.limit(log.debug, "Global rate limit exceeded"),
             call_once=True,
             raise_on_exceed=False,
         )
@@ -534,7 +548,13 @@ class Debugger(Service):
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
                 )
-                self._function_store.wrap(cast(FunctionType, function), context)
+                try:
+                    self._function_store.wrap(cast(FunctionType, function), context)
+                except ObfuscatedCodeError:
+                    message = f"Cannot wrap {probe.func_qname!r}: code object appears to be obfuscated"
+                    self._probe_registry.set_error(probe, "ObfuscatedCode", message)
+                    log.error(message, extra={"send_to_telemetry": False})
+                    continue
                 log.debug(
                     "[%s][P: %s] Function probe %r wrapped around %r",
                     os.getpid(),

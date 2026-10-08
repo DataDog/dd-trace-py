@@ -3,7 +3,6 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import set_body_response
@@ -12,11 +11,12 @@ from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
 from ddtrace.internal import core
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 def _on_lambda_start_request(
-    span: Span,
+    span: SpanProtocol,
     request_headers: dict[str, str],
     request_ip: Optional[str],
     body: Optional[str],
@@ -54,7 +54,7 @@ def _on_lambda_start_request(
 
 
 def _on_lambda_start_response(
-    span: Span,
+    span: SpanProtocol,
     status_code: str,
     response_headers: Mapping[str, object],
 ) -> None:

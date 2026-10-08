@@ -4,7 +4,7 @@
 //! `tracer.context_provider.active()`/`.activate()` call. `_update_active` in
 //! particular runs on every `active()` call while a span is active, so it
 //! downcasts straight to `SpanData` and reads `duration`, `_parent`,
-//! `_parent_context`, and (via `ContextData`) `_reactivate` as native fields
+//! `_parent_context`, and (via `Context`) `_reactivate` as native fields
 //! instead of round-tripping through Python attribute lookups.
 
 use std::sync::OnceLock;
@@ -125,7 +125,7 @@ fn call_activate<'py>(
 // instrumentation) can still set/replace attributes like `activate` on a live
 // provider -- native pyclasses have no instance dict by default, which would
 // otherwise make method attributes read-only.
-#[pyo3::pyclass(subclass, dict, module = "ddtrace.internal._native")]
+#[pyo3::pyclass(subclass, dict, module = "ddtrace.internal.native._native")]
 pub struct BaseContextProvider;
 
 #[pyo3::pymethods]
@@ -184,7 +184,7 @@ impl BaseContextProvider {
 ///
 /// It is suitable for synchronous programming and for asynchronous executors
 /// that support contextvars.
-#[pyo3::pyclass(extends = BaseContextProvider, subclass, module = "ddtrace.internal._native")]
+#[pyo3::pyclass(extends = BaseContextProvider, subclass, module = "ddtrace.internal.native._native")]
 pub struct DefaultContextProvider;
 
 #[pyo3::pymethods]

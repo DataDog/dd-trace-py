@@ -19,9 +19,9 @@ INTEGRATION_START_KEY = "- integration_name:"
 def _read_file_lines(filepath: pathlib.Path) -> Optional[list[str]]:
     """Reads all lines from the file, handling potential errors."""
     try:
-        with open(filepath, "r", encoding="utf-8") as infile:
+        with open(filepath, encoding="utf-8") as infile:
             return infile.readlines()
-    except IOError as e:
+    except OSError as e:
         print(f"  Error reading {filepath.relative_to(ROOT_DIR)}: {e}", file=sys.stderr)
         return None
 
@@ -51,7 +51,7 @@ def _write_file_lines(filepath: pathlib.Path, output_lines: list[str]) -> bool:
         with open(filepath, "w", encoding="utf-8") as outfile:
             outfile.writelines(output_lines)
         return True
-    except IOError as e:
+    except OSError as e:
         print(f"  Error writing formatted file {filepath.relative_to(ROOT_DIR)}: {e}", file=sys.stderr)
         return False
 

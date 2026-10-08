@@ -1,6 +1,7 @@
-#include <gtest/gtest.h>
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
+
+#include <gtest/gtest.h>
 
 #include "api/safe_context.h"
 #include "context/taint_engine_context.h"
@@ -35,7 +36,7 @@ class ApplicationContextTest : public ::testing::Test
   protected:
     void SetUp() override
     {
-        // AIDEV-NOTE: Global interpreter is managed by tests/pyenv_env.cpp
+        // Global interpreter is managed by tests/pyenv_env.cpp
         taint_engine_context = std::make_unique<TaintEngineContext>();
         taint_engine_context->clear_all_request_context_slots();
     }

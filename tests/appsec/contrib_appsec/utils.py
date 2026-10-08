@@ -1,10 +1,10 @@
+from collections.abc import Generator
 import contextlib
 import itertools
 import json
 import sys
 from typing import Any
 from typing import ClassVar
-from typing import Generator
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -60,6 +60,38 @@ def mock_metric_points():
 
 
 SECID: str = "[security_response_id]"
+
+_API10_DOWNSTREAM_ATTEMPTS = 3
+_TRANSIENT_DOWNSTREAM_ERRORS = frozenset(
+    {
+        "BrokenPipeError",
+        "ChunkedEncodingError",
+        "CloseError",
+        "ConnectError",
+        "ConnectTimeout",
+        "ConnectTimeoutError",
+        "ConnectionAbortedError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "IncompleteRead",
+        "MaxRetryError",
+        "NewConnectionError",
+        "PoolTimeout",
+        "ProtocolError",
+        "ReadError",
+        "ReadTimeout",
+        "ReadTimeoutError",
+        "RemoteDisconnected",
+        "RemoteProtocolError",
+        "Timeout",
+        "TimeoutError",
+        "URLError",
+        "WriteError",
+        "WriteTimeout",
+        "timeout",
+    }
+)
 
 try:
     from ddtrace.appsec import track_user_sdk as _track_user_sdk  # noqa: F401
@@ -159,6 +191,27 @@ class _Contrib_TestClass_Base:
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
+
+    def api10_downstream_request(self, interface, test_spans, api10_server, path, data=None) -> dict[str, Any]:
+        attempt = 1
+        while True:
+            url = f"{path}/{api10_server.port()}"
+            if data:
+                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
+            else:
+                response = interface.client.get(url)
+            assert self.status(response) == 200, f"{self.status(response)} is not 200 {self.body(response)}"
+            result = json.loads(self.body(response))
+            error = result.get("error")
+            if error is None:
+                return result
+            retryable = error.partition("(")[0] in _TRANSIENT_DOWNSTREAM_ERRORS
+            assert retryable and attempt < _API10_DOWNSTREAM_ATTEMPTS, (
+                f"downstream request failed on attempt {attempt}/{_API10_DOWNSTREAM_ATTEMPTS}: {result}"
+            )
+            attempt += 1
+            test_spans.reset()
+            api10_server.restart()
 
     def check_rule_triggered(self, rule_id: str, entry_span):
         """Check that the given rule_id is among the triggered rules."""
@@ -543,7 +596,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     "abc",
                     b"abc",
                 )
-                assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
+                assert int(path_params["param_int"] if isinstance(path_params, dict) else path_params[0]) == 137
             else:
                 assert path_params is None
 
@@ -1468,7 +1521,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
         with (
             override_global_config(
-                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
+                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, apm_tracing_enabled=apm_tracing_enabled)
             ),
             mock_metric_points() as mocked,
         ):
@@ -1754,7 +1807,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ),
         ]
         + [
-            ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
+            ("ssrf", {f"url_{p1}_1": "127.0.0.1:1", f"url_{p2}_2": "127.0.0.1:2"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
                     ("urlopen_string", "do_open"),
@@ -1762,6 +1815,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     ("requests", "urlopen"),
                     ("httpx", "send"),
                     ("httpx_async", "send"),
+                    ("httpx2", "send"),
+                    ("httpx2_async", "send"),
                 ],
                 repeat=2,
             )
@@ -2213,7 +2268,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
-    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])
+    @pytest.mark.parametrize(
+        "endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async", "httpx2", "httpx2_async"]
+    )
     def test_api10(self, endpoint, interface, get_tag):
         """test api10 on downstream request headers on rasp endpoint"""
         TAG_AGENT: str = "TAG_API10_REQ_HEADERS"
@@ -2243,8 +2300,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("response-status", None, "TAG_API10_RESP_STATUS"),
         ],
     )
-    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    def test_api10_addresses(self, integration, route, data, tag, interface, api10_http_server_port, get_tag):
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
+    def test_api10_addresses(self, integration, route, data, tag, interface, api10_server, test_spans, get_tag):
         """test api10 on downstream request/response headers and body"""
 
         with override_global_config(
@@ -2257,22 +2314,17 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
         ):
             self.update_tracer(interface)
-            url = f"/redirect{integration}/{route}/{api10_http_server_port}"
-            if data:
-                response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
-            else:
-                response = interface.client.get(url)
-            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            result = self.api10_downstream_request(
+                interface, test_spans, api10_server, f"/redirect{integration}/{route}", data
+            )
             c_tag = get_tag("_dd.appsec.trace.mark")
-            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {self.body(response)}"
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {result}"
 
-    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    def test_api10_addresses_redirects(self, integration, interface, api10_http_server_port, entry_span):
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
+    def test_api10_addresses_redirects(self, integration, interface, api10_server, test_spans, entry_span):
         INSPECTED_FINAL_RESP_BODY = "apiA-100-004"
         INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
         INSPECTED_REDIRECT_RESP_STATUS = "apiA-100-007"
-
-        url = f"/redirect{integration}/redirect-source/{api10_http_server_port}"
 
         with override_global_config(
             dict(
@@ -2284,11 +2336,11 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             )
         ):
             self.update_tracer(interface)
-            response = interface.client.get(url)
-            assert self.status(response) == 200, f"{self.status(response)} is not 200"
-            redirect_response_payload = json.loads(self.body(response)).get("payload")
-            api_response_payload = json.loads(redirect_response_payload).get("payload")
-            assert api_response_payload == "api10-response-body"
+            result = self.api10_downstream_request(
+                interface, test_spans, api10_server, f"/redirect{integration}/redirect-source"
+            )
+            api_response_payload = json.loads(result["payload"]).get("payload")
+            assert api_response_payload == "api10-response-body", result
 
             expected_rules = [
                 INSPECTED_FINAL_RESP_BODY,

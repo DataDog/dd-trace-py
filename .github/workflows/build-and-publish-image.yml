@@ -43,12 +43,85 @@ jobs:
         version: v0.9.1  # https://github.com/docker/buildx/issues/1533
     - name: Login to Docker
       run: echo "${{ secrets.token }}" | docker login -u publisher --password-stdin ghcr.io
+    - name: Compute staging tag
+      id: staging
+      # All of `inputs.tags` are expected to share the same repository (only the
+      # tag suffix differs), which holds for every current caller of this
+      # workflow.
+      run: |
+        set -euo pipefail
+        first_tag="$(cut -d',' -f1 <<< "${{ inputs.tags }}")"
+        repo="${first_tag%:*}"
+        echo "repo=${repo}" >> "$GITHUB_OUTPUT"
+        echo "tag=${repo}:ci-validate-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
     - name: Docker Build
+      id: build
       uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
       with:
         push: true
-        tags: ${{ inputs.tags }}
+        # Push only to a staging tag so the real tags in `inputs.tags` (which may
+        # include `:latest`) are never published until the numeric-USER check
+        # below has passed -- otherwise a failing check would leave an already-
+        # promoted bad image live.
+        tags: ${{ steps.staging.outputs.tag }}
         platforms: ${{ inputs.platforms }}
         build-args: ${{ inputs.build-args }}
         context: ${{ inputs.context }}
         file: ${{ inputs.context }}/${{ inputs.file }}
+    - name: Install crane
+      env:
+        CRANE_VERSION: 0.22.0
+        # Pinned here rather than trusted from the checksums.txt published in the
+        # same (mutable) GitHub release as the binary, so a compromised release
+        # can't supply both the payload and its own checksum.
+        CRANE_SHA256: edb74d53fad9a596860f59d1c5d04a43dfb5f441dc71f57060dd0bf39483c833
+      run: |
+        set -euo pipefail
+        cd "$(mktemp -d)"
+        curl -sSL -o crane.tar.gz "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
+        echo "${CRANE_SHA256}  crane.tar.gz" | sha256sum -c -
+        tar -xzf crane.tar.gz crane
+        sudo mv crane /usr/local/bin/crane
+    - name: Verify staged image sets a numeric USER
+      # Mirrors the `check-numeric-user` CI check in DataDog/images (see
+      # https://github.com/DataDog/images/pull/11290): a non-numeric USER (e.g. a
+      # named user) fails Kubernetes' runAsNonRoot verification even when the
+      # named user isn't root, so the last USER directive in the Dockerfile must
+      # resolve to a numeric UID. Kubelet parses Config.User's UID as a signed
+      # 64-bit int when enforcing runAsNonRoot; a value beyond this range
+      # fails that parse and is treated as username-style even though it's
+      # all-digit, so it must be rejected here too.
+      # See k8s.io/apimachinery/pkg/util/validation.IsValidUserID.
+      run: |
+        set -euo pipefail
+        tag="${{ steps.staging.outputs.tag }}"
+        max_kubelet_uid="9223372036854775807" # 2**63 - 1
+        IFS=',' read -ra platforms <<< "${{ inputs.platforms }}"
+        for platform in "${platforms[@]}"; do
+          user="$(crane config --platform "$platform" "$tag" | jq -r '.config.User // empty')"
+          # No USER set at all is Docker's default (runs as root) -- a separate
+          # "runs as root" concern that this check doesn't police.
+          [ -z "$user" ] && continue
+          uid="${user%%:*}"
+          if [[ "$uid" =~ ^[0-9]+$ ]] && {
+               [ "${#uid}" -lt "${#max_kubelet_uid}" ] ||
+               { [ "${#uid}" -eq "${#max_kubelet_uid}" ] && [[ ! ( "$uid" > "$max_kubelet_uid" ) ]]; }
+             }; then
+            continue
+          fi
+          echo "::error::Image ${tag} (platform=${platform}) sets USER '${user}', but the last USER directive in a Dockerfile must be numeric (e.g. 'USER 1000' or 'USER 1000:1000')."
+          exit 1
+        done
+    - name: Promote validated image to published tags
+      run: |
+        set -euo pipefail
+        IFS=',' read -ra tags <<< "${{ inputs.tags }}"
+        for full_tag in "${tags[@]}"; do
+          crane tag "${{ steps.staging.outputs.tag }}" "${full_tag##*:}"
+        done
+    - name: Clean up staging tag
+      if: always()
+      # Best-effort: some registries restrict arbitrary tag deletion via the
+      # registry API, so don't fail the job over a leftover staging tag.
+      continue-on-error: true
+      run: crane delete "${{ steps.staging.outputs.tag }}"

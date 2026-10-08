@@ -49,7 +49,8 @@ jobs:
     env:
       CIBW_SKIP: ${{ inputs.cibw_skip }}
       CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-      CIBW_BEFORE_ALL_WINDOWS: "rustup target add aarch64-pc-windows-msvc"
+      # rust-tuf has too long paths
+      CIBW_BEFORE_ALL_WINDOWS: "git config --global core.longpaths true && rustup target add aarch64-pc-windows-msvc"
       # cibuildwheel repair will copy anything's under /output directory from the
       # build container to the host machine. This is a bit hacky way, but seems
       # to be the only way getting debug symbols out from the container while

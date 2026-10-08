@@ -7,12 +7,12 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.starlette.patch import _set_route_resource_resolver
 from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.contrib.internal.starlette.patch import traced_route_init
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -122,8 +122,7 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
     added by creating spans will be higher than desired for
     the result.
     """
-    pin = Pin.get_from(fastapi)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return await wrapped(*args, **kwargs)
 
     with tracer.trace("fastapi.serialize_response"):
@@ -137,7 +136,6 @@ def patch():
     _register_wrapt_pickle_reducers()
 
     fastapi._datadog_patch = True
-    Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 

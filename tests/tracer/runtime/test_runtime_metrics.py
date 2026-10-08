@@ -1,8 +1,8 @@
 import contextlib
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.ext import SpanTypes
@@ -31,6 +31,24 @@ def runtime_metrics_service(tracer=None):
     RuntimeWorker._instance.stop()
     assert RuntimeWorker._instance.status == ServiceStatus.STOPPED
     RuntimeWorker._instance = None
+
+
+@contextlib.contextmanager
+def managed_runtime_worker():
+    worker = RuntimeWorker()
+    try:
+        yield worker
+    finally:
+        worker._runtime_metrics.stop()
+
+
+@contextlib.contextmanager
+def managed_runtime_metrics(enabled=None):
+    metrics = RuntimeMetrics(enabled=enabled)
+    try:
+        yield metrics
+    finally:
+        metrics.stop()
 
 
 class TestRuntimeTags(TracerTestCase):
@@ -146,19 +164,19 @@ def test_runtime_worker_flush_preserves_entity_id_tag(monkeypatch):
 
     with mock.patch("socket.socket") as sock:
         sock.return_value.getsockopt.return_value = 0
-        worker = RuntimeWorker()
-        assert "dd.internal.entity_id:test-entity-123" in worker._dogstatsd_client.constant_tags
+        with managed_runtime_worker() as worker:
+            assert "dd.internal.entity_id:test-entity-123" in worker._dogstatsd_client.constant_tags
 
-        for _ in range(3):
-            worker.flush()
+            for _ in range(3):
+                worker.flush()
 
-        statsd_socket = worker._dogstatsd_client.socket
-        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
-        assert received, "expected at least one packet to be sent"
-        gauges = [line for packet in received for line in packet.split("\n") if line]
-        assert gauges, "expected at least one metric line to be sent"
-        for gauge in gauges:
-            assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+            statsd_socket = worker._dogstatsd_client.socket
+            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+            assert received, "expected at least one packet to be sent"
+            gauges = [line for packet in received for line in packet.split("\n") if line]
+            assert gauges, "expected at least one metric line to be sent"
+            for gauge in gauges:
+                assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
 
 
 def test_runtime_worker_flush_dedupes_entity_id_tag(monkeypatch):
@@ -171,16 +189,16 @@ def test_runtime_worker_flush_dedupes_entity_id_tag(monkeypatch):
 
     with mock.patch("socket.socket") as sock:
         sock.return_value.getsockopt.return_value = 0
-        worker = RuntimeWorker()
-        worker.flush()
+        with managed_runtime_worker() as worker:
+            worker.flush()
 
-        statsd_socket = worker._dogstatsd_client.socket
-        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
-        assert received, "expected at least one packet to be sent"
-        gauges = [line for packet in received for line in packet.split("\n") if line]
-        assert gauges, "expected at least one metric line to be sent"
-        for gauge in gauges:
-            assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+            statsd_socket = worker._dogstatsd_client.socket
+            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+            assert received, "expected at least one packet to be sent"
+            gauges = [line for packet in received for line in packet.split("\n") if line]
+            assert gauges, "expected at least one metric line to be sent"
+            for gauge in gauges:
+                assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
 
 
 def test_runtime_worker_flush_does_not_leak_stale_service_tag(monkeypatch):
@@ -193,27 +211,29 @@ def test_runtime_worker_flush_does_not_leak_stale_service_tag(monkeypatch):
 
     with mock.patch("socket.socket") as sock:
         sock.return_value.getsockopt.return_value = 0
-        worker = RuntimeWorker()
-        with override_global_config(dict(service="override-service")):
-            worker.flush()
+        with managed_runtime_worker() as worker:
+            with override_global_config(dict(service="override-service")):
+                worker.flush()
 
-            statsd_socket = worker._dogstatsd_client.socket
-            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
-            assert received, "expected at least one packet to be sent"
-            gauges = [line for packet in received for line in packet.split("\n") if line]
-            assert gauges, "expected at least one metric line to be sent"
-            for gauge in gauges:
-                assert "service:env-service" not in gauge, gauge
-                assert gauge.count("service:override-service") == 1, gauge
+                statsd_socket = worker._dogstatsd_client.socket
+                received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+                assert received, "expected at least one packet to be sent"
+                gauges = [line for packet in received for line in packet.split("\n") if line]
+                assert gauges, "expected at least one metric line to be sent"
+                for gauge in gauges:
+                    assert "service:env-service" not in gauge, gauge
+                    assert gauge.count("service:override-service") == 1, gauge
 
 
 class TestRuntimeMetrics(BaseTestCase):
     def test_all_metrics(self):
-        metrics = set([k for (k, v) in RuntimeMetrics()])
+        with managed_runtime_metrics() as runtime_metrics:
+            metrics = set([k for (k, v) in runtime_metrics])
         self.assertSetEqual(metrics, DEFAULT_RUNTIME_METRICS)
 
     def test_one_metric(self):
-        metrics = [k for (k, v) in RuntimeMetrics(enabled=[GC_COUNT_GEN0])]
+        with managed_runtime_metrics(enabled=[GC_COUNT_GEN0]) as runtime_metrics:
+            metrics = [k for (k, v) in runtime_metrics]
         self.assertEqual(metrics, [GC_COUNT_GEN0])
 
 
@@ -294,6 +314,53 @@ class TestRuntimeWorker(TracerTestCase):
                         pass
                 assert root.get_tag("language") == "python"
                 assert child.get_tag("language") is None
+
+
+@pytest.mark.subprocess(timeout=60)
+def test_runtime_worker_flush_keeps_automatic_gc_running():
+    """Keep automatic GC running while the runtime worker flushes.
+
+    CPython runs a pending collection at the next eval-breaker check, on any thread,
+    so a collection can start on the flush thread in the middle of a flush. A
+    threshold of 1 keeps a collection pending at almost every check.
+    """
+    import gc
+    import os
+    import sys
+    import time
+
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+    def collections():
+        return sum(stat["collections"] for stat in gc.get_stats())
+
+    gc.set_threshold(1)
+    worker = RuntimeWorker(interval=0.001)
+    worker.start()
+    deadline = time.monotonic() + 5
+    last_progress = time.monotonic()
+    seen = collections()
+    while (now := time.monotonic()) < deadline:
+        # Allocate cycles, which stay alive until a collection frees them. Python 3.14
+        # subtracts freed objects from the young-generation count, so short-lived
+        # garbage never reaches the threshold.
+        for _ in range(100):
+            cycle = []
+            cycle.append(cycle)
+        current = collections()
+        if current > seen:
+            seen = current
+            last_progress = now
+        # A pending collection can wait while the flush thread blocks in a socket call,
+        # so only a long stretch without collections means that automatic GC stopped.
+        elif now - last_progress > 1:
+            # A stuck flush thread blocks worker.stop() and interpreter shutdown, and the
+            # process then ignores SIGTERM. Exit directly, so that the test reports this
+            # failure and not a timeout.
+            sys.stderr.write(f"automatic GC stopped: gc.get_count()={gc.get_count()}\n")
+            sys.stderr.flush()
+            os._exit(1)
+    worker.stop()
 
 
 def test_fork():

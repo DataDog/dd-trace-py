@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    google-adk: Fixes an ``AttributeError`` on ``google-adk >= 2.7.0`` caused by the removal of
+    ``__call_tool_live``. Applications with LLM Observability enabled failed to start.
+  - |
+    google-adk: Fixes an issue on ``google-adk < 2.7.0`` where streaming tool call spans
+    recorded no output.

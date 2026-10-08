@@ -122,9 +122,9 @@ after the ``with`` block exits. For example::
 import contextvars
 import logging
 import types
-from typing import Any  # noqa:F401
+from typing import Any
 from typing import Generic
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
@@ -167,11 +167,11 @@ class ExecutionContext(Generic[EventType]):
     ) -> None:
         self.identifier: str = identifier
         self._data: dict[str, Any] = kwargs
-        self._event: Optional["EventType"] = event
+        self._event: Optional[EventType] = event
         # PERF: most contexts never suppress exceptions; allocate the list lazily.
         self._suppress_exceptions: Optional[list[type]] = None
-        self._parent: Optional["ExecutionContext"] = parent
-        self._token: Optional[contextvars.Token["ExecutionContext"]] = None
+        self._parent: Optional[ExecutionContext] = parent
+        self._token: Optional[contextvars.Token[ExecutionContext]] = None
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
 
@@ -222,6 +222,7 @@ class ExecutionContext(Generic[EventType]):
             # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
             dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
             self._end_event_dispatched = True
+            self._event = None
         try:
             if self._token is not None:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -233,6 +234,8 @@ class ExecutionContext(Generic[EventType]):
             )
         except LookupError:
             log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
+        finally:
+            self._token = None
         return (
             True
             if exc_type is None
@@ -253,6 +256,7 @@ class ExecutionContext(Generic[EventType]):
             return
         dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
         self._end_event_dispatched = True
+        self._event = None
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""

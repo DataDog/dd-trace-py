@@ -24,7 +24,7 @@ config._add(
 
 
 def get_version() -> str:
-    return getattr(logging, "__version__", "")
+    return ""
 
 
 def _supported_versions() -> dict[str, str]:
@@ -87,8 +87,8 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
 
 def patch():
     """
-    Patch ``logging`` module in the Python Standard Library for injection of
-    tracer information by wrapping the base factory method ``Logger.makeRecord``
+    Patch the logging module in the Python Standard Library for injection of
+    tracer information by wrapping the base factory method Logger.makeRecord
     """
     if getattr(logging, "_datadog_patch", False):
         return

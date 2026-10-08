@@ -1,5 +1,5 @@
 variables:
-  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v131882734-d02e020-testrunner@sha256:90890eea305711baf275fcca5824f779708312fe1d9dc1436ee5a303f8d7674d
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v134534459-a190793-testrunner@sha256:d0d692805509330d068d544d6e15182428ff87984ba8de4c0f863edc1aa30170
 
 .testrunner:
   image:
@@ -12,6 +12,8 @@ variables:
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
+    # 3.15 ships as "3.15-dev", but its executable is still python3.15.
+    # TODO(vlad): Drop the -dev suffix once the testrunner image installs GA 3.15.
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
@@ -21,6 +23,8 @@ variables:
     # Default to 4 when `-n auto` is used
     # DEV: auto/logical doesn't work well in k8s so we manually set it
     PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
+    PIP_RETRIES: "10"
+    PIP_DEFAULT_TIMEOUT: "60"
   artifacts:
     when: always
     paths:

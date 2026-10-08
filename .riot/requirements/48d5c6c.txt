@@ -13,7 +13,7 @@ coverage[toml]==7.15.4
 dill==0.4.1
 django==3.2.25
 django-configurations==2.5.1
-gevent==26.7.0
+gevent==26.8.0
 greenlet==3.5.4
 gunicorn==26.0.0
 hypothesis==6.45.0

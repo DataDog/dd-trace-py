@@ -17,7 +17,7 @@ class AsyncioTestCase(TracerTestCase):
     """
 
     def setUp(self):
-        super(AsyncioTestCase, self).setUp()
+        super().setUp()
         try:
             # each test must have its own event loop
             self._main_loop = asyncio.get_event_loop()
@@ -28,7 +28,7 @@ class AsyncioTestCase(TracerTestCase):
         asyncio.set_event_loop(self.loop)
 
     def tearDown(self):
-        super(AsyncioTestCase, self).tearDown()
+        super().tearDown()
 
         if self._main_loop is not None:
             # restore the main loop
