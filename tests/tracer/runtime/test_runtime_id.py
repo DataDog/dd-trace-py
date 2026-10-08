@@ -461,6 +461,40 @@ def test_import_ddtrace_outside_microvm_does_not_import_core():
 
 
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_import_ddtrace_in_microvm_wires_run_hook_to_tracer():
+    """Importing ddtrace in a MicroVM registers the /run listener, and /run refreshes the tracer."""
+    from ddtrace import tracer
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+    from ddtrace.contrib.internal import trace_utils
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+    from ddtrace.internal.serverless import MICROVM_RUN_HOOK_PATH
+
+    assert core.has_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value)
+    runtime_id = runtime.get_runtime_id()
+
+    trace_utils.dispatch_wsgi_web_request_starting(
+        {"REQUEST_METHOD": "POST", "SCRIPT_NAME": "", "PATH_INFO": MICROVM_RUN_HOOK_PATH}
+    )
+
+    refreshed_runtime_id = runtime.get_runtime_id()
+    assert refreshed_runtime_id != runtime_id
+    assert tracer._span_aggregator._runtime_identity[1] == refreshed_runtime_id
+    with tracer.trace("web.request") as span:
+        assert span.get_tag("runtime-id") == refreshed_runtime_id
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None}, err=None)
+def test_import_ddtrace_outside_microvm_does_not_register_run_hook():
+    """Outside a MicroVM, importing the tracer leaves no request-start listener installed."""
+    from ddtrace import tracer  # noqa: F401
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+    from ddtrace.internal import core
+
+    assert not core.has_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value)
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
 def test_maybe_refresh_identity_matches_microvm_run_hook():
     """Only the exact AWS Lambda MicroVM /run hook request triggers a refresh."""
     import ddtrace.internal.runtime as runtime
