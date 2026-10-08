@@ -60,7 +60,6 @@ def _get_suite_source_file(item: pytest.Item, workspace_path: t.Optional[Path]) 
     if workspace_path is not None:
         relative = relative_parts(item_path, workspace_path)
         if relative is not None:
-            # as_posix() of a relative path is its components joined by "/".
             return "/".join(relative) if relative else "."
     return str(item_path)
 

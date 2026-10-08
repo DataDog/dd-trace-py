@@ -71,7 +71,7 @@ def relative_parts(path: PurePath, root: PurePath) -> t.Optional[tuple[str, ...]
     root_parts = root.parts
     n = len(root_parts)
 
-    if not n:
+    if not root_parts:
         # A root of "." has no components at all. pathlib makes only another
         # anchorless path relative to it, since the anchors have to agree.
         return None if path.anchor else path_parts
@@ -93,7 +93,7 @@ def is_contained(path: PurePath, root: PurePath) -> bool:
     root_parts = root.parts
     n = len(root_parts)
 
-    if not n:
+    if not root_parts:
         return not path.anchor
 
     return n <= len(path_parts) and _starts_with(path_parts, root_parts, n)
@@ -137,7 +137,7 @@ def deepest_containing_root(
         if n <= best_n or n > depth:
             continue
 
-        if not n:
+        if not root_parts:
             if not path.anchor and best is None:
                 best, best_n = root, 0
             continue

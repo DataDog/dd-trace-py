@@ -45,7 +45,6 @@ def uninstall_coverage() -> None:
 
 @functools.lru_cache(maxsize=65536)
 def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[str]:
-    # Both sides go through Path, which is the normalization relative_path needs.
     relative = relative_path(Path(absolute_path), Path(relative_to))
     if relative is None:
         return None  # covered file does not belong to current repo

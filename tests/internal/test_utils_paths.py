@@ -48,11 +48,7 @@ def _reference_relative_parts(path, root):
 
 @pytest.mark.parametrize("path_str,root_str", itertools.product(POSIX_PATHS, repeat=2))
 def test_matches_pathlib(path_str, root_str):
-    """relative_parts/is_contained agree with pathlib on every pair.
-
-    pathlib is the specification here, so this is the test that matters: the
-    helpers exist only to be a cheaper way of computing the same answer.
-    """
+    """relative_parts/is_contained agree with pathlib on every pair."""
     path, root = Path(path_str), Path(root_str)
     expected = _reference_relative_parts(path, root)
 
@@ -142,13 +138,7 @@ def test_prefix_must_land_on_a_component_boundary(path_str, root_str):
 
 
 def test_strings_are_rejected_rather_than_silently_mishandled():
-    """The contract is PurePath, and comparing parts enforces it.
-
-    An earlier string-prefix implementation accepted str and quietly got
-    unnormalized input wrong ("/a/./b" reported as not contained). Comparing
-    .parts means a str fails loudly instead, and normalization is guaranteed
-    because PurePath construction has already done it.
-    """
+    """The contract is PurePath, and comparing parts enforces it."""
     with pytest.raises(AttributeError):
         relative_parts("/a/b/c.py", "/a/b")
 
@@ -240,13 +230,7 @@ def test_windows_semantics_match_pathlib(path_str, root_str, _force_windows_rule
 
 
 def test_windows_case_folding_is_length_safe(_force_windows_rules):
-    r"""Regression: 'İ'.lower() is two codepoints, so offsets cannot be reused.
-
-    Folding the whole path and then slicing the original string at an offset
-    found in the folded copy truncated the first relative component whenever a
-    root contained U+0130 -- silently, since containment still reported True.
-    Turkish directory names ('C:\\Users\\İbrahim') hit this in normal use.
-    """
+    r"""Regression: 'İ'.lower() is two codepoints, so offsets cannot be reused."""
     path = PureWindowsPath(r"C:\Users\İb\proj\test_a.py")
 
     assert paths.relative_parts(path, PureWindowsPath(r"C:\Users\İb\proj")) == ("test_a.py",)

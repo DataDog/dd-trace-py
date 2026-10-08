@@ -1379,13 +1379,7 @@ def test_filename_to_package_on_a_sys_path_root_itself(
     reset_packages_caches,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A path that *is* a sys.path entry must resolve to None, not raise.
-
-    Such a path is relative to the root by zero components, so the root-module
-    lookup has no first component to inspect. _effective_root used to index
-    parts[0] unguarded, raising IndexError -- which filename_to_package does not
-    catch (it only handles ValueError/OSError), so it escaped to the caller.
-    """
+    """A path that is a sys.path entry must resolve to None, not raise."""
     from ddtrace.internal import packages as _p
 
     root = tmp_path / "root"
@@ -1406,12 +1400,7 @@ def test_shipped_distributions_lists_each_directory_once(
     reset_packages_caches,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Both install-root probes share one cached directory listing.
-
-    _is_install_root and _root_ships_distribution used to walk the same
-    directory independently and uncached, on every probe -- and an install root
-    is routinely a site-packages tree with thousands of entries.
-    """
+    """Both install-root probes share one cached directory listing."""
     from ddtrace.internal import packages as _p
 
     vendor = tmp_path / "vendor"
@@ -1439,11 +1428,7 @@ def test_effective_root_reuses_the_package_probe_across_files(
     tmp_path: Path,
     reset_packages_caches,
 ) -> None:
-    """The __init__.py probe is keyed on the package, not the source file.
-
-    It depends only on (parent, top-level name), so keying it on the caller's
-    full relative path would spend an entry per file and never hit.
-    """
+    """The __init__.py probe is keyed on the package, not the source file."""
     from ddtrace.internal import packages as _p
 
     site = tmp_path / "site-packages"
@@ -1461,10 +1446,7 @@ def test_effective_root_reuses_the_package_probe_across_files(
 def test_directory_probes_follow_snapshot_replacement(
     tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A directory that gains distribution metadata after it was first probed
-    (pip install --target into a vendor directory already on sys.path) is seen
-    once the snapshot is replaced, rather than staying cached as shipping nothing.
-    """
+    """Metadata installed into a probed directory is seen once the snapshot is replaced."""
     from ddtrace.internal import packages as _p
 
     tmp_path = tmp_path.resolve()

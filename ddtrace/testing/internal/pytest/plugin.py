@@ -661,8 +661,6 @@ class TestOptPlugin(TestOptPluginProtocol):
                 TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
 
             for path in paths:
-                # Making a path relative only strips leading components, so the
-                # last one is unchanged.
                 suite_name = path.name
                 test_suite, _ = test_module.get_or_create_child(suite_name)
                 if not test_suite.is_started():

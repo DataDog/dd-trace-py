@@ -187,9 +187,9 @@ def _root_module(path: Path, resolved: Path) -> str:
 def _normalized_dist_name(name: str) -> str:
     """Normalize a distribution name for comparison (PEP 503-ish).
 
-    ``.dist-info`` / ``.egg-info`` directories escape the project name (dashes
-    become underscores), so fold ``-``, ``_`` and ``.`` to a single form and
-    lowercase before comparing (``google-cloud-storage`` == ``google_cloud_storage``).
+    .dist-info / .egg-info directories escape the project name (dashes
+    become underscores), so fold "-", "_" and "." to a single form and
+    lowercase before comparing (google-cloud-storage == google_cloud_storage).
     """
     return name.replace("-", "_").replace(".", "_").lower()
 
