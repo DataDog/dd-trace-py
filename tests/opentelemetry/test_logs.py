@@ -5,6 +5,7 @@ from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 import os
+import sys
 from threading import Event
 from threading import Thread
 from types import SimpleNamespace
@@ -222,16 +223,56 @@ def test_otel_logs_support_enabled():
 
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18, 0), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
 def test_grpc_protocol_selects_grpclib_exporter():
-    from ddtrace.internal.opentelemetry.logs import _import_exporter
+    from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
 
-    assert _import_exporter("grpc").__module__ == "ddtrace.internal.opentelemetry.grpclib_log_exporter"
+    assert get_logs_exporter("grpc").__module__ == "ddtrace.internal.opentelemetry.grpclib_log_exporter"
 
 
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18, 0), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
 def test_http_protocol_selects_lightweight_exporter():
-    from ddtrace.internal.opentelemetry.logs import _import_exporter
+    from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
 
-    assert _import_exporter("http/protobuf").__module__ == "ddtrace.internal.opentelemetry.http_log_exporter"
+    assert get_logs_exporter("http/protobuf").__module__ == "ddtrace.internal.opentelemetry.http_log_exporter"
+
+
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="Test requires the lightweight exporter selection path")
+def test_grpc_protocol_falls_back_to_upstream_exporter(monkeypatch):
+    from ddtrace.internal.opentelemetry.exporter_telemetry import GRPCLogsExporter
+    from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
+
+    monkeypatch.setitem(sys.modules, "ddtrace.internal.opentelemetry.grpclib_log_exporter", None)
+
+    assert get_logs_exporter("grpc") is GRPCLogsExporter
+
+
+@pytest.mark.skipif(
+    not MINIMUM_SUPPORTED_VERSION <= EXPORTER_VERSION < (1, 18),
+    reason="Test requires the upstream exporter fallback",
+)
+def test_upstream_exporter_fallback_records_telemetry(monkeypatch):
+    try:
+        from opentelemetry.sdk._logs.export import LogRecordExportResult as LogExportResult
+    except ImportError:
+        from opentelemetry.sdk._logs.export import LogExportResult
+
+    from ddtrace.internal.opentelemetry import exporter_telemetry
+    from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
+
+    telemetry = []
+    monkeypatch.setattr(
+        exporter_telemetry.telemetry_writer,
+        "add_count_metric",
+        lambda namespace, name, value, tags: telemetry.append((name, value, tags)),
+    )
+
+    exporter = get_logs_exporter("grpc")(endpoint="http://127.0.0.1:4317")
+    monkeypatch.setattr(exporter._exporter, "export", lambda *args, **kwargs: LogExportResult.SUCCESS)
+    try:
+        assert exporter.export([object(), object()]) is LogExportResult.SUCCESS
+    finally:
+        exporter.shutdown()
+
+    assert telemetry == [("otel.log_records", 2, (("protocol", "grpc"), ("encoding", "protobuf")))]
 
 
 @pytest.mark.parametrize(

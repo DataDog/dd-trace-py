@@ -1,5 +1,3 @@
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version
 from typing import Any
 from typing import Optional
 
@@ -8,6 +6,7 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.exporters import get_metrics_exporter
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
@@ -31,7 +30,7 @@ def set_otel_meter_provider():
         return
 
     protocol = otel_config.exporter.METRICS_PROTOCOL
-    exporter_class = _import_exporter(protocol)
+    exporter_class = get_metrics_exporter(protocol)
     if exporter_class is None:
         return
 
@@ -98,73 +97,6 @@ def _build_resource() -> Optional[Any]:
             "Install ddtrace[opentelemetry] before enabling OpenTelemetry Metrics support."
         )
         return None
-
-
-def _import_exporter(protocol):
-    """Import the appropriate OpenTelemetry Metrics exporter based on the set protocol"""
-    try:
-        exporter: type[Any]
-        exporter_version = _exporter_version()
-        if protocol == "grpc":
-            try:
-                from ddtrace.internal.opentelemetry.grpclib_metric_exporter import (
-                    OTLPMetricExporter as GRPCMetricExporter,
-                )
-
-                exporter = GRPCMetricExporter
-            except ImportError:
-                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-                    OTLPMetricExporter as UpstreamGRPCMetricExporter,
-                )
-
-                exporter = UpstreamGRPCMetricExporter
-        elif protocol == "http/protobuf":
-            if tuple(int(x) for x in exporter_version.split(".")[:3]) >= (1, 18, 0):
-                from ddtrace.internal.opentelemetry.http_metric_exporter import (
-                    OTLPMetricExporter as LightweightHTTPMetricExporter,
-                )
-
-                exporter = LightweightHTTPMetricExporter
-            else:
-                from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
-                    OTLPMetricExporter as UpstreamHTTPMetricExporter,
-                )
-
-                exporter = UpstreamHTTPMetricExporter
-        else:
-            log.warning(
-                "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
-                protocol,
-            )
-            return None
-
-        if tuple(int(x) for x in exporter_version.split(".")[:3]) < MINIMUM_SUPPORTED_VERSION:
-            log.warning(
-                "OpenTelemetry Metrics exporter for %s requires version %r or higher, but found version %r.",
-                protocol,
-                MINIMUM_SUPPORTED_VERSION,
-                exporter_version,
-            )
-            return None
-
-        return exporter
-    except ImportError as e:
-        log.warning(
-            "OpenTelemetry Metrics exporter for %s is not available. "
-            "Install ddtrace[opentelemetry] before enabling OpenTelemetry Metrics support: %s",
-            protocol,
-            str(e),
-        )
-        return None
-
-
-def _exporter_version() -> str:
-    try:
-        return version("opentelemetry-exporter-otlp-proto-common")
-    except PackageNotFoundError:
-        from opentelemetry.exporter.otlp.proto.http.version import __version__
-
-        return str(__version__)
 
 
 def _prepare_agentless_export(endpoint_env_var: str, headers_env_var: str, protocol: str, signal: str) -> None:

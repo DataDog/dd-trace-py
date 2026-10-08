@@ -1,5 +1,3 @@
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version
 import logging
 from typing import Any
 from typing import Optional
@@ -9,6 +7,7 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
@@ -33,7 +32,7 @@ def set_otel_logs_provider() -> None:
         return
 
     protocol = otel_config.exporter.LOGS_PROTOCOL
-    exporter_class = _import_exporter(protocol)
+    exporter_class = get_logs_exporter(protocol)
     if exporter_class is None:
         return
 
@@ -104,80 +103,6 @@ def _build_resource() -> Optional[Any]:
             "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support."
         )
         return None
-
-
-def _import_exporter(protocol):
-    """Import the appropriate OpenTelemetry Logs exporter based on the set protocol"""
-    try:
-        exporter: type[Any]
-        exporter_version = _exporter_version()
-        if protocol == "grpc":
-            if tuple(int(x) for x in exporter_version.split(".")[:3]) >= (1, 18, 0):
-                try:
-                    from ddtrace.internal.opentelemetry.grpclib_log_exporter import OTLPLogExporter as GRPCLogExporter
-
-                    exporter = GRPCLogExporter
-                except ImportError:
-                    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
-                        OTLPLogExporter as UpstreamGRPCLogExporter,
-                    )
-
-                    exporter = UpstreamGRPCLogExporter
-            else:
-                from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
-                    OTLPLogExporter as LegacyGRPCLogExporter,
-                )
-
-                exporter = LegacyGRPCLogExporter
-        elif protocol == "http/protobuf":
-            if tuple(int(x) for x in exporter_version.split(".")[:3]) >= (1, 18, 0):
-                from ddtrace.internal.opentelemetry.http_log_exporter import (
-                    OTLPLogExporter as LightweightHTTPLogExporter,
-                )
-
-                exporter = LightweightHTTPLogExporter
-            else:
-                from opentelemetry.exporter.otlp.proto.http._log_exporter import (
-                    OTLPLogExporter as UpstreamHTTPLogExporter,
-                )
-
-                exporter = UpstreamHTTPLogExporter
-        else:
-            log.warning(
-                "OpenTelemetry Logs exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
-                protocol,
-            )
-            return None
-
-        if tuple(int(x) for x in exporter_version.split(".")[:3]) < MINIMUM_SUPPORTED_VERSION:
-            log.warning(
-                "OpenTelemetry Logs exporter for %s requires version %r or higher, but found version %r. "
-                "Please upgrade the appropriate opentelemetry-exporter package.",
-                protocol,
-                MINIMUM_SUPPORTED_VERSION,
-                exporter_version,
-            )
-            return None
-
-        return exporter
-
-    except ImportError as e:
-        log.warning(
-            "OpenTelemetry Logs exporter for %s is not available. "
-            "Install ddtrace[opentelemetry] before enabling OpenTelemetry Logs support: %s",
-            protocol,
-            str(e),
-        )
-        return None
-
-
-def _exporter_version() -> str:
-    try:
-        return version("opentelemetry-exporter-otlp-proto-common")
-    except PackageNotFoundError:
-        from opentelemetry.exporter.otlp.proto.http.version import __version__
-
-        return str(__version__)
 
 
 class _SelfTelemetryLogFilter(logging.Filter):
