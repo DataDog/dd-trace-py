@@ -101,8 +101,10 @@ def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
 
 def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     ctx = ExecutionContext("test")
+    before = time.time_ns() // 1_000_000
     headers = {
         "x-dd-proxy": "azure-fd",
+        # Front Door cannot set this header itself, so a value here is untrusted and must be ignored
         "x-dd-proxy-request-time-ms": "1736973768000",
         # path intentionally missing leading slash to test normalization
         "x-dd-proxy-path": "api/my-function",
@@ -113,6 +115,7 @@ def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     }
 
     create_inferred_proxy_span_if_headers_exist(ctx, headers)
+    after = time.time_ns() // 1_000_000
 
     span: Span = ctx.get_item("inferred_proxy_span")
     assert span is not None
@@ -122,7 +125,7 @@ def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     assert span.get_tag("span.kind") == "server"
     assert span.resource == "GET /api/{resource}"
     assert span.service == "my-app.azurefd.net"
-    assert span.start_ns == 1736973768000 * 1000000
+    assert before * 1_000_000 <= span.start_ns <= after * 1_000_000
     assert span.get_tag("component") == "azure-fd"
     assert span.get_tag("http.method") == "GET"
     assert span.get_tag("http.url") == "https://my-app.azurefd.net/api/my-function"
@@ -169,3 +172,45 @@ def test_create_inferred_proxy_span_not_created_for_empty_timestamp_on_timestamp
     create_inferred_proxy_span_if_headers_exist(ctx, headers)
 
     assert ctx.get_item("inferred_proxy_span") is None
+
+
+@pytest.mark.parametrize("bad_timestamp", ["not-a-number", "1736973768000.5", "1e12", " ", "0x64"])
+def test_malformed_timestamp_does_not_leave_an_active_span(bad_timestamp, tracer) -> None:
+    """A malformed timestamp must be rejected before a span is started, leaving the active span untouched."""
+    ctx = ExecutionContext("test")
+    headers = {
+        "x-dd-proxy": "aws-apigateway",
+        "x-dd-proxy-request-time-ms": bad_timestamp,
+        "x-dd-proxy-path": "/test",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "example.com",
+    }
+
+    with tracer.trace("parent") as parent:
+        create_inferred_proxy_span_if_headers_exist(ctx, headers)
+
+        assert ctx.get_item("inferred_proxy_span") is None
+        assert ctx.get_item("inferred_proxy_finish_callback") is None
+        # no unfinished inferred span should have been activated
+        assert tracer.current_span() is parent
+
+
+def test_untrusted_timestamp_is_ignored_for_non_timestamp_provider(tracer) -> None:
+    """A client-supplied timestamp must not reach start_ns for proxies that don't provide one."""
+    ctx = ExecutionContext("test")
+    headers = {
+        "x-dd-proxy": "azure-fd",
+        # a plausible-looking but arbitrary value that would otherwise distort the span duration
+        "x-dd-proxy-request-time-ms": "1",
+        "x-dd-proxy-path": "/api/my-function",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "my-app.azurefd.net",
+    }
+
+    before = time.time_ns() // 1_000_000
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
+    after = time.time_ns() // 1_000_000
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    assert before * 1_000_000 <= span.start_ns <= after * 1_000_000

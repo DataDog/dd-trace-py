@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class ProxyHeaderContext:
     system_name: str
-    request_time: str
+    request_time_ms: int
     method: Optional[str]
     path: Optional[str]
     resource_path: Optional[str]
@@ -118,7 +118,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
         activate=True,
         child_of=tracer.current_trace_context(),
     )
-    span.start_ns = int(proxy_context.request_time) * 1000000
+    span.start_ns = proxy_context.request_time_ms * 1000000
 
     set_inferred_proxy_span_tags(span, proxy_context, proxy_info)
 
@@ -204,15 +204,26 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     if proxy_header_path and not proxy_header_path.startswith("/"):
         proxy_header_path = f"/{proxy_header_path}"
 
-    # If the proxy is expected to provide a timestamp, require it; otherwise fall back to current time.
-    if not proxy_header_start_time_ms:
-        if proxy_info.does_provide_timestamp:
+    # Proxies that cannot inject a request timestamp (e.g. Azure Front Door, whose rules engine only
+    # supports static header values) have no trustworthy value to offer, so any header present is
+    # ignored in favor of the current time. Proxies that do provide one must provide a valid one.
+    if not proxy_info.does_provide_timestamp:
+        start_time_ms = Time.time_ns() // 1_000_000
+    elif not proxy_header_start_time_ms:
+        return None
+    else:
+        try:
+            start_time_ms = int(proxy_header_start_time_ms)
+        except ValueError:
+            log.debug(
+                "Received headers to create inferred proxy span but request time is not an integer: %r",
+                proxy_header_start_time_ms,
+            )
             return None
-        proxy_header_start_time_ms = str(Time.time_ns() // 1_000_000)
 
     return ProxyHeaderContext(
         proxy_header_system,
-        proxy_header_start_time_ms,
+        start_time_ms,
         proxy_header_httpmethod,
         proxy_header_path,
         proxy_header_resource_path,

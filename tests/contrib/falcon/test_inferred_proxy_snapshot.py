@@ -14,7 +14,7 @@ import falcon
 import falcon.testing
 import pytest
 
-from ddtrace.contrib.internal.falcon.patch import patch as falcon_patch
+from ddtrace.contrib.internal.falcon.middleware import TraceMiddleware
 from tests.utils import override_global_config
 
 
@@ -46,14 +46,17 @@ AZURE_FRONTDOOR_HEADERS = {
 
 @pytest.fixture()
 def falcon_inferred_proxy_client():
-    falcon_patch()
-
     class ProxiedResource:
         def on_get(self, req, resp):
             resp.status = falcon.HTTP_200
             resp.text = "OK"
 
-    app = falcon.App()
+    # The middleware is added explicitly rather than by calling the falcon integration's patch().
+    # patch() wraps falcon.App.__init__ to prepend a TraceMiddleware, has no unpatch(), and so
+    # leaks into every app built later in the session - double-instrumenting the apps that
+    # tests/contrib/falcon/app/app.py builds with their own middleware. Passing the middleware
+    # here exercises the same request path without mutating falcon globally.
+    app = falcon.App(middleware=[TraceMiddleware()])
     app.add_route("/api/my-function", ProxiedResource())
     yield falcon.testing.TestClient(app)
 
@@ -68,13 +71,12 @@ def test_azure_frontdoor_creates_inferred_span(falcon_inferred_proxy_client):
 
 @pytest.fixture()
 def falcon_inferred_proxy_error_client():
-    falcon_patch()
-
     class ErrorResource:
         def on_get(self, req, resp):
             raise Exception("handler failed")
 
-    app = falcon.App()
+    # see falcon_inferred_proxy_client on why patch() is not used here
+    app = falcon.App(middleware=[TraceMiddleware()])
     app.add_route("/api/my-function", ErrorResource())
     yield falcon.testing.TestClient(app)
 
