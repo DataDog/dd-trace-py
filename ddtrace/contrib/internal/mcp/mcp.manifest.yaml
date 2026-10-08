@@ -1,0 +1,13 @@
+_v: 1
+name: mcp
+display_name: MCP
+description: Instruments MCP client sessions and requests, server initialization and tool execution, and distributed trace
+  propagation between clients and servers.
+packages:
+- name: mcp
+category:
+- gen_ai
+- mcp.client
+- mcp.server
+systems: []
+creation_date: '2025-07-15'

@@ -3,7 +3,7 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-    rust: "1.86"
+    rust: "1.91"
   commands:
     - cargo install --force --root /home/docs/.asdf --git https://github.com/DataDog/libdatadog --bin dedup_headers tools
     - git fetch --unshallow || true

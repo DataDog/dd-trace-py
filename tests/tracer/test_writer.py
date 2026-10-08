@@ -8,14 +8,16 @@ import sys
 import tempfile
 import threading
 import time
+from typing import Any
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
+from ddtrace.internal import forksafe
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.http import HTTPConnection
@@ -914,6 +916,82 @@ def test_racing_start():
         assert len(writer._encoder) == 100
 
 
+def test_native_exporter_shutdown_waits_for_send() -> None:
+    send_started = threading.Event()
+    release_send = threading.Event()
+    shutdown_called = threading.Event()
+    shutdown_waiting = threading.Event()
+    calls: list[str] = []
+
+    class Exporter:
+        def send(self, payload: bytes) -> None:
+            calls.append("send_enter")
+            send_started.set()
+            assert release_send.wait(timeout=2)
+            calls.append("send_exit")
+
+        def shutdown(self, timeout: int) -> None:
+            calls.append("shutdown")
+            shutdown_called.set()
+
+    class TrackingLock:
+        """Reports that the shutdown thread reached the lock before it blocks on it."""
+
+        def __init__(self, lock: Any) -> None:
+            self._lock = lock
+
+        def __enter__(self) -> Any:
+            # The sender takes the lock before it sets send_started, so any acquisition
+            # after that point belongs to the shutdown thread.
+            if send_started.is_set():
+                shutdown_waiting.set()
+            return self._lock.__enter__()
+
+        def __exit__(self, *exc_info: Any) -> Any:
+            return self._lock.__exit__(*exc_info)
+
+    writer = NativeWriter("http://localhost:9126")
+    original_exporter = writer._exporter
+    writer._exporter = Exporter()
+    writer._shutdown_exporter(original_exporter)
+    writer._exporter_lock = TrackingLock(writer._exporter_lock)
+
+    send_thread = threading.Thread(target=writer._send_payload, args=(b"payload", 1, writer._clients[0]))
+    send_thread.start()
+    assert send_started.wait(timeout=2)
+
+    shutdown_thread = threading.Thread(target=writer.shutdown_exporter)
+    shutdown_thread.start()
+    assert shutdown_waiting.wait(timeout=2)
+    assert not shutdown_called.wait(timeout=0.1)
+
+    release_send.set()
+    send_thread.join(timeout=2)
+    shutdown_thread.join(timeout=2)
+
+    assert not send_thread.is_alive()
+    assert not shutdown_thread.is_alive()
+    assert shutdown_called.is_set()
+    # The shutdown must land after the send completes, not interleaved with it.
+    assert calls == ["send_enter", "send_exit", "shutdown"]
+
+
+def test_native_exporter_lock_resets_after_fork() -> None:
+    """A child inheriting the lock held by a thread that no longer exists must not deadlock."""
+    writer = NativeWriter("http://localhost:9126")
+    assert isinstance(writer._exporter_lock, forksafe.ResetObject)
+
+    holder = threading.Thread(target=writer._exporter_lock.acquire)
+    holder.start()
+    holder.join(timeout=2)
+    assert not holder.is_alive()
+
+    # forksafe applies this to every resettable object in the child after a fork.
+    writer._exporter_lock._reset_object()
+    assert writer._exporter_lock.acquire(blocking=False)
+    writer._exporter_lock.release()
+
+
 def test_bad_encoding(monkeypatch):
     with override_global_config({"_trace_api": "foo"}):
         writer = NativeWriter("http://localhost:9126")
@@ -1136,7 +1214,7 @@ def test_trace_with_128bit_trace_ids():
         spans = TracerSpanContainer(tracer).pop()
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(parent.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == f"{parent.trace_id >> 64:016x}"
 
 
 @pytest.mark.parametrize(
@@ -1174,6 +1252,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_client_computed_top_level",
         "set_input_format",
         "set_output_format",
+        "set_stats_cardinality_limit",
         "enable_telemetry",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
@@ -1251,6 +1330,7 @@ def test_otlp_metric_tags_configured():
         "set_git_commit_sha",
         "set_runtime_id",
         "set_client_computed_top_level",
+        "set_stats_cardinality_limit",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 
@@ -1259,6 +1339,55 @@ def test_otlp_metric_tags_configured():
 
     mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
     mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_STATS_CARDINALITY_LIMIT": "100",
+        "DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT": "50",
+    }
+)
+def test_stats_cardinality_limits_configured():
+    """Limits left unset fall back to the defaults libdatadog would have applied."""
+    from unittest import mock
+
+    from ddtrace.internal import native
+    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+
+    mock_builder = mock.Mock()
+    # The builder is used as a chain, so every setter has to hand back the same mock.
+    for method_name in [
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_runtime_id",
+        "set_client_computed_top_level",
+        "set_stats_cardinality_limit",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
+        _build_base_exporter_builder("http://localhost:8126", None, True, False)
+
+    mock_builder.set_stats_cardinality_limit.assert_called_once_with(
+        whole_key_limit=100,
+        resource_limit=50,
+        http_endpoint_limit=512,
+        peer_tags_limit=512,
+        additional_tags_limit=100,
+    )
+
+
+@pytest.mark.subprocess(
+    env={"DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT": "0"},
+    err=lambda err: "only positive values allowed" in err,
+)
+def test_stats_cardinality_limits_reject_non_positive_values():
+    from ddtrace.internal.settings._config import config
+
+    assert config._trace_stats_cardinality_limits["peer_tags_limit"] == 512
 
 
 class TestSafelog:
@@ -1804,7 +1933,7 @@ def test_native_writer_sets_otlp_trace_context_on_every_span():
     for span in (root, child):
         assert span.get_metric("_sampling_priority_v1") == 1
         assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
-        assert "p:{:016x}".format(span.span_id) in span.get_tag("tracestate")
+        assert f"p:{span.span_id:016x}" in span.get_tag("tracestate")
 
 
 def test_native_writer_forwards_inherited_otel_trace_context():

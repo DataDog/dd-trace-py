@@ -12,11 +12,11 @@ replayed.  This is buffer-then-evaluate, NOT live forwarding — do not
 module exists to prevent).
 """
 
+from collections.abc import AsyncIterator
+from collections.abc import Iterator
 import inspect
 from typing import Any
-from typing import AsyncIterator
 from typing import Callable
-from typing import Iterator
 from typing import Optional
 
 import wrapt

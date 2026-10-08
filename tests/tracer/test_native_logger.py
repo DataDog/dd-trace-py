@@ -120,12 +120,12 @@ def test_logger_subprocess(
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level
 
     message = f"msg_{uuid.uuid4().hex}"
-    code = """
+    code = f"""
 from ddtrace.internal.native._native import logger
 
-message_level = f"{}"
-logger.log(message_level, f"{}")
-    """.format(message_level, message)
+message_level = f"{message_level}"
+logger.log(message_level, f"{message}")
+    """
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0

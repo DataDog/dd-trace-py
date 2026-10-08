@@ -147,8 +147,8 @@ def _dd_id_to_b3_id(dd_id: int) -> str:
     if dd_id > _MAX_UINT_64BITS:
         # b3 trace ids can have the length of 16 or 32 characters:
         # https://github.com/openzipkin/b3-propagation#traceid
-        return "{:032x}".format(dd_id)
-    return "{:016x}".format(dd_id)
+        return f"{dd_id:032x}"
+    return f"{dd_id:016x}"
 
 
 # Propagation runs on every inject/extract, use MetricRecorder for extra-fast dispatch. Both parts
@@ -253,7 +253,7 @@ class _DatadogMultiHeader:
     @staticmethod
     def _put_together_trace_id(trace_id_hob_hex: str, low_64_bits: int) -> int:
         # combine highest and lowest order hex values to create a 128 bit trace_id
-        return int(trace_id_hob_hex + "{:016x}".format(low_64_bits), 16)
+        return int(trace_id_hob_hex + f"{low_64_bits:016x}", 16)
 
     @staticmethod
     def _higher_order_is_valid(upper_64_bits: str) -> bool:
@@ -370,7 +370,7 @@ class _DatadogMultiHeader:
                 if config._128_bit_trace_id_enabled:
                     trace_id = _DatadogMultiHeader._put_together_trace_id(trace_id_hob_hex, trace_id)
             else:
-                meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
+                meta["_dd.propagation_error"] = f"malformed_tid {trace_id_hob_hex}"
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
 
@@ -579,7 +579,7 @@ class _B3SingleHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        single_header = "{}-{}".format(_dd_id_to_b3_id(span_context.trace_id), _dd_id_to_b3_id(span_context.span_id))
+        single_header = f"{_dd_id_to_b3_id(span_context.trace_id)}-{_dd_id_to_b3_id(span_context.span_id)}"
         sampling_priority = span_context.sampling_priority
         if sampling_priority is not None:
             if sampling_priority <= 0:
@@ -1023,7 +1023,7 @@ _PROP_STYLES = {
 }
 
 
-class HTTPPropagator(object):
+class HTTPPropagator:
     """A HTTP Propagator using HTTP headers as carrier. Injects and Extracts headers
     according to the propagation style set by ddtrace configurations.
     """
@@ -1143,7 +1143,7 @@ class HTTPPropagator(object):
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
                     elif dd_context:
                         # if p value is not present in tracestate, use the parent id from the datadog headers
-                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = f"{dd_context.span_id:016x}"
                     # the span_id in tracecontext takes precedence over the first extracted propagation style
                     primary_context.span_id = context.span_id
 

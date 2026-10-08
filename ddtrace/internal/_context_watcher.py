@@ -1,12 +1,13 @@
 import sys
 
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_at_least_py
 
 
 PYTHON_CONTEXT_SWITCH_EVENT = "python.context.switch"
 
 
-if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+if sys.implementation.name == "cpython" and is_at_least_py(3, 14):
     from ddtrace.internal.native._native import is_context_watcher_registered as is_context_watcher_registered
     from ddtrace.internal.native._native import register_context_watcher as register_context_watcher
 

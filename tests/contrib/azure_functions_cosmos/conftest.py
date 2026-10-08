@@ -1,10 +1,10 @@
+from collections.abc import Generator
 from io import BufferedRandom
 import os
 import signal
 import subprocess
 import tempfile
 import time
-from typing import Generator
 from typing import Union
 
 import pytest

@@ -95,4 +95,46 @@ interactions:
     status:
       code: 200
       message: OK
+# The third interaction below is hand-written, not recorded. google-adk >= 2.9.0 answers the
+# hallucinated exec_python call with a tool-not-found function response and calls the model again,
+# so replay needs a final model turn; earlier versions raise before reaching this call. Re-record
+# the whole cassette when an API key is at hand.
+- request:
+    body: '{"contents": [{"parts": [{"text": "First, call the search_docs tool with query ''test''. Then call multiply with a=5 and b=3. Finally, execute Python code to print the result."}], "role": "user"}, {"parts": [{"functionCall": {"args": {"query": "test"}, "name": "search_docs"}}, {"functionCall": {"args": {"b": 3, "a": 5}, "name": "multiply"}}], "role": "model"}, {"parts": [{"functionResponse": {"name": "search_docs", "response": {"results": ["Found reference for: test"]}}}, {"functionResponse": {"name": "multiply", "response": {"product": 15}}}], "role": "user"}, {"parts": [{"functionCall": {"args": {"code": "print(15)"}, "name": "exec_python"}}], "role": "model"}, {"parts": [{"functionResponse": {"name": "exec_python", "response": {"error": "Tool ''exec_python'' not found. Available tools: search_docs, multiply"}}}], "role": "user"}], "systemInstruction": {"parts": [{"text": "You are a test agent. When needed: (1) plan, (2) search, (3) write short Python to compute results. Be concise.\n\nYou are an agent. Your internal name is \"test_agent\".\n\n The description about you is \"Test agent for ADK integration testing\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description": "A tiny search tool stub.", "name": "search_docs", "parameters": {"properties": {"query": {"type": "STRING"}}, "type": "OBJECT"}}, {"description": "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties": {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "type": "OBJECT"}}]}], "generationConfig": {}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1531'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - google-genai-sdk/1.36.0 gl-python/3.12.11 google-adk/2.9.0 gl-python/3.12.11
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\": [\n          {\n            \"text\": \"The search found a reference for 'test', and 5 multiplied by 3 is 15.\"\n          }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 331,\n    \"candidatesTokenCount\": 21,\n    \"totalTokenCount\": 352,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 331\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.5-pro\",\n  \"responseId\": \"hand-written-third-turn\"\n}\n"
+    headers:
+      Content-Type:
+      - application/json; charset=UTF-8
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
 version: 1

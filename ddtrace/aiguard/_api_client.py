@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 import json
+import re
 from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
@@ -45,6 +46,7 @@ ALLOW = "ALLOW"
 DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
+_RESERVED_TAG_PREFIX = AI_GUARD.TAG + "."
 
 
 class Evaluation(TypedDict):
@@ -137,6 +139,24 @@ def _classify_transport_error(exc: BaseException) -> str:
 def _status_tag(status: Optional[int]) -> str:
     """Clamp a response status to the declared allowlist, keeping the tag bounded."""
     return str(status) if status in AI_GUARD.STATUSES else AI_GUARD.STATUS_OTHER
+
+
+# What replaces an endpoint anywhere it would otherwise be reported.
+_REDACTED = "<endpoint>"
+
+# A URL in any shape an endpoint override reaches the transport as: absolute, scheme-relative, or
+# the bare authority left when the scheme is missing. The last character cannot be punctuation, so
+# a URL ending a sentence does not swallow what closes it.
+_URL_RE = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//[^\s'\"]*[^\s'\"(),.;]")
+
+
+def _scrub_urls(text: str) -> str:
+    """Replace every URL in text with a placeholder.
+
+    A credential can sit in the userinfo, in a path segment or in a query parameter, so no part of
+    the endpoint is kept.
+    """
+    return _URL_RE.sub(_REDACTED, text)
 
 
 class AIGuardClient:
@@ -287,6 +307,7 @@ class AIGuardClient:
         options: Optional[Options] = None,
         source: str = AI_GUARD.SOURCE_SDK,
         integration: str = AI_GUARD.INTEGRATION_NONE,
+        tags: Optional[dict[str, Any]] = None,
     ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
@@ -300,6 +321,8 @@ class AIGuardClient:
                 auto-instrumentation passes auto.
             integration: Name of the auto-instrumented AI package, reported as the integration
                 telemetry tag. Only meaningful when source is auto; otherwise reported as none.
+            tags: Optional custom tags set on the AI Guard span, e.g. to filter evaluations in
+                queries. Keys under the reserved ai_guard. prefix are ignored.
 
         Returns:
             EvaluationResult containing action and reason
@@ -322,6 +345,12 @@ class AIGuardClient:
         call_path_tags = self._call_path_tags(source, integration)
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+            if tags:
+                for key, value in tags.items():
+                    # Some ai_guard.* tags are only set conditionally below, so a caller value for
+                    # one of them would survive and misreport the verdict.
+                    if not key.startswith(_RESERVED_TAG_PREFIX):
+                        span.set_tag(key, value)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
@@ -332,11 +361,16 @@ class AIGuardClient:
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
 
+                transport_error = None
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except Exception as e:
                     error_type = _classify_transport_error(e)
-                    raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
+                    transport_error = AIGuardClientError(message=self._describe_transport_error(e))
+                if transport_error is not None:
+                    # Raised outside the handler on purpose: that leaves __cause__ and __context__
+                    # empty, so nothing can render the transport failure or its endpoint again.
+                    raise transport_error
 
                 try:
                     result = response.get_json() or {}  # type: ignore[no-untyped-call]
@@ -358,7 +392,7 @@ class AIGuardClient:
                         attributes = result["data"]["attributes"]
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
-                        tags = attributes.get("tags", [])
+                        attack_categories = attributes.get("tags", [])
                         # Reported verbatim: location offsets are computed on the redacted string, so
                         # they only line up when the redacted messages are what ends up reported.
                         sds_findings = attributes.get("sds_findings") or []
@@ -400,8 +434,8 @@ class AIGuardClient:
                     meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
-                    if tags:
-                        meta_struct.update({"attack_categories": tags})
+                    if attack_categories:
+                        meta_struct.update({"attack_categories": attack_categories})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                     if sds_findings:
@@ -432,16 +466,18 @@ class AIGuardClient:
                 if root_span:
                     _aiguard_manual_keep(root_span)
                     root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
-                    # Populate client IP on the service-entry span only when an ai_guard span
-                    # is actually created, mirroring the AppSec spec. The candidate IP was
+                    # Populate client IPs on the service-entry span only when an ai_guard span
+                    # is actually created, mirroring the AppSec spec. The candidate IPs were
                     # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
                     # Discard the key after use so a later evaluate() call can't inherit a
                     # stale IP from an earlier request that shared this context tree.
-                    client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    client_ips = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
-                    if client_ip:
+                    if client_ips:
+                        client_ip, peer_ip = client_ips
                         root_span._set_attribute(http.CLIENT_IP, client_ip)
-                        root_span._set_attribute("network.client.ip", client_ip)
+                        if peer_ip:
+                            root_span._set_attribute("network.client.ip", peer_ip)
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
                     # even when the root span arrives in a later trace chunk.
@@ -454,7 +490,7 @@ class AIGuardClient:
                     raise AIGuardAbortError(
                         action=action,
                         reason=reason,
-                        tags=tags,
+                        tags=attack_categories,
                         sds=sds_findings,
                         tag_probs=tag_probs,
                     )
@@ -462,7 +498,7 @@ class AIGuardClient:
                 return Evaluation(
                     action=action,
                     reason=reason,
-                    tags=tags,
+                    tags=attack_categories,
                     sds=sds_findings,
                     tag_probs=tag_probs,
                     messages=redacted_messages,
@@ -487,9 +523,34 @@ class AIGuardClient:
                 )
                 raise
 
+    def _scrub(self, text: str) -> str:
+        """Remove the configured endpoint from text this client is about to report."""
+        # The literal value goes first: an endpoint too malformed to match a URL still reaches the
+        # transport, which quotes it back in its own messages.
+        if self._endpoint:
+            text = text.replace(self._endpoint, _REDACTED)
+        return _scrub_urls(text)
+
+    def _describe_transport_error(self, exc: BaseException) -> str:
+        """Describe a transport failure as the only text this client reports about it.
+
+        The exception is never chained, so this string is the whole report: an endpoint is quoted
+        not just by the message but by notes, by group members and by every link a traceback walks,
+        and scrubbing each of those is chasing a graph that keeps growing.
+        """
+        header = f"Unexpected error calling AI Guard service ({type(exc).__name__})"
+        try:
+            return f"{header}: {self._scrub(str(exc))}"
+        except Exception:
+            # No exc_info: rendering this failure's context would quote the message we could not read.
+            logger.debug("Could not render AI Guard transport error message (%s)", type(exc).__name__)
+            return header
+
     def _execute_request(self, url: str, payload: Any) -> Response:
         parsed = urlparse(url)
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        # Userinfo is dropped rather than forwarded: AI Guard authenticates with the DD-API-KEY and
+        # DD-APPLICATION-KEY headers, and the transport logs and quotes the base URL it is given.
+        base_url = f"{parsed.scheme}://{parsed.netloc.rpartition('@')[2]}"
         conn = HTTPConnection(base_url, timeout=self._timeout)
         try:
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)

@@ -39,8 +39,10 @@ def identify():
 
 @app.route("/shutdown")
 def shutdown():
+    # sys.exit only ends the worker thread, so answer instead: the response is what tells the
+    # caller the flush finished and it is safe to kill the server.
     tracer.shutdown()
-    sys.exit(0)
+    return "shutdown"
 
 
 @app.route("/stream")

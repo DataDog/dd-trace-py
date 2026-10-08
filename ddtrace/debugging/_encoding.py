@@ -1,4 +1,5 @@
 import abc
+from collections.abc import Iterator
 from dataclasses import dataclass
 from heapq import heapify
 from heapq import heappop
@@ -9,7 +10,6 @@ from threading import Thread
 from types import FrameType
 from typing import Any
 from typing import Callable
-from typing import Iterator
 from typing import Optional
 from typing import Union
 
@@ -26,7 +26,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 log = get_logger(__name__)
 
 
-class JsonBuffer(object):
+class JsonBuffer:
     def __init__(self, max_size: Optional[int] = None) -> None:
         self.max_size = max_size
         self._reset()

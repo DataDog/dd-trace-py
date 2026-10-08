@@ -2,8 +2,8 @@ import gzip
 import logging
 import os
 import time
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 

@@ -19,7 +19,7 @@ class TestTornadoSettings(TornadoTestCase):
     """
 
     def get_app(self):
-        super(TestTornadoSettings, self).get_app()
+        super().get_app()
 
     def get_settings(self):
         # update tracer settings
