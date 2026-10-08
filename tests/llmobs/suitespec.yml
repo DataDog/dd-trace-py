@@ -262,6 +262,9 @@ suites:
           dependencies: [pytest-asyncio, 'mcp~=1.10.0']
         - name: mcp
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, 'mcp<2']
+        - name: mcp
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, mcp]
   mistralai:
     paths:

@@ -1,0 +1,122 @@
+[[
+  {
+    "name": "mcp.request",
+    "service": "tests.contrib.mcp",
+    "resource": "ClientSession",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6ac75f7800000000",
+      "_dd.svc_src": "datadog",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mcp",
+      "language": "python",
+      "runtime-id": "dd396dcce93041168f59690c02fc6191"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 7834613,
+    "start": 1791451000283254214
+  },
+     {
+       "name": "mcp.request",
+       "service": "tests.contrib.mcp",
+       "resource": "ClientSession.initialize",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "datadog"
+       },
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 2198871,
+       "start": 1791451000284975253
+     },
+        {
+          "name": "mcp.initialize",
+          "service": "tests.contrib.mcp",
+          "resource": "server_request",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.tid": "6ac75f7800000000",
+            "_dd.svc_src": "datadog"
+          },
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 267500,
+          "start": 1791451000286570292
+        },
+     {
+       "name": "mcp.request",
+       "service": "tests.contrib.mcp",
+       "resource": "client_tool_call",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "6ac75f7800000000",
+         "_dd.svc_src": "datadog"
+       },
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 3326079,
+       "start": 1791451000287218374
+     },
+        {
+          "name": "mcp.tools/call",
+          "service": "tests.contrib.mcp",
+          "resource": "server_tool_call",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.tid": "6ac75f7800000000",
+            "_dd.svc_src": "datadog"
+          },
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 924832,
+          "start": 1791451000288767747
+        },
+        {
+          "name": "mcp.request",
+          "service": "tests.contrib.mcp",
+          "resource": "ClientSession.list_tools",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.p.tid": "6ac75f7800000000",
+            "_dd.svc_src": "datadog"
+          },
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 633457,
+          "start": 1791451000289884579
+        }]]
