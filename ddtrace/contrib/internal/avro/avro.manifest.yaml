@@ -1,0 +1,11 @@
+_v: 1
+name: avro
+display_name: Avro
+description: Instruments Avro serialization and deserialization to attach schema metadata and sampled schema definitions to
+  active spans for Data Streams Monitoring.
+packages:
+- name: avro
+category:
+- other
+systems: []
+creation_date: '2024-09-10'

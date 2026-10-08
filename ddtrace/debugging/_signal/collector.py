@@ -33,7 +33,7 @@ def _guardrail_tags(signal: Signal, reason: str, evaluation_kind: Optional[str] 
     return tags
 
 
-class SignalCollector(object):
+class SignalCollector:
     """Debugger signal collector.
 
     This is used to collect and encode signals emitted by probes as soon as

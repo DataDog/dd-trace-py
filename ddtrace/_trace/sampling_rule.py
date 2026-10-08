@@ -13,7 +13,7 @@ from ddtrace.internal.utils.cache import cachedmethod
 log = get_logger(__name__)
 
 
-class SamplingRule(object):
+class SamplingRule:
     """
     Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
     """

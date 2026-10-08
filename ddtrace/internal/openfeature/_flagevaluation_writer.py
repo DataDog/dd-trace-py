@@ -44,7 +44,13 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._evp_transport import EVPRoute
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
+from ddtrace.internal.openfeature._evp_transport import get_evp_connection
+from ddtrace.internal.openfeature._evp_transport import get_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flageval_pii import normalize_targeting_key
+from ddtrace.internal.openfeature._flageval_pii import prefixed_targeting_key_digest
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -60,6 +66,34 @@ FLAGEVALUATIONS_ENDPOINT = f"{EVP_PROXY_AGENT_BASE_PATH}/api/v2/flagevaluation"
 EVP_SUBDOMAIN_VALUE = EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT = DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 _JSON_SEPARATORS = (",", ":")
+
+# Private OpenFeature metadata key for evaluation-time UFC consent.
+METADATA_OBSERVE_FULL_EVALUATION_DATA = "__dd_observe_full_evaluation_data"
+
+# OpenFeature-defined low-cardinality error codes. All payloads accept
+# only these exact built-in strings at the writer's final privacy boundary.
+_PROTECTED_ERROR_CODES = frozenset(
+    (
+        "PROVIDER_NOT_READY",
+        "FLAG_NOT_FOUND",
+        "PARSE_ERROR",
+        "TYPE_MISMATCH",
+        "TARGETING_KEY_MISSING",
+        "INVALID_CONTEXT",
+        "PROVIDER_FATAL",
+        "GENERAL",
+    )
+)
+_PROTECTED_UNKNOWN_ERROR_CODE = "GENERAL"
+
+
+def _protected_error_message(error_code: typing.Any) -> str:
+    if not error_code:
+        return ""
+    if type(error_code) is str and error_code in _PROTECTED_ERROR_CODES:
+        return error_code
+    return _PROTECTED_UNKNOWN_ERROR_CODE
+
 
 # Cross-SDK context snapshot limits.
 MAX_CONTEXT_FIELDS = 256
@@ -147,7 +181,7 @@ _PACK_LENGTH = struct.Struct(">Q").pack
 # hoisted out of the walk for the same reason as _PACK_LENGTH.
 _IS_FINITE = math.isfinite
 
-# AIDEV-NOTE: Keep this an exact-type allowlist. datetime.isoformat() calls
+# Keep this an exact-type allowlist. datetime.isoformat() calls
 # tzinfo.utcoffset(), so accepting a caller-defined implementation would run arbitrary
 # code on the evaluation thread. The stdlib implementations below do not dispatch to
 # caller overrides; subclasses must remain unsupported.
@@ -162,6 +196,8 @@ FLAG_EVALUATION_DROPPED_METRIC = "flagevaluation.rows.dropped"
 FLAG_EVALUATION_DEGRADED_METRIC = "flagevaluation.rows.degraded"
 FLAG_EVALUATION_SPLITS_METRIC = "flagevaluation.payload.splits"
 FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC = "flagevaluation.context.truncated"
+FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC = "flagevaluation.targeting_key.omitted"
+FLAG_EVALUATION_HOOK_ERRORS_METRIC = "flagevaluation.hook.errors"
 
 FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW = "pre_queue_overflow"
 FLAG_EVALUATION_REASON_QUEUE_OVERFLOW = "queue_overflow"
@@ -193,7 +229,12 @@ def _count_metric(name: str, value: int, reason: typing.Optional[str] = None) ->
     if value <= 0:
         return
     tags = (("reason", reason),) if reason else tuple()
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
+    try:
+        telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
+    except Exception:
+        # Telemetry is best effort and must not abort a flush after its rows
+        # have been removed from the aggregation maps.
+        logger.debug("FlagEvaluationWriter: failed to record count metric")
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +496,7 @@ def _flatten_sequence(
             return
         # See the charge-first note in _flatten_mapping.
         state[0] = remaining - 1
-        # AIDEV-NOTE: Keep Python's existing tags[0] list notation. Changing it
+        # Keep Python's existing tags[0] list notation. Changing it
         # to tags.0 requires explicit backend-owner approval under FFL-3060.
         index_text = str(index)
         if len(index_text) + 2 > key_budget:
@@ -607,28 +648,38 @@ class _Entry:
         "targeting_key",
         "context_attrs",
         "error_message",
+        "observe_full_evaluation_data",
     )
 
     def __init__(
         self,
         eval_time_ms: int,
         runtime_default: bool,
-        targeting_key: str,
+        targeting_key: typing.Optional[str],
         context_attrs: typing.Mapping[str, typing.Any],
         error_message: str,
+        observe_full_evaluation_data: bool = False,
     ) -> None:
         self.count: int = 1
         self.first_evaluation: int = eval_time_ms
         self.last_evaluation: int = eval_time_ms
         self.runtime_default: bool = runtime_default
         # Full-tier only:
-        self.targeting_key: str = targeting_key
+        self.targeting_key: typing.Optional[str] = targeting_key
         self.context_attrs: dict[str, typing.Any] = dict(context_attrs)
         self.error_message: str = error_message
+        self.observe_full_evaluation_data: bool = observe_full_evaluation_data
 
-    def observe(self, eval_time_ms: int) -> None:
-        """Update count and first/last bounds for a repeated evaluation."""
+    def observe(self, eval_time_ms: int, observe_full_evaluation_data: typing.Optional[bool] = None) -> None:
+        """Update count, time bounds, and defensive bucket consent."""
         self.count += 1
+        if observe_full_evaluation_data is not None:
+            # Preserve consent only when every merged event has it. This is
+            # defensive in the full tier (consent is already in its identity).
+            # Degraded rows always omit key/context, independently of this fold.
+            self.observe_full_evaluation_data = (
+                self.observe_full_evaluation_data and observe_full_evaluation_data is True
+            )
         if eval_time_ms < self.first_evaluation:
             self.first_evaluation = eval_time_ms
         if eval_time_ms > self.last_evaluation:
@@ -641,11 +692,13 @@ class _EvalEvent(typing.NamedTuple):
     flag_key: str
     variant: str  # "" when absent (= runtime_default)
     allocation_key: str
-    targeting_key: str
+    targeting_key: object
     attrs: typing.Mapping[str, typing.Any]  # immutable, flattened context snapshot once queued
     runtime_default: bool
     error_message: str
     eval_time_ms: int
+    observe_full_evaluation_data: bool = False
+    error_code: str = ""
 
 
 class _FlagEvaluationConnection(typing.Protocol):
@@ -692,6 +745,7 @@ class _WriterProcessState:
         self.dropped_queue = 0
         self.dropped_degraded_overflow = 0
         self.context_truncated: dict[str, int] = {}
+        self.targeting_key_omitted = 0
         self.context_snapshot_error_logged = False
         # A fork child starts open. The child restarts its PeriodicThread through
         # threads._after_fork_child, which never calls _start_service, so a False
@@ -721,9 +775,17 @@ class FlagEvaluationWriter(PeriodicService):
     aggregates, and flushes via HTTP every 10 s.
     """
 
-    def __init__(self, interval: float = DEFAULT_FLUSH_INTERVAL, timeout: float = 2.0) -> None:
+    def __init__(
+        self,
+        interval: float = DEFAULT_FLUSH_INTERVAL,
+        timeout: float = 2.0,
+        route_selector: typing.Optional[FeatureFlagEVPRouteSelector] = None,
+        connection_factory: typing.Optional[typing.Callable[..., typing.Any]] = None,
+    ) -> None:
         super().__init__(interval=interval)
         self._timeout = timeout
+        self._route_selector = route_selector or get_feature_flag_evp_route_selector()
+        self._connection_factory = connection_factory
         self._intake: str = agent_config.trace_agent_url
         self._endpoint: str = FLAGEVALUATIONS_ENDPOINT
         self._headers: dict[str, str] = {
@@ -851,20 +913,23 @@ class FlagEvaluationWriter(PeriodicService):
 
         # Snapshot outside the lifecycle lock. Shutdown remains prompt even if a caller's
         # bounded iterator is slow; the accepting state is rechecked before commit.
-        try:
-            bounded_attrs, truncation_reasons = flatten_and_prune_context(event.attrs)
-        except Exception as exc:
+        observe_full_evaluation_data = event.observe_full_evaluation_data is True
+        if observe_full_evaluation_data:
+            try:
+                bounded_attrs, truncation_reasons = flatten_and_prune_context(event.attrs)
+            except Exception as exc:
+                bounded_attrs = _EMPTY_CONTEXT
+                truncation_reasons = frozenset((CONTEXT_TRUNCATION_SNAPSHOT_ERROR,))
+                with self._counter_lock:
+                    should_log_snapshot_error = not self._context_snapshot_error_logged
+                    self._context_snapshot_error_logged = True
+                if should_log_snapshot_error:
+                    # Log the exception type only. The caller's exception text or
+                    # traceback can contain context data.
+                    logger.debug("FlagEvaluationWriter: context snapshot error (%s)", type(exc).__name__)
+        else:
             bounded_attrs = _EMPTY_CONTEXT
-            truncation_reasons = frozenset((CONTEXT_TRUNCATION_SNAPSHOT_ERROR,))
-            with self._counter_lock:
-                should_log_snapshot_error = not self._context_snapshot_error_logged
-                self._context_snapshot_error_logged = True
-            if should_log_snapshot_error:
-                # Log the exception type only. The traversal calls __iter__ and
-                # __getitem__ on the caller's own context object, so an exception
-                # message or traceback can carry customer context data. That data is
-                # consent-gated in the payload, so it must not reach the log sink.
-                logger.debug("FlagEvaluationWriter: context snapshot error (%s)", type(exc).__name__)
+            truncation_reasons = frozenset()
 
         bounded_event = _EvalEvent(
             flag_key=event.flag_key,
@@ -873,8 +938,10 @@ class FlagEvaluationWriter(PeriodicService):
             targeting_key=event.targeting_key,
             attrs=bounded_attrs,
             runtime_default=event.runtime_default,
-            error_message=event.error_message,
+            error_message=_protected_error_message(event.error_code),
             eval_time_ms=event.eval_time_ms,
+            observe_full_evaluation_data=observe_full_evaluation_data,
+            error_code=event.error_code,
         )
 
         closed = False
@@ -961,9 +1028,11 @@ class FlagEvaluationWriter(PeriodicService):
             dropped_pre_queue = self._dropped_pre_queue
             dropped_queue = self._dropped_queue
             context_truncated = self._context_truncated
+            targeting_key_omitted = self._process_state.targeting_key_omitted
             self._dropped_pre_queue = 0
             self._dropped_queue = 0
             self._context_truncated = {}
+            self._process_state.targeting_key_omitted = 0
 
         if dropped_pre_queue:
             logger.warning(
@@ -989,6 +1058,7 @@ class FlagEvaluationWriter(PeriodicService):
             _count_metric(FLAG_EVALUATION_DROPPED_METRIC, dropped_degraded, FLAG_EVALUATION_REASON_DEGRADED_CAP)
         for reason, count in context_truncated.items():
             _count_metric(FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC, count, reason)
+        _count_metric(FLAG_EVALUATION_TARGETING_KEY_OMITTED_METRIC, targeting_key_omitted, "invalid")
 
         if not full and not degraded:
             return
@@ -1005,16 +1075,17 @@ class FlagEvaluationWriter(PeriodicService):
             ev = _base_event(flag_key, entry, flush_time_ms)
             if entry.runtime_default:
                 ev["runtime_default_used"] = True
-            if entry.targeting_key:
+            # None means missing or malformed; an explicit empty key stays present.
+            if entry.targeting_key is not None:
                 ev["targeting_key"] = entry.targeting_key
+            if entry.observe_full_evaluation_data is True and entry.context_attrs:
+                ev["context"] = {"evaluation": entry.context_attrs}
             if variant:
                 ev["variant"] = {"key": variant}
             if allocation_key:
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
-                ev["error"] = {"message": entry.error_message}
-            if entry.context_attrs:
-                ev["context"] = {"evaluation": entry.context_attrs}
+                ev["error"] = {"message": _protected_error_message(entry.error_message)}
             events.append(ev)
 
         # Degraded-tier events: no targeting_key, no context.
@@ -1032,7 +1103,7 @@ class FlagEvaluationWriter(PeriodicService):
             if allocation_key:
                 ev["allocation"] = {"key": allocation_key}
             if entry.error_message:
-                ev["error"] = {"message": entry.error_message}
+                ev["error"] = {"message": _protected_error_message(entry.error_message)}
             events.append(ev)
         _count_metric(FLAG_EVALUATION_DEGRADED_METRIC, degraded_count, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
 
@@ -1120,7 +1191,26 @@ class FlagEvaluationWriter(PeriodicService):
         Canonical key computation happens here (off the hot path). Context was already
         flattened, pruned, and made immutable before enqueue.
         """
-        context_attrs = event.attrs if event.attrs is not None else _EMPTY_CONTEXT
+        # Normalize to the exact wire identity before keying. Protected buckets
+        # use the prefixed cross-SDK hash; malformed keys become omitted None.
+        observe_full_evaluation_data = event.observe_full_evaluation_data is True
+        if observe_full_evaluation_data:
+            targeting_key = normalize_targeting_key(event.targeting_key)
+        else:
+            targeting_key = prefixed_targeting_key_digest(event.targeting_key)
+
+        # Re-enforce every privacy-sensitive field here even when
+        # an internal caller bypasses the hook and constructs _EvalEvent directly.
+        if targeting_key is None and event.targeting_key is not None:
+            # Count once per aggregated input, not per transmitted row. Missing
+            # keys and valid empty strings are not rejected values.
+            with self._counter_lock:
+                self._process_state.targeting_key_omitted += 1
+        error_message = _protected_error_message(event.error_code)
+        if observe_full_evaluation_data:
+            context_attrs = event.attrs if event.attrs is not None else _EMPTY_CONTEXT
+        else:
+            context_attrs = _EMPTY_CONTEXT
 
         # Build the full-tier key tuple. A valid OpenFeature number can exceed
         # Python's configured integer-to-decimal conversion limit. Keep numeric
@@ -1147,15 +1237,16 @@ class FlagEvaluationWriter(PeriodicService):
             event.variant,
             event.allocation_key,
             event.runtime_default,
-            event.error_message,
-            event.targeting_key,
+            error_message,
+            targeting_key,
             ctx_key,
+            observe_full_evaluation_data,
         )
 
         with self._lock:
             # Fast path: existing full-tier bucket.
             if full_key in self._full:
-                self._full[full_key].observe(event.eval_time_ms)
+                self._full[full_key].observe(event.eval_time_ms, observe_full_evaluation_data)
                 return
 
             # Per-flag cap check.
@@ -1176,9 +1267,10 @@ class FlagEvaluationWriter(PeriodicService):
             self._full[full_key] = _Entry(
                 eval_time_ms=event.eval_time_ms,
                 runtime_default=event.runtime_default,
-                targeting_key=event.targeting_key,
+                targeting_key=targeting_key,
                 context_attrs=_json_safe_context(context_attrs),
-                error_message=event.error_message,
+                error_message=error_message,
+                observe_full_evaluation_data=observe_full_evaluation_data,
             )
             self._global_count += 1
 
@@ -1187,15 +1279,19 @@ class FlagEvaluationWriter(PeriodicService):
         Add to the degraded-tier map (drops targeting_key + context).
         Must be called with self._lock held.
         """
+        error_message = _protected_error_message(event.error_code)
         deg_key = (
             event.flag_key,
             event.variant,
             event.allocation_key,
             event.runtime_default,
-            event.error_message,
+            error_message,
         )
         if deg_key in self._degraded:
-            self._degraded[deg_key].observe(event.eval_time_ms)
+            self._degraded[deg_key].observe(
+                event.eval_time_ms,
+                observe_full_evaluation_data=event.observe_full_evaluation_data is True,
+            )
             return
 
         if len(self._degraded) >= DEGRADED_CAP:
@@ -1207,38 +1303,50 @@ class FlagEvaluationWriter(PeriodicService):
             runtime_default=event.runtime_default,
             targeting_key="",
             context_attrs={},
-            error_message=event.error_message,
+            error_message=error_message,
+            observe_full_evaluation_data=event.observe_full_evaluation_data is True,
         )
 
     def _send_payload(self, payload: bytes, num_events: int) -> None:
-        """POST the encoded payload to the EVP proxy."""
-        conn = typing.cast(_FlagEvaluationConnection, get_connection(self._intake, timeout=self._timeout))
-        try:
-            conn.request("POST", self._endpoint, payload, self._headers)
-            resp = conn.getresponse()
-            if resp.status >= 300:
-                logger.debug(
-                    "FlagEvaluationWriter: failed to send %d events to %s, status=%d: %s",
-                    num_events,
-                    self._intake,
-                    resp.status,
-                    resp.read(),
-                )
-            else:
-                logger.debug(
-                    "FlagEvaluationWriter: sent %d flag evaluation events to %s",
-                    num_events,
-                    self._intake,
-                )
-        except Exception:
-            logger.debug(
-                "FlagEvaluationWriter: error sending %d events to %s",
-                num_events,
-                self._intake,
-                exc_info=True,
+        """POST the encoded payload through the selected EVP route."""
+        route = self._route_selector.select()
+        if route is None:
+            return
+
+        def send_once(active_route: EVPRoute) -> httplib.HTTPResponse:
+            endpoint = active_route.endpoint("/api/v2/flagevaluation")
+            headers = dict(active_route.headers)
+            connection_factory = self._connection_factory or get_connection
+            conn = typing.cast(
+                _FlagEvaluationConnection,
+                get_evp_connection(active_route, self._timeout, connection_factory),
             )
-        finally:
-            conn.close()
+            try:
+                conn.request("POST", endpoint, payload, headers)
+                resp = conn.getresponse()
+                if resp.status >= 300:
+                    logger.debug(
+                        "FlagEvaluationWriter: failed to send %d events to %s%s, status=%d",
+                        num_events,
+                        active_route.intake,
+                        endpoint,
+                        resp.status,
+                    )
+                else:
+                    logger.debug(
+                        "FlagEvaluationWriter: sent %d flag evaluation events to %s%s",
+                        num_events,
+                        active_route.intake,
+                        endpoint,
+                    )
+                return resp
+            finally:
+                conn.close()
+
+        try:
+            self._route_selector.send(route, send_once)
+        except Exception:
+            logger.debug("FlagEvaluationWriter: error sending %d events", num_events, exc_info=True)
 
 
 # ---------------------------------------------------------------------------

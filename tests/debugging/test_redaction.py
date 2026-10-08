@@ -8,10 +8,14 @@ from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._expressions import get_eval_deadline
 from ddtrace.debugging._expressions import iterates
 from ddtrace.debugging._expressions import set_eval_deadline
+from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.debugging._redaction import DDRedactedExpressionError
 from ddtrace.debugging._redaction import DDTimedRedactedExpression
 from ddtrace.debugging._redaction import dd_compile_redacted
+from ddtrace.debugging._redaction import redact
+from ddtrace.debugging._signal.utils import capture_value
+from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.settings.dynamic_instrumentation import config
 from tests.debugging.utils import SLOW_SCOPE
 from tests.debugging.utils import slow_timed_expr
@@ -299,3 +303,62 @@ def test_timed_redacted_expression_fast_callable_not_interrupted():
 
     with mock.patch.object(config, "evaluation_timeout_ms", 5000):
         assert expr.eval({}) is True
+
+
+@pytest.mark.parametrize(
+    "ident",
+    [
+        # Hyphenated HTTP header names: the shape these keys have in a captured request.
+        "x-api-key",
+        "X-Api-Key",
+        "Set-Cookie",
+        "X-Forwarded-For",
+        "X-Real-IP",
+        "X-Auth-Token",
+        "X-CSRF-Token",
+        "access-token",
+        "private-key",
+        # The other separators the redaction lists ignore.
+        "x_api_key",
+        "x.api.key",
+        "user.session",
+        "@password",
+        "$secret",
+    ],
+)
+def test_redact_ignores_identifier_separators(ident) -> None:
+    assert redact(ident)
+
+
+@pytest.mark.parametrize("ident", ["username", "answer", "x-request-id", "user.name"])
+def test_redact_keeps_non_sensitive_identifiers(ident) -> None:
+    assert not redact(ident)
+
+
+def test_serialize_redacts_hyphenated_dict_keys() -> None:
+    serialized = serialize({"X-Api-Key": "s3cr3t", "x-request-id": "abc"})
+
+    assert "s3cr3t" not in serialized
+    assert REDACTED_PLACEHOLDER in serialized
+    assert "'abc'" in serialized
+
+
+def test_capture_value_redacts_hyphenated_dict_keys() -> None:
+    captured = capture_value({"X-Api-Key": "s3cr3t", "x-request-id": "abc"})
+
+    assert captured["entries"] == [
+        (
+            {"type": "str", "value": "'X-Api-Key'"},
+            {"type": "str", "notCapturedReason": "redactedIdent"},
+        ),
+        (
+            {"type": "str", "value": "'x-request-id'"},
+            {"type": "str", "value": "'abc'"},
+        ),
+    ]
+
+
+def test_index_redacted_hyphenated_key_raises() -> None:
+    expr = dd_compile_redacted({"index": [{"ref": "headers"}, "X-Api-Key"]})
+    with pytest.raises(DDRedactedExpressionError, match="X-Api-Key"):
+        expr({"headers": {"X-Api-Key": "s3cr3t"}})

@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Faulthandler compatibility for the stack profiler.
 
 Python's faulthandler module installs a SIGSEGV handler that can interfere with

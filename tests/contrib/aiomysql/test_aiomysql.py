@@ -1,7 +1,7 @@
 import os
+from unittest import mock
 
 import aiomysql
-import mock
 import pymysql
 import pytest
 

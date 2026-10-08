@@ -130,7 +130,7 @@ class TestVisibilityItemBase(abc.ABC):
         resource: Optional[str] = None,
     ) -> None:
         self.name: str = name
-        self.parent: Optional["TestVisibilityParentItem"] = parent
+        self.parent: Optional[TestVisibilityParentItem] = parent
         self._status: TestStatus = TestStatus.FAIL
         self._session_settings: TestVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer

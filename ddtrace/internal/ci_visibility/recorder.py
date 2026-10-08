@@ -211,7 +211,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         self._api_key = env.get("_CI_DD_API_KEY", env.get("DD_API_KEY"))
 
         self._dd_site = env.get("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
+        self.config: Optional[IntegrationConfig] = config or ddconfig.test_visibility
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
         self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
         if not isinstance(ddconfig.test_visibility.itr_skipping_level, ITR_SKIPPING_LEVEL):
@@ -263,7 +263,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
                 self._dd_env = "none"
                 dd_env_msg = " (not set in environment)"
             if not self._api_key:
-                raise EnvironmentError(
+                raise OSError(
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
                     "cannot be initialized."
                 )

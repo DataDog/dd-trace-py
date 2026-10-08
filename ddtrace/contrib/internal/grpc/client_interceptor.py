@@ -137,7 +137,7 @@ def _activated_span(span: Span):
 
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
     def __init__(self, wrapped, span):
-        super(_WrappedResponseCallFuture, self).__init__(wrapped)
+        super().__init__(wrapped)
         self._span = span
         # Registers callback on the _MultiThreadedRendezvous future to finish
         # span in case StopIteration is never raised but RPC is terminated
