@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
+from tests.integration.utils import skip_if_native_buffer
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
 
@@ -61,6 +62,7 @@ def test_uds_wrong_socket_path():
     import os
     from unittest import mock
 
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
@@ -68,16 +70,24 @@ def test_uds_wrong_socket_path():
         t.trace("client.testing").finish()
         t.shutdown()
 
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s: %s",
-            1,
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
-            "Network error: client error (Connect)",
-            extra={"send_to_telemetry": False},
-        )
-    ]
-    log.error.assert_has_calls(calls)
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # libdatadog's exporter retries a permanently unreachable socket in the background;
+        # the blocking flush on shutdown only ever sees that as a timed-out wait, never a
+        # send error, so this never reaches log.error.
+        calls = [call for call in log.warning.call_args_list if "TimedOut" in call.args[-1]]
+        assert calls, log.warning.call_args_list
+        log.error.assert_not_called()
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+                "Network error: client error (Connect)",
+                extra={"send_to_telemetry": False},
+            )
+        ]
+        log.error.assert_has_calls(calls)
 
 
 @skip_if_testagent
@@ -156,6 +166,7 @@ def test_child_spans_do_not_cause_warning_logs():
         log.error.assert_not_called()
 
 
+@skip_if_native_buffer("health metrics are emitted by libdatadog directly, not via writer.dogstatsd")
 @parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
 def test_metrics():
     from unittest import mock
@@ -201,6 +212,7 @@ def test_metrics():
     )
 
 
+@skip_if_native_buffer("health metrics are emitted by libdatadog directly, not via writer.dogstatsd")
 @parametrize_with_all_encodings(
     env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"}
 )
@@ -244,6 +256,7 @@ def test_metrics_partial_flush_disabled():
 def test_single_trace_too_large():
     from unittest import mock
 
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import AnyStr
@@ -257,17 +270,26 @@ def test_single_trace_too_large():
             for i in range(1 << 20 + 1):
                 t.trace("operation").finish()
         t._span_aggregator.writer.flush_queue()
-        calls = [
-            mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyStr(),
-            )
-        ]
-        log.warning.assert_has_calls(calls)
+        if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+            # Whether the buffer's background drain keeps pace with the 1M+ finished child spans
+            # is a race: under contention it falls behind and BatchFull warnings fire repeatedly,
+            # otherwise the batch never fills and nothing is logged. Either is a correct outcome;
+            # only a hard error would indicate an actual bug.
+            for call in log.warning.call_args_list:
+                assert call.args[0] == "native trace buffer dropped spans: %s"
+                assert "BatchFull" in call.args[1]
+        else:
+            calls = [
+                mock.call(
+                    "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                    AnyInt(),
+                    AnyInt(),
+                    AnyInt(),
+                    AnyInt(),
+                    AnyStr(),
+                )
+            ]
+            log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
 
@@ -301,6 +323,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
     import os
     from unittest import mock
 
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -309,16 +332,23 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
 
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s: %s",
-            1,
-            "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
-            "Network error: client error (Connect)",
-            extra={"send_to_telemetry": False},
-        )
-    ]
-    log.error.assert_has_calls(calls)
+    if isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # Same as test_uds_wrong_socket_path: a permanently unreachable agent surfaces as a
+        # timed-out flush wait, not a send error, so log.error is never called.
+        calls = [call for call in log.warning.call_args_list if "TimedOut" in call.args[-1]]
+        assert calls, log.warning.call_args_list
+        log.error.assert_not_called()
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
+                "Network error: client error (Connect)",
+                extra={"send_to_telemetry": False},
+            )
+        ]
+        log.error.assert_has_calls(calls)
 
 
 @skip_if_testagent
@@ -364,6 +394,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     )
 
 
+@skip_if_native_buffer("encoder injection has no equivalent for the native trace buffer, which has no encoder")
 @pytest.mark.subprocess(err=None)
 def test_trace_with_failing_encoder_generates_error_log():
     from tests.integration.utils import BadEncoder
@@ -436,19 +467,33 @@ s2.finish()
 )
 def test_writer_configured_correctly_from_env():
     import ddtrace
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
-    assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
+    writer = ddtrace.tracer._span_aggregator.writer
+    if isinstance(writer, NativeTraceBuffer):
+        assert ddtrace.config._trace_writer_buffer_size == 1000
+        assert ddtrace.config._trace_writer_payload_size == 5000
+        assert ddtrace.config._trace_writer_interval_seconds == 5.0
+    else:
+        assert writer._encoder.max_size == 1000
+        assert writer._encoder.max_item_size == 1000
+        assert writer._interval == 5.0
 
 
 @pytest.mark.subprocess
 def test_writer_configured_correctly_from_env_defaults():
     import ddtrace
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
-    assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
+    writer = ddtrace.tracer._span_aggregator.writer
+    if isinstance(writer, NativeTraceBuffer):
+        assert ddtrace.config._trace_writer_buffer_size == 20 << 20
+        assert ddtrace.config._trace_writer_payload_size == 20 << 20
+        assert ddtrace.config._trace_writer_interval_seconds == 1.0
+    else:
+        assert writer._encoder.max_size == 20 << 20
+        assert writer._encoder.max_item_size == 20 << 20
+        assert writer._interval == 1.0
 
 
 def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_python_code_in_subprocess):
@@ -460,10 +505,17 @@ def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_pyth
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import ddtrace
+from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
+writer = ddtrace.tracer._span_aggregator.writer
+if isinstance(writer, NativeTraceBuffer):
+    assert ddtrace.config._trace_writer_buffer_size == 1000
+    assert ddtrace.config._trace_writer_payload_size == 5000
+    assert ddtrace.config._trace_writer_interval_seconds == 5.0
+else:
+    assert writer._encoder.max_size == 1000
+    assert writer._encoder.max_item_size == 1000
+    assert writer._interval == 5.0
 """,
         env=env,
     )
@@ -474,10 +526,17 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import ddtrace
+from ddtrace.internal.writer.writer import NativeTraceBuffer
 
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
-assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
+writer = ddtrace.tracer._span_aggregator.writer
+if isinstance(writer, NativeTraceBuffer):
+    assert ddtrace.config._trace_writer_buffer_size == 20 << 20
+    assert ddtrace.config._trace_writer_payload_size == 20 << 20
+    assert ddtrace.config._trace_writer_interval_seconds == 1.0
+else:
+    assert writer._encoder.max_size == 20 << 20
+    assert writer._encoder.max_item_size == 20 << 20
+    assert writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)

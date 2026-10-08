@@ -293,6 +293,11 @@ suites:
         - name: integration-snapshot-civisibility
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
+        - name: integration-snapshot-native-buffer
+          dependencies: [msgpack, pytest-randomly]
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/test_integration_civisibility.py
+          env:
+            _DD_TRACE_NATIVE_BUFFER_ENABLED: 'true'
   internal:
     venvs_per_job: 4
     retry: 2
