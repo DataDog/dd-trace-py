@@ -1461,8 +1461,11 @@ def test_directory_probes_follow_snapshot_replacement(
     assert _p.filename_to_package(vendor / "vendored.py") is None
     assert _p._is_install_root(vendor) is False
 
+    before = os.stat(vendor).st_mtime_ns
     di = _write_dist_info(vendor, "vendored", "1.0")
     (di / "RECORD").write_text("vendored.py,,\n")
+    if os.stat(vendor).st_mtime_ns == before:  # coarse file system timestamps
+        os.utime(vendor, ns=(before + 1_000_000_000, before + 1_000_000_000))
     # Any sys.path change replaces the snapshot on the next read of the maps.
     sys.path.append(str(tmp_path / "elsewhere"))
     assert "vendored" in [r[0] for r in _p._installed_distributions()]
