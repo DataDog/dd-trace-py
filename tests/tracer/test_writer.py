@@ -1676,6 +1676,113 @@ def test_native_writer_downgrade_builds_exporter_outside_exporter_lock():
 
 
 @pytest.mark.parametrize("microvm", [True, False], ids=["microvm", "not-microvm"])
+def test_native_writer_telemetry_worker_change_during_send(monkeypatch, microvm):
+    """MicroVM leaves a worker change to the next send instead of waiting out one in flight; others still wait."""
+    if microvm:
+        monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    else:
+        monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
+    writer = NativeWriter("http://dne:1234")
+    writer._clients[0].encoder.put([Span("in-flight")])
+    new_worker = mock.Mock()
+    try:
+        with _stuck_native_send(writer) as (stuck_exporter, send_started, release_send):
+            flush_thread = threading.Thread(target=writer.flush_queue)
+            flush_thread.start()
+            notify_thread = threading.Thread(target=writer._on_telemetry_worker_changed, args=(new_worker,))
+            try:
+                assert send_started.wait(timeout=5)
+                notify_thread.start()
+                notify_thread.join(timeout=0.5)
+                if microvm:
+                    assert not notify_thread.is_alive()
+                    stuck_exporter.set_telemetry_handle.assert_not_called()
+                else:
+                    assert notify_thread.is_alive()
+            finally:
+                release_send.set()
+                flush_thread.join(timeout=5)
+                notify_thread.join(timeout=5)
+
+            if microvm:
+                writer._send_payload(b"next", 1, writer._clients[0])
+                assert stuck_exporter.mock_calls[-2:] == [
+                    mock.call.set_telemetry_handle(new_worker),
+                    mock.call.send(b"next"),
+                ]
+            else:
+                stuck_exporter.set_telemetry_handle.assert_called_once_with(new_worker)
+            assert writer._pending_telemetry_worker is None
+    finally:
+        writer.shutdown_exporter()
+
+
+@pytest.mark.parametrize("microvm", [True, False], ids=["microvm", "not-microvm"])
+def test_native_writer_telemetry_worker_change_applies_immediately_when_idle(monkeypatch, microvm):
+    """With no send in flight, the exporter follows a new telemetry worker straight away in every mode."""
+    if microvm:
+        monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    else:
+        monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
+    writer = NativeWriter("http://dne:1234")
+    real_exporter = writer._exporter
+    writer._exporter = mock.Mock()
+    new_worker = mock.Mock()
+    try:
+        writer._on_telemetry_worker_changed(new_worker)
+        writer._exporter.set_telemetry_handle.assert_called_once_with(new_worker)
+        assert writer._pending_telemetry_worker is None
+    finally:
+        writer._exporter = real_exporter
+        writer.shutdown_exporter()
+
+
+def test_native_writer_keeps_worker_change_published_while_send_consumes_pending(monkeypatch):
+    """A refresh notifies twice (old worker gone, then its replacement); a send consuming the first
+    pending change must not erase the second one published concurrently.
+    """
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    older_worker, newer_worker = mock.Mock(), mock.Mock()
+    publishers = []
+
+    class RacingWriter(NativeWriter):
+        reads = 0
+
+        @property
+        def _pending_telemetry_worker(self):
+            value = self._pending_value
+            self.reads += 1
+            # The send reads the slot twice: the None check, then the read-and-clear. Publish the newer
+            # change from another thread between that read and the clear.
+            if self.reads == 2:
+                publisher = threading.Thread(target=self._on_telemetry_worker_changed, args=(newer_worker,))
+                publisher.start()
+                publisher.join(timeout=0.5)
+                publishers.append(publisher)
+            return value
+
+        @_pending_telemetry_worker.setter
+        def _pending_telemetry_worker(self, value):
+            self._pending_value = value
+
+    writer = RacingWriter("http://dne:1234")
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock(send=mock.Mock(return_value="{}"))
+    try:
+        writer._pending_telemetry_worker = (older_worker, None)
+        writer._send_payload(b"first", 1, writer._clients[0])
+        publishers[0].join(timeout=5)
+        assert not publishers[0].is_alive()
+        writer._send_payload(b"second", 1, writer._clients[0])
+
+        assert exporter.set_telemetry_handle.call_args_list == [mock.call(older_worker), mock.call(newer_worker)]
+        assert writer._pending_value is None
+    finally:
+        writer._exporter = real_exporter
+        writer.shutdown_exporter()
+
+
+@pytest.mark.parametrize("microvm", [True, False], ids=["microvm", "not-microvm"])
 def test_native_writer_stop_skips_join_only_for_discarded_microvm_writer(monkeypatch, microvm):
     """Only a writer a MicroVM refresh has discarded skips the join; every other stop is unchanged."""
     if microvm:
@@ -1877,6 +1984,141 @@ def test_writer_telemetry_enabled_on_linux(
         else:
             mock_builder.enable_telemetry.assert_not_called()
         mock_builder.set_restart_after_fork.assert_called_once_with(False)
+
+
+def test_microvm_exporter_late_subscription_updates_local_exporter():
+    import ddtrace.internal.writer.writer as writer_module
+
+    first_worker = object()
+    replacement_worker = object()
+    exporter = mock.Mock()
+
+    class Builder:
+        def __getattr__(self, name):
+            if name == "build":
+                return lambda runtime: exporter
+            return lambda *args, **kwargs: self
+
+    class TelemetryWriter:
+        _is_microvm = True
+
+        def _get_shared_worker(self):
+            return first_worker
+
+        def _subscribe_worker_changes(self, callback, expected_worker, late_callback):
+            assert expected_worker is first_worker
+            late_callback(replacement_worker)
+
+        def _unsubscribe_worker_changes(self, callback):
+            pass
+
+    telemetry_writer = TelemetryWriter()
+    with (
+        override_global_config(dict(_telemetry_enabled=True, _health_metrics_enabled=False)),
+        mock.patch.object(writer_module, "telemetry_writer", telemetry_writer),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer),
+        mock.patch.object(writer_module, "_build_base_exporter_builder", return_value=Builder()),
+        mock.patch.object(writer_module, "get_native_runtime", return_value=object()),
+    ):
+        writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+
+    assert writer._exporter is exporter
+    assert exporter.set_telemetry_handle.call_args_list == [mock.call(first_worker), mock.call(replacement_worker)]
+    writer.shutdown_exporter()
+
+
+def test_microvm_recreated_exporter_follows_refresh_before_caller_publishes():
+    import ddtrace.internal.writer.writer as writer_module
+
+    first_worker = object()
+    replacement_worker = object()
+    old_exporter = mock.Mock()
+    new_exporter = mock.Mock()
+    exporters = [old_exporter, new_exporter]
+
+    class Builder:
+        def __getattr__(self, name):
+            if name == "build":
+                return lambda runtime: exporters.pop(0)
+            return lambda *args, **kwargs: self
+
+    class TelemetryWriter:
+        _is_microvm = True
+        refresh_on_subscribe = False
+
+        def _get_shared_worker(self):
+            return first_worker
+
+        def _subscribe_worker_changes(self, callback, expected_worker, late_callback):
+            # Models an identity refresh notifying the existing subscription while
+            # set_test_session_token() has not yet assigned the recreated exporter.
+            if self.refresh_on_subscribe:
+                callback(replacement_worker)
+
+        def _unsubscribe_worker_changes(self, callback):
+            pass
+
+    telemetry_writer = TelemetryWriter()
+    with (
+        override_global_config(dict(_telemetry_enabled=True, _health_metrics_enabled=False)),
+        mock.patch.object(writer_module, "telemetry_writer", telemetry_writer),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer),
+        mock.patch.object(writer_module, "_build_base_exporter_builder", return_value=Builder()),
+        mock.patch.object(writer_module, "get_native_runtime", return_value=object()),
+    ):
+        writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+        telemetry_writer.refresh_on_subscribe = True
+        writer.set_test_session_token("token")
+
+    assert writer._exporter is new_exporter
+    assert new_exporter.set_telemetry_handle.call_args_list == [mock.call(first_worker), mock.call(replacement_worker)]
+    writer.shutdown_exporter()
+
+
+def test_microvm_downgrade_shuts_down_original_exporter():
+    """In MicroVMs _create_exporter() publishes the replacement itself, so the downgrade must capture the
+    original first; otherwise it shuts down the exporter it keeps and leaks the original.
+    """
+    import ddtrace.internal.writer.writer as writer_module
+
+    worker = object()
+    original_exporter = mock.Mock()
+    replacement_exporter = mock.Mock()
+    exporters = [original_exporter, replacement_exporter]
+
+    class Builder:
+        def __getattr__(self, name):
+            if name == "build":
+                return lambda runtime: exporters.pop(0)
+            return lambda *args, **kwargs: self
+
+    class TelemetryWriter:
+        _is_microvm = True
+
+        def _get_shared_worker(self):
+            return worker
+
+        def _subscribe_worker_changes(self, callback, expected_worker, late_callback):
+            pass
+
+        def _unsubscribe_worker_changes(self, callback):
+            pass
+
+    telemetry_writer = TelemetryWriter()
+    with (
+        override_global_config(dict(_telemetry_enabled=True, _health_metrics_enabled=False)),
+        mock.patch.object(writer_module, "telemetry_writer", telemetry_writer),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer),
+        mock.patch.object(writer_module, "_build_base_exporter_builder", return_value=Builder()),
+        mock.patch.object(writer_module, "get_native_runtime", return_value=object()),
+    ):
+        writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+        writer._downgrade(404, mock.Mock(ENDPOINT="v0.5/traces"))
+
+    assert writer._exporter is replacement_exporter
+    original_exporter.shutdown.assert_called_once()
+    replacement_exporter.shutdown.assert_not_called()
+    writer.shutdown_exporter()
 
 
 @pytest.mark.subprocess(err=None, env={"DD_APPSEC_ENABLED": "false"})
