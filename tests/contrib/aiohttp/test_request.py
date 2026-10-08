@@ -2,6 +2,8 @@ import asyncio
 import threading
 from urllib import request
 
+import pytest
+
 from ddtrace import config
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from tests.utils import assert_is_measured
@@ -28,6 +30,44 @@ async def test_full_request(test_spans, patched_app, aiohttp_client):
     assert "aiohttp-web" == request_span.service
     assert "aiohttp.request" == request_span.name
     assert "GET /" == request_span.resource
+
+
+@pytest.mark.parametrize("path", ["/", "/stream/"])
+async def test_request_task_callbacks(test_spans, patched_app, aiohttp_client, path):
+    request_tasks = []
+
+    async def capture_request_task(app, handler):
+        async def handle(request):
+            request_tasks.append(request.task)
+            return await handler(request)
+
+        return handle
+
+    patched_app.middlewares.append(capture_request_task)
+    loop = asyncio.get_running_loop()
+    previous_handler = loop.get_exception_handler()
+    callback_errors = []
+    loop.set_exception_handler(lambda loop, context: callback_errors.append(context))
+    try:
+        async with await aiohttp_client(patched_app) as client:
+            for _ in range(2):
+                response = await client.get(path)
+                assert response.status == 200
+                await response.text()
+        assert len(request_tasks) == 2
+        # Closing a keep-alive connection may cancel its task. Wait for task completion
+        # and its done callbacks before checking for errors, even if it was cancelled.
+        await asyncio.wait_for(asyncio.gather(*request_tasks, return_exceptions=True), timeout=5)
+        assert not callback_errors
+    finally:
+        loop.set_exception_handler(previous_handler)
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 2
+    for trace in traces:
+        assert len(trace) == 1
+        assert trace[0].name == "aiohttp.request"
+        assert trace[0].resource == f"GET {path}"
 
 
 async def test_full_request_w_mem_leak_prevention_flag(test_spans, patched_app, aiohttp_client):

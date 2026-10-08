@@ -22,6 +22,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 
 _CRASH_RETRY_REASON = "xdist_worker_crash"
 _CRASH_RETRY_STATE_WORKER_INPUT = "dd_atr_crash_retry_state"
+_DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT = "dd_coverage_upload_delegated"
 
 
 class CrashRetryBudget(t.NamedTuple):
@@ -78,6 +79,15 @@ class XdistTestOptPlugin:
         self._dynamic_retries = is_dynamic_retries_enabled()
         self._dynamic_retry_buckets = get_retries_buckets() if self._dynamic_retries else None
 
+        # Delegation is currently unconditional: only workers that share the controller's
+        # filesystem can hand their coverage data over for a single combined report, and no
+        # known usage combines coverage report upload with remote (non-popen) workers. Detecting
+        # remote workers consistently is a cross-cutting xdist concern to be addressed together
+        # with the other controller/worker handoffs, at which point this becomes the flag's
+        # computation only. pytest_configure_node additionally verifies that the controller
+        # will actually be able to report delegated data before publishing the flag.
+        self._delegate_coverage_upload = True
+
         if self._enabled and not is_xdist_worker_process():
             try:
                 self._crash_retry_state_dir = tempfile.TemporaryDirectory(prefix="ddtrace_atr_xdist_")
@@ -93,6 +103,22 @@ class XdistTestOptPlugin:
         node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
         if self._crash_retry_state_path is not None:
             node.workerinput[_CRASH_RETRY_STATE_WORKER_INPUT] = str(self._crash_retry_state_path)
+        # Workers may only delegate their coverage report upload when the
+        # controller will actually be able to report their data: either
+        # pytest-cov merges the workers' data itself, or the controller owns a
+        # coverage.py instance it can combine their data files into. A controller
+        # running under `coverage run` (no pytest-cov) holds an instance it
+        # must not stop, combine or erase, so its workers keep uploading their
+        # own partial reports, as they did before delegation existed.
+        # NOTE: the controller has already configured coverage by the time its
+        # nodes are set up (pytest_configure runs before xdist spawns workers).
+        can_controller_report_delegated_data = False
+        if self._delegate_coverage_upload:
+            from ddtrace.contrib.internal.coverage.patch import owns_coverage_instance
+            from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+
+            can_controller_report_delegated_data = _is_pytest_cov_enabled(node.config) or owns_coverage_instance()
+        node.workerinput[_DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT] = can_controller_report_delegated_data
 
     @pytest.hookimpl
     def pytest_sessionfinish(self) -> None:
@@ -107,6 +133,12 @@ class XdistTestOptPlugin:
 
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
             self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
+
+        # Collect the data file each delegated worker persisted so the
+        # controller can combine exactly this session's files instead of
+        # globbing every parallel data file in the workspace.
+        if coverage_data_file := node.workeroutput.get("dd_coverage_data_file"):
+            self.main_plugin.delegated_coverage_data_files.append(coverage_data_file)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logstart(self, nodeid: str, location: t.Any) -> None:
