@@ -417,6 +417,8 @@ class TestOptPlugin(TestOptPluginProtocol):
                 self._coverage_upload_delegated = bool(xdist_worker_input.get("dd_coverage_upload_delegated"))
             if crash_state_path := xdist_worker_input.get(_CRASH_RETRY_STATE_WORKER_INPUT):
                 self.xdist_atr_crash_state_path = Path(crash_state_path)
+        else:
+            self.session.itr_suite_reporting_enabled = True
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True

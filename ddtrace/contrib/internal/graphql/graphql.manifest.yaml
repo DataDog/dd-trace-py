@@ -1,0 +1,11 @@
+_v: 1
+name: graphql
+display_name: GraphQL
+description: Instruments graphql-core GraphQL request parsing, validation, operation execution, and optional field resolution
+  with error details.
+packages:
+- name: graphql-core
+category:
+- graphql.server
+systems: []
+creation_date: '2022-07-29'
