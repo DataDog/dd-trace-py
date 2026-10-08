@@ -4,9 +4,13 @@ import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.profiling import config
 
 from . import _lock
+
+
+log = get_logger(__name__)
 
 
 class _ProfiledThreadingLock(_lock._ProfiledLock):
@@ -86,7 +90,12 @@ def init_stack() -> None:
         def thread_set_native_id(self: threading.Thread) -> None:
             _thread_set_native_id(self)
             if self.ident is not None and self.native_id is not None:
-                stack.register_thread(self.ident, self.native_id, self.name)
+                # CPython calls _set_native_id before setting the started event, so an exception here
+                # would make Thread.start block forever.
+                try:
+                    stack.register_thread(self.ident, self.native_id, self.name)
+                except Exception:
+                    log.debug("Failed to register thread %r with the stack profiler", self.ident, exc_info=True)
 
         def thread_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
             _thread_bootstrap_inner(self, *args, **kwargs)

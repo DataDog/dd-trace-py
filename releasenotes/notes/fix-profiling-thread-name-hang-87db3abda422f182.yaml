@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where starting a thread blocks forever when the profiler is enabled and the
+    thread name contains a lone surrogate or a null character.
