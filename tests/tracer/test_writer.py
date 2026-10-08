@@ -1792,9 +1792,7 @@ def test_agent_mode_exports_trace_metrics_to_the_agent():
     assert writer._otlp_metrics_endpoint == "http://localhost:4318/v1/metrics"
 
 
-@pytest.mark.subprocess(
-    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"}
-)
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
 def test_agentless_stats_go_to_the_stats_intake():
     """There is no Agent to forward /v0.6/stats to, so computed stats go straight to the intake."""
     from ddtrace.trace import tracer
