@@ -402,7 +402,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.tests_skipped_by_itr = 0
         self.itr_correlation_id: t.Optional[str] = None
         self.itr_enabled = False
-        self.itr_suite_reporting_enabled = True
+        self.itr_suite_reporting_enabled = False
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST
         self.configuration_errors: dict[str, str] = {}
