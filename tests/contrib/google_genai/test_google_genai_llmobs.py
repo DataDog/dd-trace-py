@@ -698,6 +698,25 @@ class TestLLMObsGoogleGenAI:
             "output": mock.ANY,
         }
 
+    def test_code_execution_tool_use_prompt_token_count(self, genai_client_vcr, genai_llmobs, test_spans):
+        # Regression test for #20783: the cassette's usageMetadata carries
+        # toolUsePromptTokenCount (619) in addition to prompt/candidates/thoughts counts.
+        # It must be folded into input_tokens so that input + output == total on the span.
+        genai_client_vcr.models.generate_content(
+            model="gemini-2.5-flash",
+            contents="What is the sum of the first 50 prime numbers? Generate and run code for the calculation, and make sure you get all 50.",  # noqa: E501
+            config={"tools": [{"code_execution": {}}]},
+        )
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) >= 1
+        metrics = _get_llmobs_data_metastruct(spans[0]).get("metrics", {})
+        # Cassette usageMetadata: prompt 32, candidates 575, thoughts 199, toolUse 619, total 1425
+        assert metrics["input_tokens"] == 32 + 619
+        assert metrics["output_tokens"] == 575 + 199
+        assert metrics["total_tokens"] == 1425
+        assert metrics["input_tokens"] + metrics["output_tokens"] == metrics["total_tokens"]
+
 
 def test_shadow_tags_generate_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on Google GenAI spans when LLMObs is disabled."""
