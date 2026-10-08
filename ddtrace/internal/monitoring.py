@@ -157,7 +157,11 @@ _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary(_on_code_regi
 
 
 def _disarm_registry_cleanup() -> None:
-    _registry._on_remove = None
+    global _registry
+
+    with _registry_lock:
+        registry, _registry = _registry, _IdentityWeakKeyDictionary()
+        registry.clear()
 
 
 atexit.register(_disarm_registry_cleanup)
