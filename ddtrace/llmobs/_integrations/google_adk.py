@@ -323,7 +323,8 @@ def _annotation_type(annotation: Any) -> str:
         # A string annotation comes from a module using postponed evaluation.
         return _JSON_SCHEMA_TYPES.get(annotation, annotation)
     origin = get_origin(annotation)
-    if origin is Union or origin is getattr(types, "UnionType", None):
+    # Guarded on origin because types.UnionType is missing below 3.10, so the getattr returns None.
+    if origin is not None and (origin is Union or origin is getattr(types, "UnionType", None)):
         names = [_annotation_type(arg) for arg in get_args(annotation) if arg is not type(None)]
         return " | ".join(dict.fromkeys(names))
     name = type_name(origin) if origin in (list, dict, tuple, set, frozenset) else type_name(annotation)
