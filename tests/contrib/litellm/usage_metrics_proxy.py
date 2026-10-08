@@ -160,7 +160,7 @@ class _Provider(http.server.BaseHTTPRequestHandler):
             )
 
         chunks = [_sse(chunk({"role": "assistant", "content": ""}))]
-        chunks += [_sse(chunk({"content": piece})) for piece in ("hel", "lo")]
+        chunks += [_sse(chunk({"content": piece})) for piece in ("hello", " there")]
         chunks.append(_sse(chunk({}, finish="stop")))
         if usage:
             chunks.append(_sse(dict(chunk({}, choices=False), usage=OPENAI_USAGE)))
@@ -191,7 +191,7 @@ class _Provider(http.server.BaseHTTPRequestHandler):
                 "content_block_start",
             ),
         ]
-        for piece in ("hel", "lo"):
+        for piece in ("hello", " there"):
             delta = {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": piece}}
             chunks.append(_sse(delta, "content_block_delta"))
         chunks.append(_sse({"type": "content_block_stop", "index": 0}, "content_block_stop"))

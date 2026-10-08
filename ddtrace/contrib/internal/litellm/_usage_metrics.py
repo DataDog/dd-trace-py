@@ -45,7 +45,7 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 PROVIDER_ATTEMPT = "gen_ai.client.provider_attempt@0.1.0"
-TOKEN_BREAKDOWN = "trajectory.gen_ai.client.token_breakdown@0.1.0"
+TOKEN_BREAKDOWN = "trajectory.gen_ai.client.token_breakdown@0.1.0"  # nosec B105: a profile id, not a secret
 GATEWAY_REQUEST = "trajectory.gen_ai.gateway.request@0.1.0"
 
 # The span attribute that lists the profiles recorded for a call, so the backend does not derive them again.
@@ -458,8 +458,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             observation.update(usage)
             unreported_stream = attempt.stream and attempt.checked_stream and not request.provider_usage
             if usage and (estimated or unreported_stream):
-                observation["input_token_source"] = "estimated"
-                observation["output_token_source"] = "estimated"
+                observation["input_token_source"] = "estimated"  # nosec B105: a token count source, not a secret
+                observation["output_token_source"] = "estimated"  # nosec B105: a token count source, not a secret
             cost = payload.get("response_cost")
             if isinstance(cost, (int, float)) and not isinstance(cost, bool) and (cost > 0 or _priced_at_zero(kwargs)):
                 observation["cost_usd"] = float(cost)
