@@ -194,6 +194,7 @@ libclang
 libdatadog
 libddwaf
 libFuzzer
+lication
 lifecycle
 linters
 litellm
