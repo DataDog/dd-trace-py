@@ -10,7 +10,6 @@ from ddtrace._trace.otel.http.resource import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.trace_utils_base import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -25,6 +24,8 @@ from ddtrace.internal.settings._core import LOCAL_CONFIG
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import redact_query_string
+from ddtrace.internal.utils.http import redact_url
+from ddtrace.internal.utils.http import strip_query_string
 
 
 log = get_logger(__name__)
@@ -137,6 +138,28 @@ def set_url_tags_otel_server(
     if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
         return
     _set_otel_query(span, query if query is not None else parsed.query)
+
+
+def _sanitized_url(url: str, query: Optional[str], tag_query_string: bool) -> Union[str, bytes]:
+    if not tag_query_string:
+        return strip_query_string(url)
+    if config._global_query_string_obfuscation_disabled:
+        # TODO(munir): This case exists for backwards compatibility. To remove query strings from URLs,
+        # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
+        # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
+        return url
+    if (
+        config._obfuscation_query_string_pattern is None
+        or getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
+    ):
+        # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
+        return strip_query_string(url)
+    return redact_url(
+        url,
+        config._obfuscation_query_string_pattern,
+        query,
+        preserve_delimiter=config._query_string_obfuscation_preserve_delimiter,
+    )
 
 
 def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
