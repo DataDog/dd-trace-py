@@ -104,21 +104,37 @@ def strip_query_string(url: str) -> str:
     return h + fs + f
 
 
-def redact_query_string(query_string: str, query_string_obfuscation_pattern: re.Pattern) -> Union[bytes, str]:
+def _redact_query_string_match(match: re.Match[bytes]) -> bytes:
+    return (match.group(1) or b"") + b"<redacted>"
+
+
+def redact_query_string(
+    query_string: str, query_string_obfuscation_pattern: re.Pattern, *, preserve_delimiter: bool = False
+) -> Union[bytes, str]:
     bytes_query = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
-    return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)
+    return query_string_obfuscation_pattern.sub(
+        _redact_query_string_match if preserve_delimiter else b"<redacted>", bytes_query
+    )
 
 
 def redact_url(
-    url: str, query_string_obfuscation_pattern: re.Pattern, query_string: Optional[str] = None
+    url: str,
+    query_string_obfuscation_pattern: re.Pattern,
+    query_string: Optional[str] = None,
+    *,
+    preserve_delimiter: bool = False,
 ) -> Union[str, bytes]:
     parts = parse.urlparse(url)
     redacted_query = None
 
     if query_string:
-        redacted_query = redact_query_string(query_string, query_string_obfuscation_pattern)
+        redacted_query = redact_query_string(
+            query_string, query_string_obfuscation_pattern, preserve_delimiter=preserve_delimiter
+        )
     elif parts.query:
-        redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
+        redacted_query = redact_query_string(
+            parts.query, query_string_obfuscation_pattern, preserve_delimiter=preserve_delimiter
+        )
 
     if redacted_query is not None and len(parts) >= 5:
         redacted_parts: tuple[Union[str, bytes], ...] = parts[:4] + (redacted_query,) + parts[5:]
