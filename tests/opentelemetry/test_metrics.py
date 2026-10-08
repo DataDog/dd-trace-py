@@ -1,3 +1,5 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 import os
 from types import SimpleNamespace
 
@@ -10,10 +12,9 @@ OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 
 def _exporter_version():
     try:
-        from opentelemetry.exporter.otlp.proto.http.version import __version__
-
-        return tuple(int(x) for x in __version__.split(".")[:3])
-    except ImportError:
+        version = package_version("opentelemetry-exporter-otlp-proto-common")
+        return tuple(int(x) for x in version.split(".")[:3])
+    except PackageNotFoundError:
         return (0, 0, 0)
 
 
@@ -48,12 +49,10 @@ def test_otel_metrics_sdk_not_installed_by_default():
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
 @pytest.mark.subprocess()
 def test_otel_metrics_exporter_installed():
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter as HTTPExporter
-
     from ddtrace.internal.opentelemetry.metrics import _import_exporter
 
     grpc_exporter = _import_exporter("grpc")()
-    http_exporter = HTTPExporter()
+    http_exporter = _import_exporter("http/protobuf")()
     grpc_exporter.shutdown()
     http_exporter.shutdown()
 
@@ -147,6 +146,50 @@ def test_grpclib_exporter_preserves_attribute_types_and_headers(monkeypatch):
 
 
 @skipif(exporter_not_installed=True)
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
+def test_http_exporter_preserves_attribute_types_headers_and_compression(monkeypatch):
+    import gzip
+
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    from ddtrace.internal.opentelemetry.http_metric_exporter import OTLPMetricExporter
+
+    calls = []
+
+    def send(payload, timeout):
+        calls.append((payload, timeout))
+        return 200, None
+
+    provider, metrics_data = _metrics_data()
+    exporter = OTLPMetricExporter(
+        endpoint="http://127.0.0.1:4318/custom/metrics",
+        headers="authorization=Bearer%20token,x-test=value",
+        timeout=3,
+        compression="gzip",
+    )
+    monkeypatch.setattr(exporter, "_send", send)
+    try:
+        assert exporter.export(metrics_data) is MetricExportResult.SUCCESS
+    finally:
+        exporter.shutdown()
+        provider.shutdown()
+
+    request = ExportMetricsServiceRequest.FromString(gzip.decompress(calls[0][0]))
+    attributes = _attributes(request)
+    assert attributes["route"].string_value == "/items"
+    assert attributes["cached"].bool_value is True
+    assert attributes["status"].int_value == 200
+    assert attributes["ratio"].double_value == 0.5
+    assert [value.string_value for value in attributes["regions"].array_value.values] == ["us", "eu"]
+    assert calls[0][1] == pytest.approx(3, abs=0.1)
+    assert ("authorization", "Bearer token") in exporter._headers
+    assert ("x-test", "value") in exporter._headers
+    assert ("Content-Encoding", "gzip") in exporter._headers
+    assert exporter._path == "/custom/metrics"
+
+
+@skipif(exporter_not_installed=True)
 @pytest.mark.skipif(EXPORTER_VERSION < (1, 18), reason="The lightweight gRPC exporter requires OpenTelemetry 1.18")
 def test_grpclib_exporter_uses_otlp_temporality_preference(monkeypatch):
     from opentelemetry.sdk.metrics._internal.instrument import Counter
@@ -210,15 +253,15 @@ def test_resource_attributes_preserve_types(monkeypatch):
     ("protocol", "module"),
     [
         ("grpc", "ddtrace.internal.opentelemetry.grpclib_metric_exporter"),
-        ("http/protobuf", "opentelemetry.exporter.otlp.proto.http.metric_exporter"),
+        ("http/protobuf", "ddtrace.internal.opentelemetry.http_metric_exporter"),
     ],
 )
 @skipif(exporter_not_installed=True)
 def test_protocol_selects_exporter(protocol, module):
     from ddtrace.internal.opentelemetry.metrics import _import_exporter
 
-    if protocol == "grpc" and EXPORTER_VERSION < (1, 18):
-        module = "opentelemetry.exporter.otlp.proto.grpc.metric_exporter"
+    if EXPORTER_VERSION < (1, 18):
+        module = f"opentelemetry.exporter.otlp.proto.{protocol.split('/')[0]}.metric_exporter"
     assert _import_exporter(protocol).__mro__[1].__module__ == module
 
 

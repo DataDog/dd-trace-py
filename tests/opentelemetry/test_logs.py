@@ -1,6 +1,8 @@
 import asyncio
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 import os
 from threading import Event
 from threading import Thread
@@ -13,10 +15,9 @@ from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 
 
 try:
-    from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
-
+    exporter_version = package_version("opentelemetry-exporter-otlp-proto-common")
     EXPORTER_VERSION = tuple(int(x) for x in exporter_version.split(".")[:3])
-except ImportError:
+except PackageNotFoundError:
     EXPORTER_VERSION = (0, 0, 0)
 
 
@@ -217,6 +218,15 @@ def test_grpc_protocol_selects_grpclib_exporter():
     from ddtrace.internal.opentelemetry.logs import _import_exporter
 
     assert _import_exporter("grpc").__mro__[1].__module__ == "ddtrace.internal.opentelemetry.grpclib_log_exporter"
+
+
+@pytest.mark.skipif(EXPORTER_VERSION < (1, 18, 0), reason="The lightweight HTTP exporter requires OpenTelemetry 1.18")
+def test_http_protocol_selects_lightweight_exporter():
+    from ddtrace.internal.opentelemetry.logs import _import_exporter
+
+    assert _import_exporter("http/protobuf").__mro__[1].__module__ == (
+        "ddtrace.internal.opentelemetry.http_log_exporter"
+    )
 
 
 @pytest.mark.skipif(

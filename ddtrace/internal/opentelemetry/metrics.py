@@ -1,3 +1,5 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version
 from typing import Any
 from typing import Optional
 
@@ -141,9 +143,8 @@ def _import_exporter(protocol):
     """Import the appropriate OpenTelemetry Metrics exporter based on the set protocol"""
     try:
         exporter: type[Any]
+        exporter_version = _exporter_version()
         if protocol == "grpc":
-            from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
-
             try:
                 from ddtrace.internal.opentelemetry.grpclib_metric_exporter import (
                     OTLPMetricExporter as GRPCMetricExporter,
@@ -157,10 +158,18 @@ def _import_exporter(protocol):
 
                 exporter = UpstreamGRPCMetricExporter
         elif protocol == "http/protobuf":
-            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter as HTTPMetricExporter
-            from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
+            if tuple(int(x) for x in exporter_version.split(".")[:3]) >= (1, 18, 0):
+                from ddtrace.internal.opentelemetry.http_metric_exporter import (
+                    OTLPMetricExporter as LightweightHTTPMetricExporter,
+                )
 
-            exporter = HTTPMetricExporter
+                exporter = LightweightHTTPMetricExporter
+            else:
+                from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+                    OTLPMetricExporter as UpstreamHTTPMetricExporter,
+                )
+
+                exporter = UpstreamHTTPMetricExporter
         else:
             log.warning(
                 "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
@@ -187,6 +196,15 @@ def _import_exporter(protocol):
             str(e),
         )
         return None
+
+
+def _exporter_version() -> str:
+    try:
+        return version("opentelemetry-exporter-otlp-proto-common")
+    except PackageNotFoundError:
+        from opentelemetry.exporter.otlp.proto.http.version import __version__
+
+        return str(__version__)
 
 
 def _prepare_agentless_export(endpoint_env_var: str, headers_env_var: str, protocol: str, signal: str) -> None:
