@@ -353,6 +353,20 @@ def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
+def nearest_active_context() -> ExecutionContext:
+    """Return the current context, or its closest ancestor that has not exited yet.
+
+    A context that already exited stays reachable from every context copied while it
+    was active, e.g. when a server resumes reading from a keep-alive connection inside
+    the previous request's task. Attaching a new top-level operation to such a context
+    would keep all earlier ones reachable for the life of the connection.
+    """
+    ctx = _CURRENT_CONTEXT.get()
+    while ctx._parent is not None and ctx._token is None:
+        ctx = ctx._parent
+    return ctx
+
+
 def context_with_event(
     event: "EventType", parent=None, context_name_override: Optional[str] = None, dispatch_end_event=True
 ) -> ExecutionContext[EventType]:
