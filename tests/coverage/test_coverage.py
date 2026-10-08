@@ -180,9 +180,19 @@ def _armed_line_probe(path):
             events.append(line_number)
             collector.hook_line(path, line_number)
 
-    # Production instrumentation prefers slot 4, so use another private slot for the probe.
-    tool_id = 5
-    sys.monitoring.use_tool_id(tool_id, "ddtrace-coverage-test")
+    # Production instrumentation tries slots 4, 3, and 1, so prefer slots it never claims and
+    # fall back to any remaining free slot the way register_coverage does.
+    tool_id = None
+    for slot in (5, 2, 0):
+        try:
+            sys.monitoring.use_tool_id(slot, "ddtrace-coverage-test")
+        except ValueError:
+            continue
+        tool_id = slot
+        break
+    if tool_id is None:
+        raise RuntimeError("no sys.monitoring tool slot available for the test probe")
+
     sys.monitoring.register_callback(tool_id, sys.monitoring.events.LINE, line_callback)
     sys.monitoring.set_local_events(tool_id, target.__code__, sys.monitoring.events.LINE)
 
