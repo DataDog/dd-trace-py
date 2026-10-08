@@ -42,9 +42,11 @@ def _expected_server_tool_output(text, is_error):
     }
 
 
-# mcp 2.x no longer includes the exception message in the tool error result.
+# Since mcp 2.1 the tool error result no longer includes the exception message.
 FAILING_TOOL_ERROR_TEXT = (
-    "Error executing tool failing_tool" if MCP_V2 else "Error executing tool failing_tool: Tool execution failed"
+    "Error executing tool failing_tool"
+    if MCP_VERSION >= (2, 1, 0)
+    else "Error executing tool failing_tool: Tool execution failed"
 )
 
 
