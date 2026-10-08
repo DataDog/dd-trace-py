@@ -23,7 +23,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -104,6 +104,9 @@ class _DDWSGIMiddlewareBase:
         raise NotImplementedError
 
     def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
+        # Publish before the root span so request-start listeners run ahead of it.
+        trace_utils.dispatch_wsgi_web_request_starting(environ)
+
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
