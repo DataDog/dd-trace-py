@@ -6,25 +6,6 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
-## Installed distribution versions
-
-`ddtrace.internal.packages.get_distribution_version(name)` reads the shared
-installed-distribution snapshot. It accepts case-insensitive distribution names
-with equivalent hyphens, underscores and dots, selects the first installation
-in discovery order, and returns an empty string when no version is available.
-The snapshot refreshes when the import path changes. Call it outside component
-locks: first use may wait for prefetch or invoke custom distribution finders.
-Reentrant discovery raises `IncompleteDistributionSnapshot`; retry after the
-finder finishes rather than caching the temporary result. Consumers that persist
-`get_package_distributions()` results should pass `require_complete=True` for
-the same protection.
-
-Background prefetch scans filesystem and ZIP distributions only. Custom finders
-run on the first reader, because an import hook can wait for prefetch while
-holding a module lock that the finder needs. Module-version lookups also reject
-incomplete snapshots; dependency collection retries those modules on its next
-report instead of marking them permanently consumed.
-
 
 ## The Product Protocol
 

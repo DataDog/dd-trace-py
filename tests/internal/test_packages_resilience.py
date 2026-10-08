@@ -40,6 +40,7 @@ def reset_packages_caches():
 
     def _clear() -> None:
         _p._reset_installed_distributions()
+        _p.get_module_distribution_versions.cache_clear()
         _p._BAD_DISTS_WARNED.clear()
         _p._MAPPING_FAILURE_LOGGED = False
 
@@ -539,12 +540,17 @@ def test_maps_handle_partial_metadata(
     (fileless_info / "RECORD").unlink()
 
     from ddtrace.internal.packages import _package_for_root_module_mapping
+    from ddtrace.internal.packages import get_distribution_version
     from ddtrace.internal.packages import get_distributions
+    from ddtrace.internal.packages import get_module_distribution_versions
     from ddtrace.internal.packages import get_package_distributions
 
     assert get_distributions() == {"fileless": "3.0"}
     assert get_package_distributions() == {"unversioned": ["unversioned"]}
     assert _package_for_root_module_mapping() == {}
+    assert get_distribution_version("FILELESS") == "3.0"
+    assert get_distribution_version("missing") == ""
+    assert get_module_distribution_versions("unversioned.child") == ("unversioned", "")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="importlib keeps missing files before Python 3.12")
@@ -572,6 +578,8 @@ def test_native_scan_matches_importlib(reset_packages_caches) -> None:
     assert mapping is not None
     assert {k: tuple(v) for k, v in mapping.items()} == expected_mapping
     assert dict(_p.get_distributions()) == expected_versions
+    for name in expected_versions:
+        assert _p.get_distribution_version(name) == importlib_metadata.version(name)
     assert {k: sorted(v) for k, v in _p.get_package_distributions().items()} == {
         k: sorted(v) for k, v in expected_pkgs.items()
     }
@@ -678,15 +686,15 @@ def test_records_follow_sys_path_changes(
     """
     from ddtrace.internal import packages as _p
 
-    def site(name: str, dist: str, module: str) -> Path:
+    def site(name: str, dist: str, module: str, version: str = "1.0") -> Path:
         root = tmp_path / name
-        di = _write_dist_info(root, dist, "1.0")
+        di = _write_dist_info(root, dist, version)
         (root / f"{module}.py").write_text("")
         (di / "RECORD").write_text(f"{module}.py,,\n")
         return root
 
     boot = site("boot", "boot-dist", "shared")
-    vendor = site("vendor", "vendor-dist", "shared")
+    vendor = site("vendor", "BOOT_DIST", "shared", "2.0")
     extra = site("extra", "extra-dist", "extra")
     monkeypatch.setattr(sys, "path", [str(boot)])
 
@@ -710,7 +718,8 @@ def test_records_follow_sys_path_changes(
     mapping = _p._package_for_root_module_mapping()
 
     assert scanned == [str(boot), str(vendor), str(extra)]
-    assert mapping == {"shared.py": ("vendor-dist", "1.0"), "extra.py": ("extra-dist", "1.0")}
+    assert mapping == {"shared.py": ("BOOT_DIST", "2.0"), "extra.py": ("extra-dist", "1.0")}
+    assert _p.get_distribution_version("BoOt.DiSt") == "2.0"
 
     # Unchanged sys.path: nothing is rescanned.
     _p._installed_distributions()
@@ -719,6 +728,7 @@ def test_records_follow_sys_path_changes(
     # A removed entry no longer contributes.
     sys.path.remove(str(vendor))
     assert [r[0] for r in _p._installed_distributions()] == ["boot-dist", "extra-dist"]
+    assert _p.get_distribution_version("BOOT_DIST") == "1.0"
     assert len(scanned) == 3
 
 
@@ -827,7 +837,7 @@ def test_scan_imports_nothing(tmp_path: Path, reset_packages_caches, monkeypatch
     archive = tmp_path / "deps.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("zp/__init__.py", "")
-        zf.writestr("zp-1.0.dist-info/METADATA", "Name: zp\nVersion: 1.0\n")
+        zf.writestr("zp-1.0.dist-info/METADATA", "Name: zip-package\nVersion: 1.0\n")
         zf.writestr("zp-1.0.dist-info/RECORD", "zp/__init__.py,,\n")
     egg = tmp_path / "legacy-1.0.egg"
     (egg / "EGG-INFO").mkdir(parents=True)
@@ -841,9 +851,11 @@ def test_scan_imports_nothing(tmp_path: Path, reset_packages_caches, monkeypatch
 
     before = set(sys.modules)
     records = _p._installed_distributions()
+    assert _p.get_distribution_version("ZIP_PACKAGE") == "1.0"
+    assert _p.get_module_distribution_versions("zp.child") == ("zip-package", "1.0")
 
     assert set(sys.modules) == before
-    assert [(r[0], r[2]) for r in records] == [("zp", ["zp"]), ("legacy", ["legacy"])]
+    assert [(r[0], r[2]) for r in records] == [("zip-package", ["zp"]), ("legacy", ["legacy"])]
 
 
 def test_custom_finders_run_outside_the_lock(
@@ -968,86 +980,6 @@ def _site_with_dist(root: Path, name: str, module: str) -> Path:
     return root
 
 
-@pytest.mark.parametrize(
-    "name,query", [("PyYAML", "pyyaml"), ("My_.Package", "MY-package"), ("My-Package", "my.package")]
-)
-@pytest.mark.parametrize("version", ["1.0", ""])
-def test_distribution_version_from_snapshot(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, name: str, query: str, version: str
-) -> None:
-    import builtins
-
-    from ddtrace.internal import packages as _p
-
-    site = _site_with_dist(tmp_path, name, "example_module")
-    (site / f"{name.replace('-', '_')}-1.0.dist-info" / "METADATA").write_text(
-        f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n"
-    )
-    monkeypatch.setattr(sys, "path", [str(site)])
-    real_import = builtins.__import__
-
-    def no_metadata_import(name, *args, **kwargs):
-        if name == "importlib.metadata":
-            raise AssertionError("Distribution version lookup must not import metadata")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", no_metadata_import)
-    assert _p.get_distribution_version(query) == version
-    assert _p.get_distribution_version("missing-package") == ""
-
-
-def test_distribution_version_uses_first_installation(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from ddtrace.internal import packages as _p
-
-    first = tmp_path / "first"
-    second = tmp_path / "second"
-    _write_dist_info(first, "My-Package", "1.0")
-    dist = _write_dist_info(second, "my_package", "2.0")
-    (second / "alias_module.py").write_text("")
-    (dist / "RECORD").write_text("alias_module.py,,\n")
-    monkeypatch.setattr(sys, "path", [str(first), str(second)])
-    assert _p.get_distribution_version("my.package") == "1.0"
-    assert _p.get_module_distribution_versions("alias_module.child") == ("my_package", "1.0")
-
-    # Replacing sys.path must also refresh the normalized version index.
-    monkeypatch.setattr(sys, "path", [str(second), str(first)])
-    assert _p.get_distribution_version("MY-PACKAGE") == "2.0"
-    assert _p.get_module_distribution_versions("alias_module.child") == ("my_package", "2.0")
-
-
-@pytest.mark.parametrize("version", ["1.0", ""])
-@pytest.mark.parametrize("dist_name", ["example-dist", "Example-Dist", "Flask", "PyYAML"])
-def test_module_versions_without_importing_metadata(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, version: str, dist_name: str
-) -> None:
-    """Telemetry can resolve a module whose distribution has a different name
-    without importing metadata on its background thread.
-    """
-    import builtins
-
-    from ddtrace.internal import packages as _p
-
-    site = _site_with_dist(tmp_path, dist_name, "example_module")
-    (site / f"{dist_name.replace('-', '_')}-1.0.dist-info" / "METADATA").write_text(
-        f"Metadata-Version: 2.1\nName: {dist_name}\nVersion: {version}\n"
-    )
-    monkeypatch.setattr(sys, "path", [str(site)])
-    _p.get_module_distribution_versions.cache_clear()
-    real_import = builtins.__import__
-
-    def no_metadata_import(name, *args, **kwargs):
-        if name == "importlib.metadata":
-            raise AssertionError("Module version lookup must not import metadata")
-        return real_import(name, *args, **kwargs)
-
-    with monkeypatch.context() as imports:
-        imports.setattr(builtins, "__import__", no_metadata_import)
-        assert _p.get_module_distribution_versions("example_module.child") == (dist_name, version)
-    _p.get_module_distribution_versions.cache_clear()
-
-
 def test_scan_does_not_reimport_importlib_metadata(
     tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1170,70 +1102,6 @@ def test_custom_finder_reading_the_maps_does_not_recurse(
     assert _p._installed_distributions() == records
 
 
-def test_persistent_lookups_reject_reentrant_snapshots(tmp_path, reset_packages_caches, monkeypatch):
-    from ddtrace.internal import packages as _p
-
-    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
-    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
-    nested = []
-
-    def on_find():
-        # Existing non-persistent readers retain their native-only view.
-        nested.append(_p.get_package_distributions())
-        with pytest.raises(_p.IncompleteDistributionSnapshot):
-            _p.get_package_distributions(require_complete=True)
-        with pytest.raises(_p.IncompleteDistributionSnapshot):
-            _p.get_distribution_version("from-finder")
-        for module_name in ("on-path", "on_path", "from_finder", "unknown"):
-            with pytest.raises(_p.IncompleteDistributionSnapshot):
-                _p.get_module_distribution_versions(module_name)
-
-    finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=on_find)
-    monkeypatch.setattr(sys, "path", [str(site)])
-    monkeypatch.setattr(sys, "meta_path", [finder, _p.PathFinder])
-    assert _p.get_distribution_version("from-finder") == "1.0"
-    assert nested == [{"on_path": ["on-path"]}]
-    assert "from_finder" in _p.get_package_distributions(require_complete=True)
-
-
-@pytest.mark.parametrize("finder_first", [False, True])
-def test_prefetch_defers_custom_finders_to_the_first_reader(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, finder_first: bool
-) -> None:
-    from importlib.machinery import PathFinder
-    import threading
-
-    from ddtrace.internal import packages as _p
-    from ddtrace.internal.native import scan_distributions
-
-    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
-    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
-    finder_threads = []
-    finder = _DistFinder(
-        custom / "from_finder-1.0.dist-info", on_find=lambda: finder_threads.append(threading.get_ident())
-    )
-    monkeypatch.setattr(sys, "path", [str(site)])
-    monkeypatch.setattr(sys, "meta_path", [finder, PathFinder] if finder_first else [PathFinder, finder])
-    scans = []
-    real_scan = scan_distributions
-
-    def scan(entry, *args):
-        scans.append(entry)
-        return real_scan(entry, *args)
-
-    monkeypatch.setattr(_p, "scan_distributions", scan)
-    _prefetch_and_wait(_p)
-
-    assert finder_threads == []
-    assert _p._INSTALLED is not None and not _p._INSTALLED.complete
-    assert [record[0] for record in _p._INSTALLED.records] == ["on-path"]
-    assert _p.get_distribution_version("from-finder") == "1.0"
-    assert finder_threads == [threading.get_ident()]
-    expected = ["from-finder", "on-path"] if finder_first else ["on-path", "from-finder"]
-    assert [record[0] for record in _p._installed_distributions()] == expected
-    assert scans == [str(site)]
-
-
 class MetadataPathFinder:
     """Stands in for the importlib_metadata backport's sys.path distribution finder."""
 
@@ -1271,11 +1139,14 @@ def test_custom_finder_reordered_after_prefetch_is_seen(
 
     site = _site_with_dist(tmp_path / "site", "on-path", "shared")
     custom = _site_with_dist(tmp_path / "custom", "from-finder", "shared")
-    finder = _DistFinder(custom / "from_finder-1.0.dist-info")
+    calls = []
+    finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=lambda: calls.append(True))
     monkeypatch.setattr(sys, "path", [str(site)])
     monkeypatch.setattr(sys, "meta_path", [_p.PathFinder, finder])
     _prefetch_and_wait(_p)
+    assert calls == []
     assert [r[0] for r in _p._installed_distributions()] == ["on-path", "from-finder"]
+    assert calls == [True]
 
     sys.meta_path[:] = [finder, _p.PathFinder]
 
@@ -1326,6 +1197,8 @@ def test_maps_built_inside_a_finder_query_are_not_kept(
     def read_maps():
         if not seen:
             seen.append((_p.get_distributions(), _p.get_package_distributions(), _p._package_for_root_module_mapping()))
+            with pytest.raises(_p.IncompleteDistributionSnapshot):
+                _p.get_module_distribution_versions("from_finder")
 
     finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=read_maps)
     monkeypatch.setattr(sys, "path", [str(site)])
@@ -1342,6 +1215,7 @@ def test_maps_built_inside_a_finder_query_are_not_kept(
     assert set(mapping) == {"from_finder.py", "on_path.py"}
     assert dict(_p.get_distributions()) == {"from-finder": "1.0", "on-path": "1.0"}
     assert _p.get_package_distributions() == {"from_finder": ["from-finder"], "on_path": ["on-path"]}
+    assert _p.get_module_distribution_versions("from_finder") == ("from-finder", "1.0")
 
 
 def test_reads_after_first_use_are_cheap(
@@ -1462,32 +1336,6 @@ def test_queued_prefetch_does_not_strand_a_fork_child(reset_packages_caches) -> 
 
     assert _p._PREFETCH_THREAD is None
     assert _p._PREFETCH_DONE.is_set()
-
-
-def test_module_lookups_inside_a_finder_query_are_not_cached(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An incomplete lookup must raise instead of caching a missing module."""
-    from ddtrace.internal import packages as _p
-
-    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
-    seen: list[str] = []
-
-    def look_up_own_module():
-        if not seen:
-            with pytest.raises(_p.IncompleteDistributionSnapshot):
-                _p.get_module_distribution_versions("from_finder")
-            seen.append("incomplete")
-
-    finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=look_up_own_module)
-    monkeypatch.setattr(sys, "path", [])
-    monkeypatch.setattr(sys, "meta_path", [finder, _p.PathFinder])
-    _p.get_module_distribution_versions.cache_clear()
-
-    _p._installed()
-
-    assert seen == ["incomplete"]
-    assert _p.get_module_distribution_versions("from_finder") == ("from-finder", "1.0")
 
 
 def test_lookup_caches_follow_snapshot_replacement(

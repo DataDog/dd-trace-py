@@ -91,8 +91,7 @@ class DependencyTracker:
             if not appsec_telemetry_config.SCA_ENABLED:
                 return new_deps if new_deps else None
 
-            skip_keys = new_keys | self._pending_versions if self._pending_versions else new_keys
-            re_report_deps = self._collect_rereports(skip_keys)
+            re_report_deps = self._collect_rereports(new_keys)
             all_deps = new_deps + re_report_deps
             return all_deps if all_deps else None
 
@@ -118,7 +117,7 @@ class DependencyTracker:
         """
         re_report: list[dict[str, Any]] = []
         for key, entry in self._imported_dependencies.items():
-            if key in skip_keys:
+            if key in skip_keys or key in self._pending_versions:
                 continue
             if entry.needs_report():
                 re_report.append(entry.to_telemetry_dict(include_all_metadata=True))
