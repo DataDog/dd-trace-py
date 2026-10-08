@@ -8,6 +8,9 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 
 
+_WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
+
+
 class Constant_Class(type):
     """
     metaclass for Constant Classes

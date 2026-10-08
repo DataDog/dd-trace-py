@@ -8,7 +8,7 @@ from urllib import parse
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -275,6 +275,8 @@ class TraceMiddleware:
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
+            if not is_subapp:
+                trace_utils.dispatch_asgi_web_request_starting(scope)
 
         with (
             core.context_with_data(

@@ -8,23 +8,32 @@ and orchestrated by [fuzzydog](https://datadoghq.atlassian.net/wiki/spaces/fuzzi
 
 | Binary | What it exercises |
 |--------|-------------------|
-| `fuzz_echion_remote_read` | Code object parsing, line table decoding (`Frame::create`), and `StackChunk` update/resolve (3.11+) |
-| `fuzz_echion_strings` | `StringTable::key()` (PyUnicode) and `pybytes_to_bytes_and_size()` (PyBytes) |
-| `fuzz_echion_mirrors` | `MirrorSet::create()` — PySetObject header reading, size bounds, table iteration |
-| `fuzz_echion_stacks` | Full frame/stack unwinding: `unwind_frame` (chain walk) and `unwind_python_stack` (from PyThreadState) |
-| `fuzz_echion_tasks` | `GenInfo::create` (coroutine await chains) and `TaskInfo::create` (task headers, name resolution, waiter chains) |
-| `fuzz_echion_long` | `pylong_to_llong` — PyLong object parsing (compact/multi-digit) from remote memory (3.12+) |
+| `fuzz_echion_frame_create` | Code object parsing, line table decoding (`Frame::create`), and `StackChunk` update/resolve (3.11+) |
+| `fuzz_echion_frame_read` | `Frame::read` (`_PyInterpreterFrame` / `PyFrameObject` parsing, owner bits, lasti) and `Frame::get` (LRU cache lookup/store) |
+| `fuzz_echion_greenlet` | `GreenletInfo::unwind` — version-specific greenlet frame resolution and frame chain walk |
 | `fuzz_echion_interp` | `for_each_interp` — interpreter linked-list traversal, cycle detection, iteration bounds |
+| `fuzz_echion_long` | `pylong_to_llong` — PyLong object parsing (compact/multi-digit) from remote memory (3.12+) |
+| `fuzz_echion_mirrors` | `MirrorSet::create()` — PySetObject header reading, size bounds, table iteration |
+| `fuzz_echion_pyunicode` | `pyunicode_to_utf8` — PyUnicodeObject header validation and character buffer copy |
+| `fuzz_echion_stacks` | Full frame/stack unwinding: `unwind_frame` (chain walk) and `unwind_python_stack` (from PyThreadState) |
+| `fuzz_echion_strings` | `StringTable::key()` (PyUnicode) and `pybytes_to_bytes_and_size()` (PyBytes) |
+| `fuzz_echion_task_unwind` | `TaskInfo::unwind` — coroutine/await chain walk, including uvloop wrapper frame detection |
+| `fuzz_echion_tasks` | `GenInfo::create` (coroutine await chains) and `TaskInfo::create` (task headers, name resolution, waiter chains) |
+| `fuzz_echion_thread_unwind` | `ThreadInfo::unwind` — thread stack path only (no asyncio or greenlets) |
+| `fuzz_echion_thread_unwind_tasks` | `ThreadInfo::unwind` with an asyncio loop attached, exercising task unwinding |
 
 ## Build the Docker image
 
 ```bash
-docker build -f docker/Dockerfile.fuzz --build-arg PYTHON_IMAGE_TAG=3.12.0 -t ddtrace-py-stackv2-fuzz .
+docker build -f docker/Dockerfile.fuzz \
+    --build-arg FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py:vXXX-fuzz_base \
+    --build-arg PYTHON_VERSION=3.12 \
+    -t ddtrace-py-stackv2-fuzz .
 ```
 
 ## Run with fuzzydog
 
-The default CMD runs `fuzz_echion_remote_read` via fuzzydog.
+The default CMD runs `fuzz_echion_frame_create` via fuzzydog.
 `FUZZYDOG_AUTH_TOKEN` must be set in the environment.
 
 ```bash
